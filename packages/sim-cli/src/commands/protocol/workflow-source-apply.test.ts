@@ -457,4 +457,15 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
     expect(stderrLines().join('\n')).toContain('Edit')
   })
+
+  it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'missing')
+
+    await expect(create('--dir', empty, flag)).rejects.toThrow(/missing has no workflow\.ts/)
+
+    expect(existsSync(empty)).toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
 })

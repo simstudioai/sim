@@ -405,7 +405,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
   command
     .requiredOption(
       '--dir <dir>',
-      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead'
+      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes)'
     )
     .option('--dry-run', 'Check the source and show the outcome without creating anything')
     .option('--name <name>', "The workflow name (default: the source's)")
@@ -416,6 +416,12 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
       if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
+        if (options.dryRun || options.yes) {
+          throw new SimApiError(
+            `${options.dir} has no ${ENTRY_FILE}, so there is nothing to ${options.dryRun ? 'check' : 'create'}. Write ${ENTRY_FILE} there, or run \`sim workflows source create --dir ${options.dir}\` without --dry-run and --yes to write a starter.`,
+            0
+          )
+        }
         const { client, profile } = connectCreate()
         const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
         printError(
