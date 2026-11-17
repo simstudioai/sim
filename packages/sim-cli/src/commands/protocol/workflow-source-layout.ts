@@ -177,7 +177,11 @@ export function isMissing(error: unknown): boolean {
  * The absolute path of `path` under `root` (already a realpath), refusing a symbolic link at any
  * component that exists. `verified` caches directories already checked across one operation.
  */
-async function checkedPath(root: string, path: string, verified: Set<string>): Promise<string> {
+export async function checkedPath(
+  root: string,
+  path: string,
+  verified: Set<string>
+): Promise<string> {
   const segments = path.split('/')
   let current = root
   for (const [index, segment] of segments.entries()) {

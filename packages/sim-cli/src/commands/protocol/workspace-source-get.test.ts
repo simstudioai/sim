@@ -1,6 +1,14 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fingerprintOf } from '@sim/workspace-code'
@@ -10,6 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachWorkspaceSourceApply } from './workspace-source-apply'
+import { blobDigest } from './workspace-source-blobs'
+import { blobContent } from './workspace-source-dir'
 import { attachWorkspaceSourceGet } from './workspace-source-get'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -224,6 +234,20 @@ describe('workspaces source get', () => {
       expect(existsSync(join(dir, 'files/report.bin'))).toBe(false)
       expect(existsSync(join(dir, 'tables/leads.ts'))).toBe(false)
       expect(existsSync(join(dir, '.sim/base.json'))).toBe(false)
+    })
+
+    it('refuses to read a blob through a symbolic link out of the directory', async () => {
+      const outside = join(rootDir, 'outside.bin')
+      writeFileSync(outside, BYTES)
+      mkdirSync(join(dir, 'files'), { recursive: true })
+      symlinkSync(outside, join(dir, 'files/report.bin'))
+
+      await expect(blobDigest(dir, 'files/report.bin')).rejects.toMatchObject({
+        code: 'SOURCE_SYMLINK',
+      })
+      await expect(blobContent(dir, 'files/report.bin')).rejects.toMatchObject({
+        code: 'SOURCE_SYMLINK',
+      })
     })
 
     it('refuses to overwrite a blob edited since the CLI wrote it', async () => {

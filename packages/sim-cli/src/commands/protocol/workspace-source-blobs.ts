@@ -7,7 +7,6 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { realpath } from 'node:fs/promises'
-import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
@@ -25,7 +24,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
-import { inBatches, isMissing, readWrittenDigests } from './workflow-source-layout'
+import { checkedPath, inBatches, isMissing, readWrittenDigests } from './workflow-source-layout'
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
@@ -83,7 +82,7 @@ export async function hashFile(file: string): Promise<{ sha256: string; size: nu
 /** SHA-256 of the file at `path` in the directory, or `null` when there is none. */
 export async function blobDigest(dir: string, path: string): Promise<string | null> {
   try {
-    return (await hashFile(join(await realpath(dir), path))).sha256
+    return (await hashFile(await checkedPath(await realpath(dir), path, new Set()))).sha256
   } catch (error) {
     if (isMissing(error)) return null
     throw error

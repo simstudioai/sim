@@ -5,7 +5,6 @@
  * `.sim/written.json` record are the workflow source directory's (`workflow-source-layout.ts`).
  */
 import { readFile, realpath, stat } from 'node:fs/promises'
-import { join } from 'node:path'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
@@ -25,6 +24,7 @@ import {
   TSCONFIG_MARKER,
 } from './workflow-source-get'
 import {
+  checkedPath,
   digest,
   inBatches,
   listSourceFiles,
@@ -255,8 +255,9 @@ export async function readWorkspaceDir(
     }
   }
   const root = await realpath(dir)
+  const verified = new Set<string>()
   const blobs = await inBatches(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const file = join(root, path)
+    const file = await checkedPath(root, path, verified)
     const { size } = await stat(file)
     if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
       throw new SimApiError(
@@ -283,8 +284,9 @@ export async function readWorkspaceDir(
 
 /** A blob's bytes as base64, for the round that sends its content. */
 export async function blobContent(dir: string, path: string): Promise<string> {
-  const root = await realpath(dir)
-  return (await readFile(join(root, path))).toString('base64')
+  return (await readFile(await checkedPath(await realpath(dir), path, new Set()))).toString(
+    'base64'
+  )
 }
 
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */
