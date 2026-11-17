@@ -5,7 +5,7 @@
  * are never dropped.
  */
 import { db } from '@sim/db'
-import type { BaseColumn } from '@sim/workspace-code'
+import type { BaseColumn, WorkspaceDiagnosticCode } from '@sim/workspace-code'
 import {
   columnName,
   DEFAULT_CURRENCY_CODE,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
+import { finding } from '@/lib/workspace-source/application/findings'
 import {
   type StoredTableState,
   sourceColumns,
@@ -165,15 +166,8 @@ export async function diffTable(
 ): Promise<TableChanges> {
   const { table } = stored
   const diagnostics: WorkspaceSourceDiagnostic[] = []
-  const refuse = (code: string, message: string, hint?: string) =>
-    diagnostics.push({
-      code,
-      severity: 'error',
-      message,
-      ...(hint ? { hint } : {}),
-      kind: 'table',
-      key,
-    })
+  const report = (code: WorkspaceDiagnosticCode, message: string, hint: string) =>
+    diagnostics.push(finding(code, message, { hint, kind: 'table', key }))
   const changes: TableChanges = {
     table: {},
     columns: [],
@@ -240,7 +234,7 @@ export async function diffTable(
         id: columnId,
       })
       if (incompatible > 0) {
-        refuse(
+        report(
           'E_TABLE_TYPE_CONVERSION',
           `Column "${current.name}" cannot become ${target.type}: ${incompatible} cell(s) hold values that do not convert.`,
           'Fix or clear those cells first, or add a new column instead.'
@@ -253,7 +247,7 @@ export async function diffTable(
       if (target.required) {
         const empty = await countEmptyCells(db, table.id, table.workspaceId, columnId)
         if (empty > 0) {
-          refuse(
+          report(
             'E_APPLY_REFUSED',
             `Column "${current.name}" cannot become required: ${empty} row(s) have no value.`,
             'Fill those cells first.'
@@ -315,14 +309,11 @@ export async function diffTable(
     const dropType = columns.find((column) => getColumnId(column) === drop.columnId)?.type
     const twin = added.find((add) => add.op === 'add' && add.column.type === dropType)
     if (twin && twin.op === 'add') {
-      diagnostics.push({
-        code: 'W_LIKELY_RENAME',
-        severity: 'warning',
-        message: `Column "${drop.name}" is dropped and "${twin.key}" added with the same type, which loses ${drop.cells} cell(s).`,
-        hint: `To rename it and keep its cells, keep its key and set the new name: \`${drop.name}: column.${twin.column.type}({ name: '${twin.column.name}' })\`.`,
-        kind: 'table',
-        key,
-      })
+      report(
+        'W_LIKELY_RENAME',
+        `Column "${drop.name}" is dropped and "${twin.key}" added with the same type, which loses ${drop.cells} cell(s).`,
+        `To rename it and keep its cells, keep its key and set the new name: \`${drop.name}: column.${twin.column.type}({ name: '${twin.column.name}' })\`.`
+      )
     }
   }
   return changes

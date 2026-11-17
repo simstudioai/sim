@@ -25,6 +25,7 @@ import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-so
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
+  finding,
   noBaseFinding,
   planUndeclared,
   reboundFinding,
@@ -124,28 +125,28 @@ async function planWorkflow(
   if (holder && holder.id !== existing?.id) {
     change.diagnostics.push(
       existing
-        ? {
-            code: 'E_NAME_TAKEN',
-            severity: 'error',
-            message: `The workflow key "${key}" belongs to "${holder.name}", not the workflow this folder was read from.`,
-            hint: 'Rename the folder back to the key it was read under.',
-            kind: 'workflow',
-            key,
-          }
+        ? finding(
+            'E_NAME_TAKEN',
+            `The workflow key "${key}" belongs to "${holder.name}", not the workflow this folder was read from.`,
+            { hint: 'Rename the folder back to the key it was read under.', kind: 'workflow', key }
+          )
         : noBaseFinding('workflow', key)
     )
     return change
   }
   if (Object.keys(decl.files).length === 0) {
     if (existing) return { ...change, storedId: existing.id }
-    change.diagnostics.push({
-      code: 'E_WORKFLOW_FILES_MISSING',
-      severity: 'error',
-      message: `${workflowFolder(key)} was sent unchanged, but its workflow no longer exists.`,
-      hint: 'Delete the folder to drop the workflow, or edit it so the apply sends its files and re-creates it.',
-      kind: 'workflow',
-      key,
-    })
+    change.diagnostics.push(
+      finding(
+        'E_WORKFLOW_FILES_MISSING',
+        `${workflowFolder(key)} was sent unchanged, but its workflow no longer exists.`,
+        {
+          hint: 'Delete the folder to drop the workflow, or edit it so the apply sends its files and re-creates it.',
+          kind: 'workflow',
+          key,
+        }
+      )
+    )
     return change
   }
   try {

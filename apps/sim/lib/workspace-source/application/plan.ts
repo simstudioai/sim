@@ -15,11 +15,13 @@ import {
   parseWorkspaceBase,
   resourceAddress,
   type WorkspaceBaseV1,
+  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { finding } from '@/lib/workspace-source/application/findings'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
@@ -53,8 +55,12 @@ export interface WorkspacePlan {
   needBlobs: string[]
 }
 
-function error(code: string, message: string, extra: Partial<WorkspaceSourceDiagnostic> = {}) {
-  return { code, severity: 'error' as const, message, ...extra }
+function error(
+  code: WorkspaceDiagnosticCode & `E_${string}`,
+  message: string,
+  extra: Partial<WorkspaceSourceDiagnostic> = {}
+) {
+  return finding(code, message, extra)
 }
 
 /** The kinds the submission manages: its folders and files, narrowed by `only`. */
@@ -87,13 +93,16 @@ function readBase(
     return null
   }
   if (parsed.base.workspaceId !== workspaceId) {
-    diagnostics.push({
-      code: 'W_BASE_OTHER_WORKSPACE',
-      severity: 'warning',
-      message: `${WORKSPACE_BASE_FILE} was read from workspace ${parsed.base.workspaceId}, so this apply treats every resource as new here and deletes nothing.`,
-      hint: `To apply to the workspace it was read from, pass --workspace ${parsed.base.workspaceId}.`,
-      file: WORKSPACE_BASE_FILE,
-    })
+    diagnostics.push(
+      finding(
+        'W_BASE_OTHER_WORKSPACE',
+        `${WORKSPACE_BASE_FILE} was read from workspace ${parsed.base.workspaceId}, so this apply treats every resource as new here and deletes nothing.`,
+        {
+          hint: `To apply to the workspace it was read from, pass --workspace ${parsed.base.workspaceId}.`,
+          file: WORKSPACE_BASE_FILE,
+        }
+      )
+    )
     return null
   }
   return parsed.base

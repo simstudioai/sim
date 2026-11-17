@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
-import { GET_HINT } from '@/lib/workspace-source/application/findings'
+import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
 import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
@@ -69,34 +69,25 @@ export function refusalDiagnostic(
   resource: { kind: WorkspaceKind; key?: string }
 ): WorkspaceSourceDiagnostic {
   if (error instanceof ResourceChangedError || error instanceof WorkflowSourceStaleError) {
-    return {
-      code: 'E_APPLY_STALE',
-      severity: 'error',
-      message: getErrorMessage(error),
-      hint: GET_HINT,
-      ...resource,
-    }
+    return finding('E_APPLY_STALE', getErrorMessage(error), { hint: GET_HINT, ...resource })
   }
   if (error instanceof ResourceKeyTakenError) {
-    return {
-      code: 'E_NAME_TAKEN',
-      severity: 'error',
-      message: error.message,
+    return finding('E_NAME_TAKEN', error.message, {
       hint: 'Rename the key, or delete the resource that holds it.',
       ...resource,
-    }
+    })
   }
   if (!(error instanceof OrchestrationError) || error.code === 'internal') throw error
   const message = getErrorMessage(error)
   switch (error.code) {
     case 'forbidden':
     case 'unauthorized':
-      return { code: 'E_APPLY_FORBIDDEN', severity: 'error', message, ...resource }
+      return finding('E_APPLY_FORBIDDEN', message, resource)
     case 'locked':
-      return { code: 'E_APPLY_LOCKED', severity: 'error', message, ...resource }
+      return finding('E_APPLY_LOCKED', message, resource)
     case 'conflict':
-      return { code: 'E_NAME_TAKEN', severity: 'error', message, ...resource }
+      return finding('E_NAME_TAKEN', message, resource)
     default:
-      return { code: 'E_APPLY_REFUSED', severity: 'error', message, ...resource }
+      return finding('E_APPLY_REFUSED', message, resource)
   }
 }

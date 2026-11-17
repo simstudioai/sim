@@ -3,8 +3,11 @@
  */
 import {
   type BaseResource,
+  type FlatDiagnostic,
   KIND_DIRS,
   resourceAddress,
+  severityOf,
+  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import type {
@@ -14,6 +17,19 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+
+/**
+ * One workspace source finding, its severity fixed by the code's prefix. Every finding the app
+ * reports with a workspace code goes through here, so a misspelled code fails the type-check;
+ * the workflow pipeline's own findings pass through as they are.
+ */
+export function finding(
+  code: WorkspaceDiagnosticCode,
+  message: string,
+  extras: Omit<FlatDiagnostic, 'code' | 'severity' | 'message'> = {}
+): WorkspaceSourceDiagnostic {
+  return { code, severity: severityOf(code), message, ...extras }
+}
 
 /** How to recover from a refusal that needs a fresh read. */
 export const GET_HINT =
@@ -25,46 +41,36 @@ function where(kind: WorkspaceKind, key: string): string {
 }
 
 export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return {
-    code: 'E_APPLY_STALE',
-    severity: 'error',
-    message: `${where(kind, key)} changed on the server since this directory was read.`,
-    hint: GET_HINT,
-    kind,
-    key,
-  }
+  return finding(
+    'E_APPLY_STALE',
+    `${where(kind, key)} changed on the server since this directory was read.`,
+    { hint: GET_HINT, kind, key }
+  )
 }
 
 export function noBaseFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return {
-    code: 'E_APPLY_NO_BASE',
-    severity: 'error',
-    message: `${where(kind, key)} exists on the server, but this directory has no base for it, so the apply cannot tell your edit from a server change.`,
-    hint: GET_HINT,
-    kind,
-    key,
-  }
+  return finding(
+    'E_APPLY_NO_BASE',
+    `${where(kind, key)} exists on the server, but this directory has no base for it, so the apply cannot tell your edit from a server change.`,
+    { hint: GET_HINT, kind, key }
+  )
 }
 
 export function serverChangedFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return {
-    code: 'I_SERVER_CHANGED',
-    severity: 'info',
-    message: `${where(kind, key)} changed on the server; this directory leaves it as it is, and the next get shows the change.`,
-    kind,
-    key,
-  }
+  return finding(
+    'I_SERVER_CHANGED',
+    `${where(kind, key)} changed on the server; this directory leaves it as it is, and the next get shows the change.`,
+    { kind, key }
+  )
 }
 
 /** A key that named a deleted resource now names the one this apply wrote. */
 export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return {
-    code: 'I_KEY_REBOUND',
-    severity: 'info',
-    message: `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`,
-    kind,
-    key,
-  }
+  return finding(
+    'I_KEY_REBOUND',
+    `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`,
+    { kind, key }
+  )
 }
 
 /** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
@@ -117,18 +123,21 @@ export function planUndeclared<S, D, P>(
       action: 'noop',
       storedId: resource.id,
       diagnostics: [
-        {
-          code: managed ? 'E_APPLY_DELETE_NOT_ALLOWED' : 'W_UNDECLARED',
-          severity: managed ? 'error' : 'warning',
-          message: managed
-            ? `${where(kind, key)} is no longer declared; deleting "${resource.name}" needs --allow-delete.`
-            : `"${resource.name}" (${kind} ${key}) is on the server but not in this directory; it is kept.`,
-          ...(managed
-            ? { hint: 'Pass --allow-delete to delete it, or restore its file to keep it.' }
-            : {}),
-          kind,
-          key,
-        },
+        managed
+          ? finding(
+              'E_APPLY_DELETE_NOT_ALLOWED',
+              `${where(kind, key)} is no longer declared; deleting "${resource.name}" needs --allow-delete.`,
+              {
+                hint: 'Pass --allow-delete to delete it, or restore its file to keep it.',
+                kind,
+                key,
+              }
+            )
+          : finding(
+              'W_UNDECLARED',
+              `"${resource.name}" (${kind} ${key}) is on the server but not in this directory; it is kept.`,
+              { kind, key }
+            ),
       ],
     })
   }
