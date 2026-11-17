@@ -32,6 +32,10 @@ type CompileSyntaxCode =
    * cannot store either (`compile/characters.ts`).
    */
   | 'E_INVALID_CHARACTER'
+  /** A numeric literal that reads as `Infinity` (`1e999`), which JSON stores as `null`. */
+  | 'E_NUMBER_NOT_FINITE'
+  /** A numeric literal whose digits a double cannot hold (`12345678901234567890`). */
+  | 'W_NUMBER_PRECISION'
   /**
    * The compile stopped at `MAX_ERRORS` errors; this one sits where the next error was found.
    * Fixing the errors listed and compiling again shows the rest.

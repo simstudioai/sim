@@ -342,6 +342,8 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 |---|---|
 | `E_SYNTAX` | Babel could not parse the file. |
 | `E_INVALID_CHARACTER` | A NUL or an unpaired UTF-16 surrogate, raw or escaped in a string, in the file or a code file: a workflow cannot store either. |
+| `E_NUMBER_NOT_FINITE` | A number literal too large to store (`1e999` reads as `Infinity`). |
+| `W_NUMBER_PRECISION` | A number literal whose digits a number cannot hold; write it as a string. |
 | `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
 | `E_SDK_MAJOR` | The header's major is newer than the server supports. |
 | `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |

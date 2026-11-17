@@ -1154,6 +1154,53 @@ describe('env names the workspace does not hold', () => {
   })
 })
 
+describe('numbers JSON cannot carry as written', () => {
+  it.each([
+    ['a value', "const a = api('A', { url: 'x', timeout: 1e999 })", '1e999'],
+    ['a negated value', "const a = api('A', { url: 'x', timeout: -1e999 })", '1e999'],
+    ['a nested value', "const a = api('A', { url: 'x', headers: { n: 1e999 } })", '1e999'],
+    ['a template part', "const a = api('A', { url: t`${1e999}` })", '1e999'],
+  ])('refuses an infinite number in %s', (_label, body, needle) => {
+    const text = source(body)
+    expectDiagnostic(run(text), 'E_NUMBER_NOT_FINITE', locate(text, needle))
+  })
+
+  it('warns that an integer past double precision loses digits, and stores it', () => {
+    const text = source("const a = api('A', { url: 'x', headers: { n: 12345678901234567890 } })")
+    const result = run(text)
+    expectDiagnostic(
+      result,
+      'W_NUMBER_PRECISION',
+      locate(text, '12345678901234567890'),
+      "Write it as a string: '12345678901234567890'."
+    )
+    expect(result.workflow).not.toBeNull()
+  })
+
+  it.each([
+    '0.1',
+    '1.50e3',
+    '1_000_000',
+    '0xFF',
+    '9007199254740991',
+    '1e21',
+    '5e-324',
+    '0.000',
+    '1.7976931348623157e308',
+  ])('keeps %s without a warning', (literal) => {
+    const result = run(source(`const a = api('A', { url: 'x', headers: { n: ${literal} } })`))
+    expect(result.diagnostics.map((d) => d.code)).toEqual([])
+  })
+
+  it.each(['9007199254740993', '0x20000000000000001', '0.12345678901234567890'])(
+    'warns about %s',
+    (literal) => {
+      const result = run(source(`const a = api('A', { url: 'x', headers: { n: ${literal} } })`))
+      expect(result.diagnostics.map((d) => d.code)).toEqual(['W_NUMBER_PRECISION'])
+    }
+  )
+})
+
 describe('table filters the runtime refuses', () => {
   const shapeFindings = (filterInput: string) =>
     run(source(`const q = table.insertRow('Q', { filterInput: ${filterInput} })`))
