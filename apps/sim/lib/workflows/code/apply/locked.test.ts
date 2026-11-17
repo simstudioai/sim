@@ -222,6 +222,20 @@ describe('findLockedBlockRefusals', () => {
     ])
   })
 
+  it('names a locked container by its block name, not its id', () => {
+    const base = baseGraph(new Set(['loop']))
+    base.blocks.loop.name = 'Retry loop'
+    const target = structuredClone(base)
+    target.blocks.a.data = { parentId: 'loop', extent: 'parent' }
+    target.blocks.n = block('n', { parentId: 'loop' })
+    expect(
+      findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey).map((d) => d.message)
+    ).toEqual([
+      'Block "a" cannot be moved into locked container "Retry loop"',
+      'Block "n" cannot be added to locked container "Retry loop"',
+    ])
+  })
+
   it('ignores a canvas move of a locked block', () => {
     const base = baseGraph(new Set(['loop']))
     const target = structuredClone(base)
