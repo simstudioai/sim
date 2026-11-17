@@ -32,7 +32,7 @@ import {
  * from its name, and naming its key is an unknown resource, as for one that does not exist.
  */
 
-/** Credential types a `credential(...)` can name: every saved account, never an env secret. */
+/** Env-secret credential types, which a `credential(...)` never names. */
 const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
 interface VisibleCredentialQuery {
