@@ -5,6 +5,7 @@ import { createMistralAdapter } from '@/lib/embeddings/providers/mistral'
 import { createOllamaAdapter } from '@/lib/embeddings/providers/ollama'
 import { createOpenAIAdapter } from '@/lib/embeddings/providers/openai'
 import { createOpenRouterAdapter } from '@/lib/embeddings/providers/openrouter'
+import { createPerplexityAdapter } from '@/lib/embeddings/providers/perplexity'
 import type {
   AzureEmbeddingAdapterContext,
   EmbeddingAdapterFactory,
@@ -30,6 +31,7 @@ const ADAPTER_FACTORIES: { [K in EmbeddingProviderKind]: AdapterFactoryFor<K> } 
   gemini: createGeminiAdapter,
   cohere: createCohereAdapter,
   mistral: createMistralAdapter,
+  perplexity: createPerplexityAdapter,
   ollama: createOllamaAdapter,
 }
 
@@ -47,4 +49,5 @@ export {
   createOllamaAdapter,
   createOpenAIAdapter,
   createOpenRouterAdapter,
+  createPerplexityAdapter,
 }

@@ -48,6 +48,10 @@ const PROVIDER_KEY_CONFIG: Record<KeyedEmbeddingProvider, () => ProviderKeyConfi
     byokProviderId: BYOK_PROVIDER_IDS.mistral,
     envKey: env.MISTRAL_API_KEY,
   }),
+  perplexity: () => ({
+    byokProviderId: BYOK_PROVIDER_IDS.perplexity,
+    envKey: env.PERPLEXITY_API_KEY,
+  }),
 }
 
 export async function resolveProviderKey(

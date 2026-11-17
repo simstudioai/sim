@@ -54,6 +54,9 @@ export function isKbEmbeddingDimensions(value: number): value is KbEmbeddingDime
  */
 const OPENAI_MAX_TOKENS_PER_REQUEST = 300_000
 
+/** Perplexity caps a single `/v1/embeddings` call at 120,000 tokens across all inputs. */
+const PERPLEXITY_MAX_TOKENS_PER_REQUEST = 120_000
+
 export interface EmbeddingModelInfo {
   provider: EmbeddingCatalogProvider
   /** Human-readable label for the block's model dropdown. */
@@ -179,6 +182,29 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     maxInputTokens: 8192,
     kbEligible: false,
   },
+  /** Perplexity accepts any `dimensions` from 128 up to the native size. */
+  'pplx-embed-v1-0.6b': {
+    provider: 'perplexity',
+    label: 'pplx-embed-v1-0.6b',
+    pricingId: 'pplx-embed-v1-0.6b',
+    tokenizerProvider: 'perplexity',
+    nativeDimensions: 1024,
+    supportedDimensions: [1024, 768, 512, 384, 256, 128],
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: PERPLEXITY_MAX_TOKENS_PER_REQUEST,
+    kbEligible: false,
+  },
+  'pplx-embed-v1-4b': {
+    provider: 'perplexity',
+    label: 'pplx-embed-v1-4b',
+    pricingId: 'pplx-embed-v1-4b',
+    tokenizerProvider: 'perplexity',
+    nativeDimensions: 2560,
+    supportedDimensions: [2560, 2048, 1536, 1024, 768, 512, 384, 256, 128],
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: PERPLEXITY_MAX_TOKENS_PER_REQUEST,
+    kbEligible: false,
+  },
 }
 
 /**
@@ -192,6 +218,7 @@ export const EMBEDDING_CATALOG_PROVIDERS: readonly KeyedEmbeddingProvider[] = [
   'gemini',
   'cohere',
   'mistral',
+  'perplexity',
 ] as const
 
 /**
@@ -203,6 +230,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<KeyedEmbeddingProvider, string> =
   gemini: 'gemini-embedding-001',
   cohere: 'embed-v4.0',
   mistral: 'mistral-embed',
+  perplexity: 'pplx-embed-v1-4b',
 }
 
 /**
@@ -214,6 +242,7 @@ export const BYOK_PROVIDER_IDS: Record<KeyedEmbeddingProvider, BYOKProviderId> =
   gemini: 'google',
   cohere: 'cohere',
   mistral: 'mistral',
+  perplexity: 'perplexity',
 }
 
 /**
@@ -326,7 +355,7 @@ export function getKbEmbeddingDimensions(info: EmbeddingModelInfo): KbEmbeddingD
  * True when a model's tokens cannot be counted exactly.
  *
  * Batching measures with tiktoken, which only has encodings for OpenAI models —
- * every other id falls back to `cl100k_base`, so Gemini, Cohere, and Mistral
+ * every other id falls back to `cl100k_base`, so Gemini, Cohere, Mistral, and Perplexity
  * ceilings are enforced in approximate units. The ceiling is still applied as
  * declared rather than discounted to absorb the error: an undercount surfaces
  * as a visible provider rejection, whereas silently shortening an embedding's

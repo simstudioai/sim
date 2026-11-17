@@ -30,6 +30,8 @@ const EMBEDDING_MODEL_PRICING: Record<string, MockModelPricing> = {
   'embed-v4.0': { input: 0.12, output: 0.0, updatedAt: '2026-08-05' },
   'mistral-embed': { input: 0.1, output: 0.0, updatedAt: '2026-08-05' },
   'codestral-embed': { input: 0.15, output: 0.0, updatedAt: '2026-08-05' },
+  'pplx-embed-v1-0.6b': { input: 0.004, output: 0.0, updatedAt: '2026-11-09' },
+  'pplx-embed-v1-4b': { input: 0.03, output: 0.0, updatedAt: '2026-11-09' },
 }
 
 const RERANK_MODEL_PRICING: Record<string, MockRerankPricing> = {

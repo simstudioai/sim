@@ -4,6 +4,7 @@ import { embeddingsGeminiTool } from '@/tools/embeddings/gemini'
 import { embeddingsMistralTool } from '@/tools/embeddings/mistral'
 import { embeddingsOpenAITool } from '@/tools/embeddings/openai'
 import { embeddingsOpenRouterTool } from '@/tools/embeddings/openrouter'
+import { embeddingsPerplexityTool } from '@/tools/embeddings/perplexity'
 import { embeddingsTool as legacyOpenAIEmbeddingsTool } from '@/tools/openai/embeddings'
 
 const ALL_TOOLS = [
@@ -12,6 +13,7 @@ const ALL_TOOLS = [
   embeddingsCohereTool,
   embeddingsMistralTool,
   embeddingsOpenRouterTool,
+  embeddingsPerplexityTool,
   legacyOpenAIEmbeddingsTool,
 ]
 

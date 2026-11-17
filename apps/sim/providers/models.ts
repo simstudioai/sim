@@ -6694,6 +6694,16 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     output: 0.0,
     updatedAt: '2026-08-05',
   },
+  'pplx-embed-v1-0.6b': {
+    input: 0.004, // $0.004 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-09',
+  },
+  'pplx-embed-v1-4b': {
+    input: 0.03, // $0.03 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-09',
+  },
 }
 
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {

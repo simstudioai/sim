@@ -1444,6 +1444,7 @@ const EMBEDDINGS_TOOL_IDS = [
   'embeddings_gemini',
   'embeddings_cohere',
   'embeddings_mistral',
+  'embeddings_perplexity',
   'embeddings_ollama',
   'openai_embeddings',
 ] as const
