@@ -840,4 +840,60 @@ export default workflow('Answer', {}, () => {
     expect(read.blobs).toHaveLength(3)
     expect(read.blobs.filter((blob) => blob.sha256 === undefined)).toHaveLength(1)
   })
+
+  check('refuses a round carrying more binary bytes than one request may', async () => {
+    const workspaceId = await newWorkspace()
+    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+    const blobs = Object.fromEntries(
+      ['a', 'b', 'c'].map((name) => [`files/${name}.bin`, Buffer.alloc(size, name)])
+    )
+
+    const refused = await refusal(apply(workspaceId, { files: {}, blobs }, { kinds: ['file'] }))
+
+    expect(findings(refused.diagnostics, 'error')).toEqual(['E_LIMIT_EXCEEDED undefined:undefined'])
+    expect((await snapshot(workspaceId)).files).toEqual([])
+  })
+
+  check('a plan already refused authorizes no change', async () => {
+    const { workspaceId, dir, base } = await setUp()
+    const files = {
+      ...Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      ),
+      'workflows/ingest/workflow.ts': TEXT['workflows/ingest/workflow.ts'].replace(
+        "'Ingest'",
+        "'Ingest v2'"
+      ),
+    }
+    const authorize = vi.spyOn(deleteTableUseCase, 'authorize')
+
+    const refused = await refusal(
+      apply(workspaceId, { ...dir, files }, { base, allowDelete: true })
+    )
+    const calls = authorize.mock.calls.length
+    authorize.mockRestore()
+
+    expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:ingest'])
+    expect(calls).toBe(0)
+  })
+
+  check('a plan reports at most 1000 findings, and one more that counts the rest', async () => {
+    const workspaceId = await newWorkspace()
+    const files = Object.fromEntries(
+      Array.from({ length: 1_500 }, (_, index) => [`misc/${index}.ts`, ''])
+    )
+
+    const planned = await withPermissionGroupScope(() =>
+      applyWorkspaceSource.execute({
+        principal: owner,
+        input: { workspaceId, files, kinds: KINDS, dryRun: true },
+      })
+    )
+
+    expect(planned.diagnostics).toHaveLength(1_001)
+    expect(planned.diagnostics.at(-1)).toMatchObject({
+      code: 'E_LIMIT_EXCEEDED',
+      message: expect.stringContaining('500 more'),
+    })
+  })
 })

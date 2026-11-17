@@ -17,6 +17,7 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
+import { finding } from '@/lib/workspace-source/application/findings'
 import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -110,17 +111,17 @@ function failureOf(
     }
   }
   if (error instanceof OrchestrationError && error.code !== 'internal') {
-    const finding = refusalDiagnostic(error, resource)
+    const refusal = refusalDiagnostic(error, resource)
     return {
-      failed: { ...resource, code: finding.code, message: finding.message },
-      diagnostics: [finding],
+      failed: { ...resource, code: refusal.code, message: refusal.message },
+      diagnostics: [refusal],
     }
   }
   logger.error('Workspace source write failed', { ...resource, error: getErrorMessage(error) })
   const message = `Writing ${change.kind} ${change.key} failed; the changes before it were applied.`
   return {
     failed: { ...resource, code: 'E_APPLY_FAILED', message },
-    diagnostics: [{ code: 'E_APPLY_FAILED', severity: 'error', message, ...resource }],
+    diagnostics: [finding('E_APPLY_FAILED', message, resource)],
   }
 }
 
