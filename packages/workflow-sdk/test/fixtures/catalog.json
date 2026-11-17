@@ -6595,6 +6595,7 @@
           "type": "skill-input",
           "valueKind": "array",
           "storage": "native",
+          "structured": "skills",
           "title": "Skills",
           "condition": {
             "field": "model",

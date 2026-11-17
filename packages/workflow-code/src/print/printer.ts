@@ -48,6 +48,7 @@ import {
   type CanonicalTool,
   type CanonicalWorkflow,
   isPlainRecord,
+  isSimNode,
   type Json,
   type ParamMode,
   type PortKey,
@@ -468,6 +469,16 @@ class WorkflowPrinter {
       if (literal) return literal
     }
     const context = this.context(block, declared, sb)
+    if (sb?.structured === 'skills' && Array.isArray(param.value)) {
+      // `SkillRef[]` types only `skill('key')`; an entry kept verbatim prints as `raw(...)`.
+      return arrayExpr(
+        param.value.map((item) =>
+          !isSimNode(item) && isJson(item)
+            ? this.values.call('raw', [this.values.json(item)])
+            : this.values.value(item, context)
+        )
+      )
+    }
     if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
       const sugar = inputFormatSugar(param.value)
       if (sugar) return this.printInputFormat(block, sugar)

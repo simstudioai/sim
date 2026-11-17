@@ -48,7 +48,7 @@ const TYPE_RULES: Record<SubBlockType, TypeRule> = {
   table: { valueKind: 'array', structured: 'tableRows' },
   code: { valueKind: 'code', neverDecoded: true },
   'tool-input': { valueKind: 'tools', structured: 'tools' },
-  'skill-input': { valueKind: 'array' },
+  'skill-input': { valueKind: 'array', structured: 'skills' },
   'checkbox-list': { valueKind: 'array' },
   'grouped-checkbox-list': { valueKind: 'array' },
   'condition-input': { valueKind: 'branches', storage: 'json-string', structured: 'branches' },
