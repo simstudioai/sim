@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { workspaceFiles } from '@sim/db/schema'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -26,6 +29,10 @@ import {
   type WorkspaceFileRecord,
   type WorkspaceFileSortBy,
 } from '@/lib/uploads/contexts/workspace'
+import {
+  isVersionHeadCurrent,
+  loadWorkspaceFileVersionHeads,
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
@@ -399,5 +406,62 @@ export const listWorkspaceFilesInFolderScope = defineAuthorizedWorkspaceFileUseC
       limit: input.limit,
     })
     return { files, truncated: nextKeys !== null }
+  },
+})
+
+export interface ReadWorkspaceFileContentStatesInput {
+  workspaceId: string
+  fileIds: readonly string[]
+}
+
+/** What a live workspace file holds now, without reading its bytes. */
+export interface WorkspaceFileContentState {
+  /** The content revision: `content_updated_at`, which advances on every content write. */
+  rev: string
+  /** SHA-256 of the current bytes, when the file's history records it for this revision. */
+  sha256: string | null
+}
+
+/**
+ * The content revision and hash of each live workspace file among `fileIds`, under list
+ * authorization; files of other workspaces, deleted files and chat or owned files are absent. The
+ * hash comes from the current version's `content_hash`, and is `null` when no version records the
+ * current bytes (a file older than version history), so a caller never mistakes stale bytes for
+ * current ones.
+ */
+export const readWorkspaceFileContentStates = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: ReadWorkspaceFileContentStatesInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }): Promise<Map<string, WorkspaceFileContentState>> {
+    if (input.fileIds.length === 0) return new Map()
+    const live = and(
+      eq(workspaceFiles.workspaceId, context.workspaceId),
+      isNull(workspaceFiles.projectId),
+      isNull(workspaceFiles.organizationId),
+      eq(workspaceFiles.context, 'workspace'),
+      isNull(workspaceFiles.deletedAt),
+      inArray(workspaceFiles.id, [...input.fileIds])
+    )
+    const [rows, heads] = await Promise.all([
+      db
+        .select({
+          id: workspaceFiles.id,
+          key: workspaceFiles.key,
+          contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+        })
+        .from(workspaceFiles)
+        .where(live),
+      loadWorkspaceFileVersionHeads(
+        db.select({ id: workspaceFiles.id }).from(workspaceFiles).where(live)
+      ),
+    ])
+    return new Map(
+      rows.map((row) => {
+        const head = heads.get(row.id)
+        const sha256 = head && isVersionHeadCurrent(head, row) ? head.contentHash : null
+        return [row.id, { rev: row.contentUpdatedAt.toISOString(), sha256 }]
+      })
+    )
   },
 })
