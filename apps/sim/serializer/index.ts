@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import {
   buildCanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   getCanonicalValues,
   isCanonicalPair,
