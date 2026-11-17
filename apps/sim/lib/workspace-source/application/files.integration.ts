@@ -22,10 +22,15 @@ import {
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  resetUploadsSetupMock,
+  setUploadDirServer,
+  uploadsSetupMock,
+} from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import type { WorkspaceBaseV1 } from '@sim/workspace-code'
@@ -33,29 +38,19 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env-flags', () => ({ ...envFlagsMock, isAccessControlEnabled: true }))
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-const fixtureStorage = vi.hoisted(() => ({ root: '' }))
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  get UPLOAD_DIR_SERVER() {
-    return fixtureStorage.root
-  },
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
-import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
-import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
-import {
-  type ApplyWorkspaceSourceInput,
-  applyWorkspaceSource,
-} from '@/lib/workspace-source/application/apply-workspace-source'
+import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   blobManifest,
   cliRound,
@@ -66,6 +61,8 @@ import {
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
+/** Local object storage the suite's uploads land in, under a temp directory. */
+let storageRoot = ''
 const ownerId = generateId()
 const blockedId = generateId()
 const organizationId = generateId()
@@ -210,7 +207,9 @@ function fileId(base: WorkspaceBaseV1, key: string): string {
 }
 
 beforeAll(async () => {
-  fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-workspace-source-files-'))
+  storageRoot = mkdtempSync(path.join(tmpdir(), 'sim-workspace-source-files-'))
+  setUploadDirServer(storageRoot)
+  setEnvFlags({ isAccessControlEnabled: true })
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
     async (flag: string) => flag === 'workflow-code'
   )
@@ -234,11 +233,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await writeReport()
+  resetUploadsSetupMock()
+  resetEnvFlagsMock()
   await workspaces.cleanup()
   await db.delete(permissionGroup).where(eq(permissionGroup.organizationId, organizationId))
   await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(inArray(user.id, [ownerId, blockedId]))
-  await rm(fixtureStorage.root, { recursive: true, force: true })
+  await rm(storageRoot, { recursive: true, force: true })
 })
 
 describe('workspace source files', () => {
@@ -584,28 +585,6 @@ describe('workspace source files', () => {
     }
   )
 
-  check('a file whose bytes do not match their declared hash is not written', async () => {
-    const workspaceId = await newWorkspace()
-    const forged = blobsOf({ 'files/a.txt': Buffer.from('declared') })
-    const [blob] = forged
-    const refused = await refusal(
-      withPermissionGroupScope(() =>
-        applyWorkspaceSource.execute({
-          principal: owner,
-          input: {
-            workspaceId,
-            files: {},
-            blobs: [{ ...blob, content: Buffer.from('replaced!').toString('base64') }],
-            kinds: ['file'],
-          },
-        })
-      )
-    )
-
-    expect(codes(refused.diagnostics)).toEqual(['E_BLOB_CONTENT'])
-    expect(await storedFiles(workspaceId)).toEqual([])
-  })
-
   check(
     'server files and folders a case-insensitive disk would merge are left out of get, and an apply names the collision',
     async () => {
@@ -686,35 +665,6 @@ describe('workspace source files', () => {
     }
   )
 
-  check(
-    'a file deleted in the Files tab is not re-created, and a local edit of it is stale',
-    async () => {
-      const workspaceId = await newWorkspace()
-      const read = await setUp(workspaceId)
-      await deleteWorkspaceFileOperation.execute({
-        principal: owner,
-        input: { fileId: fileId(read.base, 'notes.txt'), assertedWorkspaceId: workspaceId },
-      })
-      const before = await storedFiles(workspaceId)
-
-      const unchanged = await apply(workspaceId, STARTER, { base: read.base })
-      expect(summary(unchanged.plan)).toEqual(['noop notes.txt', 'noop docs/plan.md'])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
-      expect(unchanged.needBlobs).toEqual([])
-
-      const refused = await refusal(
-        apply(
-          workspaceId,
-          { ...STARTER, 'files/notes.txt': Buffer.from('edited locally') },
-          { base: read.base }
-        )
-      )
-      expect(refused.code).toBe('conflict')
-      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_STALE'])
-      expect(await storedFiles(workspaceId)).toEqual(before)
-    }
-  )
-
   check('a case-only rename applies when the same apply deletes the old spelling', async () => {
     const workspaceId = await newWorkspace()
     const read = await setUp(workspaceId)
@@ -785,7 +735,7 @@ describe('workspace source files', () => {
     const lost = await uploadWorkspaceFile(workspaceId, ownerId, broken, 'b.txt', 'text/plain', {
       notifyWorkspaceChange: false,
     })
-    await rm(path.join(fixtureStorage.root, lost.key))
+    await rm(path.join(storageRoot, lost.key))
 
     const planned = await apply(
       workspaceId,

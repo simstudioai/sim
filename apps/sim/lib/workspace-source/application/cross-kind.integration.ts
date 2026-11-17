@@ -25,6 +25,11 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  resetUploadsSetupMock,
+  setUploadDirServer,
+  uploadsSetupMock,
+} from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
@@ -33,12 +38,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
-const fixtureStorage = vi.hoisted(() => ({ root: '' }))
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  get UPLOAD_DIR_SERVER() {
-    return fixtureStorage.root
-  },
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -67,12 +67,15 @@ import {
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 import {
   blobManifest,
+  codes,
   refusal,
   sourceChecks,
   sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
+/** Local object storage the suite's uploads land in, under a temp directory. */
+let storageRoot = ''
 const ownerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const { check, writeReport } = sourceChecks(
@@ -305,7 +308,8 @@ async function deleteEverything(workspaceId: string, base: WorkspaceBaseV1) {
 }
 
 beforeAll(async () => {
-  fixtureStorage.root = mkdtempSync(join(tmpdir(), 'workspace-source-cross-kind-'))
+  storageRoot = mkdtempSync(join(tmpdir(), 'workspace-source-cross-kind-'))
+  setUploadDirServer(storageRoot)
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
     async (flag: string) => flag === 'workflow-code'
   )
@@ -323,9 +327,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await writeReport()
+  resetUploadsSetupMock()
   await workspaces.cleanup()
   await db.delete(user).where(eq(user.id, ownerId))
-  if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })
+  if (storageRoot) await rm(storageRoot, { recursive: true, force: true })
 })
 
 describe('workspace source across kinds', () => {
@@ -692,8 +697,9 @@ export default workflow('Answer', {}, () => {
         )
 
       expect(findings((await plan(500)).diagnostics, 'error')).toEqual([])
-      expect(findings((await plan(501)).diagnostics, 'error')).toEqual([
-        'E_LIMIT_EXCEEDED custom-tool:undefined',
+      const over = (await plan(501)).diagnostics.filter((finding) => finding.severity === 'error')
+      expect(over.map(({ code, kind }) => ({ code, kind }))).toEqual([
+        { code: 'E_LIMIT_EXCEEDED', kind: 'custom-tool' },
       ])
     }
   )
@@ -832,7 +838,7 @@ export default workflow('Answer', {}, () => {
 
     const refused = await refusal(apply(workspaceId, { files: {}, blobs }, { kinds: ['file'] }))
 
-    expect(findings(refused.diagnostics, 'error')).toEqual(['E_LIMIT_EXCEEDED undefined:undefined'])
+    expect(codes(refused.diagnostics)).toEqual(['E_LIMIT_EXCEEDED'])
     expect((await snapshot(workspaceId)).files).toEqual([])
   })
 
@@ -848,12 +854,14 @@ export default workflow('Answer', {}, () => {
       ),
     }
     const authorize = vi.spyOn(deleteTableUseCase, 'authorize')
+    let calls = -1
 
     const refused = await refusal(
-      apply(workspaceId, { ...dir, files }, { base, allowDelete: true })
+      apply(workspaceId, { ...dir, files }, { base, allowDelete: true }).finally(() => {
+        calls = authorize.mock.calls.length
+        authorize.mockRestore()
+      })
     )
-    const calls = authorize.mock.calls.length
-    authorize.mockRestore()
 
     expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:ingest'])
     expect(calls).toBe(0)

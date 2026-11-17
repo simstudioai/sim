@@ -699,37 +699,41 @@ describe('workspace source apply', () => {
     expect(tableIds).toContain(unbound.id)
   })
 
-  check('a currency column declared without a code settles on the server default', async () => {
-    const workspaceId = await newWorkspace()
-    const options = { kinds: ['table' as const], only: ['table' as const] }
-    const declare = (description?: string) => ({
-      'tables/deals.ts': LEADS.replace(
-        "name: 'leads',",
-        `name: 'deals',${description ? ` description: '${description}',` : ''}`
-      ).replace('columns: {', 'columns: {\n    amount: column.currency(),'),
-    })
-    const created = await apply(
-      workspaceId,
-      { 'tables/deals.ts': LEADS.replace("name: 'leads'", "name: 'deals'") },
-      options
-    )
-    const added = await apply(workspaceId, declare(), { ...options, base: created.base })
-    expect(added.applied).toMatchObject([{ action: 'update', key: 'deals' }])
-    const [deals] = await tables(workspaceId)
-    await tableUseCases.updateTableUseCase.execute({
-      principal: owner,
-      input: { tableId: deals.id, workspaceId, name: 'deals_renamed' },
-    })
+  check(
+    'a currency column declared without a code matches the stored USD: a server rename beside it is no conflict, and an edit carries no currency change',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const options = { kinds: ['table' as const], only: ['table' as const] }
+      const declare = (description?: string) => ({
+        'tables/deals.ts': LEADS.replace(
+          "name: 'leads',",
+          `name: 'deals',${description ? ` description: '${description}',` : ''}`
+        ).replace('columns: {', 'columns: {\n    amount: column.currency(),'),
+      })
+      const created = await apply(
+        workspaceId,
+        { 'tables/deals.ts': LEADS.replace("name: 'leads'", "name: 'deals'") },
+        options
+      )
+      const added = await apply(workspaceId, declare(), { ...options, base: created.base })
+      expect(added.applied).toMatchObject([{ action: 'update', key: 'deals' }])
+      const [deals] = await tables(workspaceId)
+      // A server change makes an unmatched currency column read as a local edit, so as stale.
+      await tableUseCases.updateTableUseCase.execute({
+        principal: owner,
+        input: { tableId: deals.id, workspaceId, name: 'deals_renamed' },
+      })
 
-    const untouched = await apply(workspaceId, declare(), { ...options, base: added.base })
+      const untouched = await apply(workspaceId, declare(), { ...options, base: added.base })
 
-    expect(untouched.plan.map(({ action, key }) => `${action} ${key}`)).toEqual(['noop deals'])
+      expect(untouched.plan.map(({ action, key }) => `${action} ${key}`)).toEqual(['noop deals'])
 
-    const read = await get(workspaceId)
-    const edited = await apply(workspaceId, declare('Won deals'), { ...options, base: read.base })
+      const read = await get(workspaceId)
+      const edited = await apply(workspaceId, declare('Won deals'), { ...options, base: read.base })
 
-    expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
-  })
+      expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
+    }
+  )
 
   check(
     'a currency column stored in EUR and declared without a code moves to the default',

@@ -27,18 +27,18 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  resetUploadsSetupMock,
+  setUploadDirServer,
+  uploadsSetupMock,
+} from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
-const fixtureStorage = vi.hoisted(() => ({ root: '' }))
 const embedding = vi.hoisted(() => ({ failure: null as Error | null }))
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  get UPLOAD_DIR_SERVER() {
-    return fixtureStorage.root
-  },
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
@@ -64,11 +64,9 @@ import {
   deleteKnowledgeBaseOperation,
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
-import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
-import {
-  type ApplyWorkspaceSourceInput,
-  type ApplyWorkspaceSourceResult,
-  applyWorkspaceSource,
+import type {
+  ApplyWorkspaceSourceInput,
+  ApplyWorkspaceSourceResult,
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   blobManifest,
@@ -80,6 +78,8 @@ import {
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
+/** Local object storage the suite's uploads land in, under a temp directory. */
+let storageRoot = ''
 const ownerId = generateId()
 const memberId = generateId()
 const organizationId = generateId()
@@ -244,7 +244,8 @@ async function setUp(dir: Directory = POLICIES) {
 }
 
 beforeAll(async () => {
-  fixtureStorage.root = mkdtempSync(join(tmpdir(), 'knowledge-source-'))
+  storageRoot = mkdtempSync(join(tmpdir(), 'knowledge-source-'))
+  setUploadDirServer(storageRoot)
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
     async (flag: string) => flag === 'workflow-code'
   )
@@ -276,11 +277,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await writeReport()
+  resetUploadsSetupMock()
   await workspaces.cleanup()
   await db.delete(permissionGroup).where(eq(permissionGroup.organizationId, organizationId))
   await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(inArray(user.id, [ownerId, memberId]))
-  if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })
+  if (storageRoot) await rm(storageRoot, { recursive: true, force: true })
 })
 
 describe('knowledge bases as workspace source', () => {
@@ -378,35 +380,6 @@ describe('knowledge bases as workspace source', () => {
       expect(result.base.resources['knowledge-base:policies']?.blobs?.['refunds.md']).toMatchObject(
         { id: after[0].id, sha256: sha256Hex(edited.docs['knowledge/policies/docs/refunds.md']) }
       )
-    }
-  )
-
-  check(
-    'refuses a content mismatch before writing anything: the bytes must hash to the manifest entry',
-    async () => {
-      const workspaceId = await newWorkspace()
-      const forged = blobs(POLICIES, 'all').map((blob) =>
-        blob.path.endsWith('refunds.md')
-          ? { ...blob, content: Buffer.from('something else').toString('base64') }
-          : blob
-      )
-
-      const refused = await refusal(
-        withPermissionGroupScope(() =>
-          applyWorkspaceSource.execute({
-            principal: owner,
-            input: {
-              workspaceId,
-              files: POLICIES.files,
-              blobs: forged,
-              kinds: ['knowledge-base'],
-            },
-          })
-        )
-      )
-
-      expect(codes(refused.diagnostics)).toEqual(['E_BLOB_CONTENT'])
-      expect(await knowledgeBases(workspaceId)).toEqual([])
     }
   )
 
@@ -716,8 +689,9 @@ describe('knowledge bases as workspace source', () => {
         .spyOn(deleteKnowledgeDocument, 'execute')
         .mockRejectedValueOnce(new Error('storage unavailable'))
 
-      const first = await apply(workspaceId, edited, { base: read.base })
-      failing.mockRestore()
+      const first = await apply(workspaceId, edited, { base: read.base }).finally(() =>
+        failing.mockRestore()
+      )
 
       expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
       expect((await docs(stored.id)).map((doc) => [doc.filename, doc.id])).toEqual([
@@ -747,8 +721,9 @@ describe('knowledge bases as workspace source', () => {
         .mockRejectedValueOnce(new Error('storage unavailable'))
         .mockRejectedValueOnce(new Error('storage unavailable'))
 
-      const first = await apply(workspaceId, edited, { base: read.base })
-      failing.mockRestore()
+      const first = await apply(workspaceId, edited, { base: read.base }).finally(() =>
+        failing.mockRestore()
+      )
 
       expect(first.failed).toMatchObject({ key: 'policies' })
       expect(await filenames(stored.id)).toEqual(['refunds.md', 'refunds.md', 'shipping.txt'])
@@ -782,8 +757,7 @@ describe('knowledge bases as workspace source', () => {
     const workspaceId = await newWorkspace()
     const failing = failUpload(2)
 
-    const first = await apply(workspaceId, POLICIES)
-    failing.mockRestore()
+    const first = await apply(workspaceId, POLICIES).finally(() => failing.mockRestore())
 
     expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
     const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
@@ -817,8 +791,9 @@ describe('knowledge bases as workspace source', () => {
     )
     const failing = failUpload(2)
 
-    const first = await apply(workspaceId, edited, { base: read.base })
-    failing.mockRestore()
+    const first = await apply(workspaceId, edited, { base: read.base }).finally(() =>
+      failing.mockRestore()
+    )
 
     expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
     expect(await filenames(stored.id)).toEqual(['faq.md', 'refunds.md', 'shipping.txt'])
@@ -979,35 +954,6 @@ describe('knowledge bases as workspace source', () => {
   )
 
   check(
-    'a knowledge base deleted on the server stays deleted, and an edit to it is stale',
-    async () => {
-      const { workspaceId, read, dir } = await setUp()
-      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
-      await deleteKnowledgeBaseOperation.execute({
-        principal: owner,
-        input: { knowledgeBaseId: stored.id },
-      })
-
-      const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
-
-      expect(unchanged.applied).toEqual([])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
-      expect(await knowledgeBases(workspaceId)).toEqual([])
-
-      const stale = await refusal(
-        apply(workspaceId, withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n'), {
-          base: read.base,
-          carry: 'none',
-        })
-      )
-
-      expect(stale.stale).toBe(true)
-      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
-      expect(await knowledgeBases(workspaceId)).toEqual([])
-    }
-  )
-
-  check(
     'a document deleted on the server stays deleted, and an edit beside it is stale',
     async () => {
       const { workspaceId, read, dir } = await setUp()
@@ -1112,8 +1058,7 @@ describe('knowledge bases as workspace source', () => {
       })
       const failing = failUpload(2)
 
-      const first = await apply(workspaceId, POLICIES)
-      failing.mockRestore()
+      const first = await apply(workspaceId, POLICIES).finally(() => failing.mockRestore())
 
       expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
       const second = await apply(workspaceId, POLICIES, { base: first.base })
@@ -1141,23 +1086,6 @@ describe('knowledge bases as workspace source', () => {
     expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
     expect(await knowledgeBases(workspaceId)).toEqual([])
   })
-
-  check(
-    're-creating a deleted knowledge base under its old key reports the key rebound',
-    async () => {
-      const { workspaceId } = await setUp()
-      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
-      await deleteKnowledgeBaseOperation.execute({
-        principal: owner,
-        input: { knowledgeBaseId: stored.id },
-      })
-
-      const recreated = await apply(workspaceId, POLICIES)
-
-      expect(actions(recreated, 'applied')).toEqual(['create knowledge-base:policies'])
-      expect(codes(recreated.diagnostics, 'info')).toContain('I_KEY_REBOUND')
-    }
-  )
 
   check(
     'a knowledge base delete refuses one that gained a document after the plan read it',

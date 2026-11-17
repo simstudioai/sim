@@ -11,11 +11,10 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './workflow-source-layout'
-import { attachWorkspaceSourceApply } from './workspace-source-apply'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -49,11 +48,8 @@ function write(path: string, text: string | Buffer) {
   writeFileSync(join(dir, path), text)
 }
 
-async function apply(...argv: string[]): Promise<void> {
-  const root = new Command('sim')
-  attachWorkspaceSourceApply(root.command('workspaces').command('source'))
-  root.exitOverride()
-  await root.parseAsync(['node', 'sim', 'workspaces', 'source', 'apply', '--dir', dir, ...argv])
+function apply(...argv: string[]): Promise<void> {
+  return runWorkspaceSource('apply', dir, ...argv)
 }
 
 function bodies(): Array<{

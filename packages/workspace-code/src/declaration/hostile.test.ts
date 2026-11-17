@@ -28,7 +28,12 @@ describe('readDeclaration on hostile input', () => {
     const chain = `export default defineTable({ name: ${Array(200_000).fill('1').join(' + ')} })\n`
     const result = read(chain)
     expect(result.value).toBeUndefined()
-    expect(result.diagnostics.length).toBeGreaterThan(0)
+    const found = result.diagnostics.map((finding) => finding.code)
+    expect(found.length).toBeGreaterThan(0)
+    // Which refusal fires depends on the stack depth Babel reaches before it gives up.
+    expect(
+      found.every((code) => code === 'E_LIMIT_EXCEEDED' || code === 'E_DECL_UNSUPPORTED')
+    ).toBe(true)
   })
 
   it('refuses a file over the byte cap', () => {

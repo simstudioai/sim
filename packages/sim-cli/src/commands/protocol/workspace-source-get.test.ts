@@ -13,14 +13,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fingerprintOf } from '@sim/workspace-code'
 import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
-import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
-import { attachWorkspaceSourceApply } from './workspace-source-apply'
+import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobDigests } from './workspace-source-blobs'
 import { blobContent } from './workspace-source-dir'
-import { attachWorkspaceSourceGet } from './workspace-source-get'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -66,11 +64,22 @@ function serve(
   })
 }
 
-async function get(...argv: string[]): Promise<void> {
-  const root = new Command('sim')
-  attachWorkspaceSourceGet(root.command('workspaces').command('source'))
-  root.exitOverride()
-  await root.parseAsync(['node', 'sim', 'workspaces', 'source', 'get', '--dir', dir, ...argv])
+function get(...argv: string[]): Promise<void> {
+  return runWorkspaceSource('get', dir, ...argv)
+}
+
+/** Type-checks the directory a get wrote with its own tsconfig; returns tsc's output, or ''. */
+function typecheckDirectory(): string {
+  try {
+    execFileSync(join(__dirname, '../../../../../node_modules/.bin/tsc'), ['--noEmit', '-p', dir], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+    })
+    return ''
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string }
+    return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
+  }
 }
 
 beforeEach(() => {
@@ -282,20 +291,7 @@ describe('workspaces source get', () => {
         },
       })
 
-      const root = new Command('sim')
-      attachWorkspaceSourceApply(root.command('workspaces').command('source'))
-      root.exitOverride()
-      await root.parseAsync([
-        'node',
-        'sim',
-        'workspaces',
-        'source',
-        'apply',
-        '--dir',
-        dir,
-        '--dry-run',
-        '--allow-delete',
-      ])
+      await runWorkspaceSource('apply', dir, '--dry-run', '--allow-delete')
 
       expect(request.mock.calls[0][1].body.blobs).toEqual([
         { path: 'files/report.bin', sha256: listed().sha256, size: BYTES.length },
@@ -315,14 +311,7 @@ describe('workspaces source get', () => {
     )
     await get()
 
-    const tsc = join(__dirname, '../../../../../node_modules/.bin/tsc')
-    let output = ''
-    try {
-      execFileSync(tsc, ['--noEmit', '-p', dir], { encoding: 'utf8', stdio: 'pipe' })
-    } catch (error) {
-      const failure = error as { stdout?: string; stderr?: string }
-      output = `${failure.stdout ?? ''}${failure.stderr ?? ''}`
-    }
+    const output = typecheckDirectory()
     expect(output).toContain('tools/lookup.ts')
     expect(output).toContain('knowledge/policies/knowledge.ts')
   })
@@ -355,20 +344,7 @@ describe('workspaces source get', () => {
     const typecheck = (source: string) => {
       mkdirSync(join(dir, 'workflows/support'), { recursive: true })
       writeFileSync(join(dir, 'workflows/support/workflow.ts'), source)
-      try {
-        execFileSync(
-          join(__dirname, '../../../../../node_modules/.bin/tsc'),
-          ['--noEmit', '-p', dir],
-          {
-            encoding: 'utf8',
-            stdio: 'pipe',
-          }
-        )
-        return ''
-      } catch (error) {
-        const failure = error as { stdout?: string; stderr?: string }
-        return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
-      }
+      return typecheckDirectory()
     }
 
     expect(typecheck(uses('tone'))).toBe('')

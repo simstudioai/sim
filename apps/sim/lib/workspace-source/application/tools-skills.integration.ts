@@ -711,21 +711,6 @@ describe('workspace source: custom tools and skills', () => {
     }
   })
 
-  check('re-creating a deleted tool under its old key reports the key rebound', async () => {
-    const workspaceId = await newWorkspace()
-    const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
-    const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
-    await deleteWorkspaceCustomToolUseCase.execute({
-      principal: owner,
-      input: { workspaceId, toolId },
-    })
-
-    const recreated = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
-
-    expect(actions(recreated.applied)).toEqual(['create custom-tool:lookup'])
-    expect(codes(recreated.diagnostics, 'info')).toEqual(['I_KEY_REBOUND'])
-  })
-
   check('a tool delete refuses a tool edited after the plan read it', async () => {
     const workspaceId = await newWorkspace()
     const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
