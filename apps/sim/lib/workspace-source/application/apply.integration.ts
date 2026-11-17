@@ -924,4 +924,35 @@ describe('workspace source apply', () => {
     expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
     expect(await tables(workspaceId)).toEqual([])
   })
+
+  check('a get prints a column named __proto__, and applying it back changes nothing', async () => {
+    const workspaceId = await newWorkspace()
+    await tableUseCases.createTableUseCase.execute({
+      principal: owner,
+      input: {
+        workspaceId,
+        name: 'leads',
+        schema: {
+          columns: [
+            { name: '__proto__', type: 'string' },
+            { name: 'email', type: 'string' },
+          ],
+        },
+      },
+    })
+
+    const read = await get(workspaceId)
+
+    expect(read.files['tables/leads.ts']).toContain("name: '__proto__'")
+    expect(Object.keys(read.base.resources['table:leads']?.columns ?? {}).sort()).toEqual([
+      '__proto___2',
+      'email',
+    ])
+    const again = await apply(workspaceId, read.files, {
+      base: read.base,
+      kinds: ['table'],
+      only: ['table'],
+    })
+    expect(again.plan.map((change) => change.action)).toEqual(['noop'])
+  })
 })

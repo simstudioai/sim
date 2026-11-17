@@ -89,6 +89,14 @@ const TYPE_FIELDS: Partial<Record<TableColumnType, readonly string[]>> = {
 }
 const COLUMN_CALLS = new Set(TABLE_COLUMN_TYPES.map((type) => `column.${type}`))
 
+/**
+ * Whether a stored column's name can key it in a declaration: the declaration reader refuses a
+ * `__proto__` key, so such a column prints under another key with its `name` set.
+ */
+export function isDeclarableColumnKey(name: string): boolean {
+  return name !== '__proto__'
+}
+
 /** The stored name of a declared column. */
 export function columnName(key: string, column: TableColumnDecl): string {
   return column.name ?? key

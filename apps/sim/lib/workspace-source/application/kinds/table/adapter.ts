@@ -4,6 +4,7 @@
  * `updateTableUseCase`, the column use cases, `deleteTableUseCase`), so their authorization,
  * locks, audit and schema-change signals apply. Rows are never read or written.
  */
+import { setOwn } from '@sim/workflow-code'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -208,7 +209,7 @@ function bindingsAfter(
     const plannedId = Object.hasOwn(planned, columnKey) ? planned[columnKey].id : undefined
     const id =
       plannedId && ids.has(plannedId) ? plannedId : byName.get(columnName(columnKey, column))?.id
-    if (id) bindings[columnKey] = { id }
+    if (id) setOwn(bindings, columnKey, { id })
   }
   return bindings
 }

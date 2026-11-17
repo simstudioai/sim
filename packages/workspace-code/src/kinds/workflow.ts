@@ -5,7 +5,7 @@
  * workflow pipeline compiles and diffs it; this codec only carries the files.
  */
 import { isRecordLike } from '@sim/utils/object'
-import type { SourceBase } from '@sim/workflow-code'
+import { type SourceBase, setOwn } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec, type WorkspaceKind } from '../kind'
@@ -85,7 +85,7 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
           )
         }
       } else if (!relative.startsWith('.sim/')) {
-        decl.files[relative] = content
+        setOwn(decl.files, relative, content)
       }
     }
     if (Object.keys(decl.files).length > 0 && !Object.hasOwn(decl.files, SOURCE_ENTRY_FILE)) {

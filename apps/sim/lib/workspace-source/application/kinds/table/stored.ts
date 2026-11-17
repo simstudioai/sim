@@ -1,4 +1,5 @@
 import { compareStrings } from '@sim/utils/string'
+import { setOwn } from '@sim/workflow-code'
 import {
   type BaseColumn,
   type BaseResource,
@@ -6,7 +7,12 @@ import {
   type PrintedDeclaration,
   type ResourceFingerprint,
 } from '@sim/workspace-code'
-import { type TableColumnDecl, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
+import {
+  isDeclarableColumnKey,
+  type TableColumnDecl,
+  type TableDecl,
+  tableCodec,
+} from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 import type { StoredResource } from '@/lib/workspace-source/application/types'
@@ -60,8 +66,10 @@ export function tableAsDecl(
   for (const column of sourceColumns(state.table)) {
     const id = getColumnId(column)
     let key = boundKey.get(id) ?? column.name
-    for (let suffix = 2; Object.hasOwn(columns, key); suffix += 1) key = `${column.name}_${suffix}`
-    columns[key] = columnDecl(column, key)
+    for (let suffix = 2; !isDeclarableColumnKey(key) || Object.hasOwn(columns, key); suffix += 1) {
+      key = `${column.name}_${suffix}`
+    }
+    setOwn(columns, key, columnDecl(column, key))
     keyById.set(id, key)
   }
   const decl: TableDecl = {
@@ -84,12 +92,12 @@ export function printStoredTable(
   for (const column of sourceColumns(stored.state.table)) {
     const columnKey = keyById.get(getColumnId(column))
     if (columnKey === undefined) continue
-    columns[columnKey] = {
+    setOwn(columns, columnKey, {
       id: getColumnId(column),
       ...(column.options && column.options.length > 0
         ? { options: Object.fromEntries(column.options.map((option) => [option.name, option.id])) }
         : {}),
-    }
+    })
   }
   const sorted = Object.fromEntries(
     Object.entries(columns).sort(([a], [b]) => compareStrings(a, b))
