@@ -577,17 +577,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           site.decl.key
         )
       }
-      if (ctx.envNames && !ctx.envNames.has(name)) {
-        ctx.reporter.report(
-          'W_ENV_UNKNOWN',
-          `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
-          rangeOf(ctx, first),
-          {
-            hint: `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
-            blockKey: site.decl.key,
-          }
-        )
-      }
+      checkEnvName(ctx, name, rangeOf(ctx, first), site.decl.key)
       return `{{${name}}}`
     }
     case 'subflowScope':
@@ -622,6 +612,20 @@ function segmentsOf(
     segments.push(segment)
   }
   return segments
+}
+
+/** `W_ENV_UNKNOWN` when the caller's runs resolve a known set of env names and `name` is not one. */
+function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
+  if (!ctx.envNames || ctx.envNames.has(name)) return
+  ctx.reporter.report(
+    'W_ENV_UNKNOWN',
+    `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
+    at,
+    {
+      hint: `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
+      blockKey,
+    }
+  )
 }
 
 function checkOutputPath(
@@ -664,7 +668,8 @@ function checkOutputPath(
 }
 
 /**
- * Checks the `$ref` chains read from JavaScript code files once every block is declared: a head
+ * Checks the `$ref` chains and `$env` names read from JavaScript code files once every block is
+ * declared. An env name the workspace lacks is `W_ENV_UNKNOWN`, as in the workflow file. A `$ref` head
  * that names no block (a block's ident, a renamed block's old key, a typo) or a variable that does
  * not exist is `W_UNRESOLVED_REF`, and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. Warnings,
  * not errors, because stored code may already hold a dangling reference and must round-trip; at
@@ -673,9 +678,13 @@ function checkOutputPath(
 export function checkCodeFileRefs(ctx: CompileContext): void {
   for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
     for (const ref of refs) {
+      const at: Range = { file: path, start: ref.start, end: ref.end }
+      if (ref.kind === 'env') {
+        checkEnvName(ctx, ref.name, at, blockKey)
+        continue
+      }
       const [head, ...rest] = ref.segments
       if (head?.kind !== 'name') continue
-      const at: Range = { file: path, start: ref.start, end: ref.end }
       const written = formatMemberPath(REF_ROOT, ref.segments)
       if (head.name === 'variable') {
         const name = rest[0]?.kind === 'name' ? rest[0].name : null

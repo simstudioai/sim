@@ -21,12 +21,14 @@ interface CodeFileSyntaxError {
   column: number
 }
 
-/** One `$ref` chain read from the file, at its UTF-16 offsets in the file text. */
-export interface CodeFileRef {
-  start: number
-  end: number
-  segments: RefSegment[]
-}
+/**
+ * One `$ref` chain (`segments`) or `$env` name (`env`) read from the file, at its UTF-16 offsets
+ * in the file text.
+ */
+export type CodeFileRef = { start: number; end: number } & (
+  | { kind: 'ref'; segments: RefSegment[] }
+  | { kind: 'env'; name: string }
+)
 
 type FromCodeFileResult =
   | { ok: true; code: string; refs: CodeFileRef[] }
@@ -51,8 +53,7 @@ interface Replacement {
   start: number
   end: number
   text: string
-  /** Set for a `$ref` chain. */
-  segments?: RefSegment[]
+  ref: CodeFileRef
 }
 
 function toSyntaxError(error: unknown): CodeFileSyntaxError {
@@ -100,9 +101,7 @@ export function fromCodeFile(text: string, language: CodeFileLanguage): FromCode
   for (const replacement of replacements) {
     code += text.slice(cursor, replacement.start) + replacement.text
     cursor = replacement.end
-    if (replacement.segments) {
-      refs.push({ start: replacement.start, end: replacement.end, segments: replacement.segments })
-    }
+    refs.push(replacement.ref)
   }
   return { ok: true, code: code + text.slice(cursor), refs }
 }
@@ -163,7 +162,11 @@ function chainReplacement(
     const first = members[0]
     const name = envName(first)
     if (name === null || first.start == null || first.end == null) return null
-    return { replacement: { start: first.start, end: first.end, text: `{{${name}}}` }, consumed: 1 }
+    const span = { start: first.start, end: first.end }
+    return {
+      replacement: { ...span, text: `{{${name}}}`, ref: { ...span, kind: 'env', name } },
+      consumed: 1,
+    }
   }
   if (root.name !== REF_ROOT) return null
 
@@ -178,7 +181,12 @@ function chainReplacement(
     const token = `<${formatStoredPath(segments)}>`
     if (isLikelyWorkflowReferenceSegment(token) && last.start != null && last.end != null) {
       return {
-        replacement: { start: last.start, end: last.end, text: token, segments: [...segments] },
+        replacement: {
+          start: last.start,
+          end: last.end,
+          text: token,
+          ref: { start: last.start, end: last.end, kind: 'ref', segments: [...segments] },
+        },
         consumed: segments.length,
       }
     }

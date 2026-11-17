@@ -1097,6 +1097,23 @@ describe('env names the workspace does not hold', () => {
   it('says nothing when no env list is available', () => {
     expect(compileWith().diagnostics.map((d) => d.code)).not.toContain('W_ENV_UNKNOWN')
   })
+
+  it('warns on a $env name in a code file at the file location', () => {
+    const result = compileWorkflow({
+      entry: { path: ENTRY, text: source("const f = fn('F', { code: codeFile('./fns/f.js') })") },
+      files: new Map([['workflows/fns/f.js', 'return $env.API_URL + $env.MISSING_KEY']]),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      envNames: new Set(['API_URL']),
+    })
+    const unknown = result.diagnostics.filter((d) => d.code === 'W_ENV_UNKNOWN')
+    expect(unknown).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('MISSING_KEY'),
+        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 1, column: 23 }),
+      }),
+    ])
+  })
 })
 
 describe('table filters the runtime refuses', () => {
