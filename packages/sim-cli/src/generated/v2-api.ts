@@ -913,6 +913,14 @@ export type ApplyWorkspaceSourceBody = {
             options?: Record<string, string>
           }
         >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: number | string
+            sha256: string
+          }
+        >
       }
     >
   }
@@ -975,6 +983,14 @@ export type ApplyWorkspaceSourceResponse = {
             {
               id: string
               options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
             }
           >
         }
@@ -9575,6 +9591,14 @@ export type GetWorkspaceSourceResponse = {
             {
               id: string
               options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
             }
           >
         }

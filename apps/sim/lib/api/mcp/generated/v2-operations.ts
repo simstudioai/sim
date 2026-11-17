@@ -367,6 +367,10 @@ import {
 } from '@/lib/api/contracts/v2/workspace-operations'
 import { v2GetWorkspacePermissionConfigContract } from '@/lib/api/contracts/v2/workspace-permissions'
 import {
+  v2ApplyWorkspaceSourceContract,
+  v2GetWorkspaceSourceContract,
+} from '@/lib/api/contracts/v2/workspace-source'
+import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
@@ -479,6 +483,14 @@ export const V2_MCP_OPERATIONS = {
       'Add, edit, or delete variables by name with workspace write access. Operations run in order. Values are coerced to their declared type when possible and otherwise stored as supplied. A no-op batch returns `changed: false`; read current values with Get workflow.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/variables/route').then((route) => route.PATCH),
+  },
+  applyWorkspaceSource: {
+    contract: v2ApplyWorkspaceSourceContract,
+    summary: 'Apply workspace source',
+    description:
+      'Apply a workspace source directory: create and update what it declares, in dependency order (tables before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), and the `base` from Get Workspace Source. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow changes follow Apply Workflow Source, which a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.POST),
   },
   bulkAddPermissionGroupMembers: {
     contract: v2BulkAddPermissionGroupMembersContract,
@@ -1812,6 +1824,14 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route').then(
         (route) => route.GET
       ),
+  },
+  getWorkspaceSource: {
+    contract: v2GetWorkspaceSourceContract,
+    summary: 'Get workspace source',
+    description:
+      "Read the workspace as a source directory: one declaration file per table (`tables/<key>.ts`), one folder per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), binary files by hash, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A workflow too large to read as source is listed in `skipped`. Rows, environment values and credentials are never part of source. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.GET),
   },
   grantSkillEditor: {
     contract: v2GrantSkillEditorContract,

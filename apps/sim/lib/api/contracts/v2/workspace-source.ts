@@ -24,7 +24,14 @@ const getQuerySchema = z
       .string()
       .min(1, 'kinds cannot be empty')
       .transform((value) => value.split(',').map((kind) => kind.trim()))
-      .pipe(z.array(kindSchema).max(APPLY_ORDER.length, 'kinds lists each kind at most once'))
+      .pipe(
+        z
+          .array(kindSchema)
+          .refine(
+            (kinds) => new Set(kinds).size === kinds.length,
+            'kinds lists each kind at most once'
+          )
+      )
       .optional()
       .describe('Comma-separated kinds to read; every kind the server supports when omitted.'),
   })
@@ -87,6 +94,17 @@ const baseResourceSchema = z
       )
       .optional()
       .describe('Table column key → stored column.'),
+    blobs: z
+      .record(
+        z.string(),
+        z.object({
+          id: z.string().describe('Stored id of the binary file.'),
+          rev: z.union([z.number().int(), z.string()]).describe('Content revision as last read.'),
+          sha256: sha256Schema,
+        })
+      )
+      .optional()
+      .describe('Binary file name → its stored id, revision and hash as last read.'),
   })
   .catchall(extensionSchema)
   .describe('One resource in the base.')
@@ -134,7 +152,9 @@ const changeSchema = z
         counts: z.record(z.string(), z.number().int()).describe('How much is lost.'),
       })
       .optional()
-      .describe('Data the change deletes; present only with `allowDelete`.'),
+      .describe(
+        'Data the change deletes: dropped columns, removed select options and the cells they empty, or a deleted resource. A dry run shows it whether or not `allowDelete` is set.'
+      ),
     id: z.string().optional().describe('Stored id, once known.'),
   })
   .describe('One planned or applied change.')

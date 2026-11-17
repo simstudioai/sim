@@ -24026,6 +24026,42 @@
                             "required": ["id"],
                             "additionalProperties": false
                           }
+                        },
+                        "blobs": {
+                          "description": "Binary file name → its stored id, revision and hash as last read.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stored id of the binary file."
+                              },
+                              "rev": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "description": "Content revision as last read."
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$",
+                                "description": "SHA-256 of the bytes, lowercase hex."
+                              }
+                            },
+                            "required": ["id", "rev", "sha256"],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": ["id"],
@@ -24258,7 +24294,7 @@
                       }
                     },
                     "destructive": {
-                      "description": "Data the change deletes; present only with `allowDelete`.",
+                      "description": "Data the change deletes: dropped columns, removed select options and the cells they empty, or a deleted resource. A dry run shows it whether or not `allowDelete` is set.",
                       "type": "object",
                       "properties": {
                         "what": {
@@ -24326,7 +24362,7 @@
                       }
                     },
                     "destructive": {
-                      "description": "Data the change deletes; present only with `allowDelete`.",
+                      "description": "Data the change deletes: dropped columns, removed select options and the cells they empty, or a deleted resource. A dry run shows it whether or not `allowDelete` is set.",
                       "type": "object",
                       "properties": {
                         "what": {
@@ -24462,6 +24498,42 @@
                               }
                             },
                             "required": ["id"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "blobs": {
+                          "description": "Binary file name → its stored id, revision and hash as last read.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stored id of the binary file."
+                              },
+                              "rev": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "description": "Content revision as last read."
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$",
+                                "description": "SHA-256 of the bytes, lowercase hex."
+                              }
+                            },
+                            "required": ["id", "rev", "sha256"],
                             "additionalProperties": false
                           }
                         }
@@ -24726,6 +24798,41 @@
                           }
                         },
                         "required": ["id"]
+                      }
+                    },
+                    "blobs": {
+                      "description": "Binary file name → its stored id, revision and hash as last read.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stored id of the binary file."
+                          },
+                          "rev": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "string"
+                              }
+                            ],
+                            "description": "Content revision as last read."
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$",
+                            "description": "SHA-256 of the bytes, lowercase hex."
+                          }
+                        },
+                        "required": ["id", "rev", "sha256"]
                       }
                     }
                   },
