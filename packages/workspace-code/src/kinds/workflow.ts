@@ -12,6 +12,7 @@ import { KIND_DIRS, type KindCodec, type WorkspaceKind } from '../kind'
 import { WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
 import { groupByFolder } from './group'
 
+/** A workflow folder's files, as the workflow compiler reads them. */
 export interface WorkflowDecl {
   /**
    * Files relative to the workflow folder: `workflow.ts` and its function code. Empty when the
@@ -64,6 +65,7 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
+/** The codec of `workflows/<key>/`: it carries the files; the workflow pipeline compiles them. */
 export const workflowCodec: KindCodec<WorkflowDecl> = {
   kind: 'workflow',
   dir: KIND_DIRS.workflow,

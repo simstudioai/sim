@@ -31,6 +31,7 @@ import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
 
+/** A custom tool as `tools/<key>.ts` (and its code file) declares it. */
 export interface ToolDecl {
   title: string
   /** The function declaration as stored: `{ type: 'function', function: { name, parameters } }`. */
@@ -61,7 +62,7 @@ function holdsCall(value: Json): boolean {
   return value !== null && typeof value === 'object' && Object.values(value).some(holdsCall)
 }
 
-/** Stored code as its code file, when the file reads back as exactly that code and names no `$ref`. */
+/** Stored code as its code file, when the file reads back as exactly that code with no `$ref`. */
 function codeFileOf(code: string): string | undefined {
   const file = checkCodeFileBijection(code, 'javascript')
   if (!file.ok) return undefined
@@ -207,6 +208,7 @@ function parseTool(
   return { decl: { title, schema, code }, diagnostics }
 }
 
+/** Reads and prints `tools/<key>.ts` and `tools/<key>.js`. */
 export const toolCodec: KindCodec<ToolDecl> = {
   kind: 'custom-tool',
   dir: KIND_DIRS['custom-tool'],

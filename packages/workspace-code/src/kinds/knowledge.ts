@@ -34,6 +34,7 @@ import { groupByFolder } from './group'
 const CHUNKING_STRATEGIES = ['auto', 'text', 'regex', 'recursive', 'sentence', 'token'] as const
 const RECURSIVE_RECIPES = ['plain', 'markdown', 'code'] as const
 
+/** How a knowledge base splits its documents into chunks. */
 export interface KnowledgeChunkingDecl {
   /** Largest chunk, in tokens. */
   maxSize?: number
@@ -56,6 +57,7 @@ export interface KnowledgeDocDecl {
   size: number
 }
 
+/** A knowledge base as `knowledge/<key>/` declares it. */
 export interface KnowledgeBaseDecl {
   name: string
   description?: string
@@ -373,6 +375,7 @@ export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): 
   }
 }
 
+/** Reads and prints `knowledge/<key>/`. */
 export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
   kind: 'knowledge-base',
   dir: KIND_DIRS['knowledge-base'],

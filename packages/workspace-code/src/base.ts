@@ -21,6 +21,7 @@ export type ResourceFingerprint = `rf1:${string}`
 /** `kind:key`, the base's resource address. */
 type ResourceAddress = `${WorkspaceKind}:${string}`
 
+/** A table column's ids in the base. */
 export type BaseColumn = {
   [extension: LockExtensionKey]: Json
   id: string
@@ -35,6 +36,7 @@ type BaseBlob = {
   sha256: string
 }
 
+/** One resource's id, fingerprint, and column and blob ids, as the last get or apply saw them. */
 export type BaseResource = {
   [extension: LockExtensionKey]: Json
   id: string
@@ -44,6 +46,7 @@ export type BaseResource = {
   blobs?: Record<string, BaseBlob>
 }
 
+/** `.sim/base.json`: what the server held for each resource at the last get or apply. */
 export type WorkspaceBaseV1 = {
   [extension: LockExtensionKey]: Json
   version: 1

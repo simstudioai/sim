@@ -20,6 +20,7 @@ export const DECLARATION_EXTENSION = '.ts'
 /** The stored resource key format (`workspace_resource_key.key`). */
 const RESOURCE_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/
 
+/** Whether `value` is a resource key: lowercase, starting with a letter, at most 64 characters. */
 export function isResourceKey(value: string): boolean {
   return RESOURCE_KEY_PATTERN.test(value)
 }

@@ -91,7 +91,7 @@ export function unstorableCharacter(text: string): string | null {
   return null
 }
 
-/** The dotted name of a call's callee (`column.string`, `codeFile`), or `null` for anything else. */
+/** The dotted name of a call's callee (`column.string`, `codeFile`), or `null` otherwise. */
 function calleeName(node: Node): string | null {
   if (node.type === 'Identifier') return node.name
   if (

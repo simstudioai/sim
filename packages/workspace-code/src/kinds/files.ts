@@ -18,6 +18,7 @@ import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
 import { isFileKey } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
+/** A workspace file under `files/`, by content hash. */
 export interface FileDecl {
   /** Lowercase hex SHA-256 of the bytes. */
   sha256: string
@@ -206,6 +207,7 @@ function parseFile(
   return { decl: { sha256: blob.sha256, size: blob.size }, diagnostics: [] }
 }
 
+/** Reads and prints `files/**`. */
 export const fileCodec: KindCodec<FileDecl> = {
   kind: 'file',
   dir: KIND_DIRS.file,

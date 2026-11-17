@@ -21,6 +21,7 @@ import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnost
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { groupByFile } from './group'
 
+/** A skill as `skills/<key>.md` declares it. */
 export interface SkillDecl {
   name: string
   description: string
@@ -166,6 +167,7 @@ function readQuoted(raw: string): string | null {
   }
 }
 
+/** Reads and prints `skills/<key>.md`. */
 export const skillCodec: KindCodec<SkillDecl> = {
   kind: 'skill',
   dir: KIND_DIRS.skill,

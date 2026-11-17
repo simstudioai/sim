@@ -58,7 +58,10 @@ type TableCode =
 type ToolCode =
   /** The schema is not a function declaration a custom tool may store. */
   | 'E_TOOL_SCHEMA'
-  /** `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not parse. */
+  /**
+   * `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not
+   * parse.
+   */
   | 'E_TOOL_CODE'
   /** A tool this apply deletes is still used by stored workflows, which lose it. */
   | 'W_TOOL_IN_USE'
@@ -134,7 +137,10 @@ type PlanCode =
   | 'E_NAME_TAKEN'
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */
   | 'E_WORKFLOW_FILES_MISSING'
-  /** A resource the server holds that the directory does not declare (kept without `--allow-delete`). */
+  /**
+   * A resource the server holds that the directory does not declare (kept without
+   * `--allow-delete`).
+   */
   | 'W_UNDECLARED'
   /** The directory's base was read from another workspace: every resource is created anew. */
   | 'W_BASE_OTHER_WORKSPACE'
@@ -147,6 +153,7 @@ type PlanCode =
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
   | 'I_KEY_REBOUND'
 
+/** Every code a workspace source finding can carry. */
 export type WorkspaceDiagnosticCode =
   | DeclarationCode
   | BaseCode
@@ -157,6 +164,7 @@ export type WorkspaceDiagnosticCode =
   | KnowledgeCode
   | PlanCode
 
+/** How a finding weighs: an error refuses, a warning and an info only report. */
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'
 
 /** The severity a code's prefix fixes. */

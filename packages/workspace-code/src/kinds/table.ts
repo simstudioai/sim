@@ -49,6 +49,7 @@ type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number]
 /** The code the server stamps on a `currency` column declared without one. */
 export const DEFAULT_CURRENCY_CODE = 'USD'
 
+/** One column as `column.<type>()` declares it. */
 export interface TableColumnDecl {
   type: TableColumnType
   /** The stored column name, when it differs from the column's key. */
@@ -63,6 +64,7 @@ export interface TableColumnDecl {
   currencyCode?: string
 }
 
+/** A table as `tables/<key>.ts` declares it. */
 export interface TableDecl {
   name: string
   description?: string
@@ -297,6 +299,7 @@ function canonicalColumn(key: string, column: TableColumnDecl): Json {
   }
 }
 
+/** Reads and prints `tables/<key>.ts`. */
 export const tableCodec: KindCodec<TableDecl> = {
   kind: 'table',
   dir: KIND_DIRS.table,
