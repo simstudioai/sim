@@ -27,7 +27,7 @@ import { didYouMean, HINTS, hintForNode } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource } from './parse'
 import { Reporter } from './report'
 import { collectBody } from './scope'
-import { compileJsonLiteral, literalText, objectEntries } from './values'
+import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
 
 export interface CompileInput {
   entry: { path: string; text: string }
@@ -396,7 +396,7 @@ export function compileWorkflow(input: CompileInput): CompileResult {
     catalog: input.catalog,
     files: input.files,
     limits,
-    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text) },
+    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [] },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),
@@ -511,6 +511,8 @@ export function compileWorkflow(input: CompileInput): CompileResult {
       ...(result.codeFile !== undefined && { codeFile: result.codeFile }),
     })
   }
+
+  checkCodeFileRefs(ctx)
 
   const refTypes: RefTypeScope = {
     catalog: input.catalog,

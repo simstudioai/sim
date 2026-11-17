@@ -131,7 +131,10 @@ type CodeFileCode =
 
 /** References and comments, shared by compile and print. */
 type ReferenceCode =
-  /** A `<x.y>` token that resolves to nothing; kept as literal text. */
+  /**
+   * A `<x.y>` token that resolves to nothing; kept as literal text. Compile also reports it for a
+   * code file `$ref` chain that names no block or variable (`checkCodeFileRefs`).
+   */
   | 'W_UNRESOLVED_REF'
   /** A ref that would point forward (a ref cycle), printed as literal text. */
   | 'W_FORWARD_REF_LITERALIZED'

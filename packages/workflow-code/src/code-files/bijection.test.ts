@@ -15,7 +15,7 @@ describe('toCodeFile rewrites only code-position tokens', () => {
     ['`a ${f({ k: <a.b> })} c`', '`a ${f({ k: $ref.a.b })} c`'],
   ])('%s', (code, file) => {
     expect(toCodeFile(code, 'javascript')).toBe(file)
-    expect(fromCodeFile(file, 'javascript')).toEqual({ ok: true, code })
+    expect(fromCodeFile(file, 'javascript')).toMatchObject({ ok: true, code })
   })
 
   it.each([
@@ -39,7 +39,7 @@ describe('toCodeFile rewrites only code-position tokens', () => {
   it('never rewrites python or shell bodies', () => {
     const python = 'x = <start.input>\nprint({{API_KEY}})'
     expect(toCodeFile(python, 'python')).toBe(python)
-    expect(fromCodeFile(python, 'python')).toEqual({ ok: true, code: python })
+    expect(fromCodeFile(python, 'python')).toMatchObject({ ok: true, code: python })
     const shell = 'echo <start.input> $API_KEY'
     expect(toCodeFile(shell, 'shell')).toBe(shell)
   })
@@ -47,14 +47,14 @@ describe('toCodeFile rewrites only code-position tokens', () => {
 
 describe('fromCodeFile', () => {
   it('ends a reference at a parenthesis', () => {
-    expect(fromCodeFile('return ($ref.a.b).length', 'javascript')).toEqual({
+    expect(fromCodeFile('return ($ref.a.b).length', 'javascript')).toMatchObject({
       ok: true,
       code: 'return (<a.b>).length',
     })
   })
 
   it('maps only the env name segment', () => {
-    expect(fromCodeFile('return $env.KEY.length', 'javascript')).toEqual({
+    expect(fromCodeFile('return $env.KEY.length', 'javascript')).toMatchObject({
       ok: true,
       code: 'return {{KEY}}.length',
     })
@@ -62,7 +62,7 @@ describe('fromCodeFile', () => {
 
   it('accepts top-level return, await and import', () => {
     const file = "import x from 'y'\nconst r = await $ref.a.b\nreturn r"
-    expect(fromCodeFile(file, 'javascript')).toEqual({
+    expect(fromCodeFile(file, 'javascript')).toMatchObject({
       ok: true,
       code: "import x from 'y'\nconst r = await <a.b>\nreturn r",
     })
@@ -76,8 +76,8 @@ describe('fromCodeFile', () => {
   })
 
   it('leaves member chains it cannot map', () => {
-    expect(fromCodeFile('f($ref[k])', 'javascript')).toEqual({ ok: true, code: 'f($ref[k])' })
-    expect(fromCodeFile('f($env[k])', 'javascript')).toEqual({ ok: true, code: 'f($env[k])' })
+    expect(fromCodeFile('f($ref[k])', 'javascript')).toMatchObject({ ok: true, code: 'f($ref[k])' })
+    expect(fromCodeFile('f($env[k])', 'javascript')).toMatchObject({ ok: true, code: 'f($env[k])' })
   })
 })
 
@@ -153,7 +153,7 @@ describe('code-file bijection over a small JS grammar', () => {
         const check = checkCodeFileBijection(code, 'javascript')
         expect(check.ok).toBe(true)
         if (!check.ok) return
-        expect(fromCodeFile(check.file, 'javascript')).toEqual({ ok: true, code })
+        expect(fromCodeFile(check.file, 'javascript')).toMatchObject({ ok: true, code })
         for (const line of check.file.split('\n')) {
           if (line.startsWith('v =') || line.startsWith('f(')) {
             expect(line).not.toMatch(/[<{]{1,2}[A-Za-z]/)
@@ -169,7 +169,7 @@ describe('code-file bijection over a small JS grammar', () => {
       fc.property(fc.string({ maxLength: 80 }), (code) => {
         const check = checkCodeFileBijection(code, 'javascript')
         if (check.ok) {
-          expect(fromCodeFile(check.file, 'javascript')).toEqual({ ok: true, code })
+          expect(fromCodeFile(check.file, 'javascript')).toMatchObject({ ok: true, code })
         }
       }),
       { numRuns: 1000 }

@@ -21,7 +21,16 @@ interface CodeFileSyntaxError {
   column: number
 }
 
-type FromCodeFileResult = { ok: true; code: string } | { ok: false; errors: CodeFileSyntaxError[] }
+/** One `$ref` chain read from the file, at its UTF-16 offsets in the file text. */
+export interface CodeFileRef {
+  start: number
+  end: number
+  segments: RefSegment[]
+}
+
+type FromCodeFileResult =
+  | { ok: true; code: string; refs: CodeFileRef[] }
+  | { ok: false; errors: CodeFileSyntaxError[] }
 
 /**
  * Stored function code runs as a module-or-script body with top-level `return`, `await` and
@@ -42,6 +51,8 @@ interface Replacement {
   start: number
   end: number
   text: string
+  /** Set for a `$ref` chain. */
+  segments?: RefSegment[]
 }
 
 function toSyntaxError(error: unknown): CodeFileSyntaxError {
@@ -67,7 +78,7 @@ function toSyntaxError(error: unknown): CodeFileSyntaxError {
  * Python and shell files are stored verbatim (see `toCodeFile`).
  */
 export function fromCodeFile(text: string, language: CodeFileLanguage): FromCodeFileResult {
-  if (language !== 'javascript') return { ok: true, code: text }
+  if (language !== 'javascript') return { ok: true, code: text, refs: [] }
 
   let program: Node
   try {
@@ -81,15 +92,19 @@ export function fromCodeFile(text: string, language: CodeFileLanguage): FromCode
   }
 
   const replacements = collectReplacements(program)
-  if (replacements.length === 0) return { ok: true, code: text }
+  if (replacements.length === 0) return { ok: true, code: text, refs: [] }
   replacements.sort((left, right) => left.start - right.start)
   let code = ''
   let cursor = 0
+  const refs: CodeFileRef[] = []
   for (const replacement of replacements) {
     code += text.slice(cursor, replacement.start) + replacement.text
     cursor = replacement.end
+    if (replacement.segments) {
+      refs.push({ start: replacement.start, end: replacement.end, segments: replacement.segments })
+    }
   }
-  return { ok: true, code: code + text.slice(cursor) }
+  return { ok: true, code: code + text.slice(cursor), refs }
 }
 
 function isParenthesized(node: Node): boolean {
@@ -163,7 +178,7 @@ function chainReplacement(
     const token = `<${formatStoredPath(segments)}>`
     if (isLikelyWorkflowReferenceSegment(token) && last.start != null && last.end != null) {
       return {
-        replacement: { start: last.start, end: last.end, text: token },
+        replacement: { start: last.start, end: last.end, text: token, segments: [...segments] },
         consumed: segments.length,
       }
     }

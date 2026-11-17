@@ -791,6 +791,41 @@ describe('errors, each with its code, location and hint', () => {
     ])
   })
 
+  it('warns at the file location when a code file $ref names no block, variable or output', () => {
+    const text = source(
+      [
+        START,
+        "const classifier = agent('Triage Agent', { model: 'm' })",
+        "const lookup = api('Lookup', { url: 'x' })",
+        "const f = fn('F', { code: codeFile('./fns/f.js') })",
+      ].join('\n')
+    )
+    const file = [
+      'const a = $ref.classifier.content',
+      'const b = $ref.lookup.nope',
+      'const c = $ref.variable.missing',
+      'const d = $ref.triageagent.content + $ref.lookup.data + $ref.start.input + $ref.variable.retries',
+    ].join('\n')
+    const result = run(text, { 'workflows/fns/f.js': file })
+    expect(errorsOf(result)).toEqual([])
+    const unresolved = result.diagnostics.filter((d) => d.code === 'W_UNRESOLVED_REF')
+    expect(unresolved).toEqual([
+      expect.objectContaining({
+        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 1, column: 11 }),
+        hint: expect.stringContaining('$ref.triageagent.content'),
+      }),
+      expect.objectContaining({
+        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 3 }),
+      }),
+    ])
+    const outputPath = result.diagnostics.filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH')
+    expect(outputPath).toEqual([
+      expect.objectContaining({
+        span: expect.objectContaining({ file: 'workflows/fns/f.js', line: 2 }),
+      }),
+    ])
+  })
+
   it('reports a syntax error inside a code file at its own location', () => {
     const result = run(source("const f = fn('F', { code: codeFile('./fns/bad.js') })"), {
       'workflows/fns/bad.js': 'return (',

@@ -248,7 +248,10 @@ template.
 `code: codeFile('./functions/x.js')`, relative to `workflow.ts`, with the extension matching
 `language` (default `javascript`). Otherwise `E_CODE_FILE_PATH`; a file the request did not send is
 `E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
-`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim. When the stored code
+`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim. `$ref` names a block by
+its key (`$ref.triageagent.content`), not its ident; a chain that names no block or variable is
+`W_UNRESOLVED_REF` at the file location (the hint names the key when the head is an ident or a
+block name), and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. When the stored code
 cannot round-trip through a file, the printer writes it inline as `` js`…` `` with
 `W_CODE_FILE_INLINED`.
 
@@ -382,7 +385,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
-| `W_UNRESOLVED_REF` | A `<x.y>` token that resolves to nothing; kept as text. |
+| `W_UNRESOLVED_REF` | A `<x.y>` token, or a code file `$ref` chain, that resolves to nothing; kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |
 | `W_COMMENT_DROPPED` | A comment whose block no longer exists. |

@@ -389,6 +389,9 @@ function parseCodeFile(
     }
     return null
   }
+  if (back.refs.length > 0) {
+    ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs: back.refs })
+  }
   return back.code
 }
 

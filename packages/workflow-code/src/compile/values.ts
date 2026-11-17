@@ -27,8 +27,17 @@ import {
   parseStoredPath,
   type RefSegment,
 } from '../code-files/ref-path'
+import { REF_ROOT } from '../code-files/to-file'
 import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
-import type { CanonicalParam, Json, ResourceKind, SubBlockId, Value, VarNode } from '../model'
+import type {
+  BlockKey,
+  CanonicalParam,
+  Json,
+  ResourceKind,
+  SubBlockId,
+  Value,
+  VarNode,
+} from '../model'
 import { setOwn } from '../records'
 import { SDK_RESOURCE_CALLS } from '../sdk'
 import {
@@ -45,6 +54,7 @@ import {
   visibleNames,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
+import type { Range } from './report'
 import { outputSchemasFor } from './validate-catalog'
 
 /** Where a value is compiled: the block it belongs to and the scope its identifiers resolve in. */
@@ -586,7 +596,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       const target = binding.decl
       const segments = segmentsOf(ctx, members, site)
       if (!segments) return null
-      checkOutputPath(ctx, node, target, segments, site)
+      checkOutputPath(ctx, rangeOf(ctx, node), target, segments, site.decl.key)
       if (target.order > site.decl.order && target !== site.decl) {
         ctx.reporter.report(
           'W_FORWARD_REF',
@@ -616,10 +626,10 @@ function segmentsOf(
 
 function checkOutputPath(
   ctx: CompileContext,
-  node: Node,
+  at: Range,
   target: BlockDecl,
   segments: RefSegment[],
-  site: ValueSite
+  blockKey: BlockKey
 ): void {
   if (segments.length === 0) return
   const containerKind = containerKindOf(target)
@@ -633,8 +643,8 @@ function checkOutputPath(
       ctx.reporter.report(
         'W_UNKNOWN_OUTPUT_PATH',
         `A ${containerKind} has no output ${first.name}.`,
-        rangeOf(ctx, node),
-        { hint: didYouMean(first.name, known), blockKey: site.decl.key }
+        at,
+        { hint: didYouMean(first.name, known), blockKey }
       )
     }
     return
@@ -647,9 +657,62 @@ function checkOutputPath(
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       `${block.name} has no output ${formatStoredPath(segments)}.`,
-      rangeOf(ctx, node),
-      { blockKey: site.decl.key }
+      at,
+      { blockKey }
     )
+  }
+}
+
+/**
+ * Checks the `$ref` chains read from JavaScript code files once every block is declared: a head
+ * that names no block (a block's ident, a renamed block's old key, a typo) or a variable that does
+ * not exist is `W_UNRESOLVED_REF`, and a path no output has is `W_UNKNOWN_OUTPUT_PATH`. Warnings,
+ * not errors, because stored code may already hold a dangling reference and must round-trip; at
+ * run time such a token is spliced into the code as text, which fails as JavaScript.
+ */
+export function checkCodeFileRefs(ctx: CompileContext): void {
+  for (const { path, blockKey, refs } of ctx.codeFiles.chains) {
+    for (const ref of refs) {
+      const [head, ...rest] = ref.segments
+      if (head?.kind !== 'name') continue
+      const at: Range = { file: path, start: ref.start, end: ref.end }
+      const written = formatMemberPath(REF_ROOT, ref.segments)
+      if (head.name === 'variable') {
+        const name = rest[0]?.kind === 'name' ? rest[0].name : null
+        if (name !== null && !ctx.variables.has(name)) {
+          ctx.reporter.report(
+            'W_UNRESOLVED_REF',
+            `${written}: no workflow variable is keyed ${name}.`,
+            at,
+            {
+              hint: didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
+              blockKey,
+            }
+          )
+        }
+        continue
+      }
+      if (isReservedWorkflowBlockName(head.name)) continue
+      const target = ctx.declsByKey.get(head.name)
+      if (target) {
+        checkOutputPath(ctx, at, target, rest, blockKey)
+        continue
+      }
+      const byIdent = ctx.declsByIdent.get(head.name)?.[0]
+      const byName = ctx.declsByKey.get(normalizeWorkflowBlockName(head.name))
+      const suggested = byIdent ?? byName
+      ctx.reporter.report(
+        'W_UNRESOLVED_REF',
+        `${written} names no block, so it does not resolve at run time.`,
+        at,
+        {
+          hint: suggested
+            ? `${REF_ROOT} names a block by its key: write ${formatMemberPath(REF_ROOT, [{ kind: 'name', name: suggested.key }, ...rest])}.`
+            : didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+          blockKey,
+        }
+      )
+    }
   }
 }
 

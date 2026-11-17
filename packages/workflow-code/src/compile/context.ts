@@ -6,6 +6,7 @@ import type {
 } from '@babel/types'
 import { encodeAnchor } from '../anchors'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
+import type { CodeFileRef } from '../code-files'
 import type { SourceSpan } from '../diagnostics/frame'
 import type { JsonTree } from '../json-fields'
 import type {
@@ -102,6 +103,11 @@ interface CodeFileBudget {
   refs: number
   /** Bytes of the entry plus the distinct code files read so far. */
   bytes: number
+  /**
+   * The `$ref` chains of each distinct JavaScript file read, checked against the declared blocks
+   * once every block is known (`checkCodeFileRefs`).
+   */
+  chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
 }
 
 export interface CompileContext {
