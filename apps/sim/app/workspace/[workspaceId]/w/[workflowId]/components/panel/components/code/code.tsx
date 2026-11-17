@@ -13,6 +13,7 @@ import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workfl
 import { subscribeToDraftChanges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
 import { useWorkflowSource, workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import type { QueuedOperation } from '@/stores/operation-queue/types'
 
 /** Quiet period after the last edit before the source is re-read. */
 const REFRESH_DEBOUNCE_MS = 750
@@ -42,8 +43,13 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
   useEffect(() => {
     if (!workflowId) return
     let timer: ReturnType<typeof setTimeout> | undefined
-    /** Something the source prints changed since the last read was scheduled. */
-    let dirty = false
+    const isPrintable = (operation: QueuedOperation) =>
+      operation.workflowId === workflowId && !GEOMETRY_OPERATIONS.has(operation.operation.operation)
+    /**
+     * Something the source prints changed since the last read was scheduled. An edit still queued
+     * when the tab opens counts: the first read can land before it persists.
+     */
+    let dirty = useOperationQueueStore.getState().operations.some(isPrintable)
     const schedule = () => {
       clearTimeout(timer)
       timer = setTimeout(() => {
@@ -61,10 +67,7 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       if (state.operations === previous.operations) return
       const queued = new Set(previous.operations.map((operation) => operation.id))
       const printable = state.operations.some(
-        (operation) =>
-          !queued.has(operation.id) &&
-          operation.workflowId === workflowId &&
-          !GEOMETRY_OPERATIONS.has(operation.operation.operation)
+        (operation) => !queued.has(operation.id) && isPrintable(operation)
       )
       if (printable) markDirty()
       else if (dirty) schedule()

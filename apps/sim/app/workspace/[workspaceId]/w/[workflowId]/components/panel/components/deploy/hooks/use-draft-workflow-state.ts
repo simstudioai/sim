@@ -60,6 +60,7 @@ export function useDraftWorkflowState(
  */
 const GEOMETRY_FIELDS: ReadonlySet<string> = new Set([...BLOCK_LAYOUT_FIELDS, 'data'])
 const GEOMETRY_DATA_FIELDS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
+const NO_FIELDS: ReadonlySet<string> = new Set()
 
 /** Whether two records differ by identity in any field outside `ignored`. */
 function differsBeyond(next: object, previous: object, ignored: ReadonlySet<string>): boolean {
@@ -124,15 +125,16 @@ function workflowVariablesChanged(
 /**
  * Calls `onChange` whenever the draft {@link useDraftWorkflowState} returns for `workflowId`
  * changes: the canvas graph, this workflow's sub-block values, or its variables. A block change
- * that only moves or resizes it does not count. Returns the unsubscribe function.
+ * that only moves or resizes it does not count, nor does a write that copies the loops or
+ * parallels map without replacing an entry (a handle toggle). Returns the unsubscribe function.
  */
 export function subscribeToDraftChanges(workflowId: string, onChange: () => void): () => void {
   const unsubscribers = [
     useWorkflowStore.subscribe((state, previous) => {
       if (
         edgesChanged(state.edges, previous.edges) ||
-        state.loops !== previous.loops ||
-        state.parallels !== previous.parallels ||
+        differsBeyond(state.loops, previous.loops, NO_FIELDS) ||
+        differsBeyond(state.parallels, previous.parallels, NO_FIELDS) ||
         (state.blocks !== previous.blocks &&
           blocksChangedBeyondGeometry(state.blocks, previous.blocks))
       ) {
