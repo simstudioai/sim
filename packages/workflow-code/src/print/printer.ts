@@ -420,7 +420,7 @@ class WorkflowPrinter {
     }
     for (const param of Object.values(block.params)) {
       if (param.kind === 'value') walk(param.value)
-      else walk(param.tools.map((tool) => tool.params))
+      else walk(param.tools)
     }
     for (const row of block.branches?.rows ?? []) walk(row.value)
     if (block.subflow) walk(block.subflow)

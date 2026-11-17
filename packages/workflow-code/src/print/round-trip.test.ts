@@ -8,7 +8,7 @@ import { TEST_CATALOG } from '../compile/test-catalog'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from './printer'
 
-const IMPORTS = "import { api, workflow } from '@sim/workflow-sdk'"
+const IMPORTS = "import { agent, api, customTool, js, workflow } from '@sim/workflow-sdk'"
 
 function compile(text: string) {
   return compileWorkflow({
@@ -38,5 +38,18 @@ describe('printWorkflow round trip', () => {
     expect(entry?.text).not.toContain('vars.constructor')
     const again = compile(entry?.text ?? '')
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  })
+
+  it('declares a block referenced only from a custom tool policy before its referrer', () => {
+    const output = printed(
+      compiled(
+        [
+          "  const a = agent('A', { model: 'm', tools: [customTool('lookup', { usageControlExpression: js`${zed.content} === 1` })] })",
+          "  const zed = agent('Zed', { model: 'm' })",
+        ].join('\n')
+      )
+    )
+    expect(output.diagnostics.map((d) => d.code)).not.toContain('W_FORWARD_REF_LITERALIZED')
+    expect(output.files[0]?.text).toContain('${zed.content}')
   })
 })
