@@ -235,6 +235,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     resources = {
       toKey: (kind, id) => storedResources.toKey(kind, id) ?? extra.toKey(kind, id),
       toId: (kind, key) => storedResources.toId(kind, key) ?? extra.toId(kind, key),
+      nameOf: (kind, id) => storedResources.nameOf?.(kind, id) ?? extra.nameOf?.(kind, id) ?? null,
     }
   }
 

@@ -1,10 +1,17 @@
 import { isRecordLike } from '@sim/utils/object'
 import { mcpBinding, mcpToolId } from '../agent-tools'
-import { shouldDecode, uniqueFieldNames } from '../canonicalize/params'
+import { shouldDecode, storedSkillEntry, uniqueFieldNames } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
-import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
+import {
+  type BlockKey,
+  type CanonicalParam,
+  type CanonicalTool,
+  isSimNode,
+  type SubBlockId,
+  type Value,
+} from '../model'
 import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
 import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
@@ -88,6 +95,27 @@ function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeCon
     const id = match?.id ?? context.hooks.newId()
     used.add(id)
     return { id, ...row }
+  })
+}
+
+/**
+ * Agent skills: each `skill` node is written as `{ skillId, name }`. The name is prev's for the
+ * same skill (so an unchanged entry keeps its bytes), else the skill's current name from the
+ * resolver, else its key. Every other entry is written as itself.
+ */
+function encodeSkills(list: Value[], site: ParamSite, context: MaterializeContext): unknown[] {
+  const location = { blockKey: site.blockKey, param: site.param }
+  const prevNames = new Map<string, string>()
+  for (const item of parseStoredList(site.prevRaw) ?? []) {
+    const entry = storedSkillEntry(item)
+    if (entry && !prevNames.has(entry.skillId)) prevNames.set(entry.skillId, entry.name)
+  }
+  return list.map((item) => {
+    const skillId = unliftValue(item, context, location)
+    const isSkill = isSimNode(item) && item.$sim === 'resource' && item.kind === 'skill'
+    if (!isSkill || typeof skillId !== 'string') return skillId
+    const name = prevNames.get(skillId) ?? context.resources?.nameOf?.('skill', skillId) ?? item.key
+    return { skillId, name }
   })
 }
 
@@ -201,7 +229,10 @@ export function encodeParam(
   context: MaterializeContext
 ): unknown {
   if (param.kind === 'tools') return encodeTools(param.tools, site, context)
-  let json = unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
+  let json =
+    site.declaration?.structured === 'skills' && Array.isArray(param.value)
+      ? encodeSkills(param.value, site, context)
+      : unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
   if (Array.isArray(json) && site.declaration?.structured === 'inputFormat') {
     json = restoreInputFormatIds(json, site, context)
   } else if (Array.isArray(json) && site.declaration?.structured === 'tableRows') {

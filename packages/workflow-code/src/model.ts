@@ -67,6 +67,11 @@ export interface VarNode {
  * - `files` encoding (file-upload objects carrying `key`): each object stays an object and its
  *   `key` field becomes `{ $sim: 'resource', kind: 'file', key }`;
  * - `csv` encoding (several ids in one comma-joined string): see {@link CsvNode}.
+ * - `skills` encoding (agent `skill-input` entries `{ skillId, name }`): an entry whose skill
+ *   resolves becomes the `skill` node itself, so it prints `skill('key')` as the SDK types it.
+ *   `name` is display text the agent handler never reads; materialize writes it back from prev's
+ *   entry for the same skill, else {@link ResourceKeyResolver.nameOf}. Any other entry (an
+ *   unresolved skill, a builtin one, extra keys) stays a verbatim object.
  */
 export interface ResourceNode {
   $sim: 'resource'
@@ -82,6 +87,12 @@ export interface ResourceNode {
 export interface ResourceKeyResolver {
   toKey(kind: ResourceKind, id: string): string | null
   toId(kind: ResourceKind, key: string): string | null
+  /**
+   * A resolved resource's current display name, for a stored shape that carries one beside the
+   * id (the skills encoding of {@link ResourceNode}); `null` when unknown. Without it, the key
+   * stands in for the name.
+   */
+  nameOf?(kind: ResourceKind, id: string): string | null
 }
 
 /**

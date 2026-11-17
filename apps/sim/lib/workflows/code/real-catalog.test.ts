@@ -9,11 +9,14 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createBlock } from '@sim/testing/factories/block.factory'
 import {
+  canonicalEquals,
   canonicalize,
   catalogBlock,
   catalogBuilder,
   compileWorkflow,
+  materialize,
   printWorkflow,
+  type ResourceKeyResolver,
 } from '@sim/workflow-code'
 import {
   COOKBOOK_TS,
@@ -30,6 +33,7 @@ import { projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import {
   SDK_ROOT,
   typeCheckAgainstSdk,
@@ -165,6 +169,73 @@ describe('canonicalize and codegen over the real block catalog', () => {
     const decoded = param?.kind === 'tools' ? param.tools.map((tool) => tool.params) : []
     expect(decoded).toEqual(shaped.map(({ id }) => ({ [id]: true })))
   })
+
+  it("prints an agent's skills as skill(key) that type-checks and writes the stored entries back", () => {
+    sdkTypesOnce()
+    const skills: ResourceKeyResolver = {
+      toKey: (kind, id) => (kind === 'skill' && id === 'skl_tone' ? 'tone' : null),
+      toId: (kind, key) => (kind === 'skill' && key === 'tone' ? 'skl_tone' : null),
+      nameOf: (kind, id) => (kind === 'skill' && id === 'skl_tone' ? 'Tone' : null),
+    }
+    const stored = [
+      { skillId: 'skl_tone', name: 'Tone' },
+      { skillId: 'skl_gone', name: 'Gone' },
+    ]
+    const state: WorkflowState = {
+      blocks: {
+        a1: createBlock({
+          id: 'a1',
+          type: 'agent',
+          name: 'Agent',
+          subBlocks: {
+            model: { id: 'model', type: 'combobox', value: 'claude-sonnet-4-5' },
+            skills: { id: 'skills', type: 'skill-input', value: stored },
+          },
+        }),
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+    const meta = { name: 'Skills', description: null }
+    const canonical = canonicalize(state, { catalog, meta, resources: skills }).workflow
+    const [entry] = printWorkflow({
+      workflow: canonical,
+      catalog,
+      options: { functionCode: 'inline' },
+    }).files
+    expect(entry.text).toContain(
+      "skills: [skill('tone'), raw({ skillId: 'skl_gone', name: 'Gone' })]"
+    )
+    const dir = path.join(workDir, 'skills')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(path.join(dir, 'skills.ts'), entry.text)
+    expect(typeCheckAgainstSdk(workDir, 'skills', [path.join(dir, '*.ts')])).toBe('')
+
+    const compiled = compileWorkflow({
+      entry,
+      files: new Map(),
+      catalog,
+      sdkMajor: catalog.sdkMajor,
+      knownKeys: new Set(Object.keys(canonical.blocks)),
+      stored: canonical,
+    })
+    expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(compiled.workflow && canonicalEquals(compiled.workflow, canonical)).toBe(true)
+    if (!compiled.workflow) return
+    const hooks = createMaterializeHooks()
+    for (const prev of [state, undefined]) {
+      const written = materialize(compiled.workflow, null, {
+        catalog,
+        hooks,
+        prev,
+        resources: skills,
+        lockFreshness: 'none',
+      }).state
+      const agent = Object.values(written.blocks).find((block) => block.type === 'agent')
+      expect(agent?.subBlocks.skills?.value).toEqual(stored)
+    }
+  }, 120_000)
 
   it('generates SDK types the example workflows type-check against', () => {
     const files = sdkTypesOnce()

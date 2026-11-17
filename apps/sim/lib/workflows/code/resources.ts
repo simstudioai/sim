@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credential, credentialMember } from '@sim/db/schema'
+import { credential, credentialMember, skill } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import type { ResourceKeyResolver, ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
@@ -109,6 +109,19 @@ async function hiddenCredentialIds(
   return new Set(saved.flatMap((row) => (visibleIds.has(row.id) ? [] : [row.id])))
 }
 
+/**
+ * Current names of the skills among `ids` in the workspace: a stored skill entry carries the
+ * skill's name beside its id (`{ skillId, name }`), which materialize fills for a newly named skill.
+ */
+async function loadSkillNames(workspaceId: string, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const rows = await db
+    .select({ id: skill.id, name: skill.name })
+    .from(skill)
+    .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, ids)))
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
 const credentialIdsOf = (refs: ResourceIdRef[]) =>
   refs.flatMap((ref) => (ref.kind === 'credential' ? [ref.id] : []))
 
@@ -131,7 +144,8 @@ interface LoadResourceKeyResolverOptions {
  * Resolves `references` in one workspace through its resource keys and returns a resolver over the
  * result: each referenced live resource's key (allocated on first reference, see `resolveKeys`)
  * and each referenced key's live resource, in both directions (so a fingerprint taken after
- * writing a key's id prints that key). Nothing outside `references` resolves.
+ * writing a key's id prints that key). Nothing outside `references` resolves. `nameOf` answers
+ * for each resolved skill.
  */
 export async function loadResourceKeyResolver(
   workspaceId: string,
@@ -156,11 +170,17 @@ export async function loadResourceKeyResolver(
     new Map([...map].map(([kind, pairs]) => [kind, new Map([...pairs].map(([a, b]) => [b, a]))]))
   const keysByIdFromKeys = invert(idsByKey)
   const idsByKeyFromIds = invert(keysById)
+  const skillIds = new Set([
+    ...(keysById.get('skill')?.keys() ?? []),
+    ...(idsByKey.get('skill')?.values() ?? []),
+  ])
+  const skillNames = await loadSkillNames(workspaceId, [...skillIds])
   const lookup = (map: ResourceKeyMap, kind: ResourceKind, value: string) =>
     map.get(kind)?.get(value) ?? null
   return {
     toKey: (kind, id) => lookup(keysById, kind, id) ?? lookup(keysByIdFromKeys, kind, id),
     toId: (kind, key) => lookup(idsByKey, kind, key) ?? lookup(idsByKeyFromIds, kind, key),
+    nameOf: (kind, id) => (kind === 'skill' ? (skillNames.get(id) ?? null) : null),
   }
 }
 

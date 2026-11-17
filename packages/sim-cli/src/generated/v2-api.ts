@@ -7876,7 +7876,13 @@ export type GetSourceCatalogResponse = {
                 | 'none'
               resourceKind?: string
               storage: 'native' | 'json-string'
-              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
               acceptsNumber?: boolean
               neverDecoded?: boolean
               tableFilter?: boolean
@@ -8099,7 +8105,13 @@ export type GetSourceCatalogResponse = {
                 | 'none'
               resourceKind?: string
               storage: 'native' | 'json-string'
-              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
               acceptsNumber?: boolean
               neverDecoded?: boolean
               tableFilter?: boolean
@@ -8282,7 +8294,7 @@ export type GetSourceCatalogResponse = {
         | 'none'
       resourceKind?: string
       storage: 'native' | 'json-string'
-      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables' | 'skills'
       acceptsNumber?: boolean
       neverDecoded?: boolean
       tableFilter?: boolean

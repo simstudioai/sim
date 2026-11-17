@@ -7,7 +7,7 @@ import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
 import { liftTools } from './tools'
-import { liftResourceValue, toValue } from './values'
+import { liftResourceId, liftResourceValue, toValue } from './values'
 
 /**
  * Server-owned trigger runtime ids (triggers/constants.ts
@@ -159,6 +159,34 @@ function liftTableRows(list: unknown[], context: CanonContext): Value {
   return rows
 }
 
+/** A stored agent skill entry in the exact shape the skill picker writes: `{ skillId, name }`. */
+export function storedSkillEntry(item: unknown): { skillId: string; name: string } | null {
+  if (!isRecordLike(item) || Object.keys(item).length !== 2) return null
+  const { skillId, name } = item
+  if (typeof skillId !== 'string' || skillId.trim() === '' || typeof name !== 'string') return null
+  return { skillId, name }
+}
+
+/**
+ * Agent skills (`skill-input`): each `{ skillId, name }` entry whose skill resolves becomes its
+ * `skill` resource node (the skills encoding of `ResourceNode`). Any other entry stays a verbatim
+ * value; a skill id the resolver misses is reported by `liftResourceId`.
+ */
+function liftSkills(
+  list: unknown[],
+  context: CanonContext,
+  location: { blockKey: BlockKey; param: string }
+): Value {
+  return list.map((item) => {
+    const entry = storedSkillEntry(item)
+    if (entry) {
+      const node = liftResourceId('skill', entry.skillId, context, location)
+      if (node.$sim === 'resource') return node
+    }
+    return toValue(item, context)
+  })
+}
+
 /**
  * Variable assignments (`variables-input`): each `variableId` becomes a `var` node keyed by the
  * variable's key (sites as `remapVariableAssignment` walks them). An id naming no
@@ -261,6 +289,8 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       if (lifted.items.length > 0) setOwn(items, id, lifted.items)
     } else if (declaration?.structured === 'tableRows' && Array.isArray(decoded)) {
       value = liftTableRows(decoded, context)
+    } else if (declaration?.structured === 'skills' && Array.isArray(decoded)) {
+      value = liftSkills(decoded, context, location)
     } else if (declaration?.structured === 'variables') {
       value = liftVariableAssignments(decoded, blockKey, id, context)
     } else if (declaration?.valueKind === 'resource' && declaration.resourceKind) {

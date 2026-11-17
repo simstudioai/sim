@@ -72,7 +72,13 @@ export type CatalogValueKind =
   | 'none'
 
 /** Structured subBlock types whose stored JSON canonicalize decodes. */
-export type CatalogStructuredKind = 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+export type CatalogStructuredKind =
+  | 'tools'
+  | 'branches'
+  | 'tableRows'
+  | 'inputFormat'
+  | 'variables'
+  | 'skills'
 
 /** A static dropdown option of a subBlock, as the expanded catalog serves it. */
 export interface CatalogOption {
