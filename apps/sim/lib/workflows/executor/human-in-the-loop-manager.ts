@@ -80,6 +80,7 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { extractBaseBlockId } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedConnection } from '@/serializer/types'
 
 /**
@@ -396,6 +397,8 @@ interface ResumeQueueEntrySummary {
 interface PausePointWithQueue extends PausePoint {
   queuePosition?: number | null
   latestResumeEntry?: ResumeQueueEntrySummary | null
+  /** The paused block's name from the snapshot's workflow, set by {@link PauseResumeManager.namePausePoints}. */
+  blockName?: string
 }
 
 interface PausedExecutionSummary {
@@ -3608,12 +3611,13 @@ export class PauseResumeManager {
     contextId: string
   }): Promise<PauseContextDetail | null> {
     const { workflowId, executionId, contextId } = options
-    const detail = await PauseResumeManager.getPausedExecutionDetail({ workflowId, executionId })
+    const loaded = await PauseResumeManager.getPausedExecutionDetail({ workflowId, executionId })
 
-    if (!detail) {
+    if (!loaded) {
       return null
     }
 
+    const detail = omit(PauseResumeManager.namePausePoints(loaded), ['executionSnapshot'])
     const pausePoint = detail.pausePoints.find((point) => point.contextId === contextId)
     if (!pausePoint) {
       return null
@@ -3628,7 +3632,7 @@ export class PauseResumeManager {
     // are already returned via `pausePoint` below; strip them from
     // `execution.pausePoints` so a large HITL payload isn't duplicated in full
     // within the same response.
-    const execution: PausedExecutionDetail = {
+    const execution: PausedExecutionSummary = {
       ...detail,
       pausePoints: detail.pausePoints.map(({ display, inputFields, ...point }) =>
         point.response ? { ...point, response: { ...point.response, data: undefined } } : point
@@ -3640,6 +3644,35 @@ export class PauseResumeManager {
       pausePoint,
       queue: detail.queue,
       activeResumeEntry,
+    }
+  }
+
+  /**
+   * Names each pause point after its block in the snapshot's serialized workflow.
+   * The snapshot carries every block's output and can run to many megabytes, so
+   * readers resolve names here once instead of shipping the snapshot to a client.
+   */
+  static namePausePoints<T extends PausedExecutionDetail>(detail: T): T {
+    const blockNames = new Map<string, string>()
+    try {
+      const workflow = toRecord(toRecord(JSON.parse(detail.executionSnapshot.snapshot)).workflow)
+      for (const block of Array.isArray(workflow.blocks) ? workflow.blocks : []) {
+        if (!isRecordLike(block) || typeof block.id !== 'string') continue
+        const name = toRecord(block.metadata).name
+        if (typeof name === 'string' && name) blockNames.set(block.id, name)
+      }
+    } catch (error) {
+      logger.warn('Could not read block names from paused execution snapshot', {
+        executionId: detail.executionId,
+        error: toError(error).message,
+      })
+    }
+    return {
+      ...detail,
+      pausePoints: detail.pausePoints.map((point) => {
+        const blockName = blockNames.get(extractBaseBlockId(point.blockId ?? point.contextId))
+        return blockName ? { ...point, blockName } : point
+      }),
     }
   }
 

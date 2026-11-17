@@ -121,4 +121,22 @@ describe('GET /api/resume/[workflowId]/[executionId]', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
   })
+
+  it('leaves the execution snapshot out only when the resume page asks', async () => {
+    const pageRead = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost/api/resume/workflow-1/execution-1?includeSnapshot=false'
+      ),
+      createRouteContext(params)
+    )
+    const apiRead = await GET(request(), createRouteContext(params))
+
+    const pageBody = await pageRead.json()
+    expect(pageBody).not.toHaveProperty('executionSnapshot')
+    expect(pageBody.pausePoints).toEqual(detail.pausePoints)
+    expect((await apiRead.json()).executionSnapshot).toEqual(detail.executionSnapshot)
+  })
 })

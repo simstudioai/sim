@@ -7,6 +7,8 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 export interface ReadPausedWorkflowExecutionInput {
   workflowId: string
   executionId: string
+  /** Whether the presenting surface returns the execution snapshot; the read loads it either way. */
+  includeSnapshot?: boolean
 }
 
 export const readPausedWorkflowExecution = defineAuthorizedWorkflowUseCase({
@@ -19,6 +21,6 @@ export const readPausedWorkflowExecution = defineAuthorizedWorkflowUseCase({
       executionId: input.executionId,
     })
     if (!detail) throw new OrchestrationError('not_found', 'Paused execution not found')
-    return detail
+    return PauseResumeManager.namePausePoints(detail)
   },
 })

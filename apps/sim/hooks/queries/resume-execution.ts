@@ -41,7 +41,6 @@ export interface ResumeQueueEntrySummary {
 
 export interface PausePointWithQueue {
   contextId: string
-  triggerBlockId?: string
   blockId?: string
   response: any
   registeredAt: string
@@ -51,6 +50,7 @@ export interface PausePointWithQueue {
   resumeLinks?: ResumeLinks
   queuePosition?: number | null
   latestResumeEntry?: ResumeQueueEntrySummary | null
+  blockName?: string
   parallelScope?: any
   loopScope?: any
   pauseKind?: 'human' | 'time'
@@ -73,7 +73,6 @@ export interface PausedExecutionSummary {
 }
 
 export interface PausedExecutionDetail extends PausedExecutionSummary {
-  executionSnapshot: any
   queue: ResumeQueueEntrySummary[]
 }
 
@@ -118,6 +117,7 @@ export function useResumeExecutionDetail(workflowId: string, executionId: string
     queryFn: async ({ signal }): Promise<PausedExecutionDetail> => {
       const raw = await requestJson(resumeWorkflowExecutionContract, {
         params: { workflowId, executionId },
+        query: { includeSnapshot: false },
         signal,
       })
       // double-cast-allowed: contract models pause points as z.record; the resume UI uses the richer PausedExecutionDetail interface

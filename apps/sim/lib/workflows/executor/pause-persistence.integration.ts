@@ -6,6 +6,7 @@
 import { db } from '@sim/db'
 import {
   pausedExecutions,
+  permissions,
   user,
   workflow,
   workflowDeploymentVersion,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/billing/core/attribution'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { WorkflowState } from '@/lib/logs/types'
+import { readPausedWorkflowExecution } from '@/lib/workflows/application/read-paused-workflow-execution'
 import {
   getWorkflowExecutionStatus,
   readPausedRunPoints,
@@ -154,6 +156,13 @@ beforeAll(async () => {
     ownerId: ids.owner,
     billedAccountUserId: ids.owner,
   })
+  await db.insert(permissions).values({
+    id: generateId(),
+    entityType: 'workspace',
+    entityId: ids.workspace,
+    userId: ids.owner,
+    permissionType: 'admin',
+  })
   await db.insert(workflow).values({
     id: ids.workflow,
     userId: ids.owner,
@@ -175,6 +184,7 @@ afterAll(async () => {
   await db
     .delete(workflowExecutionSnapshots)
     .where(eq(workflowExecutionSnapshots.workflowId, ids.workflow))
+  await db.delete(permissions).where(eq(permissions.entityId, ids.workspace))
   await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspace))
   await db.delete(user).where(eq(user.id, ids.owner))
 })
@@ -494,5 +504,67 @@ describe('readPausedRunPoints', () => {
       parallel: null,
       loop: null,
     })
+  })
+})
+
+describe('resume page reads', () => {
+  /** Gives the published snapshot a workflow naming the paused block, as a real run's carries. */
+  async function nameApprovalBlockInSnapshot(executionId: string) {
+    const [row] = await db
+      .select({ executionSnapshot: pausedExecutions.executionSnapshot })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+    const seed = row.executionSnapshot as { snapshot: string; triggerIds: string[] }
+    const snapshot = {
+      ...JSON.parse(seed.snapshot),
+      workflow: { blocks: [{ id: CONTEXT_ID, metadata: { name: 'Approval' } }] },
+    }
+    await db
+      .update(pausedExecutions)
+      .set({ executionSnapshot: { ...seed, snapshot: JSON.stringify(snapshot) } })
+      .where(eq(pausedExecutions.executionId, executionId))
+  }
+
+  it('names every parallel branch point from the snapshot and keeps the snapshot out of the pause context', async () => {
+    const registry = registryWithResolvedSecret()
+    const executionId = await publishPausedRun([
+      humanBranchPoint(0, registry),
+      humanBranchPoint(1, registry),
+    ])
+    await nameApprovalBlockInSnapshot(executionId)
+
+    const detail = await readPausedWorkflowExecution.execute({
+      principal: { kind: 'session', userId: ids.owner, sessionId: generateId() },
+      input: { workflowId: ids.workflow, executionId },
+    })
+    const context = await PauseResumeManager.getPauseContextDetail({
+      workflowId: ids.workflow,
+      executionId,
+      contextId: BRANCH_IDS[1],
+    })
+
+    expect(detail.pausePoints.map((point) => point.blockName)).toEqual(['Approval', 'Approval'])
+    expect(context?.pausePoint.blockName).toBe('Approval')
+    expect(context?.execution.pausePoints.map((point) => point.blockName)).toEqual([
+      'Approval',
+      'Approval',
+    ])
+    expect(JSON.stringify(context)).not.toContain(SNAPSHOT_SENTINEL)
+  })
+
+  it('falls back to no block name when the snapshot cannot be read', async () => {
+    const executionId = await publishPausedRun([humanBranchPoint(0, registryWithResolvedSecret())])
+    await db
+      .update(pausedExecutions)
+      .set({ executionSnapshot: { snapshot: '{not json', triggerIds: [] } })
+      .where(eq(pausedExecutions.executionId, executionId))
+
+    const context = await PauseResumeManager.getPauseContextDetail({
+      workflowId: ids.workflow,
+      executionId,
+      contextId: BRANCH_IDS[0],
+    })
+
+    expect(context?.pausePoint).not.toHaveProperty('blockName')
   })
 })

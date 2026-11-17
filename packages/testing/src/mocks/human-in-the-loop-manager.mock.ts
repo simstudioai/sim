@@ -58,6 +58,7 @@ const pauseResumeManagerMockFns = {
   mockGetPausedExecutionById: vi.fn(),
   mockGetPausedExecutionDetail: vi.fn(),
   mockGetPauseContextDetail: vi.fn(),
+  mockNamePausePoints: vi.fn(<T>(detail: T): T => detail),
   mockProcessQueuedResumes: vi.fn(),
 }
 
@@ -69,9 +70,10 @@ const pauseResumeManagerMockFns = {
  *   `ResumeAdmissionError` (non-retryable) on mismatch.
  * - `mockUpdateResumeOutputInAggregationBuffers` rewrites the paused loop/parallel output in place.
  * - `mockComputeEarliestResumeAt` returns the earliest valid `time` pause `resumeAt` (or `null`).
+ * - `mockNamePausePoints` returns the detail it was given, so a mocked detail reads back as-is.
  *
  * `mockCreateResumeAttemptTimeoutController` and `mockExtractResumeBillingAttributionFromSnapshot`
- * are bare, as is every `PauseResumeManager` static (`mockProcessQueuedResumes`,
+ * are bare, as is every other `PauseResumeManager` static (`mockProcessQueuedResumes`,
  * `mockStartResumeExecution`, `mockGetPausedExecutionDetail`, …).
  *
  * @example
@@ -221,6 +223,7 @@ export const humanInTheLoopManagerMock = {
     getPausedExecutionById: pauseResumeManagerMockFns.mockGetPausedExecutionById,
     getPausedExecutionDetail: pauseResumeManagerMockFns.mockGetPausedExecutionDetail,
     getPauseContextDetail: pauseResumeManagerMockFns.mockGetPauseContextDetail,
+    namePausePoints: pauseResumeManagerMockFns.mockNamePausePoints,
     processQueuedResumes: pauseResumeManagerMockFns.mockProcessQueuedResumes,
   },
 }

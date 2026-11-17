@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { internalWorkflowErrorPolicies, internalWorkflowReadAuth } from '@/lib/workflows/api'
@@ -15,14 +16,15 @@ export const GET = defineInternalJsonRoute({
     reason: 'Preserve existing authenticated resume-detail behavior',
   }),
   errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
-  mapInput: ({ params }) => ({
+  mapInput: ({ params, query }) => ({
     workflowId: params.workflowId,
     executionId: params.executionId,
+    includeSnapshot: query.includeSnapshot,
   }),
   useCase: readPausedWorkflowExecution,
   responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),
-  present: (executionDetail) => ({
-    ...executionDetail,
+  present: (executionDetail, { input }) => ({
+    ...(input.includeSnapshot ? executionDetail : omit(executionDetail, ['executionSnapshot'])),
     pausePoints: executionDetail.pausePoints.map((pausePoint) => ({ ...pausePoint })),
     queue: executionDetail.queue.map((queueEntry) => ({ ...queueEntry })),
   }),

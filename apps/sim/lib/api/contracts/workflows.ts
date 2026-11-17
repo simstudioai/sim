@@ -6,6 +6,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workflowIdSchema,
@@ -440,6 +441,15 @@ export const workflowExecutionParamsSchema = z.object({
 export const resumeExecutionParamsSchema = z.object({
   workflowId: z.string().min(1),
   executionId: z.string().min(1),
+})
+
+/**
+ * `includeSnapshot=false` leaves out the execution snapshot, which carries every
+ * block's output and can run to many megabytes. The resume page asks for that;
+ * API callers keep the documented default of receiving it.
+ */
+export const resumeExecutionQuerySchema = z.object({
+  includeSnapshot: booleanQueryFlagSchema.optional().default(true),
 })
 
 export const resumeExecutionContextParamsSchema = z.object({
@@ -959,9 +969,12 @@ export const resumeWorkflowExecutionContract = defineRouteContract({
   method: 'GET',
   path: '/api/resume/[workflowId]/[executionId]',
   params: resumeExecutionParamsSchema,
+  query: resumeExecutionQuerySchema,
   response: {
     mode: 'json',
-    schema: pausedWorkflowExecutionDetailSchema,
+    schema: pausedWorkflowExecutionDetailSchema.extend({
+      executionSnapshot: z.unknown().optional(),
+    }),
   },
 })
 
