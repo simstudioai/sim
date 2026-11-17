@@ -34,6 +34,7 @@ import {
   type WorkspaceDiagnostic,
 } from '../diagnostics'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
+import { pointerSegment } from '../pointer'
 
 /** The module every declaration imports from. */
 export const WORKSPACE_SDK_MODULE = '@sim/workflow-sdk/workspace'
@@ -74,11 +75,6 @@ const PARSER_OPTIONS: ParserOptions = {
 /** Whether a decoded value is a helper call the reader produced. */
 export function isDeclarationCall(value: unknown): value is DeclarationCall {
   return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
-}
-
-/** One RFC 6901 pointer segment. */
-export function pointerSegment(segment: string | number): string {
-  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1')
 }
 
 /** A string a stored value cannot hold: NUL, or an unpaired UTF-16 surrogate. */

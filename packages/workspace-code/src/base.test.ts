@@ -54,6 +54,21 @@ describe('parseWorkspaceBase', () => {
     expect(parseWorkspaceBase('{').diagnostics?.[0]?.code).toBe('E_BASE_JSON')
   })
 
+  it('escapes blob and column names in the pointer to a bad entry', () => {
+    const parsed = parseWorkspaceBase({
+      version: 1,
+      workspaceId: 'ws',
+      resources: {
+        'file:docs/a.txt': { id: 'f', blobs: { 'files/docs/a~b.txt': { id: 'f' } } },
+        'table:leads': { id: 'tbl', columns: { 'a/b': {} } },
+      },
+    })
+    expect(parsed.diagnostics?.map((finding) => finding.path)).toEqual([
+      '/resources/file:docs~1a.txt/blobs/files~1docs~1a~0b.txt',
+      '/resources/table:leads/columns/a~1b',
+    ])
+  })
+
   it('keeps column, option and blob names that are Object.prototype keys as plain entries', () => {
     const parsed = parseWorkspaceBase(`{
       "version": 1,

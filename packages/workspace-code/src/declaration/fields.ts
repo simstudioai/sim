@@ -12,7 +12,7 @@ import {
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
 } from '../diagnostics'
-import { pointerSegment } from './read'
+import { pointerSegment } from '../pointer'
 
 /** Reports one finding at the value under a JSON Pointer. */
 export type FieldReport = (

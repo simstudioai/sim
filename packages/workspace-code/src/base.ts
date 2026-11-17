@@ -13,6 +13,7 @@ import { type Json, jsonInput, type LockExtensionKey, readExtensions } from '@si
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, type WorkspaceKind } from './kind'
 import { isFileKey, isResourceKey } from './layout'
+import { pointerSegment } from './pointer'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -143,7 +144,7 @@ export function parseWorkspaceBase(
   if (!isRecordLike(value.resources)) shape('/resources', 'resources must be an object.')
   else {
     for (const [address, raw] of Object.entries(value.resources)) {
-      const path = `/resources/${address.replace(/~/g, '~0').replace(/\//g, '~1')}`
+      const path = `/resources/${pointerSegment(address)}`
       const target = parseResourceAddress(address)
       if (!target) {
         shape(path, `"${address}" is not a resource address (\`kind:key\`).`)
@@ -190,7 +191,7 @@ function parseResource(
     else {
       const columns = plainRecord<BaseColumn>()
       for (const [key, column] of Object.entries(raw.columns)) {
-        const columnPath = `${path}/columns/${key}`
+        const columnPath = `${path}/columns/${pointerSegment(key)}`
         if (!isRecordLike(column) || !isNonEmptyString(column.id)) {
           shape(columnPath, 'A column entry needs an `id`.')
           continue
@@ -210,7 +211,7 @@ function parseResource(
     else {
       const blobs = plainRecord<BaseBlob>()
       for (const [name, blob] of Object.entries(raw.blobs)) {
-        const blobPath = `${path}/blobs/${name}`
+        const blobPath = `${path}/blobs/${pointerSegment(name)}`
         const rev = isRecordLike(blob) ? blob.rev : undefined
         if (
           !isRecordLike(blob) ||
