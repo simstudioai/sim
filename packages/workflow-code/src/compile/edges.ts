@@ -69,8 +69,7 @@ export class EdgeCollector {
     code: Parameters<CompileContext['reporter']['report']>[0],
     message: string,
     node: Node,
-    hint?: string,
-    blockKey?: BlockKey
+    { hint, blockKey }: { hint?: string; blockKey?: BlockKey } = {}
   ) {
     this.ctx.reporter.report(code, message, rangeOf(this.ctx, node), { hint, blockKey })
   }
@@ -91,7 +90,10 @@ export class EdgeCollector {
     const sourceCatalog = catalogBlockOf(from) ?? catalogBlock(this.ctx.catalog, source.type)
     const targetCatalog = catalogBlockOf(to) ?? catalogBlock(this.ctx.catalog, target.type)
     if (sourceCatalog?.graph.annotationOnly || targetCatalog?.graph.annotationOnly) {
-      this.error('E_EDGE_NOTE', 'Notes cannot be wired.', node, 'Remove this edge.', from.key)
+      this.error('E_EDGE_NOTE', 'Notes cannot be wired.', node, {
+        hint: 'Remove this edge.',
+        blockKey: from.key,
+      })
       return false
     }
     if (target.triggerMode || targetCatalog?.graph.canBeTarget === false) {
@@ -99,19 +101,14 @@ export class EdgeCollector {
         'E_TARGET_TRIGGER',
         `${to.name} is a trigger; nothing can connect into it.`,
         node,
-        undefined,
-        from.key
+        { blockKey: from.key }
       )
       return false
     }
     if (port.kind === 'error' && sourceCatalog && !sourceCatalog.graph.errorPort) {
-      this.error(
-        'E_ERROR_PORT_UNSUPPORTED',
-        `${from.name} has no error port.`,
-        node,
-        undefined,
-        from.key
-      )
+      this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
+        blockKey: from.key,
+      })
       return false
     }
     const scopeReason = getWorkflowEdgeScopeDropReason(
@@ -129,8 +126,10 @@ export class EdgeCollector {
             ? `${to.name} is not inside ${from.name}.`
             : `${to.name} is inside ${from.name}; start it with the loop parameter.`),
         node,
-        'Wire blocks within one scope; start a subflow body with p.to(block).',
-        from.key
+        {
+          hint: 'Wire blocks within one scope; start a subflow body with p.to(block).',
+          blockKey: from.key,
+        }
       )
       return false
     }
@@ -140,8 +139,7 @@ export class EdgeCollector {
         'E_DUPLICATE_EDGE',
         `${from.name} is already wired to ${to.name} from this port.`,
         node,
-        'Remove the repeated edge.',
-        from.key
+        { hint: 'Remove the repeated edge.', blockKey: from.key }
       )
       return false
     }
@@ -151,8 +149,7 @@ export class EdgeCollector {
         'E_LIMIT_EXCEEDED',
         `The wiring adds more than ${this.ctx.limits.maxEdges} edges, the limit.`,
         node,
-        'Split the workflow, moving parts into child workflows.',
-        from.key
+        { hint: 'Split the workflow, moving parts into child workflows.', blockKey: from.key }
       )
       return false
     }
@@ -181,13 +178,10 @@ export class EdgeCollector {
     const block = this.blocks.get(decl.key)
     const branches = block?.branches
     if (!block || !branches) {
-      this.error(
-        'E_UNKNOWN_BRANCH',
-        `${decl.name} has no branches.`,
-        node,
-        'Only condition and router blocks have branches.',
-        decl.key
-      )
+      this.error('E_UNKNOWN_BRANCH', `${decl.name} has no branches.`, node, {
+        hint: 'Only condition and router blocks have branches.',
+        blockKey: decl.key,
+      })
       return null
     }
     const keys: readonly string[] = branches.rows
@@ -196,13 +190,10 @@ export class EdgeCollector {
     if (!keys.includes(key)) {
       // The branch was refused where it was declared; that error already covers this wiring.
       if (this.ctx.refusedBranches.get(decl.key)?.has(key)) return null
-      this.error(
-        'E_UNKNOWN_BRANCH',
-        `${decl.name} has no branch ${key}.`,
-        node,
-        `Branches: ${keys.join(', ')}.`,
-        decl.key
-      )
+      this.error('E_UNKNOWN_BRANCH', `${decl.name} has no branch ${key}.`, node, {
+        hint: `Branches: ${keys.join(', ')}.`,
+        blockKey: decl.key,
+      })
       return null
     }
     return { kind: 'branch', key }
@@ -221,12 +212,9 @@ export class EdgeCollector {
       if (binding?.kind === 'subflowScope')
         return [{ decl: binding.container, port: { kind: 'subflowStart' } }]
       if (!binding) return reportUnresolvedIdentifier(this.ctx, scope, node)
-      this.error(
-        'E_UNSUPPORTED_SYNTAX',
-        `${node.name} is not a block.`,
-        node,
-        'Wire a block declared with const.'
-      )
+      this.error('E_UNSUPPORTED_SYNTAX', `${node.name} is not a block.`, node, {
+        hint: 'Wire a block declared with const.',
+      })
       return null
     }
     if (node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier') {
@@ -243,22 +231,16 @@ export class EdgeCollector {
     if (node.type === 'CallExpression') {
       const result = this.call(scope, node, anchors, statement)
       if (result === 'void') {
-        this.error(
-          'E_UNSUPPORTED_SYNTAX',
-          'onError(...) cannot be chained.',
-          node,
-          'Start a new statement.'
-        )
+        this.error('E_UNSUPPORTED_SYNTAX', 'onError(...) cannot be chained.', node, {
+          hint: 'Start a new statement.',
+        })
         return null
       }
       return result
     }
-    this.error(
-      'E_UNSUPPORTED_SYNTAX',
-      `${nodeLabel(node)} is not a wiring source.`,
-      node,
-      hintForNode(node)
-    )
+    this.error('E_UNSUPPORTED_SYNTAX', `${nodeLabel(node)} is not a wiring source.`, node, {
+      hint: hintForNode(node),
+    })
     return null
   }
 
@@ -268,25 +250,19 @@ export class EdgeCollector {
       const decl = this.blockFor(scope, argument, blockKey)
       if (decl === 'reported') return null
       if (!decl) {
-        this.error(
-          'E_UNSUPPORTED_SYNTAX',
-          'Wire blocks by their binding.',
-          argument,
-          HINTS.bindInline,
-          blockKey
-        )
+        this.error('E_UNSUPPORTED_SYNTAX', 'Wire blocks by their binding.', argument, {
+          hint: HINTS.bindInline,
+          blockKey,
+        })
         return null
       }
       targets.push(decl)
     }
     if (targets.length === 0) {
-      this.error(
-        'E_UNSUPPORTED_SYNTAX',
-        'Pass at least one block.',
-        call,
-        'Write a.to(b).',
-        blockKey
-      )
+      this.error('E_UNSUPPORTED_SYNTAX', 'Pass at least one block.', call, {
+        hint: 'Write a.to(b).',
+        blockKey,
+      })
       return null
     }
     return targets
@@ -300,8 +276,10 @@ export class EdgeCollector {
         'E_NO_DEFAULT_OUTPUT',
         `${endpoint.decl.name} routes through named branches.`,
         statement,
-        `Wire a branch: ${endpoint.decl.ident ?? 'block'}.<branch>.to(...).`,
-        endpoint.decl.key
+        {
+          hint: `Wire a branch: ${endpoint.decl.ident ?? 'block'}.<branch>.to(...).`,
+          blockKey: endpoint.decl.key,
+        }
       )
       return null
     }
@@ -322,12 +300,14 @@ export class EdgeCollector {
       callee.computed ||
       callee.property.type !== 'Identifier'
     ) {
-      this.error('E_UNSUPPORTED_SYNTAX', 'Not a wiring call.', call, HINTS.calls)
+      this.error('E_UNSUPPORTED_SYNTAX', 'Not a wiring call.', call, { hint: HINTS.calls })
       return null
     }
     const method = callee.property.name
     if (callee.object.type === 'Super') {
-      this.error('E_UNSUPPORTED_SYNTAX', 'super is not a block.', callee.object, HINTS.calls)
+      this.error('E_UNSUPPORTED_SYNTAX', 'super is not a block.', callee.object, {
+        hint: HINTS.calls,
+      })
       return null
     }
     const sources = this.endpoints(scope, callee.object, anchors, statement)
@@ -339,13 +319,10 @@ export class EdgeCollector {
       if (method === 'onError') {
         port = source.port ? null : { kind: 'error' }
         if (!port) {
-          this.error(
-            'E_UNSUPPORTED_SYNTAX',
-            'onError(...) applies to a block.',
-            call,
-            'Write block.onError(handler).',
-            source.decl.key
-          )
+          this.error('E_UNSUPPORTED_SYNTAX', 'onError(...) applies to a block.', call, {
+            hint: 'Write block.onError(handler).',
+            blockKey: source.decl.key,
+          })
           return null
         }
       } else {
@@ -373,13 +350,10 @@ export class EdgeCollector {
     if (from === 'reported' || to === 'reported') return null
     const handle = handleNode ? literalText(handleNode) : null
     if (!from || !to || handle === null || handle === '' || extra.length > 0) {
-      this.error(
-        'E_UNSUPPORTED_SYNTAX',
-        'edge() takes (from, handle, to).',
-        call,
-        "Write edge(a, 'handle', b).",
-        fromKey
-      )
+      this.error('E_UNSUPPORTED_SYNTAX', 'edge() takes (from, handle, to).', call, {
+        hint: "Write edge(a, 'handle', b).",
+        blockKey: fromKey,
+      })
       return null
     }
     if (this.add(from, portForHandle(handle, from), to, statement, anchors, true)) {

@@ -752,10 +752,9 @@ export function compileToolList(
   if (node.type !== 'ArrayExpression') {
     const compiled = compileValue(ctx, node, site)
     if (compiled?.kind === 'value' && compiled.form === 'raw' && Array.isArray(compiled.value)) {
-      const tools: CanonicalTool[] = []
-      for (const tool of compiled.value) if (isCanonicalTool(tool)) tools.push(tool)
-      if (tools.length === compiled.value.length) return tools
-      const malformed = compiled.value.findIndex((tool) => !isCanonicalTool(tool))
+      const listed: Value[] = compiled.value
+      if (listed.every(isCanonicalTool)) return listed
+      const malformed = listed.findIndex((tool) => !isCanonicalTool(tool))
       const elements =
         node.type === 'CallExpression' && node.arguments[0]?.type === 'ArrayExpression'
           ? node.arguments[0].elements
