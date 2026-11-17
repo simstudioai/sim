@@ -19,14 +19,14 @@ import {
 } from '@sim/workspace-code'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { refusalDiagnostic } from '@/lib/workspace-source/errors'
-import { KIND_ADAPTERS } from '@/lib/workspace-source/registry'
+import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
   PlannedChange,
   SourceContext,
   WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/types'
+} from '@/lib/workspace-source/application/types'
 
 /** What a workspace source submission carries, whether it is applied or dry-run. */
 export interface WorkspaceSourceSubmission {

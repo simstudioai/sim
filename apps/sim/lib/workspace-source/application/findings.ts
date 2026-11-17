@@ -8,7 +8,7 @@ import type {
   StoredResource,
   StoredSet,
   WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/types'
+} from '@/lib/workspace-source/application/types'
 
 /** How to recover from a refusal that needs a fresh read. */
 export const GET_HINT =

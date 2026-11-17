@@ -2,8 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
-import { GET_HINT } from '@/lib/workspace-source/findings'
-import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/types'
+import { GET_HINT } from '@/lib/workspace-source/application/findings'
+import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
 /**

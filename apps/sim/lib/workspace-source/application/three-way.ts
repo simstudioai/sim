@@ -1,5 +1,5 @@
 import type { BaseResource } from '@sim/workspace-code'
-import type { StoredResource } from '@/lib/workspace-source/types'
+import type { StoredResource } from '@/lib/workspace-source/application/types'
 
 /**
  * The three-way rule every kind decides a declared resource with, from its fingerprint in the

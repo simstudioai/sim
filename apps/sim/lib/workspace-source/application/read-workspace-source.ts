@@ -11,14 +11,14 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { refusalDiagnostic } from '@/lib/workspace-source/errors'
-import { workspaceSourceOperations } from '@/lib/workspace-source/operations'
-import { KIND_ADAPTERS } from '@/lib/workspace-source/registry'
+import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
+import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   ReadBlob,
   SourceContext,
   WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/types'
+} from '@/lib/workspace-source/application/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ReadWorkspaceSourceInput {

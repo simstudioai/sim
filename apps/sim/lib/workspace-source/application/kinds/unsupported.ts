@@ -1,5 +1,5 @@
 import type { KindCodec } from '@sim/workspace-code'
-import type { KindAdapter } from '@/lib/workspace-source/types'
+import type { KindAdapter } from '@/lib/workspace-source/application/types'
 
 /**
  * The adapter of a kind this release cannot apply yet: a managed folder of it is refused with

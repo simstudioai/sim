@@ -24,21 +24,25 @@ import {
   updateTableUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import { ResourceChangedError } from '@/lib/workspace-source/errors'
+import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
   noBaseFinding,
   planUndeclared,
   serverChangedFinding,
   staleFinding,
-} from '@/lib/workspace-source/findings'
-import { columnInput, diffTable, type TableChanges } from '@/lib/workspace-source/kinds/table/diff'
+} from '@/lib/workspace-source/application/findings'
+import {
+  columnInput,
+  diffTable,
+  type TableChanges,
+} from '@/lib/workspace-source/application/kinds/table/diff'
 import {
   printStoredTable,
   type StoredTable,
   type StoredTableState,
   tableAsDecl,
-} from '@/lib/workspace-source/kinds/table/stored'
-import { resolveDeclared } from '@/lib/workspace-source/three-way'
+} from '@/lib/workspace-source/application/kinds/table/stored'
+import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -46,7 +50,7 @@ import type {
   PlannedChange,
   SourceContext,
   StoredSet,
-} from '@/lib/workspace-source/types'
+} from '@/lib/workspace-source/application/types'
 import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** What the apply carries out for one existing table, decided at plan time. */

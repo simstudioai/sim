@@ -23,8 +23,8 @@ import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-locate'
-import { refusalDiagnostic } from '@/lib/workspace-source/errors'
-import { noBaseFinding, planUndeclared } from '@/lib/workspace-source/findings'
+import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { noBaseFinding, planUndeclared } from '@/lib/workspace-source/application/findings'
 import type {
   KindAdapter,
   PlanContext,
@@ -32,7 +32,7 @@ import type {
   StoredResource,
   StoredSet,
   WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/types'
+} from '@/lib/workspace-source/application/types'
 import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** Workflows per page while listing a workspace's workflows. */

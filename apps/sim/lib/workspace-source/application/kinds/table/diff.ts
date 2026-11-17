@@ -17,8 +17,11 @@ import {
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
-import { type StoredTableState, sourceColumns } from '@/lib/workspace-source/kinds/table/stored'
-import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/types'
+import {
+  type StoredTableState,
+  sourceColumns,
+} from '@/lib/workspace-source/application/kinds/table/stored'
+import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 
 /** Cells a type change reads to tell whether they convert; past this, the apply's own gate decides. */
 const CONVERSION_SCAN_LIMIT = 50_000

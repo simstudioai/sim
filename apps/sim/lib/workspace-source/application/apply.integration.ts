@@ -38,9 +38,9 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import {
   type ApplyWorkspaceSourceInput,
   applyWorkspaceSource,
-} from '@/lib/workspace-source/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/errors'
-import { readWorkspaceSource } from '@/lib/workspace-source/read-workspace-source'
+} from '@/lib/workspace-source/application/apply-workspace-source'
+import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)

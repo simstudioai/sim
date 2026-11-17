@@ -9,7 +9,7 @@ import {
 import { type TableColumnDecl, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
-import type { StoredResource } from '@/lib/workspace-source/types'
+import type { StoredResource } from '@/lib/workspace-source/application/types'
 
 /** A stored table as source sees it: the definition and its folder path (`/` at the root). */
 export interface StoredTableState {
