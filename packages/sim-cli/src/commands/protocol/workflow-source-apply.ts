@@ -69,7 +69,7 @@ type Diagnostic = SourceApplyData['diagnostics'][number]
  * 7 when a size limit refused the source (a commit answers `413`), 5 when the workflow changed
  * since the directory was read (a commit answers `409 SOURCE_STALE`), else 1.
  */
-export function refusedExitCode(diagnostics: Diagnostic[]): number {
+function refusedExitCode(diagnostics: Diagnostic[]): number {
   const codes = new Set(
     diagnostics
       .filter((diagnostic) => diagnostic.severity === 'error')
