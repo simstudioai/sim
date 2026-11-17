@@ -31,11 +31,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
 import * as tableUseCases from '@/lib/table/application/tables'
 import { getColumnRetypeScanBatchSize } from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
+import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   type ApplyWorkspaceSourceInput,
@@ -867,5 +869,19 @@ describe('workspace source apply', () => {
     const next = await apply(workspaceId, edited, { base: settled.base })
 
     expect(next.applied).toMatchObject([{ action: 'update', key: 'leads' }])
+  })
+
+  check('a get leaves out of its kinds a kind the caller may not read', async () => {
+    const workspaceId = await newWorkspace()
+    await setUp(workspaceId)
+    const refusing = vi
+      .spyOn(listWorkflows, 'execute')
+      .mockRejectedValue(new OrchestrationError('forbidden', 'Workflows are not readable.'))
+
+    const read = await get(workspaceId).finally(() => refusing.mockRestore())
+
+    expect(read.kinds).toEqual(['table'])
+    expect(codes(read.diagnostics)).toEqual(['E_APPLY_FORBIDDEN'])
+    expect(Object.keys(read.files)).toEqual(['tables/leads.ts'])
   })
 })

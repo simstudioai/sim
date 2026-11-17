@@ -29,7 +29,7 @@ export interface ReadWorkspaceSourceInput {
 
 export interface ReadWorkspaceSourceResult {
   workspaceId: string
-  /** The kinds read: the directory manages exactly these. */
+  /** The kinds read (a kind the caller may not load is left out): the directory manages these. */
   kinds: WorkspaceKind[]
   /** Workspace-relative path → text. */
   files: Record<string, string>
@@ -79,6 +79,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         stored = await adapter.load(ctx, { allocate: true })
       } catch (error) {
         result.diagnostics.push(refusalDiagnostic(error, { kind }))
+        result.kinds = result.kinds.filter((read) => read !== kind)
         continue
       }
       if (stored.bound.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
