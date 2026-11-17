@@ -56,7 +56,7 @@ export interface NamedPlan {
   changed: string[]
 }
 
-export function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
+function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
   return fingerprintOf(named.codec.canonical(named.declOf(state)))
 }
 
