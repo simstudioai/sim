@@ -15,6 +15,7 @@ import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workfl
 import { useWorkflowSource, workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/variables/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Quiet period after the last edit before the source is re-read. */
@@ -64,13 +65,13 @@ function differsBeyond(next: object, previous: object, ignored: ReadonlySet<stri
 }
 
 /**
- * Re-reads the source once the draft settles: after the graph, variables or a queued operation
- * changed something the source prints, and no local operation is still waiting to persist. Canvas
- * geometry (drags, measured heights) never prints, so it never schedules a read. A remote
- * `workflow-updated` reloads the workflow store (the socket provider holds one handler per event,
- * owned by the collaborative workflow hook), so subscribing to the store covers both remote and
- * local edits. It keeps running while the tab is hidden: invalidating a disabled query only marks
- * it stale, so the next open refetches.
+ * Re-reads the source once the draft settles: after the graph, a field value, variables or a
+ * queued operation changed something the source prints, and no local operation is still waiting
+ * to persist. Canvas geometry (drags, measured heights) never prints, so it never schedules a read.
+ * Remote edits arrive as store writes, not operations: a `workflow-updated` reloads the workflow
+ * store, and a collaborator's field edit writes only the subblock store, so each store is watched.
+ * It keeps running while the tab is hidden: invalidating a disabled query only marks it stale, so
+ * the next open refetches.
  */
 function useRefreshWhenDraftSettles(workflowId: string | null) {
   const queryClient = useQueryClient()
@@ -103,6 +104,9 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
         markDirty()
       }
     })
+    const unsubscribeValues = useSubBlockStore.subscribe((state, previous) => {
+      if (state.workflowValues[workflowId] !== previous.workflowValues[workflowId]) markDirty()
+    })
     const unsubscribeVariables = useVariablesStore.subscribe((state, previous) => {
       if (state.variables !== previous.variables) markDirty()
     })
@@ -123,6 +127,7 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       // Leaving inside the debounce would keep a fresh-looking pre-edit copy in the cache.
       if (dirty) queryClient.invalidateQueries({ queryKey: workflowSourceKeys.detail(workflowId) })
       unsubscribeGraph()
+      unsubscribeValues()
       unsubscribeVariables()
       unsubscribeQueue()
     }
