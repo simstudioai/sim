@@ -81,6 +81,7 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { stripLoopDigest } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedConnection } from '@/serializer/types'
 
 /**
@@ -3920,7 +3921,7 @@ export class PauseResumeManager {
       return ''
     }
 
-    const normalized = id.replace(/_loop\d+/g, '')
+    const normalized = stripLoopDigest(id)
 
     return normalized || id
   }
