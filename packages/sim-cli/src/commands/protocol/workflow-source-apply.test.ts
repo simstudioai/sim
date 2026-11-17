@@ -243,6 +243,27 @@ describe('sim workflows source apply', () => {
     })
   })
 
+  it('prints no workflow id for a create dry run, since nothing was stored under it', async () => {
+    setTerminal(false)
+    rmSync(join(dir, '.sim/base.json'))
+    request.mockResolvedValue(outcome({ dryRun: true }))
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'workflows',
+      'source',
+      'create',
+      '--dir',
+      dir,
+      '--dry-run',
+    ])
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({ created: false, dryRun: true })
+    expect(printed).not.toHaveProperty('workflowId')
+  })
+
   it('folds info findings into one line per code and keeps frames on warnings', async () => {
     setTerminal(false)
     const layout = (key: string, line: number) => ({

@@ -461,9 +461,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     })
 }
 
+/** A create that did not apply stored nothing, so its provisional workflow id names no workflow. */
 function summarize(data: SourceApplyData, created: boolean) {
   return {
-    workflowId: data.workflowId,
+    ...(created && !data.applied ? {} : { workflowId: data.workflowId }),
     ...(created ? { created: data.applied } : {}),
     applied: data.applied,
     dryRun: data.dryRun,
