@@ -351,6 +351,12 @@ describe('workspaces source get', () => {
     expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
   })
 
+  it('exits 7 when the server refuses the workspace as too large', async () => {
+    request.mockRejectedValue(new SimApiError('too many files', 413, 'PAYLOAD_TOO_LARGE'))
+
+    await expect(get()).rejects.toMatchObject({ exitCode: 7 })
+  })
+
   it('reads --only by folder name as well as by kind', async () => {
     serve({}, { kinds: ['custom-tool', 'knowledge-base'] })
 

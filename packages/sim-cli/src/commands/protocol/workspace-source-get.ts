@@ -21,6 +21,7 @@ import {
   loadCatalog,
   loadWorkspaceTypes,
   sourceTreeChange,
+  withSourceExitCode,
 } from './workflow-source-get'
 import {
   editedFiles,
@@ -240,10 +241,14 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()
-      const { data } = await client.request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
-        params: { workspaceId },
-        ...(kinds ? { query: { kinds: kinds.join(',') } } : {}),
-      })
+      const { data } = await client
+        .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
+          params: { workspaceId },
+          ...(kinds ? { query: { kinds: kinds.join(',') } } : {}),
+        })
+        .catch((error: unknown) => {
+          throw withSourceExitCode(error)
+        })
       const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
       printProtocolResult(profile.output, {
         workspaceId: data.workspaceId,

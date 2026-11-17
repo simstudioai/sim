@@ -541,7 +541,7 @@ source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDIT
 get into another directory, or pass --force); 7 the workflow is too large to print as source.`
 
 /** A read the server refused as over the source size limits exits 7, as a refused apply does. */
-function withSourceExitCode(error: unknown): unknown {
+export function withSourceExitCode(error: unknown): unknown {
   if (!(error instanceof SimApiError) || error.status !== 413) return error
   return new SimApiError(
     error.message,
