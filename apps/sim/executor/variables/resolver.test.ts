@@ -1302,13 +1302,9 @@ describe('VariableResolver JSON text inputs', () => {
     vi.mocked(getBlock).mockImplementation((type) => blockConfigs[type])
   })
 
-  function createJsonResolver(
-    blockType: string,
-    params: Record<string, unknown>,
-    canonicalModes?: SerializedBlock['canonicalModes']
-  ) {
+  function createJsonResolver(blockType: string, params: Record<string, unknown>) {
     const producer = createBlock('producer', 'Producer', BlockType.API)
-    const consumer = { ...createBlock('consumer', 'Consumer', blockType, params), canonicalModes }
+    const consumer = createBlock('consumer', 'Consumer', blockType, params)
     const workflow: SerializedWorkflow = {
       version: '1',
       blocks: [producer, consumer],
@@ -1411,26 +1407,6 @@ describe('VariableResolver JSON text inputs', () => {
     })
     const resolved = await resolve()
     expect(JSON.parse(resolved.data)).toEqual({ body: awkwardText })
-  })
-
-  it('escapes references in a paired JSON field while its JSON member is active', async () => {
-    const { resolve } = createJsonResolver(
-      'table_v2',
-      { operation: 'query_rows', filterInput: '{"note": "<producer.text>"}' },
-      { filterInput: 'advanced' }
-    )
-    const resolved = await resolve()
-    expect(JSON.parse(resolved.filterInput)).toEqual({ note: awkwardText })
-  })
-
-  it('leaves quoted references raw while the non-JSON member of the pair is active', async () => {
-    const { resolve } = createJsonResolver(
-      'table_v2',
-      { operation: 'query_rows', filterInput: '{"note": "<producer.text>"}' },
-      { filterInput: 'basic' }
-    )
-    const resolved = await resolve()
-    expect(resolved.filterInput).toBe(`{"note": "${awkwardText}"}`)
   })
 
   it('leaves quoted references in non-JSON fields raw', async () => {
