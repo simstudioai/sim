@@ -57,7 +57,7 @@ async function workflowsUsing(
  * workflows that use the resource. A workflow the directory declares unchanged keeps using it, so
  * the delete is `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning
  * and counted in the delete's destructive line. A workflow the apply deletes too is no user, and
- * an edited one is judged by the references its sent text makes.
+ * an edited one is judged by the references its compiled source makes (the change's `refs`).
  */
 export async function checkDeletesInUse(
   changes: PlannedChange[],

@@ -300,11 +300,6 @@ export async function planWorkspaceSource(
   }
   const changes: PlannedChange[] = []
   let declaredWorkflows: ReadonlyMap<string, unknown> = new Map()
-  const references: Array<{
-    kind: WorkspaceKind
-    key: string
-    refs: Array<{ kind: WorkspaceKind; key: string }>
-  }> = []
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
     const adapter = KIND_ADAPTERS[kind]
@@ -333,10 +328,7 @@ export async function planWorkspaceSource(
         group.flatMap((path) => blobs.byPath.get(path) ?? [])
       )
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
-      if (parsed.decl !== undefined) {
-        desired.set(key, parsed.decl)
-        references.push({ kind, key, refs: adapter.codec.refs?.(parsed.decl) ?? [] })
-      }
+      if (parsed.decl !== undefined) desired.set(key, parsed.decl)
     }
     diagnostics.push(...kindFindings)
     if (kind === 'workflow') declaredWorkflows = desired
@@ -362,10 +354,10 @@ export async function planWorkspaceSource(
       .filter((change) => change.action === 'delete')
       .map((change) => resourceAddress(change.kind, change.key))
   )
-  for (const { kind, key, refs } of references) {
-    for (const ref of refs) {
+  for (const change of changes) {
+    for (const ref of change.refs ?? []) {
       if (!deleted.has(resourceAddress(ref.kind, ref.key))) continue
-      diagnostics.push(refDeletedFinding({ kind, key }, ref))
+      diagnostics.push(refDeletedFinding(change, ref))
     }
   }
 

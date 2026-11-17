@@ -202,7 +202,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     for (const change of writeOrder(plan.changes)) {
       const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
       result.remainingBlobs.push(...waiting)
-      const names = KIND_ADAPTERS[change.kind].codec.refs?.(change.decl) ?? []
+      const names = change.refs ?? []
       // A change waits for a later round when this round carries none of its blobs (one that
       // carries some writes those and leaves the rest), when it names a resource that waits, or,
       // for a delete, while any blob is missing, so a resumed apply never deletes early.

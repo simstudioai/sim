@@ -8,8 +8,8 @@ import { isRecordLike } from '@sim/utils/object'
 import { type SourceBase, setOwn } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
-import { KIND_DIRS, type KindCodec, type WorkspaceKind } from '../kind'
-import { RESOURCE_KEY_SOURCE, WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
+import { KIND_DIRS, type KindCodec } from '../kind'
+import { WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
 import { groupByFolder } from './group'
 
 /** A workflow folder's files, as the workflow compiler reads them. */
@@ -46,20 +46,6 @@ export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
       }
     : null
 }
-
-/** The SDK functions that name another kind's resource by key, and the kind each names. */
-const REFERENCE_KINDS = {
-  table: 'table',
-  knowledgeBase: 'knowledge-base',
-  customTool: 'custom-tool',
-  skill: 'skill',
-} as const satisfies Record<string, WorkspaceKind>
-
-/** `table('leads')`, `skill("tone")`, …: a reference call with a literal key. */
-const REFERENCE_CALL = new RegExp(
-  `\\b(${Object.keys(REFERENCE_KINDS).join('|')})\\(\\s*(['"])(${RESOURCE_KEY_SOURCE})\\2`,
-  'g'
-)
 
 function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
@@ -106,17 +92,4 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
   },
   /** Workflows keep their own fingerprint (`sf1:`); this only tells two submissions apart. */
   canonical: (decl) => ({ files: decl.files }),
-  /**
-   * The resources `workflow.ts` names by literal key. A match inside a comment or string counts
-   * too, which only ever makes a delete more cautious.
-   */
-  refs(decl) {
-    const entry = decl.files[SOURCE_ENTRY_FILE] ?? ''
-    const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
-    for (const match of entry.matchAll(REFERENCE_CALL)) {
-      const kind = REFERENCE_KINDS[match[1] as keyof typeof REFERENCE_KINDS]
-      refs.set(`${kind}:${match[3]}`, { kind, key: match[3] })
-    }
-    return [...refs.values()]
-  },
 }

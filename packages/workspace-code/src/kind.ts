@@ -85,8 +85,6 @@ export interface KindCodec<D> {
   print(key: string, decl: D): PrintedDeclaration
   /** Id-free canonical JSON; sha256 of it is the resource fingerprint `rf1:…`. */
   canonical(decl: D): Json
-  /** Keys this declaration references in other kinds (workflows → tables, …). */
-  refs?(decl: D): Array<{ kind: WorkspaceKind; key: string }>
   /**
    * The name a resource's base entry records one of its blobs under; a kind without it records
    * each blob under its workspace path.

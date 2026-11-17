@@ -489,6 +489,54 @@ describe('workspace source apply', () => {
   })
 
   check(
+    'refuses deleting a table an edited workflow names in a form no text scan reads',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const files = Object.fromEntries(
+        Object.entries(read.files)
+          .filter(([path]) => path !== 'tables/leads.ts')
+          .map(([path, text]) => [
+            path,
+            path === 'workflows/ingest/workflow.ts'
+              ? text.replace("table('leads')", "table ( 'leads' )")
+              : text,
+          ])
+      )
+      expect(files['workflows/ingest/workflow.ts']).toContain("table ( 'leads' )")
+
+      const refused = await refusal(
+        apply(workspaceId, files, { base: read.base, allowDelete: true })
+      )
+
+      expect(codes(refused.diagnostics)).toEqual(['E_PLAN_REF_DELETED'])
+      expect(refused.diagnostics[0]).toMatchObject({ kind: 'workflow', key: 'ingest' })
+      expect(await tables(workspaceId)).toHaveLength(1)
+    }
+  )
+
+  check('deletes a workflow the directory no longer declares, with --allow-delete', async () => {
+    const workspaceId = await newWorkspace()
+    await apply(workspaceId, {
+      ...STARTER,
+      'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+    })
+    const read = await get(workspaceId)
+    const files = Object.fromEntries(
+      Object.entries(read.files).filter(([path]) => !path.startsWith('workflows/ingest/'))
+    )
+
+    const result = await apply(workspaceId, files, { base: read.base, allowDelete: true })
+
+    expect(result.failed).toBeUndefined()
+    expect(result.applied.map(({ kind, key, action }) => `${action} ${kind}:${key}`)).toEqual([
+      'delete workflow:ingest',
+    ])
+    expect((await workflows(workspaceId)).map((stored) => stored.name)).toEqual(['Intake'])
+    expect(result.base.resources['workflow:ingest']).toBeUndefined()
+  })
+
+  check(
     'refuses removing a select option its cells use without --allow-delete, and counts them',
     async () => {
       const workspaceId = await newWorkspace()

@@ -6,7 +6,7 @@
  */
 import { generateId } from '@sim/utils/id'
 import { parseWorkflowLock, type SourceBase, type WorkflowLockV1 } from '@sim/workflow-code'
-import type { BaseResource } from '@sim/workspace-code'
+import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
 import {
   type WorkflowDecl,
   workflowCodec,
@@ -38,6 +38,7 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
 /** Workflows per page while listing a workspace's workflows. */
 const LIST_PAGE = 200
@@ -52,6 +53,30 @@ interface WorkflowPlan {
 }
 
 type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
+
+/**
+ * The kinds whose workflow resource key is the workspace source key, so a reference the compiler
+ * reads names the resource a directory declares (a workspace file's source key is its path, not
+ * its resource key).
+ */
+const SOURCE_KEYED_KINDS: ReadonlySet<string> = new Set<WorkspaceKind>([
+  'custom-tool',
+  'skill',
+  'table',
+  'knowledge-base',
+  'workflow',
+])
+
+/** The resources a compiled workflow names that a workspace directory declares by the same key. */
+function sourceRefs(references: readonly ResourceKeyRef[]): NonNullable<WorkflowChange['refs']> {
+  const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
+  for (const { kind, key } of references) {
+    if (SOURCE_KEYED_KINDS.has(kind)) {
+      refs.set(`${kind}:${key}`, { kind: kind as WorkspaceKind, key })
+    }
+  }
+  return [...refs.values()]
+}
 
 /** A workflow pipeline finding, pinned to its file in the workspace directory. */
 function inFolder(
@@ -182,6 +207,7 @@ async function planWorkflow(
         action: result.diff.noop ? 'noop' : 'update',
         storedId: existing.id,
         fields: diffFields(result.diff),
+        refs: sourceRefs(result.references),
         detail: { lock: read.lock, base },
       }
     }
@@ -191,7 +217,12 @@ async function planWorkflow(
     })
     change.diagnostics.push(...inFolder(key, result.diagnostics))
     pending.push({ kind: 'workflow', key, id: generateId() })
-    return { ...change, action: 'create', fields: diffFields(result.diff) }
+    return {
+      ...change,
+      action: 'create',
+      fields: diffFields(result.diff),
+      refs: sourceRefs(result.references),
+    }
   } catch (error) {
     change.diagnostics.push(refusalDiagnostic(error, { kind: 'workflow', key }))
     return change

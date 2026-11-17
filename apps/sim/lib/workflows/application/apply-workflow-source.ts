@@ -61,6 +61,7 @@ import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/context'
+import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
 const logger = createLogger('ApplyWorkflowSource')
 
@@ -122,6 +123,11 @@ interface ApplyWorkflowSourceResult {
   base: SourceBase
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
+  /**
+   * Every resource the submitted source names by key, as the compiler read it; empty when the
+   * source was refused before it compiled.
+   */
+  references: ResourceKeyRef[]
   notes: string[]
   needsRedeployment: boolean
   sdkMajor: number
@@ -349,7 +355,7 @@ async function runSourceApply(
         Partial<
           Pick<
             ApplyWorkflowSourceResult,
-            'workflowName' | 'mintedIds' | 'notes' | 'wroteSourceMeta'
+            'workflowName' | 'mintedIds' | 'references' | 'notes' | 'wroteSourceMeta'
           >
         >
     ): Promise<ApplyWorkflowSourceResult> => ({
@@ -358,6 +364,7 @@ async function runSourceApply(
       workspaceId: context.workspaceId,
       dryRun,
       mintedIds: {},
+      references: [],
       notes: [],
       wroteSourceMeta: false,
       ...outcome,
@@ -480,6 +487,7 @@ async function runSourceApply(
         applied: false,
         diff,
         diagnostics,
+        references: plan.references,
         notes: plan.notes,
         wroteSourceMeta,
       })
@@ -499,6 +507,7 @@ async function runSourceApply(
         diff,
         diagnostics,
         mintedIds,
+        references: plan.references,
         notes: [...plan.notes, ...preview.warnings],
       })
     }
@@ -523,6 +532,7 @@ async function runSourceApply(
       diff,
       diagnostics,
       mintedIds,
+      references: plan.references,
       workflowName: committed.name,
       notes: [...plan.notes, ...committed.warnings],
     })

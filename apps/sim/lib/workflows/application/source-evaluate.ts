@@ -181,6 +181,8 @@ export interface SourcePlan {
   functionCode: 'inline' | 'files'
   /** Answers every resource reference of both the stored and the submitted source. */
   resources: ResourceKeyResolver
+  /** Every resource the submitted source names by key, as the compiler read it. */
+  references: ResourceKeyRef[]
 }
 
 export type SourceEvaluation = { refused: WorkflowSourceDiagnostic[] } | { plan: SourcePlan }
@@ -516,6 +518,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
         ? 'files'
         : 'inline',
       resources,
+      references: compiledKeys,
     },
   }
 }

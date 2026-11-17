@@ -82,6 +82,12 @@ export interface PlannedChange<D = unknown, P = unknown> {
    * with the adapter's `fingerprintNow` just before the write and refuses one that moved since.
    */
   serverFingerprint?: string
+  /**
+   * Resources of other kinds the change's declaration names by key, as the kind's own pipeline
+   * read them (a workflow's compiled source): deleting one in the same plan refuses it, and the
+   * write waits while one of them waits for a later blob round.
+   */
+  refs?: Array<{ kind: WorkspaceKind; key: string }>
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
   diagnostics: WorkspaceSourceDiagnostic[]
