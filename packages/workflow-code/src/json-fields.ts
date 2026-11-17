@@ -20,7 +20,13 @@ import { isRecordLike } from '@sim/utils/object'
 import type { BlockCatalog, CatalogOutput } from './catalog/types'
 import { catalogBlock, catalogTrigger } from './catalog/view'
 import { parseStoredPath, type RefSegment } from './code-files/ref-path'
-import type { BlockKey, CanonicalBlock, CanonicalVariable, Value } from './model'
+import {
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalVariable,
+  isSimNode,
+  type Value,
+} from './model'
 import { getOwn, parseJsonContainer, setOwn } from './records'
 
 /** A reference at a leaf of a JSON field: the stored token, and whether the text quotes it. */
@@ -297,9 +303,14 @@ export function parseJsonField(text: string): JsonTree | undefined {
   }
 }
 
-/** A compiled value as a JSON tree leaf, or `undefined` for a canonical node that is not data. */
+/**
+ * A compiled value as a JSON tree leaf, or `undefined` when it holds a canonical node that is not
+ * data (a resource, variable, csv or unresolved node has no JSON form). A `literal` node is data
+ * and yields its value.
+ */
 export function valueTree(value: Value): JsonTree | undefined {
   if (value === null || typeof value !== 'object') return value
+  if (isSimNode(value)) return value.$sim === 'literal' ? value.value : undefined
   if (Array.isArray(value)) {
     const items: JsonTree[] = []
     for (const item of value) {
