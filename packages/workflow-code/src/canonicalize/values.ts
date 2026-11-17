@@ -9,7 +9,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import type { Json, ResourceKind, ResourceNode, UnresolvedNode, Value } from '../model'
 import { setOwn } from '../records'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 
 /** The executor's candidate pattern (`createReferencePattern`); each match is then vetted. */
 const REFERENCE_CANDIDATE = /<([^<>]+)>/g
@@ -110,7 +110,7 @@ export function liftResourceId(
   const key = context.resources?.toKey(kind, id) ?? null
   if (key !== null) return { $sim: 'resource', kind, key }
   if (context.resources) {
-    report(context, {
+    context.diagnostics.push({
       code: 'W_CANON_UNRESOLVED_ID',
       severity: 'warning',
       message: `No ${kind} key for stored id "${id}"; kept verbatim`,

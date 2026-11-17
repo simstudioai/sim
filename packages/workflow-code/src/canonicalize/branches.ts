@@ -2,7 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { isIdentifierName } from '../code-files/ref-path'
 import type { BlockKey, BranchKey, CanonicalBranches, CanonicalBranchRow, Json } from '../model'
 import { parseStoredList, setOwn } from '../records'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 import { toJson, toValue } from './values'
 
 /** Editor state the condition/router input writes into each row (condition-input.tsx). */
@@ -146,7 +146,7 @@ export function liftBranches(
   const storedRows = parseStoredList(stored)
   if (!storedRows) {
     if (typeof stored !== 'string' || stored.trim() !== '') {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_UNDECODABLE_JSON',
         severity: 'warning',
         message: `Stored ${kind} branches are not a JSON list; kept verbatim`,
@@ -157,7 +157,7 @@ export function liftBranches(
     return unlifted(kind, blockId, stored)
   }
   if (!storedRows.every(isStoredRow)) {
-    report(context, {
+    context.diagnostics.push({
       code: 'W_CANON_UNDECODABLE_JSON',
       severity: 'warning',
       message: `Stored ${kind} branches are not a list of { id, title, value } rows; kept verbatim`,
@@ -208,7 +208,7 @@ export function liftBranches(
     } else if (stored.title !== positional) {
       row.titleOverride = stored.title
       if (kind === 'condition') {
-        report(context, {
+        context.diagnostics.push({
           code: 'W_CANON_TITLE_OVERRIDE',
           severity: 'warning',
           message: `Branch ${index + 1} is titled "${stored.title}" but shows as "${positional}"; the executor matches else by stored title`,

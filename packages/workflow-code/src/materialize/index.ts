@@ -22,7 +22,7 @@ import type {
 } from '../model'
 import { deepEqual, getOwn, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
-import { type MaterializeContext, type MaterializeHooks, report } from './context'
+import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
@@ -250,7 +250,7 @@ export function materialize(
     built.set(key, result)
     if (result.needsLayout) {
       needsLayout.push(key)
-      report(context, {
+      context.diagnostics.push({
         code: 'I_MAT_NEEDS_LAYOUT',
         severity: 'info',
         message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,

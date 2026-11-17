@@ -13,7 +13,7 @@ import {
   type Value,
 } from '../model'
 import { setOwn } from '../records'
-import { type MaterializeContext, report } from './context'
+import type { MaterializeContext } from './context'
 
 /** Where a value sits, for diagnostics. */
 interface ValueLocation {
@@ -54,7 +54,7 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'var': {
       const id = context.variableIdByKey.get(node.key)
       if (id !== undefined) return id
-      report(context, {
+      context.diagnostics.push({
         code: 'E_MAT_UNKNOWN_RESOURCE',
         severity: 'error',
         message: `Variable "${node.key}" does not exist in this workflow`,
@@ -65,7 +65,7 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'resource': {
       const id = context.resources?.toId(node.kind, node.key) ?? null
       if (id !== null) return id
-      report(context, {
+      context.diagnostics.push({
         code: 'E_MAT_UNKNOWN_RESOURCE',
         severity: 'error',
         message: `No ${node.kind} "${node.key}" in this workspace`,

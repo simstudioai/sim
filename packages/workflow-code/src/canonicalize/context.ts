@@ -24,7 +24,3 @@ export interface CanonContext {
   /** Variable id → key. */
   variableKeyById: Map<string, VarKey>
 }
-
-export function report(context: CanonContext, diagnostic: Diagnostic<CanonicalizeDiagnosticCode>) {
-  context.diagnostics.push(diagnostic)
-}

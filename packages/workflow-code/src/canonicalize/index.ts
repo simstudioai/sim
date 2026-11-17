@@ -26,7 +26,7 @@ import type {
 } from '../model'
 import { setOwn } from '../records'
 import { type LiftedBranches, liftBranches } from './branches'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 import { canonicalEdges } from './edges'
 import { assignBlockKeys, assignVariableKeys } from './keys'
 import { effectiveModes, isModeMap, parseModeMap } from './modes'
@@ -170,7 +170,7 @@ export function canonicalize(
     const catalog = catalogBlock(context.catalog, block.type)
     const isContainer = isSubflowType(block.type)
     if (!catalog && !isContainer) {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_UNKNOWN_BLOCK_TYPE',
         severity: 'warning',
         message: `Block type "${block.type}" is not in the catalog; params kept verbatim`,
@@ -183,7 +183,7 @@ export function canonicalize(
     const parent = parentId !== undefined ? (keyById.get(parentId) ?? null) : null
     if (data.parentId != null && (parentId === undefined || parent === null)) {
       extraFields.parentId = toJson(data.parentId)
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_DANGLING_PARENT',
         severity: 'warning',
         message: `Block "${key}" names parent "${String(data.parentId)}", which is not a block; placed at the root`,
