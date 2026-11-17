@@ -194,12 +194,12 @@ export function planNamed<D, S>(
       }
     case 'create':
       holderOf()
-      ctx.pending.push({ kind, key, id: generateId() })
+      ctx.pending.push({ kind, key, id: generateId(), name })
       return { ...change, action: 'create' }
     case 'adopt':
     case 'update': {
       const { id, state } = resolution.stored
-      if (resolution.action === 'adopt') ctx.pending.push({ kind, key, id })
+      if (resolution.action === 'adopt') ctx.pending.push({ kind, key, id, name })
       const changed = changedFields(
         named.codec.canonical(named.declOf(state)),
         named.codec.canonical(decl)

@@ -90,23 +90,26 @@ export interface PendingResource {
   kind: ResourceKind
   key: string
   id: string
+  /** The name the apply writes it under, which a workflow's stored reference repeats (a skill). */
+  name?: string
 }
 
-/** `resources`, falling back to `pending` for a key or id it does not resolve. */
+/** `resources`, falling back to `pending` for a key, id or name it does not resolve. */
 function withPendingResources(
   resources: ResourceKeyResolver,
   pending: readonly PendingResource[]
 ): ResourceKeyResolver {
   if (pending.length === 0) return resources
+  const byId = (kind: ResourceKind, id: string) =>
+    pending.find((entry) => entry.kind === kind && entry.id === id)
   return {
-    toKey: (kind, id) =>
-      resources.toKey(kind, id) ??
-      pending.find((entry) => entry.kind === kind && entry.id === id)?.key ??
-      null,
+    toKey: (kind, id) => resources.toKey(kind, id) ?? byId(kind, id)?.key ?? null,
     toId: (kind, key) =>
       resources.toId(kind, key) ??
       pending.find((entry) => entry.kind === kind && entry.key === key)?.id ??
       null,
+    nameOf: (kind, id) => resources.nameOf?.(kind, id) ?? byId(kind, id)?.name ?? null,
+    isBuiltin: resources.isBuiltin,
   }
 }
 
