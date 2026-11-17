@@ -410,6 +410,12 @@ describe('the code files an apply sends', () => {
     for (const name of names) writeFileSync(join(dir, name), `// ${name}\n`)
   }
 
+  /** An entry file that imports `codeFile` (as `alias` when given) and declares `body`. */
+  function entryWith(body: string, alias?: string): string {
+    const specifier = alias ? `codeFile as ${alias}` : 'codeFile'
+    return `// @sim-sdk 1\nimport { ${specifier}, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('W', () => {})\n${body}`
+  }
+
   async function applyEntry(entry: string): Promise<void> {
     writeFileSync(join(dir, 'workflow.ts'), entry)
     setTerminal(false)
@@ -420,15 +426,33 @@ describe('the code files an apply sends', () => {
   it('sends a file named by a template literal without substitutions', async () => {
     writeFunctions('functions/a.js')
 
-    await applyEntry(`${ENTRY}const a = fn('A', { code: codeFile(\`./functions/a.js\`) })\n`)
+    await applyEntry(entryWith("const a = fn('A', { code: codeFile(`./functions/a.js`) })\n"))
 
     expect(sentCodeFiles()).toEqual(['functions/a.js'])
+  })
+
+  it('sends a file named by a call with spacing before the parenthesis', async () => {
+    writeFunctions('functions/spaced.js')
+
+    await applyEntry(entryWith("const a = fn('A', { code: codeFile ('./functions/spaced.js') })\n"))
+
+    expect(sentCodeFiles()).toEqual(['functions/spaced.js'])
+  })
+
+  it('sends a file named through an aliased codeFile import', async () => {
+    writeFunctions('functions/aliased.js')
+
+    await applyEntry(
+      entryWith("const a = fn('A', { code: fileCode('./functions/aliased.js') })\n", 'fileCode')
+    )
+
+    expect(sentCodeFiles()).toEqual(['functions/aliased.js'])
   })
 
   it('sends no file for a template literal with a substitution, which names no constant path', async () => {
     writeFunctions(`functions/\${name}.js`)
 
-    await applyEntry(`${ENTRY}const a = fn('A', { code: codeFile(\`./functions/\${name}.js\`) })\n`)
+    await applyEntry(entryWith("const a = fn('A', { code: codeFile(`./functions/${name}.js`) })\n"))
 
     expect(sentCodeFiles()).toEqual([])
   })
@@ -443,7 +467,7 @@ describe('the code files an apply sends', () => {
 
     await applyEntry(
       [
-        ENTRY,
+        entryWith(''),
         "// const old = fn('Old', { code: codeFile('./functions/line.js') })",
         "/* const old = fn('Old', {\n  code: codeFile('./functions/block.js') }) */",
         'const note = "codeFile(\'./functions/quoted.js\')"',
@@ -468,7 +492,9 @@ describe('the code files an apply sends', () => {
     )
 
     await applyEntry(
-      `${ENTRY}const leak = fn('Leak', { code: codeFile('./.env') })\nconst run = fn('Run', { language: 'shell', code: codeFile('./functions/run.sh') })\n`
+      entryWith(
+        "const leak = fn('Leak', { code: codeFile('./.env') })\nconst run = fn('Run', { language: 'shell', code: codeFile('./functions/run.sh') })\n"
+      )
     )
 
     expect(sentCodeFiles()).toEqual(['functions/run.sh'])

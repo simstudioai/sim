@@ -46,6 +46,7 @@ describe('toCodeFile rewrites only code-position tokens', () => {
     expect(toCodeFile('x = {{ API_KEY }}', 'javascript')).toBe('x = {{ API_KEY }}')
     expect(toCodeFile('x = <a.items[01]>', 'javascript')).toBe('x = <a.items[01]>')
     expect(toCodeFile("x = <a.it's>", 'javascript')).toBe("x = <a.it's>")
+    expect(toCodeFile('x = <a[0]x3]>', 'javascript')).toBe('x = <a[0]x3]>')
   })
 
   it('never rewrites python or shell bodies', () => {

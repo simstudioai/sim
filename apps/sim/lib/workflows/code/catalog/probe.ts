@@ -15,7 +15,8 @@ type ProbeOutcome<T> =
   | { ok: false; reads: ReadonlySet<string> }
 
 /**
- * Builds a frozen-looking value bag whose reads are recorded. Symbol reads (`Symbol.toPrimitive`,
+ * Builds a frozen-looking value bag whose reads are recorded: a value read, an `in` check, and an
+ * own-key check (`Object.hasOwn`, `hasOwnProperty.call`) each record the key. Symbol reads (`Symbol.toPrimitive`,
  * iterator probes from spreading) are answered from the target and never recorded.
  */
 function recordingValues(
@@ -30,6 +31,10 @@ function recordingValues(
     has(target, key) {
       if (typeof key === 'string') reads.add(key)
       return Reflect.has(target, key)
+    },
+    getOwnPropertyDescriptor(target, key) {
+      if (typeof key === 'string') reads.add(key)
+      return Reflect.getOwnPropertyDescriptor(target, key)
     },
     ownKeys(target) {
       reads.add('*')

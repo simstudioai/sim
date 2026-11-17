@@ -5,6 +5,7 @@ import {
   type WorkflowEdgeScopeBlock,
 } from '@sim/workflow-types/workflow'
 import { edgeTupleKey, portKey } from '../anchors'
+import { literalText } from '../babel'
 import { catalogBlock } from '../catalog/view'
 import type { AnchorKey, BlockKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
 import { setOwn } from '../records'
@@ -21,7 +22,6 @@ import {
   type WiringStatement,
 } from './context'
 import { HINTS, hintForNode, nodeLabel } from './hints'
-import { literalText } from './values'
 
 /** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p`). */
 interface Endpoint {

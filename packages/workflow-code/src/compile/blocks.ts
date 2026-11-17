@@ -2,6 +2,7 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { isBranchExtraField } from '../canonicalize/branches'
 import {
   DEFAULT_LOOP_ITERATIONS,
   effectiveBatchSize,
@@ -21,7 +22,7 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
-import { inputFormatItems } from '../forms/input-format'
+import { inputFormatItems, renamedInputFields, untypedInputFields } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
@@ -527,6 +528,19 @@ function applyBranchMeta(
       )
       continue
     }
+    const reserved = isRecordLike(json.extra)
+      ? Object.keys(json.extra).filter((field) => !isBranchExtraField(field))
+      : []
+    if (reserved.length > 0) {
+      unsupported(
+        ctx,
+        property.value,
+        `Branch extra cannot hold ${reserved.join(', ')}: the branch's id, title, condition and key are set by the source.`,
+        'Remove those fields from extra; write the title with title.',
+        site.decl.key
+      )
+      continue
+    }
     if (typeof json.title === 'string') row.titleOverride = json.title
     if (json.title === null) row.titleMissing = true
     if (isRecordLike(json.extra)) row.extra = json.extra as Record<string, Json>
@@ -701,6 +715,24 @@ function compileField(
   let value = compiled.value
   const checked = compiled.form === 'literal'
   if (target.structured === 'inputFormat' && compiled.form === 'literal') {
+    for (const renamed of renamedInputFields(value)) {
+      unsupported(
+        ctx,
+        property.value,
+        `The ${renamed.key} field also writes name ${JSON.stringify(renamed.name)}; the key names the field.`,
+        `Rename the key, or remove name from ${renamed.key}.`,
+        decl.key
+      )
+    }
+    for (const key of untypedInputFields(value)) {
+      unsupported(
+        ctx,
+        property.value,
+        `The ${key} field names no type.`,
+        `Write ${key}: 'string', or ${key}: { type: 'number', value: 5 }.`,
+        decl.key
+      )
+    }
     value = inputFormatItems(value)
   }
   setOwn(params, target.id, { kind: 'value', value })

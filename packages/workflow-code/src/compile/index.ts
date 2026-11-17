@@ -2,6 +2,7 @@ import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types
 import { compareStrings } from '@sim/utils/string'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
+import { literalText } from '../babel'
 import type { BlockCatalog } from '../catalog/types'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
@@ -17,7 +18,7 @@ import type {
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
-import { OLDEST_SDK_MAJOR } from '../sdk'
+import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
@@ -26,8 +27,8 @@ import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
-import { collectBody } from './scope'
-import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
+import { collectBody, collisionSuffix } from './scope'
+import { checkCodeFileRefs, compileJsonLiteral, objectEntries } from './values'
 
 /** One compile: the entry file, the code files it may read, and what the server knows. */
 export interface CompileInput {
@@ -72,7 +73,6 @@ export interface CompileResult {
   sdkMajor: number | null
 }
 
-const SDK_MODULE = '@sim/workflow-sdk'
 const VARIABLE_TYPES: ReadonlySet<string> = new Set([
   'string',
   'number',
@@ -115,6 +115,16 @@ function collectImports(ctx: CompileContext, node: Node, scope: Scope): void {
       imported === 'vars' ? { kind: 'vars' } : { kind: 'sdk', name: imported }
     )
   }
+}
+
+/**
+ * Whether a written `name` keeps a variable reachable by its key: references compile to
+ * `<variable.key>`, and the resolver matches them against the stored name normalized. So the name
+ * must normalize to the key, or the key is the `~n` form canonicalize gives a legacy collision.
+ */
+function namesVariableKey(name: string, key: VarKey): boolean {
+  const normalized = normalizeWorkflowBlockName(name)
+  return normalized === key || collisionSuffix(key, normalized)
 }
 
 function compileVariables(ctx: CompileContext, node: Node): void {
@@ -191,6 +201,15 @@ function compileVariables(ctx: CompileContext, node: Node): void {
             fieldProperty.value,
             'name is a string literal.',
             "Write name: 'Display name'."
+          )
+        } else if (!namesVariableKey(text, key)) {
+          ctx.reporter.report(
+            'E_VARIABLE_NAME_MISMATCH',
+            `name '${text}' does not normalize to the variable key ${key}, so vars.${propertyKey} would not reach it.`,
+            rangeOf(ctx, fieldProperty.value),
+            {
+              hint: 'Rename the property to the name, or drop name. A variable is keyed by its name lowercased, without spaces or dots.',
+            }
           )
         } else {
           name = text

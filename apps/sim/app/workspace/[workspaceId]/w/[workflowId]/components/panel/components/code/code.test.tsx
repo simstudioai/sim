@@ -18,6 +18,7 @@ import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const WORKSPACE_ID = 'ws-1'
 const WORKFLOW_ID = 'wf-1'
@@ -68,6 +69,32 @@ describe('Code tab refresh', () => {
     useWorkflowRegistry.setState({ activeWorkflowId: WORKFLOW_ID })
     useSubBlockStore.setState({ workflowValues: {} })
     useVariablesStore.setState({ variables: {} })
+    useWorkflowStore.setState({
+      blocks: {
+        group: {
+          id: 'group',
+          type: 'loop',
+          name: 'Group',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { width: 400, height: 200 },
+        },
+        score: {
+          id: 'score',
+          type: 'function',
+          name: 'Score',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+      edges: [{ id: 'e1', source: 'group', target: 'score' }],
+      loops: {},
+      parallels: {},
+    })
     useOperationQueueStore.getState().reset()
     const container = document.createElement('div')
     root = createRoot(container)
@@ -134,6 +161,46 @@ describe('Code tab refresh', () => {
   it("re-reads the source after this workflow's variable changes", async () => {
     await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
     setVariable(WORKFLOW_ID, '3')
+    await settle()
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(2))
+  })
+
+  it('ignores a container resize, which copies the edge list without changing an edge', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    act(() =>
+      useWorkflowStore.getState().updateNodeDimensions('group', { width: 600, height: 300 })
+    )
+    await settle()
+    expect(sourceReads).toHaveLength(1)
+  })
+
+  it('ignores a handle toggle, from the store write and from its queued operation', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    act(() => {
+      useWorkflowStore.getState().batchToggleHandles(['score'])
+      useOperationQueueStore.getState().addToQueue({
+        id: 'op-handles',
+        operation: {
+          operation: 'batch-toggle-handles',
+          target: 'blocks',
+          payload: { ids: ['score'] },
+        },
+        workflowId: WORKFLOW_ID,
+        userId: 'user-1',
+      })
+      useOperationQueueStore.getState().confirmOperation('op-handles')
+    })
+    await settle()
+    expect(sourceReads).toHaveLength(1)
+  })
+
+  it('re-reads the source after an edge is added', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    act(() =>
+      useWorkflowStore.setState((state) => ({
+        edges: [...state.edges, { id: 'e2', source: 'score', target: 'group' }],
+      }))
+    )
     await settle()
     await vi.waitFor(() => expect(sourceReads).toHaveLength(2))
   })

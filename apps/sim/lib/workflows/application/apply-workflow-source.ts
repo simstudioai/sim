@@ -46,7 +46,7 @@ import {
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
 import { evaluateSource, type PendingResource } from '@/lib/workflows/application/source-evaluate'
-import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
+import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
@@ -332,7 +332,7 @@ async function runSourceApply(
     const catalog = buildSourceCatalog({
       gate,
       organizationId: context.workspaceOrganizationId,
-      storedTypes: Object.values(stored.state.blocks).map((block) => block.type),
+      storedTypes: storedCatalogTypes(Object.values(stored.state.blocks)),
     })
     const storedCanonical = await canonicalizeStored({
       prefetched,

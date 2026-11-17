@@ -55,7 +55,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE } from '../sdk'
+import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
 import { type AttachedComments, anchors, CommentPlacer, withComments } from './comments'
 import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from './doc'
 import { assignIdentifiers } from './idents'
@@ -106,7 +106,6 @@ interface PrintResult {
 
 /** biome.json's line width. */
 const LINE_WIDTH = 100
-const SDK_MODULE = '@sim/workflow-sdk'
 
 type Diag = Diagnostic<PrintDiagnosticCode>
 

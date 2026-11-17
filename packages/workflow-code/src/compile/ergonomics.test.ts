@@ -230,6 +230,22 @@ describe('header, names and hand-written references', () => {
   })
 
   it.each([
+    ['an Arabic letter mark', 0x061c],
+    ['a Mongolian vowel separator', 0x180e],
+    ['a word joiner', 0x2060],
+    ['an invisible plus', 0x2064],
+    ['a deprecated shaping control', 0x206f],
+    ['a zero-width no-break space', 0xfeff],
+  ])('treats %s as invisible in names and printed text', (_, code) => {
+    const char = String.fromCharCode(code)
+    const escaped = `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`
+    expect(codes(run(source(`  api('Pay${escaped}out', { url: 'x' })`)))).toEqual([
+      'W_SUSPICIOUS_CHARACTER',
+    ])
+    expect(quoteString(`Pay${char}out`)).toBe(`'Pay${escaped}out'`)
+  })
+
+  it.each([
     ['a cased block name', "'<A.data>'", true],
     ['a name that is no block', "'<nobody.data>'", true],
     ['the normalized key of a block', "'<a.data>'", false],
@@ -362,6 +378,25 @@ describe('JSON field literals', () => {
     )
     expect(codes(result)).toEqual(['W_JSON_REF_UNTYPED'])
   })
+
+  it('refuses an inputFormat entry whose name differs from its key, which names the field', () => {
+    const result = run(
+      source(
+        "  const start = trigger.start('Start', { inputFormat: { subject: { name: 'other', type: 'string' } } })"
+      )
+    )
+    expect(codes(result)).toEqual(['E_UNSUPPORTED_SYNTAX'])
+  })
+
+  it.each(['5', 'true', 'null', "['string']", '{ value: 5 }', '{ type: 5 }'])(
+    'refuses an inputFormat entry %s that names no type',
+    (entry) => {
+      const result = run(
+        source(`  const start = trigger.start('Start', { inputFormat: { count: ${entry} } })`)
+      )
+      expect(codes(result)).toEqual(['E_UNSUPPORTED_SYNTAX'])
+    }
+  )
 
   it("types a human form's fields under submission, as the SDK does", () => {
     const workflow = compiled(

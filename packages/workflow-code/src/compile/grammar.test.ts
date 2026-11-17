@@ -744,6 +744,14 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a variable name that does not normalize to its key',
+      START,
+      'E_VARIABLE_NAME_MISMATCH',
+      "'Total'",
+      undefined,
+      "{ variables: { count: { name: 'Total', type: 'number', value: 1 } } }",
+    ],
+    [
       'a resource inside a JSON field literal',
       "table.insertRow('Row', { data: { id: table('orders') } })",
       'E_UNSUPPORTED_SYNTAX',
@@ -1295,6 +1303,20 @@ describe('a condition branch refused where it is declared', () => {
     )
     expect(codes).toContain('E_UNSUPPORTED_SYNTAX')
     expect(codes).not.toContain('E_UNKNOWN_BRANCH')
+  })
+
+  it('refuses branch extra that would overwrite the id, title, condition or key', () => {
+    for (const field of ['id', 'title', 'value', 'key']) {
+      const codes = codesOf(
+        `const pick = condition('Pick', { yes: js\`1 > 0\` }, { branches: { yes: { extra: { ${field}: 'x', color: 'red' } } } })`
+      )
+      expect(codes, field).toContain('E_UNSUPPORTED_SYNTAX')
+    }
+    expect(
+      codesOf(
+        "const pick = condition('Pick', { yes: js`1 > 0` }, { branches: { yes: { extra: { color: 'red' } } } })"
+      )
+    ).not.toContain('E_UNSUPPORTED_SYNTAX')
   })
 
   it('still reports a branch that was never declared', () => {

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { BlockState } from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -90,6 +91,15 @@ function blocksChangedBeyondGeometry(
   })
 }
 
+/**
+ * Whether the edge list gained, lost or replaced an edge. Block-only writes (a container resize,
+ * a handle toggle) copy the array without touching an edge, so identity alone over-reports.
+ */
+function edgesChanged(next: readonly Edge[], previous: readonly Edge[]): boolean {
+  if (next === previous) return false
+  return next.length !== previous.length || next.some((edge, index) => edge !== previous[index])
+}
+
 /** Whether a variable of `workflowId` was added, removed or replaced. */
 function workflowVariablesChanged(
   next: Record<string, Variable>,
@@ -120,7 +130,7 @@ export function subscribeToDraftChanges(workflowId: string, onChange: () => void
   const unsubscribers = [
     useWorkflowStore.subscribe((state, previous) => {
       if (
-        state.edges !== previous.edges ||
+        edgesChanged(state.edges, previous.edges) ||
         state.loops !== previous.loops ||
         state.parallels !== previous.parallels ||
         (state.blocks !== previous.blocks &&

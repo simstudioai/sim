@@ -15,6 +15,14 @@ const UI_ROW_KEYS = new Set([
 ])
 const MODELED_ROW_KEYS = new Set(['id', 'title', 'value', 'key'])
 
+/**
+ * Whether a stored row field round-trips through a row's `extra`: not a field the row models
+ * (`id`, `title`, `value`, `key`) and not editor state, which canonicalize drops.
+ */
+export function isBranchExtraField(field: string): boolean {
+  return !MODELED_ROW_KEYS.has(field) && !UI_ROW_KEYS.has(field)
+}
+
 export interface LiftedBranches {
   branches: CanonicalBranches
   /** Branch key → stored row id (or the implicit id a never-persisted row answers to). */
@@ -236,7 +244,7 @@ export function liftBranches(
     }
     const extra: Record<string, Json> = {}
     for (const [field, value] of Object.entries(stored)) {
-      if (MODELED_ROW_KEYS.has(field) || UI_ROW_KEYS.has(field) || value === undefined) continue
+      if (!isBranchExtraField(field) || value === undefined) continue
       setOwn(extra, field, toJson(value))
     }
     if (Object.keys(extra).length > 0) row.extra = extra

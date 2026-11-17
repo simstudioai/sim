@@ -120,6 +120,26 @@ describe('extendSdkNames', () => {
 })
 
 describe('validateSdkNames', () => {
+  it('reports a credential alias the generator would add, as it reports a missing method', () => {
+    const drive = source({
+      type: 'drive',
+      operations: [{ id: 'list', label: 'List' }],
+      params: { action: [param('oauthCredential', true)], trigger: [] },
+    })
+    const { names } = extendSdkNames(EMPTY, [drive])
+    expect(validateSdkNames(names, [drive])).toEqual([])
+
+    const { paramAliases: _dropped, ...withoutAlias } = names.blocks.drive
+    expect(validateSdkNames({ version: 1, blocks: { drive: withoutAlias } }, [drive])).toEqual([
+      'missing drive: action param oauthCredential → credential',
+    ])
+
+    const { methods: _methods, ...withoutMethod } = names.blocks.drive
+    expect(validateSdkNames({ version: 1, blocks: { drive: withoutMethod } }, [drive])).toEqual([
+      'missing drive: method list → list',
+    ])
+  })
+
   it('reports a block, operation or trigger the file lacks', () => {
     const names: SdkNamesFile = {
       version: 1,
@@ -138,9 +158,9 @@ describe('validateSdkNames', () => {
         source({ type: 'new_block' }),
       ])
     ).toEqual([
-      'crm: missing method for operation b',
-      'crm: missing method for trigger crm_webhook',
-      'new_block: missing entry',
+      'missing crm: method b → b',
+      'missing crm: trigger crm_webhook → webhook',
+      'missing new_block: namespace newBlock',
     ])
   })
 

@@ -1817,8 +1817,7 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   errorResponses: ERROR_RESPONSES,
   routes: [
     ...routes,
-    ...workflowSourceOpenApiRoutes,
-    ...sourceResourcesOpenApiRoutes,
+    ...[...workflowSourceOpenApiRoutes, ...sourceResourcesOpenApiRoutes].map(withRequestBodyErrors),
     ...workspaceSyncOpenApiRoutes,
     ...workspaceSourceOpenApiRoutes,
   ],

@@ -384,7 +384,10 @@ export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' 
 
 /** A workflow variable declared in `workflow(name, { variables })`: its type and initial value. */
 export interface VariableDeclaration {
-  /** The display name, written only when it differs from the key. */
+  /**
+   * The display name, written only when it differs from the key. It must normalize to the key
+   * (lowercased, spaces and dots removed), as `'Total Count'` does to `totalcount`.
+   */
   name?: string
   type: VariableType
   value: Json

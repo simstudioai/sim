@@ -54,7 +54,7 @@ const CATALOG = JSON.parse(
 )
 
 const WORKFLOW_TS =
-  "// @sim-sdk 1\nexport default workflow('W', {}, () => {\n  const score = fn('Score', { code: codeFile('./functions/score.js') })\n})\n"
+  "// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('W', {}, () => {\n  const score = fn('Score', { code: codeFile('./functions/score.js') })\n})\n"
 
 function lockFor(...codeFiles: string[]) {
   return {

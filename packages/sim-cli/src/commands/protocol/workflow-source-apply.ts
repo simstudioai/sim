@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import { CODE_FILE_EXTENSIONS, SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -29,16 +30,6 @@ import {
   sourceRelativePath,
   writeBack,
 } from './workflow-source-layout'
-
-/**
- * One pass over the entry file that matches, in order of precedence, a comment, a
- * `codeFile(<literal>)` call and any other string or template literal. Comments and other
- * literals are matched only so that a `codeFile(` inside them is skipped: a commented-out or
- * quoted reference names no file the source uses. The path is a quoted string or a template
- * literal without `${`, the forms the compiler reads as a constant path.
- */
-const ENTRY_TOKENS =
-  /\/\/[^\n]*|\/\*[\s\S]*?\*\/|\bcodeFile\(\s*(?:'([^'\n]*)'|"([^"\n]*)"|`((?:[^`$]|\$(?!\{))*)`)\s*\)|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`/g
 
 /** The only files an apply sends beside the entry: function code in a language a block runs. */
 const CODE_FILE_EXTENSION = new RegExp(`\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`)
@@ -105,16 +96,16 @@ async function readJson(directory: string, path: string, hint: string): Promise<
 }
 
 /**
- * The function-code files the source can reference: every `codeFile(…)` in the entry file's code
- * plus every `codeFile` the lock records, limited to `.js`, `.py` and `.sh` files inside the
+ * The function-code files the source can reference: every `codeFile(…)` call the entry file makes,
+ * found by parsing it as compile does (an aliased import or spacing before the parenthesis still
+ * counts; a comment or string that spells one does not), plus every `codeFile` the lock records, limited to `.js`, `.py` and `.sh` files inside the
  * directory. Only those are sent, so a reference to any other file never uploads it; the server
  * reports a referenced file that is missing or of another kind.
  */
 function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
   const candidates = lockCodeFiles(lock)
-  for (const match of entry.matchAll(ENTRY_TOKENS)) {
-    const literal = match[1] ?? match[2] ?? match[3]
-    const path = literal === undefined ? null : sourceRelativePath(literal)
+  for (const literal of codeFileReferences(entry)) {
+    const path = sourceRelativePath(literal)
     if (path) candidates.add(path)
   }
   return [...candidates].filter((path) => CODE_FILE_EXTENSION.test(path))

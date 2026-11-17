@@ -38,8 +38,9 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   `{ description?, variables? }`; `body` is `() => { … }` or `({ vars }) => { … }`. The SDK also
   exports `vars`, the same variables untyped; the printer always writes the body parameter.
 - Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable key;
-  `name` is written only when it differs. `type` is `string | number | boolean | object | array |
-  plain`; `value` is plain JSON. Both are required. The stored key is the property key normalized
+  `name` is written only when it differs, and must normalize to the key
+  (`E_VARIABLE_NAME_MISMATCH`). `type` is `string | number | boolean | object | array | plain`;
+  `value` is plain JSON. Both are required. The stored key is the property key normalized
   (lowercased, spaces and dots removed), and `vars.<key as written>` resolves through it.
 - The body holds block declarations and wiring statements. No other statements, no helpers, no
   loops, no conditionals, no imports of your own.
@@ -106,7 +107,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
-| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. |
+| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. An `extra` field the row models (`id`, `title`, `value`, `key`) or editor state is `E_UNSUPPORTED_SYNTAX`. |
 | `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name, or a value of `todo()`, `stored()` or `codeFile()`, is `E_UNSUPPORTED_SYNTAX`. |
 | `subflowData: { <key>: json }` | Loop or parallel only: `block.data` subflow keys (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`, `parallelType`, `batchSize`) canonicalize could not read as config. Any other key, or on another block, is `E_UNSUPPORTED_SYNTAX`. |
 
@@ -214,9 +215,10 @@ template.
 ### Structured fields
 
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →
-  `{ name, type: 'string', value: '' }`; `name: { type, … }` → `{ name, type, … }`; `{}` is the empty
-  list. Arrays pass through. The printer writes a list the record cannot carry (an integer-like or
-  repeated name, an unknown key) as `raw([…])`.
+  `{ name, type: 'string', value: '' }`; `name: { type, … }` → `{ name, type, … }`; an entry with
+  no type string (`count: 5`, `count: { value: 5 }`) is refused; `{}` is the empty list. Arrays
+  pass through. The printer writes a list the record cannot carry (an integer-like or repeated name,
+  an unknown key) as `raw([…])`.
 - Tools (`valueKind: 'tools'`): an array of
   - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`), or `builder.tool(params, options?)`
     for a builder at the namespace root (`agent.tool(…)`);
@@ -368,6 +370,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_OUT_OF_SCOPE` | A ref or wiring into a sibling subflow's child. |
 | `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
+| `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
 | `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |

@@ -33,16 +33,46 @@ export function inputFormatSugar(
   return items
 }
 
-/** The record sugar compiled: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list. */
+/**
+ * The record keys whose entry also writes a different `name`: the key names the field, so such an
+ * entry is refused rather than stored under a name its references would not match.
+ */
+export function renamedInputFields(value: Value): Array<{ key: string; name: Value }> {
+  if (!isPlainRecord(value)) return []
+  return Object.entries(value).flatMap(([key, entry]) =>
+    isPlainRecord(entry) && Object.hasOwn(entry, 'name') && entry.name !== key
+      ? [{ key, name: entry.name }]
+      : []
+  )
+}
+
+/**
+ * The record keys whose entry names no type: neither a type string nor a record with a string
+ * `type`. The SDK types every entry as one of those, so a bare value (`count: 5`) is refused rather
+ * than stored as a field with no type.
+ */
+export function untypedInputFields(value: Value): string[] {
+  if (!isPlainRecord(value)) return []
+  return Object.entries(value).flatMap(([key, entry]) =>
+    typeof entry === 'string' || (isPlainRecord(entry) && typeof entry.type === 'string')
+      ? []
+      : [key]
+  )
+}
+
+/**
+ * The record sugar compiled: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list.
+ * The record key is always the field name; an entry's own `name` never replaces it.
+ */
 export function inputFormatItems(value: Value): Value {
   if (!isPlainRecord(value)) return value
   return Object.entries(value).map(([name, entry]) => {
     if (typeof entry === 'string') return { name, type: entry, value: '' }
     const item: Record<string, Value> = { name }
     if (isPlainRecord(entry)) {
-      for (const [key, field] of Object.entries(entry)) setOwn(item, key, field)
-    } else {
-      setOwn(item, 'value', entry)
+      for (const [key, field] of Object.entries(entry)) {
+        if (key !== 'name') setOwn(item, key, field)
+      }
     }
     return item
   })

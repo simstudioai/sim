@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
+import { toRecordOrNull } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
-import type { BlockCatalog } from '@sim/workflow-code'
+import { type BlockCatalog, parseJsonContainer } from '@sim/workflow-code'
 import { LRUCache } from 'lru-cache'
 import type { CatalogGate } from '@/lib/catalog/application/context'
 import { isBlockVisibleToCaller } from '@/lib/catalog/application/context'
@@ -13,8 +14,48 @@ import type { BlockConfig } from '@/blocks/types'
 interface SourceCatalogScope {
   gate: CatalogGate
   organizationId: string | null
-  /** Block types stored in the workflow, for the per-workflow source catalog. */
+  /**
+   * Block types stored in the workflow, as blocks or as agent tools, for the per-workflow source
+   * catalog ({@link storedCatalogTypes}).
+   */
   storedTypes?: readonly string[]
+}
+
+/** A stored block as far as {@link storedCatalogTypes} reads it. */
+interface StoredBlockTypes {
+  type: string
+  /** The stored `subBlocks` map, read untyped: the catalog read takes it straight from jsonb. */
+  subBlocks?: unknown
+}
+
+/** The block config ids of a type's `tool-input` fields, the fields that hold attached tools. */
+export function toolInputIds(type: string): string[] {
+  return (getBlock(type)?.subBlocks ?? [])
+    .filter((subBlock) => subBlock.type === 'tool-input')
+    .map((subBlock) => subBlock.id)
+}
+
+/**
+ * Every type a stored workflow's source catalog must declare: each block's type, and the type of
+ * each tool attached to a `tool-input` field (an agent's tools). A tool type the caller can no
+ * longer place still needs its declaration, or the printer cannot tell its password params apart
+ * and would print a stored key verbatim.
+ */
+export function storedCatalogTypes(blocks: Iterable<StoredBlockTypes>): string[] {
+  const types = new Set<string>()
+  for (const block of blocks) {
+    types.add(block.type)
+    for (const id of toolInputIds(block.type)) {
+      const raw = toRecordOrNull(toRecordOrNull(block.subBlocks)?.[id])?.value
+      const tools = typeof raw === 'string' ? parseJsonContainer(raw) : raw
+      if (!Array.isArray(tools)) continue
+      for (const tool of tools) {
+        const type = toRecordOrNull(tool)?.type
+        if (typeof type === 'string') types.add(type)
+      }
+    }
+  }
+  return [...types]
 }
 
 /**

@@ -6,6 +6,9 @@
 
 import type { ResourceKind } from './model'
 
+/** The module a workflow file imports the SDK from: the only import compile accepts. */
+export const SDK_MODULE = '@sim/workflow-sdk'
+
 /**
  * The generic builder, `block(type, name, params, meta?)`. The printer uses it for any stored type
  * with no generated builder (legacy, unknown, or `custom_block_*` without a method), and the

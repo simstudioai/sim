@@ -15,7 +15,7 @@ import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
-import { memberSegment } from '../babel'
+import { literalText, memberSegment } from '../babel'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
@@ -206,15 +206,6 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
       }
     )
   }
-}
-
-/** A string literal, or a template literal with no `${}`; `null` otherwise. */
-export function literalText(node: Node): string | null {
-  if (node.type === 'StringLiteral') return node.value
-  if (node.type === 'TemplateLiteral' && node.expressions.length === 0) {
-    return node.quasis[0]?.value.cooked ?? null
-  }
-  return null
 }
 
 /** Unwraps literal nodes back to stored JSON; `null` when the value holds any other node. */

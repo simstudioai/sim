@@ -37,7 +37,8 @@ export const DEFAULT_LIMITS: Required<CompileLimits> = {
 
 const HEADER = /^\/\/ @sim-sdk ([0-9]{1,6})[ \t]*(?=\r\n|[\n\r\u2028\u2029]|$)/
 
-const PARSER_OPTIONS: ParserOptions = {
+/** Babel options for a workflow file, shared with the CLI's code-file scan (`code-files/references`). */
+export const PARSER_OPTIONS: ParserOptions = {
   sourceType: 'module',
   plugins: ['typescript'],
   errorRecovery: true,

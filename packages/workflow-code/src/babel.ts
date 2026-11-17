@@ -66,3 +66,12 @@ export function memberSegment(member: MemberExpression): RefSegment | null {
   }
   return null
 }
+
+/** A string literal, or a template literal with no `${}`; `null` otherwise. */
+export function literalText(node: Node): string | null {
+  if (node.type === 'StringLiteral') return node.value
+  if (node.type === 'TemplateLiteral' && node.expressions.length === 0) {
+    return node.quasis[0]?.value.cooked ?? null
+  }
+  return null
+}

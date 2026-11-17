@@ -9,14 +9,20 @@
 import { isIdentifierName } from '../code-files/ref-path'
 
 /**
- * Bidi embedding and isolate controls (U+202A–U+202E, U+2066–U+2069) and zero-width characters
- * (U+200B–U+200F): invisible, they make printed text read differently from what it stores.
+ * Characters that reorder or hide text without a glyph of their own: bidi marks, embeddings and
+ * isolates (U+061C, U+200E–U+200F, U+202A–U+202E, U+2066–U+2069), zero-width and invisible
+ * characters (U+180E, U+200B–U+200D, U+2060–U+2064, U+FEFF) and the deprecated format controls
+ * (U+206A–U+206F). The printer escapes them and compile warns on a block name holding one, so
+ * printed text never reads differently from what it stores.
  */
 export function isSuspiciousCharacter(code: number): boolean {
   return (
+    code === 0x061c ||
+    code === 0x180e ||
     (code >= 0x200b && code <= 0x200f) ||
     (code >= 0x202a && code <= 0x202e) ||
-    (code >= 0x2066 && code <= 0x2069)
+    (code >= 0x2060 && code <= 0x206f) ||
+    code === 0xfeff
   )
 }
 
