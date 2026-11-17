@@ -13,11 +13,11 @@ import {
   recordSourceRefused,
   recordSourceWritten,
 } from '@/lib/workflows/application/source-analytics'
+import { emptyDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import { emptyDiffSummary } from '@/lib/workflows/application/source-locate'
 
 const capture = posthogServerMockFns.mockCaptureServerEvent
 const personal = createPersonalApiKeyPrincipal({ userId: 'user-1' })

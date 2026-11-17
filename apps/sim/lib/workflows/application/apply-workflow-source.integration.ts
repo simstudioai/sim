@@ -1603,8 +1603,27 @@ describe('source apply edge cases', () => {
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'E_APPLY_STALE', severity: 'error' })
     )
-    expect(result.base.fingerprint).toBe((await getSource(seeded.workflowId)).base.fingerprint)
+    expect(result.base.fingerprint).toBe(source.base.fingerprint)
     expect(await snapshot(seeded.workflowId)).toEqual(before)
+  })
+
+  check('applying with the base a stale dry run returned still answers 409', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    await canvasSubBlockWrite(db, seeded.scoreId, 'return 63')
+    const files = edit(source.files, SCORE_CODE, 'return 64')
+    const preview = await apply(source, files, { dryRun: true })
+    const before = await snapshot(seeded.workflowId)
+
+    await expect(
+      apply(
+        { workflowId: source.workflowId, lock: preview.lock, base: preview.base },
+        preview.files
+      )
+    ).rejects.toMatchObject({ name: 'WorkflowSourceStaleError', code: 'conflict' })
+    expect(files).toEqual(preview.files)
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+    expect(before.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 63')
   })
 
   check('a workspace member with read access is refused and nothing is written', async () => {
