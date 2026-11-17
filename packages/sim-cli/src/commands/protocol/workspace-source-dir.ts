@@ -4,6 +4,7 @@
  * `.sim/base.json`, and the SDK declarations once at the root. Path safety, staged writes and the
  * `.sim/written.json` record are the workflow source directory's (`workflow-source-layout.ts`).
  */
+import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
@@ -223,11 +224,13 @@ function workflowFolderOf(path: string): string | null {
  * Reads the directory for an apply. A workflow folder whose every file is as the CLI last wrote it
  * is sent with only its `.sim/base.json`: the server treats it as unchanged, so an apply sends
  * only the workflows that were edited. Blobs are hashed as streams, and one over the size limit
- * is refused (exit 7) before it is read.
+ * is refused (exit 7) before it is read; a blob `known` already lists (an earlier round of the
+ * same apply hashed it) is not read again.
  */
 export async function readWorkspaceDir(
   dir: string,
-  only: readonly WorkspaceKind[] | undefined
+  only: readonly WorkspaceKind[] | undefined,
+  known: readonly BlobEntry[] = []
 ): Promise<WorkspaceSubmission> {
   const kinds = (await presentKinds(dir)).filter((kind) => !only || only.includes(kind))
   const { paths, ignored } = await kindFolderFiles(dir, kinds)
@@ -256,7 +259,10 @@ export async function readWorkspaceDir(
   }
   const root = await realpath(dir)
   const verified = new Set<string>()
+  const hashed = new Map(known.map((blob) => [blob.path, blob]))
   const blobs = await inBatches(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
+    const listed = hashed.get(path)
+    if (listed) return listed
     const file = await checkedPath(root, path, verified)
     const { size } = await stat(file)
     if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
@@ -282,11 +288,21 @@ export async function readWorkspaceDir(
   return { kinds, files, blobs, ignored, ...(base ? { base } : {}) }
 }
 
-/** A blob's bytes as base64, for the round that sends its content. */
-export async function blobContent(dir: string, path: string): Promise<string> {
-  return (await readFile(await checkedPath(await realpath(dir), path, new Set()))).toString(
-    'base64'
-  )
+/**
+ * A blob as the round that sends its content carries it: its bytes as base64, with the SHA-256
+ * and size of those same bytes, read once.
+ */
+export async function blobContent(
+  dir: string,
+  path: string
+): Promise<BlobEntry & { content: string }> {
+  const bytes = await readFile(await checkedPath(await realpath(dir), path, new Set()))
+  return {
+    path,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    size: bytes.byteLength,
+    content: bytes.toString('base64'),
+  }
 }
 
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */

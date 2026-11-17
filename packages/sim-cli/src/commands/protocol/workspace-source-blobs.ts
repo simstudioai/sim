@@ -79,30 +79,47 @@ export async function hashFile(file: string): Promise<{ sha256: string; size: nu
   return { sha256: hash.digest('hex'), size }
 }
 
-/** SHA-256 of the file at `path` in the directory, or `null` when there is none. */
-export async function blobDigest(dir: string, path: string): Promise<string | null> {
+/**
+ * SHA-256 of each of `paths` in the directory, read under one resolved root; a path with no file
+ * is left out.
+ */
+export async function blobDigests(
+  dir: string,
+  paths: readonly string[]
+): Promise<Map<string, string>> {
+  const digests = new Map<string, string>()
+  let root: string
   try {
-    return (await hashFile(await checkedPath(await realpath(dir), path, new Set()))).sha256
+    root = await realpath(dir)
   } catch (error) {
-    if (isMissing(error)) return null
+    if (isMissing(error)) return digests
     throw error
   }
+  const verified = new Set<string>()
+  await inBatches([...paths], async (path) => {
+    try {
+      digests.set(path, (await hashFile(await checkedPath(root, path, verified))).sha256)
+    } catch (error) {
+      if (!isMissing(error)) throw error
+    }
+  })
+  return digests
 }
 
 /**
  * The blobs among `touched` (path → the SHA-256 about to be written, or `null` for a removal)
- * whose bytes on disk are neither what the CLI last wrote there nor what it is about to write.
+ * whose bytes on disk (`digests`, from {@link blobDigests}) are neither what the CLI last wrote
+ * there nor what it is about to write.
  */
 export async function editedBlobs(
   dir: string,
-  touched: ReadonlyMap<string, string | null>
+  touched: ReadonlyMap<string, string | null>,
+  digests: ReadonlyMap<string, string>
 ): Promise<string[]> {
   const written = await readWrittenDigests(dir)
-  const entries = [...touched]
-  const digests = await inBatches(entries, ([path]) => blobDigest(dir, path))
-  return entries.flatMap(([path, next], index) => {
-    const current = digests[index]
-    if (current === null || current === next) return []
+  return [...touched].flatMap(([path, next]) => {
+    const current = digests.get(path)
+    if (current === undefined || current === next) return []
     return written[path] !== current ? [path] : []
   })
 }

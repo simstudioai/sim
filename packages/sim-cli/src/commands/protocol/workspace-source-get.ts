@@ -1,6 +1,4 @@
-import { constants } from 'node:fs'
-import { copyFile, mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, mkdtemp, realpath, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   APPLY_ORDER,
@@ -34,7 +32,7 @@ import {
 } from './workflow-source-layout'
 import {
   assertListedBlobs,
-  blobDigest,
+  blobDigests,
   downloadBlob,
   editedBlobs,
   recordHashedBlobs,
@@ -124,11 +122,19 @@ async function writeWorkspaceSource(
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
   const written = await readWrittenDigests(dir)
   const onDisk = await managedFiles(dir, source.kinds)
-  const gone = onDisk.filter(
-    (path) => !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
+  const gone = new Set(
+    onDisk.filter(
+      (path) =>
+        !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
+    )
   )
-  const stale = await inBatches([...blobs.values()], async (blob) =>
-    blob.sha256 !== undefined && (await blobDigest(dir, blob.path)) === blob.sha256 ? null : blob
+  /** One read of every blob the get lists or removes: the stale check and the edit check share it. */
+  const digests = await blobDigests(dir, [
+    ...blobs.keys(),
+    ...[...gone].filter((path) => isBlobPath(path)),
+  ])
+  const stale = source.blobs.filter(
+    (blob) => blob.sha256 === undefined || digests.get(blob.path) !== blob.sha256
   )
   if (!force) {
     const touched = new Map<string, string | null>(Object.entries(source.files))
@@ -136,7 +142,10 @@ async function writeWorkspaceSource(
       source.blobs.map((blob) => [blob.path, blob.sha256 ?? null])
     )
     for (const path of gone) (isBlobPath(path) ? touchedBlobs : touched).set(path, null)
-    const edited = [...(await editedFiles(dir, touched)), ...(await editedBlobs(dir, touchedBlobs))]
+    const edited = [
+      ...(await editedFiles(dir, touched)),
+      ...(await editedBlobs(dir, touchedBlobs, digests)),
+    ]
     if (edited.length > 0) {
       throw new SimApiError(
         `${dir} has edits no apply has saved (${edited.join(', ')}). Apply them, get into another directory, or pass --force to discard them.`,
@@ -153,33 +162,35 @@ async function writeWorkspaceSource(
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
   /**
    * Blobs listed without a hash are downloaded (and hashed) before anything moves into place, so
-   * the base and `.sim/written.json` can record their hashes.
+   * the base and `.sim/written.json` can record their hashes. They download into the directory,
+   * beside where the write stages its files, so each moves into place by a rename, not a copy.
    */
-  const scratch = await mkdtemp(join(tmpdir(), 'sim-workspace-blobs-'))
+  const hashless = stale.filter((blob) => blob.sha256 === undefined)
+  const scratch = hashless.length > 0 ? await downloadDir(dir) : null
   try {
-    const hashless = stale.filter((blob) => blob !== null && blob.sha256 === undefined)
-    const digests = new Map<string, string>()
+    const hashed = new Map<string, string>()
     const scratchFile = new Map<string, string>()
-    await inBatches(
-      hashless.map((blob, index) => [blob, join(scratch, String(index))] as const),
-      async ([blob, file]) => {
-        if (!blob) return
-        digests.set(blob.path, await downloadBlob(client, blob, file))
-        scratchFile.set(blob.path, file)
-      }
-    )
+    if (scratch) {
+      await inBatches(
+        hashless.map((blob, index) => [blob, join(scratch, String(index))] as const),
+        async ([blob, file]) => {
+          hashed.set(blob.path, await downloadBlob(client, blob, file))
+          scratchFile.set(blob.path, file)
+        }
+      )
+    }
     const kept = {
       ...Object.fromEntries(
         Object.entries(written).filter(
-          ([path]) => !gone.includes(path) && !Object.hasOwn(source.files, path)
+          ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
         )
       ),
       ...Object.fromEntries(
-        source.blobs.map((blob) => [blob.path, blob.sha256 ?? digests.get(blob.path) ?? ''])
+        source.blobs.map((blob) => [blob.path, blob.sha256 ?? hashed.get(blob.path) ?? ''])
       ),
     }
     const skipped = skippedFile(source.skipped)
-    const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, digests) })
+    const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
     const write: Array<readonly [string, string]> = [
       ...Object.entries(source.files),
       ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
@@ -190,18 +201,15 @@ async function writeWorkspaceSource(
     ]
     await updateSourceDir(dir, {
       write,
-      fetch: stale.flatMap((blob) => {
-        if (!blob) return []
+      fetch: stale.map((blob) => {
         const fetched = scratchFile.get(blob.path)
         return [
-          [
-            blob.path,
-            (file: string) =>
-              fetched
-                ? copyFile(fetched, file, constants.COPYFILE_EXCL)
-                : downloadBlob(client, blob, file).then(() => undefined),
-          ] as const,
-        ]
+          blob.path,
+          (file: string) =>
+            fetched
+              ? rename(fetched, file)
+              : downloadBlob(client, blob, file).then(() => undefined),
+        ] as const
       }),
       remove: [
         ...gone,
@@ -209,12 +217,17 @@ async function writeWorkspaceSource(
         ...(tree.change.remove ?? []),
       ],
     })
-    const downloaded = stale.filter((blob) => blob !== null).length
-    const summary = finishTree(dir, write.length + downloaded, workspaceTypes, tree.ownsTsconfig)
-    return { written: summary.files, removed: gone.length, guide: summary.guide }
+    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
+    return { written: summary.files, removed: gone.size, guide: summary.guide }
   } finally {
-    await rm(scratch, { recursive: true, force: true })
+    if (scratch) await rm(scratch, { recursive: true, force: true })
   }
+}
+
+/** A scratch folder inside the directory, on the file system its staged write renames from. */
+async function downloadDir(dir: string): Promise<string> {
+  await mkdir(dir, { recursive: true })
+  return mkdtemp(join(await realpath(dir), '.sim-download-'))
 }
 
 /**

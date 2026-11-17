@@ -105,21 +105,18 @@ function printPlan(plan: Change[]): void {
 async function blobRound(
   dir: string,
   submission: WorkspaceSubmission,
-  wanted: readonly string[]
+  wanted: ReadonlySet<string>
 ): Promise<NonNullable<ApplyWorkspaceSourceBody['blobs']>> {
   let bytes = 0
   const blobs: NonNullable<ApplyWorkspaceSourceBody['blobs']> = []
   for (const blob of submission.blobs) {
-    if (!wanted.includes(blob.path)) {
-      blobs.push(blob)
-      continue
-    }
-    if (bytes > 0 && bytes + blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest) {
+    const fits = bytes === 0 || bytes + blob.size <= WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest
+    if (!wanted.has(blob.path) || !fits) {
       blobs.push(blob)
       continue
     }
     bytes += blob.size
-    blobs.push({ ...blob, content: await blobContent(dir, blob.path) })
+    blobs.push(await blobContent(dir, blob.path))
   }
   return blobs
 }
@@ -190,13 +187,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
       const send = async (
         submission: WorkspaceSubmission,
         dryRun: boolean,
-        wanted: readonly string[] = []
+        blobs: NonNullable<ApplyWorkspaceSourceBody['blobs']> = submission.blobs
       ): Promise<ApplyData> => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
           kinds: submission.kinds,
-          blobs:
-            wanted.length > 0 ? await blobRound(options.dir, submission, wanted) : submission.blobs,
+          blobs,
           ...(submission.base ? { base: submission.base } : {}),
           options: {
             ...(options.allowDelete ? { allowDelete: true } : {}),
@@ -248,22 +244,35 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
 
-      let wanted = preview?.needBlobs ?? []
-      let data = await send(submission, false, wanted)
+      /**
+       * One write round: the blobs the server asked for carry their content, and the submission
+       * keeps the hash of the bytes each one sent, which is what the saved digests compare.
+       */
+      const writeRound = async (wanted: ReadonlySet<string>): Promise<ApplyData> => {
+        const blobs = await blobRound(options.dir, submission, wanted)
+        submission = {
+          ...submission,
+          blobs: blobs.map(({ path, sha256, size }) => ({ path, sha256, size })),
+        }
+        return send(submission, false, blobs)
+      }
+      let wanted = new Set(preview?.needBlobs ?? [])
+      let data = await writeRound(wanted)
       for (;;) {
         printDiagnostics(data.diagnostics)
         await saveApplied(options.dir, data, submission)
         if (data.failed || data.remainingBlobs.length === 0) break
-        const next = data.remainingBlobs
-        if (next.length >= wanted.length && next.every((path) => wanted.includes(path))) {
+        const next = new Set(data.remainingBlobs)
+        if (next.size >= wanted.size && [...next].every((path) => wanted.has(path))) {
           throw new SimApiError(
-            `The server did not accept the binary files ${next.join(', ')}; nothing more was applied.`,
+            `The server did not accept the binary files ${[...next].join(', ')}; nothing more was applied.`,
             0
           )
         }
         wanted = next
-        submission = await readWorkspaceDir(options.dir, only)
-        data = await send(submission, false, wanted)
+        /** The blobs hashed for the first round stand; a round re-reads only what it sends. */
+        submission = await readWorkspaceDir(options.dir, only, submission.blobs)
+        data = await writeRound(wanted)
       }
       if (data.failed) {
         printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)

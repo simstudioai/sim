@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachWorkspaceSourceApply } from './workspace-source-apply'
-import { blobDigest } from './workspace-source-blobs'
+import { blobDigests } from './workspace-source-blobs'
 import { blobContent } from './workspace-source-dir'
 import { attachWorkspaceSourceGet } from './workspace-source-get'
 
@@ -242,7 +242,7 @@ describe('workspaces source get', () => {
       mkdirSync(join(dir, 'files'), { recursive: true })
       symlinkSync(outside, join(dir, 'files/report.bin'))
 
-      await expect(blobDigest(dir, 'files/report.bin')).rejects.toMatchObject({
+      await expect(blobDigests(dir, ['files/report.bin'])).rejects.toMatchObject({
         code: 'SOURCE_SYMLINK',
       })
       await expect(blobContent(dir, 'files/report.bin')).rejects.toMatchObject({
