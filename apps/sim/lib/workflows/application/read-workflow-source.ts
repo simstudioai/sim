@@ -22,7 +22,7 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
-import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
+import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
@@ -165,7 +165,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       buildSourceCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,
-        storedTypes: Object.values(state.blocks).map((block) => block.type),
+        storedTypes: storedCatalogTypes(Object.values(state.blocks)),
       })
     )
     const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })

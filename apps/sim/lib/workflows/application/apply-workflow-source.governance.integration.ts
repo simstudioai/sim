@@ -25,12 +25,14 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { catalogBlock } from '@sim/workflow-code'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
+import { readSourceCatalog } from '@/lib/workflows/application/read-source-catalog'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
@@ -266,6 +268,45 @@ check(
       message: expect.stringContaining('Block type "api"'),
     })
     expect(await loadWorkflowFromNormalizedTables(workflowId)).toEqual(before)
+  }
+)
+
+check(
+  'an attached tool the permission group withholds keeps its stored key out of the source',
+  async () => {
+    const secret = 'fc-governance-literal-key'
+    const start = seedBlock('start_trigger', 'Start')
+    const researcher = seedBlock('agent', 'Researcher', {
+      model: ['combobox', 'claude-sonnet-5-5'],
+      messages: ['messages-input', [{ role: 'user', content: 'hi' }]],
+      tools: [
+        'tool-input',
+        [
+          {
+            type: 'firecrawl',
+            title: 'Firecrawl',
+            toolId: 'firecrawl_scrape',
+            operation: 'scrape',
+            usageControl: 'auto',
+            isExpanded: true,
+            params: { url: 'https://example.com', apiKey: secret },
+          },
+        ],
+      ],
+    })
+    const workflowId = await seedGraph(governedWorkspaceId, [start, researcher])
+
+    const source = await getSource(restricted, workflowId)
+    expect(JSON.stringify(source.files)).not.toContain(secret)
+    expect(source.files['workflow.ts']).toContain('stored()')
+
+    const catalog = await withPermissionGroupScope(() =>
+      readSourceCatalog.execute({
+        principal: restricted,
+        input: { workspaceId: governedWorkspaceId, workflowId },
+      })
+    )
+    expect(catalogBlock(catalog, 'firecrawl')?.addable).toBe(false)
   }
 )
 
