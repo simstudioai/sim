@@ -1,7 +1,12 @@
 /**
  * The findings every kind reports the same way, so the plan reads alike across kinds.
  */
-import { KIND_DIRS, resourceAddress, type WorkspaceKind } from '@sim/workspace-code'
+import {
+  type BaseResource,
+  KIND_DIRS,
+  resourceAddress,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import type {
   PlanContext,
   PlannedChange,
@@ -51,30 +56,47 @@ export function serverChangedFinding(kind: WorkspaceKind, key: string): Workspac
   }
 }
 
+/** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
+interface UndeclaredOptions<S> {
+  /** The kind's planned changes for declared resources: a resource one of them targets stays. */
+  declared?: ReadonlyArray<Pick<PlannedChange, 'storedId'>>
+  /** The resource's fingerprint under its base entry; a delete of one that moved is stale. */
+  fingerprint?: (resource: StoredResource<S>, base: BaseResource) => string
+}
+
 /**
  * Resources the server holds that the directory does not declare. Only one the base records (so
  * this directory managed it) is deleted, and only with `--allow-delete`; anything else is kept and
- * named in a warning.
+ * named in a warning. A resource a declared change targets under another key (a renamed workflow
+ * folder) is not undeclared, and a delete of a resource that changed on the server since the base
+ * is `E_APPLY_STALE`, as an edit of it would be.
  */
 export function planUndeclared<S, D, P>(
   kind: WorkspaceKind,
   desired: ReadonlyMap<string, D>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  destructive: (resource: StoredResource<S>) => { what: string; counts: Record<string, number> }
+  destructive: (resource: StoredResource<S>) => { what: string; counts: Record<string, number> },
+  options: UndeclaredOptions<S> = {}
 ): PlannedChange<D, P>[] {
+  const claimed = new Set((options.declared ?? []).map((change) => change.storedId))
   const changes: PlannedChange<D, P>[] = []
   for (const [key, resource] of stored.bound) {
-    if (desired.has(key)) continue
-    const managed = ctx.base?.resources[resourceAddress(kind, key)]?.id === resource.id
+    if (desired.has(key) || claimed.has(resource.id)) continue
+    const entry = ctx.base?.resources[resourceAddress(kind, key)]
+    const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
+      const moved =
+        entry.fingerprint !== undefined &&
+        options.fingerprint !== undefined &&
+        options.fingerprint(resource, entry) !== entry.fingerprint
       changes.push({
         kind,
         key,
-        action: 'delete',
+        action: moved ? 'noop' : 'delete',
         storedId: resource.id,
-        destructive: destructive(resource),
-        diagnostics: [],
+        ...(moved ? {} : { destructive: destructive(resource) }),
+        diagnostics: moved ? [staleFinding(kind, key)] : [],
       })
       continue
     }

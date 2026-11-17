@@ -55,7 +55,8 @@ import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspa
 
 /** What the apply carries out for one existing table, decided at plan time. */
 interface TablePlan {
-  changes: TableChanges
+  /** The changes an update or adopt makes; absent for a delete. */
+  changes?: TableChanges
   /** The table's fingerprint when planned (under `bindings`); the apply refuses if it moved. */
   serverFingerprint: string
   bindings?: Record<string, BaseColumn>
@@ -235,10 +236,14 @@ async function written(
 }
 
 /** Carries out a planned table update: fields, then drops, renames and type changes, then adds. */
-async function applyChanges(ctx: SourceContext, tableId: string, plan: TablePlan): Promise<void> {
+async function applyChanges(
+  ctx: SourceContext,
+  tableId: string,
+  changes: TableChanges
+): Promise<void> {
   const { principal } = ctx
   const workspaceId = ctx.workspace.workspaceId
-  const { table, columns } = plan.changes
+  const { table, columns } = changes
   if (Object.keys(table).length > 0) {
     const result = await updateTableUseCase.execute({
       principal,
@@ -304,19 +309,30 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     for (const [key, decl] of desired) {
       changes.push(await planTable(key, decl, stored, ctx, folders))
     }
-    changes.push(
-      ...planUndeclared<StoredTableState, TableDecl, TablePlan>(
-        'table',
-        desired,
-        stored,
-        ctx,
-        (resource) => ({
-          what: 'table',
-          counts: { rows: resource.state.table.rowCount },
-        })
-      )
+    const undeclared = planUndeclared<StoredTableState, TableDecl, TablePlan>(
+      'table',
+      desired,
+      stored,
+      ctx,
+      (resource) => ({
+        what: 'table',
+        counts: { rows: resource.state.table.rowCount },
+      }),
+      {
+        declared: changes,
+        fingerprint: (resource, entry) => tableAsDecl(resource.state, entry.columns).fingerprint,
+      }
     )
-    return changes
+    for (const change of undeclared) {
+      const resource = change.action === 'delete' ? stored.bound.get(change.key) : undefined
+      if (!resource) continue
+      const bindings = ctx.base?.resources[resourceAddress('table', change.key)]?.columns
+      change.detail = {
+        serverFingerprint: tableAsDecl(resource.state, bindings).fingerprint,
+        ...(bindings ? { bindings } : {}),
+      }
+    }
+    return [...changes, ...undeclared]
   },
 
   async authorize(change, ctx) {
@@ -336,7 +352,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       return
     }
     await updateTableUseCase.authorize({ principal, input: { tableId, workspaceId } })
-    const columns = change.detail?.changes.columns ?? []
+    const columns = change.detail?.changes?.columns ?? []
     const add = columns.find((column) => column.op === 'add')
     const update = columns.find((column) => column.op === 'update')
     const drop = columns.find((column) => column.op === 'drop')
@@ -365,6 +381,15 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'delete') {
       if (!change.storedId) throw new Error('A table delete needs the stored table id')
+      if (change.detail) {
+        const current = await reload(ctx, change.storedId)
+        if (
+          tableAsDecl(current, change.detail.bindings).fingerprint !==
+          change.detail.serverFingerprint
+        ) {
+          throw new ResourceChangedError(change)
+        }
+      }
       await deleteTableUseCase.execute({
         principal,
         input: { tableId: change.storedId, workspaceId },
@@ -398,7 +423,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     }
     const tableId = change.storedId
     const plan = change.detail
-    if (!tableId || !plan) throw new Error('A table update needs its plan')
+    if (!tableId || !plan?.changes) throw new Error('A table update needs its plan')
     const current = await reload(ctx, tableId)
     if (tableAsDecl(current, plan.bindings).fingerprint !== plan.serverFingerprint) {
       throw new ResourceChangedError(change)
@@ -413,7 +438,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
         createdBy: ctx.createdBy,
       })
     }
-    await applyChanges(ctx, tableId, plan)
+    await applyChanges(ctx, tableId, plan.changes)
     return written(ctx, change.key, tableId, decl)
   },
 

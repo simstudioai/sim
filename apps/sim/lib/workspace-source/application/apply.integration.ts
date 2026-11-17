@@ -583,4 +583,80 @@ describe('workspace source apply', () => {
       expect(await optionId(workspaceId, 'status', 'closed')).not.toBe('')
     }
   )
+
+  check(
+    'a renamed workflow folder updates its workflow and plans no delete, even with --allow-delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const [ingest] = await workflows(workspaceId)
+      const files = Object.fromEntries(
+        Object.entries(read.files).map(([path, text]) => [
+          path.replace('workflows/ingest/', 'workflows/intake/'),
+          path === 'workflows/ingest/workflow.ts'
+            ? text.replace("'Save Lead'", "'Store Lead'")
+            : text,
+        ])
+      )
+
+      const result = await apply(workspaceId, files, { base: read.base, allowDelete: true })
+
+      expect(result.failed).toBeUndefined()
+      expect(
+        result.plan
+          .filter((change) => change.action !== 'noop')
+          .map(({ kind, key, action }) => `${action} ${kind}:${key}`)
+      ).toEqual(['update workflow:intake'])
+      expect((await workflows(workspaceId)).map((stored) => stored.id)).toEqual([ingest.id])
+      expect(result.base.resources['workflow:intake']?.id).toBe(ingest.id)
+    }
+  )
+
+  check('refuses deleting a table changed on the server since the directory was read', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const [leads] = await tables(workspaceId)
+    await tableUseCases.updateTableUseCase.execute({
+      principal: owner,
+      input: { tableId: leads.id, workspaceId, description: 'Edited in the UI' },
+    })
+    const files = Object.fromEntries(
+      Object.entries(read.files).filter(([path]) => path.startsWith('workflows/'))
+    )
+
+    const stale = await refusal(
+      apply(workspaceId, files, { base: read.base, allowDelete: true, only: ['table'] })
+    )
+
+    expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+    expect(await tables(workspaceId)).toHaveLength(1)
+  })
+
+  check('a table delete re-checks the table before writing, and stops if it moved', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const [leads] = await tables(workspaceId)
+    const authorize = tableUseCases.deleteTableUseCase.authorize
+    const racing = vi
+      .spyOn(tableUseCases.deleteTableUseCase, 'authorize')
+      .mockImplementation(async (args) => {
+        await tableUseCases.updateTableUseCase.execute({
+          principal: owner,
+          input: { tableId: leads.id, workspaceId, description: 'Edited while planning' },
+        })
+        return authorize(args)
+      })
+    const files = Object.fromEntries(
+      Object.entries(read.files).filter(([path]) => path.startsWith('workflows/'))
+    )
+
+    const result = await apply(workspaceId, files, {
+      base: read.base,
+      allowDelete: true,
+      only: ['table'],
+    }).finally(() => racing.mockRestore())
+
+    expect(result.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_STALE' })
+    expect(await tables(workspaceId)).toHaveLength(1)
+  })
 })
