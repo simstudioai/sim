@@ -138,6 +138,6 @@ export function checkStorableLiterals(
       }
       continue
     }
-    stack.push(...childNodes(node))
+    for (const child of childNodes(node)) stack.push(child)
   }
 }

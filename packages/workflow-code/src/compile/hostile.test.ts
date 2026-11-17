@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { codeFileReferences } from '../code-files/references'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
@@ -347,6 +348,13 @@ describe('one set of limits for get and compile', () => {
     const { 'workflows/hostile.ts': entry, ...codeFiles } = files
     expect(errorCodes(run(entry, undefined, codeFiles))).toEqual([])
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
+  })
+
+  it('walks a node with more children than one call can take as arguments', () => {
+    const wide = `[${'0,'.repeat(300_000)}0]`
+    const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
+    expect(() => run(entry, undefined, { 'workflows/f.js': 'return 1\n' })).not.toThrow()
+    expect(codeFileReferences(entry)).toEqual(['./f.js'])
   })
 
   it('passes a source nested within the cap', () => {

@@ -55,7 +55,7 @@ export function codeFileReferences(text: string): string[] {
       const path = literalText(node.arguments[0])
       if (path !== null) paths.add(path)
     }
-    stack.push(...childNodes(node))
+    for (const child of childNodes(node)) stack.push(child)
   }
   return [...paths]
 }
