@@ -32,8 +32,11 @@ export function groupByFile(
     const name = path.slice(dir.length + 1)
     const extension = allowed.find((candidate) => name.endsWith(candidate))
     if (name.includes('/') || extension === undefined) {
-      const expected = allowed.map((candidate) => `\`<key>${candidate}\``).join(' and ')
-      diagnostics.push(unknownFile(path, `one ${expected} file per resource`))
+      const [primary, ...companions] = allowed.map((candidate) => `\`<key>${candidate}\``)
+      const expected = companions.length
+        ? `one ${primary} per resource, with its code in ${companions.join(' or ')}`
+        : `one ${primary} file per resource`
+      diagnostics.push(unknownFile(path, expected))
       continue
     }
     const key = name.slice(0, -extension.length)
