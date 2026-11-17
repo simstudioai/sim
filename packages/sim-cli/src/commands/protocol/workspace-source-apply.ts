@@ -227,6 +227,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
         profile.sources.workspaceId === 'flag'
       )
       await assertBlobsFetched(options.dir, submission)
+      if (submission.ignored.length > 0) {
+        printError(
+          `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
+        )
+      }
       let preview: ApplyData | null = null
       if (options.dryRun || !options.yes || submission.blobs.length > 0) {
         preview = await send(submission, true)

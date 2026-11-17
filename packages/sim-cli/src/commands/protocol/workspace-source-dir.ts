@@ -80,7 +80,7 @@ This directory is a Sim workspace written as files. The server reads every file 
 A resource's key is its file or folder name, and a workflow names it by that key.
 
 - \`tables/<key>.ts\`: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows are never part of source. A workflow: \`table('<key>')\`.
-- \`knowledge/<key>/knowledge.ts\` (\`defineKnowledgeBase({ name, description?, chunking? })\`) and \`knowledge/<key>/docs/\`, one file per document, flat. A workflow: \`knowledgeBase('<key>')\`. Connector-synced documents are never part of source.
+- \`knowledge/<key>/knowledge.ts\` (\`defineKnowledgeBase({ name, description?, folder?, chunking?, embeddingModel? })\`) and \`knowledge/<key>/docs/\`, one file per document, flat. A workflow: \`knowledgeBase('<key>')\`. Connector-synced documents are never part of source.
 - \`files/<path>\`: every file is one workspace file at that folder path; no declaration.
 - \`tools/<key>.ts\` (\`defineTool({ title, schema, code: codeFile('./<key>.js') })\`) and its code in \`tools/<key>.js\`, where each schema parameter is a variable. A workflow: \`customTool('<key>')\`.
 - \`skills/<key>.md\`: a frontmatter block of \`name\` and \`description\`, then the content. A workflow: \`skills: [skill('<key>')]\` on an agent.
@@ -108,7 +108,9 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 - A column's object key stays bound to its stored column: to rename one keep the key and set \`name\` (\`email: column.string({ name: 'email_address' })\`). Changing the key drops the column and its cells.
 - Renaming a skill (its \`name\`) does not rewrite the workflows that use it: each agent keeps the name it stored until its \`skills\` list is next edited. The key is what binds them.
+- A knowledge base's \`embeddingModel\` is fixed when it is created: an apply that changes it is refused.
 - A document or workspace file over 10 MB, or whose name no directory can hold, is left out of a get and listed in \`.sim/skipped.json\`; an apply never writes or deletes it.
+- A hidden file (a name starting with a dot) under a kind folder is never sent: an apply names it in a warning.
 
 ## Exit codes
 
@@ -169,18 +171,32 @@ async function presentKinds(dir: string): Promise<WorkspaceKind[]> {
   return present
 }
 
+/**
+ * The files under the managed kinds' folders: `paths`, the source files, and `ignored`, the rest
+ * (a hidden name, or a character no workspace path holds), which are never sent. The `.gitkeep`
+ * marker is neither.
+ */
+async function kindFolderFiles(
+  dir: string,
+  kinds: readonly WorkspaceKind[]
+): Promise<{ paths: string[]; ignored: string[] }> {
+  const paths: string[] = []
+  const ignored: string[] = []
+  for (const kind of kinds) {
+    for (const path of await listSourceFiles(dir, KIND_DIRS[kind])) {
+      if (isWorkspaceSourcePath(path)) paths.push(path)
+      else if (path.split('/').at(-1) !== KEEP_FILE) ignored.push(path)
+    }
+  }
+  return { paths, ignored }
+}
+
 /** Every source file of the managed kinds on disk: what a get may replace or prune. */
 export async function managedFiles(
   dir: string,
   kinds: readonly WorkspaceKind[]
 ): Promise<string[]> {
-  const paths: string[] = []
-  for (const kind of kinds) {
-    for (const path of await listSourceFiles(dir, KIND_DIRS[kind])) {
-      if (isWorkspaceSourcePath(path)) paths.push(path)
-    }
-  }
-  return paths
+  return (await kindFolderFiles(dir, kinds)).paths
 }
 
 /** A kind folder's marker, so an emptied folder keeps managing its kind. */
@@ -194,6 +210,8 @@ export interface WorkspaceSubmission {
   files: Record<string, string>
   blobs: BlobEntry[]
   base?: ApplyWorkspaceSourceBody['base']
+  /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
+  ignored: string[]
 }
 
 function workflowFolderOf(path: string): string | null {
@@ -212,7 +230,7 @@ export async function readWorkspaceDir(
   only: readonly WorkspaceKind[] | undefined
 ): Promise<WorkspaceSubmission> {
   const kinds = (await presentKinds(dir)).filter((kind) => !only || only.includes(kind))
-  const paths = await managedFiles(dir, kinds)
+  const { paths, ignored } = await kindFolderFiles(dir, kinds)
   const textPaths = paths.filter((path) => !isBlobPath(path))
   const texts = await inBatches(textPaths, (path) => readSourceText(dir, path))
   const files: Record<string, string> = {}
@@ -260,7 +278,7 @@ export async function readWorkspaceDir(
       throw new SimApiError(`${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON.`, 0)
     }
   }
-  return { kinds, files, blobs, ...(base ? { base } : {}) }
+  return { kinds, files, blobs, ignored, ...(base ? { base } : {}) }
 }
 
 /** A blob's bytes as base64, for the round that sends its content. */

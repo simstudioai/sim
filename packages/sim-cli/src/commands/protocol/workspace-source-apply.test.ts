@@ -281,4 +281,21 @@ describe('workspaces source apply', () => {
     })
     expect(request).not.toHaveBeenCalled()
   })
+
+  it('warns that a hidden file under a kind folder is not sent', async () => {
+    write('files/.gitkeep', '')
+    write('files/.env', 'SECRET=1')
+    write('files/notes.md', 'hi')
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    expect(bodies()[0].blobs?.map((blob) => blob.path)).toEqual(['files/notes.md'])
+    const warned = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(warned).toContain('files/.env')
+    expect(warned).not.toContain('files/.gitkeep')
+  })
 })

@@ -68,6 +68,8 @@ The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resou
 - Secret values never appear. Workflows read environment variables as `env.NAME`, tool code as `$env.NAME`, and credentials by key.
 - Renaming a skill does not rewrite the workflows that use it: each agent keeps the name it stored until its skills list is next edited.
 - A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
+- Hidden files (a name starting with a dot, such as `files/.env`) are never sent. An apply names them in a warning.
+- A knowledge base's `embeddingModel` is fixed when it is created. An apply that changes it is refused.
 - An apply that stops part-way exits `8` and saves what it wrote into the directory. Run the same apply again until it exits `0`.
 - An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.
 
