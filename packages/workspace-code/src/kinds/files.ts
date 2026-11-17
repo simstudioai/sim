@@ -56,6 +56,60 @@ export function foldedFileKey(key: string): string {
   return key.normalize('NFC').toLowerCase()
 }
 
+/**
+ * Among distinct keys, the ones no directory can hold beside the keys before them, each with why:
+ * a file or folder that differs only in letter case from an earlier one (a case-insensitive disk
+ * holds them as one), or a name that is a file in one key and a folder in another. The earlier key
+ * keeps its path, so the same keys in the same order always keep the same files.
+ */
+export function fileKeyConflicts(keys: Iterable<string>): Map<string, string> {
+  const files = new Map<string, string>()
+  const folders = new Map<string, string>()
+  const conflicts = new Map<string, string>()
+  for (const key of keys) {
+    const conflict = keyConflict(key, files, folders)
+    if (conflict !== null) {
+      conflicts.set(key, conflict)
+      continue
+    }
+    files.set(foldedFileKey(key), key)
+    const segments = key.split('/')
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      const folder = segments.slice(0, depth).join('/')
+      if (!folders.has(foldedFileKey(folder))) folders.set(foldedFileKey(folder), folder)
+    }
+  }
+  return conflicts
+}
+
+function keyConflict(
+  key: string,
+  files: ReadonlyMap<string, string>,
+  folders: ReadonlyMap<string, string>
+): string | null {
+  const file = files.get(foldedFileKey(key))
+  if (file !== undefined) {
+    return `${fileBlobPath(key)} and ${fileBlobPath(file)} differ only in letter case`
+  }
+  const folder = folders.get(foldedFileKey(key))
+  if (folder !== undefined) {
+    return `${fileBlobPath(folder)} is a folder, so ${fileBlobPath(key)} cannot also be a file`
+  }
+  const segments = key.split('/')
+  for (let depth = 1; depth < segments.length; depth += 1) {
+    const prefix = segments.slice(0, depth).join('/')
+    const asFile = files.get(foldedFileKey(prefix))
+    if (asFile !== undefined) {
+      return `${fileBlobPath(asFile)} is a file, so it cannot also be a folder of ${fileBlobPath(key)}`
+    }
+    const asFolder = folders.get(foldedFileKey(prefix))
+    if (asFolder !== undefined && asFolder !== prefix) {
+      return `the folder ${fileBlobPath(prefix)} differs only in letter case from ${fileBlobPath(asFolder)}`
+    }
+  }
+  return null
+}
+
 function spanOf(path: string): SourceSpan {
   return { file: path, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 }
 }
@@ -77,7 +131,6 @@ function pathFinding(
 function groupFiles(paths: readonly string[]) {
   const groups = new Map<string, string[]>()
   const diagnostics: WorkspaceDiagnostic[] = []
-  const byFolded = new Map<string, string>()
   for (const path of paths) {
     const key = path.slice(KIND_DIRS.file.length + 1)
     const problem = filePathProblem(key)
@@ -92,38 +145,22 @@ function groupFiles(paths: readonly string[]) {
       )
       continue
     }
-    const other = byFolded.get(foldedFileKey(key))
-    if (other !== undefined) {
-      diagnostics.push(
-        pathFinding(
-          'E_FILE_PATH_COLLISION',
-          path,
-          other === key
-            ? `${path} is listed twice.`
-            : `${path} and ${fileBlobPath(other)} differ only in letter case.`,
-          'Keep one of them: a case-insensitive disk holds them as one file.'
-        )
-      )
+    if (groups.has(key)) {
+      diagnostics.push(pathFinding('E_FILE_PATH_COLLISION', path, `${path} is listed twice.`))
       continue
     }
-    byFolded.set(foldedFileKey(key), key)
     groups.set(key, [path])
   }
-  for (const key of [...groups.keys()]) {
-    const segments = key.split('/')
-    for (let depth = 1; depth < segments.length; depth += 1) {
-      const folder = byFolded.get(foldedFileKey(segments.slice(0, depth).join('/')))
-      if (folder === undefined) continue
-      diagnostics.push(
-        pathFinding(
-          'E_FILE_PATH_COLLISION',
-          fileBlobPath(key),
-          `${fileBlobPath(folder)} is a file, so it cannot also be a folder of ${fileBlobPath(key)}.`
-        )
+  for (const [key, conflict] of fileKeyConflicts(groups.keys())) {
+    diagnostics.push(
+      pathFinding(
+        'E_FILE_PATH_COLLISION',
+        fileBlobPath(key),
+        `${conflict}.`,
+        'Keep one of them: a case-insensitive disk holds them as one.'
       )
-      groups.delete(key)
-      break
-    }
+    )
+    groups.delete(key)
   }
   if (groups.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
     diagnostics.push(

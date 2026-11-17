@@ -2,7 +2,7 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { parseWorkspaceBase } from '../base'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
-import { type FileDecl, fileCodec } from './files'
+import { type FileDecl, fileCodec, fileKeyConflicts } from './files'
 
 const SHA = 'a'.repeat(64)
 
@@ -69,6 +69,33 @@ describe('fileCodec', () => {
       keys: ['docs'],
       codes: ['E_FILE_PATH_COLLISION'],
     })
+  })
+
+  it('refuses folders a case-insensitive disk holds as one folder', () => {
+    expect(grouped(['files/Docs/a.txt', 'files/docs/b.txt'])).toEqual({
+      keys: ['Docs/a.txt'],
+      codes: ['E_FILE_PATH_COLLISION'],
+    })
+    expect(grouped(['files/a/Reports/x.pdf', 'files/a/reports/2024/y.pdf'])).toEqual({
+      keys: ['a/Reports/x.pdf'],
+      codes: ['E_FILE_PATH_COLLISION'],
+    })
+    expect(grouped(['files/Docs/a.txt', 'files/Docs/b.txt'])).toEqual({
+      keys: ['Docs/a.txt', 'Docs/b.txt'],
+      codes: [],
+    })
+  })
+
+  it('names the file that already holds a path, whichever comes first', () => {
+    expect(fileKeyConflicts(['docs/a.txt', 'Docs'])).toEqual(
+      new Map([['Docs', expect.stringContaining('files/docs is a folder')]])
+    )
+    expect(fileKeyConflicts(['Docs', 'docs/a.txt'])).toEqual(
+      new Map([['docs/a.txt', expect.stringContaining('files/Docs is a file')]])
+    )
+    expect(fileKeyConflicts(['Docs/a.txt', 'docs/b.txt'])).toEqual(
+      new Map([['docs/b.txt', expect.stringContaining('files/Docs')]])
+    )
   })
 
   it('refuses more files than one directory may hold', () => {
