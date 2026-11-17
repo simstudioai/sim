@@ -865,7 +865,11 @@ describe('source gates agree with the editing engine', () => {
   })
 })
 
-function gate(base: SourceGraph, target: SourceGraph, permissionConfig: PermissionGroupConfig) {
+function gate(
+  base: SourceGraph,
+  target: SourceGraph,
+  permissionConfig: PermissionGroupConfig | null
+) {
   return gateSourceDiff({
     ...SOURCE_SCOPE,
     base,
@@ -950,64 +954,28 @@ describe('gateSourceDiff', () => {
     billingSubscriptionMockFns.mockHasWorkspaceSandboxAccess.mockResolvedValue(true)
     const base = graph(block(ID.a, 'function', 'Fn'))
     const target = graph(block(ID.a, 'function', 'Fn', { sub: { sandboxId: 'sbx_1' } }))
-    const diagnostics = await gateSourceDiff({
-      ...SOURCE_SCOPE,
-      base,
-      target,
-      diff: diffGraphs(base, target),
-      permissionConfig: null,
-      subjectUserId: CTX.userId,
-      workspaceId: CTX.workspaceId,
-      isCopilot: false,
-    })
+    const diagnostics = await gate(base, target, null)
     expect(diagnostics).toEqual([])
   })
 
   it('warns, without refusing, when an allowed block changes type', async () => {
     const base = graph(block(ID.a, 'table_v2', 'Rows'))
     const target = graph(block(ID.a, 'agent', 'Rows'))
-    const diagnostics = await gateSourceDiff({
-      ...SOURCE_SCOPE,
-      base,
-      target,
-      diff: diffGraphs(base, target),
-      permissionConfig: null,
-      subjectUserId: CTX.userId,
-      workspaceId: CTX.workspaceId,
-      isCopilot: false,
-    })
+    const diagnostics = await gate(base, target, null)
     expect(diagnostics.map((d) => d.code)).toEqual(['W_APPLY_TYPE_CHANGED'])
   })
 
   it('refuses retyping a block into a duplicate trigger, which the engine never checks', async () => {
     const base = graph(block(ID.a, 'api_trigger', 'API'), block(ID.b, 'agent', 'Agent'))
     const target = graph(block(ID.a, 'api_trigger', 'API'), block(ID.b, 'api_trigger', 'Agent'))
-    const diagnostics = await gateSourceDiff({
-      ...SOURCE_SCOPE,
-      base,
-      target,
-      diff: diffGraphs(base, target),
-      permissionConfig: null,
-      subjectUserId: CTX.userId,
-      workspaceId: CTX.workspaceId,
-      isCopilot: false,
-    })
+    const diagnostics = await gate(base, target, null)
     expect(diagnostics.map((d) => d.code)).toContain('E_APPLY_DUPLICATE_TRIGGER')
   })
 
   it('accepts replacing a trigger in one apply', async () => {
     const base = graph(block(ID.a, 'api_trigger', 'API'))
     const target = graph(block(ID.b, 'api_trigger', 'API'))
-    const diagnostics = await gateSourceDiff({
-      ...SOURCE_SCOPE,
-      base,
-      target,
-      diff: diffGraphs(base, target),
-      permissionConfig: null,
-      subjectUserId: CTX.userId,
-      workspaceId: CTX.workspaceId,
-      isCopilot: false,
-    })
+    const diagnostics = await gate(base, target, null)
     expect(diagnostics).toEqual([])
   })
 })
