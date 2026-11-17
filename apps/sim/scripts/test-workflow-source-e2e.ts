@@ -351,7 +351,7 @@ try {
     assert.equal(anonymous.error.code, 'UNAUTHORIZED')
   })
 
-  await check('an unknown query parameter is a 400', async () => {
+  await check('an invalid functionCode is a 400', async () => {
     const invalid = await call('GET', sourcePath('?functionCode=ts'), { key: workspaceKey }, 400)
     assert(isRecordLike(invalid) && isRecordLike(invalid.error))
     assert.equal(invalid.error.code, 'BAD_REQUEST')
