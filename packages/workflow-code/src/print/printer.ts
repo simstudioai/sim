@@ -197,18 +197,11 @@ interface ParamEntry {
 }
 
 /**
- * A tool entry as JSON for `raw(...)`. The CWM is JSON by contract (`canonicalHash` stringifies
- * it with `stableStringify`, which throws otherwise), so a non-JSON tool is a canonicalize bug.
+ * A tool entry, or one of its params, as JSON for `raw(...)`. The CWM is JSON by contract
+ * (`canonicalHash` stringifies it with `stableStringify`, which throws otherwise), so a non-JSON
+ * tool is a canonicalize bug.
  */
-function toolJson(tool: CanonicalTool): Json {
-  const value: unknown = tool
-  if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
-  return value
-}
-
-/** One param of a tool entry as JSON, under the same contract as {@link toolJson}. */
-function toolParamJson(tool: CanonicalTool, param: Value): Json {
-  const value: unknown = param
+function asToolJson(tool: CanonicalTool, value: unknown): Json {
   if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
   return value
 }
@@ -784,7 +777,7 @@ class WorkflowPrinter {
       if (alias !== undefined) passwordIds.add(alias)
     }
     const secret = (id: string, value: Value) => passwordIds.has(id) && isLiteralSecret(value)
-    const json = toolJson(tool)
+    const json = asToolJson(tool, tool)
     if (!isPlainRecord(json) || !Object.entries(tool.params).some(([id, v]) => secret(id, v))) {
       return this.values.call('raw', [this.values.json(json)])
     }
@@ -793,7 +786,7 @@ class WorkflowPrinter {
         key: printKey(id),
         value: secret(id, value)
           ? this.values.call('stored', [])
-          : this.values.json(toolParamJson(tool, value)),
+          : this.values.json(asToolJson(tool, value)),
       }))
     )
     return this.values.call('raw', [
