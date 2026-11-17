@@ -29,6 +29,7 @@ import { ErrorLimitReached, Reporter } from './report'
 import { collectBody } from './scope'
 import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
 
+/** One compile: the entry file, the code files it may read, and what the server knows. */
 export interface CompileInput {
   entry: { path: string; text: string }
   /** Function-code files by repo-relative path; the caller does the I/O. */
@@ -57,6 +58,7 @@ export interface CompileInput {
   envNames?: ReadonlySet<string>
 }
 
+/** The compiled workflow (or `null` after an error) with its diagnostics, spans and lock hints. */
 export interface CompileResult {
   /** `null` iff any diagnostic is an error. Name-keyed, like every CWM: ids bind in materialize. */
   workflow: CanonicalWorkflow | null

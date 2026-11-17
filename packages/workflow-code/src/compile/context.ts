@@ -44,6 +44,7 @@ export type ResolvedBuilder =
   /** `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims its key. */
   | { kind: 'unknown' }
 
+/** One block declaration collected in pass 1, before its values are compiled. */
 export interface BlockDecl {
   key: BlockKey
   name: string
@@ -74,6 +75,7 @@ type Binding =
   | { kind: 'sdk'; name: string }
   | { kind: 'vars' }
 
+/** A lexical body scope: the workflow body, a loop/parallel body, or the module (imports). */
 export interface Scope {
   parent: Scope | null
   bindings: Map<string, Binding>
@@ -112,6 +114,7 @@ interface CodeFileBudget {
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
 }
 
+/** The state one compile threads through every pass: inputs, the reporter and what has been collected. */
 export interface CompileContext {
   file: string
   reporter: Reporter
@@ -160,6 +163,7 @@ interface Located {
   end?: number | null
 }
 
+/** The range a node covers in the entry file. */
 export function rangeOf(ctx: CompileContext, node: Located): Range {
   const start = node.start ?? 0
   return { file: ctx.file, start, end: node.end ?? start }
@@ -187,6 +191,7 @@ export function recordSpan(ctx: CompileContext, anchor: Anchor, node: Located): 
   return key
 }
 
+/** The binding `name` resolves to from `scope`, innermost scope first, or `null`. */
 export function lookup(scope: Scope, name: string): Binding | null {
   for (let current: Scope | null = scope; current; current = current.parent) {
     const binding = current.bindings.get(name)
@@ -244,6 +249,7 @@ export function enclosingContainers(decl: BlockDecl): BlockDecl[] {
   return chain
 }
 
+/** The catalog block a declaration builds; `undefined` for a container or an unknown builder. */
 export function catalogBlockOf(decl: BlockDecl): CatalogBlock | undefined {
   switch (decl.builder.kind) {
     case 'catalog':
@@ -254,6 +260,7 @@ export function catalogBlockOf(decl: BlockDecl): CatalogBlock | undefined {
   }
 }
 
+/** Whether a declaration is a loop or a parallel, or `null` for any other block. */
 export function containerKindOf(decl: BlockDecl): 'loop' | 'parallel' | null {
   return decl.builder.kind === 'container' ? decl.builder.container : null
 }

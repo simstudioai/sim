@@ -147,7 +147,8 @@ function propertyKey(ctx: CompileContext, property: ObjectProperty): string | nu
 
 /**
  * The properties of an object literal as `[key, property]`, rejecting methods, getters, spreads,
- * computed keys and duplicate keys. `null` means the object itself was rejected.
+ * computed keys and duplicate keys. A rejected property is reported and left out, so fewer
+ * entries than `node.properties` means something was rejected.
  */
 export function objectEntries(
   ctx: CompileContext,
@@ -277,8 +278,16 @@ function isCanonicalNode(value: Record<string, unknown>): boolean {
   }
 }
 
-/** A literal-only tree (strings, numbers, booleans, null, arrays, objects) as plain JSON. */
-function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | undefined {
+/**
+ * A literal-only JSON value (variables, a container's `extra` data, retry, tool policy): strings,
+ * numbers, booleans, null, arrays and objects as plain data, so a `$sim` key is just a key. No refs,
+ * no SDK calls. `undefined` after reporting an error.
+ */
+export function compileJsonLiteral(
+  ctx: CompileContext,
+  node: Node,
+  site?: ValueSite
+): Json | undefined {
   switch (node.type) {
     case 'StringLiteral':
     case 'BooleanLiteral':
@@ -313,7 +322,7 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
           )
           return undefined
         }
-        const item = literalTree(ctx, element, site)
+        const item = compileJsonLiteral(ctx, element, site)
         if (item === undefined) return undefined
         items.push(item)
       }
@@ -324,7 +333,7 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
       const entries = objectEntries(ctx, node)
       if (entries.length !== node.properties.length) return undefined
       for (const [key, property] of entries) {
-        const item = literalTree(ctx, property.value, site)
+        const item = compileJsonLiteral(ctx, property.value, site)
         if (item === undefined) return undefined
         setOwn(result, key, item)
       }
@@ -359,7 +368,7 @@ function canonicalNodesValid(value: Json): boolean {
  * literals are allowed inside.
  */
 function rawLiteral(ctx: CompileContext, node: Node, site?: ValueSite): Value | undefined {
-  const value = literalTree(ctx, node, site)
+  const value = compileJsonLiteral(ctx, node, site)
   if (value === undefined) return undefined
   if (!canonicalNodesValid(value)) {
     unsupported(
@@ -1134,16 +1143,4 @@ function holdsSimNode(value: Value): boolean {
   if (isSimNode(value)) return true
   if (Array.isArray(value)) return value.some(holdsSimNode)
   return isRecordLike(value) && Object.values(value).some((item) => holdsSimNode(item as Value))
-}
-
-/**
- * A literal-only JSON value (variables, a container's `extra` data, retry, tool policy): plain data, so a `$sim`
- * key is just a key. No refs, no SDK calls.
- */
-export function compileJsonLiteral(
-  ctx: CompileContext,
-  node: Node,
-  site?: ValueSite
-): Json | undefined {
-  return literalTree(ctx, node, site)
 }

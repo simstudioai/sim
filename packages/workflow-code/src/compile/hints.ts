@@ -142,6 +142,7 @@ function closest(word: string, candidates: Iterable<string>): string | null {
   return best
 }
 
+/** `Did you mean <closest>?` for the closest candidate (see `closest`), or `undefined`. */
 export function didYouMean(word: string, candidates: Iterable<string>, format = (s: string) => s) {
   const match = closest(word, candidates)
   return match === null ? undefined : `Did you mean ${format(match)}?`

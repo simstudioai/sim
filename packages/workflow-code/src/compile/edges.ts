@@ -44,6 +44,7 @@ function portForHandle(handle: string, from: BlockDecl): Port {
 /** Implicit branch keys of a never-persisted branch list. */
 const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as const
 
+/** Pass 2 of wiring: validates each edge a wiring statement denotes and collects the accepted ones. */
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
   /** Set once wiring would exceed `limits.maxEdges`; every later edge is dropped unchecked. */
@@ -405,6 +406,7 @@ export class EdgeCollector {
     if (entry.firstWiring) recordSpan(this.ctx, { kind: 'wiring' }, entry.statement)
   }
 
+  /** The edge an arrow-expression body implies: `(p) => block(...)` is `p.to(block)`. */
   implied(container: BlockDecl, child: BlockDecl, node: Node): void {
     this.add(container, { kind: 'subflowStart' }, child, node, [])
   }
