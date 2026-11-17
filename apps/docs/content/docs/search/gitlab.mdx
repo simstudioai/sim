@@ -45,11 +45,11 @@ Sim checks returned content against these restrictions independently of the quer
 
 ## Add a group
 
-Choose **Group** in the source's **Scope** field and enter the numeric group ID or full group path. Enable **Include subgroups** only if descendant projects should be included. Sim discovers up to 1,000 projects visible to the source token. Projects shared from outside the group are excluded.
+Choose **Group** in the source's **Scope** field and enter the numeric group ID or full group path. Enable **Include subgroups** only if descendant projects should be included. Sim supports groups with at most 1,000 projects visible to the source token; larger groups need narrower sources. Projects shared from outside the group are excluded.
 
 The same permission strategies apply. Group membership alone never grants access to every project: administrator mode checks each project's current permissions, and non-admin mode requires a CSV grant for each project and reader. The source token must be able to read every project you want to search.
 
-In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Updating and saving source settings also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants.
+In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Updating and saving source settings also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants. If a group configured by path is renamed, save the new path and an updated project-permissions CSV together in source settings. Numeric group IDs remain valid across renames.
 
 Search visits project pages within a bounded request budget. Continuation cursors cover remaining projects and results; targeting a project narrows the request. Renamed or moved projects are blocked until a successful refresh; projects outside the configured group remain excluded. Group setup uses the existing project search APIs, so it does not require group-wide advanced search.
 

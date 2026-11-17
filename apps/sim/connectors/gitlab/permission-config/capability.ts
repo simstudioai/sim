@@ -5,6 +5,7 @@ import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
 import { writeConnectorPermissions } from '@/lib/knowledge/connectors/permission-store'
+import { gitLabGroupMatchesConfig } from '@/connectors/gitlab/group'
 import { prepareGitLabPermissionChange } from '@/connectors/gitlab/permission-config/prepare'
 import {
   gitLabPermissionData,
@@ -47,7 +48,11 @@ export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
             )
           }
         )
-        if (discovered.host !== stored.host || discovered.group.id !== stored.group.id)
+        if (
+          discovered.host !== stored.host ||
+          discovered.group.id !== stored.group.id ||
+          !gitLabGroupMatchesConfig(discovered, source.sourceConfig)
+        )
           throw new OrchestrationError(
             'validation',
             'The GitLab group identity changed. Update the connection before replacing permissions.'
