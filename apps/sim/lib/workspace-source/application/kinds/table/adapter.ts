@@ -52,6 +52,7 @@ import type {
   PlannedChange,
   SourceContext,
   StoredSet,
+  WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
 /** What the apply carries out for one existing table, decided at plan time. */
@@ -131,17 +132,8 @@ async function planTable(
       const changes = await diffTable(key, decl, state, bindings)
       change.diagnostics.push(...changes.diagnostics)
       const changed = changes.columns.length > 0 || changes.fields.length > 0
-      if (changed && state.table.locks.schemaLocked) {
-        change.diagnostics.push(
-          kindFinding(
-            'table',
-            key,
-            'E_APPLY_LOCKED',
-            `Table "${state.table.name}" is schema-locked.`,
-            { hint: 'Unlock its schema in the table settings, then apply again.' }
-          )
-        )
-      }
+      const locked = lockFinding(key, state, changes)
+      if (locked) change.diagnostics.push(locked)
       const dropped = changes.columns.filter((column) => column.op === 'drop').length
       if ((dropped > 0 || changes.lostCells > 0) && !ctx.allowDelete) {
         const losses = [
@@ -182,6 +174,35 @@ async function planTable(
       }
     }
   }
+}
+
+/**
+ * The lock a planned update runs into, as the column writes check them: any column change needs
+ * the schema unlocked, and one that rewrites cell data (a drop, a type change, a removed select
+ * option) needs the delete lock off too. The table's own name, description and folder are never
+ * schema-locked.
+ */
+function lockFinding(
+  key: string,
+  state: StoredTableState,
+  changes: TableChanges
+): WorkspaceSourceDiagnostic | undefined {
+  const { locks, name } = state.table
+  const rewritesCells =
+    changes.removedOptions > 0 ||
+    changes.columns.some(
+      (column) => column.op === 'drop' || (column.op === 'update' && column.updates.type)
+    )
+  const lock =
+    changes.columns.length > 0 && locks.schemaLocked
+      ? 'schema-locked'
+      : rewritesCells && locks.deleteLocked
+        ? 'delete-locked, and this change rewrites cell data'
+        : null
+  if (!lock) return undefined
+  return kindFinding('table', key, 'E_APPLY_LOCKED', `Table "${name}" is ${lock}.`, {
+    hint: 'Unlock it in the table settings, then apply again.',
+  })
 }
 
 /**

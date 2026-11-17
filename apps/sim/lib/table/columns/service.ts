@@ -1194,19 +1194,12 @@ export async function updateColumnOptions(
       // Counted after the removal above, so dropping surplus options and turning
       // multiselect off in one save is allowed when every cell ends up with one.
       if (wasMultiple && !nextMultiple) {
-        const [result] = await trx
-          .select({ count: count() })
-          .from(userTableRows)
-          .where(
-            and(
-              eq(userTableRows.tableId, data.tableId),
-              eq(userTableRows.workspaceId, table.workspaceId),
-              sql`CASE WHEN jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'
-                       THEN jsonb_array_length(${userTableRows.data}->${columnKey}::text) > 1
-                       ELSE false END`
-            )
-          )
-        const multiValuedCount = result?.count ?? 0
+        const multiValuedCount = await countMultiValuedCells(
+          trx,
+          data.tableId,
+          table.workspaceId,
+          columnKey
+        )
 
         if (multiValuedCount > 0) {
           throw new OrchestrationError(
@@ -1469,6 +1462,83 @@ export async function countCellsLosingTheirOptions(
 }
 
 /**
+ * The rows whose `columnKey` cell holds an option outside `options`: a single cell holding a
+ * removed id, or a multi cell holding one or more. {@link clearRemovedSelectOptions} rewrites
+ * exactly these rows and {@link countCellsLosingAnOption} counts them, so a plan's count is the
+ * write's.
+ */
+function rowsHoldingRemovedOptions(
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+) {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+  const cell = sql`${userTableRows.data}->${columnKey}::text`
+  return and(
+    eq(userTableRows.tableId, tableId),
+    eq(userTableRows.workspaceId, workspaceId),
+    ...(multiple
+      ? [sql`jsonb_typeof(${cell}) = 'array'`, sql`NOT (${keptIds}::jsonb @> (${cell}))`]
+      : [
+          sql`jsonb_typeof(${cell}) = 'string'`,
+          sql`${userTableRows.data}->>${columnKey}::text <> ''`,
+          sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${cell}))`,
+        ])
+  )
+}
+
+/**
+ * Rows whose cell loses at least one selection when every option but `options` is removed: a
+ * multi cell keeping some of its options counts too, unlike {@link countCellsLosingTheirOptions}.
+ */
+export async function countCellsLosingAnOption(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<number> {
+  const [result] = await executor
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(rowsHoldingRemovedOptions(tableId, workspaceId, columnKey, options, multiple))
+  return result?.count ?? 0
+}
+
+/**
+ * Rows whose multi-select cell holds more than one option, counting only the ids of `kept` when
+ * given (the options a removal in the same change leaves). Switching the column to single-select
+ * is refused while any exist.
+ */
+export async function countMultiValuedCells(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  kept?: SelectOption[]
+): Promise<number> {
+  const cell = sql`${userTableRows.data}->${columnKey}::text`
+  const selected = kept
+    ? sql`(SELECT count(*) FROM jsonb_array_elements(${cell}) AS e(v)
+           WHERE ${JSON.stringify(kept.map((o) => o.id))}::jsonb @> jsonb_build_array(e.v))`
+    : sql`jsonb_array_length(${cell})`
+  const [result] = await executor
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`CASE WHEN jsonb_typeof(${cell}) = 'array' THEN ${selected} > 1 ELSE false END`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
  * Clears stored ids that are no longer in a `select` column's option set.
  *
  * A single cell holding a removed option becomes null; a multi cell drops just
@@ -1483,15 +1553,12 @@ async function clearRemovedSelectOptions(
   multiple: boolean
 ): Promise<void> {
   const keptIds = JSON.stringify(options.map((o) => o.id))
+  const rowWhere = rowsHoldingRemovedOptions(tableId, workspaceId, columnKey, options, multiple)
+  if (!rowWhere) return
 
   if (multiple) {
     await updateTableRowsWithDerivedSecretProvenance(trx, {
-      rowWhere: and(
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId),
-        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`,
-        sql`NOT (${keptIds}::jsonb @> (${userTableRows.data}->${columnKey}::text))`
-      )!,
+      rowWhere,
       transformation: {
         mode: 'preserve',
         dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], COALESCE((
@@ -1506,13 +1573,7 @@ async function clearRemovedSelectOptions(
   }
 
   await updateTableRowsWithDerivedSecretProvenance(trx, {
-    rowWhere: and(
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, workspaceId),
-      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`,
-      sql`${userTableRows.data}->>${columnKey}::text <> ''`,
-      sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${userTableRows.data}->${columnKey}::text))`
-    )!,
+    rowWhere,
     transformation: {
       mode: 'preserve',
       dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], 'null'::jsonb)`,

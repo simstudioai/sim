@@ -163,6 +163,30 @@ async function optionId(workspaceId: string, columnName: string, optionName: str
   return column?.options?.find((option) => option.name === optionName)?.id ?? ''
 }
 
+const TAGGED_LEADS = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'leads',
+  columns: {
+    email: column.string({ required: true }),
+    tags: column.select({ options: ['a', 'b'], multiple: true }),
+    rank: column.select({ options: ['1', '2'] }),
+  },
+})
+`
+
+/** A workspace holding only a leads table with a multi-select and a numeric-named select column. */
+async function taggedLeads(workspaceId: string) {
+  const created = await apply(
+    workspaceId,
+    { 'tables/leads.ts': TAGGED_LEADS },
+    { kinds: ['table'], only: ['table'] }
+  )
+  expect(created.failed).toBeUndefined()
+  return get(workspaceId)
+}
+
 async function setUp(workspaceId: string) {
   const created = await apply(workspaceId, STARTER)
   expect(created.failed).toBeUndefined()
@@ -602,6 +626,144 @@ describe('workspace source apply', () => {
       expect(await optionId(workspaceId, 'status', 'closed')).not.toBe('')
     }
   )
+
+  check('renames a schema-locked table, since its name is not part of its schema', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const [leads] = await tables(workspaceId)
+    await db
+      .update(userTableDefinitions)
+      .set({ schemaLocked: true })
+      .where(eq(userTableDefinitions.id, leads.id))
+    const files = {
+      ...read.files,
+      'tables/leads.ts': read.files['tables/leads.ts'].replace(
+        "name: 'leads',",
+        "name: 'prospects',"
+      ),
+    }
+
+    const result = await apply(workspaceId, files, { base: read.base })
+
+    expect(result.failed).toBeUndefined()
+    expect((await tables(workspaceId)).map((table) => table.name)).toEqual(['prospects'])
+  })
+
+  check(
+    'refuses at plan time to drop a column of a delete-locked table, writing nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const [leads] = await tables(workspaceId)
+      await db
+        .update(userTableDefinitions)
+        .set({ deleteLocked: true })
+        .where(eq(userTableDefinitions.id, leads.id))
+      const files = {
+        ...read.files,
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(/\n {4}status: .*\n/, '\n'),
+      }
+      const before = await tableSnapshot(workspaceId)
+
+      const locked = await refusal(
+        apply(workspaceId, files, { base: read.base, allowDelete: true })
+      )
+
+      expect(locked.code).toBe('locked')
+      expect(codes(locked.diagnostics)).toEqual(['E_APPLY_LOCKED'])
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'refuses removing an option a multi-select cell keeps beside others without --allow-delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await taggedLeads(workspaceId)
+      const [a, b] = [
+        await optionId(workspaceId, 'tags', 'a'),
+        await optionId(workspaceId, 'tags', 'b'),
+      ]
+      await insertRow(workspaceId, { email: 'a@b.c', tags: [a, b] })
+      const files = { 'tables/leads.ts': read.files['tables/leads.ts'].replace("'a', 'b'", "'a'") }
+      const before = await tableSnapshot(workspaceId)
+
+      const refused = await refusal(apply(workspaceId, files, { base: read.base, only: ['table'] }))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+      expect(refused.diagnostics[0].message).toContain('losing 1 cell(s)')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'refuses at plan time a switch to single-select while a row keeps several options, and allows it once a removal leaves one',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await taggedLeads(workspaceId)
+      const [a, b] = [
+        await optionId(workspaceId, 'tags', 'a'),
+        await optionId(workspaceId, 'tags', 'b'),
+      ]
+      await insertRow(workspaceId, { email: 'a@b.c', tags: [a, b] })
+      const single = (options: string) => ({
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(
+          "options: ['a', 'b'], multiple: true",
+          `options: [${options}]`
+        ),
+      })
+      const before = await tableSnapshot(workspaceId)
+
+      const refused = await refusal(
+        apply(workspaceId, single("'a', 'b'"), { base: read.base, only: ['table'] })
+      )
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+      expect(refused.diagnostics[0].message).toContain('1 row(s) keep several options')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+
+      const narrowed = await apply(workspaceId, single("'a'"), {
+        base: read.base,
+        only: ['table'],
+        allowDelete: true,
+      })
+
+      expect(narrowed.failed).toBeUndefined()
+      const tags = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'tags'
+      )
+      expect(tags?.multiple).toBeFalsy()
+    }
+  )
+
+  check('converts a select column to numbers by its option names', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await taggedLeads(workspaceId)
+    await insertRow(workspaceId, {
+      email: 'a@b.c',
+      rank: await optionId(workspaceId, 'rank', '2'),
+    })
+    const files = {
+      'tables/leads.ts': read.files['tables/leads.ts'].replace(
+        "rank: column.select({ options: ['1', '2'] })",
+        'rank: column.number()'
+      ),
+    }
+    expect(files['tables/leads.ts']).toContain('rank: column.number()')
+
+    const result = await apply(workspaceId, files, { base: read.base, only: ['table'] })
+
+    expect(result.failed).toBeUndefined()
+    const [row] = await db
+      .select({ data: userTableRows.data })
+      .from(userTableRows)
+      .where(eq(userTableRows.workspaceId, workspaceId))
+    const rank = (await storedTable(workspaceId)).schema.columns.find(
+      (column) => column.name === 'rank'
+    )
+    expect(rank?.type).toBe('number')
+    expect((row.data as Record<string, unknown>)[rank?.id ?? '']).toBe(2)
+  })
 
   check(
     'a renamed workflow folder updates its workflow and plans no delete, even with --allow-delete',

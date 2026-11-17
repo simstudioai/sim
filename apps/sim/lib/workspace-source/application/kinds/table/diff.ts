@@ -14,12 +14,15 @@ import {
 } from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
+  countCellsLosingAnOption,
   countCellsLosingTheirOptions,
   countEmptyCells,
   countFilledCellsByColumn,
+  countMultiValuedCells,
   getColumnRetypeScanBatchSize,
   isValueCompatibleWithColumn,
   readColumnRetypePage,
+  selectValueForConversion,
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
@@ -65,7 +68,7 @@ export interface TableChanges {
   columns: ColumnChange[]
   /** Fields that change, for the plan display. */
   fields: string[]
-  /** Cells a drop or a removed option loses. */
+  /** Cells a drop empties, and cells a removed option takes a selection from. */
   lostCells: number
   /** Select options removed (or renamed, which removes the old name) from stored columns. */
   removedOptions: number
@@ -124,14 +127,18 @@ function pairColumns(
 }
 
 /**
- * Cells of `columnId` (up to {@link CONVERSION_SCAN_LIMIT}) whose value does not convert to
- * `target`, read a page at a time so a column of large cells never sits in memory at once.
+ * Cells of `current` (up to {@link CONVERSION_SCAN_LIMIT}) whose value does not convert to
+ * `target`, read a page at a time so a column of large cells never sits in memory at once. As the
+ * retype itself does, a `select` cell leaving `select` is judged by its option name(s), not its
+ * stored id, and one that becomes empty counts only when the column ends up required.
  */
 async function countIncompatibleCells(
   table: StoredTableState['table'],
-  columnId: string,
+  current: ColumnDefinition,
   target: ColumnDefinition
 ): Promise<number> {
+  const columnId = getColumnId(current)
+  const leavingSelect = current.type === 'select' && target.type !== 'select'
   const batch = getColumnRetypeScanBatchSize()
   let incompatible = 0
   let scanned = 0
@@ -147,7 +154,12 @@ async function countIncompatibleCells(
       afterId
     )
     for (const row of rows) {
-      if (!isValueCompatibleWithColumn(row.value, target)) incompatible += 1
+      if (row.value === null || row.value === undefined) continue
+      const value = leavingSelect ? selectValueForConversion(current, row.value) : row.value
+      if (isValueCompatibleWithColumn(value, target)) continue
+      if (value === null || value === '') {
+        if (target.required) incompatible += 1
+      } else incompatible += 1
     }
     scanned += rows.length
     afterId = rows.at(-1)?.id
@@ -161,9 +173,11 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /**
- * Plans the changes from `stored` to `decl`, counting what they lose: cells of a dropped column,
- * cells a removed select option empties, empty cells a newly required column refuses, and cells a
- * type change cannot convert (`E_TABLE_TYPE_CONVERSION`).
+ * Plans the changes from `stored` to `decl`, counting what they lose: cells of a dropped column
+ * and cells a removed select option takes a selection from. It refuses what the column write
+ * would: empty cells of a newly required column, a required column's rows a removal empties,
+ * rows a multi→single switch leaves with several options, and cells a type change cannot convert
+ * (`E_TABLE_TYPE_CONVERSION`).
  */
 export async function diffTable(
   key: string,
@@ -237,7 +251,7 @@ export async function diffTable(
     if (target.type !== current.type) {
       updates.type = target.type
       fields.push('type')
-      const incompatible = await countIncompatibleCells(table, columnId, {
+      const incompatible = await countIncompatibleCells(table, current, {
         ...target,
         id: columnId,
       })
@@ -268,6 +282,8 @@ export async function diffTable(
       fields.push('unique')
     }
     if (target.type === 'select') {
+      // The options a removal in this change keeps, which a multi→single switch counts against.
+      let kept: SelectOption[] | undefined
       const names = declared.options ?? []
       const existing = current.type === 'select' ? (current.options ?? []) : []
       if (
@@ -281,21 +297,50 @@ export async function diffTable(
         fields.push('options')
         const removed = existing.filter((option) => !names.includes(option.name)).length
         if (current.type === 'select' && removed > 0) {
+          kept = options
           changes.removedOptions += removed
-          const lost = await countCellsLosingTheirOptions(
+          const multiple = Boolean(current.multiple)
+          changes.lostCells += await countCellsLosingAnOption(
             db,
             table.id,
             table.workspaceId,
             columnId,
             options,
-            Boolean(current.multiple)
+            multiple
           )
-          changes.lostCells += lost
+          const stranded = target.required
+            ? await countCellsLosingTheirOptions(
+                db,
+                table.id,
+                table.workspaceId,
+                columnId,
+                options,
+                multiple
+              )
+            : 0
+          if (stranded > 0) {
+            report(
+              'E_APPLY_REFUSED',
+              `Column "${current.name}" is required, and removing its options would leave ${stranded} row(s) empty.`,
+              'Reassign those rows to a remaining option first.'
+            )
+          }
         }
       }
       if (Boolean(target.multiple) !== Boolean(current.multiple)) {
         updates.multiple = Boolean(target.multiple)
         fields.push('multiple')
+        const multiValued =
+          current.type === 'select' && current.multiple && !target.multiple
+            ? await countMultiValuedCells(db, table.id, table.workspaceId, columnId, kept)
+            : 0
+        if (multiValued > 0) {
+          report(
+            'E_APPLY_REFUSED',
+            `Column "${current.name}" cannot become single-select: ${multiValued} row(s) keep several options selected.`,
+            'Reduce them to one option first.'
+          )
+        }
       }
     }
     if (
