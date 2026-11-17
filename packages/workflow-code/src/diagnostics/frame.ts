@@ -17,7 +17,8 @@ export interface SourceSpan {
   end: number
 }
 
-interface DiagnosticFields {
+/** The fields every finding carries beside its code and severity, whatever vocabulary it is from. */
+export interface DiagnosticFields {
   message: string
   /** The supported form, or a did-you-mean. */
   hint?: string

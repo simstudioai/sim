@@ -19,8 +19,8 @@
  *      context type.
  *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
  *    the adapter.
- * 3. `@sim/workflow-code` (every non-test file under `packages/workflow-code/src`) compiles
- *    untrusted workflow source on the server, in the browser and in the CLI, so it must stay pure
+ * 3. `@sim/workflow-code` and `@sim/workspace-code` (every non-test file under their `src`)
+ *    compile untrusted source on the server, in the browser and in the CLI, so they must stay pure
  *    and must never execute code: no Node built-in (`vm`, `child_process`, `fs`, any `node:*`,
  *    even type-only), no dynamic `import()`, `import.meta` or `require`, no `.constructor` read
  *    (a function's constructor is `Function`), and no value reference to `eval`, `Function`,
@@ -183,7 +183,9 @@ async function scanImports(
   return offenders
 }
 
-const PURE_PACKAGE_SRC = path.join(PACKAGES_DIR, 'workflow-code', 'src')
+const PURE_PACKAGE_SRCS = ['workflow-code', 'workspace-code'].map((name) =>
+  path.join(PACKAGES_DIR, name, 'src')
+)
 /**
  * Names that reach code execution or the host global object, which leads back to both: `eval`,
  * `Function`, the global object under each of its names, `Reflect` (`Reflect.get(globalThis, k)`)
@@ -328,7 +330,8 @@ async function main() {
           forbiddenImport(file, module.text, appNames) ? `import into apps/: ${module.text}` : null
         ))
       )
-      if (file.startsWith(`${PURE_PACKAGE_SRC}${path.sep}`) && !TEST_FILE.test(file)) {
+      const pure = PURE_PACKAGE_SRCS.some((src) => file.startsWith(`${src}${path.sep}`))
+      if (pure && !TEST_FILE.test(file)) {
         offenders.push(...(await scanPurePackageFile(file)))
       }
     }

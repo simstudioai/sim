@@ -1,4 +1,5 @@
 export { decodeAnchor, encodeAnchor } from './anchors'
+export { babelErrorShape } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { executableInactiveParams } from './catalog/activity'
 export { compactBlockCatalog } from './catalog/compact'
@@ -30,9 +31,20 @@ export {
 } from './catalog/view'
 export { isIdentifierName } from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
-export { sourceDepthOverflow } from './compile/parse'
+export {
+  babelMessage,
+  bracketDepthOverflow,
+  sdkHeader,
+  sourceDepthOverflow,
+} from './compile/parse'
 export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
-export { codeFrame, type Diagnostic, type SourceSpan, splitLines } from './diagnostics/frame'
+export {
+  codeFrame,
+  type Diagnostic,
+  type DiagnosticFields,
+  type SourceSpan,
+  splitLines,
+} from './diagnostics/frame'
 export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
 export {
   canonicalDigests,
@@ -44,8 +56,11 @@ export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
   isJson,
+  jsonInput,
+  type LockExtensionKey,
   type LockIdentity,
   parseWorkflowLock,
+  readExtensions,
   readIdent,
   type SourceBase,
   type SourceFingerprint,
@@ -66,6 +81,7 @@ export type {
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
   CodeComment,
+  Json,
   Port,
   ResourceKeyResolver,
   ResourceKind,

@@ -83,7 +83,8 @@ function depthOverflow(root: Node, maxDepth: number): Node | null {
   return null
 }
 
-function babelMessage(error: BabelErrorShape): string {
+/** A Babel error's message without its trailing `(line:column)`. */
+export function babelMessage(error: BabelErrorShape): string {
   const message = typeof error.message === 'string' ? error.message : 'Invalid syntax'
   return message.replace(/ \(\d+:\d+\)$/, '')
 }

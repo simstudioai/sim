@@ -1,0 +1,36 @@
+/**
+ * The limits workspace source shares across reading and writing. A get skips what an apply would
+ * refuse (a blob over `maxBlobBytes` is listed in `.sim/skipped.json`), so anything a get writes
+ * can be applied back unchanged. One workflow keeps its own `SOURCE_LIMITS`.
+ *
+ * Client-safe: no parser imports, so contracts and the CLI can read it.
+ */
+export const WORKSPACE_SOURCE_LIMITS = {
+  /** Resources of one kind in one directory. */
+  maxResourcesPerKind: 500,
+  /** UTF-8 bytes of every declaration file together (workflow files excluded). */
+  maxDeclarationBytes: 2_000_000,
+  /** UTF-8 bytes of every workflow file one apply sends. */
+  maxWorkflowBytes: 8_000_000,
+  /** Bytes of one blob (a knowledge document or a workspace file). */
+  maxBlobBytes: 10_000_000,
+  /** Blob bytes one request carries; an apply over it continues in further rounds. */
+  maxBlobBytesPerRequest: 24_000_000,
+  /** Workflows one apply evaluates. */
+  maxWorkflows: 100,
+  /** Planned changes one apply makes, no-ops excluded. */
+  maxChanges: 1_000,
+  /** Columns in one table. Mirrors `TABLE_LIMITS.MAX_COLUMNS_PER_TABLE` (apps/sim/lib/table). */
+  maxColumns: 1_000,
+  /** Nesting depth of a declaration file. */
+  maxDepth: 200,
+} as const
+
+/**
+ * Body cap for a workspace source apply: declarations and workflow files doubled for JSON string
+ * escaping, blob content as base64 (4 bytes per 3), plus room for the base.
+ */
+export const WORKSPACE_SOURCE_REQUEST_MAX_BYTES =
+  2 * (WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + WORKSPACE_SOURCE_LIMITS.maxWorkflowBytes) +
+  Math.ceil((WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest * 4) / 3) +
+  2_000_000
