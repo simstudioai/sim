@@ -7,8 +7,9 @@
  * are capped at {@link MAX_COMBINATIONS}; the widest siblings stop being enumerated first. A field
  * nobody enumerates is unknown, so a condition on it is "sometimes".
  *
- * Conditions are evaluated by the catalog's one evaluator (`@sim/workflow-code/catalog/conditions`),
- * which leaves a condition on a field nobody enumerates undecided: "sometimes" here.
+ * Conditions are evaluated by the catalog's one evaluator
+ * (`@sim/workflow-code/catalog/conditions`), which leaves a condition on a field nobody enumerates
+ * undecided: "sometimes" here.
  */
 
 import { compareStrings } from '@sim/utils/string'
@@ -212,7 +213,7 @@ function describeWhen(
         opaque = true
       }
     }
-    if (unknown.size > 0) parts.push(`depends on ${[...unknown].sort().join(', ')}`)
+    if (unknown.size > 0) parts.push(`depends on ${[...unknown].sort(compareStrings).join(', ')}`)
     if (opaque) parts.push('depends on other fields')
   }
   return parts.join('; ')

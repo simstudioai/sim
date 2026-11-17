@@ -25,6 +25,7 @@ import {
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
+  SOURCE_AGENTS_FILE,
   sourceRelativePath,
   writeBack,
 } from './workflow-source-layout'
@@ -48,12 +49,17 @@ const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
   423: SOURCE_LOCKED_EXIT_CODE,
 }
 
-const EXIT_CODES_HELP = `
+const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint), a create whose workflow name is taken
-(SOURCE_NAME_TAKEN: pass --name), or the command failed; 5 the workflow changed since the
+file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow is locked; 7 the source is too large.`
+6 the workflow or its folder is locked; 7 the source is too large.`
+
+const CREATE_EXIT_CODES_HELP = `
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
+printed as file:line:column with its frame and hint), the workflow name is taken
+(SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source
+is too large.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]
@@ -153,16 +159,30 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
   }
 }
 
-/** Prints the notes a write carries (a name the source changed but the apply kept, a dropped tool). */
-function printNotes(data: SourceApplyData): void {
-  for (const note of data.notes) printError(`note: ${note}`)
+function findingKey(diagnostic: Diagnostic): string {
+  const { code, file, line, column, path, message } = diagnostic
+  return JSON.stringify([code, file, line, column, path, message])
+}
+
+/**
+ * Prints a write's diagnostics and notes (a name the source changed but the apply kept, a dropped
+ * tool), skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * write it confirmed prints only what the preview did not.
+ */
+function printFindings(data: SourceApplyData, printed: Set<string>): void {
+  const fresh = (key: string) => {
+    if (printed.has(key)) return false
+    printed.add(key)
+    return true
+  }
+  printDiagnostics(data.diagnostics.filter((diagnostic) => fresh(findingKey(diagnostic))))
+  for (const note of data.notes) {
+    if (fresh(`note:${note}`)) printError(`note: ${note}`)
+  }
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {
-  return (
-    Array.isArray(value) &&
-    value.every((item) => typeof item === 'object' && item !== null && 'code' in item)
-  )
+  return Array.isArray(value) && value.every((item) => isRecordLike(item) && 'code' in item)
 }
 
 /** One line naming what the apply changes, shown before asking to confirm it. */
@@ -310,10 +330,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return printRefusal(error)
     }
   }
+  const printed = new Set<string>()
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
-    printDiagnostics(preview.diagnostics)
-    printNotes(preview)
+    printFindings(preview, printed)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
       printProtocolResult(args.output, summarize(preview, creating))
@@ -326,8 +346,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   const data = await send(options.dryRun === true)
-  printDiagnostics(data.diagnostics)
-  printNotes(data)
+  printFindings(data, printed)
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
@@ -339,11 +358,14 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   printProtocolResult(args.output, summarize(data, creating))
 }
 
-/** A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal. */
-function requireConsent(options: SourceWriteOptions, action: string): void {
+/**
+ * A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal, naming
+ * what the write does (`writes the workflow draft`) and its verb (`apply`).
+ */
+function requireConsent(options: SourceWriteOptions, action: string, verb: string): void {
   if (!options.dryRun && !options.yes && !canPrompt()) {
     throw new SimApiError(
-      `This ${action}. Re-run with --yes to apply it, or with --dry-run to check it without writing.`,
+      `This ${action}. Re-run with --yes to ${verb} it, or with --dry-run to check it without writing.`,
       0,
       'CONFIRMATION_REQUIRED'
     )
@@ -371,9 +393,9 @@ export function attachWorkflowSourceApply(source: Command): void {
     .option('-y, --yes', 'Apply without asking for confirmation')
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
-    .addHelpText('after', EXIT_CODES_HELP)
+    .addHelpText('after', APPLY_EXIT_CODES_HELP)
     .action(async (workflowId: string, options: SourceWriteOptions) => {
-      requireConsent(options, 'writes the workflow draft')
+      requireConsent(options, 'writes the workflow draft', 'apply')
       const { client, profile } = connectApply()
       const lock = (await readJson(options.dir, LOCK_FILE, GET_HINT)) as SourceLock
       const base = await readBase(options.dir, workflowId)
@@ -416,7 +438,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('-y, --yes', 'Create without asking for confirmation')
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
-    .addHelpText('after', EXIT_CODES_HELP)
+    .addHelpText('after', CREATE_EXIT_CODES_HELP)
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
       if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
         if (options.dryRun || options.yes) {
@@ -433,7 +455,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
         return
       }
-      requireConsent(options, 'creates a workflow')
+      requireConsent(options, 'creates a workflow', 'create')
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()
       const files = await readSourceFiles(options.dir, null)
@@ -478,10 +500,10 @@ function summarize(data: SourceApplyData, created: boolean) {
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
-    warnings:
-      data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length +
-      data.notes.length,
+    warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+    notes: data.notes.length,
     fingerprint: data.base.fingerprint,
     needsRedeployment: data.needsRedeployment,
+    ...(created && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
   }
 }

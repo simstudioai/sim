@@ -142,6 +142,17 @@ describe('sim workflows source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses a create without --yes in words that say create, not apply', async () => {
+    setTerminal(false)
+
+    const error = await program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
+      .catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
+    expect((error as SimApiError).message).toContain('--yes to create it')
+  })
+
   it('applies at once with --yes and saves what the server stored', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome())
@@ -313,6 +324,16 @@ describe('sim workflows source apply', () => {
     expect(stderrLines()).toContain(`note: ${note}`)
   })
 
+  it('counts notes apart from warnings in the result', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true, notes: ['a kept name'] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({ warnings: 0, notes: 1 })
+  })
+
   it('at a terminal, prints the notes of the preview and of the applied write', async () => {
     setTerminal(true)
     request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
@@ -328,6 +349,32 @@ describe('sim workflows source apply', () => {
     expect(stderrLines()).toEqual(
       expect.arrayContaining(['note: previewed note', 'note: applied note'])
     )
+  })
+
+  it('at a terminal, prints a warning and a note the preview showed once, not again on the write', async () => {
+    setTerminal(true)
+    const warning = {
+      code: 'W_REQUIRED_MISSING',
+      severity: 'warning',
+      message: 'apiKey is required.',
+      file: 'workflow.ts',
+      line: 9,
+      column: 5,
+    }
+    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+      outcome({
+        dryRun: options.query?.dryRun === true,
+        diagnostics: [warning],
+        notes: ['kept note'],
+      })
+    )
+    prompt.question.mockResolvedValue('y')
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    const lines = stderrLines()
+    expect(lines.filter((line) => line.includes('W_REQUIRED_MISSING'))).toHaveLength(1)
+    expect(lines.filter((line) => line === 'note: kept note')).toHaveLength(1)
   })
 
   const STALE = {
@@ -478,6 +525,13 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     })
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
     expect(stderrLines().join('\n')).toContain('Edit')
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({
+      scaffolded: true,
+      workspaceTypes: true,
+      guide: '.sim/AGENTS.md',
+    })
+    expect(printed.files).toBeGreaterThan(0)
   })
 
   it('writes the cookbook example into the scaffold, outside what the tsconfig.json type-checks', async () => {
@@ -506,5 +560,32 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
 
     expect(existsSync(empty)).toBe(false)
     expect(request).not.toHaveBeenCalled()
+  })
+})
+
+describe('exit codes in --help', () => {
+  /** The exit-code paragraph `--help` prints after a command's options, as one line. */
+  async function exitCodesHelp(command: 'apply' | 'create'): Promise<string> {
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    await program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', command, '--help'])
+      .catch(() => {})
+    const help = out.mock.calls.map(([chunk]) => String(chunk)).join('')
+    return help.slice(help.indexOf('Exit codes:')).replace(/\s+/g, ' ')
+  }
+
+  it('lists for apply only the codes an apply returns, with no create-only --name', async () => {
+    const help = await exitCodesHelp('apply')
+
+    expect(help).toContain('5 the workflow changed')
+    expect(help).not.toContain('SOURCE_NAME_TAKEN')
+  })
+
+  it('lists for create only the codes a create returns, never stale', async () => {
+    const help = await exitCodesHelp('create')
+
+    expect(help).toContain('0 created')
+    expect(help).toContain('SOURCE_NAME_TAKEN')
+    expect(help).not.toMatch(/\b5 /)
   })
 })

@@ -1339,7 +1339,7 @@ sim workflows source create [options]
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), a create whose workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow is locked; 7 the source is too large.
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source is too large.
 
 API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
 
@@ -1371,25 +1371,15 @@ sim workflows source apply <workflowId> [options]
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), a create whose workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow is locked; 7 the source is too large.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked; 7 the source is too large.
 
 API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
-### Get source catalog
+### Show the block catalog workflow source is checked against
 
 ```bash
-sim workflows source catalog <workspaceId> [options]
+sim workflows source catalog [options]
 ```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
-
-</CommandTable>
 
 **Options**
 
@@ -1406,18 +1396,8 @@ API request and response schemas: [getSourceCatalog](/api-reference/catalog/getS
 ### List the tables, knowledge bases, credentials, workflows and env names source can name
 
 ```bash
-sim workflows source resources <workspaceId>
+sim workflows source resources
 ```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose resources to list. |
-
-</CommandTable>
 
 API request and response schemas: [getSourceResources](/api-reference/workflows/getSourceResources).
 

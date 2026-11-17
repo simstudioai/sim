@@ -128,8 +128,13 @@ function orphanedCodeFiles(
  * The lock an earlier get, apply or create left, read leniently (missing or invalid is `null`):
  * it names the function files the CLI wrote, which is all a prune needs from it.
  */
-export async function readPreviousLock(dir: string): Promise<unknown> {
-  const text = await readSourceText(dir, SOURCE_LOCK_FILE)
+export function readPreviousLock(dir: string): Promise<unknown> {
+  return readSourceJson(dir, SOURCE_LOCK_FILE)
+}
+
+/** A JSON file in the source directory, read leniently: `null` when it is missing or invalid. */
+export async function readSourceJson(dir: string, path: string): Promise<unknown> {
+  const text = await readSourceText(dir, path)
   if (text === null) return null
   try {
     return JSON.parse(text)
@@ -191,10 +196,17 @@ async function realRoot(dir: string): Promise<string | null> {
 }
 
 /**
- * The text of `path` in the source directory without a leading byte-order mark and with CRLF line
- * endings turned into LF (a Windows editor or checkout must not turn an unchanged source into an
- * edit, or hide its `// @sim-sdk` header), or `null` when it does not exist.
- * A symbolic link anywhere below the directory is refused rather than followed.
+ * Source text as the CLI reads and compares it: no leading byte-order mark and LF line endings, so
+ * a Windows editor or checkout never turns an unchanged source into an edit, or hides its
+ * `// @sim-sdk` header.
+ */
+function normalizeSourceText(text: string): string {
+  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+}
+
+/**
+ * The text of `path` in the source directory, normalized by `normalizeSourceText`, or `null` when
+ * it does not exist. A symbolic link anywhere below the directory is refused rather than followed.
  */
 export async function readSourceText(dir: string, path: string): Promise<string | null> {
   const embedded = embedStore.getStore()
@@ -217,7 +229,7 @@ export async function readSourceText(dir: string, path: string): Promise<string 
       throw new SimApiError(`Cannot read ${join(dir, path)}: ${(error as Error).message}`, 0)
     }
   }
-  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+  return normalizeSourceText(text)
 }
 
 /** What one write does to the source directory: files to remove first, then files to write. */
@@ -290,30 +302,23 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   }
 }
 
-/** `.sim/written.json`: each source file's digest as the CLI last wrote it. */
+/** `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized. */
 interface WrittenRecord {
   version: 1
   files: Record<string, string>
 }
 
+/** The digest of `text` as `readSourceText` would read it back. */
 function digest(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex')
+  return createHash('sha256').update(normalizeSourceText(text), 'utf8').digest('hex')
 }
 
 /** The digests the CLI recorded for its last write, empty when it recorded none. */
 async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
-  const text = await readSourceText(dir, SOURCE_WRITTEN_FILE)
-  if (text === null) return {}
-  try {
-    const files = toRecord(toRecord(JSON.parse(text)).files)
-    return Object.fromEntries(
-      Object.entries(files).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string'
-      )
-    )
-  } catch {
-    return {}
-  }
+  const files = toRecord(toRecord(await readSourceJson(dir, SOURCE_WRITTEN_FILE)).files)
+  return Object.fromEntries(
+    Object.entries(files).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  )
 }
 
 /**
@@ -336,7 +341,7 @@ export async function locallyEditedFiles(
   const texts = await inBatches(entries, ([path]) => readSourceText(dir, path))
   return entries.flatMap(([path, next], index) => {
     const current = texts[index]
-    if (current === null || current === next) return []
+    if (current === null || (next !== null && current === normalizeSourceText(next))) return []
     return written[path] !== digest(current) ? [path] : []
   })
 }

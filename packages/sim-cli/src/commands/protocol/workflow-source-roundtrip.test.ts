@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
@@ -259,6 +260,14 @@ describe('sim workflows source get --dir → apply --dir', () => {
     expect(readdirSync(dir).filter((name) => name.startsWith('.sim-staging-'))).toEqual([])
   })
 
+  it('reports what get wrote under the field names a create scaffold uses, with the guide', async () => {
+    await get()
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({ workflowId: WORKFLOW_ID, guide: '.sim/AGENTS.md' })
+    expect(printed.files).toBeGreaterThan(0)
+  })
+
   it('writes workspace types from the manifest, so resource keys are checked locally', async () => {
     await get()
 
@@ -437,6 +446,20 @@ describe('line endings', () => {
   })
 })
 
+describe('the workspace-scoped source reads', () => {
+  it.each(['resources', 'catalog'])(
+    'reads %s from the profile workspace, like every other workspace route',
+    async (command) => {
+      await sim('workflows', 'source', command)
+
+      const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input))
+      expect(urls).toEqual([
+        `https://sim.example/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/${command}`,
+      ])
+    }
+  )
+})
+
 describe('catalog and declarations', () => {
   it('refuses a catalog for another SDK major, telling the person to upgrade, writing nothing', async () => {
     server.catalog = () => json({ data: { ...CATALOG, sdkMajor: 2 } })
@@ -545,6 +568,35 @@ describe('a get into a directory that already holds source', () => {
     await get()
 
     expect(read('workflow.ts')).toBe(CHANGED['workflow.ts'])
+  })
+
+  it('replaces function code stored with CRLF that nobody edited', async () => {
+    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
+    server.source = () => json(sourceResponse(crlf))
+    await get()
+    server.source = () => json(sourceResponse({ ...FILES, 'functions/score.js': 'return 2\r\n' }))
+
+    await get()
+
+    expect(read('functions/score.js')).toBe('return 2\r\n')
+  })
+
+  it('replaces unedited CRLF function code an older CLI recorded with its raw digest', async () => {
+    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
+    server.source = () => json(sourceResponse(crlf))
+    await get()
+    const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
+    writeFileSync(
+      join(dir, '.sim/written.json'),
+      JSON.stringify({
+        version: 1,
+        files: Object.fromEntries(Object.entries(crlf).map(([path, text]) => [path, sha256(text)])),
+      })
+    )
+
+    await get()
+
+    expect(read('functions/score.js')).toBe('return 1\r\n')
   })
 
   it('refuses to overwrite an unapplied edit, such as the one a stale apply refused', async () => {

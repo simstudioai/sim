@@ -28,7 +28,9 @@ sim workflows source apply <workflowId> --dir ./wf --yes       # 4. save the dra
 6. **New workflow**: write `workflow.ts` in an empty directory and run
    `sim workflows source create --dir ./wf [--name <name>] [--folder <path>] --yes`. It prints the
    new workflow id and writes the full tree a `get` writes: the `.sim/sdk` types, `tsconfig.json`,
-   `.sim/AGENTS.md` and the lock files. Continue with the loop above.
+   `.sim/AGENTS.md` and the lock files. Continue with the loop above. Run on a directory without
+   `workflow.ts` and without `--dry-run` or `--yes`, `create --dir ./wf` writes a starter
+   `workflow.ts` and the types instead, and creates nothing.
 
 `apply` and `create` ask for confirmation on a terminal; elsewhere pass `--yes` (without it they
 refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
@@ -50,7 +52,8 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/examples/cookbook.ts` | One correct example of each common block (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response). Read it before writing. It names example resources, so `tsconfig.json` leaves it out. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
 
-`sim workflows source resources <workspaceId>` lists the resource keys source can name.
+`sim workflows source resources` lists the resource keys source can name in the active
+workspace (`-w <workspaceId>` for another).
 
 ## Diagnostics
 
@@ -127,8 +130,8 @@ files are stored verbatim. One file per block; imports between function files ar
 
 | Path | Contents |
 |------|----------|
-| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-core-text.ts`. |
-| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-cookbook-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
+| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
+| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
 | `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts`, deterministic, sorted by path) and `generateWorkspaceTypes(manifest)` (`workspace.d.ts`). |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
