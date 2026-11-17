@@ -420,7 +420,7 @@ describe('workspace source across kinds', () => {
         'create file:templates/reply.md',
         'create workflow:support',
       ])
-      const id = (address: string) => result.base.resources[address]?.id
+      const id = (address: keyof typeof result.base.resources) => result.base.resources[address]?.id
       const state = await loadWorkflowFromNormalizedTables(id('workflow:support') ?? '')
       const values = Object.values(state?.blocks ?? {}).flatMap((block) =>
         Object.values(block.subBlocks ?? {}).map((subBlock) => subBlock.value)
