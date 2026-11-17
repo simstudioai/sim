@@ -744,6 +744,27 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a template tag called as a function',
+      "const a = api('A', { url: t('x') })",
+      'E_UNSUPPORTED_SYNTAX',
+      "t('x')",
+      'Use t`...` as a tagged template.',
+    ],
+    [
+      'edge() written as a value',
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: edge(a, 'source', a) })",
+      'E_UNSUPPORTED_SYNTAX',
+      'edge(a',
+      'edge(...) is wiring; write it as its own statement.',
+    ],
+    [
+      'a block builder written as a value',
+      "const a = api('A', { url: api('B', { url: 'x' }) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "api('B'",
+      'Declare the block with const and pass its name.',
+    ],
+    [
       'a boolean meta field that is not a boolean literal',
       "const a = api('A', { url: 'x' }, { disabled: 1 })",
       'E_UNSUPPORTED_SYNTAX',

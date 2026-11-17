@@ -867,8 +867,16 @@ function compileCall(
       return value === undefined ? null : { kind: 'value', value, form: 'raw' }
     }
     default:
-      return unsupported(ctx, call, `${path}() is not a value.`, HINTS.bindInline, site.decl.key)
+      return unsupported(ctx, call, `${path}() is not a value.`, valueCallHint(path), site.decl.key)
   }
+}
+
+/** The hint for an SDK call written where a value goes that is not a value call. */
+function valueCallHint(path: string): string {
+  if (TEMPLATE_TAGS.has(path)) return `Use ${path}\`...\` as a tagged template.`
+  if (path === 'edge') return 'edge(...) is wiring; write it as its own statement.'
+  if (path === 'env') return 'Write env.NAME.'
+  return HINTS.bindInline
 }
 
 function compileArray(
