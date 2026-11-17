@@ -162,4 +162,38 @@ describe('workspaces source apply', () => {
 
     expect(request).toHaveBeenCalledTimes(1)
   })
+
+  it('refuses a base that records blobs no get downloaded, but sends one the user removed', async () => {
+    const sha256 = 'a'.repeat(64)
+    write(
+      '.sim/base.json',
+      JSON.stringify({
+        ...BASE,
+        resources: {
+          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256 } } },
+          'knowledge-base:docs': {
+            id: 'kb1',
+            blobs: { 'guide.pdf': { id: 'd1', rev: 1, sha256 } },
+          },
+        },
+      })
+    )
+    write('files/.gitkeep', '')
+    write('knowledge/.gitkeep', '')
+    request.mockResolvedValue(answer())
+
+    await expect(apply('--yes', '--allow-delete')).rejects.toMatchObject({
+      code: 'SOURCE_BLOBS_NOT_FETCHED',
+      message: expect.stringContaining('files/a.bin, knowledge/docs/docs/guide.pdf'),
+    })
+    expect(request).not.toHaveBeenCalled()
+
+    write(
+      '.sim/written.json',
+      JSON.stringify({ files: { 'files/a.bin': sha256, 'knowledge/docs/docs/guide.pdf': sha256 } })
+    )
+    await apply('--yes', '--allow-delete')
+
+    expect(request).toHaveBeenCalled()
+  })
 })

@@ -22,6 +22,7 @@ import {
   updateSourceDir,
   writtenRecord,
 } from './workflow-source-layout'
+import { assertBlobsFetched } from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
   blobContent,
@@ -44,7 +45,8 @@ interface ApplyOptions {
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint), the directory was read from another workspace than
-the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), or the command failed; 5 a resource changed on the
+the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary
+files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed on the
 server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply
 the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped
 part-way: what was written is saved into the directory, and applying again continues.`
@@ -205,6 +207,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         workspaceId,
         profile.sources.workspaceId === 'flag'
       )
+      await assertBlobsFetched(options.dir, submission)
       let preview: ApplyData | null = null
       if (options.dryRun || !options.yes || submission.blobs.length > 0) {
         preview = await send(submission, true)

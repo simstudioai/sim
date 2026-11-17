@@ -4,7 +4,7 @@ import {
   parseWorkspaceBase,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
+import { isBlobPath, WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
@@ -19,12 +19,14 @@ import {
 } from './workflow-source-get'
 import {
   editedFiles,
+  inBatches,
   readSourceText,
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
   writtenRecord,
 } from './workflow-source-layout'
+import { assertListedBlobs, blobDigest, downloadBlob, editedBlobs } from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
   keepFile,
@@ -36,8 +38,9 @@ import {
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 
 const GET_EXIT_CODES_HELP = `
-Exit codes: 0 written; 1 the command failed, or the directory holds edits no apply has saved
-(SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workspace
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
+(SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded
+binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds.`
 
 /** `--only table,workflow` as kinds, refusing an unknown one. */
@@ -77,7 +80,9 @@ async function mergedBase(dir: string, source: WorkspaceSource): Promise<Workspa
 }
 
 /**
- * Writes a workspace source answer into the directory in one staged update: its files, the base,
+ * Writes a workspace source answer into the directory in one staged update: its files, its binary
+ * files (downloaded and checked against their listed size and SHA-256 before anything moves into
+ * place; one already on disk with that hash is kept), the base,
  * `.sim/skipped.json`, a marker in each read kind's folder, the SDK declarations (with
  * `workspace.d.ts` typing the tables the directory declares), the CLI's `tsconfig.json` and agent
  * guide. Files of a read kind the CLI wrote earlier that the answer no longer holds (the resource
@@ -85,21 +90,31 @@ async function mergedBase(dir: string, source: WorkspaceSource): Promise<Workspa
  * has saved.
  */
 async function writeWorkspaceSource(
-  client: Parameters<typeof loadCatalog>[0] & Parameters<typeof loadWorkspaceTypes>[0],
+  client: Parameters<typeof loadCatalog>[0] &
+    Parameters<typeof loadWorkspaceTypes>[0] &
+    Parameters<typeof downloadBlob>[0],
   dir: string,
   source: WorkspaceSource,
   force: boolean
 ): Promise<{ written: number; removed: number; tsconfig: boolean }> {
   assertWorkspacePaths(Object.keys(source.files))
+  assertListedBlobs(source.blobs)
+  const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
   const written = await readWrittenDigests(dir)
   const onDisk = await managedFiles(dir, source.kinds)
   const gone = onDisk.filter(
-    (path) => !Object.hasOwn(source.files, path) && Object.hasOwn(written, path)
+    (path) => !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
+  )
+  const stale = await inBatches([...blobs.values()], async (blob) =>
+    (await blobDigest(dir, blob.path)) === blob.sha256 ? null : blob
   )
   if (!force) {
     const touched = new Map<string, string | null>(Object.entries(source.files))
-    for (const path of gone) touched.set(path, null)
-    const edited = await editedFiles(dir, touched)
+    const touchedBlobs = new Map<string, string | null>(
+      source.blobs.map((blob) => [blob.path, blob.sha256])
+    )
+    for (const path of gone) (isBlobPath(path) ? touchedBlobs : touched).set(path, null)
+    const edited = [...(await editedFiles(dir, touched)), ...(await editedBlobs(dir, touchedBlobs))]
     if (edited.length > 0) {
       throw new SimApiError(
         `${dir} has edits no apply has saved (${edited.join(', ')}). Apply them, get into another directory, or pass --force to discard them.`,
@@ -118,11 +133,14 @@ async function writeWorkspaceSource(
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
-  const kept = Object.fromEntries(
-    Object.entries(written).filter(
-      ([path]) => !gone.includes(path) && !Object.hasOwn(source.files, path)
-    )
-  )
+  const kept = {
+    ...Object.fromEntries(
+      Object.entries(written).filter(
+        ([path]) => !gone.includes(path) && !Object.hasOwn(source.files, path)
+      )
+    ),
+    ...Object.fromEntries(source.blobs.map((blob) => [blob.path, blob.sha256])),
+  }
   const skipped = skippedFile(source.skipped)
   const base = await mergedBase(dir, source)
   const write: Array<readonly [string, string]> = [
@@ -135,9 +153,13 @@ async function writeWorkspaceSource(
   ]
   await updateSourceDir(dir, {
     write,
+    fetch: stale.flatMap((blob) =>
+      blob ? [[blob.path, (file: string) => downloadBlob(client, blob, file)] as const] : []
+    ),
     remove: [...gone, ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]), ...(tree.change.remove ?? [])],
   })
-  const summary = finishTree(dir, write.length, workspaceTypes, tree.ownsTsconfig)
+  const downloaded = stale.filter((blob) => blob !== null).length
+  const summary = finishTree(dir, write.length + downloaded, workspaceTypes, tree.ownsTsconfig)
   return { written: summary.written, removed: gone.length, tsconfig: summary.tsconfig }
 }
 
@@ -151,6 +173,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'getWorkspaceSource',
     'getSourceCatalog',
     'getSourceResources',
+    'downloadFile',
   ])
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')

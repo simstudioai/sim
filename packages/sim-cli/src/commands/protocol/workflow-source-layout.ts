@@ -22,6 +22,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
@@ -237,6 +238,11 @@ export async function readSourceText(dir: string, path: string): Promise<string 
 /** What one write does to the source directory: files to remove first, then files to write. */
 export interface SourceDirChange {
   write: ReadonlyArray<readonly [path: string, text: string]>
+  /**
+   * Files whose bytes `stage` writes into the staged file it is handed (a download), before
+   * anything is moved into place: one that throws leaves the directory as it was.
+   */
+  fetch?: ReadonlyArray<readonly [path: string, stage: (stagedFile: string) => Promise<void>]>
   /** Files or directories (removed recursively); an embedded run cannot remove, so skips these. */
   remove?: readonly string[]
 }
@@ -256,14 +262,29 @@ export async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>):
  * removals run and each file is renamed into place, never through a link.
  */
 export async function updateSourceDir(dir: string, change: SourceDirChange): Promise<void> {
-  for (const path of [...change.write.map(([path]) => path), ...(change.remove ?? [])]) {
+  const fetches = change.fetch ?? []
+  const writes = [...change.write.map(([path]) => path), ...fetches.map(([path]) => path)]
+  for (const path of [...writes, ...(change.remove ?? [])]) {
     if (sourceRelativePath(path) !== path) {
       throw new SimApiError(`Refusing to write ${path} outside ${dir}`, 0)
     }
   }
   if (embedStore.getStore()) {
-    for (const [path, text] of change.write) {
-      await saveToFile(new Blob([text]).stream(), posix.join(dir, path), true)
+    const fetched: Array<readonly [string, Buffer]> = []
+    if (fetches.length > 0) {
+      const scratch = await mkdtemp(join(tmpdir(), 'sim-source-fetch-'))
+      try {
+        for (const [path, stage] of fetches) {
+          const file = join(scratch, String(fetched.length))
+          await stage(file)
+          fetched.push([path, await readFile(file)])
+        }
+      } finally {
+        await rm(scratch, { recursive: true, force: true })
+      }
+    }
+    for (const [path, content] of [...change.write, ...fetched]) {
+      await saveToFile(new Blob([content]).stream(), posix.join(dir, path), true)
     }
     return
   }
@@ -272,7 +293,7 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   const root = await realpath(dir)
   const verified = new Set<string>()
   const targets: string[] = []
-  for (const [path] of change.write) targets.push(await checkedPath(root, path, verified))
+  for (const path of writes) targets.push(await checkedPath(root, path, verified))
   const removals: string[] = []
   for (const path of change.remove ?? []) removals.push(await checkedPath(root, path, verified))
 
@@ -281,10 +302,12 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   try {
     const stagingDir = await mkdtemp(join(root, '.sim-staging-'))
     staging = stagingDir
-    const indexes = change.write.map((_, index) => index)
+    const indexes = writes.map((_, index) => index)
     const staged = (index: number) => join(stagingDir, String(index))
     await inBatches(indexes, (index) =>
-      writeFile(staged(index), change.write[index][1], { flag: 'wx' })
+      index < change.write.length
+        ? writeFile(staged(index), change.write[index][1], { flag: 'wx' })
+        : fetches[index - change.write.length][1](staged(index))
     )
     for (const target of removals) await rm(target, { recursive: true, force: true })
     const parents = new Map<string, Promise<unknown>>()
