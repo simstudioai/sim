@@ -132,36 +132,31 @@ async function replaceEnvVarsAsync(
 }
 
 /**
- * Lexer progress through one JSON text, shared by every placeholder spliced into it. Placeholders
- * arrive in ascending offset order, so each lookup resumes where the previous one stopped.
+ * Splices placeholder values into `text`. When `text` is JSON, a value landing inside one of its
+ * string literals becomes escaped string content, so it cannot close the string. Placeholders
+ * must arrive in ascending offset order: the lexer resumes where the previous one stopped, then
+ * skips the placeholder itself, so characters inside its own text never toggle the state.
  */
-interface JsonStringScan {
-  readonly text: string
-  position: number
-  inString: boolean
-}
-
-/**
- * Whether the placeholder spanning `start` to `end` sits inside a JSON string literal. The scan
- * then skips the placeholder itself, so characters inside its own text never toggle the state.
- */
-function isInsideJsonString(scan: JsonStringScan, start: number, end: number): boolean {
-  while (scan.position < start) {
-    const char = scan.text[scan.position]
-    if (scan.inString && char === '\\') {
-      scan.position += 2
-      continue
+function placeholderSplicer(
+  text: string,
+  jsonText: boolean | undefined
+): (value: string, start: number, end: number) => string {
+  if (!jsonText) return (value) => value
+  let position = 0
+  let inString = false
+  return (value, start, end) => {
+    while (position < start) {
+      const char = text[position]
+      if (inString && char === '\\') {
+        position += 2
+        continue
+      }
+      if (char === '"') inString = !inString
+      position++
     }
-    if (char === '"') scan.inString = !scan.inString
-    scan.position++
+    position = Math.max(position, end)
+    return inString ? JSON.stringify(value).slice(1, -1) : value
   }
-  scan.position = Math.max(scan.position, end)
-  return scan.inString
-}
-
-/** `text` as the content of a JSON string literal, without the surrounding quotes. */
-function escapeJsonStringContent(text: string): string {
-  return JSON.stringify(text).slice(1, -1)
 }
 
 /**
@@ -1827,9 +1822,7 @@ export class VariableResolver {
             | undefined)
         : undefined
 
-    const referenceScan: JsonStringScan | null = options.jsonText
-      ? { text: template, position: 0, inString: false }
-      : null
+    const spliceReference = placeholderSplicer(template, options.jsonText)
     let projectedReferenceResult = ''
     let projectedReferenceCursor = 0
     let result = await replaceValidReferencesAsync(template, async (match, index) => {
@@ -1863,10 +1856,7 @@ export class VariableResolver {
         }
 
         const raw = this.blockResolver.formatValueForBlock(resolved, blockType, language)
-        const formatted =
-          referenceScan && isInsideJsonString(referenceScan, index, index + match.length)
-            ? escapeJsonStringContent(raw)
-            : raw
+        const formatted = spliceReference(raw, index, index + match.length)
         projectedReferenceResult += containsResolvedSecret ? match : formatted
         return formatted
       } catch (error) {
@@ -1881,15 +1871,11 @@ export class VariableResolver {
       throw replacementError
     }
 
-    const envScan: JsonStringScan | null = options.jsonText
-      ? { text: result, position: 0, inString: false }
-      : null
+    const spliceEnvVar = placeholderSplicer(result, options.jsonText)
     result = await replaceEnvVarsAsync(result, async (match, index) => {
       const resolved = await this.resolveReference(match, resolutionContext)
       if (typeof resolved !== 'string') return match
-      return envScan && isInsideJsonString(envScan, index, index + match.length)
-        ? escapeJsonStringContent(resolved)
-        : resolved
+      return spliceEnvVar(resolved, index, index + match.length)
     })
     ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
       options.inputPath,
