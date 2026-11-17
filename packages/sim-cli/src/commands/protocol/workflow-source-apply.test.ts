@@ -330,6 +330,32 @@ describe('sim workflows source apply', () => {
     )
   })
 
+  it('at a terminal, prints a warning and a note the preview showed once, not again on the write', async () => {
+    setTerminal(true)
+    const warning = {
+      code: 'W_REQUIRED_MISSING',
+      severity: 'warning',
+      message: 'apiKey is required.',
+      file: 'workflow.ts',
+      line: 9,
+      column: 5,
+    }
+    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+      outcome({
+        dryRun: options.query?.dryRun === true,
+        diagnostics: [warning],
+        notes: ['kept note'],
+      })
+    )
+    prompt.question.mockResolvedValue('y')
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    const lines = stderrLines()
+    expect(lines.filter((line) => line.includes('W_REQUIRED_MISSING'))).toHaveLength(1)
+    expect(lines.filter((line) => line === 'note: kept note')).toHaveLength(1)
+  })
+
   const STALE = {
     code: 'E_APPLY_STALE',
     severity: 'error',

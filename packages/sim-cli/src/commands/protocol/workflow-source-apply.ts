@@ -158,16 +158,30 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
   }
 }
 
-/** Prints the notes a write carries (a name the source changed but the apply kept, a dropped tool). */
-function printNotes(data: SourceApplyData): void {
-  for (const note of data.notes) printError(`note: ${note}`)
+function findingKey(diagnostic: Diagnostic): string {
+  const { code, file, line, column, path, message } = diagnostic
+  return JSON.stringify([code, file, line, column, path, message])
+}
+
+/**
+ * Prints a write's diagnostics and notes (a name the source changed but the apply kept, a dropped
+ * tool), skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * write it confirmed prints only what the preview did not.
+ */
+function printFindings(data: SourceApplyData, printed: Set<string>): void {
+  const fresh = (key: string) => {
+    if (printed.has(key)) return false
+    printed.add(key)
+    return true
+  }
+  printDiagnostics(data.diagnostics.filter((diagnostic) => fresh(findingKey(diagnostic))))
+  for (const note of data.notes) {
+    if (fresh(`note:${note}`)) printError(`note: ${note}`)
+  }
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {
-  return (
-    Array.isArray(value) &&
-    value.every((item) => typeof item === 'object' && item !== null && 'code' in item)
-  )
+  return Array.isArray(value) && value.every((item) => isRecordLike(item) && 'code' in item)
 }
 
 /** One line naming what the apply changes, shown before asking to confirm it. */
@@ -315,10 +329,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       return printRefusal(error)
     }
   }
+  const printed = new Set<string>()
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
-    printDiagnostics(preview.diagnostics)
-    printNotes(preview)
+    printFindings(preview, printed)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
       printProtocolResult(args.output, summarize(preview, creating))
@@ -331,8 +345,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   const data = await send(options.dryRun === true)
-  printDiagnostics(data.diagnostics)
-  printNotes(data)
+  printFindings(data, printed)
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
