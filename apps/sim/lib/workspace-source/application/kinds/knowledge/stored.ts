@@ -20,6 +20,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import type { SourceContext, StoredResource } from '@/lib/workspace-source/application/types'
 
@@ -40,6 +41,8 @@ export interface StoredDoc {
   connectorId: string | null
   /** Whether it holds a tag value, which a replace does not carry over. */
   tagged: boolean
+  /** Its indexing state; never part of a fingerprint, only of a get's or apply's findings. */
+  processingStatus: string
 }
 
 /** A document's revision: its upload time, which a replace (a new document) changes. */
@@ -75,6 +78,7 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         uploadedAt: doc.uploadedAt,
         connectorId: doc.connectorId,
         tagged: ALL_TAG_SLOTS.some((field) => doc[field] !== null && doc[field] !== ''),
+        processingStatus: getDocumentIndexingStatus(doc),
       })
     }
     if (docs.size > WORKSPACE_SOURCE_LIMITS.maxBlobs) {

@@ -102,10 +102,14 @@ type KnowledgeCode =
   | 'W_KB_DOC_TAGS'
   /** A stored document whose bytes this request had no budget left to download and compare. */
   | 'W_KB_DOC_UNCHECKED'
+  /** Documents whose indexing failed: search does not find them until they are indexed again. */
+  | 'W_KB_DOC_FAILED'
   /** How many documents the apply indexes (embeds) after it writes them. */
   | 'I_KB_REEMBED'
   /** Changed chunking applies to documents indexed from now on; stored ones keep their chunks. */
   | 'I_KB_CHUNKING'
+  /** Documents still waiting to be indexed or being indexed: search finds them once that ends. */
+  | 'I_KB_PROCESSING'
   /** Documents a get lists without a hash: it had no budget left to download them. */
   | 'I_KB_DOCS_UNHASHED'
   /** Documents source leaves alone: connector-synced, too large, or not a plain file name. */

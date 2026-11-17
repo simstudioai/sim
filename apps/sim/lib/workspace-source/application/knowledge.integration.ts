@@ -17,6 +17,7 @@ import {
   knowledgeConnector,
   member,
   organization,
+  outboxEvent,
   permissionGroup,
   permissionGroupWorkspace,
   user,
@@ -34,14 +35,50 @@ import {
 } from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
 const embedding = vi.hoisted(() => ({ failure: null as Error | null }))
+/**
+ * The indexer stand-in at `processDocumentsWithQueue`, where every upload path's dispatch picks
+ * its backend: it records each document handed to it and, unless `hold` is set (as a queued
+ * Trigger.dev run would), marks it indexed, so a get after an apply reads settled documents.
+ */
+const indexer = vi.hoisted(() => ({
+  hold: false,
+  dispatched: [] as Array<{ documentId: string; lane: string }>,
+}))
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/knowledge/documents/service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/knowledge/documents/service')>()
+  const { db: database } = await import('@sim/db')
+  const { document: documentTable } = await import('@sim/db/schema')
+  const { inArray: within } = await import('drizzle-orm')
+  return {
+    ...actual,
+    processDocumentsWithQueue: async (
+      documents: Array<{ documentId: string }>,
+      _knowledgeBaseId: string,
+      _options: unknown,
+      _requestId: string,
+      _billing: unknown,
+      lane: string
+    ) => {
+      const ids = documents.map((doc) => doc.documentId)
+      indexer.dispatched.push(...ids.map((documentId) => ({ documentId, lane })))
+      if (!indexer.hold) {
+        await database
+          .update(documentTable)
+          .set({ processingStatus: 'completed' })
+          .where(within(documentTable.id, ids))
+      }
+      return { requested: ids.length, accepted: ids.length, failed: 0, failedDocumentIds: [] }
+    },
+  }
+})
 vi.mock('@/lib/knowledge/embeddings', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/knowledge/embeddings')>()
   return {
@@ -65,6 +102,7 @@ import {
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
+import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-events'
 import type {
   ApplyWorkspaceSourceInput,
   ApplyWorkspaceSourceResult,
@@ -183,6 +221,22 @@ async function docs(knowledgeBaseId: string) {
   return rows.sort((a, b) => compareStrings(a.filename, b.filename))
 }
 
+/** Processing events for `documentIds` still waiting in the outbox for a drain. */
+async function undrainedProcessing(documentIds: readonly string[]) {
+  const documentId = sql<string>`${outboxEvent.payload}->>'documentId'`
+  const pending = await db
+    .select({ documentId })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT),
+        eq(outboxEvent.status, 'pending'),
+        inArray(documentId, [...documentIds])
+      )
+    )
+  return pending.map((row) => row.documentId)
+}
+
 /** `dir` with one file's text edited. */
 function editText(dir: Directory, path: string, from: string, to: string): Directory {
   return { ...dir, files: { ...dir.files, [path]: dir.files[path].replace(from, to) } }
@@ -289,6 +343,7 @@ afterAll(async () => {
 describe('knowledge bases as workspace source', () => {
   check('creates a knowledge base with its documents, which index in the background', async () => {
     const workspaceId = await newWorkspace()
+    indexer.hold = true
 
     const dryRun = await apply(workspaceId, POLICIES, { dryRun: true, carry: 'none' })
 
@@ -310,11 +365,49 @@ describe('knowledge bases as workspace source', () => {
       ['refunds.md', 'pending'],
       ['shipping.txt', 'pending'],
     ])
+    // Handed to the dispatcher before the apply returned, as an upload's completion hands its
+    // document, not left in the outbox for a drain this server may never run.
+    const ids = storedDocs.map((doc) => doc.id)
+    expect(
+      indexer.dispatched
+        .filter((call) => ids.includes(call.documentId))
+        .sort((a, b) => compareStrings(a.documentId, b.documentId))
+    ).toEqual(ids.sort(compareStrings).map((documentId) => ({ documentId, lane: 'interactive' })))
+    expect(await undrainedProcessing(ids)).toEqual([])
+    const indexing = result.diagnostics.find((finding) => finding.code === 'I_KB_PROCESSING')
+    expect(indexing?.message).toContain('2 document(s) of "Policies" are still being indexed')
+    expect(codes((await get(workspaceId)).diagnostics, 'info')).toEqual(['I_KB_PROCESSING'])
+    indexer.hold = false
     const entry = result.base.resources['knowledge-base:policies']
     expect(entry?.id).toBe(stored.id)
     expect(Object.keys(entry?.blobs ?? {}).sort()).toEqual(['refunds.md', 'shipping.txt'])
     expect(Object.keys(result.files)).toEqual(['knowledge/policies/knowledge.ts'])
   })
+
+  check(
+    'a get names the documents whose indexing failed, without making the base stale',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      expect(codes(read.diagnostics, 'info')).toEqual([])
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const refunds = (await docs(stored.id)).find((doc) => doc.filename === 'refunds.md')
+      if (!refunds) throw new Error('refunds.md was not stored')
+      await db
+        .update(document)
+        .set({ processingStatus: 'failed', processingError: 'parse failed' })
+        .where(eq(document.id, refunds.id))
+
+      const reread = await get(workspaceId)
+
+      const failed = reread.diagnostics.filter((finding) => finding.code === 'W_KB_DOC_FAILED')
+      expect(failed.map((finding) => finding.message)).toEqual([
+        '1 document(s) of "Policies" failed to index and are not searchable: refunds.md.',
+      ])
+      expect(reread.base).toEqual(read.base)
+      const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
+      expect(unchanged.applied).toEqual([])
+    }
+  )
 
   check('a get reproduces the apply, and re-applying it changes nothing', async () => {
     const workspaceId = await newWorkspace()

@@ -3314,6 +3314,8 @@ export async function createSingleDocument(
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
+      /** The id the processing outbox event takes, for a caller that relays it after commit. */
+      eventId?: string
     }
   }
 ): Promise<{
@@ -3518,18 +3520,22 @@ export async function createSingleDocument(
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
     if (options?.processing) {
-      await enqueueKnowledgeDocumentProcessing(tx, {
-        knowledgeBaseId,
-        documentId,
-        processingOptions: options.processing.processingOptions,
-        billingAttribution: options.processing.billingAttribution,
-        /**
-         * Every caller of this function is a person adding a document — an
-         * upload session, a workspace-file attach, a direct create. Connector
-         * ingestion builds its documents through the sync engine instead.
-         */
-        processingLane: 'interactive',
-      })
+      await enqueueKnowledgeDocumentProcessing(
+        tx,
+        {
+          knowledgeBaseId,
+          documentId,
+          processingOptions: options.processing.processingOptions,
+          billingAttribution: options.processing.billingAttribution,
+          /**
+           * Every caller of this function is a person adding a document — an
+           * upload session, a workspace-file attach, a direct create. Connector
+           * ingestion builds its documents through the sync engine instead.
+           */
+          processingLane: 'interactive',
+        },
+        options.processing.eventId
+      )
     }
 
     return {

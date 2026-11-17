@@ -3,12 +3,14 @@
  * each file in `knowledge/<key>/docs/` is a document, synced by SHA-256. Every write goes through
  * the knowledge use cases (`createKnowledgeBase`, `updateKnowledgeBaseOperation`,
  * `deleteKnowledgeBaseOperation`, `uploadKnowledgeDocument`, `deleteKnowledgeDocument`), so their
- * authorization, billing admission, audit and indexing apply. Indexing stays asynchronous: an
- * apply returns once the documents are stored. Connector-synced documents are never read,
+ * authorization, billing admission, audit and indexing apply. An uploaded document is handed to
+ * indexing as the upload use case hands it (see `relayKnowledgeDocumentProcessing`); an apply and
+ * a get report the documents still indexing or failed. Connector-synced documents are never read,
  * printed, replaced or deleted.
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { compareStrings } from '@sim/utils/string'
 import { fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import {
   type KnowledgeBaseDecl,
@@ -378,15 +380,70 @@ function documentHref(ctx: SourceContext, knowledgeBaseId: string, documentId: s
   return `${path}?workspaceId=${encodeURIComponent(ctx.workspace.workspaceId)}`
 }
 
-/** The stored knowledge base, its base entry and reprinted declaration after a write. */
+/**
+ * What a get or apply reports about the indexing of `docs`: how many still wait for it or run it
+ * (`I_KB_PROCESSING`), and which failed (`W_KB_DOC_FAILED`). Indexing state never reaches the
+ * fingerprint, so a document finishing never makes the directory stale.
+ */
+function indexingStateFindings(
+  key: string,
+  name: string,
+  docs: readonly StoredDoc[]
+): WorkspaceSourceDiagnostic[] {
+  const indexing = docs.filter(
+    (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
+  ).length
+  const failed = docs.filter((doc) => doc.processingStatus === 'failed').map((doc) => doc.filename)
+  const findings: WorkspaceSourceDiagnostic[] = []
+  if (indexing > 0) {
+    findings.push(
+      kindFinding(
+        KIND,
+        key,
+        'I_KB_PROCESSING',
+        `${indexing} document(s) of "${name}" are still being indexed; search finds them once indexing completes.`,
+        { hint: 'Run `sim workspaces source get` later to see their state.' }
+      )
+    )
+  }
+  if (failed.length > 0) {
+    findings.push(
+      kindFinding(
+        KIND,
+        key,
+        'W_KB_DOC_FAILED',
+        `${failed.length} document(s) of "${name}" failed to index and are not searchable: ${failed.sort(compareStrings).join(', ')}.`,
+        { hint: 'Retry them from the knowledge base, or change the file and apply again.' }
+      )
+    )
+  }
+  return findings
+}
+
+/**
+ * The stored knowledge base, its base entry and reprinted declaration after a write, with the
+ * indexing state of the documents it uploaded (`uploaded` holds their ids).
+ */
 async function written(
   ctx: SourceContext,
   key: string,
   id: string,
-  hashes: ReadonlyMap<string, string>
+  hashes: ReadonlyMap<string, string>,
+  uploaded: ReadonlySet<string>
 ): Promise<AppliedResource> {
-  const view = knowledgeView(await reload(ctx, id), await loadDocs(ctx, id), hashes)
-  return { id, base: view.base, text: knowledgeCodec.print(key, view.decl).text }
+  const [state, docs] = await Promise.all([reload(ctx, id), loadDocs(ctx, id)])
+  const view = knowledgeView(state, docs, hashes)
+  const diagnostics = indexingStateFindings(
+    key,
+    state.knowledgeBase.name,
+    docs.filter((doc) => uploaded.has(doc.id))
+  )
+  return {
+    id,
+    base: view.base,
+    text: knowledgeCodec.print(key, view.decl).text,
+    ...(diagnostics.length > 0 ? { diagnostics } : {}),
+  }
 }
 
 export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeState, KnowledgePlan> =
@@ -538,7 +595,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           },
         })
         const uploaded = await uploadDocs(ctx, knowledgeBase.id, carried)
-        return written(ctx, change.key, knowledgeBase.id, uploaded)
+        return written(ctx, change.key, knowledgeBase.id, uploaded, new Set(uploaded.keys()))
       }
       const knowledgeBaseId = change.storedId
       if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
@@ -555,7 +612,13 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       if (ctx.blobs?.complete !== false) {
         for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
       }
-      return written(ctx, change.key, knowledgeBaseId, new Map([...plan.hashes, ...uploaded]))
+      return written(
+        ctx,
+        change.key,
+        knowledgeBaseId,
+        new Map([...plan.hashes, ...uploaded]),
+        new Set(uploaded.keys())
+      )
     },
 
     async read(stored, ctx) {
@@ -566,7 +629,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const view = knowledgeView(stored.state, docs, hashes)
       const printed = knowledgeCodec.print(stored.key, view.decl)
       const left = unmanaged + byName.size - hashes.size - unhashed.length
-      const diagnostics: WorkspaceSourceDiagnostic[] = []
+      const diagnostics = indexingStateFindings(stored.key, stored.name, [...byName.values()])
       if (unhashed.length > 0) {
         diagnostics.push(
           kindFinding(

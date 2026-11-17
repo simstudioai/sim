@@ -3,6 +3,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   type BillingAttributionSnapshot,
@@ -40,6 +41,7 @@ import {
   MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
 } from '@/lib/knowledge/constants'
 import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
+import { relayKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -479,6 +481,7 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       fileSize: input.file.fileSize,
       mimeType: input.file.mimeType,
     }
+    const processingEventId = input.startProcessing !== false ? generateId() : undefined
     const document = await createSingleDocument(
       documentInput,
       registrationContext.knowledgeBaseId,
@@ -488,16 +491,19 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       undefined,
       {
         expectedWorkspaceId: registrationContext.workspaceId,
-        ...(input.startProcessing !== false
+        ...(processingEventId
           ? {
               processing: {
                 processingOptions: input.processingOptions ?? {},
                 billingAttribution,
+                eventId: processingEventId,
               },
             }
           : {}),
       }
     )
+    // Dispatched now, as an upload session's completion dispatches, not when the outbox drains.
+    if (processingEventId) await relayKnowledgeDocumentProcessing(processingEventId)
     return { document, created: true as const }
   },
   projectAudit: ({ input, context, result }) => ({

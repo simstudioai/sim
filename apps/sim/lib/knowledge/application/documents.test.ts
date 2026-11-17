@@ -371,6 +371,7 @@ describe('knowledge document application use cases', () => {
             actorUserId: 'billing-owner-1',
             workspaceId: 'workspace-1',
           },
+          eventId: expect.any(String),
         },
       }
     )
