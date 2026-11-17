@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { ExpandedBlockCatalog } from '@sim/workflow-code'
 import {
@@ -8,6 +9,8 @@ import {
   type SdkTypeFile,
   SOURCE_COMPILER_OPTIONS,
 } from '../src/codegen'
+import { CORE_DTS } from '../src/codegen/core-text.generated'
+import { WORKSPACE_SDK_DTS } from '../src/codegen/workspace-text.generated'
 import { FIXTURE_WORKSPACE } from './fixtures/workspace'
 
 const testRoot = import.meta.dirname
@@ -71,5 +74,52 @@ export function typecheck(tsconfig: string): string {
   } catch (error) {
     const failure = error as { stdout?: string; stderr?: string }
     return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
+  }
+}
+
+/**
+ * Lays out a source directory as the CLI writes it (`.sim/sdk/core.d.ts` and the workspace SDK
+ * under `.sim/sdk/workspace/`), adds `files` (directory-relative path → text), and type-checks
+ * the `include` globs beside the SDK. Returns the compiler's diagnostics, `''` when clean.
+ */
+export function typecheckSdkDirectory(
+  files: Readonly<Record<string, string>>,
+  include: readonly string[]
+): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'sim-sdk-directory-'))
+  try {
+    const write = (file: string, text: string) => {
+      mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
+      writeFileSync(path.join(dir, file), text)
+    }
+    write('.sim/sdk/core.d.ts', CORE_DTS)
+    for (const [name, text] of Object.entries(WORKSPACE_SDK_DTS)) {
+      write(`.sim/sdk/workspace/${name}`, text)
+    }
+    for (const [file, text] of Object.entries(files)) write(file, text)
+    write(
+      'tsconfig.json',
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          lib: ['ES2022'],
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          moduleDetection: 'force',
+          types: [],
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          paths: {
+            '@sim/workflow-sdk': ['./.sim/sdk/core.d.ts'],
+            '@sim/workflow-sdk/workspace': ['./.sim/sdk/workspace/index.d.ts'],
+          },
+        },
+        include: [...include, '.sim/sdk/**/*.d.ts'],
+      })
+    )
+    return typecheck(path.join(dir, 'tsconfig.json'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 }

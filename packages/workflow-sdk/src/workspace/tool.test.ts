@@ -1,49 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { typecheck } from '../../test/typecheck-project'
-import { CORE_DTS } from '../codegen/core-text.generated'
-import { WORKSPACE_SDK_DTS } from '../codegen/workspace-text.generated'
+import { typecheckSdkDirectory } from '../../test/typecheck-project'
 
 /** Type-checks `tools/lookup.ts` against the workspace SDK as the CLI writes it. */
 function typecheckTool(declaration: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'sim-tool-types-'))
-  try {
-    const write = (file: string, text: string) => {
-      mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
-      writeFileSync(path.join(dir, file), text)
-    }
-    write('.sim/sdk/core.d.ts', CORE_DTS)
-    for (const [name, text] of Object.entries(WORKSPACE_SDK_DTS)) {
-      write(`.sim/sdk/workspace/${name}`, text)
-    }
-    write('tools/lookup.ts', declaration)
-    write(
-      'tsconfig.json',
-      JSON.stringify({
-        compilerOptions: {
-          target: 'ES2022',
-          lib: ['ES2022'],
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          moduleDetection: 'force',
-          types: [],
-          strict: true,
-          noEmit: true,
-          skipLibCheck: false,
-          paths: {
-            '@sim/workflow-sdk': ['./.sim/sdk/core.d.ts'],
-            '@sim/workflow-sdk/workspace': ['./.sim/sdk/workspace/index.d.ts'],
-          },
-        },
-        include: ['tools/*.ts', '.sim/sdk/**/*.d.ts'],
-      })
-    )
-    return typecheck(path.join(dir, 'tsconfig.json'))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  return typecheckSdkDirectory({ 'tools/lookup.ts': declaration }, ['tools/*.ts'])
 }
 
 const TOOL = `// @sim-sdk 1
