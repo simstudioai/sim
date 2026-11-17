@@ -173,13 +173,19 @@ async function planTable(
           )
         )
       }
-      if (changes.dropped > 0 && !ctx.allowDelete) {
+      if ((changes.dropped > 0 || changes.lostCells > 0) && !ctx.allowDelete) {
+        const losses = [
+          ...(changes.dropped > 0 ? [`drops ${changes.dropped} column(s)`] : []),
+          ...(changes.lostCells > 0 && changes.removedOptions > 0
+            ? [`removes ${changes.removedOptions} select option(s)`]
+            : []),
+        ]
         change.diagnostics.push(
           finding(
             key,
             'E_APPLY_DELETE_NOT_ALLOWED',
-            `This drops ${changes.dropped} column(s) of "${state.table.name}", losing ${changes.lostCells} cell(s).`,
-            'Pass --allow-delete to drop them, or keep the columns declared.'
+            `This ${losses.join(' and ')} of "${state.table.name}", losing ${changes.lostCells} cell(s).`,
+            'Pass --allow-delete to apply it, or keep the columns and options declared.'
           )
         )
       }
@@ -192,7 +198,11 @@ async function planTable(
           ? {
               destructive: {
                 what: 'cells',
-                counts: { columns: changes.dropped, cells: changes.lostCells },
+                counts: {
+                  columns: changes.dropped,
+                  ...(changes.removedOptions > 0 ? { options: changes.removedOptions } : {}),
+                  cells: changes.lostCells,
+                },
               },
             }
           : {}),

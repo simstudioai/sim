@@ -206,6 +206,31 @@ async function tableSnapshot(workspaceId: string) {
   }))
 }
 
+/** Inserts one row into the workspace's stored table, by column name. */
+async function insertRow(workspaceId: string, cells: Record<string, unknown>) {
+  const table = await storedTable(workspaceId)
+  const data = Object.fromEntries(
+    Object.entries(cells).map(([name, value]) => [
+      table.schema.columns.find((column) => column.name === name)?.id ?? name,
+      value,
+    ])
+  )
+  await db.insert(userTableRows).values({
+    id: generateId(),
+    tableId: table.id,
+    workspaceId,
+    data,
+    position: 0,
+  })
+}
+
+/** The id of a select option of the workspace's stored table. */
+async function optionId(workspaceId: string, columnName: string, optionName: string) {
+  const table = await storedTable(workspaceId)
+  const column = table.schema.columns.find((candidate) => candidate.name === columnName)
+  return column?.options?.find((option) => option.name === optionName)?.id ?? ''
+}
+
 async function setUp(workspaceId: string) {
   const created = await apply(workspaceId, STARTER)
   expect(created.failed).toBeUndefined()
@@ -527,4 +552,35 @@ describe('workspace source apply', () => {
     expect(codes(refused.diagnostics)).toEqual(['E_PLAN_REF_DELETED'])
     expect(await tables(workspaceId)).toHaveLength(1)
   })
+
+  check(
+    'refuses removing a select option its cells use without --allow-delete, and counts them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const won = await optionId(workspaceId, 'status', 'won')
+      await insertRow(workspaceId, { email: 'a@b.c', status: won })
+      const files = {
+        ...read.files,
+        'tables/leads.ts': read.files['tables/leads.ts'].replace("'won'", "'closed'"),
+      }
+      const before = await tableSnapshot(workspaceId)
+
+      const dryRun = await apply(workspaceId, files, { base: read.base, dryRun: true })
+      expect(dryRun.plan.find((change) => change.key === 'leads')?.destructive).toEqual({
+        what: 'cells',
+        counts: { columns: 0, options: 1, cells: 1 },
+      })
+      const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+      expect(refused.diagnostics[0].message).toContain('removes 1 select option(s)')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+
+      const applied = await apply(workspaceId, files, { base: read.base, allowDelete: true })
+
+      expect(applied.failed).toBeUndefined()
+      expect(await optionId(workspaceId, 'status', 'closed')).not.toBe('')
+    }
+  )
 })

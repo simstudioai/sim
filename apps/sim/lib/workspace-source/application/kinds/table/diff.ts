@@ -50,6 +50,8 @@ export interface TableChanges {
   /** Cells a drop or a removed option loses. */
   lostCells: number
   dropped: number
+  /** Select options removed (or renamed, which removes the old name) from stored columns. */
+  removedOptions: number
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
@@ -134,6 +136,7 @@ export async function diffTable(
     fields: [],
     lostCells: 0,
     dropped: 0,
+    removedOptions: 0,
     diagnostics,
   }
   if (decl.name !== table.name) {
@@ -235,7 +238,9 @@ export async function diffTable(
         const options = normalizeSelectOptionsInput(names, existing) ?? []
         updates.options = options
         fields.push('options')
-        if (current.type === 'select' && existing.some((option) => !names.includes(option.name))) {
+        const removed = existing.filter((option) => !names.includes(option.name)).length
+        if (current.type === 'select' && removed > 0) {
+          changes.removedOptions += removed
           const lost = await countCellsLosingTheirOptions(
             db,
             table.id,
