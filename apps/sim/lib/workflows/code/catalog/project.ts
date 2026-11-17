@@ -15,6 +15,7 @@ import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
+import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
@@ -264,14 +265,25 @@ function projectOptions(subBlock: SubBlockConfig): CatalogSubBlock['options'] {
 
 /**
  * A `value()` thunk is a constant when it reads no param and returns the same value twice (some
- * thunks mint ids, which must never be frozen into the catalog); anything else is `computed`.
+ * thunks mint ids, which must never be frozen into the catalog), unless it is a viewer default,
+ * which would freeze the server's environment into the catalog and its hash; anything else is
+ * `computed`.
  * A computed thunk that reads params still has one creation value: canvas creation calls it with
  * no values (`createBlockFromParams`), so that result is kept as `initial` when it is JSON and
  * the same twice.
  */
+/**
+ * Defaults that resolve in the viewer's browser (the schedule timezone is the person's own), so
+ * the value the server would see is its host's, not one every caller shares.
+ */
+const VIEWER_DEFAULTS: ReadonlySet<NonNullable<SubBlockConfig['value']>> = new Set([
+  getBrowserTimezone,
+])
+
 function projectValueDefault(
   thunk: NonNullable<SubBlockConfig['value']>
 ): CatalogSubBlock['valueDefault'] {
+  if (VIEWER_DEFAULTS.has(thunk)) return { computed: true }
   const first = probeThunk(thunk)
   if (!first.ok) return { computed: true }
   if (first.reads.size > 0) {

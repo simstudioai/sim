@@ -66,6 +66,13 @@ describe('canonicalize and codegen over the real block catalog', () => {
     ).toEqual(JSON.parse(text))
   })
 
+  it("never freezes the host's timezone into the catalog as the schedule default", () => {
+    const timezone = catalogBlock(catalog, 'schedule')?.subBlocks.find(
+      (sub) => sub.id === 'timezone'
+    )
+    expect(timezone?.valueDefault).toEqual({ computed: true })
+  })
+
   it('canonicalizes every case of the registry corpus without throwing', () => {
     const failures: string[] = []
     const corpus = generateRegistryCorpus()

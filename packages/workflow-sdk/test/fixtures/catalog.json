@@ -16332,7 +16332,7 @@
           },
           "required": false,
           "valueDefault": {
-            "constant": "America/Los_Angeles"
+            "computed": true
           },
           "options": [
             {
