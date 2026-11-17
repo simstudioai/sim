@@ -7,7 +7,12 @@ import {
   parseWorkspaceBase,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { isBlobPath, WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
+import {
+  isBlobPath,
+  KIND_BY_DIR,
+  WORKSPACE_BASE_FILE,
+  WORKSPACE_SKIPPED_FILE,
+} from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
@@ -54,11 +59,6 @@ Exit codes: 0 written; 1 the command failed, the directory holds edits no apply 
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds.`
 
-/** The kind each folder holds: `--only` takes the folder a user sees as well as the kind id. */
-const KIND_BY_FOLDER = new Map<string, WorkspaceKind>(
-  APPLY_ORDER.map((kind) => [KIND_DIRS[kind], kind])
-)
-
 /** `--only`'s help: every kind by its folder. */
 export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind) => KIND_DIRS[kind]).join(', ')}`
 
@@ -66,11 +66,12 @@ export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind
 export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
   if (value === undefined) return undefined
   const names = value.split(',').map((name) => name.trim())
-  const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_FOLDER.get(name)))
+  /** `--only` takes the folder a user sees as well as the kind id. */
+  const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
   const unknown = names.filter((_, index) => kinds[index] === undefined)
   if (unknown.length > 0) {
     throw new SimApiError(
-      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_FOLDER.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
+      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_DIR.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
       0
     )
   }
@@ -84,13 +85,8 @@ export function parseKinds(value: string | undefined): WorkspaceKind[] | undefin
  */
 async function mergedBase(dir: string, source: WorkspaceSource): Promise<WorkspaceSource['base']> {
   const text = await readSourceText(dir, WORKSPACE_BASE_FILE)
-  let existing: unknown
-  try {
-    existing = text === null ? null : JSON.parse(text)
-  } catch {
-    return source.base
-  }
-  const current = parseWorkspaceBase(existing)
+  if (text === null) return source.base
+  const current = parseWorkspaceBase(text)
   if (!current.base || current.base.workspaceId !== source.workspaceId) return source.base
   const read = new Set<string>(source.kinds)
   const kept = Object.entries(current.base.resources).filter(

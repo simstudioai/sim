@@ -3,7 +3,7 @@
  * value it is about (or the nearest enclosing value the reader kept a span for).
  */
 import { isRecordLike } from '@sim/utils/object'
-import type { Json, SourceSpan } from '@sim/workflow-code'
+import { type Json, pointerSegment, type SourceSpan } from '@sim/workflow-code'
 import {
   diagnostic,
   findingLimitReached,
@@ -12,7 +12,6 @@ import {
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
 } from '../diagnostics'
-import { pointerSegment } from '../pointer'
 
 /** Reports one finding at the value under a JSON Pointer. */
 export type FieldReport = (

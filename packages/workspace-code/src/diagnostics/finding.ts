@@ -1,5 +1,5 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { codeFrame, type DiagnosticFields, type SourceSpan, splitLines } from '@sim/workflow-code'
+import { codeFrame, type DiagnosticFields, LineIndex, type SourceSpan } from '@sim/workflow-code'
 import {
   type DiagnosticSeverity,
   type SeverityOfCode,
@@ -71,29 +71,11 @@ interface SourceLocator {
  * is a binary search: a reader that spans every value of a large file stays linear.
  */
 export function sourceLocator(file: string, text: string): SourceLocator {
-  const lines = splitLines(text)
-  const starts: number[] = []
-  let offset = 0
-  for (const line of lines) {
-    starts.push(offset)
-    offset += line.length
-    offset += text.charCodeAt(offset) === 13 && text.charCodeAt(offset + 1) === 10 ? 2 : 1
-  }
-  const position = (at: number) => {
-    const clamped = Math.max(0, Math.min(at, text.length))
-    let low = 0
-    let high = starts.length - 1
-    while (low < high) {
-      const middle = (low + high + 1) >> 1
-      if (starts[middle] <= clamped) low = middle
-      else high = middle - 1
-    }
-    return { line: low + 1, column: clamped - starts[low] + 1 }
-  }
+  const index = new LineIndex(text)
   return {
     span(start, end) {
-      const from = position(start)
-      const to = position(end)
+      const from = index.position(start)
+      const to = index.position(end)
       return {
         file,
         line: from.line,
@@ -104,7 +86,7 @@ export function sourceLocator(file: string, text: string): SourceLocator {
         end,
       }
     },
-    located: (span) => ({ span, frame: codeFrame(lines, span) }),
+    located: (span) => ({ span, frame: codeFrame(index.lines, span) }),
   }
 }
 

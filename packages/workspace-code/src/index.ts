@@ -2,6 +2,7 @@ export {
   type BaseColumn,
   type BaseResource,
   emptyBase,
+  parseResourceAddress,
   parseWorkspaceBase,
   type ResourceFingerprint,
   resourceAddress,

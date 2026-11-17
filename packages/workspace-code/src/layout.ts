@@ -27,7 +27,8 @@ export function isResourceKey(value: string): boolean {
   return RESOURCE_KEY_PATTERN.test(value)
 }
 
-const KIND_BY_DIR = new Map<string, WorkspaceKind>(
+/** The kind each top-level folder holds. */
+export const KIND_BY_DIR: ReadonlyMap<string, WorkspaceKind> = new Map<string, WorkspaceKind>(
   Object.entries(KIND_DIRS).map(([kind, dir]) => [dir, kind as WorkspaceKind])
 )
 

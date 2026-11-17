@@ -17,11 +17,13 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, Node, ObjectExpression } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { containsNulCharacter, toWellFormed } from '@sim/utils/string'
 import {
   babelErrorShape,
   babelMessage,
   bracketDepthOverflow,
   type Json,
+  pointerSegment,
   type SourceSpan,
   sdkHeader,
 } from '@sim/workflow-code'
@@ -34,7 +36,6 @@ import {
   type WorkspaceDiagnostic,
 } from '../diagnostics'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
-import { pointerSegment } from '../pointer'
 
 /** The module every declaration imports from. */
 export const WORKSPACE_SDK_MODULE = '@sim/workflow-sdk/workspace'
@@ -79,16 +80,8 @@ export function isDeclarationCall(value: unknown): value is DeclarationCall {
 
 /** A string a stored value cannot hold: NUL, or an unpaired UTF-16 surrogate. */
 export function unstorableCharacter(text: string): string | null {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i)
-    if (code === 0) return 'a NUL character'
-    if (code >= 0xd800 && code <= 0xdbff) {
-      const next = text.charCodeAt(i + 1)
-      if (next >= 0xdc00 && next <= 0xdfff) i++
-      else return 'an unpaired surrogate'
-    } else if (code >= 0xdc00 && code <= 0xdfff) return 'an unpaired surrogate'
-  }
-  return null
+  if (containsNulCharacter(text)) return 'a NUL character'
+  return toWellFormed(text) === text ? null : 'an unpaired surrogate'
 }
 
 /** The dotted name of a call's callee (`column.string`, `codeFile`), or `null` otherwise. */

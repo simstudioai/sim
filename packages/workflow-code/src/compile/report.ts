@@ -13,7 +13,7 @@ import type { BlockKey, SubBlockId } from '../model'
 const LINE_BREAKS = new RegExp(LINE_BREAK.source, 'g')
 
 /** Line start offsets of one file, for offset → line/column. */
-class LineIndex {
+export class LineIndex {
   private readonly starts: number[] = [0]
   private split: string[] | null = null
 

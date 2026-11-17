@@ -373,6 +373,8 @@ export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): 
 /** Reads and prints `knowledge/<key>/`. */
 export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
   group: groupKnowledge,
+  baseBlobName: (key, path) => path.slice(knowledgeDocPath(key, '').length),
+  baseBlobPath: knowledgeDocPath,
   parse: parseKnowledgeBase,
   print(key, decl) {
     const value: Record<string, Json> = { name: decl.name }

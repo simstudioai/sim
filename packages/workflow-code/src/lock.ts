@@ -122,7 +122,7 @@ const ITEM_FIELDS = ['name', 'id']
 
 type JsonObject = Record<string, unknown>
 
-function isNonEmptyString(value: unknown): value is string {
+export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
@@ -187,9 +187,14 @@ export function isJson(value: unknown): value is Json {
   return isRecordLike(value) && Object.values(value).every(isJson)
 }
 
+/** One JSON Pointer segment, escaped as RFC 6901 says: `~` → `~0`, `/` → `~1`. */
+export function pointerSegment(segment: string | number): string {
+  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1')
+}
+
 /** RFC 6901: `~` → `~0`, `/` → `~1`. */
 export function pointer(segments: readonly string[]): string {
-  return segments.map((s) => `/${s.replace(/~/g, '~0').replace(/\//g, '~1')}`).join('')
+  return segments.map((segment) => `/${pointerSegment(segment)}`).join('')
 }
 
 function isSafeRelativePath(path: string): boolean {

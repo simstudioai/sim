@@ -9,9 +9,11 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
+import { groupByFile, groupByFolder } from '@sim/workspace-code/kinds/group'
 import {
   isBlobPath,
   isWorkspaceSourcePath,
+  kindOfPath,
   WORKFLOW_BASE_FILE,
   WORKSPACE_BASE_FILE,
 } from '@sim/workspace-code/layout'
@@ -138,17 +140,19 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
  * `skills/<key>.md` and `tools/<key>.ts`. `workspace.d.ts` types them beside the stored resources.
  */
 export function localDeclarations(paths: readonly string[]): LocalDeclarations {
-  const keys = (dir: string, suffix: string) =>
-    paths.flatMap((path) => {
-      if (!path.startsWith(`${dir}/`) || !path.endsWith(suffix)) return []
-      const key = path.slice(dir.length + 1, -suffix.length)
-      return key.length > 0 && !key.includes('/') ? [key] : []
-    })
+  const under = (dir: string, suffix = '') =>
+    paths.filter((path) => path.startsWith(`${dir}/`) && path.endsWith(suffix))
+  const byFile = (dir: string, extension: string) => [
+    ...groupByFile(dir, extension, under(dir)).groups.keys(),
+  ]
+  const knowledgeDir = KIND_DIRS['knowledge-base']
   return {
-    tableDeclarations: keys(KIND_DIRS.table, '.ts'),
-    knowledgeBases: keys(KIND_DIRS['knowledge-base'], '/knowledge.ts'),
-    skills: keys(KIND_DIRS.skill, '.md'),
-    customTools: keys(KIND_DIRS['custom-tool'], '.ts'),
+    tableDeclarations: byFile(KIND_DIRS.table, '.ts'),
+    knowledgeBases: [
+      ...groupByFolder(knowledgeDir, under(knowledgeDir, '/knowledge.ts')).groups.keys(),
+    ],
+    skills: byFile(KIND_DIRS.skill, '.md'),
+    customTools: byFile(KIND_DIRS['custom-tool'], '.ts'),
   }
 }
 
@@ -215,11 +219,6 @@ export interface WorkspaceSubmission {
   ignored: string[]
 }
 
-function workflowFolderOf(path: string): string | null {
-  const [dirName, key] = path.split('/')
-  return dirName === KIND_DIRS.workflow && key ? `${dirName}/${key}` : null
-}
-
 /**
  * Reads the directory for an apply. A workflow folder whose every file is as the CLI last wrote it
  * is sent with only its `.sim/base.json`: the server treats it as unchanged, so an apply sends
@@ -244,8 +243,9 @@ export async function readWorkspaceDir(
   const written = await readWrittenDigests(dir)
   const folders = new Map<string, string[]>()
   for (const path of Object.keys(files)) {
-    const folder = workflowFolderOf(path)
-    if (folder) folders.set(folder, [...(folders.get(folder) ?? []), path])
+    if (kindOfPath(path) !== 'workflow') continue
+    const folder = path.split('/', 2).join('/')
+    folders.set(folder, [...(folders.get(folder) ?? []), path])
   }
   for (const [folder, folderPaths] of folders) {
     const recorded = Object.keys(written).filter((path) => path.startsWith(`${folder}/`))

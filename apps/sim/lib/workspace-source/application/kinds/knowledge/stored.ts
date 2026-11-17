@@ -228,13 +228,13 @@ export function knowledgeView(
   )
   const printed: Array<[string, KnowledgeDocDecl]> = []
   const fingerprinted: Array<[string, KnowledgeDocDecl]> = []
-  const blobs: Array<[string, { id: string; rev: number; sha256: string }]> = []
+  const blobs: Array<[string, { id: string; rev: string; sha256: string }]> = []
   for (const doc of managed) {
     const sha256 = hashes.get(doc.id)
     fingerprinted.push([doc.filename, { sha256: sha256 ?? `doc:${doc.id}`, size: doc.fileSize }])
     if (sha256 === undefined) continue
     printed.push([doc.filename, { sha256, size: doc.fileSize }])
-    blobs.push([doc.filename, { id: doc.id, rev: docRevision(doc), sha256 }])
+    blobs.push([doc.filename, { id: doc.id, rev: String(docRevision(doc)), sha256 }])
   }
   const settings = storedSettings(state)
   const fingerprint = fingerprintOf(
@@ -332,8 +332,7 @@ export function baseHashes(
   for (const doc of docs) {
     if (!Object.hasOwn(base.blobs, doc.filename)) continue
     const entry = base.blobs[doc.filename]
-    /** A get's client records a revision it was listed as a string. */
-    if (entry.id === doc.id && String(entry.rev) === String(docRevision(doc))) {
+    if (entry.id === doc.id && entry.rev === String(docRevision(doc))) {
       hashes.set(doc.id, entry.sha256)
     }
   }

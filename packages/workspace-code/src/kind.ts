@@ -87,4 +87,10 @@ export interface KindCodec<D> {
   canonical(decl: D): Json
   /** Keys this declaration references in other kinds (workflows → tables, …). */
   refs?(decl: D): Array<{ kind: WorkspaceKind; key: string }>
+  /**
+   * The name a resource's base entry records one of its blobs under, and back; a kind without
+   * these records each blob under its workspace path.
+   */
+  baseBlobName?(key: string, path: string): string
+  baseBlobPath?(key: string, name: string): string
 }

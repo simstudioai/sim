@@ -14,7 +14,7 @@ import type { ApplyWorkspaceSourceBody, ApplyWorkspaceSourceResponse } from '../
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import { confirm, printDiagnostics, printRefusal, requireConsent } from './workflow-source-apply'
+import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './workflow-source-apply'
 import {
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
@@ -229,11 +229,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
           `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
         )
       }
+      /** Findings already shown: a later round repeats what the preview and earlier rounds said. */
+      const printed = new Set<string>()
       let preview: ApplyData | null = null
       if (options.dryRun || !options.yes || submission.blobs.length > 0) {
         preview = await send(submission, true)
         printPlan(preview.plan)
-        printDiagnostics(preview.diagnostics)
+        printNewDiagnostics(preview.diagnostics, printed)
         const refused = preview.diagnostics.some((finding) => finding.severity === 'error')
         if (refused) setSoftExitCode(refusedExitCode(preview.diagnostics))
         if (options.dryRun || refused) {
@@ -260,7 +262,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       let wanted = new Set(preview?.needBlobs ?? [])
       let data = await writeRound(wanted)
       for (;;) {
-        printDiagnostics(data.diagnostics)
+        printNewDiagnostics(data.diagnostics, printed)
         await saveApplied(options.dir, data, submission)
         if (data.failed || data.remainingBlobs.length === 0) break
         const next = new Set(data.remainingBlobs)

@@ -37,6 +37,7 @@ export {
   sdkHeader,
   sourceDepthOverflow,
 } from './compile/parse'
+export { LineIndex } from './compile/report'
 export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
 export {
   codeFrame,
@@ -56,10 +57,12 @@ export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
   isJson,
+  isNonEmptyString,
   jsonInput,
   type LockExtensionKey,
   type LockIdentity,
   parseWorkflowLock,
+  pointerSegment,
   readExtensions,
   readIdent,
   type SourceBase,

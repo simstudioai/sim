@@ -161,15 +161,25 @@ function findingKey(diagnostic: Diagnostic): string {
  * write it confirmed prints only what the preview did not.
  */
 function printFindings(data: SourceApplyData, printed: Set<string>): void {
-  const fresh = (key: string) => {
-    if (printed.has(key)) return false
-    printed.add(key)
-    return true
-  }
-  printDiagnostics(data.diagnostics.filter((diagnostic) => fresh(findingKey(diagnostic))))
+  printNewDiagnostics(data.diagnostics, printed)
   for (const note of data.notes) {
-    if (fresh(`note:${note}`)) printError(`note: ${note}`)
+    if (fresh(printed, `note:${note}`)) printError(`note: ${note}`)
   }
+}
+
+/** Records `key` in `printed`, returning whether it was new. */
+function fresh(printed: Set<string>, key: string): boolean {
+  if (printed.has(key)) return false
+  printed.add(key)
+  return true
+}
+
+/**
+ * Prints the findings `printed` does not hold yet and records them, so a finding the preview
+ * showed is not shown again by the write that follows it.
+ */
+export function printNewDiagnostics(diagnostics: Diagnostic[], printed: Set<string>): void {
+  printDiagnostics(diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic))))
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {

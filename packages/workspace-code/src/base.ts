@@ -9,11 +9,17 @@
  * data goes under an `x-` key, which the parser tolerates and preserves.
  */
 import { isRecordLike } from '@sim/utils/object'
-import { type Json, jsonInput, type LockExtensionKey, readExtensions } from '@sim/workflow-code'
+import {
+  isNonEmptyString,
+  type Json,
+  jsonInput,
+  type LockExtensionKey,
+  pointerSegment,
+  readExtensions,
+} from '@sim/workflow-code'
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, SHA256_HEX, type WorkspaceKind } from './kind'
 import { isFileKey, isResourceKey } from './layout'
-import { pointerSegment } from './pointer'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -32,7 +38,8 @@ export type BaseColumn = {
 type BaseBlob = {
   [extension: LockExtensionKey]: Json
   id: string
-  rev: number | string
+  /** The content revision the hash was read at, as text (a revision read as a number is kept as its digits). */
+  rev: string
   sha256: string
 }
 
@@ -70,7 +77,7 @@ export function resourceAddress(kind: WorkspaceKind, key: string): ResourceAddre
 }
 
 /** The kind and key of an address, or `null` when it is not one. */
-function parseResourceAddress(address: string): { kind: WorkspaceKind; key: string } | null {
+export function parseResourceAddress(address: string): { kind: WorkspaceKind; key: string } | null {
   const colon = address.indexOf(':')
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)
@@ -81,10 +88,6 @@ function parseResourceAddress(address: string): { kind: WorkspaceKind; key: stri
 /** An empty base for `workspaceId`. */
 export function emptyBase(workspaceId: string): WorkspaceBaseV1 {
   return { version: 1, workspaceId, resources: {} }
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0
 }
 
 /**
@@ -228,7 +231,7 @@ function parseResource(
         blobs[name] = {
           ...extensionsOf(blob, BLOB_FIELDS, blobPath),
           id: blob.id,
-          rev,
+          rev: String(rev),
           sha256: blob.sha256,
         }
       }

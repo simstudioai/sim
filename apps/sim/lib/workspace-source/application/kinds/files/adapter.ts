@@ -131,15 +131,14 @@ function fileBase(key: string, id: string, rev: string, sha256: string): BaseRes
 
 /** The revision the base recorded for a file, as a string. */
 function baseRev(key: string, base?: BaseResource): string | undefined {
-  const rev = base?.blobs?.[fileBlobPath(key)]?.rev
-  return rev === undefined ? undefined : String(rev)
+  return base?.blobs?.[fileBlobPath(key)]?.rev
 }
 
 /** The hash the server holds: its own, or the base's when the revision has not moved since. */
 function serverSha(file: StoredFile, base?: BaseResource): string | null {
   if (file.state.sha256 !== null) return file.state.sha256
   const recorded = base?.blobs?.[fileBlobPath(file.key)]
-  return recorded && recorded.id === file.id && String(recorded.rev) === file.state.rev
+  return recorded && recorded.id === file.id && recorded.rev === file.state.rev
     ? recorded.sha256
     : null
 }

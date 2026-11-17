@@ -12,8 +12,9 @@ import { pipeline } from 'node:stream/promises'
 import {
   type BlobEntry,
   fingerprintOf,
-  KIND_DIRS,
   type KindCodec,
+  parseResourceAddress,
+  parseWorkspaceBase,
   resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
@@ -202,11 +203,6 @@ const BLOB_CODECS: Partial<Record<WorkspaceKind, KindCodec<unknown>>> = {
   'knowledge-base': knowledgeCodec as KindCodec<unknown>,
 }
 
-/** The name a resource's base entry records one of its blobs under (see `baseBlobPaths`). */
-function blobRecordName(kind: WorkspaceKind, key: string, path: string): string {
-  return kind === 'knowledge-base' ? path.slice(`${KIND_DIRS[kind]}/${key}/docs/`.length) : path
-}
-
 /**
  * The base a get writes once it hashed the blobs the server listed without a hash (it had no
  * budget left to): each such blob's resource records it as `{ id, rev, sha256 }`, and its
@@ -251,7 +247,7 @@ export function recordHashedBlobs(
         const blob = blobs.get(path)
         const sha256 = digests.get(path)
         if (!blob || !sha256 || blob.rev === undefined) continue
-        recorded[blobRecordName(kind, key, path)] = { id: blob.id, rev: blob.rev, sha256 }
+        recorded[codec.baseBlobName?.(key, path) ?? path] = { id: blob.id, rev: blob.rev, sha256 }
       }
       resources[address] = {
         ...entry,
@@ -268,29 +264,17 @@ export function recordHashedBlobs(
  * workspace file's entry names its path, a knowledge base's names a document under its `docs/`
  * folder.
  */
-function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<string, unknown> {
-  const digests = new Map<string, unknown>()
-  const resources =
-    typeof base === 'object' && base !== null && 'resources' in base ? base.resources : null
-  if (typeof resources !== 'object' || resources === null) return digests
+function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<string, string> {
+  const digests = new Map<string, string>()
+  const resources = base === undefined ? {} : (parseWorkspaceBase(base).base?.resources ?? {})
   for (const [address, resource] of Object.entries(resources)) {
-    const colon = address.indexOf(':')
-    const kind = address.slice(0, colon)
-    const key = address.slice(colon + 1)
-    if (!kinds.some((managed) => managed === kind)) continue
-    const blobs =
-      typeof resource === 'object' && resource !== null && 'blobs' in resource
-        ? resource.blobs
-        : null
-    if (typeof blobs !== 'object' || blobs === null) continue
-    for (const [name, blob] of Object.entries(blobs)) {
-      const path =
-        kind === 'knowledge-base' ? `${KIND_DIRS['knowledge-base']}/${key}/docs/${name}` : name
+    const target = parseResourceAddress(address)
+    if (!target || !kinds.includes(target.kind)) continue
+    const codec = BLOB_CODECS[target.kind]
+    for (const [name, blob] of Object.entries(resource.blobs ?? {})) {
+      const path = codec?.baseBlobPath?.(target.key, name) ?? name
       if (!isBlobPath(path) || !isWorkspaceSourcePath(path)) continue
-      digests.set(
-        path,
-        typeof blob === 'object' && blob !== null && 'sha256' in blob ? blob.sha256 : undefined
-      )
+      digests.set(path, blob.sha256)
     }
   }
   return digests
