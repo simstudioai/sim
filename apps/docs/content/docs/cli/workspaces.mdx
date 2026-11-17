@@ -686,6 +686,54 @@ sim workspaces unlink [options]
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
 
+## Other commands
+
+### Write a workspace as a source directory of tables and workflows
+
+```bash
+sim workspaces source get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Directory to write the workspace source into. |
+| `--only <kinds>` | No | Read only these kinds (comma-separated: table, workflow). |
+| `--force` | No | Replace files with edits no apply has saved. |
+
+</CommandTable>
+
+Exit codes: 0 written; 1 the command failed, or the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workspace has more resources of a kind than one directory holds.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### Apply a workspace source directory of tables and workflows
+
+```bash
+sim workspaces source apply [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Workspace source directory written by `workspaces source get`. |
+| `--dry-run` | No | Plan and check without writing anything. |
+| `-y, --yes` | No | Apply without asking for confirmation. |
+| `--allow-delete` | No | Delete resources, columns and data the directory no longer declares. |
+| `--only <kinds>` | No | Apply only these kinds (comma-separated: table, workflow). |
+
+</CommandTable>
+
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way: what was written is saved into the directory, and applying again continues.
+
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+
 ## Related docs
 
 - [Workspace sync](/cli/workflow-sync)

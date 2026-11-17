@@ -63,7 +63,7 @@ type Diagnostic = SourceApplyData['diagnostics'][number]
  * 7 when a size limit refused the source (a commit answers `413`), 5 when the workflow changed
  * since the directory was read (a commit answers `409 SOURCE_STALE`), else 1.
  */
-function refusedExitCode(diagnostics: Diagnostic[]): number {
+export function refusedExitCode(diagnostics: Diagnostic[]): number {
   const codes = new Set(
     diagnostics
       .filter((diagnostic) => diagnostic.severity === 'error')
@@ -116,10 +116,10 @@ function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
 
 function formatDiagnostic(diagnostic: Diagnostic): string {
   const where =
-    diagnostic.file !== undefined
+    diagnostic.file !== undefined && diagnostic.path === undefined
       ? `${diagnostic.file}:${diagnostic.line ?? 1}:${diagnostic.column ?? 1} `
       : diagnostic.path !== undefined
-        ? `${LOCK_FILE}#${diagnostic.path} `
+        ? `${diagnostic.file ?? LOCK_FILE}#${diagnostic.path} `
         : ''
   const lines = [`${where}${diagnostic.severity} ${diagnostic.code}: ${diagnostic.message}`]
   if (diagnostic.frame) lines.push(diagnostic.frame)
@@ -132,7 +132,7 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
  * info code folded into one line (a new workflow places every block by autolayout, which is no
  * reason to print a frame per block and bury the warnings).
  */
-function printDiagnostics(diagnostics: Diagnostic[]): void {
+export function printDiagnostics(diagnostics: Diagnostic[]): void {
   const infos = new Map<string, Diagnostic[]>()
   for (const diagnostic of diagnostics) {
     if (diagnostic.severity !== 'info') {
@@ -184,11 +184,11 @@ function diffSummary(data: SourceApplyData): string {
 }
 
 /** Whether a person is at a terminal to answer a prompt: never for an embedded run. */
-function canPrompt(): boolean {
+export function canPrompt(): boolean {
   return !embedStore.getStore() && process.stdin.isTTY === true && process.stderr.isTTY === true
 }
 
-async function confirm(question: string): Promise<boolean> {
+export async function confirm(question: string): Promise<boolean> {
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
   try {
     const answer = (await prompt.question(`${question} (y/N) `)).trim().toLowerCase()
@@ -254,7 +254,7 @@ function refusalExitCode(error: SimApiError, detailCode: unknown): number {
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
  * the exit status a script branches on.
  */
-function printRefusal(error: unknown): never {
+export function printRefusal(error: unknown): never {
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
@@ -340,7 +340,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
 }
 
 /** A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal. */
-function requireConsent(options: SourceWriteOptions, action: string): void {
+export function requireConsent(options: SourceWriteOptions, action: string): void {
   if (!options.dryRun && !options.yes && !canPrompt()) {
     throw new SimApiError(
       `This ${action}. Re-run with --yes to apply it, or with --dry-run to check it without writing.`,

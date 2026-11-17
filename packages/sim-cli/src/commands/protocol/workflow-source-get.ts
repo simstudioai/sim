@@ -112,7 +112,7 @@ function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
  * (a legacy version, a block an allowlist now withholds); only then is that workflow's compile
  * catalog fetched instead, uncached, so its types still resolve.
  */
-async function loadCatalog(
+export async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
   source: Pick<WorkflowSource, 'workspaceId' | 'blockTypes'> & { workflowId?: string }
 ): Promise<BlockCatalog> {
@@ -174,22 +174,27 @@ function workspaceManifestFrom({
 }
 
 /**
- * The workspace's resources as `workspace.d.ts`, or `null` when they cannot be listed: a `403`
- * for a caller the manifest does not admit (a Copilot delegation), a `404` from a server that
- * predates the route. The source still writes and type-checks, with every key a plain string.
+ * The workspace's resources as `workspace.d.ts`, with the tables a workspace directory declares
+ * typed from their declarations. When the resources cannot be listed (a `403` for a caller the
+ * manifest does not admit, a `404` from a server that predates the route) only the declared
+ * tables are typed, or `null` without any: the source still writes and type-checks, with every
+ * other key a plain string.
  */
-async function loadWorkspaceTypes(
+export async function loadWorkspaceTypes(
   client: OperationClient<'getSourceResources'>,
-  workspaceId: string
+  workspaceId: string,
+  local: Pick<WorkspaceManifest, 'tableDeclarations'> = {}
 ): Promise<string | null> {
   try {
     const { data } = await client.request<GetSourceResourcesResponse>('getSourceResources', {
       params: { workspaceId },
     })
-    return generateWorkspaceTypes(workspaceManifestFrom(data)).text
+    return generateWorkspaceTypes({ ...workspaceManifestFrom(data), ...local }).text
   } catch (error) {
-    if (error instanceof SimApiError && (error.status === 403 || error.status === 404)) return null
-    throw error
+    if (!(error instanceof SimApiError) || (error.status !== 403 && error.status !== 404)) {
+      throw error
+    }
+    return local.tableDeclarations?.length ? generateWorkspaceTypes(local).text : null
   }
 }
 
@@ -197,7 +202,7 @@ async function loadWorkspaceTypes(
  * Refuses a catalog for another SDK major than the bundled `core.d.ts`: its builders would be
  * written beside declarations that cannot type them.
  */
-function assertSdkMajor(catalog: BlockCatalog): void {
+export function assertSdkMajor(catalog: BlockCatalog): void {
   if (catalog.sdkMajor === SDK_MAJOR) return
   throw new SimApiError(
     catalog.sdkMajor > SDK_MAJOR
@@ -212,7 +217,7 @@ function assertSdkMajor(catalog: BlockCatalog): void {
  * The first line of every `tsconfig.json` the CLI writes. A `tsconfig.json` without it is the
  * person's own (an existing TypeScript project), and a get never replaces it.
  */
-const TSCONFIG_MARKER = `// Written by \`sim workflows source get\`; remove this line to keep your own edits.`
+export const TSCONFIG_MARKER = `// Written by \`sim workflows source get\`; remove this line to keep your own edits.`
 
 /** Lets an editor or `tsc -p` resolve `@sim/workflow-sdk` to the written declarations. */
 const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
@@ -316,7 +321,7 @@ function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
 /** The printed source a tree write saves: a get's answer, or an applied create's. */
 type PrintedSource = Pick<WorkflowSource, 'workflowId' | 'workspaceId' | 'files' | 'lock' | 'base'>
 
-interface SourceTree {
+export interface SourceTree {
   written: number
   /** Whether `workspace.d.ts` was written. */
   workspaceTypes: boolean
@@ -346,7 +351,7 @@ async function writeSourceTree(
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
-function finishTree(
+export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: string | null,
@@ -360,21 +365,37 @@ function finishTree(
   return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
 }
 
+/** What a directory's editable tree holds beside the printed source. */
+export interface SourceTreeProfile {
+  /** `.sim/AGENTS.md`. */
+  agents: string
+  /** The CLI's `tsconfig.json`, starting with {@link TSCONFIG_MARKER}. */
+  tsconfig: string
+  /** The `.gitattributes` lines that keep the source LF. */
+  gitattributes?: readonly string[]
+  /** More declarations under the SDK directory, rewritten every time like `core.d.ts`. */
+  sdk?: ReadonlyArray<readonly [string, string]>
+}
+
+const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: TSCONFIG }
+
 /**
  * Everything beside the printed source that makes a directory editable: the agent guide and the
  * cookbook example (both rewritten every time and never in `.sim/written.json`), the declarations
  * (regenerated only when the catalog or generator changed), `workspace.d.ts`, the CLI's
  * `tsconfig.json` and the LF lines.
  */
-async function sourceTreeChange(
+export async function sourceTreeChange(
   dir: string,
   catalog: BlockCatalog,
-  workspaceTypes: string | null
+  workspaceTypes: string | null,
+  profile: SourceTreeProfile = WORKFLOW_TREE
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
   const write: Array<readonly [string, string]> = [
-    [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
+    [SOURCE_AGENTS_FILE, profile.agents],
     [SOURCE_COOKBOOK_FILE, COOKBOOK_TS],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
+    ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
   const [gitattributes, index, tsconfig] = await Promise.all([
@@ -383,8 +404,8 @@ async function sourceTreeChange(
     readSourceText(dir, TSCONFIG_FILE),
   ])
   const ownsTsconfig = tsconfig === null || tsconfig.startsWith(TSCONFIG_MARKER)
-  if (ownsTsconfig) write.push([TSCONFIG_FILE, TSCONFIG])
-  const mergedAttributes = mergedGitattributes(gitattributes)
+  if (ownsTsconfig) write.push([TSCONFIG_FILE, profile.tsconfig])
+  const mergedAttributes = mergedGitattributes(gitattributes, profile.gitattributes)
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
   const indexHead = index?.split('\n', 2).join('\n')
   if (indexHead !== `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`) {

@@ -14,3 +14,4 @@ export {
   type WorkspaceManifest,
   type WorkspaceManifestColumn,
 } from './workspace'
+export { WORKSPACE_SDK_DTS } from './workspace-text.generated'

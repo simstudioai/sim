@@ -10,7 +10,18 @@
  */
 
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
@@ -43,7 +54,7 @@ export const SOURCE_GITATTRIBUTES_FILE = '.gitattributes'
  * A digest of each source file as the CLI last wrote it, so a later get can tell an unapplied
  * edit from a file it may replace. The CLI's own record: never sent to the server.
  */
-const SOURCE_WRITTEN_FILE = '.sim/written.json'
+export const SOURCE_WRITTEN_FILE = '.sim/written.json'
 
 /**
  * The only files a server answer may name: the entry file and function code under `functions/`,
@@ -138,10 +149,13 @@ export async function readPreviousLock(dir: string): Promise<unknown> {
   }
 }
 
-/** `.gitattributes` with the source lines appended where missing, or `null` when it has them. */
-export function mergedGitattributes(existing: string | null): string | null {
+/** `.gitattributes` with `lines` appended where missing, or `null` when it has them all. */
+export function mergedGitattributes(
+  existing: string | null,
+  lines: readonly string[] = GITATTRIBUTES_LINES
+): string | null {
   const present = new Set((existing ?? '').split('\n').map((line) => line.trim()))
-  const missing = GITATTRIBUTES_LINES.filter((line) => !present.has(line))
+  const missing = lines.filter((line) => !present.has(line))
   if (missing.length === 0) return null
   const prefix = existing && !existing.endsWith('\n') ? `${existing}\n` : (existing ?? '')
   return `${prefix}${missing.join('\n')}\n`
@@ -296,12 +310,31 @@ interface WrittenRecord {
   files: Record<string, string>
 }
 
-function digest(text: string): string {
+/** The digest `.sim/written.json` records for a file's text. */
+export function digest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
 }
 
+/**
+ * `.sim/written.json` for `files` as they are about to be written, keeping the `kept` digests of
+ * files this write leaves as they are.
+ */
+export function writtenRecord(
+  files: Record<string, string>,
+  kept: Record<string, string> = {}
+): string {
+  const record: WrittenRecord = {
+    version: 1,
+    files: {
+      ...kept,
+      ...Object.fromEntries(Object.entries(files).map(([path, text]) => [path, digest(text)])),
+    },
+  }
+  return `${JSON.stringify(record, null, 2)}\n`
+}
+
 /** The digests the CLI recorded for its last write, empty when it recorded none. */
-async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
+export async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
   const text = await readSourceText(dir, SOURCE_WRITTEN_FILE)
   if (text === null) return {}
   try {
@@ -317,21 +350,16 @@ async function readWrittenDigests(dir: string): Promise<Record<string, string>> 
 }
 
 /**
- * The source files a write of `answer` would destroy edits in: a file it replaces or prunes whose
- * text on disk is neither what the CLI last wrote there nor what it is about to write. A file the
- * CLI has no record of counts as edited, so a hand-written `workflow.ts` is never replaced
- * silently either.
+ * The files among `touched` (path → the text about to be written, or `null` for a removal) whose
+ * text on disk is neither what the CLI last wrote there nor what it is about to write: a write
+ * would destroy an edit no apply has saved. A file the CLI has no record of counts as edited, so a
+ * hand-written file is never replaced silently either.
  */
-export async function locallyEditedFiles(
+export async function editedFiles(
   dir: string,
-  answer: Pick<PrintedSourceAnswer, 'files' | 'lock'>,
-  previousLock: unknown
+  touched: ReadonlyMap<string, string | null>
 ): Promise<string[]> {
   const written = await readWrittenDigests(dir)
-  const touched = new Map<string, string | null>(Object.entries(answer.files))
-  for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
-    touched.set(path, null)
-  }
   const entries = [...touched]
   const texts = await inBatches(entries, ([path]) => readSourceText(dir, path))
   return entries.flatMap(([path, next], index) => {
@@ -339,6 +367,59 @@ export async function locallyEditedFiles(
     if (current === null || current === next) return []
     return written[path] !== digest(current) ? [path] : []
   })
+}
+
+/**
+ * The source files a write of `answer` would destroy edits in: a file it replaces or prunes whose
+ * text on disk is neither what the CLI last wrote there nor what it is about to write.
+ */
+export async function locallyEditedFiles(
+  dir: string,
+  answer: Pick<PrintedSourceAnswer, 'files' | 'lock'>,
+  previousLock: unknown
+): Promise<string[]> {
+  const touched = new Map<string, string | null>(Object.entries(answer.files))
+  for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
+    touched.set(path, null)
+  }
+  return editedFiles(dir, touched)
+}
+
+/**
+ * Every plain file under `folder` in the source directory, as source-relative paths. A symbolic
+ * link anywhere is refused rather than followed; a missing folder lists nothing.
+ */
+export async function listSourceFiles(dir: string, folder: string): Promise<string[]> {
+  if (embedStore.getStore()) {
+    throw new SimApiError('Workspace source directories need a local disk.', 0)
+  }
+  const root = await realRoot(dir)
+  if (root === null) return []
+  const start = await checkedPath(root, folder, new Set())
+  const files: string[] = []
+  const walk = async (absolute: string, relative: string): Promise<void> => {
+    let entries: Dirent[]
+    try {
+      entries = await readdir(absolute, { withFileTypes: true, encoding: 'utf8' })
+    } catch (error) {
+      if (isMissing(error)) return
+      throw error
+    }
+    for (const entry of entries) {
+      const path = `${relative}/${entry.name}`
+      if (entry.isSymbolicLink()) {
+        throw new SimApiError(
+          `Refusing ${path}: it is a symbolic link, and the source directory only holds plain files.`,
+          0,
+          'SOURCE_SYMLINK'
+        )
+      }
+      if (entry.isDirectory()) await walk(join(absolute, entry.name), path)
+      else if (entry.isFile()) files.push(path)
+    }
+  }
+  await walk(start, folder)
+  return files
 }
 
 /** What the server answers a get, apply or create with: the printed files, lock and base. */
@@ -360,17 +441,11 @@ export async function writeBack(
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
   assertPrintedSourcePaths(answer.files)
-  const record: WrittenRecord = {
-    version: 1,
-    files: Object.fromEntries(
-      Object.entries(answer.files).map(([path, text]) => [path, digest(text)])
-    ),
-  }
   const write = [
     ...Object.entries(answer.files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
-    [SOURCE_WRITTEN_FILE, `${JSON.stringify(record, null, 2)}\n`] as const,
+    [SOURCE_WRITTEN_FILE, writtenRecord(answer.files)] as const,
     ...extra.write,
   ]
   await updateSourceDir(dir, {

@@ -653,6 +653,9 @@ export const CLI_CONTRACT: CliContract = {
   },
   /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
   createWorkflowFromSource: { hidden: true },
+  /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
+  getWorkspaceSource: { hidden: true },
+  applyWorkspaceSource: { hidden: true },
   /** One document, not a page: `workflows source get --dir` writes it as `workspace.d.ts`. */
   getSourceResources: {
     command: 'workflows source resources',

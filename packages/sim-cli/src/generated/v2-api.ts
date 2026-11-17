@@ -881,6 +881,125 @@ export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source` */
+export type ApplyWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type ApplyWorkspaceSourceQuery = {
+  dryRun?: boolean
+}
+
+export type ApplyWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+    content?: string
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+      }
+    >
+  }
+  kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+  options?: {
+    allowDelete?: boolean
+    only?: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+  }
+  provenance?: {
+    client: 'cli' | 'api'
+    gitSha?: string
+  }
+}
+
+export type ApplyWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+    }>
+    applied: Array<{
+      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+    }>
+    failed?: {
+      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      key: string
+      code: string
+      message: string
+    }
+    needBlobs: Array<string>
+    remainingBlobs: Array<string>
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+        }
+      >
+    }
+    diagnostics: Array<{
+      code: string
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `POST /api/v2/projects/[projectId]/files/archive` */
 export type ArchiveProjectFileItemsParams = {
   projectId: string
@@ -9422,6 +9541,70 @@ export type GetWorkspacePermissionConfigResponse = {
   data: GetWorkspacePermissionConfigResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/source` */
+export type GetWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceSourceQuery = {
+  kinds?: string
+}
+
+export type GetWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    files: Record<string, string>
+    blobs: Array<{
+      path: string
+      sha256: string
+      size: number
+      id: string
+      href: string
+    }>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+        }
+      >
+    }
+    skipped: Array<{
+      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      key: string
+      reason: string
+    }>
+    diagnostics: Array<{
+      code: string
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `POST /api/v2/skills/[skillId]/editors` */
 export type GrantSkillEditorParams = {
   skillId: string
@@ -17664,6 +17847,43 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  applyWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Apply workspace source',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: { kind: 'array', describe: 'Binary files by hash.' },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
+      provenance: { kind: 'object', describe: 'Where the directory came from, for the audit log.' },
+    },
+  },
   archiveProjectFileItems: {
     method: 'POST',
     path: '/api/v2/projects/[projectId]/files/archive',
@@ -21397,6 +21617,20 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get workspace permission config',
     workspaceKeyUnsupported: true,
+  },
+  getWorkspaceSource: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Get workspace source',
+    query: {
+      kinds: {
+        kind: 'string',
+        describe: 'Comma-separated kinds to read; every kind the server supports when omitted.',
+      },
+    },
   },
   grantSkillEditor: {
     method: 'POST',

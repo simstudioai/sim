@@ -452,6 +452,8 @@ describe('destructive operations are gated', () => {
     // Replaces the draft with the submitted source: blocks the file no longer declares are removed.
     'applyWorkflowSource',
     'applyWorkflowVariables',
+    // Writes a whole workspace directory; with allowDelete it deletes what the directory dropped.
+    'applyWorkspaceSource',
     'archiveProjectFileItems',
     'bulkDeleteFiles',
     'bulkDeleteTables',

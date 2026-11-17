@@ -51,3 +51,14 @@ export function isWorkspaceSourcePath(path: string): boolean {
   if (WORKFLOW_SIDECAR.test(path)) return true
   return path.split('/').every((segment) => segment.length > 0 && !segment.startsWith('.'))
 }
+
+/** A knowledge base document: `knowledge/<key>/docs/<file>`. */
+const KNOWLEDGE_DOCUMENT = /^knowledge\/[^/]+\/docs\/[^/]+$/
+
+/**
+ * Whether `path` holds bytes rather than text: a workspace file or a knowledge document. Blobs
+ * travel by hash and their content only in the rounds the server asks for it.
+ */
+export function isBlobPath(path: string): boolean {
+  return kindOfPath(path) === 'file' || KNOWLEDGE_DOCUMENT.test(path)
+}

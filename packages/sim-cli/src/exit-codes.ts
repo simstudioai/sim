@@ -17,3 +17,9 @@ export const STILL_RUNNING_EXIT_CODE = 4
 export const SOURCE_STALE_EXIT_CODE = 5
 export const SOURCE_LOCKED_EXIT_CODE = 6
 export const SOURCE_TOO_LARGE_EXIT_CODE = 7
+
+/**
+ * `workspaces source apply` stopped part-way: the changes before the failed one were written and
+ * saved back into the directory, the rest were not attempted. Applying again continues.
+ */
+export const SOURCE_PARTIAL_EXIT_CODE = 8
