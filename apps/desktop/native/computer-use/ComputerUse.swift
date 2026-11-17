@@ -167,11 +167,22 @@ func takesText(_ element: AXUIElement) -> Bool {
     return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
 }
 /// The window holding `element`: the element itself when it is a window or sheet, which report no
-/// window of their own, otherwise the window it reports.
+/// window of their own, otherwise the window it reports. Controls of an open or save panel belong to
+/// the panel's service process and report no window, so for them the nearest window or sheet among
+/// their ancestors is used.
 func containingWindow(_ element: AXUIElement) -> AXUIElement? {
-    if [kAXWindowRole, kAXSheetRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
-    guard let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-    return unsafeBitCast(raw, to: AXUIElement.self)
+    let windowRoles = [kAXWindowRole, kAXSheetRole]
+    if windowRoles.contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
+    if let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        return unsafeBitCast(raw, to: AXUIElement.self)
+    }
+    var current = element
+    for _ in 0..<64 {
+        guard let raw = attribute(current, kAXParentAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        current = unsafeBitCast(raw, to: AXUIElement.self)
+        if windowRoles.contains(attribute(current, kAXRoleAttribute) as? String ?? "") { return current }
+    }
+    return nil
 }
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
