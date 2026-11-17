@@ -43,6 +43,10 @@ for (const name of goldens) {
     ],
     { input: text, encoding: 'utf8', cwd: ROOT }
   )
+  if (result.error) {
+    console.error(`Could not run Biome at ${BIOME}: ${result.error.message}`)
+    process.exit(1)
+  }
   if (result.status !== 0 || result.stdout !== text) {
     failures.push(`${name}${result.stderr ? `\n${result.stderr.trim()}` : ''}`)
   }
