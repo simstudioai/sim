@@ -14,14 +14,16 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from
 import { dirname, join, posix } from 'node:path'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
+import {
+  CODE_FILE_EXTENSIONS,
+  SOURCE_ENTRY_FILE,
+  SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
+} from '@sim/workflow-code/limits'
 import { embedStore } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
 
-/** Where function-code files live; the only files the CLI ever prunes. */
-const SOURCE_FUNCTIONS_DIR = 'functions'
 /** The identity lock (`WorkflowLockV1`). */
 export const SOURCE_LOCK_FILE = '.sim/lock.json'
 /** The freshness facts for the lock in this environment (`SourceBase`). */
@@ -43,7 +45,9 @@ const SOURCE_WRITTEN_FILE = '.sim/written.json'
  * named as the printer names them (`functions/<kebab ident>[-n].<js|py|sh>`). Anything else
  * (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
  */
-const FUNCTION_FILE = /^functions\/[a-z0-9$-]+\.(?:js|py|sh)$/
+const FUNCTION_FILE = new RegExp(
+  `^${SOURCE_FUNCTIONS_DIR}/[a-z0-9$-]+\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`
+)
 
 /** Whether a server answer may write `path` into the source directory. */
 function isPrintedSourcePath(path: string): boolean {

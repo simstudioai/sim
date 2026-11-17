@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
+import { CODE_FILE_EXTENSIONS, SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { embedStore, setSoftExitCode } from '../../embed-context'
@@ -39,7 +39,7 @@ const ENTRY_TOKENS =
   /\/\/[^\n]*|\/\*[\s\S]*?\*\/|\bcodeFile\(\s*(?:'([^'\n]*)'|"([^"\n]*)"|`((?:[^`$]|\$(?!\{))*)`)\s*\)|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`/g
 
 /** The only files an apply sends beside the entry: function code in a language a block runs. */
-const CODE_FILE_EXTENSION = /\.(?:js|py|sh)$/
+const CODE_FILE_EXTENSION = new RegExp(`\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`)
 
 /** The exit status of a refused write a script can branch on; any other refusal exits 1. */
 const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {

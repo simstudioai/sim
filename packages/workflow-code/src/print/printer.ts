@@ -28,7 +28,7 @@ import {
   catalogBuilderPaths,
   catalogBuildersOfType,
 } from '../catalog/view'
-import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
+import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { printsAsElseTrue } from '../forms/condition'
@@ -41,7 +41,7 @@ import {
   type RefTypeScope,
   refValueKind,
 } from '../json-fields'
-import { SOURCE_ENTRY_FILE } from '../limits'
+import { CODE_FILE_EXTENSIONS, SOURCE_CODE_DIR, SOURCE_ENTRY_FILE } from '../limits'
 import { isJson, type SourceHintBlock, type SourceHints } from '../lock'
 import {
   type AnchorKey,
@@ -108,7 +108,6 @@ interface PrintResult {
 
 /** biome.json's line width. */
 const LINE_WIDTH = 100
-const CODE_DIR = 'functions'
 const SDK_MODULE = '@sim/workflow-sdk'
 
 type Diag = Diagnostic<PrintDiagnosticCode>
@@ -639,7 +638,7 @@ class WorkflowPrinter {
     let path =
       hinted?.endsWith(`.${extension}`) && !this.takenCodePaths.has(hinted)
         ? hinted
-        : `${CODE_DIR}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
+        : `${SOURCE_CODE_DIR}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
     let suffix = 2
     const base = path.slice(0, -(extension.length + 1))
     while (this.takenCodePaths.has(path)) {

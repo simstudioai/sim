@@ -6,16 +6,11 @@ import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subf
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
-import {
-  CODE_FILE_EXTENSIONS,
-  type CodeFileLanguage,
-  codeFileLanguage,
-  fromCodeFile,
-} from '../code-files'
+import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
-import { utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
   type AnchorKey,
   type CanonicalBlock,
