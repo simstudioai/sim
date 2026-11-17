@@ -52,7 +52,9 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
   type ApplyWorkspaceSourceInput,
@@ -702,4 +704,94 @@ describe('workspace source files', () => {
       expect(await storedFiles(workspaceId)).toEqual(before)
     }
   )
+
+  check(
+    'a file renamed in the Files tab is not re-created at its old path, and a local edit of it is stale',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const id = fileId(read.base, 'notes.txt')
+      await renameWorkspaceFile.execute({
+        principal: owner,
+        input: { fileId: id, assertedWorkspaceId: workspaceId, name: 'renamed.txt' },
+      })
+      const before = await storedFiles(workspaceId)
+
+      const unchanged = await apply(workspaceId, STARTER, { base: read.base })
+      expect(summary(unchanged.plan)).toEqual([
+        'noop notes.txt',
+        'noop docs/plan.md',
+        'noop renamed.txt',
+      ])
+      const moved = unchanged.diagnostics.find((finding) => finding.code === 'I_SERVER_CHANGED')
+      expect(moved?.message).toContain('files/renamed.txt')
+      expect(unchanged.needBlobs).toEqual([])
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { ...STARTER, 'files/notes.txt': Buffer.from('edited locally') },
+          { base: read.base }
+        )
+      )
+      expect(refused.code).toBe('conflict')
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect(
+        refused.diagnostics.find((finding) => finding.severity === 'error')?.message
+      ).toContain('files/renamed.txt')
+      expect(await storedFiles(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'a file deleted in the Files tab is not re-created, and a local edit of it is stale',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      await deleteWorkspaceFileOperation.execute({
+        principal: owner,
+        input: { fileId: fileId(read.base, 'notes.txt'), assertedWorkspaceId: workspaceId },
+      })
+      const before = await storedFiles(workspaceId)
+
+      const unchanged = await apply(workspaceId, STARTER, { base: read.base })
+      expect(summary(unchanged.plan)).toEqual(['noop notes.txt', 'noop docs/plan.md'])
+      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(unchanged.needBlobs).toEqual([])
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { ...STARTER, 'files/notes.txt': Buffer.from('edited locally') },
+          { base: read.base }
+        )
+      )
+      expect(refused.code).toBe('conflict')
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect(await storedFiles(workspaceId)).toEqual(before)
+    }
+  )
+
+  check('a case-only rename applies when the same apply deletes the old spelling', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const renamed = {
+      'files/Notes.txt': STARTER['files/notes.txt'],
+      'files/docs/plan.md': STARTER['files/docs/plan.md'],
+    }
+
+    const kept = await refusal(apply(workspaceId, renamed, { base: read.base }))
+    expect(codes(kept.diagnostics).sort()).toEqual([
+      'E_APPLY_DELETE_NOT_ALLOWED',
+      'E_FILE_PATH_COLLISION',
+    ])
+
+    const result = await apply(workspaceId, renamed, { base: read.base, allowDelete: true })
+    expect(result.failed).toBeUndefined()
+    expect(summary(result.applied)).toEqual(['create Notes.txt', 'delete notes.txt'])
+    expect((await storedFiles(workspaceId)).map((file) => file.name)).toEqual([
+      'Notes.txt',
+      'plan.md',
+    ])
+  })
 })

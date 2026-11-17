@@ -5,7 +5,9 @@
  * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
  * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
  * Only `context = 'workspace'` files are read; a file over the blob cap, or one whose path no
- * directory can hold, is left out of a get and never touched by an apply.
+ * directory can hold, is left out of a get and never touched by an apply. A path is the key, so a
+ * file moved or deleted in the Files tab is recognized by the id its base entry names and never
+ * created again at the old path.
  */
 import { sha256Hex } from '@sim/security/hash'
 import {
@@ -20,7 +22,6 @@ import {
   fileCodec,
   fileKeyConflicts,
   filePathProblem,
-  foldedFileKey,
 } from '@sim/workspace-code/kinds/files'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -203,15 +204,48 @@ function renamedSegment(key: string): string | null {
   return null
 }
 
+/**
+ * A declared file whose base entry names a file no longer stored at its path: moved (or renamed)
+ * on the server, or deleted there. Left as the server has it when the local copy is the one the
+ * base recorded, stale otherwise; never created again at the old path.
+ */
+function planGone(
+  change: FileChange,
+  decl: FileDecl,
+  base: BaseResource,
+  byId: ReadonlyMap<string, StoredFile>
+): FileChange {
+  const moved = byId.get(base.id)
+  const where = fileBlobPath(change.key)
+  if (base.fingerprint === fingerprint(decl.sha256)) {
+    change.diagnostics.push({
+      ...serverChangedFinding('file', change.key),
+      message: moved
+        ? `${where} was moved on the server to ${fileBlobPath(moved.key)}; this directory leaves it there, and the next get shows the move.`
+        : `${where} was deleted on the server; this directory does not create it again, and the next get drops it.`,
+    })
+    return change
+  }
+  change.diagnostics.push({
+    ...staleFinding('file', change.key),
+    message: moved
+      ? `${where} was moved on the server to ${fileBlobPath(moved.key)} since this directory was read.`
+      : `${where} was deleted on the server since this directory was read.`,
+  })
+  return change
+}
+
 function planFile(
   key: string,
   decl: FileDecl,
   stored: StoredSet<StoredFileState>,
   ctx: PlanContext,
-  folded: ReadonlyMap<string, StoredFile>
+  byId: ReadonlyMap<string, StoredFile>
 ): FileChange {
   const change: FileChange = { kind: 'file', key, action: 'noop', decl, diagnostics: [] }
   const existing = stored.bound.get(key)
+  const base = ctx.base?.resources[resourceAddress('file', key)]
+  if (!existing && base) return planGone(change, decl, base, byId)
   if (existing?.state.unmanaged) {
     change.diagnostics.push(
       finding(
@@ -226,7 +260,7 @@ function planFile(
   const resolution = resolveDeclared({
     local: fingerprint(decl.sha256),
     stored: existing,
-    base: ctx.base?.resources[resourceAddress('file', key)],
+    base,
     fingerprint: (file, base) => {
       const sha = serverSha(file, base)
       return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
@@ -267,17 +301,6 @@ function planFile(
             'E_FILE_NAME',
             `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
             'Rename it locally to the name the server would store.'
-          )
-        )
-      }
-      const twin = folded.get(foldedFileKey(key))
-      if (twin && twin.key !== key) {
-        change.diagnostics.push(
-          finding(
-            key,
-            'E_FILE_PATH_COLLISION',
-            `${fileBlobPath(key)} differs only in letter case from ${fileBlobPath(twin.key)} on the server.`,
-            'Use the server’s spelling, or delete that file first.'
           )
         )
       }
@@ -322,6 +345,37 @@ function planDeletes(
     }
     return { ...change, detail: { rev: file.state.rev } }
   })
+}
+
+/**
+ * Refuses a create whose path a case-insensitive disk would merge with a file or folder the server
+ * keeps, so the next get never has to leave one of them out. A stored file this apply deletes
+ * keeps no path, so a case-only rename (create `Report.pdf`, delete `report.pdf`) goes through.
+ */
+function refuseCollisions(
+  files: readonly FileChange[],
+  stored: StoredSet<StoredFileState>,
+  deletes: readonly FileChange[]
+): void {
+  const deleted = new Set(
+    deletes.filter((change) => change.action === 'delete').map((change) => change.key)
+  )
+  const creates = new Map(
+    files.filter((change) => change.action === 'create').map((change) => [change.key, change])
+  )
+  const kept = [...stored.bound.keys()].filter((key) => !deleted.has(key))
+  for (const [key, conflict] of fileKeyConflicts([...kept, ...creates.keys()])) {
+    creates
+      .get(key)
+      ?.diagnostics.push(
+        finding(
+          key,
+          'E_FILE_PATH_COLLISION',
+          `${conflict} on the server.`,
+          'Use the server’s spelling, or delete the server’s file in this apply (--allow-delete).'
+        )
+      )
+  }
 }
 
 /** The bytes a write sends, refused unless they are the ones the directory declared. */
@@ -409,15 +463,11 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
 
   async plan(desired, stored, ctx) {
     await hashUnrecorded(ctx, desired, stored)
-    const folded = new Map(
-      [...stored.bound.values()]
-        .filter((file) => !file.state.unmanaged)
-        .map((file) => [foldedFileKey(file.key), file])
-    )
-    return [
-      ...[...desired].map(([key, decl]) => planFile(key, decl, stored, ctx, folded)),
-      ...planDeletes(desired, stored, ctx),
-    ]
+    const byId = new Map([...stored.bound.values()].map((file) => [file.id, file]))
+    const files = [...desired].map(([key, decl]) => planFile(key, decl, stored, ctx, byId))
+    const deletes = planDeletes(desired, stored, ctx)
+    refuseCollisions(files, stored, deletes)
+    return [...files, ...deletes]
   },
 
   async authorize(change, ctx) {
