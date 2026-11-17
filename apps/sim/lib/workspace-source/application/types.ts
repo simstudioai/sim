@@ -34,6 +34,8 @@ export interface PlanContext extends SourceContext {
 
 export interface ApplyContext extends SourceContext {
   provenance?: { client: 'cli' | 'api'; gitSha?: string }
+  /** The bytes of the blobs this round carries, by directory path. */
+  blobs: ReadonlyMap<string, Buffer>
 }
 
 /** A stored resource of one kind: its key (when bound), id, display name and kind state. */
