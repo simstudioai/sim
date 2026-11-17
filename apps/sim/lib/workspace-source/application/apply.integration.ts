@@ -1023,7 +1023,7 @@ describe('workspace source apply', () => {
             },
           })
         )
-      const unknownColumns = (diagnostics: ReadonlyArray<{ code: string }>) =>
+      const unknownColumns = <D extends { code: string }>(diagnostics: readonly D[]) =>
         diagnostics.filter((finding) => finding.code === 'W_TABLE_UNKNOWN_COLUMN')
       const stale = {
         ...source.files,
@@ -1081,7 +1081,9 @@ describe('workspace source apply', () => {
     'a workspace source dry run checks row writes against the columns the directory declares',
     async () => {
       const workspaceId = await newWorkspace()
-      const unknownColumns = (diagnostics: ReadonlyArray<{ code: string; key?: string }>) =>
+      const unknownColumns = (
+        diagnostics: ReadonlyArray<{ code: string; key?: string; message: string }>
+      ) =>
         diagnostics
           .filter((finding) => finding.code === 'W_TABLE_UNKNOWN_COLUMN')
           .map((finding) => `${finding.key}: ${finding.message}`)
