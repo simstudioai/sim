@@ -316,12 +316,14 @@ function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
 /** The printed source a tree write saves: a get's answer, or an applied create's. */
 type PrintedSource = Pick<WorkflowSource, 'workflowId' | 'workspaceId' | 'files' | 'lock' | 'base'>
 
+/** What a tree write reports: the same fields after a get and a create scaffold. */
 interface SourceTree {
-  written: number
+  /** How many files were written. */
+  files: number
   /** Whether `workspace.d.ts` was written. */
   workspaceTypes: boolean
-  /** Whether `tsconfig.json` is the CLI's; `false` when the directory's own was left alone. */
-  tsconfig: boolean
+  /** The agent guide to read before editing. */
+  guide: typeof SOURCE_AGENTS_FILE
 }
 
 /**
@@ -357,7 +359,7 @@ function finishTree(
       `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
     )
   }
-  return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
+  return { files: written, workspaceTypes: workspaceTypes !== null, guide: SOURCE_AGENTS_FILE }
 }
 
 /**
@@ -580,8 +582,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     printProtocolResult(profile.output, {
       workflowId: workflowSource.workflowId,
       dir,
-      files: tree.written,
-      workspaceTypes: tree.workspaceTypes,
+      ...tree,
       fingerprint: workflowSource.base.fingerprint,
     })
   })

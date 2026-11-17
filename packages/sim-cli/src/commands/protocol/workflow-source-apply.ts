@@ -25,6 +25,7 @@ import {
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
+  SOURCE_AGENTS_FILE,
   sourceRelativePath,
   writeBack,
 } from './workflow-source-layout'
@@ -357,11 +358,14 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   printProtocolResult(args.output, summarize(data, creating))
 }
 
-/** A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal. */
-function requireConsent(options: SourceWriteOptions, action: string): void {
+/**
+ * A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal, naming
+ * what the write does (`writes the workflow draft`) and its verb (`apply`).
+ */
+function requireConsent(options: SourceWriteOptions, action: string, verb: string): void {
   if (!options.dryRun && !options.yes && !canPrompt()) {
     throw new SimApiError(
-      `This ${action}. Re-run with --yes to apply it, or with --dry-run to check it without writing.`,
+      `This ${action}. Re-run with --yes to ${verb} it, or with --dry-run to check it without writing.`,
       0,
       'CONFIRMATION_REQUIRED'
     )
@@ -391,7 +395,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     .description('Apply a workflow source directory to a workflow draft')
     .addHelpText('after', APPLY_EXIT_CODES_HELP)
     .action(async (workflowId: string, options: SourceWriteOptions) => {
-      requireConsent(options, 'writes the workflow draft')
+      requireConsent(options, 'writes the workflow draft', 'apply')
       const { client, profile } = connectApply()
       const lock = (await readJson(options.dir, LOCK_FILE, GET_HINT)) as SourceLock
       const base = await readBase(options.dir, workflowId)
@@ -451,7 +455,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
         return
       }
-      requireConsent(options, 'creates a workflow')
+      requireConsent(options, 'creates a workflow', 'create')
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()
       const files = await readSourceFiles(options.dir, null)
@@ -496,10 +500,10 @@ function summarize(data: SourceApplyData, created: boolean) {
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,
-    warnings:
-      data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length +
-      data.notes.length,
+    warnings: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length,
+    notes: data.notes.length,
     fingerprint: data.base.fingerprint,
     needsRedeployment: data.needsRedeployment,
+    ...(created && data.applied && !data.dryRun ? { guide: SOURCE_AGENTS_FILE } : {}),
   }
 }

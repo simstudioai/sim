@@ -260,6 +260,14 @@ describe('sim workflows source get --dir → apply --dir', () => {
     expect(readdirSync(dir).filter((name) => name.startsWith('.sim-staging-'))).toEqual([])
   })
 
+  it('reports what get wrote under the field names a create scaffold uses, with the guide', async () => {
+    await get()
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({ workflowId: WORKFLOW_ID, guide: '.sim/AGENTS.md' })
+    expect(printed.files).toBeGreaterThan(0)
+  })
+
   it('writes workspace types from the manifest, so resource keys are checked locally', async () => {
     await get()
 
