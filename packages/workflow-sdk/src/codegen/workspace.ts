@@ -22,6 +22,12 @@ export interface WorkspaceManifestColumn {
 /** The workspace resources the SDK can name, by stable key. */
 export interface WorkspaceManifest {
   tables?: Record<string, { columns: Record<string, WorkspaceManifestColumn> }>
+  /**
+   * Keys of the tables a workspace source directory declares (`tables/<key>.ts`). Each is typed
+   * from its declaration (`RowOf<typeof import('../../tables/<key>').default>`), so a workflow
+   * can use a table before any apply creates it; it replaces a stored table of the same key.
+   */
+  tableDeclarations?: string[]
   knowledgeBases?: string[]
   /** Saved credentials, with the provider each one is for. */
   credentials?: Record<string, { provider: string }>
@@ -79,7 +85,13 @@ function interfaceBlock(name: string, members: readonly string[]): string[] {
 
 /** Generates `workspace.d.ts`. Deterministic: keys are sorted. */
 export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
-  const tables = sortedKeys(manifest.tables).map((key) => {
+  const declared = [...new Set(manifest.tableDeclarations ?? [])].sort(compareStrings)
+  const declaredTables = declared.map(
+    (key) =>
+      `${quoteString(key)}: RowOf<typeof import(${quoteString(`../../tables/${key}`)}).default>`
+  )
+  const storedTables = sortedKeys(manifest.tables).filter((key) => !declared.includes(key))
+  const tables = storedTables.map((key) => {
     const columns = manifest.tables?.[key]?.columns ?? {}
     const fields = sortedKeys(columns).map(
       (column) => `${printKey(column)}: ${columnType(columns[column])}`
@@ -102,7 +114,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     .sort(compareStrings)
     .map((name) => `${printKey(name)}: true`)
   const body = [
-    ...interfaceBlock('WorkspaceTables', tables),
+    ...interfaceBlock('WorkspaceTables', [...declaredTables, ...tables]),
     ...interfaceBlock('WorkspaceKnowledgeBases', knowledgeBases),
     ...interfaceBlock('WorkspaceCredentials', credentials),
     ...interfaceBlock('WorkspaceWorkflows', workflows),
@@ -115,6 +127,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     text: [
       '// @sim-sdk workspace · generated from the workspace resource manifest; do not edit',
       used.length > 0 ? `import type { ${used.join(', ')} } from '@sim/workflow-sdk'` : 'export {}',
+      ...(declared.length > 0 ? ["import type { RowOf } from '@sim/workflow-sdk/workspace'"] : []),
       '',
       `declare module '@sim/workflow-sdk' {`,
       ...body,
