@@ -163,15 +163,6 @@ function groupFiles(paths: readonly string[]) {
     )
     groups.delete(key)
   }
-  if (groups.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
-    diagnostics.push(
-      diagnostic(
-        'E_LIMIT_EXCEEDED',
-        `files/ holds ${groups.size} files, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} limit.`,
-        { kind: 'file' }
-      )
-    )
-  }
   return { groups, diagnostics }
 }
 

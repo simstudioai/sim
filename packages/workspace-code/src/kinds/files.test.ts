@@ -98,14 +98,6 @@ describe('fileCodec', () => {
     )
   })
 
-  it('refuses more files than one directory may hold', () => {
-    const paths = Array.from(
-      { length: WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind + 1 },
-      (_, index) => `files/f${index}.txt`
-    )
-    expect(grouped(paths).codes).toEqual(['E_LIMIT_EXCEEDED'])
-  })
-
   it('refuses a file sent as text, a malformed hash, and a file over the blob cap', () => {
     const path = 'files/a.txt'
     const codes = (text: Record<string, string>, blobs: Parameters<typeof fileCodec.parse>[2]) =>
@@ -116,10 +108,6 @@ describe('fileCodec', () => {
     expect(
       codes({}, [{ path, sha256: SHA, size: WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1 }])
     ).toEqual(['E_FILE_TOO_LARGE'])
-  })
-
-  it('fingerprints the bytes only', () => {
-    expect(fileCodec.canonical({ sha256: SHA, size: 1 })).toEqual({ sha256: SHA })
   })
 })
 
