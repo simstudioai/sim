@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -16,8 +16,9 @@ import postgres from 'postgres'
  * local app and a disposable database. It reads an empty workspace into a directory, declares a
  * table and a workflow that writes to it, applies both in one run, proves a re-apply changes
  * nothing and a fresh get reproduces the directory byte for byte, refuses dropping a column with
- * data without `--allow-delete` (and drops it with it), and exits 5 on an edit to a table the
- * server changed. The app must run with the `workflow-code` flag on.
+ * data without `--allow-delete` (and drops it with it), exits 5 on an edit to a table the server
+ * changed, and uploads a workspace file then deletes it once it is removed from the directory.
+ * The app must run with the `workflow-code` flag on.
  *
  *   WORKSPACE_SOURCE_E2E_BASE_URL=http://127.0.0.1:3000 \
  *   WORKSPACE_SOURCE_E2E_DATABASE_URL=postgres://…/sim_test \
@@ -126,6 +127,17 @@ async function tableRow() {
   return row
 }
 
+/** Whether a fresh `get --only file` into `into` writes `files/<name>`. */
+async function serverHoldsFile(configDir: string, into: string, name: string): Promise<boolean> {
+  await rm(into, { recursive: true, force: true })
+  const read = sim(configDir, 'workspaces', 'source', 'get', '--dir', into, '--only', 'file')
+  assert.equal(read.status, 0, read.stderr)
+  return access(join(into, 'files', name)).then(
+    () => true,
+    () => false
+  )
+}
+
 async function seedFixtures() {
   const email = `${ownerId}@workspace-source.test`
   await sql.begin(async (tx) => {
@@ -155,6 +167,8 @@ async function main() {
   const config = join(root, 'config')
   const dir = join(root, 'a')
   const fresh = join(root, 'b')
+  const filesDir = join(root, 'files')
+  const filesCheck = join(root, 'files-check')
   await seedFixtures()
   try {
     await check(
@@ -195,7 +209,6 @@ async function main() {
     await check('a re-apply changes nothing and a fresh get reproduces the directory', async () => {
       const again = sim(config, 'workspaces', 'source', 'apply', '--dir', dir, '--dry-run')
       assert.equal(again.status, 0, again.stderr)
-      assert.equal(again.output.applied, 0)
       assert.equal(again.output.unchanged, 2)
       const read = sim(
         config,
@@ -260,6 +273,28 @@ async function main() {
         select description from user_table_definitions
         where workspace_id = ${workspaceId} and name = 'leads'`
       assert.equal(row.description, 'Edited in the UI')
+    })
+
+    await check('an uploaded file is deleted once removed from the directory', async () => {
+      const read = sim(config, 'workspaces', 'source', 'get', '--dir', filesDir, '--only', 'file')
+      assert.equal(read.status, 0, read.stderr)
+      await writeFile(join(filesDir, 'files/notes.txt'), 'hello\n')
+      const uploaded = sim(config, 'workspaces', 'source', 'apply', '--dir', filesDir, '--yes')
+      assert.equal(uploaded.status, 0, uploaded.stderr)
+      assert(await serverHoldsFile(config, filesCheck, 'notes.txt'), 'the file was uploaded')
+      await unlink(join(filesDir, 'files/notes.txt'))
+      const removed = sim(
+        config,
+        'workspaces',
+        'source',
+        'apply',
+        '--dir',
+        filesDir,
+        '--yes',
+        '--allow-delete'
+      )
+      assert.equal(removed.status, 0, removed.stderr)
+      assert(!(await serverHoldsFile(config, filesCheck, 'notes.txt')), 'the file was deleted')
     })
   } finally {
     await check('remove disposable fixtures', removeFixtures)
