@@ -90,6 +90,10 @@ const TYPE_FIELDS: Partial<Record<TableColumnType, readonly string[]>> = {
   currency: ['currencyCode'],
 }
 const COLUMN_CALLS = new Set(TABLE_COLUMN_TYPES.map((type) => `column.${type}`))
+/** Types that hold no unique constraint, as the server's column types mark them (`supportsUnique`). */
+const NOT_UNIQUE_TYPES: ReadonlySet<TableColumnType> = new Set(['select'])
+/** How many columns of a type one table holds, as the server's column types cap them (`maxPerTable`). */
+const MAX_PER_TABLE: Partial<Record<TableColumnType, number>> = { ttl: 1 }
 
 /**
  * Whether a stored column's name can key it in a declaration: the declaration reader refuses a
@@ -148,6 +152,14 @@ function readColumn(
   if (required !== undefined) column.required = required
   const unique = readBooleanField(options, 'unique', optionsPointer, report)
   if (unique !== undefined) column.unique = unique
+  if (unique && NOT_UNIQUE_TYPES.has(type)) {
+    report(
+      'E_DECL_SHAPE',
+      fieldPointer(optionsPointer, 'unique'),
+      `A ${type} column cannot be unique.`,
+      'Drop `unique`, or use a string column for values that must not repeat.'
+    )
+  }
   if (type === 'select') {
     const raw = options.options
     const at = fieldPointer(optionsPointer, 'options')
@@ -262,6 +274,15 @@ function parseTable(
       }
       seen.set(folded, columnKey)
       columns[columnKey] = column
+    }
+    for (const [type, max] of Object.entries(MAX_PER_TABLE)) {
+      const keys = Object.keys(columns).filter((columnKey) => columns[columnKey].type === type)
+      if (keys.length <= max) continue
+      report(
+        'E_DECL_SHAPE',
+        fieldPointer('/columns', keys[max]),
+        `A table holds at most ${max} ${type} column(s); ${keys.join(', ')} are all ${type}.`
+      )
     }
   }
   if (diagnostics.some((finding) => finding.severity === 'error') || name === undefined) {

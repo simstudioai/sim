@@ -49,7 +49,8 @@ const table: fc.Arbitrary<TableDecl> = fc.record(
       })
       .filter((entries) => {
         const keys = entries.map(([key]) => key.toLowerCase())
-        return new Set(keys).size === keys.length
+        const ttl = entries.filter(([, value]) => value.type === 'ttl').length
+        return new Set(keys).size === keys.length && ttl <= 1
       })
       .map((entries) => Object.fromEntries(entries)),
   },
@@ -119,6 +120,29 @@ describe('tableCodec', () => {
       ['E_TABLE_COLUMN_NAME', 9, 'leads'],
     ])
     expect(parsed.diagnostics[0]?.hint).toContain('required')
+  })
+
+  it('refuses a unique select column and a second ttl column, pinned to their lines', () => {
+    const file = [
+      '// @sim-sdk 1',
+      "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+      '',
+      'export default defineTable({',
+      "  name: 'leads',",
+      '  columns: {',
+      "    status: column.select({ options: ['a'], unique: true }),",
+      '    expires_at: column.ttl(),',
+      '    purge_at: column.ttl(),',
+      '  },',
+      '})',
+      '',
+    ].join('\n')
+    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.line])).toEqual([
+      ['E_DECL_SHAPE', 7],
+      ['E_DECL_SHAPE', 9],
+    ])
   })
 
   it('groups one file per key and refuses anything else in tables/', () => {
