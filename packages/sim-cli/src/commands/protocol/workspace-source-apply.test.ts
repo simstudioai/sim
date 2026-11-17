@@ -101,6 +101,10 @@ describe('workspaces source apply', () => {
   it('saves what a part-way apply wrote and exits 8', async () => {
     request.mockResolvedValue(
       answer({
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'create' },
+        ],
         applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
         failed: { kind: 'workflow', key: 'ingest', code: 'E_APPLY_FAILED', message: 'failed' },
         files: { 'tables/leads.ts': `${LEADS}// stored\n` },
@@ -111,6 +115,11 @@ describe('workspaces source apply', () => {
     await apply('--yes')
 
     expect(process.exitCode).toBe(8)
+    const printed = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(JSON.parse(printed)).toMatchObject({ applied: 1, created: 1, failed: 'workflow:ingest' })
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
     expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
       'table:leads': { id: 'tbl_1' },

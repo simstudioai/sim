@@ -249,9 +249,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
     })
 }
 
+/** The result line: what a dry run would write, or what an apply wrote (not what it planned). */
 function summarize(data: ApplyData) {
+  const changes = data.dryRun ? data.plan : data.applied
   const count = (action: Change['action']) =>
-    data.plan.filter((change) => change.action === action).length
+    changes.filter((change) => change.action === action).length
   return {
     workspaceId: data.workspaceId,
     dryRun: data.dryRun,
@@ -259,7 +261,7 @@ function summarize(data: ApplyData) {
     created: count('create'),
     updated: count('update') + count('adopt'),
     deleted: count('delete'),
-    unchanged: count('noop'),
+    unchanged: data.plan.filter((change) => change.action === 'noop').length,
     ...(data.failed ? { failed: `${data.failed.kind}:${data.failed.key}` } : {}),
     errors: data.diagnostics.filter((finding) => finding.severity === 'error').length,
     warnings: data.diagnostics.filter((finding) => finding.severity === 'warning').length,
