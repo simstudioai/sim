@@ -23,7 +23,7 @@ import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
 import { collectBody } from './scope'
@@ -489,7 +489,7 @@ function compileEntry(
       statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportAllDeclaration'
         ? hintForNode(statement)
         : HINTS.extraStatement
-    unsupported(ctx, statement, `${statement.type} is not allowed at the top level.`, hint)
+    unsupported(ctx, statement, `${nodeLabel(statement)} is not allowed at the top level.`, hint)
   }
   if (exportCount === 0) {
     reporter.report(

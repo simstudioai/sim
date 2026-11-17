@@ -20,7 +20,7 @@ import {
   type Scope,
   type WiringStatement,
 } from './context'
-import { HINTS, hintForNode } from './hints'
+import { HINTS, hintForNode, nodeLabel } from './hints'
 import { literalText } from './values'
 
 /** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p`). */
@@ -255,7 +255,7 @@ export class EdgeCollector {
     }
     this.error(
       'E_UNSUPPORTED_SYNTAX',
-      `${node.type} is not a wiring source.`,
+      `${nodeLabel(node)} is not a wiring source.`,
       node,
       hintForNode(node)
     )

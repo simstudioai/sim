@@ -25,7 +25,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { calleePath, literalText, SDK_VALUE_FUNCTIONS } from './values'
 
 const LOOP_METHODS = new Set(['for', 'forEach', 'while', 'doWhile'])
@@ -445,14 +445,19 @@ export function collectBody(
       unsupported(
         ctx,
         statement.expression,
-        `${statement.expression.type} is not supported here.`,
+        `${nodeLabel(statement.expression)} is not supported here.`,
         classified.kind === 'value' ? HINTS.bindInline : hintForNode(statement.expression)
       )
       addItem(statement, null)
       continue
     }
     const node = statement.type === 'ExpressionStatement' ? statement.expression : statement
-    unsupported(ctx, node, `${node.type} is not supported in a workflow body.`, hintForNode(node))
+    unsupported(
+      ctx,
+      node,
+      `${nodeLabel(node)} is not supported in a workflow body.`,
+      hintForNode(node)
+    )
     addItem(statement, null)
   }
 }

@@ -53,7 +53,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import type { Range } from './report'
 import { outputSchemasFor } from './validate-catalog'
 
@@ -127,7 +127,7 @@ function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
   return unsupported(
     ctx,
     node,
-    `${node.type} is not supported in a workflow file.`,
+    `${nodeLabel(node)} is not supported in a workflow file.`,
     hintForNode(node),
     site?.decl.key
   )

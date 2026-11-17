@@ -20,7 +20,7 @@ import {
 import { deepEqual, getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE } from '../sdk'
 import { type CompileContext, lookup, rangeOf, unsupported } from './context'
-import { didYouMean, hintForNode } from './hints'
+import { didYouMean, hintForNode, nodeLabel } from './hints'
 import {
   calleePath,
   compileJsonLiteral,
@@ -794,7 +794,7 @@ export function compileToolList(
       return unsupported(
         ctx,
         element,
-        `${element.type} is not a tool.`,
+        `${nodeLabel(element)} is not a tool.`,
         hintForNode(element),
         site.decl.key
       )

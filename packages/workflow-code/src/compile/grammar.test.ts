@@ -1145,6 +1145,17 @@ describe('rejected constructs', () => {
     expectDiagnostic(run(extra), 'E_UNSUPPORTED_SYNTAX', { line: 3, column: 1 }, EXTRA)
   })
 
+  it('names a rejected construct in words, not by its parser type', () => {
+    const messages = (body: string) => run(source(body)).diagnostics.map((d) => d.message)
+    expect(messages("const a = api('A', { url: `x${1}` })")).toContain(
+      'An untagged template is not supported in a workflow file.'
+    )
+    expect(messages("if (true) { api('A', { url: 'x' }) }")).toContain(
+      'An if statement is not supported in a workflow body.'
+    )
+    expect(messages("fetch('x')")).toContain('A call is not supported here.')
+  })
+
   it('rejects a string statement at the top level, in the workflow body and in a loop body', () => {
     const topLevel = `// @sim-sdk 1\n'use strict'\n${IMPORTS}\nexport default workflow('X', {}, () => {})\n`
     expectDiagnostic(run(topLevel), 'E_UNSUPPORTED_SYNTAX', { line: 2, column: 1 }, EXTRA)
