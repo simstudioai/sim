@@ -34,10 +34,10 @@
  *   lower than 90% of it. Answer engines quote these figures, so an overclaim such as
  *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
  *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
- *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim.
- *   A comparison that opens a sentence or names a new subject ("while Zapier", "Zapier, like
- *   Sim,") is its own clause up to the next comma, and the main clause resumes after it; ", and"
- *   before a capitalized word also starts a new clause.
+ *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim
+ *   (other rows are read cell by cell). A comparison that opens a sentence or names a new subject
+ *   ("while Zapier", "Zapier, like Sim,") is its own clause up to the next comma, and the main
+ *   clause resumes after it; ", and" before a new subject also starts a clause.
  *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
  *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
