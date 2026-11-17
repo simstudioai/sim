@@ -69,6 +69,7 @@ interface StoredCanonicalInput {
   catalog: BlockCatalog
 }
 
+/** A stored graph canonicalized against its workspace's resource keys. */
 export interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult

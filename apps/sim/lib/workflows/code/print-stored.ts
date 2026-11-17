@@ -43,6 +43,7 @@ interface PrintStoredSourceInput extends StoredSource {
   codeFiles?: Record<string, string>
 }
 
+/** A stored workflow printed as source, with the lock and freshness token that go with it. */
 export interface PrintedSource {
   /** Relative path → text: `workflow.ts` first, then any function-code files. */
   files: Record<string, string>

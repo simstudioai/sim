@@ -92,10 +92,12 @@ type GateErrorCode =
   | 'E_APPLY_CREDENTIAL_UNREACHABLE'
   | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
 
+/** A refusal (`E_APPLY_*`) or warning (`W_APPLY_*`) the source gates report for one block. */
 export type SourceGateDiagnostic = Diagnostic<
   GateErrorCode | 'W_APPLY_HOSTED_KEY_DROPPED' | 'W_APPLY_TYPE_CHANGED'
 >
 
+/** What `gateSourceDiff` judges: the diff, the catalog, and who applies it where. */
 export interface GateSourceDiffArgs {
   base: SourceGraph
   target: SourceGraph

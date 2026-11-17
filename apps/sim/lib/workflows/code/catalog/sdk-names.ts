@@ -25,6 +25,7 @@ interface SdkNamesBlockEntry {
   paramAliases?: Partial<Record<SdkSurface, Record<string, string>>>
 }
 
+/** The frozen SDK names (`blocks/sdk-names.json`): each block type's namespace and method names. */
 export interface SdkNamesFile {
   version: 1
   blocks: Record<string, SdkNamesBlockEntry>
