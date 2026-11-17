@@ -1,4 +1,4 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   credential,
@@ -14,12 +14,15 @@ import { and, asc, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 import type { SourceResources } from '@/lib/api/contracts/v2/source-resources'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
+  capabilityGovernedPrincipalUserId,
   defineAuthorizedWorkspaceUseCase,
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
 import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
+import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { loadEnvNames } from '@/lib/workflows/code/resources'
@@ -141,6 +144,36 @@ async function loadVisibleCredentials(workspaceId: string, userId: string | unde
     .limit(PAGE)
 }
 
+/**
+ * Which manifest sections the caller may see, by the gates the editor's own pickers apply: env
+ * names follow the env-var autocomplete (the workspace environment read, `secrets.manage`, and
+ * like `secrets.list` never a workspace API key), credentials follow the credential selector
+ * (`integrations.manage`). A withheld section is listed empty rather than refusing the whole
+ * manifest, so a member restricted from one still gets the tables, workflows and the rest.
+ */
+async function visibleSections(principal: Principal, context: WorkspaceAuthorizationContext) {
+  const governedUserId = capabilityGovernedPrincipalUserId(principal)
+  const withheld = async (capability: StaticPermissionGroupCapability) =>
+    governedUserId !== null &&
+    context.workspaceOrganizationId !== null &&
+    isWorkspaceCapabilityWithheld(
+      governedUserId,
+      context.workspaceId,
+      capability,
+      context.workspaceOrganizationId
+    )
+  // permission-group-enforced: secrets.manage — omits the env names section, as the env-var autocomplete's workspace environment read refuses
+  // permission-group-enforced: integrations.manage — omits the credentials section, as the credential selector refuses
+  const [secretsWithheld, integrationsWithheld] = await Promise.all([
+    withheld('secrets.manage'),
+    withheld('integrations.manage'),
+  ])
+  return {
+    env: principal.kind !== 'workspace_api_key' && !secretsWithheld,
+    credentials: !integrationsWithheld,
+  }
+}
+
 function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
   return rows.length > MAX_MANIFEST_RESOURCES_PER_KIND
     ? { rows: rows.slice(0, MAX_MANIFEST_RESOURCES_PER_KIND), truncated: true }
@@ -151,7 +184,8 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
  * The workspace resources a workflow file can name, by the keys source uses for them: tables
  * with their columns, knowledge bases, saved credentials with their provider, workflows with
  * the inputs their start block declares, and env variable names (never values). Credentials are
- * the ones the caller's credential listing shows. The CLI writes it
+ * the ones the caller's credential listing shows, and both credentials and env names are omitted
+ * where the editor's own pickers would withhold them (see `visibleSections`). The CLI writes it
  * as `workspace.d.ts`, so `table('tickets')`, `credential('support-slack')` and `env.X` type-check.
  *
  * Every listed resource gets its key here (`resolveKeys` allocates one for a resource no source
@@ -168,6 +202,7 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
     await requireWorkflowCodeEnabled()
     const workspaceId = context.workspaceId
     const userId = resolvePrincipalSubjectUserId(principal)
+    const visible = await visibleSections(principal, context)
 
     const [tableRows, kbRows, credentialRows, workflowRows, env] = await Promise.all([
       db
@@ -191,14 +226,14 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
         .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
         .limit(PAGE),
-      loadVisibleCredentials(workspaceId, userId),
+      visible.credentials ? loadVisibleCredentials(workspaceId, userId) : [],
       db
         .select({ id: workflowTable.id, name: workflowTable.name })
         .from(workflowTable)
         .where(and(eq(workflowTable.workspaceId, workspaceId), isNull(workflowTable.archivedAt)))
         .orderBy(asc(workflowTable.createdAt), asc(workflowTable.id))
         .limit(PAGE),
-      loadEnvNames(workspaceId, userId),
+      visible.env ? loadEnvNames(workspaceId, userId) : [],
     ])
 
     const tables = capped(tableRows)
