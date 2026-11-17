@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
@@ -545,6 +546,35 @@ describe('a get into a directory that already holds source', () => {
     await get()
 
     expect(read('workflow.ts')).toBe(CHANGED['workflow.ts'])
+  })
+
+  it('replaces function code stored with CRLF that nobody edited', async () => {
+    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
+    server.source = () => json(sourceResponse(crlf))
+    await get()
+    server.source = () => json(sourceResponse({ ...FILES, 'functions/score.js': 'return 2\r\n' }))
+
+    await get()
+
+    expect(read('functions/score.js')).toBe('return 2\r\n')
+  })
+
+  it('replaces unedited CRLF function code an older CLI recorded with its raw digest', async () => {
+    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
+    server.source = () => json(sourceResponse(crlf))
+    await get()
+    const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
+    writeFileSync(
+      join(dir, '.sim/written.json'),
+      JSON.stringify({
+        version: 1,
+        files: Object.fromEntries(Object.entries(crlf).map(([path, text]) => [path, sha256(text)])),
+      })
+    )
+
+    await get()
+
+    expect(read('functions/score.js')).toBe('return 1\r\n')
   })
 
   it('refuses to overwrite an unapplied edit, such as the one a stale apply refused', async () => {
