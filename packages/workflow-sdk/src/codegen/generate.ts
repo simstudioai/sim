@@ -81,7 +81,7 @@ const CORE_TYPE_NAMES = [
 ] as const
 
 /**
- * Trigger subBlocks the SDK never writes (`SYSTEM_SUBBLOCK_IDS` in apps/sim/triggers/constants.ts,
+ * Trigger subBlocks the SDK never writes (`SYSTEM_SUBBLOCK_IDS` in @sim/workflow-types/blocks,
  * minus the credential, plus the server-owned `triggerPath`).
  */
 const SYSTEM_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
