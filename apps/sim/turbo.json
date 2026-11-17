@@ -207,7 +207,7 @@
       ]
     },
     "build": {
-      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
+      "env": ["NEXT_BUILD_SKIP_SOURCE_MAPS", "NEXT_BUILD_SKIP_TYPE_CHECK"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
