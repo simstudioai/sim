@@ -124,34 +124,54 @@ export async function discoverGitLabGroup(
   mode: 'csv' | 'administrator',
   signal?: AbortSignal
 ): Promise<GitLabGroupScope> {
-  const { host, group } = await validateGitLabGroupToken(token, config, mode, signal)
-  const base = `https://${host}/api/v4`
-  const rows = await listAll<GitLabPermissionProject>(
-    `${base}/groups/${group.id}/projects?with_shared=false&include_subgroups=${group.includeSubgroups}&order_by=id&sort=asc`,
-    token,
-    signal,
-    GITLAB_GROUP_MAX_PROJECTS
-  )
-  const projects: GitLabGroupScope['projects'] = []
-  const ids = new Set<number>()
-  const paths = new Set<string>()
-  for (const row of rows) {
-    if (
-      !Number.isSafeInteger(row.id) ||
-      row.id <= 0 ||
-      typeof row.path_with_namespace !== 'string' ||
-      !gitLabProjectInGroup(row.path_with_namespace, group) ||
-      ids.has(row.id) ||
-      paths.has(row.path_with_namespace)
-    )
-      throw new Error('GitLab returned an inconsistent group project listing. Retry the update.')
-    ids.add(row.id)
-    paths.add(row.path_with_namespace)
-    projects.push({ id: row.id, path: row.path_with_namespace })
+  const deadline = AbortSignal.timeout(5 * 60 * 1000)
+  const discoverySignal = signal ? AbortSignal.any([signal, deadline]) : deadline
+  try {
+    const { host, group } = await validateGitLabGroupToken(token, config, mode, discoverySignal)
+    const base = `https://${host}/api/v4`
+    const projects: GitLabGroupScope['projects'] = []
+    const ids = new Set<number>()
+    const paths = new Set<string>()
+    let manifestBytes = 0
+    for await (const rows of listPages<GitLabPermissionProject>(
+      `${base}/groups/${group.id}/projects?with_shared=false&include_subgroups=${group.includeSubgroups}&simple=true&order_by=id&sort=asc`,
+      token,
+      discoverySignal,
+      GITLAB_GROUP_MAX_PROJECTS
+    )) {
+      for (const row of rows) {
+        if (
+          !Number.isSafeInteger(row.id) ||
+          row.id <= 0 ||
+          typeof row.path_with_namespace !== 'string' ||
+          row.path_with_namespace.length > 1024 ||
+          !gitLabProjectInGroup(row.path_with_namespace, group) ||
+          ids.has(row.id) ||
+          paths.has(row.path_with_namespace)
+        )
+          throw new Error(
+            'GitLab returned an inconsistent group project listing. Retry the update.'
+          )
+        const project = { id: row.id, path: row.path_with_namespace }
+        manifestBytes += Buffer.byteLength(JSON.stringify(project), 'utf8') + 1
+        if (manifestBytes > 16 * 1024 * 1024)
+          throw new Error('GitLab group project paths exceed 16 MiB. Choose a narrower group.')
+        ids.add(project.id)
+        paths.add(project.path)
+        projects.push(project)
+      }
+    }
+    if (!projects.length)
+      throw new Error('The GitLab token cannot read any projects in this group.')
+    projects.sort((left, right) => left.id - right.id)
+    return { host, group, projects }
+  } catch (error) {
+    if (deadline.aborted && !signal?.aborted)
+      throw new Error(
+        'GitLab group discovery exceeded five minutes. Retry or choose a narrower group.'
+      )
+    throw error
   }
-  if (!projects.length) throw new Error('The GitLab token cannot read any projects in this group.')
-  projects.sort((left, right) => left.id - right.id)
-  return { host, group, projects }
 }
 
 export interface GitLabPermissionUser {
@@ -285,20 +305,23 @@ async function requireAdministrator(
 }
 
 /** Bounded complete enumeration. Never accept a partial directory as authoritative membership. */
-async function listAll<T>(
+async function* listPages<T>(
   url: string,
   token: string,
   signal?: AbortSignal,
   maxItems?: number
-): Promise<T[]> {
+): AsyncGenerator<T[]> {
   const initial = new URL(url)
   initial.searchParams.set('per_page', String(PAGE_SIZE))
   let next: URL | null = initial
   const seen = new Set<string>()
-  const items: T[] = []
+  let itemCount = 0
   let retainedBytes = 0
   let expectedTotal: number | undefined
-  for (let page = 0; next && page < MAX_DIRECTORY_PAGES; page += 1) {
+  const maxPages =
+    maxItems === undefined ? MAX_DIRECTORY_PAGES : Math.ceil(maxItems / PAGE_SIZE) + 1
+  for (let page = 0; next && page < maxPages; page += 1) {
+    signal?.throwIfAborted()
     if (seen.has(next.href)) throw new Error('GitLab permission pagination repeated a page')
     seen.add(next.href)
     const response = await secureFetchWithRetry(
@@ -313,26 +336,30 @@ async function listAll<T>(
     if (!response.ok) throw new Error(`GitLab permission listing failed (${response.status})`)
     const body = (await response.json()) as T[]
     if (!Array.isArray(body)) throw new Error('GitLab permission listing was not an array')
-    retainedBytes += Buffer.byteLength(JSON.stringify(body), 'utf8')
-    if (body.length > PAGE_SIZE || retainedBytes > MAX_DIRECTORY_BYTES) {
+    if (maxItems === undefined) retainedBytes += Buffer.byteLength(JSON.stringify(body), 'utf8')
+    if (
+      body.length > PAGE_SIZE ||
+      (maxItems === undefined && retainedBytes > MAX_DIRECTORY_BYTES)
+    ) {
       throw new Error('GitLab permission directory exceeded its response budget')
     }
-    items.push(...body)
+    itemCount += body.length
     if (maxItems !== undefined) {
       const totalHeader = response.headers.get('x-total')
       if (totalHeader !== null) {
         const total = Number(totalHeader)
-        if (
-          !Number.isSafeInteger(total) ||
-          total < 0 ||
-          total > maxItems ||
-          (expectedTotal !== undefined && total !== expectedTotal)
-        )
-          throw new Error('GitLab group project total changed or exceeded its limit')
+        if (!/^\d+$/.test(totalHeader) || !Number.isSafeInteger(total))
+          throw new Error('GitLab returned an invalid group project total.')
+        if (total > maxItems)
+          throw new Error('GitLab group exceeds 50,000 projects. Choose a narrower group.')
+        if (expectedTotal !== undefined && total !== expectedTotal)
+          throw new Error('GitLab group projects changed during discovery. Retry the update.')
         expectedTotal = total
       }
-      if (items.length > maxItems) throw new Error('GitLab group exceeded its project limit')
+      if (itemCount > maxItems)
+        throw new Error('GitLab group exceeds 50,000 projects. Choose a narrower group.')
     }
+    yield body
     const link = response.headers
       .get('link')
       ?.split(',')
@@ -367,9 +394,14 @@ async function listAll<T>(
       next = null
     }
   }
-  if (expectedTotal !== undefined && items.length !== expectedTotal)
+  if (expectedTotal !== undefined && itemCount !== expectedTotal)
     throw new Error('GitLab group project listing was incomplete')
   if (next) throw new Error('GitLab permission directory exceeded its page limit')
+}
+
+async function listAll<T>(url: string, token: string, signal?: AbortSignal): Promise<T[]> {
+  const items: T[] = []
+  for await (const page of listPages<T>(url, token, signal)) items.push(...page)
   return items
 }
 

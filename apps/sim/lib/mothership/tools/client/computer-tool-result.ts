@@ -1,5 +1,6 @@
 import type { ComputerUseResult, ComputerUseSnapshot } from '@sim/desktop-bridge/computer-use'
 import { truncateAtCodePoint } from '@sim/utils/string'
+import { LRUCache } from 'lru-cache'
 
 // Keep encoded pixels below the 10 MiB completion body cap, with room for state and its envelope.
 const MAX_SCREENSHOT_BASE64_BYTES = 9 * 1024 * 1024
@@ -8,16 +9,54 @@ const MAX_SCREENSHOT_BASE64_BYTES = 9 * 1024 * 1024
 const MAX_STATE_BYTES = 22 * 1024
 const encoder = new TextEncoder()
 
+/** Change-only observations in a row before a full tree again, so a condensed context recovers. */
+const MAX_CHAINED_CHANGES = 4
+
+/** What the model has been shown of a snapshot: its rows, folding in any change lists before it. */
+interface KnownTree {
+  snapshotId: string
+  bundleId: string
+  windowId: string
+  /** The app's windows when shown, so a window, sheet or popover that opens or closes gets a whole tree. */
+  windowIds: string[]
+  rows: Map<string, string>
+  changesSinceFull: number
+}
+
+const knownTrees = new LRUCache<string, KnownTree>({ max: 64 })
+
+export interface ComputerToolResultContext {
+  /** The snapshot the action consumed; its observation then lists only rows that changed since it. */
+  baseSnapshotId?: string
+  /** Whether the desktop keeps an element's id across observations; positional ids get whole trees. */
+  stableElementIds?: boolean
+}
+
 /** Screenshots are image observations; a bounded readable tree keeps actionable references inline. */
-export function computerToolResultForModel(result: ComputerUseResult) {
-  if (result.kind === 'state') return snapshotForModel(result)
+export function computerToolResultForModel(
+  result: ComputerUseResult,
+  context: ComputerToolResultContext = {}
+) {
+  if (result.kind === 'state') return remember(snapshotForModel(result))
   if (result.kind !== 'action' || !result.observation) return result
   const { observation: raw, ...action } = result
-  const { observations, ...observation } = snapshotForModel(
-    raw,
-    jsonBytes({ ...action, observation: null })
+  const base =
+    context.stableElementIds && context.baseSnapshotId
+      ? knownTrees.get(context.baseSnapshotId)
+      : undefined
+  const { observations, ...observation } = remember(
+    snapshotForModel(raw, jsonBytes({ ...action, observation: null }), base)
   )
   return { ...action, observation, ...(observations ? { observations } : {}) }
+}
+
+/** Records what the model now knows of this snapshot and returns only what it sees. */
+function remember<T extends { snapshotId: string }>({
+  known,
+  ...projected
+}: T & { known: KnownTree }) {
+  knownTrees.set(projected.snapshotId, known)
+  return projected
 }
 
 function jsonBytes(value: unknown): number {
@@ -77,7 +116,7 @@ function nodeRow(
   return fields.join(' ')
 }
 
-function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
+function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?: KnownTree) {
   const { screenshot, nodes, windows: allWindows, ...state } = result
   const image =
     screenshot && screenshot.base64.length <= MAX_SCREENSHOT_BASE64_BYTES ? screenshot : undefined
@@ -139,6 +178,50 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
       nodeRow(node, shownParent.get(node.elementId), state.windowId),
     ])
   )
+  const clipped =
+    nodes.some(
+      (node) =>
+        (node.label?.length ?? 0) > 512 ||
+        (node.value?.length ?? 0) > 512 ||
+        (node.placeholder?.length ?? 0) > 256 ||
+        node.actions.length > 16
+    ) || allWindows.some((window) => window.title.length > 256)
+  const changes = base && changesSince(base, result, shown, rows)
+  if (changes) {
+    const changed = {
+      ...model,
+      treeFormat: `${model.treeFormat} Only rows added or changed since snapshot ${base.snapshotId} are listed: every other row of that snapshot is unchanged and keeps its elementId, and removedElementIds are no longer shown. Use get_app_state for the whole tree.`,
+      changedSince: base.snapshotId,
+      accessibilityTree: changes.ids.map((id) => rows.get(id)).join('\n'),
+      removedElementIds: changes.removed,
+      omittedNodeCount: 0,
+    }
+    if (jsonBytes(changed) + envelopeBytes <= MAX_STATE_BYTES) {
+      const known = new Map(base.rows)
+      for (const id of changes.removed) known.delete(id)
+      for (const id of changes.ids) known.set(id, rows.get(id) ?? '')
+      return {
+        ...changed,
+        truncated:
+          state.truncated || windows.length < allWindows.length || clipped || screenshotOmitted,
+        ...(image
+          ? {
+              observations: [
+                { name: 'Computer screenshot', mediaType: image.mimeType, data: image.base64 },
+              ],
+            }
+          : {}),
+        known: {
+          snapshotId: state.snapshotId,
+          bundleId: state.bundleId,
+          windowId: state.windowId,
+          windowIds: allWindows.map((window) => window.windowId),
+          rows: known,
+          changesSinceFull: base.changesSinceFull + 1,
+        },
+      }
+    }
+  }
   const priority = (node: SnapshotNode) => {
     const visible =
       selectedWindow &&
@@ -197,14 +280,6 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     /** Keep the editor itself even if an unusually deep ancestry cannot fit. */
     if (!add(ancestry.reverse())) add([node.elementId])
   }
-  const clipped =
-    nodes.some(
-      (node) =>
-        (node.label?.length ?? 0) > 512 ||
-        (node.value?.length ?? 0) > 512 ||
-        (node.placeholder?.length ?? 0) > 256 ||
-        node.actions.length > 16
-    ) || allWindows.some((window) => window.title.length > 256)
   return {
     ...model,
     accessibilityTree: shown
@@ -225,5 +300,50 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
           ],
         }
       : {}),
+    known: {
+      snapshotId: state.snapshotId,
+      bundleId: state.bundleId,
+      windowId: state.windowId,
+      windowIds: allWindows.map((window) => window.windowId),
+      /** Exactly the rows sent, so a parent link left out here is sent once that parent shows. */
+      rows: new Map(
+        shown
+          .filter((node) => selected.has(node.elementId))
+          .map((node) => [
+            node.elementId,
+            nodeRow(node, shownParent.get(node.elementId), state.windowId, selected),
+          ])
+      ),
+      changesSinceFull: 0,
+    },
   }
+}
+
+/**
+ * The rows that differ from what the model was shown of `base`, or undefined when a whole tree is
+ * clearer: another app or window, a window, sheet or popover opening or closing, a partial native
+ * read (an element it missed may still exist), a long chain of change lists, most of the tree
+ * changing, or nothing visible changing at all (an empty list reads as a failed action, while the
+ * whole tree shows where things stand).
+ */
+function changesSince(
+  base: KnownTree,
+  result: ComputerUseSnapshot,
+  shown: SnapshotNode[],
+  rows: Map<string, string>
+): { ids: string[]; removed: string[] } | undefined {
+  if (
+    base.bundleId !== result.bundleId ||
+    base.windowId !== result.windowId ||
+    result.truncated ||
+    base.changesSinceFull >= MAX_CHAINED_CHANGES ||
+    base.windowIds.join() !== result.windows.map((window) => window.windowId).join()
+  )
+    return undefined
+  const ids = shown.map((node) => node.elementId).filter((id) => rows.get(id) !== base.rows.get(id))
+  if (ids.length * 2 > shown.length) return undefined
+  /** Gone or folded into a layout wrapper: either way the model should stop relying on its row. */
+  const removed = [...base.rows.keys()].filter((id) => !rows.has(id))
+  if (ids.length === 0 && removed.length === 0) return undefined
+  return { ids, removed }
 }

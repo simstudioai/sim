@@ -88,9 +88,12 @@ function GitLabCsvFile({ kind, form, disabled }: GitLabCsvFileProps) {
       disabled={disabled}
       loading={selected?.loading}
       label={selected?.loading ? 'Validating…' : (filename ?? 'Drop CSV or click to upload')}
-      error={selected?.error}
+      error={selected?.error ?? (kind === 'projectPermissions' ? form.uploadError : undefined)}
       description={
-        filename && count !== undefined && !selected?.loading
+        filename &&
+        count !== undefined &&
+        !selected?.loading &&
+        !(selected?.upload && form.uploadError)
           ? `${count.toLocaleString()} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`
           : undefined
       }

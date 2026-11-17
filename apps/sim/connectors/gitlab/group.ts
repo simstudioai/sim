@@ -1,17 +1,17 @@
 import { z } from 'zod'
 import { encodeGitLabResourceId, normalizeGitLabHost } from '@/tools/gitlab/utils'
 
-export const GITLAB_GROUP_MAX_PROJECTS = 1000
+export const GITLAB_GROUP_MAX_PROJECTS = 50_000
 
 export const gitLabGroupScopeSchema = z.object({
   host: z.string().min(1),
   group: z.object({
     id: z.number().int().positive(),
-    path: z.string().min(1),
+    path: z.string().min(1).max(1024),
     includeSubgroups: z.boolean(),
   }),
   projects: z
-    .array(z.object({ id: z.number().int().positive(), path: z.string().min(1) }))
+    .array(z.object({ id: z.number().int().positive(), path: z.string().min(1).max(1024) }))
     .min(1)
     .max(GITLAB_GROUP_MAX_PROJECTS),
 })

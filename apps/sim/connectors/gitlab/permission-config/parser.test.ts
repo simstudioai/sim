@@ -61,18 +61,18 @@ describe('GitLab CSV permission uploads', () => {
         { filename: 'users.csv', content: '😀'.repeat(GITLAB_CSV_MAX_BYTES / 4 + 1) },
         'userMapping'
       )
-    ).toThrow('4 MiB')
+    ).toThrow('8 MiB')
   })
-  it('accepts 100,000 rows and rejects the next row', () => {
-    const content = Array.from({ length: 100_000 }, (_, i) => `${i + 1},u${i}@example.com`).join(
-      '\n'
-    )
-    expect(parseGitLabCsv({ filename: 'users.csv', content }, 'userMapping')).toHaveLength(100_000)
+  it('accepts 500,000 rows and rejects the next row', () => {
+    const content = Array.from({ length: 500_000 }, (_, i) => `a/b,${i + 1}`).join('\n')
+    expect(
+      parseGitLabCsv({ filename: 'projects.csv', content }, 'projectPermissions')
+    ).toHaveLength(500_000)
     expect(() =>
       parseGitLabCsv(
-        { filename: 'users.csv', content: `${content}\n100001,last@example.com` },
-        'userMapping'
+        { filename: 'projects.csv', content: `${content}\na/b,500001` },
+        'projectPermissions'
       )
-    ).toThrow('100,000')
+    ).toThrow('500,000')
   })
 })
