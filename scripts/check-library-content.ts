@@ -33,8 +33,9 @@
  *   against the generated catalog (`INTEGRATION_TOTALS`): no higher than the total, and no
  *   lower than 90% of it. Answer engines quote these figures, so an overclaim such as
  *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
- *   A count belongs to Sim when the nearest "Sim" before it on the line is at most 12 words back
- *   with no capitalized word between, which leaves competitor counts alone.
+ *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
+ *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim.
+ *   Sentence ends and contrasts ("while", "unlike", "compared with") start a new clause.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
@@ -138,35 +139,46 @@ const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
 const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/gi
 /** Inline emphasis and code markers, which would otherwise split "**1,000+** integrations". */
 const INLINE_MARKERS = /\*\*|__|[*`]/g
-const SIM_NAME = /\bSim\b/g
-const SIM_CLAIM_MAX_WORDS = 12
+const SIM_NAME = /\bSim\b/
+/** A table row's label cell naming Sim, plain or linked: "Sim" or "[Sim](https://www.sim.ai)". */
+const SIM_LABEL = /^\[?Sim\b/
+/** Words that turn a sentence toward another product: "while Zapier lists...", "Unlike Sim, ...". */
+const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
+/** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
+const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;:])\s+|,?\s+${CONTRAST}\s+`, 'i')
+/** An opening comparison ("Unlike Sim, ...", "Like Sim, ...") whose main clause is about another product. */
+const LEADING_CONTRAST = new RegExp(String.raw`^(?:like|${CONTRAST})\b[^,]*,\s*`, 'i')
+/** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
+const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
 const SIM_COUNT_FLOOR = 0.9
 
-/**
- * The counts on one line of text that belong to Sim, with the claim as written. A sentence or
- * clause that moves on to another product starts with a capitalized word, which ends Sim's claim.
- */
-function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
-  const claims: { claim: string; count: number; unit: SimCountUnit }[] = []
-  const text = line.replace(INLINE_MARKERS, '')
-  for (const match of text.matchAll(COUNT_CLAIM)) {
-    const before = text.slice(0, match.index)
-    const lastSim = [...before.matchAll(SIM_NAME)].at(-1)
-    if (lastSim?.index === undefined) continue
-    const words = before
-      .slice(lastSim.index + lastSim[0].length)
-      .split(/\s+/)
-      .map((word) => word.replace(/^[^A-Za-z0-9]+/, ''))
-      .filter(Boolean)
-    if (words.length > SIM_CLAIM_MAX_WORDS || words.some((word) => /^[A-Z]/.test(word))) continue
-    claims.push({
-      claim: match[0],
-      count: Number.parseInt(match[1].replaceAll(',', ''), 10),
-      unit: match[2].toLowerCase() as SimCountUnit,
+/** Every count in a table row whose first cell names Sim. */
+function simTableRowCounts(row: string): RegExpMatchArray[] {
+  return SIM_LABEL.test(row.split('|')[1]?.trim() ?? '') ? [...row.matchAll(COUNT_CLAIM)] : []
+}
+
+/** Each count whose clause names Sim before it, unless another product's possessive owns it. */
+function simProseCounts(text: string): RegExpMatchArray[] {
+  return text.split(CLAUSE_BREAK).flatMap((sentence) => {
+    const clause = sentence.replace(LEADING_CONTRAST, '')
+    return [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
+      const before = clause.slice(0, match.index)
+      const owner = POSSESSIVE_OWNER.exec(before)?.[1]
+      return SIM_NAME.test(before) && (owner === undefined || owner === 'Sim')
     })
-  }
-  return claims
+  })
+}
+
+/** The counts on one line of text that belong to Sim, with the claim as written. */
+function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
+  const text = line.replace(INLINE_MARKERS, '')
+  const matches = text.trimStart().startsWith('|') ? simTableRowCounts(text) : simProseCounts(text)
+  return matches.map((match) => ({
+    claim: match[0],
+    count: Number.parseInt(match[1].replaceAll(',', ''), 10),
+    unit: match[2].toLowerCase() as SimCountUnit,
+  }))
 }
 
 function isSection(value: string): value is Section {

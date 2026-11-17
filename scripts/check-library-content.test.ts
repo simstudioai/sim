@@ -330,6 +330,26 @@ describe('check-library-content', () => {
     ['Sim listens for events with 300+ triggers.', '300+ triggers', 'stale'],
     ['Sim has **1,000+** integrations.', '1,000+ integrations', 'overstates'],
     ['Sim has 1,000+ Integrations.', '1,000+ Integrations', 'overstates'],
+    [
+      '[Sim](https://www.sim.ai) combines [Chat](https://docs.sim.ai/execution/chat) with 1,000+ integrations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      "Sim's Agent blocks support 28 LLM providers, and the workspace connects to 1,000+ integrations.",
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      '| Sim | Governed agents across SaaS tools | 1,000+ integrations |',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      '| [Sim](https://www.sim.ai) | Governed agents | 1,000+ integrations |',
+      '1,000+ integrations',
+      'overstates',
+    ],
   ])('rejects a Sim count the catalog does not support: %s', async (body, claim, verdict) => {
     writePost('library', 'post', body)
     expect(await findingsFor('library', 'post')).toEqual([
@@ -361,7 +381,12 @@ describe('check-library-content', () => {
         "Zapier lists 9,000+ integrations, while Sim's 280+ integrations focus on agents.",
         'Compared with Sim, MindStudio advertises 1,000+ integrations.',
         'Sim is open source. Workato cites 14,000+ integrations.',
-        'Sim can call any tool that the connector marketplaces built on open protocols expose, often 1,000+ integrations.',
+        'Unlike Sim, Zapier lists 9,000+ integrations.',
+        'Like Sim, n8n ships 2,000+ integrations.',
+        'Sim has 280+ integrations, while Zapier lists 9,000+ integrations.',
+        "Sim has 280+ integrations, fewer than Zapier's 9,000+ integrations.",
+        '| n8n | Self-hosted, unlike Sim | 2,000+ integrations |',
+        'Teams that need 20 integrations and five builders often pick Sim.',
         '```text\nSim has 1,000+ integrations\n```',
         '````md\n```text\nSim has 1,000+ integrations\n````',
       ].join('\n\n')
