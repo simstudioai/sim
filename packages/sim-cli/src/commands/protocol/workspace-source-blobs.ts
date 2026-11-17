@@ -241,14 +241,15 @@ export function recordHashedBlobs(
 }
 
 /**
- * The directory path of every blob the base records for `kinds`: a workspace file's entry names
- * its path, a knowledge base's names a document under its `docs/` folder.
+ * The directory path of every blob the base records for `kinds`, with the SHA-256 it records: a
+ * workspace file's entry names its path, a knowledge base's names a document under its `docs/`
+ * folder.
  */
-function baseBlobPaths(base: unknown, kinds: readonly WorkspaceKind[]): string[] {
+function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<string, unknown> {
+  const digests = new Map<string, unknown>()
   const resources =
     typeof base === 'object' && base !== null && 'resources' in base ? base.resources : null
-  if (typeof resources !== 'object' || resources === null) return []
-  const paths: string[] = []
+  if (typeof resources !== 'object' || resources === null) return digests
   for (const [address, resource] of Object.entries(resources)) {
     const colon = address.indexOf(':')
     const kind = address.slice(0, colon)
@@ -259,13 +260,34 @@ function baseBlobPaths(base: unknown, kinds: readonly WorkspaceKind[]): string[]
         ? resource.blobs
         : null
     if (typeof blobs !== 'object' || blobs === null) continue
-    for (const name of Object.keys(blobs)) {
+    for (const [name, blob] of Object.entries(blobs)) {
       const path =
         kind === 'knowledge-base' ? `${KIND_DIRS['knowledge-base']}/${key}/docs/${name}` : name
-      if (isBlobPath(path) && isWorkspaceSourcePath(path)) paths.push(path)
+      if (!isBlobPath(path) || !isWorkspaceSourcePath(path)) continue
+      digests.set(
+        path,
+        typeof blob === 'object' && blob !== null && 'sha256' in blob ? blob.sha256 : undefined
+      )
     }
   }
-  return paths
+  return digests
+}
+
+/**
+ * The submitted blobs the server now holds byte for byte (the base an apply returned records the
+ * same SHA-256 for their path), as `.sim/written.json` records them: the directory's copy is what
+ * the CLI last synced, so a later removal reads as a delete and a server change as no local edit.
+ */
+export function appliedBlobDigests(
+  submission: { kinds: readonly WorkspaceKind[]; blobs: ReadonlyArray<BlobEntry> },
+  base: unknown
+): Record<string, string> {
+  const held = baseBlobDigests(base, submission.kinds)
+  return Object.fromEntries(
+    submission.blobs
+      .filter((blob) => held.get(blob.path) === blob.sha256)
+      .map((blob) => [blob.path, blob.sha256])
+  )
 }
 
 /**
@@ -284,7 +306,7 @@ export async function assertBlobsFetched(
 ): Promise<void> {
   const local = new Set(submission.blobs.map((blob) => blob.path))
   const written = await readWrittenDigests(dir)
-  const missing = baseBlobPaths(submission.base, submission.kinds).filter(
+  const missing = [...baseBlobDigests(submission.base, submission.kinds).keys()].filter(
     (path) => !local.has(path) && !Object.hasOwn(written, path)
   )
   if (missing.length === 0) return

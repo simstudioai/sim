@@ -22,7 +22,7 @@ import {
   updateSourceDir,
   writtenRecord,
 } from './workflow-source-layout'
-import { assertBlobsFetched } from './workspace-source-blobs'
+import { appliedBlobDigests, assertBlobsFetched } from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
   blobContent,
@@ -111,11 +111,15 @@ async function blobRound(
 
 /**
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
- * their digests in `.sim/written.json`.
+ * their digests in `.sim/written.json`, beside the digests of the blobs the server now holds.
  */
-async function saveApplied(dir: string, data: ApplyData): Promise<void> {
+async function saveApplied(
+  dir: string,
+  data: ApplyData,
+  submission: WorkspaceSubmission
+): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
-  const kept = await readWrittenDigests(dir)
+  const kept = { ...(await readWrittenDigests(dir)), ...appliedBlobDigests(submission, data.base) }
   await updateSourceDir(dir, {
     write: [
       ...Object.entries(data.files),
@@ -228,7 +232,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       let data = await send(submission, false, wanted)
       for (;;) {
         printDiagnostics(data.diagnostics)
-        await saveApplied(options.dir, data)
+        await saveApplied(options.dir, data, submission)
         if (data.failed || data.remainingBlobs.length === 0) break
         const next = data.remainingBlobs
         if (next.length >= wanted.length && next.every((path) => wanted.includes(path))) {

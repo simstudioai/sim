@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
@@ -204,5 +205,40 @@ describe('workspaces source apply', () => {
     await apply('--yes', '--allow-delete')
 
     expect(request).toHaveBeenCalled()
+  })
+
+  it('records the blobs an apply uploaded, so removing one later deletes it', async () => {
+    const sha256 = createHash('sha256').update('hello').digest('hex')
+    const other = createHash('sha256').update('stale').digest('hex')
+    write('files/a.txt', 'hello')
+    write('files/b.txt', 'hello')
+    write('knowledge/docs/knowledge.ts', '// @sim-sdk 1\n')
+    write('knowledge/docs/docs/guide.md', 'hello')
+    const after = {
+      ...BASE,
+      resources: {
+        'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: '1', sha256 } } },
+        'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: '1', sha256: other } } },
+        'knowledge-base:docs': {
+          id: 'kb1',
+          blobs: { 'guide.md': { id: 'd1', rev: '1', sha256 } },
+        },
+      },
+    }
+    const needBlobs = ['files/a.txt', 'files/b.txt', 'knowledge/docs/docs/guide.md']
+    request
+      .mockResolvedValueOnce(answer({ dryRun: true, needBlobs }))
+      .mockResolvedValue(answer({ base: after }))
+
+    await apply('--yes')
+
+    expect(JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files).toEqual({
+      'files/a.txt': sha256,
+      'knowledge/docs/docs/guide.md': sha256,
+    })
+    unlinkSync(join(dir, 'files/a.txt'))
+    unlinkSync(join(dir, 'knowledge/docs/docs/guide.md'))
+    write('files/b.txt', 'stale')
+    await expect(apply('--yes', '--allow-delete')).resolves.toBeUndefined()
   })
 })
