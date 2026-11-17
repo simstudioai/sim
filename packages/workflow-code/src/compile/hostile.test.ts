@@ -114,6 +114,11 @@ describe('hostile sources produce diagnostics only', () => {
     expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
   })
 
+  it('refuses an oversize input before scanning its characters', () => {
+    const text = wrap(`const a = api('A', { url: '\u0000${'x'.repeat(2_000)}' })`)
+    expect(codes(run(text, { maxTotalBytes: 1_000 }))).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
   it.each([
     ['nested arrays', `const a = api('A', { url: ${'['.repeat(100_000)}${']'.repeat(100_000)} })`],
     [

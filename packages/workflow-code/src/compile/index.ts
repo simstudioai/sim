@@ -379,7 +379,8 @@ function compileEntry(
   reporter: Reporter
 ): CompileResult {
   const limits = { ...DEFAULT_LIMITS, ...input.limits }
-  checkStorableText(file, text, reporter)
+  if (utf8Bytes(text, limits.maxTotalBytes) <= limits.maxTotalBytes)
+    checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {
     reporter.report(
