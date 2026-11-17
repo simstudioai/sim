@@ -6,6 +6,7 @@ import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
+import { getOwn } from '../records'
 import type { MaterializeHooks } from './context'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
@@ -128,7 +129,9 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   const prevKeyById = new Map(Object.entries(prevIdentity).map(([key, block]) => [block.id, key]))
   const duplicates = duplicateLockKeys(lock, diagnostics)
   const lockEntry = (key: BlockKey) =>
-    lock && Object.hasOwn(lock.blocks, key) && !duplicates.has(key) ? lock.blocks[key] : undefined
+    lock && !duplicates.has(key) ? getOwn(lock.blocks, key) : undefined
+  const compiledIdent = (key: BlockKey) =>
+    inputs.compiledIdents ? getOwn(inputs.compiledIdents, key) : undefined
 
   const resolved = new Map<BlockKey, ResolvedBlock>()
   const claimed = new Set<string>()
@@ -137,7 +140,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
 
   const match = (key: BlockKey, prevId: string, via: IdentityMatchRule): boolean => {
     const target = workflow.blocks[key]
-    const stored = prevBlocks[prevId]
+    const stored = getOwn(prevBlocks, prevId)
     const prevKey = prevKeyById.get(prevId)
     if (!stored || prevKey === undefined || claimed.has(prevId)) return false
     const relation = typeRelation(catalog, stored.type, target.type)
@@ -176,7 +179,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (!duplicates.has(key)) identOwner.set(entry.ident, key)
   }
   const identMoved = (key: BlockKey): boolean => {
-    const ident = inputs.compiledIdents?.[key]
+    const ident = compiledIdent(key)
     const entry = lockEntry(key)
     if (ident === undefined || !entry || entry.ident === ident) return false
     const owner = identOwner.get(ident)
@@ -203,11 +206,11 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   const identEntries = Object.entries(lock?.blocks ?? {}).filter(
     ([key, entry]) =>
       !duplicates.has(key) &&
-      (!Object.hasOwn(workflow.blocks, key) || inputs.compiledIdents?.[key] !== entry.ident)
+      (!Object.hasOwn(workflow.blocks, key) || compiledIdent(key) !== entry.ident)
   )
   for (const key of open()) {
     if (lockEntry(key) && !identMoved(key)) continue
-    const ident = inputs.compiledIdents?.[key]
+    const ident = compiledIdent(key)
     if (ident === undefined) continue
     const found = identEntries.find(
       ([, entry]) => entry.ident === ident && Object.hasOwn(prevBlocks, entry.id)
@@ -216,7 +219,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   }
 
   for (const key of open()) {
-    const prevId = prevIdentity[key]?.id
+    const prevId = getOwn(prevIdentity, key)?.id
     if (prevId !== undefined) match(key, prevId, 'db-name')
   }
 
@@ -259,8 +262,8 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
 
   for (const [key, block] of resolved) {
     if (block.entry.status !== 'matched' || block.prevKey === null) continue
-    const prevParent = prevCanonical[block.prevKey]?.parent ?? null
-    const prevParentId = prevParent !== null ? (prevIdentity[prevParent]?.id ?? null) : null
+    const prevParent = getOwn(prevCanonical, block.prevKey)?.parent ?? null
+    const prevParentId = prevParent !== null ? (getOwn(prevIdentity, prevParent)?.id ?? null) : null
     const parent = workflow.blocks[key].parent
     const parentId = parent !== null ? (resolved.get(parent)?.id ?? null) : null
     if (parentId !== prevParentId) block.entry.reparentedFrom = prevParent
@@ -330,13 +333,13 @@ function inferRenames(state: InferenceState): void {
   const prevIdentity = prev.canonical.identity.blocks
   const retyped = new Set(
     [...state.settled.keys()].flatMap((key) => {
-      const id = prevIdentity[key]?.id
+      const id = getOwn(prevIdentity, key)?.id
       return id !== undefined ? [id] : []
     })
   )
   const idOfTarget = (key: BlockKey) => resolved.get(key)?.id
   const idOfPrev = (key: BlockKey) => {
-    const id = prevIdentity[key]?.id
+    const id = getOwn(prevIdentity, key)?.id
     return id !== undefined && claimed.has(id) ? id : undefined
   }
 
