@@ -41,6 +41,7 @@ import {
   noBaseFinding,
   planUndeclared,
   serverChangedFinding,
+  serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import {
@@ -64,7 +65,7 @@ import {
   type StoredKnowledgeState,
   sourceDocs,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
-import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   ApplyContext,
@@ -188,16 +189,6 @@ async function planKnowledgeBase(
   const local = fingerprintOf(knowledgeCodec.canonical(decl))
   const base = ctx.base?.resources[resourceAddress(KIND, key)]
   const bound = stored.bound.get(key)
-  /**
-   * The base records a knowledge base the server no longer holds: it was deleted there. An
-   * unchanged directory leaves it deleted; an edited one is stale rather than re-creating it.
-   */
-  if (!bound && base?.fingerprint && !stored.unbound.some(({ id }) => id === base.id)) {
-    change.diagnostics.push(
-      local === base.fingerprint ? serverChangedFinding(KIND, key) : staleFinding(KIND, key)
-    )
-    return change
-  }
   const boundDocs = bound ? await loadDocs(ctx, bound.id) : []
   const based = bound && base?.id === bound.id && base.fingerprint ? base : undefined
   const hashes = baseHashes(boundDocs, based)
@@ -222,8 +213,9 @@ async function planKnowledgeBase(
     ),
     base,
     fingerprint: (resource) => converged ?? knowledgeView(resource, boundDocs, hashes).fingerprint,
+    holds: holdsIn(stored),
   })
-  const target = resolution.action === 'create' ? undefined : resolution.stored
+  const target = 'stored' in resolution ? resolution.stored : undefined
   if (
     target &&
     decl.embeddingModel !== undefined &&
@@ -239,6 +231,9 @@ async function planKnowledgeBase(
     )
   }
   switch (resolution.action) {
+    case 'deleted':
+      change.diagnostics.push(serverGoneFinding(KIND, key, resolution.stale))
+      return change
     case 'stale':
       change.diagnostics.push(staleFinding(KIND, key))
       return { ...change, storedId: resolution.stored.id }
@@ -471,6 +466,19 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       for (const [key, decl] of desired) {
         changes.push(await planKnowledgeBase(key, decl, stored, ctx, folders))
       }
+      /** A delete is stale when the knowledge base changed on the server since the base. */
+      const undeclared = new Map<string, string>()
+      if (ctx.allowDelete) {
+        for (const [key, resource] of stored.bound) {
+          const entry = ctx.base?.resources[resourceAddress(KIND, key)]
+          if (desired.has(key) || entry?.id !== resource.id) continue
+          const docs = await loadDocs(ctx, resource.id)
+          undeclared.set(
+            resource.id,
+            knowledgeView(resource, docs, baseHashes(docs, entry)).fingerprint
+          )
+        }
+      }
       changes.push(
         ...planUndeclared<StoredKnowledgeState, KnowledgeBaseDecl, KnowledgePlan>(
           KIND,
@@ -480,7 +488,11 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           (resource) => ({
             what: 'knowledge base',
             counts: { documents: resource.state.knowledgeBase.docCount },
-          })
+          }),
+          {
+            declared: changes,
+            fingerprint: (resource) => undeclared.get(resource.id) ?? '',
+          }
         )
       )
       return changes

@@ -734,7 +734,7 @@ describe('workspace source files', () => {
         'noop docs/plan.md',
         'noop renamed.txt',
       ])
-      const moved = unchanged.diagnostics.find((finding) => finding.code === 'I_SERVER_CHANGED')
+      const moved = unchanged.diagnostics.find((finding) => finding.code === 'I_SERVER_MOVED')
       expect(moved?.message).toContain('files/renamed.txt')
       expect(unchanged.needBlobs).toEqual([])
 
@@ -767,7 +767,7 @@ describe('workspace source files', () => {
 
       const unchanged = await apply(workspaceId, STARTER, { base: read.base })
       expect(summary(unchanged.plan)).toEqual(['noop notes.txt', 'noop docs/plan.md'])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
       expect(unchanged.needBlobs).toEqual([])
 
       const refused = await refusal(

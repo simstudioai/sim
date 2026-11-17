@@ -75,6 +75,35 @@ export function serverChangedFinding(kind: WorkspaceKind, key: string): Workspac
   )
 }
 
+/**
+ * A resource the base records that the server deleted (or, with `movedTo`, moved to another key).
+ * An unchanged one is left as the server has it, never created again; an edited one is stale.
+ */
+export function serverGoneFinding(
+  kind: WorkspaceKind,
+  key: string,
+  stale: boolean,
+  movedTo?: string
+): WorkspaceSourceDiagnostic {
+  const gone = movedTo === undefined ? 'deleted on the server' : `moved on the server to ${movedTo}`
+  if (stale) {
+    return finding(
+      'E_APPLY_STALE',
+      `${where(kind, key)} was ${gone} since this directory was read.`,
+      {
+        hint: GET_HINT,
+        kind,
+        key,
+      }
+    )
+  }
+  return finding(
+    movedTo === undefined ? 'I_SERVER_DELETED' : 'I_SERVER_MOVED',
+    `${where(kind, key)} was ${gone}; this directory does not create it again, and the next get shows that.`,
+    { kind, key }
+  )
+}
+
 /** A key that named a deleted resource now names the one this apply wrote. */
 export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return finding(

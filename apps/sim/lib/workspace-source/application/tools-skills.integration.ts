@@ -522,45 +522,54 @@ describe('workspace source: custom tools and skills', () => {
     }
   )
 
-  check('re-claims a deleted skill’s key and adopts an unbound skill by name', async () => {
-    const workspaceId = await newWorkspace()
-    const read = await setUp(workspaceId)
-    const [first] = (await snapshot(workspaceId)).skills
-    await db.delete(skill).where(eq(skill.id, first.id))
+  check(
+    'keeps a deleted skill deleted, re-claims its key without a base entry, and adopts an unbound skill by name',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const [first] = (await snapshot(workspaceId)).skills
+      await db.delete(skill).where(eq(skill.id, first.id))
 
-    const recreated = await apply(workspaceId, read.files, { base: read.base })
+      const untouched = await apply(workspaceId, read.files, { base: read.base })
+      expect(untouched.applied).toEqual([])
+      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_DELETED')
+      expect((await snapshot(workspaceId)).skills).toEqual([])
 
-    expect(actions(recreated.applied)).toEqual(['create skill:tone'])
-    const [second] = (await snapshot(workspaceId)).skills
-    expect(second.id).not.toBe(first.id)
+      const { 'skill:tone': _deleted, ...resources } = read.base.resources
+      const recreated = await apply(workspaceId, read.files, { base: { ...read.base, resources } })
 
-    const fresh = await newWorkspace()
-    const { tool } = await createWorkspaceCustomToolUseCase.execute({
-      principal: owner,
-      input: {
-        workspaceId: fresh,
-        title: 'Lookup order',
-        schema: {
-          type: 'function',
-          function: { name: 'old', parameters: { type: 'object', properties: {} } },
+      expect(actions(recreated.applied)).toEqual(['create skill:tone'])
+      const [second] = (await snapshot(workspaceId)).skills
+      expect(second.id).not.toBe(first.id)
+
+      const fresh = await newWorkspace()
+      const { tool } = await createWorkspaceCustomToolUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId: fresh,
+          title: 'Lookup order',
+          schema: {
+            type: 'function',
+            function: { name: 'old', parameters: { type: 'object', properties: {} } },
+          },
+          code: 'return 1',
         },
-        code: 'return 1',
-      },
-    })
-    const { skill: unbound } = await createSkillUseCase.execute({
-      principal: owner,
-      input: { workspaceId: fresh, name: 'tone', description: 'Old', content: 'Old' },
-    })
-    const adopted = await apply(fresh, {
-      'tools/orders.ts': LOOKUP.replace('./lookup.js', './orders.js'),
-      'tools/orders.js': 'return 0\n',
-      'skills/style.md': TONE,
-    })
-    expect(adopted.applied).toMatchObject([
-      { action: 'adopt', kind: 'custom-tool', key: 'orders', id: tool.id },
-      { action: 'adopt', kind: 'skill', key: 'style', id: unbound.id },
-    ])
-  })
+      })
+      const { skill: unbound } = await createSkillUseCase.execute({
+        principal: owner,
+        input: { workspaceId: fresh, name: 'tone', description: 'Old', content: 'Old' },
+      })
+      const adopted = await apply(fresh, {
+        'tools/orders.ts': LOOKUP.replace('./lookup.js', './orders.js'),
+        'tools/orders.js': 'return 0\n',
+        'skills/style.md': TONE,
+      })
+      expect(adopted.applied).toMatchObject([
+        { action: 'adopt', kind: 'custom-tool', key: 'orders', id: tool.id },
+        { action: 'adopt', kind: 'skill', key: 'style', id: unbound.id },
+      ])
+    }
+  )
 
   check('a workflow uses a tool and a skill the same apply adopts', async () => {
     const workspaceId = await newWorkspace()

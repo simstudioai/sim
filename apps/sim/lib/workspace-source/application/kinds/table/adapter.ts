@@ -34,6 +34,7 @@ import {
   planUndeclared,
   reboundFinding,
   serverChangedFinding,
+  serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import {
@@ -47,7 +48,7 @@ import {
   type StoredTableState,
   tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
-import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -55,7 +56,6 @@ import type {
   PlannedChange,
   SourceContext,
   StoredSet,
-  WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
@@ -118,8 +118,12 @@ async function planTable(
     ),
     base: entry,
     fingerprint: (resource, entry) => tableAsDecl(resource.state, entry?.columns).fingerprint,
+    holds: holdsIn(stored),
   })
   switch (resolution.action) {
+    case 'deleted':
+      change.diagnostics.push(serverGoneFinding('table', key, resolution.stale))
+      return change
     case 'stale':
       change.diagnostics.push(staleFinding('table', key))
       return { ...change, storedId: resolution.stored.id }

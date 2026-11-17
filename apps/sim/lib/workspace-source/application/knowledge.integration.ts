@@ -1074,7 +1074,7 @@ describe('knowledge bases as workspace source', () => {
       const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
 
       expect(unchanged.applied).toEqual([])
-      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
       expect(await knowledgeBases(workspaceId)).toEqual([])
 
       const stale = await refusal(

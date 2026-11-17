@@ -493,7 +493,7 @@ describe('workspace source apply', () => {
   })
 
   check(
-    're-claims a deleted table’s key, adopts an unbound table by name, and refuses a taken name',
+    'keeps a deleted table deleted, re-claims its key without a base entry, adopts an unbound table by name, and refuses a taken name',
     async () => {
       const workspaceId = await newWorkspace()
       const read = await setUp(workspaceId)
@@ -503,7 +503,16 @@ describe('workspace source apply', () => {
         input: { tableId: first.id, workspaceId },
       })
 
-      const recreated = await apply(workspaceId, read.files, { base: read.base, only: ['table'] })
+      const untouched = await apply(workspaceId, read.files, { base: read.base, only: ['table'] })
+      expect(untouched.applied).toEqual([])
+      expect(codes(untouched.diagnostics, 'info')).toContain('I_SERVER_DELETED')
+      expect(await tables(workspaceId)).toEqual([])
+
+      const { 'table:leads': _deleted, ...resources } = read.base.resources
+      const recreated = await apply(workspaceId, read.files, {
+        base: { ...read.base, resources },
+        only: ['table'],
+      })
 
       expect(recreated.applied.map(({ action, key }) => `${action} ${key}`)).toContain(
         'create leads'

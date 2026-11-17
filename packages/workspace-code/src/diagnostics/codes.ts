@@ -129,7 +129,7 @@ type PlanCode =
   | 'E_PLAN_REF_DELETED'
   /** Another resource of the kind holds this name or key. */
   | 'E_NAME_TAKEN'
-  /** A workflow directory sent without its files whose workflow no longer exists. */
+  /** A workflow folder sent without its files whose base names no workflow of this workspace. */
   | 'E_WORKFLOW_FILES_MISSING'
   /** A resource the server holds that the directory does not declare (kept without `--allow-delete`). */
   | 'W_UNDECLARED'
@@ -137,6 +137,10 @@ type PlanCode =
   | 'W_BASE_OTHER_WORKSPACE'
   /** The server changed a resource the directory leaves as it was; the next get shows it. */
   | 'I_SERVER_CHANGED'
+  /** The server deleted a resource the directory leaves as it was; it is not created again. */
+  | 'I_SERVER_DELETED'
+  /** The server moved a resource the directory leaves as it was; it is not created again. */
+  | 'I_SERVER_MOVED'
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
   | 'I_KEY_REBOUND'
 

@@ -16,6 +16,7 @@ import {
   fingerprintOf,
   type ResourceFingerprint,
   resourceAddress,
+  type WorkspaceDiagnosticCode,
 } from '@sim/workspace-code'
 import {
   type FileDecl,
@@ -45,9 +46,11 @@ import { createWorkspaceFileBufferByPath } from '@/lib/workspace-files/applicati
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
+  finding,
   noBaseFinding,
   planUndeclared,
   serverChangedFinding,
+  serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
@@ -194,13 +197,13 @@ async function hashUnrecorded(
   }
 }
 
-function finding(
+function fileFinding(
   key: string,
-  code: string,
+  code: WorkspaceDiagnosticCode,
   message: string,
   hint: string
 ): WorkspaceSourceDiagnostic {
-  return { code, severity: 'error', message, hint, file: fileBlobPath(key), kind: 'file', key }
+  return finding(code, message, { hint, file: fileBlobPath(key), kind: 'file', key })
 }
 
 function contentStates(
@@ -241,22 +244,10 @@ function planGone(
   byId: ReadonlyMap<string, StoredFile>
 ): FileChange {
   const moved = byId.get(base.id)
-  const where = fileBlobPath(change.key)
-  if (base.fingerprint === fingerprint(decl.sha256)) {
-    change.diagnostics.push({
-      ...serverChangedFinding('file', change.key),
-      message: moved
-        ? `${where} was moved on the server to ${fileBlobPath(moved.key)}; this directory leaves it there, and the next get shows the move.`
-        : `${where} was deleted on the server; this directory does not create it again, and the next get drops it.`,
-    })
-    return change
-  }
-  change.diagnostics.push({
-    ...staleFinding('file', change.key),
-    message: moved
-      ? `${where} was moved on the server to ${fileBlobPath(moved.key)} since this directory was read.`
-      : `${where} was deleted on the server since this directory was read.`,
-  })
+  const stale = base.fingerprint !== fingerprint(decl.sha256)
+  change.diagnostics.push(
+    serverGoneFinding('file', change.key, stale, moved ? fileBlobPath(moved.key) : undefined)
+  )
   return change
 }
 
@@ -273,7 +264,7 @@ function planFile(
   if (!existing && base) return planGone(change, decl, base, byId)
   if (existing?.state.unmanaged) {
     change.diagnostics.push(
-      finding(
+      fileFinding(
         key,
         existing.state.unmanaged.code,
         `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged.reason}.`,
@@ -290,8 +281,12 @@ function planFile(
       const sha = serverSha(file, base)
       return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
     },
+    holds: (id) => byId.has(id),
   })
   switch (resolution.action) {
+    case 'deleted':
+      change.diagnostics.push(serverGoneFinding('file', key, resolution.stale))
+      return change
     case 'stale':
       change.diagnostics.push(staleFinding('file', key))
       return { ...change, storedId: resolution.stored.id }
@@ -321,7 +316,7 @@ function planFile(
       const renamed = renamedSegment(key)
       if (renamed !== null) {
         change.diagnostics.push(
-          finding(
+          fileFinding(
             key,
             'E_FILE_NAME',
             `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
@@ -346,7 +341,8 @@ function planFile(
 function planDeletes(
   desired: ReadonlyMap<string, FileDecl>,
   stored: StoredSet<StoredFileState>,
-  ctx: PlanContext
+  ctx: PlanContext,
+  declared: readonly FileChange[]
 ): FileChange[] {
   const managed: StoredSet<StoredFileState> = {
     bound: new Map([...stored.bound].filter(([, file]) => !file.state.unmanaged)),
@@ -357,7 +353,14 @@ function planDeletes(
     desired,
     managed,
     ctx,
-    (file) => ({ what: 'file', counts: { files: 1, bytes: file.state.size } })
+    (file) => ({ what: 'file', counts: { files: 1, bytes: file.state.size } }),
+    {
+      declared,
+      fingerprint: (file, entry) => {
+        const sha = serverSha(file, entry)
+        return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
+      },
+    }
   )
   return undeclared.map((change) => {
     const file = managed.bound.get(change.key)
@@ -393,7 +396,7 @@ function refuseCollisions(
     creates
       .get(key)
       ?.diagnostics.push(
-        finding(
+        fileFinding(
           key,
           'E_FILE_PATH_COLLISION',
           `${conflict} on the server.`,
@@ -490,7 +493,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     await hashUnrecorded(ctx, desired, stored)
     const byId = new Map([...stored.bound.values()].map((file) => [file.id, file]))
     const files = [...desired].map(([key, decl]) => planFile(key, decl, stored, ctx, byId))
-    const deletes = planDeletes(desired, stored, ctx)
+    const deletes = planDeletes(desired, stored, ctx, files)
     refuseCollisions(files, stored, deletes)
     return [...files, ...deletes]
   },

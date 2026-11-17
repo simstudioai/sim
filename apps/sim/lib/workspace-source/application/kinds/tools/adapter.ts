@@ -24,7 +24,6 @@ import {
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
-import { planUndeclared } from '@/lib/workspace-source/application/findings'
 import {
   applyNamed,
   authorizeNamed,
@@ -33,6 +32,7 @@ import {
   type NamedKind,
   type NamedPlan,
   planNamed,
+  planNamedUndeclared,
   readRecord,
   writtenFields,
 } from '@/lib/workspace-source/application/kinds/named'
@@ -164,13 +164,10 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
       }
       changes.push(change)
     }
-    const undeclared = planUndeclared<StoredTool, ToolDecl, NamedPlan>(
-      'custom-tool',
-      desired,
-      stored,
-      ctx,
-      () => ({ what: 'custom tool', counts: { workflows: 0 } })
-    )
+    const undeclared = planNamedUndeclared(tools, desired, stored, ctx, changes, () => ({
+      what: 'custom tool',
+      counts: { workflows: 0 },
+    }))
     await warnInUse(undeclared, ctx.workspace.workspaceId)
     return [...changes, ...undeclared]
   },

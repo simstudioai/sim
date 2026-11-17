@@ -15,18 +15,20 @@ import {
   type KindCodec,
   type ResourceFingerprint,
   resourceAddress,
-  severityOf,
   type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
+  finding,
   noBaseFinding,
+  planUndeclared,
   serverChangedFinding,
+  serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
-import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   PlanContext,
@@ -98,15 +100,25 @@ export function declaredFinding(
   message: string,
   hint?: string
 ): WorkspaceSourceDiagnostic {
-  return {
-    code,
-    severity: severityOf(code),
-    message,
-    ...(hint ? { hint } : {}),
-    file,
-    kind,
-    key,
-  }
+  return finding(code, message, { ...(hint ? { hint } : {}), file, kind, key })
+}
+
+/**
+ * The named kind's resources the directory no longer declares (see {@link planUndeclared}): one a
+ * declared change targets stays, and a delete of one changed on the server since the base is stale.
+ */
+export function planNamedUndeclared<D, S>(
+  named: NamedKind<D, S>,
+  desired: ReadonlyMap<string, D>,
+  stored: StoredSet<S>,
+  ctx: PlanContext,
+  declared: ReadonlyArray<PlannedChange<D, NamedPlan>>,
+  destructive: (record: StoredResource<S>) => { what: string; counts: Record<string, number> }
+): PlannedChange<D, NamedPlan>[] {
+  return planUndeclared<S, D, NamedPlan>(named.kind, desired, stored, ctx, destructive, {
+    declared,
+    fingerprint: (record) => storedFingerprint(named, record.state),
+  })
 }
 
 /** The top-level declaration fields whose canonical values differ. */
@@ -154,6 +166,7 @@ export function planNamed<D, S>(
     adoptable: stored.unbound.find((record) => record.name === name),
     base: ctx.base?.resources[resourceAddress(kind, key)],
     fingerprint: (record) => storedFingerprint(named, record.state),
+    holds: holdsIn(stored),
   })
   const holderOf = (self?: string) => {
     const holder = [...stored.bound.values(), ...stored.unbound].find(
@@ -163,6 +176,9 @@ export function planNamed<D, S>(
       taken(holder.key ? `the ${noun} under key "${holder.key}"` : `another ${noun} ("${name}")`)
   }
   switch (resolution.action) {
+    case 'deleted':
+      change.diagnostics.push(serverGoneFinding(kind, key, resolution.stale))
+      return change
     case 'stale':
       change.diagnostics.push(staleFinding(kind, key))
       return { ...change, storedId: resolution.stored.id }

@@ -29,6 +29,7 @@ import {
   noBaseFinding,
   planUndeclared,
   reboundFinding,
+  serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
 import type {
   KindAdapter,
@@ -134,14 +135,20 @@ async function planWorkflow(
     )
     return change
   }
-  if (Object.keys(decl.files).length === 0) {
-    if (existing) return { ...change, storedId: existing.id }
+  const unchanged = Object.keys(decl.files).length === 0
+  if (unchanged && existing) return { ...change, storedId: existing.id }
+  /** The folder's base names a workflow of this workspace the server no longer holds. */
+  if (!existing && base?.workspaceId === workspaceId) {
+    change.diagnostics.push(serverGoneFinding('workflow', key, !unchanged))
+    return change
+  }
+  if (unchanged) {
     change.diagnostics.push(
       finding(
         'E_WORKFLOW_FILES_MISSING',
-        `${workflowFolder(key)} was sent unchanged, but its workflow no longer exists.`,
+        `${workflowFolder(key)} was sent unchanged, but its base names no workflow of this workspace.`,
         {
-          hint: 'Delete the folder to drop the workflow, or edit it so the apply sends its files and re-creates it.',
+          hint: 'Edit the folder so the apply sends its files and creates the workflow here.',
           kind: 'workflow',
           key,
         }

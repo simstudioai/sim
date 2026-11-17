@@ -17,7 +17,6 @@ import {
 } from '@/lib/skills/application/use-cases'
 import { builtinNameCollision, skillFieldProblem } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { planUndeclared } from '@/lib/workspace-source/application/findings'
 import {
   applyNamed,
   authorizeNamed,
@@ -26,6 +25,7 @@ import {
   type NamedKind,
   type NamedPlan,
   planNamed,
+  planNamedUndeclared,
   readRecord,
   writtenFields,
 } from '@/lib/workspace-source/application/kinds/named'
@@ -87,7 +87,7 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
     }
     return [
       ...changes,
-      ...planUndeclared<SkillDecl, SkillDecl, NamedPlan>('skill', desired, stored, ctx, () => ({
+      ...planNamedUndeclared(skills, desired, stored, ctx, changes, () => ({
         what: 'skill',
         counts: {},
       })),
