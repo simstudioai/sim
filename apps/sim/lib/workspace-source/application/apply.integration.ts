@@ -849,6 +849,21 @@ describe('workspace source apply', () => {
     }
   )
 
+  check('an empty declared description is no description', async () => {
+    const workspaceId = await newWorkspace()
+    const options = { kinds: ['table' as const], only: ['table' as const] }
+    const created = await apply(workspaceId, { 'tables/leads.ts': LEADS }, options)
+
+    const renamed = await apply(
+      workspaceId,
+      { 'tables/leads.ts': LEADS.replace("name: 'leads',", "name: 'prospects', description: '',") },
+      { ...options, base: created.base }
+    )
+
+    expect(renamed.applied).toMatchObject([{ action: 'update', fields: ['name'] }])
+    expect((await storedTable(workspaceId)).description ?? null).toBeNull()
+  })
+
   check('warns that a base read from another workspace creates everything anew', async () => {
     const workspaceId = await newWorkspace()
     const read = await setUp(workspaceId)

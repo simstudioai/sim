@@ -181,8 +181,8 @@ export async function diffTable(
     changes.table.name = decl.name
     changes.fields.push('name')
   }
-  if ((decl.description ?? null) !== (table.description || null)) {
-    changes.table.description = decl.description ?? null
+  if ((decl.description || null) !== (table.description || null)) {
+    changes.table.description = decl.description || null
     changes.fields.push('description')
   }
   const folder = decl.folder ?? '/'
