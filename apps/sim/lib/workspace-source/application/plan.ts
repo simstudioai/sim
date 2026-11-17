@@ -18,7 +18,7 @@ import {
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { isBlobPath, KIND_CODECS } from '@sim/workspace-code/kinds/registry'
+import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -198,7 +198,7 @@ function checkLimits(
   const bytes = { declaration: 0, workflow: 0 }
   for (const [path, text] of Object.entries(files)) {
     const kind = kindOfPath(path)
-    if (kind) bytes[KIND_CODECS[kind].budget ?? 'declaration'] += utf8Bytes(text)
+    if (kind) bytes[KIND_LAYOUTS[kind].budget ?? 'declaration'] += utf8Bytes(text)
   }
   const { maxDeclarationBytes, maxWorkflowBytes } = WORKSPACE_SOURCE_LIMITS
   if (bytes.declaration > maxDeclarationBytes) {

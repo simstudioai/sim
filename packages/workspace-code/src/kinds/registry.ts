@@ -1,33 +1,52 @@
 /**
- * Every kind's codec, by kind: the one place the server and the CLI reach a kind's files, keys and
- * traits through, so neither restates a kind's rule (which paths are binary, what a key names).
+ * Every kind's layout, by kind: the one place the server and the CLI reach a kind's paths, keys
+ * and traits through, so neither restates a kind's rule (which paths are binary, what a key names).
+ * The table kind's content rules depend on the server's column-type catalog, so this registry
+ * holds layouts; the server's kind adapters hold the full codecs.
  */
-import type { KindCodec, WorkspaceKind } from '../kind'
+import type { KindCodec, KindLayout, WorkspaceKind } from '../kind'
 import { kindOfPath } from '../layout'
 import { fileCodec } from './files'
 import { knowledgeCodec } from './knowledge'
 import { skillCodec } from './skills'
-import { tableCodec } from './table'
+import { tableLayout } from './table'
 import { toolCodec } from './tools'
 import { workflowCodec } from './workflow'
 
-/** The codec of each kind. */
-export const KIND_CODECS: { readonly [K in WorkspaceKind]: KindCodec<unknown> } = {
+/** The layout of each kind. */
+export const KIND_LAYOUTS: { readonly [K in WorkspaceKind]: KindLayout } = {
   'custom-tool': toolCodec,
   skill: skillCodec,
-  table: tableCodec,
+  table: tableLayout,
   'knowledge-base': knowledgeCodec,
   file: fileCodec,
   workflow: workflowCodec,
 }
 
-/** Whether `path` holds bytes rather than text, as the codec of the kind whose folder holds it says. */
+/**
+ * The codec of each kind that holds blobs, for a client that fingerprints a resource from the
+ * bytes it hashed. Neither needs a catalog, so the CLI reads them as the server does.
+ */
+export const BLOB_KIND_CODECS = {
+  'knowledge-base': knowledgeCodec,
+  file: fileCodec,
+} as const satisfies { readonly [K in WorkspaceKind]?: KindCodec<unknown> }
+
+/** A kind whose layout has blob paths. */
+type BlobKind = keyof typeof BLOB_KIND_CODECS
+
+/** Whether `kind` holds blobs, so {@link BLOB_KIND_CODECS} has its codec. */
+export function isBlobKind(kind: WorkspaceKind): kind is BlobKind {
+  return Object.hasOwn(BLOB_KIND_CODECS, kind)
+}
+
+/** Whether `path` holds bytes rather than text, as the layout of the kind whose folder holds it says. */
 export function isBlobPath(path: string): boolean {
   const kind = kindOfPath(path)
-  return kind !== null && KIND_CODECS[kind].isBlob?.(path) === true
+  return kind !== null && KIND_LAYOUTS[kind].isBlob?.(path) === true
 }
 
 /** Whether a kind's keys are resource keys, the keys a workflow names a resource by. */
 export function isResourceKeyed(kind: WorkspaceKind): boolean {
-  return (KIND_CODECS[kind].keys ?? 'resource') === 'resource'
+  return (KIND_LAYOUTS[kind].keys ?? 'resource') === 'resource'
 }

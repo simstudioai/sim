@@ -70,21 +70,15 @@ export interface PrintedDeclaration {
 }
 
 /**
- * Reads and writes one kind's files. Pure: no I/O, no ids. Methods (not function properties) so a
- * registry of codecs with different declaration types type-checks.
+ * Where one kind's files live and how they travel, apart from what they declare: grouping paths
+ * into resources, which paths are blobs, what a key names and which budget the text counts
+ * against. Catalog-independent, so the CLI and the plan read every kind's layout without the
+ * server's column-type catalog a table codec needs. Methods (not function properties) so a
+ * registry of layouts and codecs type-checks.
  */
-export interface KindCodec<D> {
+export interface KindLayout {
   /** Groups the kind's paths by resource key; a path no resource owns is `E_DECL_UNKNOWN_FILE`. */
   group(paths: readonly string[]): GroupedPaths
-  /** Reads one resource's text files (workspace-relative path → text) and blobs. */
-  parse(
-    key: string,
-    text: Readonly<Record<string, string>>,
-    blobs: readonly BlobEntry[]
-  ): ParsedDeclaration<D>
-  print(key: string, decl: D): PrintedDeclaration
-  /** Id-free canonical JSON; sha256 of it is the resource fingerprint `rf1:…`. */
-  canonical(decl: D): Json
   /**
    * The name a resource's base entry records one of its blobs under; a kind without it records
    * each blob under its workspace path.
@@ -108,6 +102,22 @@ export interface KindCodec<D> {
    * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).
    */
   readonly budget?: 'declaration' | 'workflow'
+}
+
+/**
+ * Reads and writes one kind's files: its {@link KindLayout} plus what the files declare. Pure: no
+ * I/O, no ids.
+ */
+export interface KindCodec<D> extends KindLayout {
+  /** Reads one resource's text files (workspace-relative path → text) and blobs. */
+  parse(
+    key: string,
+    text: Readonly<Record<string, string>>,
+    blobs: readonly BlobEntry[]
+  ): ParsedDeclaration<D>
+  print(key: string, decl: D): PrintedDeclaration
+  /** Id-free canonical JSON; sha256 of it is the resource fingerprint `rf1:…`. */
+  canonical(decl: D): Json
   /**
    * Whether a declaration was sent without its files, unchanged since the CLI last wrote them, so
    * nothing evaluates it (see `unchangedFiles` of the workflow kind). A kind without it always

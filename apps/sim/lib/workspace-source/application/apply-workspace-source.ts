@@ -14,7 +14,6 @@ import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
   assertUnchanged,
   isRefusal,
-  PartiallyAppliedError,
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
@@ -224,13 +223,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         result.diagnostics.push(...(written.diagnostics ?? []))
         result.applied.push(summarize(change, written.id))
       } catch (error) {
-        if (error instanceof PartiallyAppliedError) {
-          base.resources[resourceAddress(change.kind, change.key)] = error.base
-        }
-        const failure = failureOf(
-          error instanceof PartiallyAppliedError ? error.cause : error,
-          change
-        )
+        const failure = failureOf(error, change)
         result.failed = failure.failed
         result.diagnostics.push(...failure.diagnostics)
         break

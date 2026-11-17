@@ -9,7 +9,7 @@ import { readFile, realpath, stat } from 'node:fs/promises'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
-import { isBlobPath, KIND_CODECS } from '@sim/workspace-code/kinds/registry'
+import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -134,7 +134,7 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
  */
 export function localDeclarations(paths: readonly string[]): LocalDeclarations {
   const keys = (kind: WorkspaceKind) => [
-    ...KIND_CODECS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
+    ...KIND_LAYOUTS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
   ]
   return {
     tableDeclarations: keys('table'),
@@ -223,7 +223,7 @@ export async function readWorkspaceDir(
   })
   const written = await readWrittenDigests(dir)
   const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
-  const folders = KIND_CODECS.workflow.group(workflowPaths).groups
+  const folders = KIND_LAYOUTS.workflow.group(workflowPaths).groups
   // Files per workflow folder that `.sim/written.json` records.
   const recorded = new Map<string, number>()
   for (const path of Object.keys(written)) {

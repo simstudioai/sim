@@ -21,8 +21,9 @@ import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
+import * as tableReshape from '@/lib/table/application/reshape'
 import * as tableUseCases from '@/lib/table/application/tables'
-import { getColumnRetypeScanBatchSize } from '@/lib/table/columns/service'
+import * as columnService from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
@@ -176,6 +177,18 @@ export default defineTable({
     email: column.string({ required: true }),
     tags: column.select({ options: ['a', 'b'], multiple: true }),
     rank: column.select({ options: ['1', '2'] }),
+  },
+})
+`
+
+const PAIRS = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'pairs',
+  columns: {
+    a: column.string(),
+    b: column.string(),
   },
 })
 `
@@ -1134,46 +1147,161 @@ export default workflow('Notes', {}, () => {
   })
 
   check(
-    'a table update that fails after a column drop records what committed, and a re-run converges',
+    'a table update that fails mid-reshape commits nothing, and a re-run applies it whole',
     async () => {
       const workspaceId = await newWorkspace()
       const read = await setUp(workspaceId)
+      await insertRow(workspaceId, {
+        email: 'a@b.c',
+        status: await optionId(workspaceId, 'status', 'won'),
+      })
       const files = {
         ...read.files,
         'tables/leads.ts': read.files['tables/leads.ts']
+          .replace("name: 'leads',", "name: 'leads',\n  description: 'Inbound leads',")
           .replace(/\n {4}status: .*\n/, '\n')
+          .replace(
+            'email: column.string({ required: true })',
+            "email: column.string({ name: 'contact', required: true })"
+          )
           .replace('columns: {', 'columns: {\n    score: column.number(),'),
       }
+      const before = await tableSnapshot(workspaceId)
+      const rows = await db
+        .select()
+        .from(userTableRows)
+        .where(eq(userTableRows.workspaceId, workspaceId))
       const failing = vi
-        .spyOn(columnUseCases.addTableColumnUseCase, 'execute')
+        .spyOn(columnService, 'addTableColumn')
         .mockRejectedValue(new Error('connection reset'))
 
-      const partial = await apply(workspaceId, files, {
+      let adds = 0
+      const failed = await apply(workspaceId, files, {
         base: read.base,
         allowDelete: true,
-      }).finally(() => failing.mockRestore())
+      }).finally(() => {
+        adds = failing.mock.calls.length
+        failing.mockRestore()
+      })
 
-      expect(partial.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_FAILED' })
-      expect((await storedTable(workspaceId)).schema.columns.map((column) => column.name)).toEqual([
-        'email',
-      ])
+      expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_FAILED' })
+      expect(adds).toBe(1)
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
+      expect(
+        await db.select().from(userTableRows).where(eq(userTableRows.workspaceId, workspaceId))
+      ).toEqual(rows)
+      expect(failed.base.resources['table:leads']).toEqual(read.base.resources['table:leads'])
 
-      const rerun = await apply(workspaceId, files, { base: partial.base, allowDelete: true })
+      const rerun = await apply(workspaceId, files, { base: failed.base, allowDelete: true })
 
       expect(rerun.failed).toBeUndefined()
-      expect(rerun.plan.find((change) => change.key === 'leads')).toMatchObject({
-        action: 'update',
-        fields: ['columns.score (add)'],
+      expect(rerun.plan.find((change) => change.key === 'leads')?.fields).toEqual(
+        expect.arrayContaining(['description', 'columns.status (drop)', 'columns.score (add)'])
+      )
+      const table = await storedTable(workspaceId)
+      expect(table.description).toBe('Inbound leads')
+      expect(table.schema.columns.map((column) => column.name)).toEqual(['contact', 'score'])
+    }
+  )
+
+  check('a table reshape commits its fields and every column change together', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    await insertRow(workspaceId, { email: 'a@b.c' })
+    const { id: tableId } = await storedTable(workspaceId)
+    const emailId = (await storedTable(workspaceId)).schema.columns.find(
+      (column) => column.name === 'email'
+    )?.id
+    const files = {
+      ...read.files,
+      'tables/leads.ts': read.files['tables/leads.ts']
+        .replace("name: 'leads',", "name: 'leads',\n  description: 'Inbound leads',")
+        .replace(/\n {4}status: .*\n/, '\n')
+        .replace(
+          'email: column.string({ required: true })',
+          "email: column.string({ name: 'contact', required: true })"
+        )
+        .replace('columns: {', 'columns: {\n    score: column.number(),'),
+    }
+    const reshape = vi.spyOn(tableReshape.reshapeTableUseCase, 'execute')
+
+    let reshapes = 0
+    const result = await apply(workspaceId, files, { base: read.base, allowDelete: true }).finally(
+      () => {
+        reshapes = reshape.mock.calls.length
+        reshape.mockRestore()
+      }
+    )
+
+    expect(result.failed).toBeUndefined()
+    expect(reshapes).toBe(1)
+    const table = await storedTable(workspaceId)
+    expect(table.id).toBe(tableId)
+    expect(table.description).toBe('Inbound leads')
+    expect(table.schema.columns.map(({ name, type }) => `${name}:${type}`)).toEqual([
+      'contact:string',
+      'score:number',
+    ])
+    const [row] = await db
+      .select({ data: userTableRows.data })
+      .from(userTableRows)
+      .where(eq(userTableRows.workspaceId, workspaceId))
+    expect((row.data as Record<string, unknown>)[emailId ?? '']).toBe('a@b.c')
+    const again = await apply(workspaceId, { ...files, ...result.files }, { base: result.base })
+    expect(again.plan.find((change) => change.key === 'leads')?.action).toBe('noop')
+  })
+
+  check(
+    'renames columns into names other renames free, a chain and a swap, keeping their cells',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(
+        workspaceId,
+        { 'tables/pairs.ts': PAIRS },
+        { kinds: ['table'], only: ['table'] }
+      )
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      await insertRow(workspaceId, { a: 'first', b: 'second' })
+      const cellsByName = async () => {
+        const table = await storedTable(workspaceId)
+        const [row] = await db
+          .select({ data: userTableRows.data })
+          .from(userTableRows)
+          .where(eq(userTableRows.workspaceId, workspaceId))
+        const data = row.data as Record<string, unknown>
+        return Object.fromEntries(
+          table.schema.columns.map((column) => [column.name, data[column.id ?? column.name]])
+        )
+      }
+      const declare = (a: string, b: string) => ({
+        'tables/pairs.ts': PAIRS.replace(
+          'a: column.string(),\n    b: column.string(),',
+          `a: column.string({ name: '${a}' }),\n    b: column.string({ name: '${b}' }),`
+        ),
       })
-      expect((await storedTable(workspaceId)).schema.columns.map((column) => column.name)).toEqual([
-        'email',
-        'score',
-      ])
+
+      const chained = await apply(workspaceId, declare('b', 'c'), {
+        base: read.base,
+        only: ['table'],
+      })
+
+      expect(chained.failed).toBeUndefined()
+      expect(await cellsByName()).toEqual({ b: 'first', c: 'second' })
+
+      const swapped = await apply(workspaceId, declare('c', 'b'), {
+        base: chained.base,
+        only: ['table'],
+      })
+
+      expect(swapped.failed).toBeUndefined()
+      expect(await cellsByName()).toEqual({ c: 'first', b: 'second' })
     }
   )
 
   check(
-    'an adopt whose changes fail leaves the table unbound, and a re-run adopts it',
+    'an adopt whose changes fail leaves the table unbound and unchanged, and a re-run adopts it',
     async () => {
       const workspaceId = await newWorkspace()
       await tableUseCases.createTableUseCase.execute({
@@ -1184,20 +1312,29 @@ export default workflow('Notes', {}, () => {
           schema: { columns: [{ name: 'email', type: 'string', required: true }] },
         },
       })
-      const files = { 'tables/leads.ts': LEADS }
+      const files = {
+        'tables/leads.ts': LEADS.replace(
+          "name: 'leads',",
+          "name: 'leads',\n  description: 'Inbound leads',"
+        ),
+      }
+      const before = await tableSnapshot(workspaceId)
       const failing = vi
-        .spyOn(columnUseCases.addTableColumnUseCase, 'execute')
+        .spyOn(columnService, 'addTableColumn')
         .mockRejectedValue(new Error('connection reset'))
 
-      const partial = await apply(workspaceId, files, {
+      const failed = await apply(workspaceId, files, {
         kinds: ['table'],
         only: ['table'],
       }).finally(() => failing.mockRestore())
 
-      expect(partial.failed).toMatchObject({ kind: 'table', key: 'leads' })
+      expect(failed.failed).toMatchObject({ kind: 'table', key: 'leads' })
+      expect(failed.base.resources['table:leads']).toBeUndefined()
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+      expect((await storedTable(workspaceId)).description ?? null).toBeNull()
 
       const rerun = await apply(workspaceId, files, {
-        base: partial.base,
+        base: failed.base,
         kinds: ['table'],
         only: ['table'],
       })
@@ -1518,7 +1655,7 @@ export default workflow('Notes', {}, () => {
     const read = await setUp(workspaceId)
     const leads = await storedTable(workspaceId)
     const emailId = leads.schema.columns.find((column) => column.name === 'email')?.id ?? ''
-    const pageSize = getColumnRetypeScanBatchSize()
+    const pageSize = columnService.getColumnRetypeScanBatchSize()
     const values = Array.from({ length: pageSize * 2 + 1 }, (_, index) =>
       index % pageSize === 0 ? `bad-${index}` : String(index)
     )

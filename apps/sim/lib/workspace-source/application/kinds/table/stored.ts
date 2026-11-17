@@ -12,10 +12,11 @@ import {
   suffixedColumnKey,
   type TableColumnDecl,
   type TableDecl,
-  tableCodec,
 } from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
+import { tableCodec } from '@/lib/workspace-source/application/kinds/table/codec'
 
 /** A stored table as source sees it: the definition and its folder path (`/` at the root). */
 export interface StoredTableState {
@@ -36,16 +37,16 @@ interface TableAsDecl {
   fingerprint: ResourceFingerprint
 }
 
+/** A stored column as declared: the metadata its type owns, select options by name. */
 function columnDecl(column: ColumnDefinition, key: string): TableColumnDecl {
   const decl: TableColumnDecl = { type: column.type }
   if (column.name !== key) decl.name = column.name
   if (column.required) decl.required = true
   if (column.unique) decl.unique = true
-  if (column.type === 'select') {
-    decl.options = (column.options ?? []).map((option) => option.name)
-    if (column.multiple) decl.multiple = true
+  for (const owned of columnTypeOf(column).ownedMetadata) {
+    if (owned === 'options') decl.options = (column.options ?? []).map((option) => option.name)
+    else if (column[owned]) Object.assign(decl, { [owned]: column[owned] })
   }
-  if (column.type === 'currency' && column.currencyCode) decl.currencyCode = column.currencyCode
   return decl
 }
 

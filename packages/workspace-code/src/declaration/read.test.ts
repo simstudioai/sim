@@ -6,7 +6,7 @@
 import * as workflowCode from '@sim/workflow-code'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FINDINGS_PER_FILE } from '../diagnostics'
-import { tableCodec } from '../kinds/table'
+import { testTableCodec } from '../kinds/table.test-helpers'
 import { readDeclaration } from './read'
 
 vi.mock('@sim/workflow-code', async (importOriginal) => {
@@ -79,7 +79,7 @@ describe('readDeclaration on large files', () => {
     const columns = Array.from({ length: count }, (_, i) => `c${i}: column.select({})`).join(',\n')
     const text = `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\nexport default defineTable({ name: 't', columns: {\n${columns}\n} })\n`
 
-    const parsed = tableCodec.parse('big', { 'tables/big.ts': text }, [])
+    const parsed = testTableCodec.parse('big', { 'tables/big.ts': text }, [])
 
     expect(parsed.diagnostics).toHaveLength(MAX_FINDINGS_PER_FILE + 1)
     const options = parsed.diagnostics.filter((finding) => finding.code === 'E_TABLE_OPTIONS')

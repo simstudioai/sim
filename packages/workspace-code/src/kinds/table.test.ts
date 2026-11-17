@@ -1,7 +1,8 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { fingerprintOf } from '../fingerprint'
-import { type TableColumnDecl, type TableDecl, tableCodec } from './table'
+import type { TableColumnDecl, TableDecl } from './table'
+import { testTableCodec } from './table.test-helpers'
 
 const name = fc.stringMatching(/^[A-Za-z_][A-Za-z0-9_]{0,20}$/)
 const text = fc.string({ maxLength: 40 }).filter((value) => !/[\u0000\ud800-\udfff]/.test(value))
@@ -58,11 +59,11 @@ const table: fc.Arbitrary<TableDecl> = fc.record(
 )
 
 function roundTrip(decl: TableDecl) {
-  const printed = tableCodec.print('leads', decl)
-  return tableCodec.parse('leads', printed.text, [])
+  const printed = testTableCodec.print('leads', decl)
+  return testTableCodec.parse('leads', printed.text, [])
 }
 
-describe('tableCodec', () => {
+describe('createTableCodec', () => {
   it('reads back every declaration it prints, byte-stable', () => {
     fc.assert(
       fc.property(table, (decl) => {
@@ -70,7 +71,8 @@ describe('tableCodec', () => {
         expect(parsed.diagnostics).toEqual([])
         expect(parsed.decl).toEqual(decl)
         const decl2 = parsed.decl
-        if (decl2) expect(tableCodec.print('leads', decl2)).toEqual(tableCodec.print('leads', decl))
+        if (decl2)
+          expect(testTableCodec.print('leads', decl2)).toEqual(testTableCodec.print('leads', decl))
       }),
       { numRuns: 300 }
     )
@@ -85,14 +87,16 @@ describe('tableCodec', () => {
       name: 'leads',
       columns: { score: { type: 'number' }, email: { type: 'string' } },
     }
-    expect(fingerprintOf(tableCodec.canonical(a))).toBe(fingerprintOf(tableCodec.canonical(b)))
+    expect(fingerprintOf(testTableCodec.canonical(a))).toBe(
+      fingerprintOf(testTableCodec.canonical(b))
+    )
   })
 
   it('fingerprints an empty description as no description, as the server stores it', () => {
     const columns = { email: { type: 'string' as const } }
-    expect(fingerprintOf(tableCodec.canonical({ name: 'leads', description: '', columns }))).toBe(
-      fingerprintOf(tableCodec.canonical({ name: 'leads', columns }))
-    )
+    expect(
+      fingerprintOf(testTableCodec.canonical({ name: 'leads', description: '', columns }))
+    ).toBe(fingerprintOf(testTableCodec.canonical({ name: 'leads', columns })))
   })
 
   it('pins a bad column to its line and names the supported fields', () => {
@@ -110,7 +114,7 @@ describe('tableCodec', () => {
       '})',
       '',
     ].join('\n')
-    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
     expect(parsed.decl).toBeUndefined()
     expect(
       parsed.diagnostics.map((finding) => [finding.code, finding.span?.line, finding.key])
@@ -137,7 +141,7 @@ describe('tableCodec', () => {
       '})',
       '',
     ].join('\n')
-    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
     expect(parsed.decl).toBeUndefined()
     expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.line])).toEqual([
       ['E_DECL_SHAPE', 7],
@@ -162,7 +166,7 @@ describe('tableCodec', () => {
       '})',
       '',
     ].join('\n')
-    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
     expect(parsed.decl).toBeUndefined()
     expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.line])).toEqual([
       ['E_TABLE_OPTIONS', 7],
@@ -182,13 +186,13 @@ describe('tableCodec', () => {
       '})',
       '',
     ].join('\n')
-    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
     expect(parsed.diagnostics).toEqual([])
     expect(parsed.decl?.columns.price).toEqual({ type: 'currency', currencyCode: 'EUR' })
   })
 
   it('groups one file per key and refuses anything else in tables/', () => {
-    const grouped = tableCodec.group(['tables/leads.ts', 'tables/Bad.ts', 'tables/x/y.ts'])
+    const grouped = testTableCodec.group(['tables/leads.ts', 'tables/Bad.ts', 'tables/x/y.ts'])
     expect([...grouped.groups.keys()]).toEqual(['leads'])
     expect(grouped.diagnostics.map((finding) => finding.code)).toEqual([
       'E_KEY_INVALID',

@@ -43,7 +43,7 @@ import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/sec
 import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
-import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
+import { scaledStatementTimeoutMs, setTableTxTimeouts, type TableWriteTx } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
   DeleteColumnData,
@@ -77,6 +77,8 @@ export function getColumnRetypeScanBatchSize(): number {
 
 export interface ColumnMutationOptions {
   expectedWorkspaceId?: string
+  /** Joins this transaction instead of opening one, so the write commits with the caller's. */
+  tx?: TableWriteTx
 }
 
 /**
@@ -252,7 +254,7 @@ export async function addTableColumn(
         updatedAt: now,
       }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -333,7 +335,7 @@ export async function renameColumn(
       )
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -499,16 +501,20 @@ export async function deleteColumn(
         stripKey: columnId,
       }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 
-  stripColumnDataInBackground(
-    data.tableId,
-    def.workspaceId,
-    [stripKey],
-    def.rowCount ?? 0,
-    requestId
-  )
+  const strip = () =>
+    stripColumnDataInBackground(
+      data.tableId,
+      def.workspaceId,
+      [stripKey],
+      def.rowCount ?? 0,
+      requestId
+    )
+  // Inside a caller's transaction the drop may still roll back, so the cells stay until it commits.
+  if (options?.tx) options.tx.afterCommit(strip)
+  else strip()
   return def
 }
 
@@ -996,7 +1002,7 @@ export async function updateColumnType(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1067,7 +1073,7 @@ export async function updateColumnConstraints(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1253,7 +1259,7 @@ export async function updateColumnOptions(
 
       return updated
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1349,7 +1355,7 @@ export async function updateColumnCurrency(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 

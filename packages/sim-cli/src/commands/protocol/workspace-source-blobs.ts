@@ -13,12 +13,18 @@ import {
   APPLY_ORDER,
   type BlobEntry,
   fingerprintOf,
+  type KindCodec,
   parseResourceAddress,
   parseWorkspaceBase,
   resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { isBlobPath, KIND_CODECS } from '@sim/workspace-code/kinds/registry'
+import {
+  BLOB_KIND_CODECS,
+  isBlobKind,
+  isBlobPath,
+  KIND_LAYOUTS,
+} from '@sim/workspace-code/kinds/registry'
 import { isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
@@ -210,7 +216,8 @@ export function recordHashedBlobs(
 ): WorkspaceSource['base'] {
   const resources = { ...source.base.resources }
   for (const kind of APPLY_ORDER) {
-    const codec = KIND_CODECS[kind]
+    if (!isBlobKind(kind)) continue
+    const codec: KindCodec<unknown> = BLOB_KIND_CODECS[kind]
     const blobs = new Map(
       source.blobs
         .filter((blob) => kindOfPath(blob.path) === kind)
@@ -263,9 +270,9 @@ function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<st
   for (const [address, resource] of Object.entries(resources)) {
     const target = parseResourceAddress(address)
     if (!target || !kinds.includes(target.kind)) continue
-    const codec = KIND_CODECS[target.kind]
+    const layout = KIND_LAYOUTS[target.kind]
     for (const [name, blob] of Object.entries(resource.blobs ?? {})) {
-      const path = codec.baseBlobPath?.(target.key, name) ?? name
+      const path = layout.baseBlobPath?.(target.key, name) ?? name
       if (!isBlobPath(path) || !isWorkspaceSourcePath(path)) continue
       digests.set(path, blob.sha256)
     }

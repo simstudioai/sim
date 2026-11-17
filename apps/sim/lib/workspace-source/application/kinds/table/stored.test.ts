@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { createTableDefinition } from '@sim/testing'
-import { tableCodec } from '@sim/workspace-code/kinds/table'
 import { describe, expect, it } from 'vitest'
+import { tableCodec } from '@/lib/workspace-source/application/kinds/table/codec'
 import { printStoredTable } from '@/lib/workspace-source/application/kinds/table/stored'
 
 describe('printStoredTable', () => {
