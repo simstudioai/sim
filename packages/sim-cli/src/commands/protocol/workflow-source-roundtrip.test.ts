@@ -447,22 +447,15 @@ describe('line endings', () => {
 })
 
 describe('the workspace-scoped source reads', () => {
-  it.each([
-    ['resources', 'manifest'],
-    ['catalog', 'catalog'],
-  ] as const)(
+  it.each(['resources', 'catalog'])(
     'reads %s from the profile workspace, like every other workspace route',
-    async (command, route) => {
-      let reads = 0
-      const answer = server[route]
-      server[route] = (headers: Headers) => {
-        reads++
-        return answer(headers)
-      }
-
+    async (command) => {
       await sim('workflows', 'source', command)
 
-      expect(reads).toBe(1)
+      const urls = vi.mocked(fetch).mock.calls.map(([input]) => String(input))
+      expect(urls).toEqual([
+        `https://sim.example/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/${command}`,
+      ])
     }
   )
 })
