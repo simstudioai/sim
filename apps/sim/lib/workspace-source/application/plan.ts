@@ -6,7 +6,6 @@
  * refuses the whole apply before anything is written.
  */
 import { sha256Hex } from '@sim/security/hash'
-import { generateId } from '@sim/utils/id'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -19,7 +18,8 @@ import {
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { isBlobPath, KIND_CODECS } from '@sim/workspace-code/kinds/registry'
+import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
@@ -190,74 +190,33 @@ function readBase(
   return parsed.base
 }
 
-/** Refuses a submission over the request-wide limits before anything is parsed. */
+/** Refuses a submission over the request-wide byte limits before anything is parsed. */
 function checkLimits(
   files: Record<string, string>,
   diagnostics: WorkspaceSourceDiagnostic[]
 ): void {
-  let declarationBytes = 0
-  let workflowBytes = 0
-  const workflows = new Set<string>()
+  const bytes = { declaration: 0, workflow: 0 }
   for (const [path, text] of Object.entries(files)) {
     const kind = kindOfPath(path)
-    if (!kind) continue
-    if (kind === 'workflow') {
-      workflowBytes += utf8Bytes(text)
-      // A folder sent with only its `.sim/` sidecars is unchanged and never evaluated.
-      const [, folder = '', ...rest] = path.split('/')
-      if (rest[0] !== '.sim') workflows.add(folder)
-    } else declarationBytes += utf8Bytes(text)
+    if (kind) bytes[KIND_CODECS[kind].budget ?? 'declaration'] += utf8Bytes(text)
   }
-  const { maxDeclarationBytes, maxWorkflowBytes, maxWorkflows } = WORKSPACE_SOURCE_LIMITS
-  if (declarationBytes > maxDeclarationBytes) {
+  const { maxDeclarationBytes, maxWorkflowBytes } = WORKSPACE_SOURCE_LIMITS
+  if (bytes.declaration > maxDeclarationBytes) {
     diagnostics.push(
       finding(
         'E_LIMIT_EXCEEDED',
-        `The declarations total ${declarationBytes} bytes, over the ${maxDeclarationBytes}-byte limit.`
+        `The declarations total ${bytes.declaration} bytes, over the ${maxDeclarationBytes}-byte limit.`
       )
     )
   }
-  if (workflowBytes > maxWorkflowBytes) {
+  if (bytes.workflow > maxWorkflowBytes) {
     diagnostics.push(
       finding(
         'E_LIMIT_EXCEEDED',
-        `The workflow files total ${workflowBytes} bytes, over the ${maxWorkflowBytes}-byte limit.`,
-        {
-          hint: 'Apply fewer edited workflows at once.',
-        }
+        `The workflow files total ${bytes.workflow} bytes, over the ${maxWorkflowBytes}-byte limit.`,
+        { hint: 'Apply fewer edited workflows at once.' }
       )
     )
-  }
-  if (workflows.size > maxWorkflows) {
-    diagnostics.push(
-      finding(
-        'E_PLAN_TOO_LARGE',
-        `The apply sends ${workflows.size} workflows, over the ${maxWorkflows}-workflow limit.`,
-        {
-          hint: 'Apply fewer edited workflows at once.',
-        }
-      )
-    )
-  }
-}
-
-/**
- * Registers every resource a kind's plan creates or adopts under its key, so a later kind's dry
- * run (a workflow naming a table or knowledge base) resolves it: an adopted one by its stored id,
- * a created one by a placeholder id. A table the plan changes in place is registered too, with
- * its declared columns, so that dry run lints row writes against the schema the apply writes.
- */
-function registerPending(changes: readonly PlannedChange[], ctx: PlanContext): void {
-  for (const change of changes) {
-    const reshaped = change.action === 'update' && change.columns !== undefined
-    if (change.action !== 'create' && change.action !== 'adopt' && !reshaped) continue
-    ctx.pending.push({
-      kind: change.kind,
-      key: change.key,
-      id: change.action !== 'create' && change.storedId ? change.storedId : generateId(),
-      ...(change.name !== undefined ? { name: change.name } : {}),
-      ...(change.columns !== undefined ? { columns: change.columns } : {}),
-    })
   }
 }
 
@@ -304,7 +263,8 @@ export async function planWorkspaceSource(
     pending: [],
   }
   const changes: PlannedChange[] = []
-  let declaredWorkflows: ReadonlyMap<string, unknown> = new Map()
+  // Declarations sent without their files, by kind: the codec reads them as unchanged.
+  const unchanged = new Map<WorkspaceKind, ReadonlySet<string>>()
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
     const adapter = KIND_ADAPTERS[kind]
@@ -335,8 +295,21 @@ export async function planWorkspaceSource(
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
       if (parsed.decl !== undefined) desired.set(key, parsed.decl)
     }
+    const unchangedKeys = new Set(
+      [...desired].filter(([, decl]) => adapter.codec.isUnchanged?.(decl)).map(([key]) => key)
+    )
+    unchanged.set(kind, unchangedKeys)
+    const sent = desired.size - unchangedKeys.size
+    if (adapter.codec.budget === 'workflow' && sent > WORKSPACE_SOURCE_LIMITS.maxWorkflows) {
+      kindFindings.push(
+        finding(
+          'E_PLAN_TOO_LARGE',
+          `The apply sends ${sent} workflows, over the ${WORKSPACE_SOURCE_LIMITS.maxWorkflows}-workflow limit.`,
+          { hint: 'Apply fewer edited workflows at once.' }
+        )
+      )
+    }
     diagnostics.push(...kindFindings)
-    if (kind === 'workflow') declaredWorkflows = desired
     // A resource that failed to parse would read as undeclared, so a broken kind is not planned.
     if (kindFindings.some((finding) => finding.severity === 'error')) continue
     try {
@@ -347,13 +320,13 @@ export async function planWorkspaceSource(
       }
       const planned = await adapter.plan(desired, stored, planCtx)
       changes.push(...planned)
-      if (adapter.keys !== 'none') registerPending(planned, planCtx)
+      planCtx.pending.push(...planned.flatMap((change) => change.pending ?? []))
     } catch (caught) {
       diagnostics.push(refusalDiagnostic(caught, { kind }))
     }
   }
 
-  await checkDeletesInUse(changes, declaredWorkflows, workspaceId)
+  await checkDeletesInUse(changes, unchanged, workspaceId)
   const deleted = new Set(
     changes
       .filter((change) => change.action === 'delete')

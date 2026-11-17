@@ -8,8 +8,8 @@ import {
   parseWorkspaceBase,
   type WorkspaceKind,
 } from '@sim/workspace-code'
+import { isBlobPath } from '@sim/workspace-code/kinds/registry'
 import {
-  isBlobPath,
   KIND_BY_DIR,
   WORKSPACE_BASE_FILE,
   WORKSPACE_SKIPPED_FILE,
@@ -20,14 +20,6 @@ import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
-  assertSdkMajor,
-  finishTree,
-  loadCatalog,
-  loadWorkspaceTypes,
-  sourceTreeChange,
-  withSourceExitCode,
-} from './workflow-source-get'
-import {
   editedFiles,
   inBatches,
   readSourceJson,
@@ -36,7 +28,15 @@ import {
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
   writtenRecord,
-} from './workflow-source-layout'
+} from './source-dir'
+import {
+  assertSdkMajor,
+  finishTree,
+  loadCatalog,
+  loadWorkspaceTypes,
+  sourceTreeChange,
+  withSourceExitCode,
+} from './source-tree'
 import {
   assertListedBlobs,
   blobDigests,

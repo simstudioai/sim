@@ -2,30 +2,20 @@
  * The workspace source directory `workspaces source get --dir` writes and `workspaces source
  * apply --dir` reads back: one folder per kind (`tables/`, `workflows/<key>/`, …), the base in
  * `.sim/base.json`, and the SDK declarations once at the root. Path safety, staged writes and the
- * `.sim/written.json` record are the workflow source directory's (`workflow-source-layout.ts`).
+ * `.sim/written.json` record are the source directory's (`source-dir.ts`).
  */
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
-import { groupByFile, groupByFolder } from '@sim/workspace-code/kinds/group'
-import {
-  isBlobPath,
-  isWorkspaceSourcePath,
-  kindOfPath,
-  WORKFLOW_BASE_FILE,
-  WORKSPACE_BASE_FILE,
-} from '@sim/workspace-code/layout'
+import { isBlobPath, KIND_CODECS } from '@sim/workspace-code/kinds/registry'
+import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
+import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import {
-  type LocalDeclarations,
-  type SourceTreeProfile,
-  TSCONFIG_MARKER,
-} from './workflow-source-get'
 import {
   checkedPath,
   digest,
@@ -34,7 +24,8 @@ import {
   readSourceText,
   readWrittenDigests,
   SOURCE_SDK_DIR,
-} from './workflow-source-layout'
+} from './source-dir'
+import { type LocalDeclarations, type SourceTreeProfile, TSCONFIG_MARKER } from './source-tree'
 import { hashFile } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
@@ -111,6 +102,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 - A column's object key stays bound to its stored column: to rename one keep the key and set \`name\` (\`email: column.string({ name: 'email_address' })\`). Changing the key drops the column and its cells.
 - Renaming a skill (its \`name\`) does not rewrite the workflows that use it: each agent keeps the name it stored until its \`skills\` list is next edited. The key is what binds them.
+- A workflow folder you did not edit is sent with only its base, and the server does not compare it with the stored workflow: unlike other kinds, an apply does not report that a workflow changed on the server since the get (the next get shows it). An edit of the folder is checked against its own \`.sim/base.json\` and refused as stale (exit 5) when the workflow changed since.
 - A knowledge base's \`embeddingModel\` is fixed when it is created: an apply that changes it is refused.
 - A document or workspace file over 10 MB, or whose name no directory can hold, is left out of a get and listed in \`.sim/skipped.json\`; an apply never writes or deletes it.
 - A hidden file (a name starting with a dot) under a kind folder is never sent: an apply names it in a warning.
@@ -136,23 +128,20 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
 }
 
 /**
- * The keys a directory's files declare, by kind: `tables/<key>.ts`, `knowledge/<key>/knowledge.ts`,
- * `skills/<key>.md` and `tools/<key>.ts`. `workspace.d.ts` types them beside the stored resources.
+ * The keys a directory's files declare, by kind, grouped by each kind's codec: its tables (typed
+ * from their declarations), and its knowledge base, skill, custom tool and workflow keys.
+ * `workspace.d.ts` types them beside the stored resources.
  */
 export function localDeclarations(paths: readonly string[]): LocalDeclarations {
-  const under = (dir: string, suffix = '') =>
-    paths.filter((path) => path.startsWith(`${dir}/`) && path.endsWith(suffix))
-  const byFile = (dir: string, extension: string) => [
-    ...groupByFile(dir, [extension], under(dir)).groups.keys(),
+  const keys = (kind: WorkspaceKind) => [
+    ...KIND_CODECS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
   ]
-  const knowledgeDir = KIND_DIRS['knowledge-base']
   return {
-    tableDeclarations: byFile(KIND_DIRS.table, '.ts'),
-    knowledgeBases: [
-      ...groupByFolder(knowledgeDir, under(knowledgeDir, '/knowledge.ts')).groups.keys(),
-    ],
-    skills: byFile(KIND_DIRS.skill, '.md'),
-    customTools: byFile(KIND_DIRS['custom-tool'], '.ts'),
+    tableDeclarations: keys('table'),
+    knowledgeBases: keys('knowledge-base'),
+    skills: keys('skill'),
+    customTools: keys('custom-tool'),
+    workflows: Object.fromEntries(keys('workflow').map((key) => [key, {}])),
   }
 }
 
@@ -204,15 +193,17 @@ export interface WorkspaceSubmission {
 }
 
 /**
- * Reads the directory for an apply. A workflow folder whose every file is as the CLI last wrote it
- * is sent with only its `.sim/base.json`: the server treats it as unchanged, so an apply sends
- * only the workflows that were edited. Blobs are hashed as streams, and one over the size limit
- * is refused (exit 7) before it is read; a blob `known` already lists (an earlier round of the
- * same apply hashed it) is not read again.
+ * Reads the directory for an apply to `workspaceId`. A workflow folder whose every file is as the
+ * CLI last wrote it is sent as `unchangedFiles` says (its base alone when it was read from
+ * `workspaceId`), so an apply sends only the workflows that were edited, and a copy to another
+ * workspace still sends every workflow it creates. Blobs are hashed as streams, and one over the
+ * size limit is refused (exit 7) before it is read; a blob `known` already lists (an earlier round
+ * of the same apply hashed it) is not read again.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
+  workspaceId: string,
   known: readonly BlobEntry[] = []
 ): Promise<WorkspaceSubmission> {
   const {
@@ -231,12 +222,8 @@ export async function readWorkspaceDir(
     if (text !== null) files[path] = text
   })
   const written = await readWrittenDigests(dir)
-  const folders = new Map<string, string[]>()
-  for (const path of Object.keys(files)) {
-    if (kindOfPath(path) !== 'workflow') continue
-    const folder = path.split('/', 2).join('/')
-    folders.set(folder, [...(folders.get(folder) ?? []), path])
-  }
+  const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
+  const folders = KIND_CODECS.workflow.group(workflowPaths).groups
   // Files per workflow folder that `.sim/written.json` records.
   const recorded = new Map<string, number>()
   for (const path of Object.keys(written)) {
@@ -244,14 +231,17 @@ export async function readWorkspaceDir(
     const folder = path.split('/', 2).join('/')
     recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
   }
-  for (const [folder, folderPaths] of folders) {
+  for (const [key, folderPaths] of folders) {
     const unchanged =
-      recorded.get(folder) === folderPaths.length &&
+      recorded.get(workflowFolder(key)) === folderPaths.length &&
       folderPaths.every((path) => written[path] === digest(files[path]))
     if (!unchanged) continue
-    for (const path of folderPaths) {
-      if (path !== `${folder}/${WORKFLOW_BASE_FILE}`) delete files[path]
-    }
+    const sent = unchangedFiles(
+      key,
+      Object.fromEntries(folderPaths.map((path) => [path, files[path]])),
+      workspaceId
+    )
+    for (const path of folderPaths) if (!Object.hasOwn(sent, path)) delete files[path]
   }
   const root = await realpath(dir)
   const verified = new Set<string>()

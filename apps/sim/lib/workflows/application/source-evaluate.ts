@@ -116,6 +116,19 @@ function declaredTableSchemas(
   return schemas
 }
 
+/** `primary`, falling back to `fallback` for a key, id or name it does not resolve. */
+function fallbackResolver(
+  primary: ResourceKeyResolver,
+  fallback: Pick<ResourceKeyResolver, 'toKey' | 'toId' | 'nameOf'>
+): ResourceKeyResolver {
+  return {
+    toKey: (kind, id) => primary.toKey(kind, id) ?? fallback.toKey(kind, id),
+    toId: (kind, key) => primary.toId(kind, key) ?? fallback.toId(kind, key),
+    nameOf: (kind, id) => primary.nameOf?.(kind, id) ?? fallback.nameOf?.(kind, id) ?? null,
+    isBuiltin: primary.isBuiltin,
+  }
+}
+
 /** `resources`, falling back to `pending` for a key, id or name it does not resolve. */
 function withPendingResources(
   resources: ResourceKeyResolver,
@@ -124,15 +137,12 @@ function withPendingResources(
   if (pending.length === 0) return resources
   const byId = (kind: ResourceKind, id: string) =>
     pending.find((entry) => entry.kind === kind && entry.id === id)
-  return {
-    toKey: (kind, id) => resources.toKey(kind, id) ?? byId(kind, id)?.key ?? null,
+  return fallbackResolver(resources, {
+    toKey: (kind, id) => byId(kind, id)?.key ?? null,
     toId: (kind, key) =>
-      resources.toId(kind, key) ??
-      pending.find((entry) => entry.kind === kind && entry.key === key)?.id ??
-      null,
-    nameOf: (kind, id) => resources.nameOf?.(kind, id) ?? byId(kind, id)?.name ?? null,
-    isBuiltin: resources.isBuiltin,
-  }
+      pending.find((entry) => entry.kind === kind && entry.key === key)?.id ?? null,
+    nameOf: (kind, id) => byId(kind, id)?.name ?? null,
+  })
 }
 
 /** Unresolved reference kinds whose ids an enclosing apply may create. */
@@ -315,20 +325,14 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
 
   const compiledKeys: ResourceKeyRef[] = []
   collectResourceKeys(compiledWorkflow.blocks, compiledKeys)
-  const storedResources = resources
-  const newKeys = compiledKeys.filter(({ kind, key }) => storedResources.toId(kind, key) === null)
+  const newKeys = compiledKeys.filter(({ kind, key }) => resources.toId(kind, key) === null)
   if (newKeys.length > 0) {
     const extra = await loadResourceKeyResolver(
       scope.workspaceId,
       { keys: newKeys },
       { actorUserId: input.createdBy }
     )
-    resources = {
-      toKey: (kind, id) => storedResources.toKey(kind, id) ?? extra.toKey(kind, id),
-      toId: (kind, key) => storedResources.toId(kind, key) ?? extra.toId(kind, key),
-      nameOf: (kind, id) => storedResources.nameOf?.(kind, id) ?? extra.nameOf?.(kind, id) ?? null,
-      isBuiltin: storedResources.isBuiltin,
-    }
+    resources = fallbackResolver(resources, extra)
   }
 
   resources = withPendingResources(resources, input.pendingResources ?? [])

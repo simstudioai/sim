@@ -32,7 +32,7 @@ import {
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored } from '@/lib/workspace-source/application/keys'
+import { bindStored, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
   columnInput,
   diffTable,
@@ -126,7 +126,7 @@ async function planTable(
         ...change,
         action: 'create',
         fields: Object.keys(decl.columns).map((column) => `columns.${column} (add)`),
-        columns: declaredColumnNames(decl),
+        pending: pendingOf({ ...change, action: 'create' }, { columns: declaredColumnNames(decl) }),
       }
     }
     case 'adopt':
@@ -158,11 +158,21 @@ async function planTable(
           )
         )
       }
+      const action = planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop'
+      const storedId = planned.stored.id
       return {
         ...change,
-        action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
-        storedId: planned.stored.id,
-        columns: declaredColumnNames(decl),
+        action,
+        storedId,
+        // A later workflow's dry run checks its row writes against the columns this declares.
+        ...(action !== 'noop'
+          ? {
+              pending: pendingOf(
+                { ...change, action, storedId },
+                { columns: declaredColumnNames(decl) }
+              ),
+            }
+          : {}),
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
         ...(dropped > 0 || changes.lostCells > 0
           ? {

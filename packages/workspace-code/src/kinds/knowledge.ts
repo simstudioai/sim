@@ -382,8 +382,12 @@ export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): 
   }
 }
 
+/** A document's path, `knowledge/<key>/docs/<name>`: the kind's only binary files. */
+const DOCUMENT_PATH = new RegExp(`^${KIND_DIRS['knowledge-base']}/[^/]+/${DOCS_FOLDER}/[^/]+$`)
+
 /** Reads and prints `knowledge/<key>/`. */
 export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
+  isBlob: (path) => DOCUMENT_PATH.test(path),
   group: groupKnowledge,
   baseBlobName: (key, path) => path.slice(knowledgeDocPath(key, '').length),
   baseBlobPath: knowledgeDocPath,

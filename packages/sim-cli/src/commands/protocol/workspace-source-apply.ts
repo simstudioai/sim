@@ -1,5 +1,7 @@
+import { isRecordLike } from '@sim/utils/object'
+import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
-import { WORKFLOW_LOCK_FILE, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { roundPaths } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -14,7 +16,6 @@ import type { ApplyWorkspaceSourceBody, ApplyWorkspaceSourceResponse } from '../
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './workflow-source-apply'
 import {
   orphanedCodeFiles,
   readSourceJson,
@@ -22,7 +23,8 @@ import {
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
   writtenRecord,
-} from './workflow-source-layout'
+} from './source-dir'
+import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
 import { appliedBlobDigests, assertBlobsFetched } from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
@@ -121,13 +123,15 @@ async function blobRound(
 
 /** A workflow folder's lock, as an apply answer names it. */
 const WORKFLOW_LOCK_PATH = new RegExp(
-  `^${KIND_DIRS.workflow}/([^/]+)/${WORKFLOW_LOCK_FILE.replace('.', '\\.')}$`
+  `^${KIND_DIRS.workflow}/([^/]+)/${SOURCE_LOCK_FILE.replaceAll('.', '\\.')}$`
 )
 
 /**
  * The function files of each workflow the apply wrote that its new lock no longer names, as a
  * single-workflow apply prunes them: named by the lock the folder held (so the CLI wrote them)
- * and not written now. A file the person added and no lock named is kept.
+ * and not written now. A file the person added and no lock named is kept, and so is every file of
+ * a folder whose new lock does not read as one: without it nothing tells a dropped file from a
+ * kept one.
  */
 async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
   const orphaned: string[] = []
@@ -138,11 +142,12 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
     const written = Object.keys(files)
       .filter((file) => file.startsWith(`${folder}/`))
       .map((file) => file.slice(folder.length + 1))
-    const previous = await readSourceJson(dir, path)
     let next: unknown = null
     try {
       next = JSON.parse(text)
     } catch {}
+    if (!isRecordLike(next) || !isRecordLike(next.blocks)) continue
+    const previous = await readSourceJson(dir, path)
     orphaned.push(...orphanedCodeFiles(previous, next, written).map((file) => `${folder}/${file}`))
   }
   return orphaned
@@ -246,7 +251,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
 
-      let submission = await readWorkspaceDir(options.dir, only)
+      let submission = await readWorkspaceDir(options.dir, only, workspaceId)
       assertBaseWorkspace(
         options.dir,
         submission.base,
@@ -304,7 +309,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
         wanted = next
         // Blobs hashed for the first round stand; a round re-reads only what it sends.
-        submission = await readWorkspaceDir(options.dir, only, submission.blobs)
+        submission = await readWorkspaceDir(options.dir, only, workspaceId, submission.blobs)
         data = await writeRound(wanted)
       }
       if (data.failed) {

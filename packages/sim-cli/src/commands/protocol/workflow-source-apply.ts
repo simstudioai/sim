@@ -1,15 +1,15 @@
-import { createInterface } from 'node:readline/promises'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { isRecordLike } from '@sim/utils/object'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
-import { CODE_FILE_EXTENSIONS, SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
+import {
+  SOURCE_BASE_FILE as BASE_FILE,
+  CODE_FILE_EXTENSIONS,
+  SOURCE_ENTRY_FILE as ENTRY_FILE,
+  SOURCE_LOCK_FILE as LOCK_FILE,
+} from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
-import { embedStore, setSoftExitCode } from '../../embed-context'
-import {
-  SOURCE_LOCKED_EXIT_CODE,
-  SOURCE_STALE_EXIT_CODE,
-  SOURCE_TOO_LARGE_EXIT_CODE,
-} from '../../exit-codes'
+import { setSoftExitCode } from '../../embed-context'
+import { SOURCE_STALE_EXIT_CODE, SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type {
   ApplyWorkflowSourceBody,
   ApplyWorkflowSourceResponse,
@@ -18,27 +18,20 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
 import {
-  SOURCE_BASE_FILE as BASE_FILE,
   inBatches,
-  SOURCE_LOCK_FILE as LOCK_FILE,
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
   SOURCE_AGENTS_FILE,
   sourceRelativePath,
   writeBack,
-} from './workflow-source-layout'
+} from './source-dir'
+import { confirm, fresh, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
+import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
 
 /** The only files an apply sends beside the entry: function code in a language a block runs. */
 const CODE_FILE_EXTENSION = new RegExp(`\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`)
-
-/** The exit status of a refused write a script can branch on; any other refusal exits 1. */
-const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
-  413: SOURCE_TOO_LARGE_EXIT_CODE,
-  423: SOURCE_LOCKED_EXIT_CODE,
-}
 
 const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
@@ -111,50 +104,6 @@ function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
   return [...candidates].filter((path) => CODE_FILE_EXTENSION.test(path))
 }
 
-function formatDiagnostic(diagnostic: Diagnostic): string {
-  const where =
-    diagnostic.file !== undefined && diagnostic.path === undefined
-      ? `${diagnostic.file}:${diagnostic.line ?? 1}:${diagnostic.column ?? 1} `
-      : diagnostic.path !== undefined
-        ? `${diagnostic.file ?? LOCK_FILE}#${diagnostic.path} `
-        : ''
-  const lines = [`${where}${diagnostic.severity} ${diagnostic.code}: ${diagnostic.message}`]
-  if (diagnostic.frame) lines.push(diagnostic.frame)
-  if (diagnostic.hint) lines.push(`  hint: ${diagnostic.hint}`)
-  return lines.join('\n')
-}
-
-/**
- * Prints a write's findings: every error and warning with its location, frame and hint, and each
- * info code folded into one line (a new workflow places every block by autolayout, which is no
- * reason to print a frame per block and bury the warnings).
- */
-function printDiagnostics(diagnostics: Diagnostic[]): void {
-  const infos = new Map<string, Diagnostic[]>()
-  for (const diagnostic of diagnostics) {
-    if (diagnostic.severity !== 'info') {
-      printError(formatDiagnostic(diagnostic))
-      continue
-    }
-    const group = infos.get(diagnostic.code)
-    if (group) group.push(diagnostic)
-    else infos.set(diagnostic.code, [diagnostic])
-  }
-  for (const [code, group] of infos) {
-    const [first] = group
-    printError(
-      group.length === 1
-        ? formatDiagnostic({ ...first, frame: undefined })
-        : `info ${code} on ${group.length} blocks: ${first.message} (and ${group.length - 1} more like it)`
-    )
-  }
-}
-
-function findingKey(diagnostic: Diagnostic): string {
-  const { code, file, line, column, path, message } = diagnostic
-  return JSON.stringify([code, file, line, column, path, message])
-}
-
 /**
  * Prints a write's diagnostics and notes (a name the source changed but the apply kept, a dropped
  * tool), skipping any already in `printed` and adding the rest: after a terminal preview, the
@@ -165,25 +114,6 @@ function printFindings(data: SourceApplyData, printed: Set<string>): void {
   for (const note of data.notes) {
     if (fresh(printed, `note:${note}`)) printError(`note: ${note}`)
   }
-}
-
-/** Records `key` in `printed`, returning whether it was new. */
-function fresh(printed: Set<string>, key: string): boolean {
-  if (printed.has(key)) return false
-  printed.add(key)
-  return true
-}
-
-/**
- * Prints the findings `printed` does not hold yet and records them, so a finding the preview
- * showed is not shown again by the write that follows it.
- */
-export function printNewDiagnostics(diagnostics: Diagnostic[], printed: Set<string>): void {
-  printDiagnostics(diagnostics.filter((diagnostic) => fresh(printed, findingKey(diagnostic))))
-}
-
-function isDiagnosticList(value: unknown): value is Diagnostic[] {
-  return Array.isArray(value) && value.every((item) => isRecordLike(item) && 'code' in item)
 }
 
 /** One line naming what the apply changes, shown before asking to confirm it. */
@@ -202,21 +132,6 @@ function diffSummary(data: SourceApplyData): string {
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
     variableCount > 0 ? ` Variables changed: ${variableCount}.` : ''
   }${modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''}`
-}
-
-/** Whether a person is at a terminal to answer a prompt: never for an embedded run. */
-function canPrompt(): boolean {
-  return !embedStore.getStore() && process.stdin.isTTY === true && process.stderr.isTTY === true
-}
-
-export async function confirm(question: string): Promise<boolean> {
-  const prompt = createInterface({ input: process.stdin, output: process.stderr })
-  try {
-    const answer = (await prompt.question(`${question} (y/N) `)).trim().toLowerCase()
-    return answer === 'y' || answer === 'yes'
-  } finally {
-    prompt.close()
-  }
 }
 
 const GET_HINT = 'Write the directory with `sim workflows source get` first.'
@@ -259,39 +174,6 @@ async function readSourceFiles(
     if (text !== null) files[path] = text
   })
   return files
-}
-
-/**
- * The exit status of a refused write. A `409` is stale only when the server says so
- * (`SOURCE_STALE`): a name another workflow holds (`SOURCE_NAME_TAKEN`) or any other conflict
- * cannot be fixed by reading the workflow again, so it exits 1.
- */
-function refusalExitCode(error: SimApiError, detailCode: unknown): number {
-  if (error.status === 409) return detailCode === 'SOURCE_STALE' ? SOURCE_STALE_EXIT_CODE : 1
-  return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
-}
-
-/**
- * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
- * the exit status a script branches on.
- */
-export function printRefusal(error: unknown): never {
-  if (!(error instanceof SimApiError)) throw error
-  const details = toRecord(error.details)
-  const diagnostics = details.diagnostics
-  const printed = isDiagnosticList(diagnostics)
-  if (printed) printDiagnostics(diagnostics)
-  const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
-  throw new SimApiError(
-    nameTaken
-      ? `${error.message} Pass --name to create it under another name, or apply to that workflow.`
-      : error.message,
-    error.status,
-    error.code,
-    printed ? undefined : error.details,
-    refusalExitCode(error, details.code),
-    error.requestId
-  )
 }
 
 type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
@@ -357,20 +239,6 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   printProtocolResult(args.output, summarize(data, creating))
-}
-
-/**
- * A write without `--yes` or `--dry-run` where no terminal can ask: the generic refusal, naming
- * what the write does (`writes the workflow draft`) and its verb (`apply`).
- */
-export function requireConsent(options: SourceWriteOptions, action: string, verb: string): void {
-  if (!options.dryRun && !options.yes && !canPrompt()) {
-    throw new SimApiError(
-      `This ${action}. Re-run with --yes to ${verb} it, or with --dry-run to check it without writing.`,
-      0,
-      'CONFIRMATION_REQUIRED'
-    )
-  }
 }
 
 const DIR_DESCRIPTION =

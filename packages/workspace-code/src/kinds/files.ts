@@ -220,6 +220,8 @@ export function fileFingerprint(sha256: string): ResourceFingerprint {
 
 /** Reads and prints `files/**`. */
 export const fileCodec: KindCodec<FileDecl> = {
+  keys: 'path',
+  isBlob: () => true,
   group: groupFiles,
   parse: parseFile,
   print: (key, decl) => ({

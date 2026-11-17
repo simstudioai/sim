@@ -92,4 +92,26 @@ export interface KindCodec<D> {
   baseBlobName?(key: string, path: string): string
   /** The blob path a base entry's blob `name` stands for: the inverse of `baseBlobName`. */
   baseBlobPath?(key: string, name: string): string
+  /**
+   * Whether `path`, one of the kind's, holds bytes rather than text: a blob travels by hash, and
+   * its content only in the rounds the server asks for it. A kind without it holds only text.
+   */
+  isBlob?(path: string): boolean
+  /**
+   * What a key names: a resource key (the default), which the workspace's key table binds to the
+   * resource and a workflow names it by; or `path`, the resource's own path (a workspace file),
+   * which no key table records.
+   */
+  readonly keys?: 'resource' | 'path'
+  /**
+   * The byte limit the kind's text counts against: `declaration` (the default,
+   * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).
+   */
+  readonly budget?: 'declaration' | 'workflow'
+  /**
+   * Whether a declaration was sent without its files, unchanged since the CLI last wrote them, so
+   * nothing evaluates it (see `unchangedFiles` of the workflow kind). A kind without it always
+   * sends its files.
+   */
+  isUnchanged?(decl: D): boolean
 }

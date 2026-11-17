@@ -1,8 +1,8 @@
 /**
- * The source directory `workflows source get --dir` writes and `workflows source apply --dir`
- * (or `create --dir`) reads back, which `workspaces source` reuses for each kind folder: its
- * layout, and the only code that reads or writes it on disk.
- * One definition, so the commands cannot drift apart.
+ * The source directory on disk, for `workflows source` (one workflow's directory) and
+ * `workspaces source` (whose `workflows/<key>/` folders are each one): its layout beside the
+ * printed files, and the only code that reads or writes it. One definition, so the commands
+ * cannot drift apart.
  *
  * Every path is relative to `realpath(--dir)` and no component below it may be a symbolic link,
  * so nothing is read from or written to outside the directory, whatever a link in it points at.
@@ -29,18 +29,16 @@ import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   CODE_FILE_EXTENSIONS,
+  SOURCE_BASE_FILE,
   SOURCE_ENTRY_FILE,
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
+  SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { embedStore } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
 
-/** The identity lock (`WorkflowLockV1`). */
-export const SOURCE_LOCK_FILE = '.sim/lock.json'
-/** The freshness facts for the lock in this environment (`SourceBase`). */
-export const SOURCE_BASE_FILE = '.sim/base.json'
 /** Generated SDK declarations: every block in the workspace catalog, plus `workspace.d.ts`. */
 export const SOURCE_SDK_DIR = '.sim/sdk'
 /** A short guide for an agent working in the directory; never a top-level `AGENTS.md`. */

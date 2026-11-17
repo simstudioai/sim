@@ -45,7 +45,7 @@ import {
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored } from '@/lib/workspace-source/application/keys'
+import { bindStored, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
   checkWrites,
   chunkingConfig,
@@ -239,6 +239,7 @@ async function planKnowledgeBase(
       return {
         ...change,
         action: 'create',
+        pending: pendingOf({ ...change, action: 'create' }),
         fields: uploads.map((upload) => `docs/${upload.name} (add)`),
         needsBlobs: uploadPaths(key, uploads),
         detail: {
@@ -277,6 +278,9 @@ async function planKnowledgeBase(
         ...change,
         action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
         storedId: resource.id,
+        ...(planned.action === 'adopt'
+          ? { pending: pendingOf({ ...change, action: 'adopt', storedId: resource.id }) }
+          : {}),
         ...(refreshed ? { base: view.base } : {}),
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
         ...(changes.deletes.length > 0

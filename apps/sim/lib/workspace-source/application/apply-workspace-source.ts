@@ -7,8 +7,8 @@ import {
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
+import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
-import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
@@ -106,10 +106,10 @@ function failureOf(
   diagnostics: WorkspaceSourceDiagnostic[]
 } {
   const resource = { kind: change.kind, key: change.key }
-  if (error instanceof WorkflowSourceRejectedError) {
+  if (error instanceof WorkspaceSourceRejectedError) {
     return {
       failed: { ...resource, code: 'E_APPLY_REFUSED', message: error.message },
-      diagnostics: error.diagnostics.map((finding) => ({ ...finding, ...resource })),
+      diagnostics: error.diagnostics,
     }
   }
   if (isRefusal(error)) {
@@ -141,9 +141,10 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
   }
   const written = await adapter.apply(change, ctx)
   const claims =
-    adapter.keys === 'every-write'
+    isResourceKeyed(change.kind) &&
+    (adapter.keys === 'every-write'
       ? change.action !== 'delete'
-      : adapter.keys !== 'none' && (change.action === 'create' || change.action === 'adopt')
+      : change.action === 'create' || change.action === 'adopt')
   if (!claims) return written
   const claimed = await claimKey(change, ctx, written.id)
   return claimed.length > 0

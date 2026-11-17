@@ -5,6 +5,7 @@
  *
  * Client-safe: no parser imports.
  */
+import { SOURCE_BASE_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS, type WorkspaceKind } from './kind'
 
 /** Per-resource ids and fingerprints for one environment (`WorkspaceBaseV1`). */
@@ -14,10 +15,6 @@ export const WORKSPACE_BASE_FILE = '.sim/base.json'
  * does not hold.
  */
 export const WORKSPACE_SKIPPED_FILE = '.sim/skipped.json'
-/** A workflow directory's lock, as `sim workflows source` keeps it. */
-export const WORKFLOW_LOCK_FILE = '.sim/lock.json'
-/** A workflow directory's base, as `sim workflows source` keeps it. */
-export const WORKFLOW_BASE_FILE = '.sim/base.json'
 /** The entry file of a table declaration: `tables/<key>.ts`. */
 export const DECLARATION_EXTENSION = '.ts'
 
@@ -50,7 +47,9 @@ const UNSAFE_CHARACTER = /[\u0000-\u001f\u007f\\:*?"<>|]/
  * folder is a resource key, so `workflows/../.sim/base.json` never passes as one.
  */
 const WORKFLOW_SIDECAR = new RegExp(
-  `^workflows/${RESOURCE_KEY_SOURCE}/\\.sim/(?:lock|base)\\.json$`
+  `^${KIND_DIRS.workflow}/${RESOURCE_KEY_SOURCE}/(?:${[SOURCE_LOCK_FILE, SOURCE_BASE_FILE]
+    .map((file) => file.replaceAll('.', '\\.'))
+    .join('|')})$`
 )
 
 /**
@@ -71,15 +70,4 @@ export function isWorkspaceSourcePath(path: string): boolean {
  */
 export function isFileKey(key: string): boolean {
   return isWorkspaceSourcePath(`${KIND_DIRS.file}/${key}`)
-}
-
-/** A knowledge base document: `knowledge/<key>/docs/<file>`. */
-const KNOWLEDGE_DOCUMENT = /^knowledge\/[^/]+\/docs\/[^/]+$/
-
-/**
- * Whether `path` holds bytes rather than text: a workspace file or a knowledge document. Blobs
- * travel by hash and their content only in the rounds the server asks for it.
- */
-export function isBlobPath(path: string): boolean {
-  return kindOfPath(path) === 'file' || KNOWLEDGE_DOCUMENT.test(path)
 }
