@@ -33,16 +33,6 @@ export function diagnostic<C extends WorkspaceDiagnosticCode>(
   return { ...extras, code, message, severity: severityOf(code) } as WorkspaceDiagnostic<C>
 }
 
-/** `span` with its code frame, for a finding pinned to `text`. */
-export function located(text: string, span: SourceSpan): { span: SourceSpan; frame: string } {
-  return sourceLocator(span.file, text).located(span)
-}
-
-/** The span of `[start, end)` in `text`, with 1-based lines and columns. */
-export function spanAt(file: string, text: string, start: number, end: number): SourceSpan {
-  return sourceLocator(file, text).span(start, end)
-}
-
 /** Spans and code frames in one file, splitting its lines once however many it locates. */
 interface SourceLocator {
   /** The span of `[start, end)`, with 1-based lines and columns. */

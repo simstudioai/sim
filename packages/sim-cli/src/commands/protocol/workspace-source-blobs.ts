@@ -123,7 +123,7 @@ export async function downloadBlob(
  * The directory path of every blob the base records for `kinds`: a workspace file's entry names
  * its path, a knowledge base's names a document under its `docs/` folder.
  */
-export function baseBlobPaths(base: unknown, kinds: readonly WorkspaceKind[]): string[] {
+function baseBlobPaths(base: unknown, kinds: readonly WorkspaceKind[]): string[] {
   const resources =
     typeof base === 'object' && base !== null && 'resources' in base ? base.resources : null
   if (typeof resources !== 'object' || resources === null) return []
