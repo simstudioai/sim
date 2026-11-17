@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import {
@@ -39,7 +38,6 @@ import {
   workflowNameExistsInFolder,
 } from '@/lib/workflows/orchestration'
 import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
-import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   type PreparedWorkflowState,
   prepareWorkflowStateForPersistence,
@@ -47,6 +45,7 @@ import {
 import {
   assertWorkflowGraphIdsUnclaimed,
   collectWorkflowGraphIds,
+  persistCustomToolsAfterCommit,
   replaceWorkflowNormalizedState,
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
@@ -55,8 +54,6 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-
-const logger = createLogger('WorkflowSourceCommit')
 
 /** What a commit (or a dry run's preview of one) stores, after persistence preparation. */
 interface CommittedGraph {
@@ -349,17 +346,15 @@ export async function commitSourceCreate(args: {
   requireWorkflowTransition(transition, 'Failed to create workflow')
   if (!transition.workflow) throw new Error('Successful workflow create returned no workflow')
 
-  try {
-    const { errors } = await extractAndPersistCustomTools(
-      prepared.state,
-      workspaceId,
-      subjectUserId
-    )
-    if (errors.length > 0) {
-      logger.warn('Some custom tools failed to persist', { workflowId: scope.workflowId, errors })
-    }
-  } catch (error) {
-    logger.error('Failed to persist custom tools', { workflowId: scope.workflowId, error })
+  const toolWarnings = await persistCustomToolsAfterCommit(
+    prepared.state,
+    workspaceId,
+    subjectUserId,
+    { workflowId: scope.workflowId }
+  )
+  return {
+    name: transition.workflow.name,
+    state: prepared.state,
+    warnings: [...prepared.warnings, ...toolWarnings],
   }
-  return { name: transition.workflow.name, state: prepared.state, warnings: prepared.warnings }
 }

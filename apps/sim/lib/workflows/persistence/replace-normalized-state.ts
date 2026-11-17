@@ -226,8 +226,37 @@ export interface ReplaceWorkflowNormalizedStateInput {
   requestId?: string
 }
 
+/** The warning a committed graph write returns when its custom tools did not save. */
+export const CUSTOM_TOOLS_NOT_SAVED_WARNING =
+  'The workflow was saved, but its custom tools could not be saved to the workspace tool library. Save the workflow again to retry.'
+
+/**
+ * Saves a committed graph's inline custom tools to the workspace library. The graph write already
+ * stands, so a failure never throws: it is logged and returned as
+ * {@link CUSTOM_TOOLS_NOT_SAVED_WARNING} for the caller's warnings.
+ */
+export async function persistCustomToolsAfterCommit(
+  state: unknown,
+  workspaceId: string,
+  userId: string,
+  logContext: { requestId?: string; workflowId: string }
+): Promise<string[]> {
+  try {
+    const { saved, errors } = await extractAndPersistCustomTools(state, workspaceId, userId)
+    if (saved > 0) logger.info(`Persisted ${saved} custom tool(s) to database`, logContext)
+    if (errors.length === 0) return []
+    logger.warn('Some custom tools failed to persist', { ...logContext, errors })
+  } catch (error) {
+    logger.error('Failed to persist custom tools', { ...logContext, error })
+  }
+  return [CUSTOM_TOOLS_NOT_SAVED_WARNING]
+}
+
 export interface ReplaceWorkflowNormalizedStateResult {
-  /** Non-fatal notes about blocks and edges the preparation step rewrote or dropped. */
+  /**
+   * Non-fatal notes: blocks and edges the preparation step rewrote or dropped, and
+   * {@link CUSTOM_TOOLS_NOT_SAVED_WARNING} when the committed graph's custom tools did not save.
+   */
   warnings: string[]
   /** Exactly what was written, after preparation. */
   state: PreparedWorkflowState
@@ -356,21 +385,12 @@ export async function replaceWorkflowNormalizedState(
   }
 
   if (workspaceId) {
-    try {
-      const { saved, errors } = await extractAndPersistCustomTools(
-        workflowState,
-        workspaceId,
-        attributedUserId
-      )
-      if (saved > 0) {
-        logger.info(`Persisted ${saved} custom tool(s) to database`, { requestId, workflowId })
-      }
-      if (errors.length > 0) {
-        logger.warn('Some custom tools failed to persist', { requestId, errors, workflowId })
-      }
-    } catch (error) {
-      logger.error('Failed to persist custom tools', { requestId, error, workflowId })
-    }
+    warnings.push(
+      ...(await persistCustomToolsAfterCommit(workflowState, workspaceId, attributedUserId, {
+        requestId,
+        workflowId,
+      }))
+    )
   } else {
     logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
       requestId,
