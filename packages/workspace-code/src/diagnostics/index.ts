@@ -1,4 +1,4 @@
-export type { WorkspaceDiagnosticCode } from './codes'
+export { severityOf, type WorkspaceDiagnosticCode } from './codes'
 export {
   diagnostic,
   type FlatDiagnostic,

@@ -7,7 +7,12 @@ export {
   resourceAddress,
   type WorkspaceBaseV1,
 } from './base'
-export { type FlatDiagnostic, flattenDiagnostic } from './diagnostics'
+export {
+  type FlatDiagnostic,
+  flattenDiagnostic,
+  severityOf,
+  type WorkspaceDiagnosticCode,
+} from './diagnostics'
 export { fingerprintOf } from './fingerprint'
 export {
   APPLY_ORDER,
