@@ -5,6 +5,13 @@ import { encodeAnchor } from '../anchors'
 import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
+import {
+  buildFieldIndex,
+  type CatalogField,
+  type FieldIndex,
+  isModalPair,
+  memberFor,
+} from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import {
   CODE_FILE_EXTENSIONS,
@@ -44,17 +51,7 @@ import { didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
-import {
-  buildFieldIndex,
-  type CatalogField,
-  type FieldIndex,
-  fieldFor,
-  isModalPair,
-  isVisible,
-  memberFor,
-  missingRequiredFields,
-  valueKindMatches,
-} from './validate-catalog'
+import { fieldFor, isVisible, missingRequiredFields, valueKindMatches } from './validate-catalog'
 import {
   type CompiledValue,
   compileJsonField,

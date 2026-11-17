@@ -21,7 +21,7 @@ import { portKey } from '../anchors'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
-import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
+import { buildFieldIndex, memberFor, paramAliases } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import {
   catalogBlock as catalogBlockOf,
@@ -456,10 +456,6 @@ class WorkflowPrinter {
     for (const row of block.branches?.rows ?? []) walk(row.value)
     if (block.subflow) walk(block.subflow)
     return heads
-  }
-
-  private surfaceSubBlocks(block: CanonicalBlock, catalogBlock: CatalogBlock): CatalogSubBlock[] {
-    return catalogBlock.subBlocks.filter((sb) => onSurface(catalogBlock, sb, block.triggerMode))
   }
 
   private tagFor(
@@ -897,57 +893,47 @@ class WorkflowPrinter {
     const push = (list: ParamEntry[], key: string, value: Expr) => {
       list.push({ key: printKey(key), anchor: anchors.param(block.key, key), value })
     }
-    const aliases = catalogBlock ? paramAliases(catalogBlock, block.triggerMode) : new Map()
-    const named = (param: string): string => aliases.get(param) ?? param
     const isDefault = (id: string) => {
       const param = getOwn(block.params, id)
       return param?.kind === 'value' && defaults.has(id) && defaults.get(id) === param.value
     }
 
     if (catalogBlock) {
-      const subBlocks = this.surfaceSubBlocks(block, catalogBlock)
-      const seenCids = new Set<string>()
-      for (const sb of subBlocks) {
-        if (handled.has(sb.id)) continue
-        const cid = sb.canonicalParamId
-        if (cid !== undefined) {
-          if (seenCids.has(cid)) continue
-          seenCids.add(cid)
-          const members = subBlocks.filter((m) => m.canonicalParamId === cid && !pinned.has(m.id))
-          for (const member of members) handled.add(member.id)
-          const mode: ParamMode = getOwn(block.modes, cid) ?? 'basic'
-          const basic = members.find((m) => !isAdvancedMember(m))
-          const advanced = members.find(isAdvancedMember)
-          const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
+      const index = buildFieldIndex(catalogBlock, block.triggerMode, pinned)
+      for (const id of index.subBlocks.keys()) handled.add(id)
+      for (const field of index.fields.values()) {
+        if (field.kind === 'pair') {
+          const mode: ParamMode = getOwn(block.modes, field.param) ?? 'basic'
+          const effective = memberFor(field, mode)
           if (!effective) continue
           if (hasValue(block, effective.id)) {
             if (inactiveIds.has(effective.id)) continue
-            if (mode === 'basic' && effective === basic && isDefault(effective.id)) continue
+            if (mode === 'basic' && effective === field.basic && isDefault(effective.id)) continue
             const printed = this.printParamValue(block, catalogBlock, effective.id, effective)
-            if (printed) push(params, named(cid), printed)
+            if (printed) push(params, field.name, printed)
           } else if (
-            members.some((member) => defaults.has(member.id)) &&
+            field.members.some((member) => defaults.has(member.id)) &&
             this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
           ) {
-            push(params, named(cid), NULL_EXPR)
+            push(params, field.name, NULL_EXPR)
           }
           continue
         }
-        handled.add(sb.id)
+        const sb = field.sub
         if (!hasValue(block, sb.id)) {
           if (this.needsTodo(block, sb)) {
-            push(params, named(sb.id), this.values.call('todo', []))
+            push(params, field.name, this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
             if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
-              push(params, named(sb.id), NULL_EXPR)
+              push(params, field.name, NULL_EXPR)
             }
           }
           continue
         }
         if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
         const printed = this.printParamValue(block, catalogBlock, sb.id, sb, true)
-        if (printed) push(params, named(sb.id), printed)
+        if (printed) push(params, field.name, printed)
       }
     }
 
