@@ -438,7 +438,7 @@ describe('workspace source files', () => {
       expect(roundOne.remainingBlobs).toEqual(['files/big/c.bin'])
       expect((await storedFiles(workspaceId)).map((file) => file.name)).toContain('plan.md')
 
-      /** Round one's answer was lost: round two starts again from the base the get wrote. */
+      // Round one's answer was lost: round two starts again from the base the get wrote.
       const resumed = await apply(workspaceId, directory, {
         base: read.base,
         allowDelete: true,

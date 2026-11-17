@@ -70,6 +70,7 @@ export function kindFinding(
   })
 }
 
+/** `E_APPLY_STALE`: the resource changed on the server since the directory was read. */
 export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return kindFinding(
     kind,
@@ -80,6 +81,7 @@ export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceD
   )
 }
 
+/** `E_APPLY_NO_BASE`: the server holds the resource, but the directory has no base for it. */
 export function noBaseFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return kindFinding(
     kind,
@@ -90,6 +92,7 @@ export function noBaseFinding(kind: WorkspaceKind, key: string): WorkspaceSource
   )
 }
 
+/** `I_SERVER_CHANGED`: the server drifted; the directory leaves the resource as it is. */
 export function serverChangedFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return kindFinding(
     kind,
@@ -258,7 +261,7 @@ export function refuseDeclaredTwice(
   )
 }
 
-/** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
+/** A kind's hooks for {@link planUndeclared}. */
 interface UndeclaredOptions<S, P> {
   /** The kind's planned changes for declared resources: a resource one of them targets stays. */
   declared?: ReadonlyArray<Pick<PlannedChange, 'storedId'>>

@@ -197,17 +197,15 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         base.resources[resourceAddress(change.kind, change.key)] = change.base
       }
     }
-    /** Resources this round leaves for a later one, by address. */
+    // Resources this round leaves for a later one, by address.
     const deferred = new Set<string>()
     for (const change of writeOrder(plan.changes)) {
       const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
       result.remainingBlobs.push(...waiting)
-      /**
-       * A change waits for a later round when this round carries none of its blobs (one that
-       * carries some writes those and leaves the rest), when it names a resource that waits, or,
-       * for a delete, while any blob is missing, so a resumed apply never deletes early.
-       */
       const names = KIND_ADAPTERS[change.kind].codec.refs?.(change.decl) ?? []
+      // A change waits for a later round when this round carries none of its blobs (one that
+      // carries some writes those and leaves the rest), when it names a resource that waits, or,
+      // for a delete, while any blob is missing, so a resumed apply never deletes early.
       if (
         (waiting.length > 0 && waiting.length === (change.needsBlobs ?? []).length) ||
         names.some((ref) => deferred.has(resourceAddress(ref.kind, ref.key))) ||

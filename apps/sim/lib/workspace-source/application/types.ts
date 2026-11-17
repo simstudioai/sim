@@ -31,8 +31,8 @@ export interface PlanContext extends SourceContext {
   base: WorkspaceBaseV1 | null
   allowDelete: boolean
   /**
-   * Resources this apply creates in earlier kinds, by key, with the placeholder ids a later
-   * kind's dry run resolves them to (a workflow naming a table created in the same apply).
+   * Resources this apply creates or adopts in earlier kinds, by key, with the ids a later kind's
+   * dry run resolves them to (a placeholder for a create, the stored id for an adopt).
    */
   pending: PendingResource[]
 }
@@ -130,9 +130,10 @@ interface ReadResource {
 export interface KindAdapter<D, S, P = unknown> {
   codec: KindCodec<D>
   /**
-   * How the apply binds source keys to what it writes: by default a create or adopt claims its
-   * key once written and registers it for later kinds' dry runs; `every-write` claims on an update
-   * too (a renamed workflow folder moves its key); `none` never does (a file's key is its path).
+   * How source keys bind to what the apply writes: by default a create or adopt is registered for
+   * later kinds' dry runs when planned and claims its key once written; `every-write` claims on an
+   * update too (a renamed workflow folder moves its key); `none` never does (a file's key is its
+   * path).
    */
   keys?: 'every-write' | 'none'
   /**

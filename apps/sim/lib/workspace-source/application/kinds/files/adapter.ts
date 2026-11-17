@@ -121,7 +121,7 @@ function fileBase(key: string, id: string, rev: string, sha256: string): BaseRes
   }
 }
 
-/** The revision the base recorded for a file, as a string. */
+/** The revision the base recorded for a file. */
 function baseRev(key: string, base?: BaseResource): string | undefined {
   return base?.blobs?.[fileBlobPath(key)]?.rev
 }
@@ -162,9 +162,9 @@ async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> 
  * Hashes the stored bytes of each declared file whose hash neither the server nor the base
  * records, when its size matches the declared one (only then can the bytes be equal), within the
  * request's hashing budget (spent in declaration order, then downloaded a few at a time). Knowing
- * the hash lets an apply whose earlier round wrote the file without saving the base adopt it
- * instead of refusing it. A file past the budget, or whose bytes cannot be read, keeps no hash, so
- * it plans as no-base or stale and the rest still apply.
+ * the hash lets an apply whose earlier round wrote the file without saving the base record it as a
+ * no-op instead of refusing it. A file past the budget, or whose bytes cannot be read, keeps no
+ * hash, so it plans as no-base or stale and the rest still apply.
  */
 async function hashUnrecorded(
   ctx: PlanContext,
@@ -277,7 +277,7 @@ function planFile(
       detail: { rev: planned.stored.state.rev },
     }
   }
-  /** A file is never adopted (nothing is offered for adoption), so this is a create. */
+  // A file is never adopted (nothing is offered for adoption), so this is a create.
   const renamed = renamedSegment(key)
   if (renamed !== null) {
     change.diagnostics.push(

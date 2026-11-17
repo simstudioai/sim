@@ -103,8 +103,8 @@ function readLock(
 }
 
 /**
- * Plans one workflow folder. `pending` holds the resources earlier kinds and earlier folders of
- * this apply create, which the dry run resolves; a created workflow adds itself, so a later
+ * Plans one workflow folder. `pending` holds the resources earlier kinds and folders of this apply
+ * create or adopt, which the dry run resolves; a created workflow adds itself, so a later
  * folder naming it resolves too.
  */
 async function planWorkflow(
@@ -141,7 +141,7 @@ async function planWorkflow(
   }
   const unchanged = Object.keys(decl.files).length === 0
   if (unchanged && existing) return { ...change, storedId: existing.id }
-  /** The folder's base names a workflow of this workspace the server no longer holds. */
+  // The folder's base names a workflow of this workspace the server no longer holds.
   if (!existing && base?.workspaceId === workspaceId) {
     change.diagnostics.push(serverGoneFinding('workflow', key, !unchanged))
     return change

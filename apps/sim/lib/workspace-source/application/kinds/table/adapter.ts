@@ -64,7 +64,7 @@ interface TablePlan {
 
 type TableChange = PlannedChange<TableDecl, TablePlan>
 
-/** The table folder paths a load read, so the plan that follows checks folders without re-reading. */
+/** The table folder paths a load read, so the plan that follows need not re-read them. */
 const loadedFolders = new WeakMap<StoredSet<StoredTableState>, ReadonlySet<string>>()
 
 async function folderIndex(workspaceId: string) {

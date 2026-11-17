@@ -171,7 +171,7 @@ async function planKnowledgeBase(
   const boundDocs = bound ? await loadDocs(ctx, bound.id) : []
   const based = bound && base?.id === bound.id && base.fingerprint ? base : undefined
   const hashes = baseHashes(boundDocs, based)
-  /** Set when the server moved only toward this directory since the base: planned from the base. */
+  // Set when the server moved only toward this directory since the base: plan from the base.
   let converged: string | undefined
   if (bound && based) {
     if (knowledgeView(bound.state, boundDocs, hashes).fingerprint !== based.fingerprint) {
@@ -181,10 +181,8 @@ async function planKnowledgeBase(
       }
     }
   } else if (bound) {
-    /**
-     * Without a base for it, the stored documents the directory declares at the same size are
-     * hashed, so a matching directory is a no-op; any other could never match.
-     */
+    // Without a base for it, the stored documents the directory declares at the same size are
+    // hashed, so a matching directory is a no-op; any other could never match.
     const comparable = [...sourceDocs(boundDocs).byName.values()].filter(
       (doc) =>
         Object.hasOwn(decl.docs, doc.filename) && decl.docs[doc.filename].size === doc.fileSize
@@ -270,7 +268,7 @@ async function planKnowledgeBase(
       const changed =
         changes.fields.length > 0 || changes.uploads.length > 0 || changes.deletes.length > 0
       const view = knowledgeView(resource.state, storedDocs, hashes)
-      /** A server a partial apply already moved to the directory records its base as a no-op. */
+      // A server a partial apply already moved to the directory records its base as a no-op.
       const refreshed =
         planned.action === 'update' && !changed && view.fingerprint !== planned.base.fingerprint
       return {
@@ -405,7 +403,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
         name: state.knowledgeBase.name,
         state,
       }))
-      /** A search index is the workspace's own and never source; it only holds its name. */
+      // A search index is the workspace's own and never source; it only holds its name.
       return bindStored(ctx, KIND, records, {
         allocate,
         bindable: (record) => !record.state.knowledgeBase.isSearchIndex,
@@ -420,7 +418,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const folders = new Set(listed.map((folder) => folder.path))
       const changes: KnowledgeChange[] = []
       const declaredNames = new Map<string, string>()
-      /** The server's embedding model, resolved once for every create this plan makes. */
+      // The server's embedding model, resolved once for every create this plan makes.
       let embedding: ReturnType<typeof getConfiguredKbEmbedding> | undefined
       const configured = () => {
         embedding ??= getConfiguredKbEmbedding()
@@ -431,10 +429,8 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
         refuseDeclaredTwice(declaredNames, change, decl.name)
         changes.push(change)
       }
-      /**
-       * A delete is stale when the knowledge base changed on the server since the base; the
-       * hashes the base vouches for are kept so the write can re-check it.
-       */
+      // A delete is stale when the knowledge base changed on the server since the base; the
+      // hashes the base vouches for are kept for the apply's `fingerprintNow` re-check.
       const undeclared = new Map<string, { fingerprint: string; hashes: Map<string, string> }>()
       if (ctx.allowDelete) {
         for (const [key, resource] of stored.bound) {
@@ -555,7 +551,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       }
       const uploaded = await uploadDocs(ctx, knowledgeBaseId, carried)
       for (const doc of superseded) await deleteDoc(ctx, knowledgeBaseId, doc.id)
-      /** Deletes wait for the round that carries every blob, so a resumed apply loses nothing. */
+      // Deletes wait for the round that carries every blob, so a resumed apply loses nothing.
       if (ctx.blobs?.complete !== false) {
         for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
       }

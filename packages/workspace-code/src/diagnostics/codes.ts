@@ -29,7 +29,7 @@ type DeclarationCode =
    * listed twice or at a path that holds no binary file: the apply writes nothing.
    */
   | 'E_BLOB_CONTENT'
-  /** A file larger than its limit, or nesting deeper than the cap. */
+  /** A size, count or nesting limit exceeded (a file, a round's blobs, a kind, findings). */
   | 'E_LIMIT_EXCEEDED'
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   | 'E_KEY_INVALID'
@@ -117,13 +117,13 @@ type PlanCode =
   | 'E_APPLY_STALE'
   /** The server holds the resource but the directory has no base for it: get it first. */
   | 'E_APPLY_NO_BASE'
-  /** The caller may not make this change; nothing was written. */
+  /** The caller may not make this change. */
   | 'E_APPLY_FORBIDDEN'
   /** The change deletes a resource or data and `--allow-delete` was not given. */
   | 'E_APPLY_DELETE_NOT_ALLOWED'
   /** The resource is locked against this change (HTTP 423). */
   | 'E_APPLY_LOCKED'
-  /** A change a child operation refused while planning, with its message. */
+  /** A change a child operation refused, with its message. */
   | 'E_APPLY_REFUSED'
   /** A write failed for a reason that is not the source's (logged on the server). */
   | 'E_APPLY_FAILED'

@@ -208,7 +208,6 @@ function parseFile(
   return { decl: { sha256: blob.sha256, size: blob.size }, diagnostics: [] }
 }
 
-/** Reads and prints `files/**`. */
 /** A file's canonical form: its bytes, by hash (its size and name are not part of it). */
 function fileCanonical(sha256: string): Json {
   return { sha256 }
@@ -219,6 +218,7 @@ export function fileFingerprint(sha256: string): ResourceFingerprint {
   return fingerprintOf(fileCanonical(sha256))
 }
 
+/** Reads and prints `files/**`. */
 export const fileCodec: KindCodec<FileDecl> = {
   group: groupFiles,
   parse: parseFile,

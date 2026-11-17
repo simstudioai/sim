@@ -66,7 +66,6 @@ export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind
 export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
   if (value === undefined) return undefined
   const names = value.split(',').map((name) => name.trim())
-  /** `--only` takes the folder a user sees as well as the kind id. */
   const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_DIR.get(name)))
   const unknown = names.filter((_, index) => kinds[index] === undefined)
   if (unknown.length > 0) {
@@ -98,12 +97,11 @@ async function mergedBase(dir: string, source: WorkspaceSource): Promise<Workspa
 /**
  * Writes a workspace source answer into the directory in one staged update: its files, its binary
  * files (downloaded and checked against their listed size and SHA-256 before anything moves into
- * place; one already on disk with that hash is kept), the base,
- * `.sim/skipped.json`, a marker in each read kind's folder, the SDK declarations (with
- * `workspace.d.ts` typing the resources the directory declares), the CLI's `tsconfig.json` and agent
- * guide. Files of a read kind the CLI wrote earlier that the answer no longer holds (the resource
- * is gone) are removed. Refuses, unless `force`, to replace or remove a file with edits no apply
- * has saved.
+ * place; one already on disk with that hash is kept), the base, `.sim/skipped.json`, a marker
+ * in each read kind's folder, the SDK declarations (with `workspace.d.ts` typing the resources
+ * the directory declares), the CLI's `tsconfig.json` and agent guide. Files of a read kind the
+ * CLI wrote earlier that the answer no longer holds (the resource is gone) are removed. Refuses,
+ * unless `force`, to replace or remove a file with edits no apply has saved.
  */
 async function writeWorkspaceSource(
   client: Parameters<typeof loadCatalog>[0] &
@@ -124,7 +122,7 @@ async function writeWorkspaceSource(
         !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
     )
   )
-  /** One read of every blob the get lists or removes: the stale check and the edit check share it. */
+  // One read of each listed or removed blob, shared by the stale and edit checks.
   const digests = await blobDigests(dir, [
     ...blobs.keys(),
     ...[...gone].filter((path) => isBlobPath(path)),
@@ -156,11 +154,9 @@ async function writeWorkspaceSource(
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
-  /**
-   * Blobs listed without a hash are downloaded (and hashed) before anything moves into place, so
-   * the base and `.sim/written.json` can record their hashes. They download into the directory,
-   * beside where the write stages its files, so each moves into place by a rename, not a copy.
-   */
+  // Hashless blobs download (and hash) before anything moves into place, so the base and
+  // `.sim/written.json` can record their hashes; they land inside the directory so each moves
+  // into place by a rename, not a copy.
   const hashless = stale.filter((blob) => blob.sha256 === undefined)
   const scratch = hashless.length > 0 ? await downloadDir(dir) : null
   try {

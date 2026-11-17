@@ -77,7 +77,7 @@ export default workflow('Ingest', {}, () => {
 })
 `
 
-/** Runs the CLI from source with the fixture key; returns its exit status and parsed JSON output. */
+/** Runs the CLI from source with the fixture key; returns its exit status and parsed output. */
 function sim(configDir: string, ...argv: string[]) {
   const started = performance.now()
   const result = spawnSync(process.execPath, [CLI_ENTRY, ...argv], {

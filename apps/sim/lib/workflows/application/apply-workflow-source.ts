@@ -77,7 +77,7 @@ interface SourceSubmission {
   /** Run the whole pipeline and stop before the write. Never audits or notifies. */
   dryRun?: boolean
   provenance?: { client: 'cli' | 'copilot' | 'canvas' | 'api'; gitSha?: string; repo?: string }
-  /** Resources the enclosing workspace source apply creates first (`evaluateSource`). */
+  /** Resources the enclosing workspace source apply creates or adopts first (`evaluateSource`). */
   pendingResources?: readonly PendingResource[]
 }
 

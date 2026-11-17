@@ -30,8 +30,9 @@ import { checkedPath, inBatches, isMissing, readWrittenDigests } from './workflo
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
 
-/** The v2 routes a blob's `href` may name: a workspace file, or a knowledge base document. */
+/** The v2 route a workspace file blob's `href` names. */
 const FILE_DOWNLOAD = /^\/api\/v2\/files\/([^/?#]+)$/
+/** The v2 route a knowledge document blob's `href` names. */
 const DOCUMENT_DOWNLOAD = /^\/api\/v2\/knowledge\/([^/?#]+)\/documents\/([^/?#]+)\/content$/
 
 /** How a listed blob is downloaded: the operation its `href` names, with its parameters. */

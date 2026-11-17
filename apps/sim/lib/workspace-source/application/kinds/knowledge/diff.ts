@@ -182,9 +182,9 @@ export function indexingFindings(
  * document hashes known so far (from the base); a declared document of the stored size whose hash
  * is unknown is downloaded and hashed, so an unchanged document is never re-embedded, and the hash
  * is added (one of another size is replaced without a download). One the request's download
- * budget leaves unhashed is neither uploaded nor deleted, only named.
- * Only a document the base records (an update's `base`) is deleted when undeclared; any other is
- * kept. A name held twice is settled when `base` shows a replace that stopped before its delete.
+ * budget leaves unhashed is neither uploaded nor deleted, only named. Only a document the base
+ * records (an update's `base`) is deleted when undeclared; any other is kept. A name held twice is
+ * settled when `base` shows a replace that stopped before its delete.
  */
 export async function diffKnowledgeBase(input: {
   key: string

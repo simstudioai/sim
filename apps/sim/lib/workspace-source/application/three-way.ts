@@ -20,7 +20,7 @@ import type {
  * |---|---|---|
  * | equal | any | `noop`, `serverChanged` when the server drifted |
  * | differs | equal | `apply` |
- * | differs | differs | `noop` when local equals server (recording the server as the new base), else `stale` |
+ * | differs | differs | `noop` if local equals server (base refreshed), else `stale` |
  */
 type ThreeWayOutcome =
   | { action: 'noop'; serverChanged: boolean; refreshed?: boolean }
@@ -35,7 +35,7 @@ function decide(local: string, base: string, server: string): ThreeWayOutcome {
     : { action: 'stale' }
 }
 
-/** How a declared resource resolves against the server and the base, before kind-specific diffing. */
+/** How a declared resource resolves against the server and the base, before kind diffing. */
 export type DeclaredResolution<S> =
   | { action: 'create' }
   | { action: 'adopt'; stored: StoredResource<S> }

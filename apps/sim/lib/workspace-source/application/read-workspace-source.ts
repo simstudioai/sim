@@ -25,7 +25,10 @@ export interface ReadWorkspaceSourceInput {
 
 export interface ReadWorkspaceSourceResult {
   workspaceId: string
-  /** The kinds read (a kind the caller may not load is left out): the directory manages these. */
+  /**
+   * The kinds read (a kind the caller may not load, or one over its limit, is left out): the
+   * directory manages these.
+   */
   kinds: WorkspaceKind[]
   /** Workspace-relative path → text. */
   files: Record<string, string>
@@ -69,8 +72,9 @@ function directoryBudget() {
  * Reads a workspace as source: for each requested kind, every stored resource printed as the
  * files `sim workspaces source get` writes, plus the base that binds each key to its id. Each
  * resource is read through the use case that owns it. Like a workflow source get, the one write
- * is key allocation for resources that have no key yet. A kind the caller may not read is reported
- * and skipped; a workflow too large to read as source is listed in `skipped`.
+ * is key allocation for resources that have no key yet. A kind the caller may not read, or that
+ * holds too many, is reported and skipped; a resource that cannot be read as source or would take
+ * the directory past its limits is listed in `skipped`.
  */
 export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.read,
@@ -92,7 +96,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       diagnostics: [],
     }
     const budget = directoryBudget()
-    /** Kinds left out: the caller may not load them, or the workspace holds too many. */
+    // Kinds left out: the caller may not load them, or the workspace holds too many.
     const unread = new Set<WorkspaceKind>()
     for (const kind of kinds) {
       const adapter = KIND_ADAPTERS[kind]

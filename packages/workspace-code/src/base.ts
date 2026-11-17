@@ -2,7 +2,7 @@
  * `.sim/base.json` at the root of a workspace source directory: what each resource was when the
  * directory was last read or applied in one environment. It binds keys to ids (and a table's
  * column keys to column ids) and holds each resource's fingerprint, so an apply can tell a local
- * edit from a server one (`decide`). Workflows keep their own `workflows/<key>/.sim/` lock and
+ * edit from a server one. Workflows keep their own `workflows/<key>/.sim/` lock and
  * base; the root only records each workflow's id.
  *
  * Version policy as the lock's: adding an optional field does not bump `version`, and unknown
@@ -38,7 +38,7 @@ export type BaseColumn = {
 type BaseBlob = {
   [extension: LockExtensionKey]: Json
   id: string
-  /** The content revision the hash was read at, as text (a revision read as a number is kept as its digits). */
+  /** The content revision the hash was read at, as text (a numeric revision keeps its digits). */
   rev: string
   sha256: string
 }

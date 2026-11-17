@@ -35,7 +35,7 @@ export const GET = defineV2BinaryRoute({
       throw new OrchestrationError('not_found', 'This document has no stored original.')
     }
     return {
-      /** A view of the read's bytes, not a copy: a Buffer is backed by a plain ArrayBuffer. */
+      // A view of the read's bytes, not a copy: a Buffer is backed by a plain ArrayBuffer.
       body: new Uint8Array(
         document.buffer.buffer as ArrayBuffer,
         document.buffer.byteOffset,

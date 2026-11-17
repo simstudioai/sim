@@ -122,6 +122,7 @@ const ITEM_FIELDS = ['name', 'id']
 
 type JsonObject = Record<string, unknown>
 
+/** Whether `value` is a string with at least one character. */
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }

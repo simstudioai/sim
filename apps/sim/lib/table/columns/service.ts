@@ -1363,11 +1363,9 @@ export async function updateColumnCurrency(
  * Rows whose cell in `columnKey` counts as empty for a `required` constraint: the key is
  * missing, the value is JSON null, or it is an emptied multiselect `[]`.
  *
- * Single source of truth. `updateColumnType`'s pre-flight, `updateColumnConstraints` and the
- * workspace source plan all ask this question; `updateColumnType` and `updateColumnConstraints`
- * run as separate transactions, and when their definitions drifted, a combined type+required
- * request passed the first check, committed the conversion, and only then failed the constraint
- * write.
+ * Single source of truth for `updateColumnType`'s pre-flight, `updateColumnConstraints` and the
+ * workspace source plan: the first two run in separate transactions, so diverging definitions
+ * would let a type+required change commit the conversion and then fail the constraint.
  */
 export async function countEmptyCells(
   trx: DbExecutor,

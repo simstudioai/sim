@@ -7,10 +7,7 @@ import { toolAdapter } from '@/lib/workspace-source/application/kinds/tools/adap
 import { workflowAdapter } from '@/lib/workspace-source/application/kinds/workflow/adapter'
 import type { KindAdapter } from '@/lib/workspace-source/application/types'
 
-/**
- * Every kind's adapter. Each kind owns its own folder under `kinds/`, so building a kind replaces
- * its adapter file and never edits this one.
- */
+/** Every kind's adapter, by kind; each lives in its own folder under `kinds/`. */
 export const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<unknown, unknown> } = {
   'custom-tool': toolAdapter,
   skill: skillAdapter,

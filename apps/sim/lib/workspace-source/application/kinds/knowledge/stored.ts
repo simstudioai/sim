@@ -306,7 +306,7 @@ export function movedTowardDecl(input: {
   const declared = (name: string) =>
     Object.hasOwn(decl.docs, name) ? decl.docs[name].sha256 : undefined
   const { byName, ambiguous } = sourceDocs(docs)
-  /** Name → its hash on the server now; `null` when that is unknown. */
+  // Name → its hash on the server now; `null` when unknown.
   const server = new Map<string, string | null>()
   for (const [name, doc] of byName) server.set(name, hashes.get(doc.id) ?? null)
   for (const [name, holders] of ambiguous) {

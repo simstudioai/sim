@@ -17,7 +17,7 @@ export interface SourceSpan {
   end: number
 }
 
-/** The fields every finding carries beside its code and severity, whatever vocabulary it is from. */
+/** The fields every finding carries beside its code and severity, in any vocabulary. */
 export interface DiagnosticFields {
   message: string
   /** The supported form, or a did-you-mean. */

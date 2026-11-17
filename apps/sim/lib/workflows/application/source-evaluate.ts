@@ -82,14 +82,14 @@ export interface SourceEvaluationInput {
   /** Set when the apply creates the workflow: the caller's name and description overrides. */
   create?: { name?: string; description?: string | null }
   /**
-   * Resources a workspace source apply creates before this workflow, by key, each with a
-   * placeholder id: consulted after the stored keys, so a dry run of a workflow that names a table
+   * Resources a workspace source apply creates or adopts before this workflow, by key, each with
+   * a stand-in id: consulted after the stored keys, so a dry run of a workflow that names a table
    * created in the same apply resolves instead of failing `E_MAT_UNKNOWN_RESOURCE`.
    */
   pendingResources?: readonly PendingResource[]
 }
 
-/** A resource an enclosing apply will create, by key, with the id that stands in for it. */
+/** A resource an enclosing apply creates or adopts, by key, with the id that stands in for it. */
 export interface PendingResource {
   kind: ResourceKind
   key: string
@@ -126,7 +126,7 @@ const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> 
 
 /**
  * `lint` without the unresolved resource references that name only ids an enclosing apply has yet
- * to create: a dry run of a directory that adds a skill and the workflow using it is not a warning.
+ * to write: a dry run of a directory that adds a skill and the workflow using it is not a warning.
  */
 function withoutPendingReferences(
   lint: WorkflowLintReport,

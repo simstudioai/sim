@@ -10,12 +10,13 @@ import type { SourceContext } from '@/lib/workspace-source/application/types'
 /** Downloads a request may hash, beside the byte bound. */
 const MAX_HASHED_PER_REQUEST = 200
 
-/** A request's remaining hashing budget; created once per request and shared by every copy of its context. */
+/** A request's remaining hashing budget, shared by every copy of its context. */
 export interface HashBudget {
   bytes: number
   count: number
 }
 
+/** A full hashing budget for one request. */
 export function newHashBudget(): HashBudget {
   return { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, count: MAX_HASHED_PER_REQUEST }
 }
@@ -38,7 +39,7 @@ export function takeHashBudget<T>(
   return { taken, left }
 }
 
-/** Takes one download of `bytes` from the request's budget, or returns `false` when it does not fit. */
+/** Takes one download of `bytes` from the request's budget; `false` when it does not fit. */
 export function spendHash(ctx: SourceContext, bytes: number): boolean {
   const budget = ctx.hashBudget
   if (budget.count <= 0 || bytes > budget.bytes) return false

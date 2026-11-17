@@ -1,6 +1,7 @@
 /**
  * The source directory `workflows source get --dir` writes and `workflows source apply --dir`
- * (or `create --dir`) reads back: its layout, and the only code that reads or writes it on disk.
+ * (or `create --dir`) reads back, which `workspaces source` reuses for each kind folder: its
+ * layout, and the only code that reads or writes it on disk.
  * One definition, so the commands cannot drift apart.
  *
  * Every path is relative to `realpath(--dir)` and no component below it may be a symbolic link,

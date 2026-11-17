@@ -251,7 +251,7 @@ function readDocs(
       docs.push([name, { sha256: blob.sha256, size: blob.size }])
     }
   }
-  /** `fromEntries` defines own properties, so a document named `__proto__` stays a document. */
+  // `fromEntries` defines own properties, so a document named `__proto__` stays a document.
   return Object.fromEntries(docs)
 }
 

@@ -78,7 +78,7 @@ export function isDeclarationCall(value: unknown): value is DeclarationCall {
   return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
 }
 
-/** A string a stored value cannot hold: NUL, or an unpaired UTF-16 surrogate. */
+/** Why `text` cannot be stored (a NUL, an unpaired UTF-16 surrogate), or `null` when it can. */
 export function unstorableCharacter(text: string): string | null {
   if (containsNulCharacter(text)) return 'a NUL character'
   return toWellFormed(text) === text ? null : 'an unpaired surrogate'

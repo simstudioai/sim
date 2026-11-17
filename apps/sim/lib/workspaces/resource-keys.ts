@@ -32,8 +32,9 @@ import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
  * live in the given workspace resolve in either direction, so an id or key from another workspace
  * never does.
  *
- * Both functions join the caller's transaction when given one (`executor`). Allocation re-reads
- * after each insert, so the caller's transaction must run at READ COMMITTED (the default).
+ * `resolveKeys` and `resolveIds` join the caller's transaction when given one (`executor`).
+ * Allocation re-reads after each insert, so the caller's transaction must run at READ COMMITTED
+ * (the default).
  */
 
 const logger = createLogger('ResourceKeys')

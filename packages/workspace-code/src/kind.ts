@@ -88,9 +88,10 @@ export interface KindCodec<D> {
   /** Keys this declaration references in other kinds (workflows → tables, …). */
   refs?(decl: D): Array<{ kind: WorkspaceKind; key: string }>
   /**
-   * The name a resource's base entry records one of its blobs under, and back; a kind without
-   * these records each blob under its workspace path.
+   * The name a resource's base entry records one of its blobs under; a kind without it records
+   * each blob under its workspace path.
    */
   baseBlobName?(key: string, path: string): string
+  /** The blob path a base entry's blob `name` stands for: the inverse of `baseBlobName`. */
   baseBlobPath?(key: string, name: string): string
 }

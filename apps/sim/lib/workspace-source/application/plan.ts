@@ -69,11 +69,10 @@ type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
 
 /**
  * The blob manifest by path (hash and size only) and the paths whose content this round sent,
- * refusing a path listed twice or one that holds no binary file. With
- * `decode`, the content each blob carries is decoded once and checked against its declared hash
- * and size, so bytes that changed while they were sent refuse the apply before anything is
- * written, and a round carrying more than `maxBlobBytesPerRequest` is refused; a dry run never
- * decodes.
+ * refusing a path listed twice or one that holds no binary file. With `decode`, the content each
+ * blob carries is decoded once and checked against its declared hash and size, so bytes that
+ * changed while they were sent refuse the apply before anything is written, and a round carrying
+ * more than `maxBlobBytesPerRequest` is refused; a dry run never decodes.
  */
 function readBlobs(
   blobs: readonly SubmittedBlob[],
@@ -341,7 +340,7 @@ export async function planWorkspaceSource(
     }
     diagnostics.push(...kindFindings)
     if (kind === 'workflow') declaredWorkflows = desired
-    /** A resource that failed to parse would read as undeclared, so a broken kind is not planned. */
+    // A resource that failed to parse would read as undeclared, so a broken kind is not planned.
     if (kindFindings.some((finding) => finding.severity === 'error')) continue
     try {
       const stored = await adapter.load(ctx, { allocate: false })
@@ -379,7 +378,7 @@ export async function planWorkspaceSource(
       )
     )
   }
-  /** A plan already refused authorizes nothing more: up to every change of every kind. */
+  // A plan already refused authorizes nothing more (that could be every change of every kind).
   if (!diagnostics.some((finding) => finding.severity === 'error')) {
     const authorizable = writes.filter(
       (change) => !change.diagnostics.some((finding) => finding.severity === 'error')

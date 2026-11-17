@@ -9,10 +9,14 @@ import { KIND_DIRS, type WorkspaceKind } from './kind'
 
 /** Per-resource ids and fingerprints for one environment (`WorkspaceBaseV1`). */
 export const WORKSPACE_BASE_FILE = '.sim/base.json'
-/** Blobs a get left out for their size, so the directory says what it does not hold. */
+/**
+ * Resources a get left out (over a limit, or unreadable as source), so the directory says what it
+ * does not hold.
+ */
 export const WORKSPACE_SKIPPED_FILE = '.sim/skipped.json'
-/** A workflow directory's lock and base, as `sim workflows source` keeps them. */
+/** A workflow directory's lock, as `sim workflows source` keeps it. */
 export const WORKFLOW_LOCK_FILE = '.sim/lock.json'
+/** A workflow directory's base, as `sim workflows source` keeps it. */
 export const WORKFLOW_BASE_FILE = '.sim/base.json'
 /** The entry file of a table declaration: `tables/<key>.ts`. */
 export const DECLARATION_EXTENSION = '.ts'

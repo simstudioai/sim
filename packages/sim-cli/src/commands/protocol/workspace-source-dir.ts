@@ -237,7 +237,7 @@ export async function readWorkspaceDir(
     const folder = path.split('/', 2).join('/')
     folders.set(folder, [...(folders.get(folder) ?? []), path])
   }
-  /** How many files of each workflow folder `.sim/written.json` records. */
+  // Files per workflow folder that `.sim/written.json` records.
   const recorded = new Map<string, number>()
   for (const path of Object.keys(written)) {
     if (kindOfPath(path) !== 'workflow') continue

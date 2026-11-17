@@ -662,7 +662,7 @@ describe('knowledge bases as workspace source', () => {
         'Policies',
       ])
 
-      /** Interrupted here: a fresh apply starts from the directory the first round saved. */
+      // Interrupted here: a fresh apply starts from the directory the first round saved.
       const saved = reprinted(target, one)
       const resumedPlan = await apply(workspaceId, saved, {
         base: one.base,
@@ -741,7 +741,7 @@ describe('knowledge bases as workspace source', () => {
       const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
       const [refunds] = await docs(stored.id)
       const edited = withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n')
-      /** The old document's delete fails, and so does removing the replacement again. */
+      // The old document's delete fails, and so does removing the replacement again.
       const failing = vi
         .spyOn(deleteKnowledgeDocument, 'execute')
         .mockRejectedValueOnce(new Error('storage unavailable'))
