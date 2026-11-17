@@ -17,6 +17,12 @@ export const CORPUS_START_NAME = 'Start'
 /** The workflow variable every case declares, referenced as `<variable.corpusnote>`. */
 export const CORPUS_VARIABLE_NAME = 'corpusNote'
 
+/**
+ * The workspace skill corpus agents pick. The round-trip harness resolves it, so it takes the
+ * lifted `skill('key')` path; the other picked skill resolves nowhere and stays verbatim.
+ */
+export const CORPUS_SKILL = { id: 'corpus-skill', key: 'corpus-skill', name: 'Corpus skill' }
+
 /** The six markers every free-text corpus string carries. */
 export const CORPUS_TEXT_MARKERS = [
   '<start.input>',
@@ -203,7 +209,10 @@ export function fillSubBlockValue(subBlock: SubBlockConfig, ctx: FillContext): u
     case 'tool-input':
       return toolEntries(ctx)
     case 'skill-input':
-      return [{ skillId: 'corpus-skill', name: 'Corpus skill' }]
+      return [
+        { skillId: CORPUS_SKILL.id, name: CORPUS_SKILL.name },
+        { skillId: 'corpus-skill-deleted', name: 'Deleted skill' },
+      ]
     case 'condition-input':
       return JSON.stringify([
         { id: newId(), title: 'if', value: '<start.input> === "a"' },

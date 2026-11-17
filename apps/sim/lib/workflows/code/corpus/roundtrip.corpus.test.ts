@@ -34,6 +34,7 @@ import {
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { generateRejectedCorpus } from '@/lib/workflows/code/corpus'
 import {
+  CORPUS_RESOURCES,
   corpusBudgetMs,
   corpusSubjects,
   type ProofSubject,
@@ -92,6 +93,7 @@ function sourceRun(subject: ProofSubject): SourceRun {
   const workflow = canonicalize(subject.state, {
     catalog,
     meta: { name: subject.id, description: null },
+    resources: CORPUS_RESOURCES,
   }).workflow
   const printed = printText(workflow, 'inline')
   const run = {
@@ -148,6 +150,7 @@ function materialized(workflow: CanonicalWorkflow, prev?: WorkflowState) {
     catalog,
     hooks,
     prev,
+    resources: CORPUS_RESOURCES,
     lockFreshness: 'none',
   }).state
 }
@@ -169,6 +172,7 @@ const properties: Record<ProofProperty, (s: ProofSubject) => OracleResult> = {
           canonicalize(materialized(compiledWorkflow(original), s.state), {
             catalog,
             meta: original.meta,
+            resources: CORPUS_RESOURCES,
           }).workflow,
           catalog
         ),
@@ -213,6 +217,7 @@ const properties: Record<ProofProperty, (s: ProofSubject) => OracleResult> = {
       catalog,
       hooks,
       prev: s.state,
+      resources: CORPUS_RESOURCES,
       lockFreshness: 'none',
     }).workflow
     return assertNoopDiff(
@@ -235,7 +240,12 @@ const properties: Record<ProofProperty, (s: ProofSubject) => OracleResult> = {
     idempotence({
       oracle: 'O3',
       value: canonical(s),
-      step: (c) => canonicalize(materialized(c, s.state), { catalog, meta: c.meta }).workflow,
+      step: (c) =>
+        canonicalize(materialized(c, s.state), {
+          catalog,
+          meta: c.meta,
+          resources: CORPUS_RESOURCES,
+        }).workflow,
       equals: canonicalEquals,
     }),
 }

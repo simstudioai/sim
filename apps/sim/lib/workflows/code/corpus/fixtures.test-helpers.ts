@@ -19,7 +19,12 @@ import {
 } from '@sim/testing/factories'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
-import { type BlockCatalog, canonicalize, catalogBlock } from '@sim/workflow-code'
+import {
+  type BlockCatalog,
+  canonicalize,
+  catalogBlock,
+  type ResourceKeyResolver,
+} from '@sim/workflow-code'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
 import {
@@ -28,6 +33,7 @@ import {
   generateRegistryCorpus,
 } from '@/lib/workflows/code/corpus'
 import { workflowStateArbitrary } from '@/lib/workflows/code/corpus/proof'
+import { CORPUS_SKILL } from '@/lib/workflows/code/corpus/values'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface FixtureState {
@@ -100,6 +106,17 @@ function buildTestingFactoryStates(): FixtureState[] {
 }
 
 /** One workflow a corpus property runs against. */
+/**
+ * The workspace the round-trip harness resolves resources in: only {@link CORPUS_SKILL}, so a
+ * picked skill prints as `skill('key')` and writes back through the resolver, and every other
+ * stored id stays unresolved as it would with no resolver.
+ */
+export const CORPUS_RESOURCES: ResourceKeyResolver = {
+  toKey: (kind, id) => (kind === 'skill' && id === CORPUS_SKILL.id ? CORPUS_SKILL.key : null),
+  toId: (kind, key) => (kind === 'skill' && key === CORPUS_SKILL.key ? CORPUS_SKILL.id : null),
+  nameOf: (kind, id) => (kind === 'skill' && id === CORPUS_SKILL.id ? CORPUS_SKILL.name : null),
+}
+
 export interface ProofSubject {
   id: string
   blockTypes: string[]
