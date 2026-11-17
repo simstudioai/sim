@@ -91,6 +91,24 @@ async function selectRequestLanguage(page: Page, name: string | RegExp): Promise
   return tab
 }
 
+async function searchFor(page: Page, query: string) {
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (request) => {
+        const url = new URL(request.url())
+        return (
+          url.origin === target.origin &&
+          url.pathname === '/api/search' &&
+          url.searchParams.get('query') === query
+        )
+      },
+      { timeout: 5000 }
+    ),
+    page.getByRole('combobox', { name: 'Search documentation' }).fill(query),
+  ])
+  expect((await request.response())?.ok()).toBe(true)
+}
+
 async function open(page: Page, path: string) {
   const response = await page.goto(new URL(path, target).href, { waitUntil: 'domcontentloaded' })
   expect(response?.ok() || response?.status() === 304).toBe(true)
@@ -1756,42 +1774,46 @@ try {
       'Search keyboard navigation, empty/error states and focus restoration',
       async () => {
         const page = await interactive.newPage()
-        await open(page, '/introduction')
-        const trigger = page.getByRole('button', {
-          name: /^(Search documentation|Search docs)$/,
-          exact: true,
-        })
-        await trigger.focus()
-        await page.keyboard.press('Control+k')
-        const search = page.getByRole('combobox', { name: 'Search documentation' })
-        await expect(search).toBeFocused()
-        await search.fill('Slack')
-        await expect(page.getByRole('option').first()).toBeVisible()
-        await page.screenshot({ path: join(directory, 'search-results.png') })
-        const activeResult = await search.getAttribute('aria-activedescendant')
-        await search.dispatchEvent('keydown', { key: 'ArrowDown', isComposing: true })
-        await expect(search).toHaveAttribute('aria-activedescendant', activeResult ?? '')
-        await search.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
-        await expect(page.getByRole('dialog')).toBeVisible()
-        await expect(page).toHaveURL(new URL('/introduction', target).href)
-        await search.press('ArrowDown')
-        await search.press('Enter')
-        await expect(page).not.toHaveURL(new URL('/introduction', target).href)
-        await page
-          .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
-          .click()
-        await search.fill('zzzz-no-such-content-zzzz')
-        await expect(page.getByRole('status')).toContainText('No results')
-        await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
-        await search.fill('failure-case')
-        await expect(page.getByRole('status')).toContainText('Search is unavailable')
-        await page.unroute('**/api/search?*')
-        await page.getByRole('button', { name: 'Try again', exact: true }).click()
-        await expect(page.getByRole('status')).toContainText('No results')
-        await search.press('Escape')
-        await expect(
-          page.getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
-        ).toBeFocused()
+        try {
+          await open(page, '/introduction')
+          const trigger = page.getByRole('button', {
+            name: /^(Search documentation|Search docs)$/,
+            exact: true,
+          })
+          await trigger.focus()
+          await page.keyboard.press('Control+k')
+          const search = page.getByRole('combobox', { name: 'Search documentation' })
+          await expect(search).toBeFocused()
+          await searchFor(page, 'Slack')
+          await expect(page.getByRole('option').first()).toBeVisible()
+          await page.screenshot({ path: join(directory, 'search-results.png') })
+          const activeResult = await search.getAttribute('aria-activedescendant')
+          await search.dispatchEvent('keydown', { key: 'ArrowDown', isComposing: true })
+          await expect(search).toHaveAttribute('aria-activedescendant', activeResult ?? '')
+          await search.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
+          await expect(page.getByRole('dialog')).toBeVisible()
+          await expect(page).toHaveURL(new URL('/introduction', target).href)
+          await search.press('ArrowDown')
+          await search.press('Enter')
+          await expect(page).not.toHaveURL(new URL('/introduction', target).href)
+          await page
+            .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+            .click()
+          await search.fill('zzzz-no-such-content-zzzz')
+          await expect(page.getByRole('status')).toContainText('No results')
+          await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
+          await search.fill('failure-case')
+          await expect(page.getByRole('status')).toContainText('Search is unavailable')
+          await page.unroute('**/api/search?*')
+          await page.getByRole('button', { name: 'Try again', exact: true }).click()
+          await expect(page.getByRole('status')).toContainText('No results')
+          await search.press('Escape')
+          await expect(
+            page.getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+          ).toBeFocused()
+        } finally {
+          await page.close()
+        }
       }
     )
     await check('A stalled search request stops searching and offers a retry', async () => {
@@ -1876,7 +1898,7 @@ try {
           .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
           .click()
         const search = page.getByRole('combobox', { name: 'Search documentation' })
-        await search.fill('Slack')
+        await searchFor(page, 'Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'mobile-search-results.png') })
         if (interactionRecording.video) await sleep(600)
@@ -2005,7 +2027,7 @@ try {
         await page.keyboard.press('Control+k')
         const search = page.getByRole('combobox', { name: 'Search documentation' })
         await expect(search).toBeFocused()
-        await search.fill('Slack')
+        await searchFor(page, 'Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'cloudflare-mobile-search.png') })
         await search.press('Escape')
