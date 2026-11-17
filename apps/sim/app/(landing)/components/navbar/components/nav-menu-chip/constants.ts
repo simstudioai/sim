@@ -52,11 +52,6 @@ export const PLATFORM_MENU: NavMenu = {
             details: ['Trigger', 'Agent', 'Action'],
           },
         },
-      ],
-    },
-    {
-      label: 'Operations and control',
-      items: [
         {
           brand: 'Sim',
           title: 'Knowledge Base',
@@ -67,6 +62,23 @@ export const PLATFORM_MENU: NavMenu = {
             eyebrow: 'Ground',
             title: 'Connect company knowledge',
             details: ['Notion', 'Google Drive', 'Confluence'],
+          },
+        },
+      ],
+    },
+    {
+      label: 'Operations and control',
+      items: [
+        {
+          brand: 'Sim',
+          title: 'Search',
+          description: 'Ask questions and find company content. Available with Sim Enterprise.',
+          href: '/search',
+          preview: {
+            kind: 'search',
+            eyebrow: 'Sim Enterprise',
+            title: 'Your company’s knowledge. One place to ask.',
+            details: ['Ask Sim', 'Find files', 'Explore company context'],
           },
         },
         {
