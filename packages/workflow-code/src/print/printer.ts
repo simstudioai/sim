@@ -258,7 +258,7 @@ class WorkflowPrinter {
     }
     const scope: RefScope = {
       hasBlock: (key) => this.blocks.has(key),
-      hasVariable: (key) => key in this.workflow.variables,
+      hasVariable: (key) => Object.hasOwn(this.workflow.variables, key),
       visibility: (from, target) => this.visibility(from, target),
       identOf: (key) => this.idents.get(key) ?? key,
       subflowScope: (from, kind) => this.subflowScope(from, kind),
