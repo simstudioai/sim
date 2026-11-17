@@ -20,20 +20,13 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const hooks = createMaterializeHooks()
 const registry = getBlockRegistry()
-const catalog = buildBlockCatalog({
-  blocks: Object.values(registry),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
 
 const NAME = 'Parity'
 

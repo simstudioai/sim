@@ -10,7 +10,6 @@
  * Refresh the goldens with
  * `bun run --cwd apps/sim test lib/workflows/code/goldens.test.ts -u`; never edit one by hand.
  */
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -31,12 +30,11 @@ import {
   type SourceHints,
 } from '@sim/workflow-code'
 import { editorDefaults } from '@sim/workflow-code/catalog/defaults'
-import { generateSdkTypes } from '@sim/workflow-sdk/codegen'
 import { cases, goldenCatalog as catalog } from '@/lib/workflows/code/golden-cases.test-helpers'
+import { typeCheckAgainstSdk, writeSdkTypes } from '@/lib/workflows/code/sdk-typecheck.test-helpers'
 
 const REPO_ROOT = path.resolve(process.cwd(), '../..')
 const GOLDEN_DIR = path.join(REPO_ROOT, 'packages/workflow-code/src/print/__golden__')
-const SDK_ROOT = path.join(REPO_ROOT, 'packages/workflow-sdk')
 const FILES_GOLDEN = 'function-files.txt'
 
 const INLINE = { functionCode: 'inline' } as const
@@ -238,11 +236,7 @@ describe('printer goldens over the real catalog', () => {
   it('type-checks every golden against core.d.ts and the types generated from the catalog', () => {
     const outDir = mkdtempSync(path.join(tmpdir(), 'workflow-code-goldens-'))
     try {
-      for (const file of generateSdkTypes(catalog)) {
-        const target = path.join(outDir, 'types', file.path)
-        mkdirSync(path.dirname(target), { recursive: true })
-        writeFileSync(target, file.text)
-      }
+      writeSdkTypes(outDir, catalog)
       mkdirSync(path.join(outDir, 'goldens'))
       for (const name of goldenFiles) {
         writeFileSync(
@@ -250,35 +244,9 @@ describe('printer goldens over the real catalog', () => {
           readFileSync(goldenPath(name), 'utf8')
         )
       }
-      const tsconfig = path.join(outDir, 'tsconfig.json')
-      writeFileSync(
-        tsconfig,
-        JSON.stringify({
-          compilerOptions: {
-            target: 'ES2022',
-            lib: ['ES2022'],
-            module: 'ESNext',
-            moduleResolution: 'bundler',
-            moduleDetection: 'force',
-            types: [],
-            strict: true,
-            noEmit: true,
-            skipLibCheck: false,
-            paths: { '@sim/workflow-sdk': [path.join(SDK_ROOT, 'src/core.d.ts')] },
-          },
-          include: [path.join(outDir, 'types/**/*.d.ts'), path.join(outDir, 'goldens/*.ts')],
-        })
-      )
-      let diagnostics = ''
-      try {
-        execFileSync(path.join(REPO_ROOT, 'node_modules/.bin/tsc'), ['--noEmit', '-p', tsconfig], {
-          encoding: 'utf8',
-          stdio: 'pipe',
-        })
-      } catch (error) {
-        const failure = error as { stdout?: string; stderr?: string }
-        diagnostics = `${failure.stdout ?? ''}${failure.stderr ?? ''}`
-      }
+      const diagnostics = typeCheckAgainstSdk(outDir, 'goldens', [
+        path.join(outDir, 'goldens/*.ts'),
+      ])
       expect(diagnostics).toBe('')
     } finally {
       rmSync(outDir, { recursive: true, force: true })

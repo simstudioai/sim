@@ -32,10 +32,7 @@ import {
 } from '@sim/workflow-code'
 import { editorDefaults } from '@sim/workflow-code/catalog/defaults'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
+import { registryCatalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 
 /** Every registry block type a golden case uses. */
 const GOLDEN_CATALOG_TYPES = [
@@ -63,14 +60,9 @@ const GOLDEN_CATALOG_TYPES = [
  * block from churning the goldens.
  */
 function narrowedCatalog(): BlockCatalog {
-  const catalog = buildBlockCatalog({
-    blocks: Object.values(getBlockRegistry()),
-    trigger: registryTrigger,
-    sdkNames: SDK_NAMES,
-  })
   const blocks: Record<string, CatalogBlock> = {}
   for (const type of GOLDEN_CATALOG_TYPES) {
-    const block = catalogBlock(catalog, type)
+    const block = catalogBlock(registryCatalog, type)
     if (!block) throw new Error(`${type} is not in the registry catalog`)
     blocks[type] = block
   }
@@ -80,17 +72,17 @@ function narrowedCatalog(): BlockCatalog {
     ...(block.triggers?.available ?? []),
   ])
   for (const id of triggerIds) {
-    const trigger = catalogTrigger(catalog, id)
+    const trigger = catalogTrigger(registryCatalog, id)
     if (trigger) triggers[id] = trigger
   }
   const builders: Record<string, CatalogBuilder> = {}
-  for (const builderPath of catalogBuilderPaths(catalog)) {
-    const builder = catalogBuilder(catalog, builderPath)
+  for (const builderPath of catalogBuilderPaths(registryCatalog)) {
+    const builder = catalogBuilder(registryCatalog, builderPath)
     if (builder && Object.hasOwn(blocks, builder.type)) builders[builderPath] = builder
   }
   const core = compactBlockCatalog({
-    catalogVersion: catalog.catalogVersion,
-    sdkMajor: catalog.sdkMajor,
+    catalogVersion: registryCatalog.catalogVersion,
+    sdkMajor: registryCatalog.sdkMajor,
     blocks,
     triggers,
     builders,
