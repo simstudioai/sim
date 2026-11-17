@@ -18,6 +18,7 @@ import type { ResourceKind } from '@sim/workflow-code'
 import { and, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 /**
  * Persisted resource keys (`workspace_resource_key`): the only mapping between a workflow
@@ -142,9 +143,8 @@ const LIVE_RESOURCE_LOADERS: Partial<Record<ResourceKind, LiveResourceLoader>> =
       .from(workspaceFiles)
       .where(
         and(
-          eq(workspaceFiles.workspaceId, workspaceId),
+          fileOwnerCondition({ entityType: 'workspace', entityId: workspaceId }),
           inArray(workspaceFiles.id, ids),
-          eq(workspaceFiles.context, 'workspace'),
           isNull(workspaceFiles.deletedAt)
         )
       ),
