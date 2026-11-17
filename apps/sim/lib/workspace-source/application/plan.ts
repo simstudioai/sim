@@ -6,6 +6,7 @@
  * refuses the whole apply before anything is written.
  */
 import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -232,6 +233,23 @@ function checkLimits(
 }
 
 /**
+ * Registers every resource a kind's plan creates or adopts under its key, so a later kind's dry
+ * run (a workflow naming a table or knowledge base) resolves it: an adopted one by its stored id,
+ * a created one by a placeholder id.
+ */
+function registerPending(changes: readonly PlannedChange[], ctx: PlanContext): void {
+  for (const change of changes) {
+    if (change.action !== 'create' && change.action !== 'adopt') continue
+    ctx.pending.push({
+      kind: change.kind,
+      key: change.key,
+      id: change.action === 'adopt' && change.storedId ? change.storedId : generateId(),
+      ...(change.name !== undefined ? { name: change.name } : {}),
+    })
+  }
+}
+
+/**
  * Plans `submission`. With `decodeBlobs` (an apply that writes), the content the round carries is
  * decoded and checked into `carried`; a dry run leaves it encoded and unread.
  */
@@ -323,7 +341,9 @@ export async function planWorkspaceSource(
         diagnostics.push(kindLimitFinding(kind))
         continue
       }
-      changes.push(...(await adapter.plan(desired, stored, planCtx)))
+      const planned = await adapter.plan(desired, stored, planCtx)
+      changes.push(...planned)
+      if (adapter.keys !== 'none') registerPending(planned, planCtx)
     } catch (caught) {
       diagnostics.push(refusalDiagnostic(caught, { kind }))
     }

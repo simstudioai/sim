@@ -27,9 +27,14 @@ import {
   planNamed,
   planNamedUndeclared,
   readRecord,
+  storedFingerprint,
   writtenFields,
 } from '@/lib/workspace-source/application/kinds/named'
-import type { KindAdapter, PlannedChange } from '@/lib/workspace-source/application/types'
+import type {
+  KindAdapter,
+  PlannedChange,
+  SourceContext,
+} from '@/lib/workspace-source/application/types'
 
 type SkillChange = PlannedChange<SkillDecl, NamedPlan>
 
@@ -39,6 +44,14 @@ const skills: NamedKind<SkillDecl, SkillDecl> = {
   noun: 'skill',
   nameOf: (decl) => decl.name,
   declOf: ({ name, description, content }) => ({ name, description, content }),
+}
+
+async function getSkill(ctx: SourceContext, skillId: string): Promise<SkillDecl> {
+  const { skill } = await getSkillUseCase.execute({
+    principal: ctx.principal,
+    input: { workspaceId: ctx.workspace.workspaceId, skillId },
+  })
+  return skills.declOf(skill)
 }
 
 const FIELDS: ReadonlyArray<keyof SkillDecl> = ['name', 'description', 'content']
@@ -116,10 +129,15 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
     })
   },
 
+  async fingerprintNow(change, ctx) {
+    if (!change.storedId) throw new Error('A skill check needs the stored id')
+    return storedFingerprint(skills, await getSkill(ctx, change.storedId))
+  },
+
   async apply(change, ctx) {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
-    return applyNamed(skills, change, ctx, {
+    return applyNamed(skills, change, {
       async create(decl) {
         const { skill } = await createSkillUseCase.execute({
           principal,
@@ -127,13 +145,7 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
         })
         return { id: skill.id, state: skills.declOf(skill) }
       },
-      async get(skillId) {
-        const { skill } = await getSkillUseCase.execute({
-          principal,
-          input: { workspaceId, skillId },
-        })
-        return skills.declOf(skill)
-      },
+      get: (skillId) => getSkill(ctx, skillId),
       async update(skillId, fields) {
         const { skill } = await updateSkillUseCase.execute({
           principal,

@@ -39,7 +39,7 @@ function decide(local: string, base: string, server: string): ThreeWayOutcome {
 export type DeclaredResolution<S> =
   | { action: 'create' }
   | { action: 'adopt'; stored: StoredResource<S> }
-  | { action: 'update'; stored: StoredResource<S>; base: BaseResource; serverFingerprint: string }
+  | { action: 'update'; stored: StoredResource<S>; base: BaseResource }
   | {
       action: 'noop'
       stored: StoredResource<S>
@@ -91,9 +91,7 @@ export function resolveDeclared<S>(input: {
   if (base && base.id === stored.id && base.fingerprint) {
     const server = input.fingerprint(stored, base)
     const outcome = decide(input.local, base.fingerprint, server)
-    if (outcome.action === 'apply') {
-      return { action: 'update', stored, base, serverFingerprint: server }
-    }
+    if (outcome.action === 'apply') return { action: 'update', stored, base }
     if (outcome.action === 'stale') return { action: 'stale', stored }
     return {
       action: 'noop',

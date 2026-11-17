@@ -75,9 +75,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
   partialBlobs?: boolean
   decl?: D
   storedId?: string
+  /** The name a create or adopt writes, when a workflow's stored reference repeats it (a skill). */
+  name?: string
   /**
-   * A delete's fingerprint of the resource under its base entry, when planned: the write re-reads
-   * the resource and refuses one that changed since.
+   * The resource's fingerprint when planned (an update, adopt or delete): the apply re-reads it
+   * with the adapter's `fingerprintNow` just before the write and refuses one that moved since.
    */
   serverFingerprint?: string
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
@@ -128,6 +130,12 @@ interface ReadResource {
 export interface KindAdapter<D, S, P = unknown> {
   codec: KindCodec<D>
   /**
+   * How the apply binds source keys to what it writes: by default a create or adopt claims its
+   * key once written and registers it for later kinds' dry runs; `every-write` claims on an update
+   * too (a renamed workflow folder moves its key); `none` never does (a file's key is its path).
+   */
+  keys?: 'every-write' | 'none'
+  /**
    * The kind's stored resources. `allocate` binds a key to every unbound one (a get does; an
    * apply never does, so an unbound resource can still be adopted by name).
    */
@@ -140,6 +148,12 @@ export interface KindAdapter<D, S, P = unknown> {
   ): Promise<PlannedChange<D, P>[]>
   /** Throws when the principal may not make `change`, before anything is written. */
   authorize(change: PlannedChange<D, P>, ctx: SourceContext): Promise<void>
+  /**
+   * The stored resource's fingerprint now, as `serverFingerprint` records it at plan time. A kind
+   * whose write carries its own atomic precondition (a file's revision, a workflow's base) has
+   * none.
+   */
+  fingerprintNow?(change: PlannedChange<D, P>, ctx: SourceContext): Promise<string>
   apply(change: PlannedChange<D, P>, ctx: ApplyContext): Promise<AppliedResource>
   read(stored: StoredResource<S>, ctx: SourceContext): Promise<ReadResource>
 }

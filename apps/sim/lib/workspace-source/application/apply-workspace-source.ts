@@ -13,12 +13,14 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
+  assertUnchanged,
   PartiallyAppliedError,
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
 import { finding } from '@/lib/workspace-source/application/findings'
 import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
+import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
   planWorkspaceSource,
@@ -26,6 +28,7 @@ import {
 } from '@/lib/workspace-source/application/plan'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
+  AppliedResource,
   ApplyContext,
   ChangeAction,
   PlannedChange,
@@ -126,6 +129,30 @@ function failureOf(
 }
 
 /**
+ * Writes one change the way every kind's write is enveloped: an update, adopt or delete whose
+ * plan recorded the resource's fingerprint first re-reads it and refuses one that moved since
+ * (`E_APPLY_STALE`), and a write that binds a source key claims it only once it succeeded, so a
+ * failed write leaves the key free and the next apply adopts the resource by name.
+ */
+async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
+  const adapter = KIND_ADAPTERS[change.kind]
+  if (change.action !== 'create' && change.serverFingerprint !== undefined) {
+    const now = await adapter.fingerprintNow?.(change, ctx)
+    if (now !== undefined) assertUnchanged(change, now)
+  }
+  const written = await adapter.apply(change, ctx)
+  const claims =
+    adapter.keys === 'every-write'
+      ? change.action !== 'delete'
+      : adapter.keys !== 'none' && (change.action === 'create' || change.action === 'adopt')
+  if (!claims) return written
+  const claimed = await claimKey(change, ctx, written.id)
+  return claimed.length > 0
+    ? { ...written, diagnostics: [...(written.diagnostics ?? []), ...claimed] }
+    : written
+}
+
+/**
  * Applies a workspace source directory: plans every managed kind, refuses the whole apply when
  * any change has an error (nothing written), then writes each change through the use case that
  * owns it, in apply order with deletes last and in reverse. The writes commit one by one, so a
@@ -190,7 +217,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         continue
       }
       try {
-        const written = await KIND_ADAPTERS[change.kind].apply(change, writeCtx)
+        const written = await write(change, writeCtx)
         const address = resourceAddress(change.kind, change.key)
         if (written.base) base.resources[address] = written.base
         else delete base.resources[address]

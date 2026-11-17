@@ -30,9 +30,14 @@ import {
   planNamed,
   planNamedUndeclared,
   readRecord,
+  storedFingerprint,
   writtenFields,
 } from '@/lib/workspace-source/application/kinds/named'
-import type { KindAdapter, PlannedChange } from '@/lib/workspace-source/application/types'
+import type {
+  KindAdapter,
+  PlannedChange,
+  SourceContext,
+} from '@/lib/workspace-source/application/types'
 
 /** A stored custom tool as source reads it. */
 interface StoredTool {
@@ -60,6 +65,14 @@ const tools: NamedKind<ToolDecl, StoredTool> = {
 
 function isSchemaObject(value: unknown): value is Record<string, Json> {
   return isRecordLike(value)
+}
+
+async function getTool(ctx: SourceContext, toolId: string): Promise<StoredTool> {
+  const { tool } = await getWorkspaceCustomToolUseCase.execute({
+    principal: ctx.principal,
+    input: { workspaceId: ctx.workspace.workspaceId, toolId },
+  })
+  return tool
 }
 
 export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
@@ -126,10 +139,15 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
     })
   },
 
+  async fingerprintNow(change, ctx) {
+    if (!change.storedId) throw new Error('A custom tool check needs the stored id')
+    return storedFingerprint(tools, await getTool(ctx, change.storedId))
+  },
+
   async apply(change, ctx) {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
-    return applyNamed(tools, change, ctx, {
+    return applyNamed(tools, change, {
       async create(decl) {
         const { tool } = await createWorkspaceCustomToolUseCase.execute({
           principal,
@@ -137,13 +155,7 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
         })
         return { id: tool.id, state: tool }
       },
-      async get(toolId) {
-        const { tool } = await getWorkspaceCustomToolUseCase.execute({
-          principal,
-          input: { workspaceId, toolId },
-        })
-        return tool
-      },
+      get: (toolId) => getTool(ctx, toolId),
       async update(toolId, fields) {
         const { tool } = await updateWorkspaceCustomToolUseCase.execute({
           principal,

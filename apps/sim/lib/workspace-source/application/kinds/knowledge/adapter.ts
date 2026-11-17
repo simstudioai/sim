@@ -9,7 +9,6 @@
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import {
   type KnowledgeBaseDecl,
@@ -34,18 +33,14 @@ import {
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/validation'
-import {
-  assertUnchangedBeforeDelete,
-  ResourceChangedError,
-  refusalDiagnostic,
-} from '@/lib/workspace-source/application/errors'
+import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   nameHolder,
   nameTakenFinding,
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
+import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   checkWrites,
   chunkingConfig,
@@ -85,8 +80,6 @@ interface KnowledgePlan {
   changes: Pick<KnowledgeChanges, 'settings' | 'uploads' | 'deletes' | 'superseded'>
   /** Document id → SHA-256 for every stored document whose bytes the plan knows. */
   hashes: Map<string, string>
-  /** The stored knowledge base's fingerprint under `hashes` when planned; absent for a create. */
-  serverFingerprint?: string
 }
 
 type KnowledgeChange = PlannedChange<KnowledgeBaseDecl, KnowledgePlan>
@@ -233,7 +226,6 @@ async function planKnowledgeBase(
       change.diagnostics.push(...nameTaken(key, decl.name, stored))
       const embedding = await embeddingFinding(key, decl)
       if (embedding) change.diagnostics.push(embedding)
-      ctx.pending.push({ kind: KIND, key, id: generateId() })
       const uploads = Object.entries(decl.docs).map(([name, doc]) => ({ name, doc }))
       change.diagnostics.push(
         ...checkWrites(key, { chunking: chunkingConfig(decl.chunking), uploads }),
@@ -294,7 +286,8 @@ async function planKnowledgeBase(
         ...(changes.uploads.length > 0
           ? { needsBlobs: uploadPaths(key, changes.uploads), partialBlobs: true }
           : {}),
-        detail: { changes, hashes, serverFingerprint: view.fingerprint },
+        serverFingerprint: view.fingerprint,
+        detail: { changes, hashes },
       }
     }
     default:
@@ -523,19 +516,18 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       }
     },
 
+    async fingerprintNow(change, ctx) {
+      const id = change.storedId
+      if (!id) throw new Error('A knowledge base check needs the stored id')
+      const [current, docs] = await Promise.all([reload(ctx, change.key, id), loadDocs(ctx, id)])
+      return knowledgeView(current, docs, change.detail?.hashes ?? new Map()).fingerprint
+    },
+
     async apply(change, ctx) {
       const { principal } = ctx
       const workspaceId = ctx.workspace.workspaceId
       if (change.action === 'delete') {
         if (!change.storedId) throw new Error('A knowledge base delete needs the stored id')
-        if (change.serverFingerprint !== undefined && change.detail) {
-          const current = await reload(ctx, change.key, change.storedId)
-          const docs = await loadDocs(ctx, change.storedId)
-          assertUnchangedBeforeDelete(
-            change,
-            knowledgeView(current, docs, change.detail.hashes).fingerprint
-          )
-        }
         await deleteKnowledgeBaseOperation.execute({
           principal,
           input: { knowledgeBaseId: change.storedId, assertedWorkspaceId: workspaceId },
@@ -558,16 +550,10 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           },
         })
         const uploaded = await uploadDocs(ctx, knowledgeBase.id, carried)
-        const diagnostics = await claimKey(change, ctx, knowledgeBase.id)
-        return { ...(await written(ctx, change.key, knowledgeBase.id, uploaded)), diagnostics }
+        return written(ctx, change.key, knowledgeBase.id, uploaded)
       }
       const knowledgeBaseId = change.storedId
       if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
-      const current = await reload(ctx, change.key, knowledgeBaseId)
-      const currentDocs = await loadDocs(ctx, knowledgeBaseId)
-      if (knowledgeView(current, currentDocs, plan.hashes).fingerprint !== plan.serverFingerprint) {
-        throw new ResourceChangedError(change)
-      }
       const { settings, deletes, superseded } = plan.changes
       if (Object.keys(settings).length > 0) {
         await updateKnowledgeBaseOperation.execute({
@@ -581,17 +567,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       if (ctx.blobs?.complete !== false) {
         for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
       }
-      const diagnostics =
-        change.action === 'adopt' ? await claimKey(change, ctx, knowledgeBaseId) : []
-      return {
-        ...(await written(
-          ctx,
-          change.key,
-          knowledgeBaseId,
-          new Map([...plan.hashes, ...uploaded])
-        )),
-        diagnostics,
-      }
+      return written(ctx, change.key, knowledgeBaseId, new Map([...plan.hashes, ...uploaded]))
     },
 
     async read(stored, ctx) {

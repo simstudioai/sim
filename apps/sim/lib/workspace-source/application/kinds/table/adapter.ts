@@ -4,7 +4,6 @@
  * `updateTableUseCase`, the column use cases, `deleteTableUseCase`), so their authorization,
  * locks, audit and schema-change signals apply. Rows are never read or written.
  */
-import { generateId } from '@sim/utils/id'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -23,11 +22,7 @@ import {
   updateTableUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import {
-  assertUnchangedBeforeDelete,
-  PartiallyAppliedError,
-  ResourceChangedError,
-} from '@/lib/workspace-source/application/errors'
+import { PartiallyAppliedError } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
   nameHolder,
@@ -35,7 +30,7 @@ import {
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
+import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   columnInput,
   diffTable,
@@ -61,11 +56,7 @@ import type {
 interface TablePlan {
   /** The changes an update or adopt makes; absent for a delete. */
   changes?: TableChanges
-  /**
-   * An update's fingerprint of the table when planned (under `bindings`); the apply refuses if it
-   * moved. A delete records its own on the change.
-   */
-  serverFingerprint?: string
+  /** The base's column bindings the plan's fingerprint was read under. */
   bindings?: Record<string, BaseColumn>
 }
 
@@ -132,7 +123,6 @@ async function planTable(
     case 'create': {
       const holder = nameHolder(stored, decl.name, { fold: true })
       if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
-      ctx.pending.push({ kind: 'table', key, id: generateId() })
       return {
         ...change,
         action: 'create',
@@ -144,9 +134,6 @@ async function planTable(
       const { state } = resolution.stored
       const holder = nameHolder(stored, decl.name, { self: resolution.stored.id, fold: true })
       if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
-      if (resolution.action === 'adopt') {
-        ctx.pending.push({ kind: 'table', key, id: resolution.stored.id })
-      }
       const bindings = resolution.action === 'update' ? resolution.base.columns : undefined
       const changes = await diffTable(key, decl, state, bindings)
       change.diagnostics.push(...changes.diagnostics)
@@ -196,11 +183,8 @@ async function planTable(
               },
             }
           : {}),
-        detail: {
-          changes,
-          serverFingerprint: tableAsDecl(state, bindings).fingerprint,
-          ...(bindings ? { bindings } : {}),
-        },
+        serverFingerprint: tableAsDecl(state, bindings).fingerprint,
+        detail: { changes, ...(bindings ? { bindings } : {}) },
       }
     }
     default:
@@ -397,18 +381,16 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     }
   },
 
+  async fingerprintNow(change, ctx) {
+    if (!change.storedId) throw new Error('A table check needs the stored table id')
+    return tableAsDecl(await reload(ctx, change.storedId), change.detail?.bindings).fingerprint
+  },
+
   async apply(change, ctx) {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'delete') {
       if (!change.storedId) throw new Error('A table delete needs the stored table id')
-      if (change.serverFingerprint !== undefined) {
-        const current = await reload(ctx, change.storedId)
-        assertUnchangedBeforeDelete(
-          change,
-          tableAsDecl(current, change.detail?.bindings).fingerprint
-        )
-      }
       await deleteTableUseCase.execute({
         principal,
         input: { tableId: change.storedId, workspaceId },
@@ -430,20 +412,14 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
           },
         },
       })
-      const diagnostics = await claimKey(change, ctx, table.id)
-      return { ...(await written(ctx, change.key, table.id, decl)), diagnostics }
+      return written(ctx, change.key, table.id, decl)
     }
     const tableId = change.storedId
     const plan = change.detail
     if (!tableId || !plan?.changes) throw new Error('A table update needs its plan')
-    const current = await reload(ctx, tableId)
-    if (tableAsDecl(current, plan.bindings).fingerprint !== plan.serverFingerprint) {
-      throw new ResourceChangedError(change)
-    }
     if (change.action === 'adopt') {
       await applyChanges(ctx, tableId, plan.changes)
-      const diagnostics = await claimKey(change, ctx, tableId)
-      return { ...(await written(ctx, change.key, tableId, decl)), diagnostics }
+      return written(ctx, change.key, tableId, decl)
     }
     await applyUpdate(ctx, change, tableId, { ...plan, changes: plan.changes }, decl)
     return written(ctx, change.key, tableId, decl)

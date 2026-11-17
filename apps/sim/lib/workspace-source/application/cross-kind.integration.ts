@@ -489,6 +489,50 @@ export default workflow('Answer', {}, () => {
   )
 
   check(
+    'a workflow naming a knowledge base the same apply adopts by name plans and applies against it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { knowledgeBase: existing } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Policies' },
+      })
+      const dir: Directory = {
+        files: {
+          'knowledge/policies/knowledge.ts': TEXT['knowledge/policies/knowledge.ts'],
+          'workflows/answer/workflow.ts': `// @sim-sdk 1
+import { knowledge, knowledgeBase, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Answer', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { question: 'string' } })
+  const search = knowledge.search('Policy Search', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.question,
+    topK: 3,
+  })
+
+  start.to(search)
+})
+`,
+        },
+        blobs: {},
+      }
+
+      const dryRun = await apply(workspaceId, dir, { dryRun: true })
+
+      expect(findings(dryRun.diagnostics, 'error')).toEqual([])
+      expect(writes(dryRun).map(({ kind, action }) => `${action} ${kind}`)).toEqual([
+        'adopt knowledge-base',
+        'create workflow',
+      ])
+      const applied = await apply(workspaceId, dir)
+      expect(applied.failed).toBeUndefined()
+      const stored = await snapshot(workspaceId)
+      expect(stored.bases.map((base) => base.id)).toEqual([existing.id])
+      expect(stored.workflows.map((row) => row.name)).toContain('Answer')
+    }
+  )
+
+  check(
     'refuses deleting a table an unchanged declared workflow uses, as the CLI sends that folder (base only)',
     async () => {
       const { workspaceId, dir, base } = await setUp()

@@ -23,6 +23,7 @@ import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
+import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   finding,
@@ -30,7 +31,7 @@ import {
   planUndeclared,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
+import { bindStored } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
   PlanContext,
@@ -104,11 +105,17 @@ function readLock(
   }
 }
 
+/**
+ * Plans one workflow folder. `pending` holds the resources earlier kinds and earlier folders of
+ * this apply create, which the dry run resolves; a created workflow adds itself, so a later
+ * folder naming it resolves too.
+ */
 async function planWorkflow(
   key: string,
   decl: WorkflowDecl,
   stored: StoredSet<StoredWorkflowState>,
-  ctx: PlanContext
+  ctx: PlanContext,
+  pending: PendingResource[]
 ): Promise<WorkflowChange> {
   const change: WorkflowChange = { kind: 'workflow', key, action: 'noop', decl, diagnostics: [] }
   const { principal } = ctx
@@ -169,7 +176,7 @@ async function planWorkflow(
           lock: read.lock,
           base,
           dryRun: true,
-          pendingResources: ctx.pending,
+          pendingResources: pending,
         },
       })
       change.diagnostics.push(...inFolder(key, result.diagnostics))
@@ -183,10 +190,10 @@ async function planWorkflow(
     }
     const result = await createWorkflowFromSource.execute({
       principal,
-      input: { workspaceId, files: decl.files, dryRun: true, pendingResources: ctx.pending },
+      input: { workspaceId, files: decl.files, dryRun: true, pendingResources: pending },
     })
     change.diagnostics.push(...inFolder(key, result.diagnostics))
-    ctx.pending.push({ kind: 'workflow', key, id: generateId() })
+    pending.push({ kind: 'workflow', key, id: generateId() })
     return { ...change, action: 'create', fields: diffFields(result.diff) }
   } catch (error) {
     change.diagnostics.push(refusalDiagnostic(error, { kind: 'workflow', key }))
@@ -196,6 +203,7 @@ async function planWorkflow(
 
 export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, WorkflowPlan> = {
   codec: workflowCodec,
+  keys: 'every-write',
 
   async load(ctx, { allocate }) {
     const { workspaceId } = ctx.workspace
@@ -227,7 +235,10 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
 
   async plan(desired, stored, ctx) {
     const changes: WorkflowChange[] = []
-    for (const [key, decl] of desired) changes.push(await planWorkflow(key, decl, stored, ctx))
+    const pending = [...ctx.pending]
+    for (const [key, decl] of desired) {
+      changes.push(await planWorkflow(key, decl, stored, ctx, pending))
+    }
     changes.push(
       ...planUndeclared<StoredWorkflowState, WorkflowDecl, WorkflowPlan>(
         'workflow',
@@ -286,7 +297,6 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
           principal,
           input: { workspaceId, files: decl.files, ...provenance },
         })
-    const claimed = await claimKey(change, ctx, result.workflowId)
     const base: BaseResource = { id: result.workflowId }
     return {
       id: result.workflowId,
@@ -296,7 +306,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         lock: result.lock,
         base: result.base,
       }).text,
-      diagnostics: [...inFolder(change.key, result.diagnostics), ...claimed],
+      diagnostics: inFolder(change.key, result.diagnostics),
     }
   },
 

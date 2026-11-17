@@ -4,7 +4,6 @@
  * each declared resource, an unbound record of the same name is adopted, and a name another
  * resource holds is `E_NAME_TAKEN` naming that resource's key.
  */
-import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
 import {
@@ -18,23 +17,17 @@ import {
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  assertUnchangedBeforeDelete,
-  ResourceChangedError,
-} from '@/lib/workspace-source/application/errors'
-import {
   finding,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { claimKey } from '@/lib/workspace-source/application/keys'
 import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   PlanContext,
   PlannedChange,
-  SourceContext,
   StoredResource,
   StoredSet,
   WorkspaceSourceDiagnostic,
@@ -54,13 +47,12 @@ export interface NamedKind<D, S> {
 
 /** What the apply carries out for an existing record, decided at plan time. */
 export interface NamedPlan {
-  /** The record's fingerprint when planned; the apply refuses if it moved. */
-  serverFingerprint: string
   /** The declaration fields that differ from the stored record. */
   changed: string[]
 }
 
-function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
+/** A stored record's fingerprint: of the declaration it prints as. */
+export function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
   return fingerprintOf(named.codec.canonical(named.declOf(state)))
 }
 
@@ -138,12 +130,10 @@ export function planNamed<D, S>(
   switch (resolution.action) {
     case 'create':
       holderOf()
-      ctx.pending.push({ kind, key, id: generateId(), name })
-      return { ...change, action: 'create' }
+      return { ...change, action: 'create', name }
     case 'adopt':
     case 'update': {
       const { id, state } = resolution.stored
-      if (resolution.action === 'adopt') ctx.pending.push({ kind, key, id, name })
       const changed = changedFields(
         named.codec.canonical(named.declOf(state)),
         named.codec.canonical(decl)
@@ -153,8 +143,10 @@ export function planNamed<D, S>(
         ...change,
         action: resolution.action === 'adopt' ? 'adopt' : 'update',
         storedId: id,
+        ...(resolution.action === 'adopt' ? { name } : {}),
         ...(changed.length > 0 ? { fields: changed } : {}),
-        detail: { serverFingerprint: storedFingerprint(named, state), changed },
+        serverFingerprint: storedFingerprint(named, state),
+        detail: { changed },
       }
     }
     default:
@@ -206,57 +198,31 @@ interface NamedWrites<D, S> {
 }
 
 /**
- * Carries out a planned change. An update re-reads the record and refuses one that moved since
- * the plan, then sends only the changed fields so the rest stay as that check saw them. A key is
- * claimed only after its write succeeds, so a failed write leaves the key free for the next apply.
+ * Carries out a planned change (the apply already refused a record that moved since the plan).
+ * An update sends only the changed fields, so the rest stay as the plan saw them.
  */
 export async function applyNamed<D extends object, S>(
   named: NamedKind<D, S>,
   change: PlannedChange<D, NamedPlan>,
-  ctx: SourceContext,
   writes: NamedWrites<D, S>
 ): Promise<AppliedResource> {
   if (change.action === 'delete') {
     if (!change.storedId) throw new Error(`A ${named.noun} delete needs the stored id`)
-    if (change.serverFingerprint !== undefined) {
-      assertUnchangedBeforeDelete(
-        change,
-        storedFingerprint(named, await writes.get(change.storedId))
-      )
-    }
     await writes.remove(change.storedId)
     return { id: change.storedId, text: {} }
   }
   const decl = change.decl
   if (!decl) throw new Error(`A ${named.noun} write needs its declaration`)
-  if (change.action === 'create') {
-    const created = await writes.create(decl)
-    const diagnostics = await claimKey(change, ctx, created.id)
-    return { ...writtenRecord(named, change.key, created), diagnostics }
-  }
+  if (change.action === 'create') return writtenRecord(named, change.key, await writes.create(decl))
   const id = change.storedId
   if (!id) throw new Error(`A ${named.noun} update needs the stored id`)
-  const current = await writes.get(id)
-  assertUnchanged(named, change, current)
   const changed = writtenFields(change)
   const fields: Partial<D> = {}
   for (const field of Object.keys(decl) as Array<keyof D & string>) {
     if (changed.includes(field)) fields[field] = decl[field]
   }
-  const state = changed.length === 0 ? current : await writes.update(id, fields)
-  const diagnostics = change.action === 'adopt' ? await claimKey(change, ctx, id) : []
-  return { ...writtenRecord(named, change.key, { id, state }), diagnostics }
-}
-
-/** Refuses a write to a record that changed since the plan read it. */
-function assertUnchanged<D, S>(
-  named: NamedKind<D, S>,
-  change: PlannedChange<D, NamedPlan>,
-  current: S
-): void {
-  if (storedFingerprint(named, current) !== change.detail?.serverFingerprint) {
-    throw new ResourceChangedError(change)
-  }
+  const state = changed.length === 0 ? await writes.get(id) : await writes.update(id, fields)
+  return writtenRecord(named, change.key, { id, state })
 }
 
 /** The base entry and reprinted files of a record as stored after a write. */

@@ -57,11 +57,11 @@ export class ResourceChangedError extends OrchestrationError {
 }
 
 /**
- * Refuses a delete of a resource whose fingerprint (`current`, read just before the delete) moved
+ * Refuses a write to a resource whose fingerprint (`current`, read just before the write) moved
  * since the plan recorded it, so a document added or a tool edited in the UI between the plan and
  * the write is never lost silently.
  */
-export function assertUnchangedBeforeDelete(change: PlannedChange, current: string): void {
+export function assertUnchanged(change: PlannedChange, current: string): void {
   if (change.serverFingerprint !== undefined && current !== change.serverFingerprint) {
     throw new ResourceChangedError(change)
   }

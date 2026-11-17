@@ -400,6 +400,7 @@ async function written(
 
 export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
   codec: fileCodec,
+  keys: 'none',
 
   async load(ctx) {
     const { workspaceId } = ctx.workspace
