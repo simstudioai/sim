@@ -7,7 +7,7 @@ date: 2026-11-17
 updated: 2026-11-17
 authors:
   - andrew
-readingTime: 9
+readingTime: 10
 tags: [AI Agents, Approval Workflows, Procurement, Finance Automation, Sim]
 ogImage: /library/best-ai-agent-platforms-refund-purchase-order-approvals/cover.jpg
 draft: false
@@ -139,9 +139,10 @@ A refund request agent should check order evidence and policy before sending hig
 3. Use an AI step to classify the refund reason or summarize unstructured evidence, but do not let the model issue the refund.
 4. Use Conditions to test deterministic rules such as the return window, refund amount, product category, delivery state, duplicate request status, and fraud indicators.
 5. Route requests according to company policy and send requests requiring review to a Human in the Loop block.
-6. Collect the approver identity, approve or reject value, reason, and any adjusted amount through the human input form.
-7. Use a downstream Condition to inspect the submitted decision.
-8. Call the payment or commerce API only on the approved path, then record the result and notify the requester.
+6. Collect the approve or reject value, reason, and any adjusted amount through the human input form, but do not treat a submitted identity field as proof of authority.
+7. Verify the responder's authority through a separately authenticated approval service or a trusted identity check before accepting the decision.
+8. Use a downstream Condition to inspect the verified decision.
+9. Call the payment or commerce API only on the approved path, then record the result and notify the requester.
 
 For adjacent payment recovery automation rather than refunds, see [How to Build a Stripe Billing and Failed Payment AI Agent](https://www.sim.ai/library/stripe-billing-failed-payment-ai-agent-guide).
 
@@ -154,10 +155,11 @@ A purchase order approval agent should validate the request, budget, and vendor 
 3. Retrieve the approved vendor record, remaining budget, purchasing policy, and related quote or contract data.
 4. Use Conditions to reject missing fields, flag duplicate requests, enforce spend thresholds, and route restricted vendors or categories for additional review.
 5. Use an AI step only where interpretation is useful, such as comparing a free-text justification with policy or summarizing attached quotes.
-6. Send the structured request to a Human in the Loop block with fields for approve, reject, return for changes, comments, and approved amount.
-7. Use a downstream Condition to route the submitted decision.
-8. Create or update the purchase order through the authorized ERP or procurement API only after the required approval path succeeds.
-9. Store the decision context and notify the requester through the approved communication channel.
+6. Send the structured request to a Human in the Loop block with fields for approve, reject, return for changes, comments, and approved amount, but do not treat a submitted identity field as proof of authority.
+7. Verify the responder's authority through a separately authenticated approval service or a trusted identity check before accepting the decision.
+8. Use a downstream Condition to route the verified decision.
+9. Create or update the purchase order through the authorized ERP or procurement API only after the required approval path succeeds.
+10. Store the decision context and notify the requester through the approved communication channel.
 
 For invoice capture, matching, and reconciliation after purchasing, see [8 Best AI Agents for Invoice Processing and Finance Reconciliation in 2026](https://www.sim.ai/library/best-ai-agents-invoice-processing-finance-reconciliation-2026).
 
