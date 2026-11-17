@@ -102,7 +102,7 @@ describe('stored()', () => {
     const written = run(storedText)
     expect(secrets(written.diagnostics)).toEqual(['apiKey'])
     expect(written.diagnostics.find((d) => d.code === 'W_LITERAL_SECRET')?.message).toBe(
-      'apiKey holds a literal secret; use env.NAME.'
+      'apiKey holds a literal secret instead of an env reference; write apiKey: env.NAME.'
     )
     expect(
       secrets(run(source("  mail('M', { apiKey: stored() })"), storedWorkflow).diagnostics)

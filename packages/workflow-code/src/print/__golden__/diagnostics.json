@@ -35,7 +35,9 @@
   "input-format-sugar": [],
   "json-code-fields": [],
   "response-body": [],
-  "stored-secrets": ["W_LITERAL_SECRET pastedkey: apiKey holds a literal secret; use env.NAME."],
+  "stored-secrets": [
+    "W_LITERAL_SECRET pastedkey: apiKey holds a literal secret instead of an env reference; write apiKey: env.NAME."
+  ],
   "function-languages": [],
   "comments-at-anchors": [
     "W_COMMENT_MOVED classify: A comment has no printed anchor; moved to its block declaration.",

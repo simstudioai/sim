@@ -24,7 +24,7 @@ export function isLiteralSecret(value: Value): boolean {
 /** The message and hint of `W_LITERAL_SECRET` for the param written as `name`. */
 export function literalSecretFinding(name: string): { message: string; hint: string } {
   return {
-    message: `${name} holds a literal secret; use env.NAME.`,
+    message: `${name} holds a literal secret instead of an env reference; write ${name}: env.NAME.`,
     hint: `Store the secret as a workspace or personal env variable and write ${name}: env.NAME, so the key never sits in the workflow.`,
   }
 }
