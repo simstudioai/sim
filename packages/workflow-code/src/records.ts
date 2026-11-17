@@ -74,3 +74,10 @@ export function parseJsonContainer(text: string): Record<string, unknown> | unkn
     return undefined
   }
 }
+
+/** A stored list, native or as JSON text; `undefined` for anything else. */
+export function parseStoredList(raw: unknown): unknown[] | undefined {
+  if (Array.isArray(raw)) return raw
+  const parsed = typeof raw === 'string' ? parseJsonContainer(raw) : undefined
+  return Array.isArray(parsed) ? parsed : undefined
+}
