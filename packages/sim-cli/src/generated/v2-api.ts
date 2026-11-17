@@ -9557,10 +9557,11 @@ export type GetWorkspaceSourceResponse = {
     files: Record<string, string>
     blobs: Array<{
       path: string
-      sha256: string
+      sha256?: string
       size: number
       id: string
       href: string
+      rev?: string
     }>
     base: {
       version: 1

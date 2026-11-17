@@ -794,4 +794,41 @@ describe('workspace source files', () => {
       'plan.md',
     ])
   })
+
+  check(
+    'server hashing stops at the per-request budget: a get lists the rest without a hash, and a plan refuses them rather than creating',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+      const directory: Record<string, Buffer> = {}
+      for (const name of ['a.bin', 'b.bin', 'c.bin']) {
+        const bytes = Buffer.alloc(size, name)
+        directory[`files/${name}`] = bytes
+        await uploadWorkspaceFile(workspaceId, ownerId, bytes, name, 'application/octet-stream', {
+          notifyWorkspaceChange: false,
+        })
+      }
+
+      const read = await get(workspaceId)
+      expect(read.skipped).toEqual([])
+      const unhashed = read.blobs.filter((blob) => blob.sha256 === undefined)
+      expect(read.blobs).toHaveLength(3)
+      expect(unhashed).toHaveLength(1)
+      expect(unhashed[0]).toMatchObject({ size, rev: expect.any(String) })
+      const unhashedKey = unhashed[0].path.slice('files/'.length)
+      expect(read.base.resources[`file:${unhashedKey}`]).toEqual({ id: unhashed[0].id })
+      for (const blob of read.blobs.filter((entry) => entry.sha256 !== undefined)) {
+        expect(blob.sha256).toBe(sha256Hex(directory[blob.path]))
+      }
+
+      const adopted = await apply(workspaceId, directory, { dryRun: true })
+      expect(summary(adopted.plan)).toEqual(['noop a.bin', 'noop b.bin', 'noop c.bin'])
+      expect(
+        adopted.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.key}`)
+      ).toEqual(['E_APPLY_NO_BASE c.bin'])
+      expect(adopted.needBlobs).toEqual([])
+    }
+  )
 })

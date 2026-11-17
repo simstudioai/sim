@@ -150,11 +150,28 @@ async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> 
   return content
 }
 
+/** Stored bytes each request may still read to hash files whose hash nothing records. */
+const hashBudgets = new WeakMap<SourceContext, { bytes: number }>()
+
+/**
+ * Takes `size` bytes from the request's hashing budget (`maxBlobBytesPerRequest`), or returns
+ * `false` when they do not fit. Uploads record no hash, so without a bound one get or plan would
+ * read and hash every stored byte of the workspace.
+ */
+function spendHashBudget(ctx: SourceContext, size: number): boolean {
+  const budget = hashBudgets.get(ctx) ?? { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest }
+  hashBudgets.set(ctx, budget)
+  if (size > budget.bytes) return false
+  budget.bytes -= size
+  return true
+}
+
 /**
  * Hashes the stored bytes of each declared file whose hash neither the server nor the base
- * records, when its size matches the declared one (only then can the bytes be equal). Knowing the
- * hash lets an apply whose earlier round wrote the file without saving the base adopt it instead
- * of refusing it.
+ * records, when its size matches the declared one (only then can the bytes be equal), within the
+ * request's hashing budget. Knowing the hash lets an apply whose earlier round wrote the file
+ * without saving the base adopt it instead of refusing it. A file past the budget keeps no hash, so it
+ * plans as no-base or stale and is never created or deleted.
  */
 async function hashUnrecorded(
   ctx: PlanContext,
@@ -165,6 +182,7 @@ async function hashUnrecorded(
     const file = stored.bound.get(key)
     if (!file || file.state.unmanaged || file.state.size !== decl.size) continue
     if (serverSha(file, ctx.base?.resources[resourceAddress('file', key)]) !== null) continue
+    if (!spendHashBudget(ctx, file.state.size)) continue
     file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
   }
 }
@@ -552,22 +570,22 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     }
     const workspaceId = ctx.workspace.workspaceId
     let { sha256, size } = state
-    if (sha256 === null) {
+    if (sha256 === null && spendHashBudget(ctx, size)) {
       const content = await storedBytes(ctx, id)
       sha256 = sha256Hex(content)
       size = content.length
     }
+    const href = `/api/v2/files/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(workspaceId)}`
+    if (sha256 === null) {
+      return {
+        text: {},
+        blobs: [{ path: fileBlobPath(key), size, id, href, rev: state.rev }],
+        base: { id },
+      }
+    }
     return {
       text: {},
-      blobs: [
-        {
-          path: fileBlobPath(key),
-          sha256,
-          size,
-          id,
-          href: `/api/v2/files/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(workspaceId)}`,
-        },
-      ],
+      blobs: [{ path: fileBlobPath(key), sha256, size, id, href }],
       base: fileBase(key, id, state.rev, sha256),
     }
   },

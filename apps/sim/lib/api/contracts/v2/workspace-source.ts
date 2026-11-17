@@ -73,7 +73,9 @@ const baseResourceSchema = z
     fingerprint: z
       .string()
       .optional()
-      .describe('`rf1:` fingerprint of the resource as last read; absent for a workflow.'),
+      .describe(
+        '`rf1:` fingerprint of the resource as last read; absent for a workflow, and for a binary file listed without `sha256` until the client records its hash.'
+      ),
     columns: z
       .record(
         z.string(),
@@ -147,8 +149,14 @@ const readDataSchema = z
     blobs: z
       .array(
         blobSchema.extend({
+          sha256: sha256Schema
+            .optional()
+            .describe(
+              'Absent when the server did not hash the bytes within the request; hash the downloaded bytes and record them in the base with `id` and `rev`.'
+            ),
           id: z.string().describe('Stored id of the binary file.'),
           href: z.string().describe('Where to download its bytes.'),
+          rev: z.string().optional().describe('Content revision, present when `sha256` is absent.'),
         })
       )
       .describe('Binary files, downloaded separately by `href`.'),
