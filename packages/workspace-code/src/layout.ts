@@ -22,7 +22,7 @@ export const WORKFLOW_BASE_FILE = '.sim/base.json'
 export const DECLARATION_EXTENSION = '.ts'
 
 /** The stored resource key format (`workspace_resource_key.key`), unanchored. */
-export const RESOURCE_KEY_SOURCE = '[a-z][a-z0-9_-]{0,63}'
+const RESOURCE_KEY_SOURCE = '[a-z][a-z0-9_-]{0,63}'
 
 const RESOURCE_KEY_PATTERN = new RegExp(`^${RESOURCE_KEY_SOURCE}$`)
 
