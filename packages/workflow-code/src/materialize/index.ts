@@ -54,10 +54,10 @@ function writeVariables(
   const variables: Record<string, Variable> = {}
   const idByKey = new Map<VarKey, string>()
   for (const [key, variable] of Object.entries(workflow.variables)) {
-    const fromLock = lockIds[key]
+    const fromLock = getOwn(lockIds, key)
     const candidates = [
       fromLock !== undefined && lockIdCounts.get(fromLock) === 1 ? fromLock : undefined,
-      prevCanonical?.identity.variables[key],
+      prevCanonical ? getOwn(prevCanonical.identity.variables, key) : undefined,
     ]
     const id =
       candidates.find(
@@ -70,7 +70,10 @@ function writeVariables(
     idByKey.set(key, id)
     const stored = getOwn(prevVariables, id)
     const prevKey = prevKeyById.get(id)
-    const before = prevKey !== undefined ? prevCanonical?.workflow.variables[prevKey] : undefined
+    const before =
+      prevKey !== undefined && prevCanonical
+        ? getOwn(prevCanonical.workflow.variables, prevKey)
+        : undefined
     const unchanged =
       stored !== undefined &&
       before !== undefined &&

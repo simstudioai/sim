@@ -15,7 +15,7 @@ import type {
   SubBlockId,
   VarKey,
 } from '../model'
-import { deepEqual } from '../records'
+import { deepEqual, getOwn } from '../records'
 
 const META_FIELDS: Array<keyof CanonicalWorkflowMeta> = ['name', 'description']
 
@@ -51,10 +51,12 @@ function blockChanges(
   const targetParent = target.parent === null ? null : baseKeyOf(target.parent)
   if (base.parent !== targetParent) changes.push({ kind: 'attribute', attribute: 'parent' })
   for (const param of unionKeys(base.params, target.params)) {
-    if (!deepEqual(base.params[param], target.params[param])) changes.push({ kind: 'param', param })
+    if (!deepEqual(getOwn(base.params, param), getOwn(target.params, param))) {
+      changes.push({ kind: 'param', param })
+    }
   }
   for (const canonicalParamId of unionKeys(base.modes, target.modes)) {
-    if (base.modes[canonicalParamId] !== target.modes[canonicalParamId]) {
+    if (getOwn(base.modes, canonicalParamId) !== getOwn(target.modes, canonicalParamId)) {
       changes.push({ kind: 'mode', canonicalParamId })
     }
   }
@@ -161,8 +163,8 @@ export function diffCanonical(
 
   const variables: CanonicalDiff['variables'] = { added: [], removed: [], modified: [] }
   for (const key of unionKeys(base.variables, target.variables)) {
-    const before = base.variables[key]
-    const after = target.variables[key]
+    const before = getOwn(base.variables, key)
+    const after = getOwn(target.variables, key)
     if (!before) variables.added.push(key)
     else if (!after) variables.removed.push(key)
     else if (!deepEqual(before, after)) variables.modified.push(key)

@@ -9,6 +9,7 @@ import {
   workflowState,
 } from '../materialize/fixtures.test-helpers'
 import type { CanonicalWorkflow } from '../model'
+import { setOwn } from '../records'
 import { diffCanonical, renamesBetween } from '.'
 
 const base = canonical(
@@ -107,6 +108,24 @@ describe('diffCanonical', () => {
       { from: 'report', port: { kind: 'out' }, to: 'notify' },
     ])
     expect(diff.variables).toEqual({ added: ['fresh'], removed: ['gone'], modified: ['count'] })
+  })
+
+  it('reads a variable keyed like an Object.prototype member as absent from the other side', () => {
+    const target = edit((draft) => {
+      setOwn(draft.variables, 'constructor', {
+        key: 'constructor',
+        name: 'constructor',
+        type: 'plain',
+        value: 'x',
+      })
+    })
+    const diff = diffCanonical(base.workflow, target)
+    expect(diff.variables).toEqual({ added: ['constructor'], removed: [], modified: [] })
+    expect(diffCanonical(target, base.workflow).variables).toEqual({
+      added: [],
+      removed: ['constructor'],
+      modified: [],
+    })
   })
 
   it('pairs a rename through renames so no edge moves, and without it removes plus adds', () => {
