@@ -28,15 +28,14 @@ import {
 } from '../code-files/ref-path'
 import { REF_ROOT } from '../code-files/to-file'
 import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
-import {
-  type BlockKey,
-  type CanonicalParam,
-  isSimNode,
-  type Json,
-  type ResourceKind,
-  type SubBlockId,
-  type Value,
-  type VarNode,
+import type {
+  BlockKey,
+  CanonicalParam,
+  Json,
+  ResourceKind,
+  SubBlockId,
+  Value,
+  VarNode,
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { SDK_RESOURCE_CALLS } from '../sdk'
@@ -1125,7 +1124,7 @@ function compileJsonTree(
   }
   const value = compileNested(ctx, node, site)
   if (value === undefined) return undefined
-  const tree = holdsSimNode(value) ? undefined : valueTree(value)
+  const tree = valueTree(value)
   if (tree === undefined) {
     unsupported(
       ctx,
@@ -1136,11 +1135,4 @@ function compileJsonTree(
     )
   }
   return tree
-}
-
-/** Whether a value is or holds a canonical `$sim` node (a resource, a variable, `raw(node)`). */
-function holdsSimNode(value: Value): boolean {
-  if (isSimNode(value)) return true
-  if (Array.isArray(value)) return value.some(holdsSimNode)
-  return isRecordLike(value) && Object.values(value).some((item) => holdsSimNode(item as Value))
 }
