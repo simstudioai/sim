@@ -181,7 +181,7 @@
     "apps/sim/executor/variables/resolvers/workflow.test.ts": 1,
     "apps/sim/executor/variables/resolvers/workflow.ts": 9,
     "apps/sim/hooks/queries/folders.test.ts": 5,
-    "apps/sim/hooks/queries/resume-execution.ts": 6,
+    "apps/sim/hooks/queries/resume-execution.ts": 5,
     "apps/sim/hooks/use-collaborative-workflow.ts": 23,
     "apps/sim/hooks/use-execution-stream.ts": 10,
     "apps/sim/hooks/use-trigger-config-aggregation.ts": 2,

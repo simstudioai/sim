@@ -657,6 +657,7 @@ export class ExecutionEngine {
       ...capturePauseDisplay(pause, registry),
       contextId: pause.contextId,
       blockId: pause.blockId,
+      blockName: this.dag.nodes.get(pause.blockId)?.block.metadata?.name,
       response: pause.response,
       registeredAt: pause.timestamp,
       resumeStatus: 'paused' as ResumeStatus,

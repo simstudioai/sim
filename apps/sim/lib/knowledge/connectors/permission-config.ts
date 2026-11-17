@@ -14,6 +14,7 @@ export type ConnectorPermissionConfig = { provider: 'gitlab' } & GitLabPermissio
 export type ConnectorPermissionSummary = { provider: 'gitlab' } & GitLabPermissionSummary
 
 export interface PrepareConnectorPermissionsInput {
+  isSearchIndex?: boolean
   accessMode: string
   sourceConfig: Record<string, unknown>
   permissionConfig?: ConnectorPermissionConfig
@@ -41,8 +42,9 @@ export interface ConnectorPermissionConfigCapability {
     prepare(
       snapshot: Pick<ConnectorPermissionSnapshot, 'revision' | 'metadata'>,
       expectedRevision: number,
-      permissions: ConnectorPermissionGrants
-    ): ConnectorPermissionData
+      permissions: ConnectorPermissionGrants,
+      source: { sourceConfig: unknown; encryptedApiKey: string | null }
+    ): ConnectorPermissionData | Promise<ConnectorPermissionData>
   }
   prepare(
     input: PrepareConnectorPermissionsInput

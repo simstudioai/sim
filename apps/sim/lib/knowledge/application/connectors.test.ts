@@ -456,6 +456,7 @@ describe('knowledge connector application use cases', () => {
     } as Parameters<typeof validateConnectorSourceConfig>[0]['connector']
     await expect(
       validateConnectorSourceConfig({
+        isSearchIndex: false,
         principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
         connector,
         sourceConfig: { adminEmail: 'admin@corp.com' },
@@ -519,6 +520,7 @@ describe('knowledge connector application use cases', () => {
         mocks.validateConnectorConfig.mockResolvedValueOnce({ valid: false, error: message })
       }
       const result = validateConnectorSourceConfig({
+        isSearchIndex: false,
         principal: patPrincipal,
         requestId: 'request',
         workspaceId: 'workspace-b',
@@ -1122,6 +1124,7 @@ describe('organization connector credential authorization', () => {
         mocks.validateConnectorConfig.mockResolvedValueOnce({ valid: false, error: message })
       }
       const result = validateConnectorSourceConfig({
+        isSearchIndex: false,
         principal,
         requestId: 'request',
         organizationId: 'org',

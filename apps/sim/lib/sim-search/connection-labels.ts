@@ -25,10 +25,10 @@ const CONNECTION_LABELS: Record<string, SearchConnectionLabels> = {
     searchPlaceholder: 'Search GitHub repositories...',
   },
   gitlab: {
-    add: 'Add project',
-    title: 'Add GitLab project',
-    empty: 'No GitLab projects added.',
-    searchPlaceholder: 'Search GitLab projects...',
+    add: 'Add connection',
+    title: 'Connect GitLab',
+    empty: 'No GitLab connections added.',
+    searchPlaceholder: 'Search GitLab connections...',
   },
   slack: {
     add: 'Add channels or DMs',

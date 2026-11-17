@@ -106,22 +106,6 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function getBlockNameFromSnapshot(
-  executionSnapshot: { snapshot?: string } | null | undefined,
-  blockId: string | undefined
-): string | null {
-  if (!executionSnapshot?.snapshot || !blockId) return null
-  try {
-    const parsed = JSON.parse(executionSnapshot.snapshot)
-    const workflowState = parsed?.workflow
-    if (!workflowState?.blocks || !Array.isArray(workflowState.blocks)) return null
-    const block = workflowState.blocks.find((b: { id: string }) => b.id === blockId)
-    return block?.metadata?.name || null
-  } catch {
-    return null
-  }
-}
-
 const DISPLAY_VALUE_PREVIEW_MAX_CHARS = 5000
 
 function truncateForPreview(text: string): { text: string; truncated: boolean } {
@@ -697,13 +681,7 @@ export default function ResumeExecutionPage({
     selectedStatus === 'queued' ||
     (isHumanMode && hasInputFormat && (!isFormComplete || Object.keys(formErrors).length > 0))
 
-  const getBlockName = (pause: PausePointWithQueue) => {
-    const pauseBlockId = pause.blockId || pause.triggerBlockId
-    return (
-      getBlockNameFromSnapshot(executionDetail?.executionSnapshot, pauseBlockId) ||
-      'Human in the Loop'
-    )
-  }
+  const getBlockName = (pause: PausePointWithQueue) => pause.blockName || 'Human in the Loop'
 
   if (loadingExecution) {
     return (

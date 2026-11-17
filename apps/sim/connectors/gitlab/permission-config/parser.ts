@@ -105,19 +105,3 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
   if (rows.length === 0) reject('The file must contain at least one data row.')
   return rows
 }
-
-/** Only explicitly mapped users in the selected canonical project receive grants. */
-export function gitLabCsvSubjects(
-  users: readonly [string, string][],
-  permissions: readonly [string, string][],
-  projectPath: string
-): string[] {
-  const identities = new Map(users)
-  const subjects = new Set<string>()
-  for (const [path, id] of permissions) {
-    if (path !== projectPath) continue
-    const email = identities.get(id)
-    if (email) subjects.add(`u:${email}`)
-  }
-  return [...subjects].sort()
-}

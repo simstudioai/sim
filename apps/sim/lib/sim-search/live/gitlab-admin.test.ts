@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/connectors/gitlab/permission-config/repository', () => ({
-  seedGitLabCsvContext: mocks.seed,
+  seedGitLabPermissionContext: mocks.seed,
 }))
 vi.mock('@/lib/knowledge/connectors/permission-store', () => ({
   hasConnectorPermissionGrant: mocks.grant,
