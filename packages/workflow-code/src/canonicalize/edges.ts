@@ -75,6 +75,9 @@ export function canonicalEdges(
 
     const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
     const port = sourcePort(handle, source, edge.source, inputs)
+    const identity = edgeTupleKey(from, portKey(port), to)
+    if (seen.has(identity)) continue
+    seen.add(identity)
     if (port.kind === 'error') errorSourceIds.add(edge.source)
     if (port.kind === 'raw') {
       context.diagnostics.push({
@@ -94,11 +97,7 @@ export function canonicalEdges(
       })
     }
 
-    const canonical: CanonicalEdge = { from, port, to }
-    const identity = edgeTupleKey(from, portKey(port), to)
-    if (seen.has(identity)) continue
-    seen.add(identity)
-    result.push(canonical)
+    result.push({ from, port, to })
   }
 
   result.sort(compareEdges)

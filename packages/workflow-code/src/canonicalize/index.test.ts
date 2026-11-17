@@ -1192,6 +1192,27 @@ describe('canonicalize: edges', () => {
     )
     expect(result.workflow.edges.some((edge) => edge.to === 'ghost')).toBe(false)
   })
+
+  it('reports a duplicated stored edge once', () => {
+    const result = run(
+      workflow(
+        [
+          ...blocks,
+          blockState('l1', 'loop', 'Loop 1', {}, { data: { loopType: 'for', count: 3 } }),
+          blockState('in', 'function', 'In', {}, { data: { parentId: 'l1', extent: 'parent' } }),
+        ],
+        {
+          edges: [
+            { id: 'e1', source: 'f1', target: 'in', sourceHandle: 'legacy-handle' },
+            { id: 'e2', source: 'f1', target: 'in', sourceHandle: 'legacy-handle' },
+          ],
+        }
+      )
+    )
+    expect(result.workflow.edges).toHaveLength(1)
+    expect(codes(result).filter((code) => code === 'W_CANON_RAW_HANDLE')).toHaveLength(1)
+    expect(codes(result).filter((code) => code === 'E_CANON_EDGE_SCOPE')).toHaveLength(1)
+  })
 })
 
 describe('canonicalize: subflows', () => {
