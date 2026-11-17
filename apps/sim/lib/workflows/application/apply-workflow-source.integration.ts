@@ -21,6 +21,7 @@ import {
   workflow,
   workflowBlocks,
   workflowDeploymentVersion,
+  workflowEdges,
   workflowSchedule,
   workflowSourceMeta,
   workspace,
@@ -407,10 +408,11 @@ check('a legacy ~n key block keeps its stored secret through get → apply uncha
   })
   const winnerId = generateId()
   const loserId = generateId()
+  // Stored blocks load in heap order; only a dotted name loses its key in every order.
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
     blocks: {
-      [winnerId]: crawler(winnerId, 'Crawl 1', 'sk-winner-secret'),
-      [loserId]: crawler(loserId, 'crawl1', 'sk-loser-secret'),
+      [winnerId]: crawler(winnerId, 'crawl1', 'sk-winner-secret'),
+      [loserId]: crawler(loserId, 'Crawl.1', 'sk-loser-secret'),
     },
     edges: [],
     loops: {},
@@ -458,10 +460,11 @@ check('a refusal on a legacy ~n key block points at that block, not its namesake
   })
   const winnerId = generateId()
   const loserId = generateId()
+  // Stored blocks load in heap order; only a dotted name loses its key in every order.
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
     blocks: {
-      [winnerId]: fn(winnerId, 'Score 1', 'return 1', false),
-      [loserId]: fn(loserId, 'score1', 'return 2', true),
+      [winnerId]: fn(winnerId, 'score1', 'return 1', false),
+      [loserId]: fn(loserId, 'Score.1', 'return 2', true),
     },
     edges: [],
     loops: {},
@@ -646,6 +649,60 @@ check(
     await expect(outcome).resolves.toMatchObject({ applied: true })
     const after = await snapshot(seeded.workflowId)
     expect(after.state?.blocks[seeded.scoreId]?.horizontalHandles).toBe(false)
+    expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 8')
+  }
+)
+
+check(
+  'an edge row rewritten unchanged while the apply waits on the row lock is no change',
+  async () => {
+    const seeded = await seedWorkflow()
+    const otherId = generateId()
+    await db.insert(workflowBlocks).values({
+      id: otherId,
+      workflowId: seeded.workflowId,
+      type: 'function',
+      name: 'Other',
+      positionX: '0',
+      positionY: '240',
+      subBlocks: { code: { id: 'code', type: 'code', value: 'return 0' } },
+    })
+    await db.insert(workflowEdges).values({
+      id: generateId(),
+      workflowId: seeded.workflowId,
+      sourceBlockId: seeded.startId,
+      targetBlockId: otherId,
+    })
+    const source = await getSource(seeded.workflowId)
+    const [firstRead] = await db
+      .select({ id: workflowEdges.id })
+      .from(workflowEdges)
+      .where(eq(workflowEdges.workflowId, seeded.workflowId))
+    let outcome: Promise<unknown> = Promise.resolve()
+    let settled = false
+
+    await db.transaction(async (tx) => {
+      const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, seeded.workflowId))
+        .for('update')
+      outcome = runOutsideTransactionContext(() =>
+        apply(source, edit(source.files, SCORE_CODE, 'return 8')).finally(() => {
+          settled = true
+        })
+      )
+      await waitForBlocked(Number(self?.pid), () => settled)
+      // An in-place rewrite moves the row to the end of the heap, so the edges read reorders.
+      await tx
+        .update(workflowEdges)
+        .set({ targetHandle: sql`${workflowEdges.targetHandle}` })
+        .where(eq(workflowEdges.id, firstRead.id))
+    })
+
+    await expect(outcome).resolves.toMatchObject({ applied: true })
+    const after = await snapshot(seeded.workflowId)
     expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 8')
   }
 )

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import {
   type BlockCatalog,
   canonicalize,
@@ -153,10 +154,12 @@ function withoutLayout(block: BlockState): Omit<BlockState, (typeof BLOCK_LAYOUT
   return block.data ? { ...rest, data: omit(block.data, [...BLOCK_LAYOUT_DATA_FIELDS]) } : rest
 }
 
+/** `source` without canvas geometry, its edges in id order: the edges read has no ORDER BY. */
 function withoutBlockLayout(source: StoredSource) {
   const blocks: Record<string, ReturnType<typeof withoutLayout>> = {}
   for (const [id, block] of Object.entries(source.state.blocks)) blocks[id] = withoutLayout(block)
-  return { ...source, state: { ...source.state, blocks } }
+  const edges = [...source.state.edges].sort((a, b) => compareStrings(a.id, b.id))
+  return { ...source, state: { ...source.state, blocks, edges } }
 }
 
 /**
