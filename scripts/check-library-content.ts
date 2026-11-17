@@ -139,15 +139,25 @@ const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
 const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/gi
 /** Inline emphasis and code markers, which would otherwise split "**1,000+** integrations". */
 const INLINE_MARKERS = /\*\*|__|[*`]/g
+/** A Markdown link, read as its visible text so "[Zapier](https://zapier.com)'s" names Zapier. */
+const LINK_TEXT = /\[([^\]\n]*)\]\([^)\n]*\)/g
+/** List, heading, and quote markers, or a quoted YAML key such as `a: "`, ahead of the sentence. */
+const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
 const SIM_NAME = /\bSim\b/
-/** A table row's label cell naming Sim, plain or linked: "Sim" or "[Sim](https://www.sim.ai)". */
-const SIM_LABEL = /^\[?Sim\b/
-/** Words that turn a sentence toward another product: "while Zapier lists...", "Unlike Sim, ...". */
+/** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
-/** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
-const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;:])\s+|,?\s+${CONTRAST}\s+`, 'i')
-/** An opening comparison ("Unlike Sim, ...", "Like Sim, ...") whose main clause is about another product. */
-const LEADING_CONTRAST = new RegExp(String.raw`^(?:like|${CONTRAST})\b[^,]*,\s*`, 'i')
+/** A comparison set off by commas inside a sentence, as in "Sim, unlike Zapier, has ...". */
+const PARENTHETICAL_COMPARISON = new RegExp(String.raw`,\s+(?:like|${CONTRAST})\s+[^,\d]*,`, 'gi')
+/**
+ * A sentence end, a contrast that hands the rest of the sentence to another subject, or a
+ * relative clause about a product other than Sim ("Zapier, which has ...").
+ */
+const CLAUSE_BREAK = new RegExp(
+  String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+|(?<!\bSim),\s+(?:which|who)\s+`,
+  'i'
+)
+/** An opening comparison ("Unlike Sim, ...") whose main clause is about another product. */
+const LEADING_COMPARISON = new RegExp(String.raw`^(?:like|${CONTRAST})\b[^,]*,\s*`, 'i')
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -155,13 +165,19 @@ const SIM_COUNT_FLOOR = 0.9
 
 /** Every count in a table row whose first cell names Sim. */
 function simTableRowCounts(row: string): RegExpMatchArray[] {
-  return SIM_LABEL.test(row.split('|')[1]?.trim() ?? '') ? [...row.matchAll(COUNT_CLAIM)] : []
+  return SIM_NAME.test(row.split('|')[1]?.trim().split(/\s/)[0] ?? '')
+    ? [...row.matchAll(COUNT_CLAIM)]
+    : []
 }
 
 /** Each count whose clause names Sim before it, unless another product's possessive owns it. */
 function simProseCounts(text: string): RegExpMatchArray[] {
-  return text.split(CLAUSE_BREAK).flatMap((sentence) => {
-    const clause = sentence.replace(LEADING_CONTRAST, '')
+  const sentences = text
+    .replace(LINE_PREFIX, '')
+    .replace(PARENTHETICAL_COMPARISON, '')
+    .split(CLAUSE_BREAK)
+  return sentences.flatMap((sentence) => {
+    const clause = sentence.replace(LEADING_COMPARISON, '')
     return [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
       const before = clause.slice(0, match.index)
       const owner = POSSESSIVE_OWNER.exec(before)?.[1]
@@ -172,7 +188,7 @@ function simProseCounts(text: string): RegExpMatchArray[] {
 
 /** The counts on one line of text that belong to Sim, with the claim as written. */
 function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
-  const text = line.replace(INLINE_MARKERS, '')
+  const text = line.replace(INLINE_MARKERS, '').replace(LINK_TEXT, '$1')
   const matches = text.trimStart().startsWith('|') ? simTableRowCounts(text) : simProseCounts(text)
   return matches.map((match) => ({
     claim: match[0],

@@ -330,6 +330,9 @@ describe('check-library-content', () => {
     ['Sim listens for events with 300+ triggers.', '300+ triggers', 'stale'],
     ['Sim has **1,000+** integrations.', '1,000+ integrations', 'overstates'],
     ['Sim has 1,000+ Integrations.', '1,000+ Integrations', 'overstates'],
+    ['Sim offers: 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim, unlike Zapier, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim, which ships 1,000+ integrations, runs agents.', '1,000+ integrations', 'overstates'],
     [
       '[Sim](https://www.sim.ai) combines [Chat](https://docs.sim.ai/execution/chat) with 1,000+ integrations.',
       '1,000+ integrations',
@@ -383,13 +386,17 @@ describe('check-library-content', () => {
         'Sim is open source. Workato cites 14,000+ integrations.',
         'Unlike Sim, Zapier lists 9,000+ integrations.',
         'Like Sim, n8n ships 2,000+ integrations.',
+        '- Unlike Sim, Zapier lists 9,000+ integrations.',
+        "Sim has fewer than [Zapier](https://zapier.com)'s 9,000+ integrations.",
+        'Sim is an alternative to Zapier, which has 9,000+ integrations.',
         'Sim has 280+ integrations, while Zapier lists 9,000+ integrations.',
         "Sim has 280+ integrations, fewer than Zapier's 9,000+ integrations.",
         '| n8n | Self-hosted, unlike Sim | 2,000+ integrations |',
         'Teams that need 20 integrations and five builders often pick Sim.',
         '```text\nSim has 1,000+ integrations\n```',
         '````md\n```text\nSim has 1,000+ integrations\n````',
-      ].join('\n\n')
+      ].join('\n\n'),
+      { faq: '\n  - q: "Is Sim like n8n?"\n    a: "Like Sim, n8n ships 2,000+ integrations."' }
     )
     expect(await findingsFor('library', 'post')).toEqual([])
   })
