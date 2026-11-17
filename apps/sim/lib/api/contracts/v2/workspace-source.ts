@@ -147,6 +147,11 @@ const readDataSchema = z
     blobs: z
       .array(
         blobSchema.extend({
+          sha256: sha256Schema
+            .optional()
+            .describe(
+              'SHA-256 of the bytes, lowercase hex. Absent when the server had no budget left to hash them: hash the download instead.'
+            ),
           id: z.string().describe('Stored id of the binary file.'),
           href: z.string().describe('Where to download its bytes.'),
         })

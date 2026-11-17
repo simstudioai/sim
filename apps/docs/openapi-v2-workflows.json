@@ -23947,9 +23947,9 @@
                       "description": "Directory path of the binary file."
                     },
                     "sha256": {
+                      "description": "SHA-256 of the bytes, lowercase hex. Absent when the server had no budget left to hash them: hash the download instead.",
                       "type": "string",
-                      "pattern": "^[0-9a-f]{64}$",
-                      "description": "SHA-256 of the bytes, lowercase hex."
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "size": {
                       "type": "integer",
@@ -23966,7 +23966,7 @@
                       "description": "Where to download its bytes."
                     }
                   },
-                  "required": ["path", "sha256", "size", "id", "href"],
+                  "required": ["path", "size", "id", "href"],
                   "additionalProperties": false
                 },
                 "description": "Binary files, downloaded separately by `href`."

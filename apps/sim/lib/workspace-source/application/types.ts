@@ -90,8 +90,12 @@ export interface AppliedResource {
   diagnostics?: WorkspaceSourceDiagnostic[]
 }
 
-/** A blob a get lists: where to download it beside its hash. */
-export interface ReadBlob extends BlobEntry {
+/**
+ * A blob a get lists: where to download it beside its hash. The hash is absent when the get had
+ * no budget left to download the bytes and hash them; the client hashes what it downloads.
+ */
+export interface ReadBlob extends Omit<BlobEntry, 'sha256'> {
+  sha256?: string
   id: string
   href: string
 }
