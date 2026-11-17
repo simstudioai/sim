@@ -1,7 +1,10 @@
 /**
  * The runtime entry of `@sim/workflow-sdk`. A workflow file is compiled statically and never
- * runs, so every export here throws `SimSdkNotExecutable`. The entry exists only so imports
- * resolve; the types come from `core.d.ts` and the generated block declarations.
+ * runs, so every export here throws `SimSdkNotExecutable`. It lists only the core names, so a
+ * tool that does run a workflow file resolves those imports; an ES module cannot export the
+ * generated block builders (`agent`, `slack`, ...) without naming each, so importing one fails
+ * with "export not found" instead. The types come from `core.d.ts` and the generated block
+ * declarations.
  */
 
 /** Thrown by every runtime export: workflow files are compiled, never executed. */

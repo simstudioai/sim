@@ -165,13 +165,15 @@ Code that does not fit a block goes in a Function block, kept in its own file:
 const score = fn('Score lead', { code: codeFile('./functions/score-lead.js') })
 ```
 
-In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key, its name lowercased with the spaces removed (`$ref.triageagent.content` for "Triage Agent"). A `$ref` that names no block is a warning, because it would not resolve when the workflow runs. Python and shell files are saved as written.
+In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). A `$ref` that names no block is a warning, because it would not resolve when the workflow runs. Python and shell files are saved as written.
 
 ## Use it in CI
 
-Commit the directory to your repository and run `--dry-run` in CI to catch a broken workflow before it is saved. The command exits `0` when the workflow is valid and `1` when it has errors, so a failing check blocks the merge. It exits `5` when the workflow changed since the directory was read.
+Run `sim workflows source apply <workflowId> --dir <dir> --dry-run` in CI to catch a broken workflow before it is saved. It exits `0` when the workflow is valid and `1` when it has errors, so a failing check blocks the merge. It exits `5` when the workflow was changed in the editor after you committed the directory; run `get` again and reapply your edit.
 
-`sim test` runs a workflow's test cases from CI and exits non-zero when one fails. It ships with the workflow CI tests release.
+- **Commit** `workflow.ts`, `functions/`, `.sim/lock.json`, `.sim/base.json`, `tsconfig.json` and `.gitattributes`. CI finds the workflow from `workflowId` in `.sim/base.json`.
+- **Gitignore** `.sim/sdk/` (the generated type declarations, thousands of files) and `.sim/written.json` (the CLI's local record of what it last wrote). The CLI does not write a `.gitignore`, so add these two lines yourself.
+- **Credentials:** CI needs `SIM_API_KEY`, and `SIM_WORKSPACE` unless you pass `--workspace`. Set `SIM_ENDPOINT` too if you use a self-hosted Sim.
 
 ## Working with other people
 
