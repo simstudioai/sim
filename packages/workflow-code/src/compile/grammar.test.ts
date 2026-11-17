@@ -283,6 +283,16 @@ describe('accepted grammar', () => {
     })
   })
 
+  it('references a block whose key holds characters a reference carries', () => {
+    const wf = ok(
+      source(
+        "const its = api(\"it's\", { url: 'x' })\nconst b = api('B', { url: t`${its.data}`, body: its })"
+      )
+    )
+    expect(paramValue(wf, 'b', 'url')).toBe("<it's.data>")
+    expect(paramValue(wf, 'b', 'body')).toBe("<it's>")
+  })
+
   it('compiles loops and parallels with innermost and named loop params', () => {
     const wf = ok(
       source(
@@ -667,6 +677,34 @@ describe('errors, each with its code, location and hint', () => {
       'E_UNSUPPORTED_SYNTAX',
       "threadTs: '1'",
       'Write it in params.',
+    ],
+    [
+      'a reference to a block whose key reads as text',
+      "const qa = api('Q&A', { url: 'x' })\nconst b = api('B', { url: t`${qa.data}` })",
+      'E_REF_UNREPRESENTABLE',
+      'qa.data',
+      'Rename the block without any of < > = + * / ! & | [ ].',
+    ],
+    [
+      'a reference to a block whose key ends the token early',
+      "const xy = api('x>y', { url: 'x' })\nconst b = api('B', { body: xy })",
+      'E_REF_UNREPRESENTABLE',
+      'xy }',
+      undefined,
+    ],
+    [
+      'a reference to a block whose key holds a bracket',
+      "const ab = api('a.b[0]', { url: 'x' })\nconst b = api('B', { url: ab.data })",
+      'E_REF_UNREPRESENTABLE',
+      'ab.data',
+      undefined,
+    ],
+    [
+      'a named loop param of a loop whose key reads as text',
+      "const outer = loop.for('Q&A', { count: 1 }, (p) => {\n  const inner = loop.for('In', { count: 1 }, (r) => {\n    const a = api('A', { url: t`${p.index}` })\n    r.to(a)\n  })\n  p.to(inner)\n})",
+      'E_REF_UNREPRESENTABLE',
+      'p.index',
+      undefined,
     ],
     [
       'two variables whose names normalize alike',
@@ -1114,6 +1152,53 @@ describe('env names the workspace does not hold', () => {
       }),
     ])
   })
+})
+
+describe('numbers JSON cannot carry as written', () => {
+  it.each([
+    ['a value', "const a = api('A', { url: 'x', timeout: 1e999 })", '1e999'],
+    ['a negated value', "const a = api('A', { url: 'x', timeout: -1e999 })", '1e999'],
+    ['a nested value', "const a = api('A', { url: 'x', headers: { n: 1e999 } })", '1e999'],
+    ['a template part', "const a = api('A', { url: t`${1e999}` })", '1e999'],
+  ])('refuses an infinite number in %s', (_label, body, needle) => {
+    const text = source(body)
+    expectDiagnostic(run(text), 'E_NUMBER_NOT_FINITE', locate(text, needle))
+  })
+
+  it('warns that an integer past double precision loses digits, and stores it', () => {
+    const text = source("const a = api('A', { url: 'x', headers: { n: 12345678901234567890 } })")
+    const result = run(text)
+    expectDiagnostic(
+      result,
+      'W_NUMBER_PRECISION',
+      locate(text, '12345678901234567890'),
+      "Write it as a string: '12345678901234567890'."
+    )
+    expect(result.workflow).not.toBeNull()
+  })
+
+  it.each([
+    '0.1',
+    '1.50e3',
+    '1_000_000',
+    '0xFF',
+    '9007199254740991',
+    '1e21',
+    '5e-324',
+    '0.000',
+    '1.7976931348623157e308',
+  ])('keeps %s without a warning', (literal) => {
+    const result = run(source(`const a = api('A', { url: 'x', headers: { n: ${literal} } })`))
+    expect(result.diagnostics.map((d) => d.code)).toEqual([])
+  })
+
+  it.each(['9007199254740993', '0x20000000000000001', '0.12345678901234567890'])(
+    'warns about %s',
+    (literal) => {
+      const result = run(source(`const a = api('A', { url: 'x', headers: { n: ${literal} } })`))
+      expect(result.diagnostics.map((d) => d.code)).toEqual(['W_NUMBER_PRECISION'])
+    }
+  )
 })
 
 describe('table filters the runtime refuses', () => {

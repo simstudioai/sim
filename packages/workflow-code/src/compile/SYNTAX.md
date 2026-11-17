@@ -342,12 +342,16 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 |---|---|
 | `E_SYNTAX` | Babel could not parse the file. |
 | `E_INVALID_CHARACTER` | A NUL or an unpaired UTF-16 surrogate, raw or escaped in a string, in the file or a code file: a workflow cannot store either. |
+| `E_NUMBER_NOT_FINITE` | A number literal too large to store (`1e999` reads as `Infinity`). |
+| `W_NUMBER_PRECISION` | A number literal whose digits a number cannot hold; write it as a string. |
 | `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
 | `E_SDK_MAJOR` | The header's major is newer than the server supports. |
 | `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
 | `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
-| `E_LIMIT_EXCEEDED` | Over the block, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
+| `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
+| `E_TOO_MANY_ERRORS` | The compile stopped after 100 errors; fix those and compile again to see the rest. |
+| `W_TOO_MANY_WARNINGS` | 100 warnings were listed and the rest omitted. |
 | `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
 | `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |
@@ -362,6 +366,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
+| `E_REF_UNREPRESENTABLE` | A reference to a block whose key holds a character a reference cannot carry (`Q&A`, `x>y`); rename the block. |
 | `E_EDGE_SCOPE` | An edge across subflow scopes. |
 | `E_EDGE_NOTE` | An edge to or from a note. |
 | `E_TARGET_TRIGGER` | An edge into a trigger. |

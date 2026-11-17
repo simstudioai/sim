@@ -24,8 +24,8 @@ import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode } from './hints'
-import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource } from './parse'
-import { Reporter } from './report'
+import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
+import { ErrorLimitReached, Reporter } from './report'
 import { collectBody } from './scope'
 import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
 
@@ -60,6 +60,7 @@ export interface CompileInput {
 export interface CompileResult {
   /** `null` iff any diagnostic is an error. Name-keyed, like every CWM: ids bind in materialize. */
   workflow: CanonicalWorkflow | null
+  /** Spans into the entry count from after a leading byte order mark (see `compileWorkflow`). */
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
@@ -347,17 +348,33 @@ const BYTE_ORDER_MARK = '\uFEFF'
  * imports and every block declaration, nested bodies included; pass 2 evaluates values,
  * references, branches and wiring against the catalog. Nothing in the file is executed: values are
  * read from literal syntax only, and anything else is a located diagnostic.
+ *
+ * A leading byte order mark (Windows editors, PowerShell 5.1) is dropped before anything reads the
+ * entry, so it cannot hide the SDK header. Every span of the entry, offsets included, is into the
+ * text after it, which is also where editors put line 1 column 1.
  */
 export function compileWorkflow(input: CompileInput): CompileResult {
-  const limits = { ...DEFAULT_LIMITS, ...input.limits }
   const file = input.entry.path
-  // A leading BOM (Windows editors, PowerShell 5.1) would hide the SDK header on the first line.
   const text = input.entry.text.startsWith(BYTE_ORDER_MARK)
     ? input.entry.text.slice(BYTE_ORDER_MARK.length)
     : input.entry.text
   const reporter = new Reporter()
   reporter.addFile(file, text)
+  try {
+    return compileEntry(input, file, text, reporter)
+  } catch (error) {
+    if (error instanceof ErrorLimitReached) return emptyResult(reporter, sdkHeader(text).sdkMajor)
+    throw error
+  }
+}
 
+function compileEntry(
+  input: CompileInput,
+  file: string,
+  text: string,
+  reporter: Reporter
+): CompileResult {
+  const limits = { ...DEFAULT_LIMITS, ...input.limits }
   checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {

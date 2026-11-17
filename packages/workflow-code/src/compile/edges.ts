@@ -45,6 +45,8 @@ const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as c
 
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
+  /** Set once wiring would exceed `limits.maxEdges`; every later edge is dropped unchecked. */
+  private full = false
   private readonly seen = new Set<string>()
   private readonly scopeBlocks: Record<string, WorkflowEdgeScopeBlock> = {}
 
@@ -84,6 +86,7 @@ export class EdgeCollector {
     anchors: AnchorKey[],
     viaEdgeCall = false
   ): boolean {
+    if (this.full) return false
     const source = this.blocks.get(from.key)
     const target = this.blocks.get(to.key)
     if (!source || !target) return false
@@ -127,6 +130,16 @@ export class EdgeCollector {
         `${from.name} is already wired to ${to.name} from this port.`,
         node,
         'Remove the repeated edge.'
+      )
+      return false
+    }
+    if (this.edges.length === this.ctx.limits.maxEdges) {
+      this.full = true
+      this.error(
+        'E_LIMIT_EXCEEDED',
+        `The wiring adds more than ${this.ctx.limits.maxEdges} edges, the limit.`,
+        node,
+        'Split the workflow, moving parts into child workflows.'
       )
       return false
     }
@@ -298,7 +311,9 @@ export class EdgeCollector {
         port = this.defaultPort(source, statement)
         if (!port) return null
       }
-      for (const target of targets) this.add(source.decl, port, target, statement, anchors)
+      for (const target of targets) {
+        if (!this.add(source.decl, port, target, statement, anchors) && this.full) return null
+      }
     }
     if (method === 'onError') return 'void'
     return targets.map((decl) => ({ decl, port: null }))

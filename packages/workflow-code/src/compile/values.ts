@@ -595,9 +595,46 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           { hint: 'Declare blocks before the blocks that read them.', blockKey: site.decl.key }
         )
       }
-      return `<${formatStoredPath([{ kind: 'name', name: target.key }, ...segments])}>`
+      return blockRefToken(
+        ctx,
+        node,
+        target,
+        [{ kind: 'name', name: target.key }, ...segments],
+        site
+      )
     }
   }
+}
+
+/** A key holding a bracket splits at it: the runtime reads `<ab[0].data>` as block `ab`. */
+const BRACKET = /[[\]]/
+
+/**
+ * The `<key.path>` token for a reference whose head is `target`'s key, or `null` after
+ * `E_REF_UNREPRESENTABLE` when the runtime would not read the token as one reference to it: a
+ * key holding an operator character (`q&a`) reads as text, `>` ends the token early (`x>y`), and
+ * a bracket splits the head (`ab[0]`).
+ */
+function blockRefToken(
+  ctx: CompileContext,
+  node: Node,
+  target: BlockDecl,
+  path: RefSegment[],
+  site: ValueSite
+): string | null {
+  const token = `<${formatStoredPath(path)}>`
+  const [found, ...more] = findWorkflowReferenceTokens(token)
+  if (!BRACKET.test(target.key) && more.length === 0 && found?.value === token) return token
+  ctx.reporter.report(
+    'E_REF_UNREPRESENTABLE',
+    `${target.name} is keyed ${target.key}, which a reference cannot name: ${token} would not resolve to it at run time.`,
+    rangeOf(ctx, node),
+    {
+      hint: 'Rename the block without any of < > = + * / ! & | [ ].',
+      blockKey: site.decl.key,
+    }
+  )
+  return null
 }
 
 function segmentsOf(
@@ -648,7 +685,7 @@ function checkOutputPath(
         'W_UNKNOWN_OUTPUT_PATH',
         `A ${containerKind} has no output ${first.name}.`,
         at,
-        { hint: didYouMean(first.name, known), blockKey }
+        { hint: () => didYouMean(first.name, known), blockKey }
       )
     }
     return
@@ -695,7 +732,8 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
             `${written}: no workflow variable is keyed ${name}.`,
             at,
             {
-              hint: didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
+              hint: () =>
+                didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
               blockKey,
             }
           )
@@ -718,7 +756,7 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
         {
           hint: suggested
             ? `${REF_ROOT} names a block by its key: write ${formatMemberPath(REF_ROOT, [{ kind: 'name', name: suggested.key }, ...rest])}.`
-            : didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+            : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
           blockKey,
         }
       )
@@ -756,8 +794,11 @@ function subflowScopeRef(
   const innermostOfKind = enclosingContainers(site.decl).find(
     (decl) => containerKindOf(decl) === kind
   )
-  const head = innermostOfKind === container ? kind : container.key
-  return `<${formatStoredPath([{ kind: 'name', name: head }, { kind: 'name', name: property }, ...rest])}>`
+  const path: RefSegment[] = [{ kind: 'name', name: property }, ...rest]
+  if (innermostOfKind === container) {
+    return `<${formatStoredPath([{ kind: 'name', name: kind }, ...path])}>`
+  }
+  return blockRefToken(ctx, node, container, [{ kind: 'name', name: container.key }, ...path], site)
 }
 
 function templateText(

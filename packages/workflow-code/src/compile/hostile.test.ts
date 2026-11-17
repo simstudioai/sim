@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
+import { MAX_ERRORS, MAX_WARNINGS, Reporter } from './report'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
@@ -142,6 +143,73 @@ describe('hostile sources produce diagnostics only', () => {
     ).toBe(true)
   })
 
+  it('stops after 100 errors, framing a 40 KB line in bounded output', () => {
+    const result = run(wrap('x;'.repeat(20_000)))
+    expect(result.workflow).toBeNull()
+    expect(result.diagnostics).toHaveLength(MAX_ERRORS + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('E_TOO_MANY_ERRORS')
+    const frameChars = result.diagnostics.reduce((sum, d) => sum + d.frame.length, 0)
+    expect(frameChars).toBeLessThan(result.diagnostics.length * 1_000)
+  })
+
+  it('lists 100 warnings and omits the rest without failing the compile', () => {
+    let body = ''
+    for (let i = 0; i < 150; i++) body += `const a${i} = api('A${i}', { url: a${i + 1}.data })\n`
+    body += `const a150 = api('A150', { url: 'x' })`
+    const result = run(wrap(body))
+    expect(result.workflow).not.toBeNull()
+    expect(result.diagnostics).toHaveLength(MAX_WARNINGS + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
+  })
+
+  it('never computes the did-you-mean of a warning past the cap', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    let computed = 0
+    for (let i = 0; i < 1_000; i++) {
+      reporter.report(
+        'W_UNRESOLVED_REF',
+        'x',
+        { file: 'w.ts', start: 0, end: 1 },
+        {
+          hint: () => {
+            computed++
+            return 'Did you mean y?'
+          },
+        }
+      )
+    }
+    expect(computed).toBe(MAX_WARNINGS)
+    expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
+  })
+
+  it('caps a diagnostic message that quotes a huge name', () => {
+    const name = 'n'.repeat(100_000)
+    const result = run(
+      wrap(`const a = api('${name}', { url: 'x' })\nconst b = api('${name}', { url: 'x' })`)
+    )
+    expect(codes(result)).toContain('E_DUPLICATE_NAME')
+    for (const d of result.diagnostics) expect(d.message.length).toBeLessThanOrEqual(1_001)
+  })
+
+  it('refuses fan-out past the edge cap and stops adding edges', () => {
+    const ids = Array.from({ length: 300 }, (_, i) => `a${i}`)
+    const blocks = ids.map((id) => `const ${id} = api('${id}', { url: 'x' })`).join('\n')
+    const wiring = `a0.to(${ids.slice(1, 150).join(', ')}).to(${ids.slice(150).join(', ')})`
+    const result = run(wrap(`${blocks}\n${wiring}`))
+    expect(result.workflow).toBeNull()
+    expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
+  it('accepts wiring at the edge cap and refuses one edge more', () => {
+    const blocks =
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: 'x' })\nconst c = api('C', { url: 'x' })"
+    expect(run(wrap(`${blocks}\na.to(b, c)`), { maxEdges: 2 }).workflow?.edges).toHaveLength(2)
+    const over = run(wrap(`${blocks}\na.to(b, c)\nb.to(c)`), { maxEdges: 2 })
+    expect(over.workflow).toBeNull()
+    expect(codes(over)).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
   it('never reads a code file outside the repository or past the size cap', () => {
     const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
     const result = run(text, { maxTotalBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
@@ -261,6 +329,23 @@ describe('one set of limits for get and compile', () => {
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).not.toBeNull()
   })
 
+  it('skips regex literal bodies, so many regexes with brackets and quotes pass', () => {
+    const lines = Array.from({ length: 250 }, (_, i) =>
+      [
+        `const p${i} = s.split(/\\(/)`,
+        `if (/'/.test(s${i})) { go() }`,
+        `const u${i} = /^https?:\\/\\/x[({]/.test(s) && (a)`,
+      ].join('\n')
+    )
+    const files = {
+      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./regex.js') })\n})\n`,
+      'workflows/regex.js': `${lines.join('\n')}\nreturn 1\n`,
+    }
+    const { 'workflows/hostile.ts': entry, ...codeFiles } = files
+    expect(errorCodes(run(entry, undefined, codeFiles))).toEqual([])
+    expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
+  })
+
   it('passes a source nested within the cap', () => {
     const files = { 'workflows/hostile.ts': entryWith(nested(20)) }
     expect(errorCodes(run(files['workflows/hostile.ts']))).not.toContain('E_LIMIT_EXCEEDED')
@@ -283,10 +368,13 @@ describe('characters a workflow cannot store', () => {
     expect(refused).toHaveLength(1)
   })
 
-  it('refuses a NUL in a code file', () => {
+  it('refuses a NUL in a code file at its line, for the block reading it', () => {
     const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n})\n`
-    const result = run(text, undefined, { 'workflows/f.js': 'return "\u0000"\n' })
-    expect(errorCodes(result)).toContain('E_INVALID_CHARACTER')
+    const code = 'const a = 1\nreturn "x\u0000"\n'
+    const result = run(text, undefined, { 'workflows/f.js': code })
+    const refused = result.diagnostics.find((d) => d.code === 'E_INVALID_CHARACTER')
+    expect(refused?.span).toMatchObject({ file: 'workflows/f.js', line: 2, column: 10 })
+    expect(refused?.blockKey).toBe('f')
   })
 
   it('keeps a well-formed astral character, raw or escaped', () => {

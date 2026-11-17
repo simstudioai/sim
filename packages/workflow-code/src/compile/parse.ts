@@ -2,6 +2,7 @@ import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
 import { type BabelErrorShape, babelErrorShape, childNodes } from '../babel'
 import { codeFileLanguage } from '../code-files'
+import { createJsContextScanner } from '../code-files/lexer'
 import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
 
@@ -9,6 +10,8 @@ import type { Reporter } from './report'
 export interface CompileLimits {
   /** Block declarations in the workflow. */
   maxBlocks?: number
+  /** Edges the wiring adds, implied subflow starts included. */
+  maxEdges?: number
   /** Bytes of the entry plus the distinct code files `codeFile()` references. */
   maxTotalBytes?: number
   /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
@@ -25,6 +28,7 @@ export interface CompileLimits {
  */
 export const DEFAULT_LIMITS: Required<CompileLimits> = {
   maxBlocks: SOURCE_LIMITS.maxBlocks,
+  maxEdges: SOURCE_LIMITS.maxEdges,
   maxTotalBytes: SOURCE_LIMITS.maxTotalBytes,
   maxDepth: SOURCE_LIMITS.maxDepth,
   /** One code file per block. */
@@ -44,54 +48,23 @@ const PARSER_OPTIONS: ParserOptions = {
 
 /**
  * Offset at which bracket nesting first exceeds `maxDepth`, or -1. Runs before Babel, whose
- * recursive descent would otherwise overflow the stack on a depth bomb. Strings, templates and
- * comments are skipped well enough that their brackets never count; regex bodies may, which only
- * matters for pathological input that is rejected anyway.
+ * recursive descent would otherwise overflow the stack on a depth bomb. Only brackets in code
+ * count: strings, templates, regex literals and comments are skipped by the code-file lexer
+ * (`createJsContextScanner`), so `/\(/` is not an open parenthesis. A template's `${` counts as
+ * one level.
  */
 export function bracketDepthOverflow(text: string, maxDepth: number): number {
-  const templateDepths: number[] = []
+  const scanner = createJsContextScanner(text)
   let depth = 0
   for (let i = 0; i < text.length; i++) {
     const char = text[i]
-    const next = text[i + 1]
-    if (char === '/' && next === '/') {
-      const end = text.indexOf('\n', i)
-      i = end === -1 ? text.length : end
-      continue
-    }
-    if (char === '/' && next === '*') {
-      const end = text.indexOf('*/', i + 2)
-      i = end === -1 ? text.length : end + 1
-      continue
-    }
-    if (char === "'" || char === '"') {
-      for (i++; i < text.length && text[i] !== char && text[i] !== '\n'; i++) {
-        if (text[i] === '\\') i++
-      }
-      continue
-    }
-    if (char === '`' || (char === '}' && templateDepths[templateDepths.length - 1] === depth)) {
-      if (char === '}') {
-        templateDepths.pop()
-        depth--
-      }
-      for (i++; i < text.length && text[i] !== '`'; i++) {
-        if (text[i] === '\\') {
-          i++
-        } else if (text[i] === '$' && text[i + 1] === '{') {
-          depth++
-          templateDepths.push(depth)
-          i++
-          break
-        }
-      }
-      if (depth > maxDepth) return i
-      continue
-    }
-    if (char === '(' || char === '[' || char === '{') {
+    const opens = char === '(' || char === '[' || char === '{'
+    if (!opens && char !== ')' && char !== ']' && char !== '}') continue
+    if (scanner.contextAt(i) !== 'code') continue
+    if (opens) {
       depth++
       if (depth > maxDepth) return i
-    } else if (char === ')' || char === ']' || char === '}') {
+    } else {
       depth = Math.max(0, depth - 1)
     }
   }
@@ -123,6 +96,15 @@ interface ParsedSource {
   headerEnd: number
 }
 
+/** The `// @sim-sdk N` header on the first line: its major and end offset. */
+export function sdkHeader(text: string): Pick<ParsedSource, 'sdkMajor' | 'headerEnd'> {
+  const header = HEADER.exec(text)
+  return {
+    sdkMajor: header ? Number(header[1]) : null,
+    headerEnd: header ? header[0].length : 0,
+  }
+}
+
 /**
  * Parses a workflow file with Babel (typescript, errorRecovery, attachComment) after the
  * byte and bracket-depth caps, then checks the AST depth cap. Babel errors are
@@ -134,12 +116,7 @@ export function parseWorkflowSource(
   limits: Required<CompileLimits>,
   reporter: Reporter
 ): ParsedSource {
-  const header = HEADER.exec(text)
-  const parsed: ParsedSource = {
-    ast: null,
-    sdkMajor: header ? Number(header[1]) : null,
-    headerEnd: header ? header[0].length : 0,
-  }
+  const parsed: ParsedSource = { ast: null, ...sdkHeader(text) }
 
   if (utf8Bytes(text, limits.maxTotalBytes) > limits.maxTotalBytes) {
     reporter.report(

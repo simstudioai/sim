@@ -25,13 +25,24 @@ type CompileSyntaxCode =
   | 'E_UNSUPPORTED_SYNTAX'
   /** Not exactly one `export default workflow(...)`. */
   | 'E_WORKFLOW_EXPORT'
-  /** Source exceeds the byte, AST node or depth cap. */
+  /** Source exceeds the block, edge, byte, depth or `codeFile()` reference cap. */
   | 'E_LIMIT_EXCEEDED'
   /**
    * A NUL character or an unpaired UTF-16 surrogate, raw or escaped in a literal: a workflow
    * cannot store either (`compile/characters.ts`).
    */
   | 'E_INVALID_CHARACTER'
+  /** A numeric literal that reads as `Infinity` (`1e999`), which JSON stores as `null`. */
+  | 'E_NUMBER_NOT_FINITE'
+  /** A numeric literal whose digits a double cannot hold (`12345678901234567890`). */
+  | 'W_NUMBER_PRECISION'
+  /**
+   * The compile stopped at `MAX_ERRORS` errors; this one sits where the next error was found.
+   * Fixing the errors listed and compiling again shows the rest.
+   */
+  | 'E_TOO_MANY_ERRORS'
+  /** `MAX_WARNINGS` warnings were listed; this one sits where the next was found, and the rest are omitted. */
+  | 'W_TOO_MANY_WARNINGS'
 
 /** Names, identifiers and scope. */
 type CompileScopeCode =
@@ -67,6 +78,11 @@ type CompileScopeCode =
    * kept verbatim, so a rename never rewrites it. `hint` names the ident form.
    */
   | 'W_REF_NOT_NORMALIZED'
+  /**
+   * A reference to a block whose key holds a character a stored reference cannot carry (`&`, `>`,
+   * `[`...): the runtime would read the token as text or as another block.
+   */
+  | 'E_REF_UNREPRESENTABLE'
 
 /** Wiring. */
 type CompileEdgeCode =

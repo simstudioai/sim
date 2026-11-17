@@ -80,4 +80,29 @@ describe('codeFrame', () => {
     expect(frame).toBe(['  1 | a', '  2 |', '> 3 | b', '    | ^'].join('\n'))
     expect(frame).not.toContain('\u001b')
   })
+
+  it('shows a window of a long line around the column, so frame size does not grow with the line', () => {
+    const long = `${'a'.repeat(100_000)}X${'b'.repeat(100_000)}`
+    const frame = codeFrame(`ctx\n${long}\nctx`, { line: 2, column: 100_001, endColumn: 100_002 })
+    const [before, focal, caret, after] = frame.split('\n')
+    expect(frame.length).toBeLessThan(800)
+    expect(before).toBe('  1 | …')
+    expect(after).toBe('  3 | …')
+    expect(focal).toBe(`> 2 | …${'a'.repeat(60)}X${'b'.repeat(99)}…`)
+    expect(caret.indexOf('^') - '    | '.length).toBe(focal.indexOf('X') - '> 2 | '.length)
+  })
+
+  it('keeps the window at the end of a long line and caps carets at the window', () => {
+    const long = 'a'.repeat(1_000)
+    const frame = codeFrame(long, { line: 1, column: 991, endColumn: 2_000 })
+    const [focal, caret] = frame.split('\n')
+    expect(focal).toBe(`> 1 | …${'a'.repeat(160)}`)
+    expect(caret).toBe(`    | ${' '.repeat(151)}${'^'.repeat(10)}`)
+  })
+
+  it('clips a long context line under a short framed line', () => {
+    expect(codeFrame(`ab\n${'c'.repeat(500)}`, { line: 1, column: 1 })).toBe(
+      ['> 1 | ab', '    | ^', `  2 | ${'c'.repeat(160)}…`].join('\n')
+    )
+  })
 })

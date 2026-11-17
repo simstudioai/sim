@@ -332,7 +332,8 @@ function readCodeFile(
   }
   const cached = budget.reads.get(path)
   if (cached !== undefined) return cached === null ? null : { code: cached, path }
-  if (!checkStorableText(path, text, ctx.reporter)) {
+  ctx.reporter.addFile(path, text)
+  if (!checkStorableText(path, text, ctx.reporter, decl.key)) {
     budget.reads.set(path, null)
     return null
   }
@@ -364,7 +365,6 @@ function parseCodeFile(
     )
     return null
   }
-  ctx.reporter.addFile(path, text)
   if (language === 'javascript') {
     const overflowAt = bracketDepthOverflow(text, limits.maxDepth)
     if (overflowAt !== -1) {
