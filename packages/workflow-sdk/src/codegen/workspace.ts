@@ -24,9 +24,11 @@ export interface WorkspaceManifestColumn {
 export interface WorkspaceManifest {
   tables?: Record<string, { columns: Record<string, WorkspaceManifestColumn> }>
   /**
-   * Keys of the tables a workspace source directory declares (`tables/<key>.ts`). Each is typed
-   * from its declaration (`RowOf<typeof import('../../tables/<key>').default>`), so a workflow
-   * can use a table before any apply creates it; it replaces a stored table of the same key.
+   * Keys of the tables a workspace source directory declares (`tables/<key>.ts`), as the CLI
+   * listed them when it wrote this file (a get). Each is typed from its declaration
+   * (`RowOf<typeof import('../../tables/<key>').default>`), so its row type follows an edit of its
+   * columns without regenerating the file, and it replaces a stored table of the same key. A
+   * table declared after the file was written is not typed until the next get.
    */
   tableDeclarations?: string[]
   knowledgeBases?: string[]
