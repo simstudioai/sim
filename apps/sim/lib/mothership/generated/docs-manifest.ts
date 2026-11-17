@@ -515,4 +515,5 @@ export const DOCS_MANIFEST: readonly string[] = [
   'workflows/triggers/table.mdx',
   'workflows/triggers/webhook.mdx',
   'workflows/variables.mdx',
+  'workflows/workspace-code.mdx',
 ]

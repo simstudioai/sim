@@ -66,11 +66,19 @@ function folderTexts(dir: string, files: NonNullable<Embedded['files']>): Record
   )
 }
 
+/**
+ * `value` as a TypeScript literal. Single quotes are written as `\u0027` so embedded source, such
+ * as a `.d.ts` re-exporting `'./file'`, never reads as one of this module's own imports.
+ */
+function literal(value: unknown): string {
+  return JSON.stringify(value).replaceAll("'", '\\u0027')
+}
+
 for (const { source, target, name, doc, files } of EMBEDDED) {
   const absolute = path.join(packageRoot, source)
   const declaration = files
-    ? `export const ${name}: Readonly<Record<string, string>> = ${JSON.stringify(folderTexts(absolute, files))}`
-    : `export const ${name} = ${JSON.stringify(readFileSync(absolute, 'utf8'))}`
+    ? `export const ${name}: Readonly<Record<string, string>> = ${literal(folderTexts(absolute, files))}`
+    : `export const ${name} = ${literal(readFileSync(absolute, 'utf8'))}`
   writeFileSync(
     path.join(packageRoot, target),
     [

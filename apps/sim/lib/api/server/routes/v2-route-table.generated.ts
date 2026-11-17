@@ -225,6 +225,11 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       ),
   },
   {
+    pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content',
+    load: () =>
+      import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content/route'),
+  },
+  {
     pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/from-workspace-files',
     load: () =>
       import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files/route'),
@@ -1007,6 +1012,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/permission-config',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/route'),
   },
   {
     pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
