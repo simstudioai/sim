@@ -4,9 +4,10 @@ import {
   type CanonicalModeOverrides,
   resolveCanonicalMode,
 } from '@sim/workflow-code/catalog/canonical-index'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
-import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowRemapInternalIds')
 
