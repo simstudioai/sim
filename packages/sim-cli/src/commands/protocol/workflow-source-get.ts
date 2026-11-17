@@ -240,14 +240,14 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 
 ## Edit loop (run from this directory)
 
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`tsc -p .\` type-checks locally.
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`bunx tsc -p .\` type-checks locally (the directory has no \`package.json\`, so \`tsc\` itself may not be installed; \`bunx\` fetches it).
 2. \`sim workflows source apply <workflowId> --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
 3. \`sim workflows source apply <workflowId> --dir . --yes\`: saves the draft (never deploys) and rewrites this directory from what was stored.
 4. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`.
 
 Lines starting \`note:\` explain something the write did differently than the source says (a renamed workflow keeps its stored name, for example); read them.
 
-A new workflow: \`sim workflows source create --dir <new dir>\` on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
+A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
 
 ## File shape
 
@@ -278,7 +278,7 @@ Findings print as \`file:line:column severity CODE: message\`, then the code fra
 ## Rules
 
 - Beside the header and the imports from \`@sim/workflow-sdk\`, the file holds only the default-exported workflow. Its callback holds block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
-- Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.blockKey.path\` (the block's key: its name lowercased without spaces, not its variable) and env vars as \`$env.NAME\`.
+- Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.blockKey.path\` (the block's key: its name lowercased with every whitespace run and every \`.\` removed, so "Triage Agent" is \`triageagent\`; not its variable) and env vars as \`$env.NAME\`.
 - A table block's row is \`{ id, data }\`: read a cell as \`row.data.column\` (in a loop over \`query.rows\`, \`p.currentItem.data.column\`).
 - Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\` as written: they bind each block to its stored id and make the next apply safe.
 
