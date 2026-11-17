@@ -109,6 +109,7 @@ export type CatalogField =
       members: CatalogSubBlock[]
     }
 
+/** The params a block surface accepts, indexed by written name, original param name, member id and subBlock id. */
 export interface FieldIndex {
   /** By written name: the alias, else the subBlock id for singles or canonical id for groups. */
   fields: Map<string, CatalogField>

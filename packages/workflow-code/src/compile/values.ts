@@ -88,6 +88,7 @@ export type CompiledValue =
 
 const SELECTOR_FORMS: ReadonlySet<ValueForm> = new Set(['resource', 'file'])
 
+/** Whether the value was written as a resource or file reference, which the workspace's selectors resolve. */
 export function isSelectorForm(form: ValueForm): boolean {
   return SELECTOR_FORMS.has(form)
 }
@@ -959,6 +960,7 @@ export function compileNested(ctx: CompileContext, node: Node, site: ValueSite):
   return compiled ? nestedValue(ctx, node, compiled, site) : undefined
 }
 
+/** Narrows an already compiled value to a plain nested `Value` (`absent` is `null`); `undefined` after reporting an error. */
 export function nestedValue(
   ctx: CompileContext,
   node: Node,

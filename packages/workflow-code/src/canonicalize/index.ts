@@ -77,6 +77,7 @@ function lockBranchKeysById(
   return result
 }
 
+/** Inputs to `canonicalize`. */
 export interface CanonicalizeOptions {
   catalog: BlockCatalog
   /** The workflow row's name and description, which `WorkflowState` does not carry. */
@@ -86,6 +87,7 @@ export interface CanonicalizeOptions {
   resources?: ResourceKeyResolver
 }
 
+/** The canonical workflow with its key-to-id identity, stored layout and diagnostics. */
 export interface CanonicalizeResult {
   workflow: CanonicalWorkflow
   /** Key → id for every block, branch, item and variable in `workflow`. */

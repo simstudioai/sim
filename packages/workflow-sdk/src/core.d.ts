@@ -376,6 +376,7 @@ export declare function block(
 
 export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
 
+/** A workflow variable declared in `workflow(name, { variables })`: its type and initial value. */
 export interface VariableDeclaration {
   /** The display name, written only when it differs from the key. */
   name?: string
@@ -383,6 +384,7 @@ export interface VariableDeclaration {
   value: Json
 }
 
+/** The variables a workflow declares, by name. */
 export type VariableDeclarations = Record<string, VariableDeclaration>
 
 declare const VAR: unique symbol
@@ -400,6 +402,7 @@ type VariableValue<T extends VariableType> = T extends 'number'
       ? string
       : Json
 
+/** `vars` in the workflow body: one typed reference per declared variable. */
 export type VarRefs<V extends VariableDeclarations> = {
   readonly [K in keyof V]: VarRef & Ref<VariableValue<V[K]['type']>>
 }

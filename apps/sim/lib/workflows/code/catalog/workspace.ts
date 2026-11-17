@@ -19,12 +19,11 @@ interface SourceCatalogScope {
 
 /**
  * Built workspace catalogs by content key ({@link catalogCacheKey}). A build projects and hashes
- * the whole registry (about 80 ms warm, 250 ms cold), and every source get, apply and catalog read
- * asks for one. Distinct keys per process are few: one per distinct gate outcome (visibility,
+ * the whole registry, and every source get, apply and catalog read asks for one. Distinct keys per process are few: one per distinct gate outcome (visibility,
  * allowlist, a workspace's custom blocks). A workflow's not-addable stored types are overlaid on
  * the cached entry per request ({@link withNotAddableBlocks}), never part of the key, so callers
- * whose workflows hold different hidden types share one entry. An entry is about 6 MB of heap, so
- * the ceiling (about 100 MB) is a memory backstop, not an operating limit.
+ * whose workflows hold different hidden types share one entry. An entry is several MB of heap, so
+ * the ceiling is a memory backstop, not an operating limit.
  *
  * No TTL and no invalidator: the key is the content the build reads, so a custom block publish,
  * an allowlist change or a preview reveal yields a new key, and the old entry ages out. Built-in
