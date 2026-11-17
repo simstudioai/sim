@@ -378,10 +378,6 @@ function isCredentialField(blockType: string, field: string): boolean {
   )
 }
 
-function sandboxChanged(entry: GatedBlock): boolean {
-  return entry.changedFields.includes(SANDBOX_SUBBLOCK_ID)
-}
-
 /**
  * Runs the editing engine's per-user gates over the diff from `base` (the stored graph) to
  * `target` (the materialized source) and returns one diagnostic per refusal. Error diagnostics
@@ -486,7 +482,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     }
   }
 
-  const sandboxBlocks = gated.filter(sandboxChanged)
+  const sandboxBlocks = gated.filter((entry) => entry.changedFields.includes(SANDBOX_SUBBLOCK_ID))
   const [credentialErrors, hasSandboxAccess] = await Promise.all([
     gateCredentialInputs(gated, base, { userId: subjectUserId, workspaceId }),
     sandboxBlocks.length > 0 ? hasWorkspaceSandboxAccess(workspaceId) : true,
