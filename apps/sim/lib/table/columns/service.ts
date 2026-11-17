@@ -1390,26 +1390,28 @@ export async function countEmptyCells(
   return result?.count ?? 0
 }
 
-/** Rows holding a value in `columnKey`: the cells deleting the column would lose. */
-export async function countFilledCells(
+/**
+ * Rows holding a value in each of `columnKeys` (the cells deleting that column would lose), in one
+ * pass over the table's rows: column key → filled cells.
+ */
+export async function countFilledCellsByColumn(
   executor: DbExecutor,
   tableId: string,
   workspaceId: string,
-  columnKey: string
-): Promise<number> {
-  const [result] = await executor
-    .select({ count: count() })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId),
-        sql`${userTableRows.data} ? ${columnKey}`,
-        sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`,
-        sql`${userTableRows.data}->${columnKey}::text <> '[]'::jsonb`
-      )
+  columnKeys: readonly string[]
+): Promise<Map<string, number>> {
+  if (columnKeys.length === 0) return new Map()
+  const filled = (columnKey: string) =>
+    sql<number>`count(*) filter (where ${userTableRows.data} ? ${columnKey} and ${userTableRows.data}->>${columnKey}::text is not null and ${userTableRows.data}->${columnKey}::text <> '[]'::jsonb)`.mapWith(
+      Number
     )
-  return result?.count ?? 0
+  const [row] = await executor
+    .select(
+      Object.fromEntries(columnKeys.map((columnKey, index) => [`c${index}`, filled(columnKey)]))
+    )
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)))
+  return new Map(columnKeys.map((columnKey, index) => [columnKey, row?.[`c${index}`] ?? 0]))
 }
 
 /**

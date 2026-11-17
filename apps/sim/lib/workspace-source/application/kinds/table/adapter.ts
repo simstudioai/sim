@@ -67,6 +67,9 @@ function storedTable(key: string, state: StoredTableState): StoredTable {
   return { key, id: state.table.id, name: state.table.name, state }
 }
 
+/** The table folder paths a load read, so the plan that follows checks folders without re-reading. */
+const loadedFolders = new WeakMap<StoredSet<StoredTableState>, ReadonlySet<string>>()
+
 async function folderIndex(workspaceId: string) {
   return loadActiveFolderPathIndex(workspaceId, 'table', undefined, {
     maxRows: MAX_FOLDERS_PER_WORKSPACE,
@@ -307,11 +310,15 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       name: table.name,
       state: { table, folderPath: tableFolderPathForId(folders, table.folderId) },
     }))
-    return bindStored(ctx, 'table', records, { allocate })
+    const set = await bindStored(ctx, 'table', records, { allocate })
+    loadedFolders.set(set, new Set(folders.pathById.values()))
+    return set
   },
 
   async plan(desired, stored, ctx) {
-    const folders = new Set((await folderIndex(ctx.workspace.workspaceId)).pathById.values())
+    const folders =
+      loadedFolders.get(stored) ??
+      new Set((await folderIndex(ctx.workspace.workspaceId)).pathById.values())
     const changes: TableChange[] = []
     const declaredNames = new Map<string, string>()
     for (const [key, decl] of desired) {

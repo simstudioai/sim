@@ -16,7 +16,7 @@ import { getColumnId } from '@/lib/table/column-keys'
 import {
   countCellsLosingTheirOptions,
   countEmptyCells,
-  countFilledCells,
+  countFilledCellsByColumn,
   getColumnRetypeScanBatchSize,
   isValueCompatibleWithColumn,
   readColumnRetypePage,
@@ -194,11 +194,15 @@ export async function diffTable(
   const columns = sourceColumns(table)
   const pairs = pairColumns(decl, columns, bindings)
   const paired = new Set([...pairs.values()].map((column) => getColumnId(column)))
-  const count = (columnId: string) => countFilledCells(db, table.id, table.workspaceId, columnId)
-
-  for (const column of columns) {
-    if (paired.has(getColumnId(column))) continue
-    const cells = await count(getColumnId(column))
+  const unpaired = columns.filter((column) => !paired.has(getColumnId(column)))
+  const filled = await countFilledCellsByColumn(
+    db,
+    table.id,
+    table.workspaceId,
+    unpaired.map((column) => getColumnId(column))
+  )
+  for (const column of unpaired) {
+    const cells = filled.get(getColumnId(column)) ?? 0
     changes.columns.push({
       op: 'drop',
       key: column.name,
