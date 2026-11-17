@@ -1,10 +1,24 @@
+import { z } from 'zod'
 import {
   documentedSchema,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
-import { defineOpenApiRoute } from '@/lib/api/openapi/types'
+import { defineOpenApiRoute, type OpenApiHeader } from '@/lib/api/openapi/types'
+
+/** Response headers only the source catalog sends, for the document that publishes it. */
+export const SOURCE_CATALOG_HEADERS = {
+  ETag: {
+    schema: z.string().min(1).meta({
+      id: 'ETagHeader',
+      title: 'Entity tag',
+      description:
+        'The catalog `hash`, quoted. Send it back in `If-None-Match` to revalidate the catalog.',
+    }),
+  },
+} as const satisfies Readonly<Record<string, OpenApiHeader>>
+
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
 const BLOCK_CATALOG_EXAMPLE = {
@@ -46,9 +60,13 @@ export const sourceCatalogOpenApiRoutes = [
       tags: ['Catalog'],
       errors: RESOURCE_ERRORS,
       success: {
-        description:
-          'The source catalog. A request whose `If-None-Match` matches the current `ETag` gets `304 Not Modified` with no body instead.',
-        headers: RATE_LIMIT_HEADERS,
+        description: 'The source catalog.',
+        headers: ['ETag', ...RATE_LIMIT_HEADERS],
+        notModified: {
+          description:
+            'The caller already holds the current catalog: `If-None-Match` names the current `ETag`. The response has no body.',
+          headers: ['ETag'],
+        },
       },
     },
     {
