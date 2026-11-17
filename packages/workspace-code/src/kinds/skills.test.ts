@@ -48,7 +48,8 @@ describe('skillCodec', () => {
     fc.assert(
       fc.property(scalar, scalar, (name, description) => {
         const printed = skillCodec.print('tone', { name, description, content: '' })
-        const frontmatter = printed.text['skills/tone.md'].split('---\n')[1]
+        const lines = printed.text['skills/tone.md'].split('\n')
+        const frontmatter = lines.slice(1, lines.indexOf('---', 1)).join('\n')
         expect(load(frontmatter)).toEqual({ name, description })
       }),
       { numRuns: 500 }
