@@ -238,8 +238,13 @@ function defaultGateValue(
   const subBlock = candidates.find((candidate) => candidate.id === field)
   if (!subBlock) return undefined
   const { defaultValue } = subBlock
-  if (typeof defaultValue === 'string' || typeof defaultValue === 'number') return defaultValue
-  if (typeof defaultValue === 'boolean') return defaultValue
+  if (
+    typeof defaultValue === 'string' ||
+    typeof defaultValue === 'number' ||
+    typeof defaultValue === 'boolean'
+  ) {
+    return defaultValue
+  }
   return Array.isArray(subBlock.options) ? subBlock.options[0]?.id : undefined
 }
 
@@ -363,7 +368,9 @@ function buildParams(
 function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes {
   const block = catalogBlock(catalog, entry.builder.type)
   if (!block) {
-    throw new Error(`sdk codegen: builder \`${entry.key}\` names unknown block type`)
+    throw new Error(
+      `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
+    )
   }
   const outputs = outputSource(catalog, block, entry)
   const spec = block.dynamicOutputs ?? null

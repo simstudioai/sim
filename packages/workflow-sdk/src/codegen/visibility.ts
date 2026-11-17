@@ -212,7 +212,7 @@ function describeWhen(
         opaque = true
       }
     }
-    if (unknown.size > 0) parts.push(`depends on ${[...unknown].sort().join(', ')}`)
+    if (unknown.size > 0) parts.push(`depends on ${[...unknown].sort(compareStrings).join(', ')}`)
     if (opaque) parts.push('depends on other fields')
   }
   return parts.join('; ')
