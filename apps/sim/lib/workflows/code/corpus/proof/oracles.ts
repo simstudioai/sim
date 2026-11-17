@@ -18,15 +18,14 @@ import {
   findDifferences,
   firstTextDifference,
 } from '@/lib/workflows/code/corpus/proof/diff'
+import type { ProofProperty } from '@/lib/workflows/code/corpus/proof/report'
 
-/** The property or oracle a verdict belongs to (DESIGN.md "Proof"). */
-type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'O1' | 'O2' | 'O3'
-
+/** One property's or oracle's verdict (DESIGN.md "Proof"): a pass, or the differences found. */
 export type OracleResult =
-  | { ok: true; oracle: OracleName }
-  | { ok: false; oracle: OracleName; differences: Difference[] }
+  | { ok: true; oracle: ProofProperty }
+  | { ok: false; oracle: ProofProperty; differences: Difference[] }
 
-function verdict(oracle: OracleName, differences: Difference[]): OracleResult {
+function verdict(oracle: ProofProperty, differences: Difference[]): OracleResult {
   return differences.length === 0 ? { ok: true, oracle } : { ok: false, oracle, differences }
 }
 

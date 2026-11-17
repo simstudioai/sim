@@ -22,7 +22,11 @@ import { compareStrings } from '@sim/utils/string'
 import { type BlockCatalog, canonicalize, catalogBlock } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
-import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import {
+  type CorpusCase,
+  DEFAULT_CORPUS_SEED,
+  generateRegistryCorpus,
+} from '@/lib/workflows/code/corpus'
 import { workflowStateArbitrary } from '@/lib/workflows/code/corpus/proof'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -34,7 +38,9 @@ interface FixtureState {
 
 const LANDING_TEMPLATES_DIR = path.resolve(process.cwd(), 'public/landing-page-templates')
 
-/** Reads exported workflow files (`{ version, exportedAt, state }` or a bare state) from a directory. */
+/**
+ * Reads exported workflow files (`{ version, exportedAt, state }` or a bare state) from a directory.
+ */
 function loadWorkflowStatesFromDirectory(directory: string, source: string): FixtureState[] {
   return readdirSync(directory)
     .filter((file) => file.endsWith('.json'))
@@ -104,10 +110,11 @@ export interface ProofSubject {
 
 /**
  * A state as the normalized tables hold it. Every write path recomputes the loops and parallels
- * maps from the container blocks (`prepareWorkflowStateForPersistence`, and `saveWorkflowToNormalizedTables`
- * writes `workflow_subflows` rows from `generateLoopBlocks(blocks)`), so a map entry whose id has
- * no container block (the pre-container shape the `@sim/testing` loop factory still builds) is
- * never stored and never loaded. Entries of existing containers are kept as written.
+ * maps from the container blocks (`prepareWorkflowStateForPersistence`, and
+ * `saveWorkflowToNormalizedTables` writes `workflow_subflows` rows from
+ * `generateLoopBlocks(blocks)`), so a map entry whose id has no container block (the pre-container
+ * shape the `@sim/testing` loop factory still builds) is never stored and never loaded. Entries of
+ * existing containers are kept as written.
  */
 function persistedShape(state: WorkflowState): WorkflowState {
   const containers = (type: string) =>
@@ -134,43 +141,51 @@ function fixtureSubject(fixture: FixtureState): ProofSubject {
   return { id: fixture.id, blockTypes, state: persistedShape(fixture.state) }
 }
 
-/** Every structural case, plus up to `perType` per-block cases for each type (all when `full`). */
-function budgetedCorpus(corpus: CorpusCase[], perTypeLimit: number, full: boolean): CorpusCase[] {
-  if (full) return corpus
-  const perType = new Map<string, number>()
+/** Corpus kinds that hold one block type's subject; every other kind is structural. */
+const PER_BLOCK_KINDS: ReadonlySet<CorpusCase['kind']> = new Set([
+  'operation',
+  'trigger',
+  'standalone-advanced',
+  'error-edge',
+])
+
+/**
+ * Every structural case, plus the first `perType` per-block cases of each block type, or of each
+ * block type and kind when `byKind`.
+ */
+export function sampleCorpus(
+  corpus: CorpusCase[],
+  { perType, byKind = false }: { perType: number; byKind?: boolean }
+): CorpusCase[] {
+  const counts = new Map<string, number>()
   return corpus.filter((corpusCase) => {
+    if (!PER_BLOCK_KINDS.has(corpusCase.kind)) return true
     const [, type = ''] = corpusCase.id.split(':')
-    const isPerBlock = ['operation', 'trigger', 'standalone-advanced', 'error-edge'].includes(
-      corpusCase.kind
-    )
-    if (!isPerBlock) return true
-    const count = perType.get(type) ?? 0
-    if (count >= perTypeLimit) return false
-    perType.set(type, count + 1)
+    const slot = byKind ? `${corpusCase.kind}:${type}` : type
+    const count = counts.get(slot) ?? 0
+    if (count >= perType) return false
+    counts.set(slot, count + 1)
     return true
   })
 }
 
-export interface SubjectOptions {
-  /** Per-block corpus cases kept for each block type unless `full`. */
-  casesPerBlockType: number
-  /** `ROUNDTRIP_CORPUS_FULL=1`: the whole generated corpus. */
-  full: boolean
-  fuzzRuns: number
-  /** `ROUNDTRIP_CORPUS_EXTRA_DIR`: redacted production states written outside the repo. */
-  extraDir?: string
-}
+/** Per-block corpus cases each corpus property keeps per block type, unless the run is full. */
+const CASES_PER_BLOCK_TYPE = 3
+const FUZZ_RUNS = 50
 
 /**
- * Every workflow the round-trip properties run against: the generated registry corpus, the
- * landing templates, the `@sim/testing` states, redacted production states from `extraDir`, and
- * fast-check workflows, each in the shape the normalized tables store.
+ * Every workflow a corpus property runs against: the generated registry corpus (sampled unless
+ * `ROUNDTRIP_CORPUS_FULL=1`), the landing templates, the `@sim/testing` states, redacted production
+ * states from `ROUNDTRIP_CORPUS_EXTRA_DIR`, and fast-check workflows, each in the shape the
+ * normalized tables store.
  */
-export function roundTripSubjects(options: SubjectOptions): ProofSubject[] {
-  const corpus: ProofSubject[] = budgetedCorpus(
-    generateRegistryCorpus(),
-    options.casesPerBlockType,
-    options.full
+export function corpusSubjects(): ProofSubject[] {
+  const generated = generateRegistryCorpus()
+  const extraDir = process.env.ROUNDTRIP_CORPUS_EXTRA_DIR
+  const corpus: ProofSubject[] = (
+    process.env.ROUNDTRIP_CORPUS_FULL === '1'
+      ? generated
+      : sampleCorpus(generated, { perType: CASES_PER_BLOCK_TYPE })
   ).map((corpusCase) => ({
     id: corpusCase.id,
     blockTypes: corpusCase.blockTypes,
@@ -181,13 +196,11 @@ export function roundTripSubjects(options: SubjectOptions): ProofSubject[] {
     ...corpus,
     ...loadLandingTemplateStates().map(fixtureSubject),
     ...buildTestingFactoryStates().map(fixtureSubject),
-    ...(options.extraDir
-      ? loadWorkflowStatesFromDirectory(options.extraDir, 'redacted').map(fixtureSubject)
-      : []),
+    ...(extraDir ? loadWorkflowStatesFromDirectory(extraDir, 'redacted').map(fixtureSubject) : []),
     ...fc
       .sample(workflowStateArbitrary({ maxBlocks: 8, maxDepth: 2 }), {
-        numRuns: options.fuzzRuns,
-        seed: 20261115,
+        numRuns: FUZZ_RUNS,
+        seed: DEFAULT_CORPUS_SEED,
       })
       .map((state, i) => fixtureSubject({ id: `fuzz:${i}`, state })),
   ]
@@ -203,7 +216,8 @@ export function roundTripSubjects(options: SubjectOptions): ProofSubject[] {
 const PER_CASE_MS = 20
 const CAP_MS = 900_000
 
-export function corpusBudgetMs(caseCount: number, floorMs: number): number {
+/** The timeout of one corpus property over `caseCount` workflows, never under `floorMs`. */
+export function corpusBudgetMs(caseCount: number, floorMs = 60_000): number {
   return Math.min(CAP_MS, Math.max(floorMs, caseCount * PER_CASE_MS))
 }
 
@@ -281,16 +295,16 @@ function effectiveModeMaps(
 }
 
 /**
- * A state without what a lockless write with no prev cannot know and what never changes what
- * runs: item ids and editor flags canonicalize drops (inputFormat field ids live in the lock's
- * `items`; table row ids, `collapsed` and `isExpanded` are editor state), layout
- * (`horizontalHandles`, container sizes), which lives in the lock's `layout`, and `null`
- * subBlocks, which the serializer reads like absent ones (`params[id] == null`). Structured values
- * compare decoded, and a tool with no `params` reads like one with `{}` (canonicalize lifts both
- * to `{}`). Edge handles left unset read as the default `source` / `target` handles. Stored `canonicalModes` are replaced by the effective modes: a
- * stale entry for a pair the block no longer has, or an explicit entry equal to inference, selects
- * nothing different. Reference prefixes compare normalized, as canonicalize writes them. O2
- * compares through this: its candidate is written with no lock and no prev.
+ * A state without what a lockless write with no prev cannot know and what never changes what runs:
+ * item ids and editor flags canonicalize drops (inputFormat field ids live in the lock's `items`;
+ * table row ids, `collapsed` and `isExpanded` are editor state), layout (`horizontalHandles`,
+ * container sizes), which lives in the lock's `layout`, and `null` subBlocks, which the serializer
+ * reads like absent ones (`params[id] == null`). Structured values compare decoded, and a tool with
+ * no `params` reads like one with `{}` (canonicalize lifts both to `{}`). Edge handles left unset
+ * read as the default `source` / `target` handles. Stored `canonicalModes` are replaced by the
+ * effective modes: a stale entry for a pair the block no longer has, or an explicit entry equal to
+ * inference, selects nothing different. Reference prefixes compare normalized, as canonicalize
+ * writes them. O2 compares through this: its candidate is written with no lock and no prev.
  */
 export function withoutLockHeldState(state: WorkflowState, catalog: BlockCatalog): WorkflowState {
   const modes = effectiveModeMaps(state, catalog)

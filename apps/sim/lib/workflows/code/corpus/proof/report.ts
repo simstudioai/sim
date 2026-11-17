@@ -1,8 +1,8 @@
 /**
  * Collects round-trip outcomes into the JSON report a corpus run writes to `<SUITE>_REPORT_PATH`
  * (the E2E-artifact rule in .claude/rules/sim-testing.md). The headline number is parity per block
- * type: the share of cases containing that type that pass each property, which is the plan's 100%
- * kill-criterion gate. Pure: the caller owns the clock and the file write.
+ * type: the share of cases containing that type that pass each property, which the 100%
+ * per-type parity gate reads. Pure: the caller owns the clock and the file write.
  */
 
 import { compareStrings } from '@sim/utils/string'
