@@ -288,6 +288,38 @@ describe('workspace source: custom tools and skills', () => {
   })
 
   check(
+    'creates a skill keyed apart from its name and stores its name in the workflow',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        ...TOOLS,
+        'skills/voice.md': TONE.replace('name: tone', 'name: brand-voice'),
+        'workflows/support/workflow.ts': SUPPORT_WITH_SKILL.replace(
+          "skill('tone')",
+          "skill('voice')"
+        ),
+      }
+      const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'skill', 'workflow']
+
+      const dryRun = await apply(workspaceId, files, { kinds, dryRun: true })
+      expect(codes(dryRun.diagnostics)).toEqual([])
+      const result = await apply(workspaceId, files, { kinds })
+
+      expect(result.failed).toBeUndefined()
+      const [created] = (await snapshot(workspaceId)).skills
+      expect(created.name).toBe('brand-voice')
+      const state = await loadWorkflowFromNormalizedTables(
+        result.base.resources['workflow:support']?.id ?? ''
+      )
+      const agentSkills = Object.values(state?.blocks ?? {}).flatMap((block) => {
+        const value = block.subBlocks?.skills?.value
+        return Array.isArray(value) ? value : []
+      })
+      expect(agentSkills).toEqual([{ skillId: created.id, name: 'brand-voice' }])
+    }
+  )
+
+  check(
     'a get reproduces the apply byte for byte, and re-applying it changes nothing',
     async () => {
       const workspaceId = await newWorkspace()
