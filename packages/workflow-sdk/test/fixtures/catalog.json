@@ -1491,6 +1491,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Google Cloud Account",
           "mode": "advanced",
           "canonicalParamId": "vertexCredential",
@@ -1793,6 +1794,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "API Key",
           "condition": {
             "opaque": true
@@ -2094,6 +2096,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Azure Endpoint",
           "condition": {
             "opaque": true
@@ -2394,6 +2397,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Azure API Version",
           "condition": {
             "opaque": true
@@ -2693,6 +2697,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Vertex AI Project",
           "condition": {
             "opaque": true
@@ -2994,6 +2999,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Vertex AI Location",
           "condition": {
             "opaque": true
@@ -3868,6 +3874,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Credential",
           "mode": "advanced",
           "canonicalParamId": "bedrockCredential",
@@ -4128,6 +4135,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Access Key ID",
           "condition": {
             "opaque": true
@@ -4387,6 +4395,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Secret Access Key",
           "condition": {
             "opaque": true
@@ -4646,6 +4655,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Region",
           "condition": {
             "opaque": true
@@ -4945,6 +4955,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "State",
           "condition": {
             "opaque": true
@@ -5245,6 +5257,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Questions",
           "condition": {
             "opaque": true
@@ -5567,6 +5580,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Files",
           "mode": "advanced",
           "canonicalParamId": "files",
@@ -6637,6 +6651,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Conversation ID",
           "condition": {
             "field": "memoryType",
@@ -6677,6 +6692,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sliding Window Size",
           "condition": {
             "field": "memoryType",
@@ -6707,6 +6723,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Max Tokens",
           "condition": {
             "field": "memoryType",
@@ -6991,6 +7008,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Max Output Tokens",
           "mode": "advanced",
           "condition": {
@@ -7010,6 +7028,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Response Format",
           "condition": {
             "field": "model",
@@ -7029,6 +7048,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Previous Interaction ID",
           "condition": {
             "field": "model",
@@ -7138,6 +7158,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "URL",
           "required": true
         },
@@ -7202,6 +7223,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Body",
           "language": "json"
         },
@@ -7210,6 +7232,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Timeout (ms)",
           "mode": "advanced"
         },
@@ -7218,6 +7241,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Retries",
           "mode": "advanced"
         },
@@ -7226,6 +7250,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Retry delay (ms)",
           "mode": "advanced"
         },
@@ -7234,6 +7259,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Max retry delay (ms)",
           "mode": "advanced"
         },
@@ -7251,6 +7277,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Redirect policy version",
           "defaultValue": "standard-v1",
           "hidden": true
@@ -7270,6 +7297,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Proxy URL",
           "mode": "advanced"
         }
@@ -7376,6 +7404,7 @@
           "type": "code",
           "valueKind": "code",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Code"
         },
         {
@@ -7476,6 +7505,7 @@
           "type": "short-input",
           "valueKind": "none",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Webhook URL",
           "mode": "trigger",
           "surface": "trigger",
@@ -7497,6 +7527,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Authentication Token",
           "mode": "trigger",
           "surface": "trigger",
@@ -7511,6 +7542,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Secret Header Name (Optional)",
           "mode": "trigger",
           "surface": "trigger",
@@ -7543,6 +7575,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Deduplication Field (Optional)",
           "mode": "trigger",
           "surface": "trigger",
@@ -7584,6 +7617,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Response Status Code",
           "mode": "trigger",
           "surface": "trigger",
@@ -7598,6 +7632,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Response Body",
           "mode": "trigger",
           "surface": "trigger",
@@ -7632,6 +7667,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "surface": "trigger",
@@ -7798,6 +7834,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Gmail Account",
           "mode": "advanced",
           "canonicalParamId": "oauthCredential",
@@ -7809,6 +7846,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Impersonated Account",
           "mode": "both",
           "surface": "action",
@@ -7819,6 +7857,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Draft ID",
           "surface": "action",
           "condition": {
@@ -7836,6 +7875,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "To",
           "surface": "action",
           "condition": {
@@ -7853,6 +7893,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Subject",
           "surface": "action",
           "condition": {
@@ -7870,6 +7911,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Body",
           "surface": "action",
           "condition": {
@@ -7938,6 +7981,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Attachments",
           "mode": "advanced",
           "canonicalParamId": "attachments",
@@ -7957,6 +8001,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread ID",
           "mode": "advanced",
           "surface": "action",
@@ -7975,6 +8020,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Reply to Message ID",
           "mode": "advanced",
           "surface": "action",
@@ -7993,6 +8039,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "CC",
           "mode": "advanced",
           "surface": "action",
@@ -8011,6 +8058,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "BCC",
           "mode": "advanced",
           "surface": "action",
@@ -8029,6 +8077,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Reply-To",
           "mode": "advanced",
           "surface": "action",
@@ -8072,6 +8121,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Label/Folder",
           "mode": "advanced",
           "canonicalParamId": "folder",
@@ -8118,6 +8168,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message ID",
           "mode": "advanced",
           "surface": "action",
@@ -8131,6 +8182,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Search Query",
           "surface": "action",
           "condition": {
@@ -8144,6 +8196,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Max Results",
           "surface": "action",
           "condition": {
@@ -8161,6 +8214,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Token",
           "mode": "advanced",
           "surface": "action",
@@ -8179,6 +8233,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message ID",
           "surface": "action",
           "condition": {
@@ -8218,6 +8273,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Move To Label",
           "mode": "advanced",
           "canonicalParamId": "addLabelIds",
@@ -8265,6 +8321,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Remove From Label",
           "mode": "advanced",
           "canonicalParamId": "removeLabelIds",
@@ -8286,6 +8343,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message ID",
           "surface": "action",
           "condition": {
@@ -8305,6 +8363,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message ID",
           "surface": "action",
           "condition": {
@@ -8350,6 +8409,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Label",
           "mode": "advanced",
           "canonicalParamId": "manageLabelId",
@@ -8403,6 +8463,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Label ID",
           "mode": "advanced",
           "canonicalParamId": "labelId",
@@ -8427,6 +8488,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Label Name",
           "surface": "action",
           "condition": {
@@ -8518,6 +8580,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread ID",
           "surface": "action",
           "condition": {
@@ -8566,6 +8629,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Search Query",
           "surface": "action",
           "condition": {
@@ -8582,6 +8646,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Label IDs",
           "mode": "advanced",
           "surface": "action",
@@ -8652,6 +8717,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Gmail Search Query",
           "mode": "trigger",
           "surface": "trigger",
@@ -8695,6 +8761,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "surface": "trigger",
@@ -9114,6 +9181,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Google Account",
           "mode": "advanced",
           "canonicalParamId": "oauthCredential",
@@ -9125,6 +9193,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Impersonated Account",
           "mode": "both",
           "surface": "action",
@@ -9161,6 +9230,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Spreadsheet ID",
           "mode": "advanced",
           "canonicalParamId": "spreadsheetId",
@@ -9217,6 +9287,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet Name",
           "mode": "advanced",
           "canonicalParamId": "sheetName",
@@ -9247,6 +9318,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cell Range",
           "surface": "action",
           "condition": {
@@ -9264,6 +9336,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Filter Column",
           "mode": "advanced",
           "surface": "action",
@@ -9277,6 +9350,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Filter Value",
           "mode": "advanced",
           "surface": "action",
@@ -9431,6 +9505,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Values",
           "surface": "action",
           "condition": {
@@ -9511,6 +9587,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Values",
           "surface": "action",
           "condition": {
@@ -9524,6 +9602,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Values",
           "surface": "action",
           "condition": {
@@ -9559,6 +9639,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Spreadsheet Title",
           "surface": "action",
           "condition": {
@@ -9572,6 +9653,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet Names",
           "surface": "action",
           "condition": {
@@ -9584,6 +9666,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Ranges",
           "surface": "action",
           "condition": {
@@ -9597,6 +9681,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Data",
           "surface": "action",
           "condition": {
@@ -9610,6 +9696,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Ranges to Clear",
           "surface": "action",
           "condition": {
@@ -9623,6 +9711,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet ID",
           "surface": "action",
           "condition": {
@@ -9636,6 +9725,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Destination Spreadsheet ID",
           "surface": "action",
           "condition": {
@@ -9649,6 +9739,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet ID",
           "surface": "action",
           "condition": {
@@ -9665,6 +9756,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Start Row Index",
           "surface": "action",
           "condition": {
@@ -9678,6 +9770,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "End Row Index",
           "surface": "action",
           "condition": {
@@ -9726,6 +9819,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Spreadsheet ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "spreadsheetId",
@@ -9762,6 +9856,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet Tab Name",
           "mode": "trigger-advanced",
           "canonicalParamId": "sheetName",
@@ -9828,6 +9923,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "surface": "trigger",
@@ -10372,6 +10468,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Knowledge Base ID",
           "mode": "advanced",
           "canonicalParamId": "knowledgeBaseId",
@@ -10382,6 +10479,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Search Query",
           "condition": {
             "field": "operation",
@@ -10394,6 +10492,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Number of Results",
           "condition": {
             "field": "operation",
@@ -10495,6 +10594,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Documents Sent to Reranker",
           "mode": "advanced",
           "condition": {
@@ -10511,6 +10611,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cohere API Key",
           "condition": {
             "field": "operation",
@@ -10528,6 +10629,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Search",
           "condition": {
             "field": "operation",
@@ -10564,6 +10666,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Limit",
           "condition": {
             "field": "operation",
@@ -10578,6 +10681,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Offset",
           "condition": {
             "field": "operation",
@@ -10624,6 +10728,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Document ID",
           "mode": "advanced",
           "canonicalParamId": "documentId",
@@ -10651,6 +10756,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Chunk Content",
           "condition": {
             "field": "operation",
@@ -10663,6 +10770,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Document Name",
           "condition": {
             "field": "operation",
@@ -10678,6 +10786,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Document Content",
           "condition": {
             "field": "operation",
@@ -10693,6 +10803,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Document ID (Optional)",
           "condition": {
             "field": "operation",
@@ -10724,6 +10835,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Chunk ID",
           "condition": {
             "field": "operation",
@@ -10739,6 +10851,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "New Content",
           "condition": {
             "field": "operation",
@@ -10771,6 +10885,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Connector ID",
           "condition": {
             "field": "operation",
@@ -10786,6 +10901,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Search",
           "condition": {
             "field": "operation",
@@ -10906,13 +11022,16 @@
           "id": "content",
           "type": "long-input",
           "valueKind": "string",
-          "storage": "native"
+          "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true
         },
         {
           "id": "color",
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "defaultValue": "carbon",
           "hidden": true
         }
@@ -10991,6 +11110,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Response Data",
           "condition": {
             "field": "dataMode",
@@ -11003,6 +11123,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Status Code"
         },
         {
@@ -11054,6 +11175,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Context",
           "required": true
         },
@@ -12517,6 +12640,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Google Cloud Account",
           "mode": "advanced",
           "canonicalParamId": "vertexCredential",
@@ -12816,6 +12940,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "API Key",
           "condition": {
             "opaque": true
@@ -13114,6 +13239,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Azure Endpoint",
           "condition": {
             "opaque": true
@@ -13411,6 +13537,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Azure API Version",
           "condition": {
             "opaque": true
@@ -13707,6 +13834,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Vertex AI Project",
           "condition": {
             "opaque": true
@@ -14005,6 +14133,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Vertex AI Location",
           "condition": {
             "opaque": true
@@ -14870,6 +14999,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Credential",
           "mode": "advanced",
           "canonicalParamId": "bedrockCredential",
@@ -15127,6 +15257,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Access Key ID",
           "condition": {
             "opaque": true
@@ -15383,6 +15514,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Secret Access Key",
           "condition": {
             "opaque": true
@@ -15639,6 +15771,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "AWS Region",
           "condition": {
             "opaque": true
@@ -16040,6 +16173,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Interval (minutes)",
           "mode": "trigger",
           "surface": "trigger",
@@ -16054,6 +16188,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Minute",
           "mode": "trigger",
           "surface": "trigger",
@@ -16140,6 +16275,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Day of month",
           "mode": "trigger",
           "surface": "trigger",
@@ -16168,6 +16304,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cron expression",
           "mode": "trigger",
           "surface": "trigger",
@@ -16999,6 +17136,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Slack Account",
           "mode": "advanced",
           "canonicalParamId": "oauthCredential",
@@ -17267,6 +17405,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "mode": "advanced",
           "canonicalParamId": "channel",
@@ -17880,6 +18019,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "canonicalParamId": "dmUserId",
@@ -18333,6 +18473,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Target User ID",
           "mode": "advanced",
           "canonicalParamId": "ephemeralUser",
@@ -18571,6 +18712,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Message",
           "surface": "action",
           "condition": {
@@ -18692,6 +18835,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Block Kit Blocks",
           "surface": "action",
           "condition": {
@@ -18832,6 +18976,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread Timestamp",
           "surface": "action",
           "condition": {
@@ -19054,6 +19199,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File Attachments",
           "mode": "advanced",
           "canonicalParamId": "files",
@@ -19165,6 +19311,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas Title",
           "surface": "action",
           "condition": {
@@ -19274,6 +19421,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Canvas Content",
           "surface": "action",
           "condition": {
@@ -19383,6 +19532,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Limit",
           "surface": "action",
           "condition": {
@@ -19612,6 +19762,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Conversations Per Page",
           "mode": "advanced",
           "surface": "action",
@@ -19721,6 +19872,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Member Limit",
           "surface": "action",
           "condition": {
@@ -19950,6 +20102,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Limit",
           "surface": "action",
           "condition": {
@@ -20058,6 +20211,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Pagination Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -20289,6 +20443,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "canonicalParamId": "userId",
@@ -20406,6 +20561,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -20515,6 +20671,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread Timestamp",
           "surface": "action",
           "condition": {
@@ -20624,6 +20781,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Limit",
           "surface": "action",
           "condition": {
@@ -20732,6 +20890,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Status Text",
           "surface": "action",
           "condition": {
@@ -20841,6 +21000,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Loading Messages",
           "surface": "action",
           "condition": {
@@ -20950,6 +21111,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread Title",
           "surface": "action",
           "condition": {
@@ -21059,6 +21221,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Suggested Prompts",
           "surface": "action",
           "condition": {
@@ -21168,6 +21332,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Prompts Heading",
           "mode": "advanced",
           "surface": "action",
@@ -21278,6 +21443,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Oldest Timestamp",
           "surface": "action",
           "condition": {
@@ -21387,6 +21553,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Latest Timestamp",
           "surface": "action",
           "condition": {
@@ -21496,6 +21663,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "surface": "action",
           "condition": {
@@ -21605,6 +21773,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Max Pages",
           "mode": "advanced",
           "surface": "action",
@@ -21715,6 +21884,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Start Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -21947,6 +22117,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Oldest Timestamp",
           "surface": "action",
           "condition": {
@@ -22055,6 +22226,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File ID",
           "surface": "action",
           "condition": {
@@ -22164,6 +22336,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File Name Override",
           "canonicalParamId": "fileName",
           "surface": "action",
@@ -22273,6 +22446,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -22382,6 +22556,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "New Message Text",
           "surface": "action",
           "condition": {
@@ -22499,6 +22675,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -22608,6 +22785,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -22717,6 +22895,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Emoji Name",
           "surface": "action",
           "condition": {
@@ -23069,6 +23248,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "canonicalParamId": "presenceUserId",
@@ -23186,6 +23366,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -23437,6 +23618,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Content",
           "surface": "action",
           "condition": {
@@ -23555,6 +23738,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Section ID",
           "surface": "action",
           "condition": {
@@ -23682,6 +23866,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "New Title",
           "surface": "action",
           "condition": {
@@ -23797,6 +23982,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas Title",
           "surface": "action",
           "condition": {
@@ -23905,6 +24091,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Canvas Content",
           "surface": "action",
           "condition": {
@@ -24013,6 +24201,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -24122,6 +24311,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas Limit",
           "mode": "advanced",
           "surface": "action",
@@ -24231,6 +24421,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page",
           "mode": "advanced",
           "surface": "action",
@@ -24340,6 +24531,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -24449,6 +24641,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Created After",
           "mode": "advanced",
           "surface": "action",
@@ -24558,6 +24751,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Created Before",
           "mode": "advanced",
           "surface": "action",
@@ -24667,6 +24861,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Team ID",
           "mode": "advanced",
           "surface": "action",
@@ -24776,6 +24971,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -24885,6 +25081,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Section Criteria",
           "surface": "action",
           "condition": {
@@ -24995,6 +25192,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -25104,6 +25302,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel Name",
           "surface": "action",
           "condition": {
@@ -25334,6 +25533,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Team ID",
           "mode": "advanced",
           "surface": "action",
@@ -25443,6 +25643,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -25674,6 +25875,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Trigger ID",
           "surface": "action",
           "condition": {
@@ -25783,6 +25985,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Interactivity Pointer",
           "mode": "advanced",
           "surface": "action",
@@ -25892,6 +26095,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "View ID",
           "surface": "action",
           "condition": {
@@ -26000,6 +26204,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "External ID",
           "surface": "action",
           "condition": {
@@ -26108,6 +26313,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "View Hash",
           "mode": "advanced",
           "surface": "action",
@@ -26339,6 +26545,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "canonicalParamId": "publishUserId",
@@ -26456,6 +26663,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "View Payload",
           "surface": "action",
           "condition": {
@@ -26566,6 +26774,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Send At",
           "surface": "action",
           "condition": {
@@ -26675,6 +26884,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Limit",
           "mode": "advanced",
           "surface": "action",
@@ -26785,6 +26995,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Pagination Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -26895,6 +27106,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Scheduled Message ID",
           "surface": "action",
           "condition": {
@@ -27004,6 +27216,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "New Channel Name",
           "surface": "action",
           "condition": {
@@ -27113,6 +27326,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Topic",
           "surface": "action",
           "condition": {
@@ -27222,6 +27437,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Purpose",
           "surface": "action",
           "condition": {
@@ -27352,6 +27569,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Custom Slack Bot Credential ID",
           "mode": "advanced",
           "canonicalParamId": "agentCredentialId",
@@ -27401,6 +27619,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "mode": "advanced",
           "canonicalParamId": "agentChannelId",
@@ -27420,6 +27639,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Thread Timestamp",
           "surface": "action",
           "condition": {
@@ -27477,6 +27697,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Session Title",
           "surface": "action",
           "condition": {
@@ -27522,6 +27743,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Initiator User ID",
           "mode": "advanced",
           "canonicalParamId": "agentInitiatorUserId",
@@ -27537,6 +27759,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Agent Icon Emoji",
           "mode": "advanced",
           "surface": "action",
@@ -27551,6 +27774,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Agent Icon URL",
           "mode": "advanced",
           "surface": "action",
@@ -27565,6 +27789,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Agent Username",
           "mode": "advanced",
           "surface": "action",
@@ -27605,6 +27830,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Custom Slack Bot Credential ID",
           "mode": "advanced",
           "canonicalParamId": "listCredentialId",
@@ -27629,6 +27855,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "List ID",
           "surface": "action",
           "condition": {
@@ -27676,6 +27903,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -27694,6 +27922,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Channel IDs",
           "surface": "action",
           "condition": {
@@ -27737,6 +27966,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Name",
           "surface": "action",
           "condition": {
@@ -27756,6 +27986,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Row ID",
           "surface": "action",
           "condition": {
@@ -27772,6 +28003,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Initial Fields",
           "surface": "action",
           "condition": {
@@ -27785,6 +28017,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Cells",
           "surface": "action",
           "condition": {
@@ -27799,6 +28032,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Column Schema",
           "surface": "action",
           "condition": {
@@ -27812,6 +28046,8 @@
           "type": "long-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
+          "neverDecoded": true,
           "title": "Description",
           "mode": "advanced",
           "surface": "action",
@@ -27872,6 +28108,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Parent Row ID",
           "mode": "advanced",
           "surface": "action",
@@ -27885,6 +28122,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Duplicate Row ID",
           "mode": "advanced",
           "surface": "action",
@@ -27898,6 +28136,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "mode": "advanced",
           "surface": "action",
@@ -27911,6 +28150,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -27999,6 +28239,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Slack Credential ID",
           "mode": "advanced",
           "canonicalParamId": "apiBotCredentialId",
@@ -28075,6 +28316,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Slack Credential ID",
           "mode": "advanced",
           "canonicalParamId": "apiOAuthCredentialId",
@@ -28105,6 +28347,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "List ID",
           "surface": "action",
           "condition": {
@@ -28118,6 +28361,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -28132,6 +28376,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Channel IDs",
           "surface": "action",
           "condition": {
@@ -28146,6 +28391,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "List ID",
           "surface": "action",
           "condition": {
@@ -28230,6 +28476,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "List ID",
           "surface": "action",
           "condition": {
@@ -28243,6 +28490,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Export Job ID",
           "surface": "action",
           "condition": {
@@ -28312,6 +28560,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "List ID",
           "surface": "action",
           "condition": {
@@ -28325,6 +28574,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Row IDs",
           "surface": "action",
           "condition": {
@@ -28339,6 +28589,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -28377,6 +28628,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -28391,6 +28643,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Channel IDs",
           "surface": "action",
           "condition": {
@@ -28405,6 +28658,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Canvas ID",
           "surface": "action",
           "condition": {
@@ -28418,6 +28672,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -28432,6 +28687,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Channel IDs",
           "surface": "action",
           "condition": {
@@ -28446,6 +28702,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28459,6 +28716,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28472,6 +28730,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28485,6 +28744,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "surface": "action",
           "condition": {
@@ -28498,6 +28758,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28511,6 +28772,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28524,6 +28786,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28537,6 +28800,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Read Through Timestamp",
           "surface": "action",
           "condition": {
@@ -28550,6 +28814,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -28564,6 +28829,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Conversation ID",
           "surface": "action",
           "condition": {
@@ -28607,6 +28873,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Email",
           "surface": "action",
           "condition": {
@@ -28620,6 +28887,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -28634,6 +28902,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Conversation Types",
           "mode": "advanced",
           "surface": "action",
@@ -28678,6 +28947,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -28692,6 +28962,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "mode": "advanced",
           "surface": "action",
@@ -28706,6 +28977,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -28720,6 +28992,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -28775,6 +29048,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File ID",
           "surface": "action",
           "condition": {
@@ -28788,6 +29062,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -28802,6 +29077,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "mode": "advanced",
           "surface": "action",
@@ -28816,6 +29092,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "mode": "advanced",
           "surface": "action",
@@ -28830,6 +29107,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -28844,6 +29122,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File Types",
           "mode": "advanced",
           "surface": "action",
@@ -28858,6 +29137,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "From Timestamp",
           "mode": "advanced",
           "surface": "action",
@@ -28872,6 +29152,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "To Timestamp",
           "mode": "advanced",
           "surface": "action",
@@ -28886,6 +29167,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page",
           "mode": "advanced",
           "surface": "action",
@@ -28900,6 +29182,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "mode": "advanced",
           "surface": "action",
@@ -28929,6 +29212,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -28943,6 +29227,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File ID",
           "surface": "action",
           "condition": {
@@ -28956,6 +29241,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -28969,6 +29255,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -28982,6 +29269,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File ID",
           "surface": "action",
           "condition": {
@@ -28995,6 +29283,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "File Comment ID",
           "surface": "action",
           "condition": {
@@ -29023,6 +29312,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -29052,6 +29342,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cursor",
           "mode": "advanced",
           "surface": "action",
@@ -29066,6 +29357,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Page Size",
           "mode": "advanced",
           "surface": "action",
@@ -29080,6 +29372,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29094,6 +29387,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29107,6 +29401,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -29120,6 +29415,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29133,6 +29429,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -29146,6 +29443,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29159,6 +29457,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29172,6 +29471,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Title",
           "surface": "action",
           "condition": {
@@ -29185,6 +29485,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Link URL",
           "surface": "action",
           "condition": {
@@ -29198,6 +29499,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Emoji",
           "mode": "advanced",
           "surface": "action",
@@ -29212,6 +29514,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Parent Bookmark ID",
           "mode": "advanced",
           "surface": "action",
@@ -29226,6 +29529,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29239,6 +29543,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Bookmark ID",
           "surface": "action",
           "condition": {
@@ -29252,6 +29557,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Title",
           "surface": "action",
           "condition": {
@@ -29265,6 +29571,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Link URL",
           "surface": "action",
           "condition": {
@@ -29278,6 +29585,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Emoji",
           "surface": "action",
           "condition": {
@@ -29291,6 +29599,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29304,6 +29613,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29317,6 +29627,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Bookmark ID",
           "surface": "action",
           "condition": {
@@ -29330,6 +29641,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Name",
           "surface": "action",
           "condition": {
@@ -29343,6 +29655,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Mention Handle",
           "mode": "advanced",
           "surface": "action",
@@ -29357,6 +29670,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Description",
           "mode": "advanced",
           "surface": "action",
@@ -29371,6 +29685,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Default Channel IDs",
           "mode": "advanced",
           "surface": "action",
@@ -29386,6 +29701,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Additional Channel IDs",
           "mode": "advanced",
           "surface": "action",
@@ -29431,6 +29747,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29445,6 +29762,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Group ID",
           "surface": "action",
           "condition": {
@@ -29458,6 +29776,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Name",
           "surface": "action",
           "condition": {
@@ -29471,6 +29790,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Mention Handle",
           "surface": "action",
           "condition": {
@@ -29484,6 +29804,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Description",
           "surface": "action",
           "condition": {
@@ -29497,6 +29818,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Default Channel IDs",
           "surface": "action",
           "condition": {
@@ -29511,6 +29833,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Additional Channel IDs",
           "mode": "advanced",
           "surface": "action",
@@ -29556,6 +29879,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29570,6 +29894,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Group ID",
           "surface": "action",
           "condition": {
@@ -29598,6 +29923,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29612,6 +29938,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Group ID",
           "surface": "action",
           "condition": {
@@ -29640,6 +29967,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29699,6 +30027,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29713,6 +30042,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Group ID",
           "surface": "action",
           "condition": {
@@ -29741,6 +30071,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29755,6 +30086,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User Group ID",
           "surface": "action",
           "condition": {
@@ -29768,6 +30100,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -29782,6 +30115,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Additional Channel IDs",
           "mode": "advanced",
           "surface": "action",
@@ -29827,6 +30161,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29841,6 +30176,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "User ID",
           "mode": "advanced",
           "surface": "action",
@@ -29855,6 +30191,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29869,6 +30206,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "User IDs",
           "surface": "action",
           "condition": {
@@ -29883,6 +30221,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29897,6 +30236,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace ID",
           "mode": "advanced",
           "surface": "action",
@@ -29911,6 +30251,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workspace Domain",
           "mode": "advanced",
           "surface": "action",
@@ -29955,6 +30296,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel ID",
           "surface": "action",
           "condition": {
@@ -29968,6 +30310,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Message Timestamp",
           "surface": "action",
           "condition": {
@@ -29981,6 +30324,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Link Previews",
           "surface": "action",
           "condition": {
@@ -30116,6 +30460,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Bot Credential ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "botCredential",
@@ -30203,6 +30548,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel IDs",
           "mode": "trigger-advanced",
           "canonicalParamId": "channelFilter",
@@ -30316,6 +30662,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Response status label",
           "mode": "trigger",
           "surface": "trigger",
@@ -30417,6 +30764,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Emoji",
           "mode": "trigger",
           "surface": "trigger",
@@ -30434,6 +30782,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Name contains",
           "mode": "trigger",
           "surface": "trigger",
@@ -30450,6 +30799,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Action / Callback ID",
           "mode": "trigger",
           "surface": "trigger",
@@ -30467,6 +30817,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Command",
           "mode": "trigger",
           "surface": "trigger",
@@ -30539,6 +30890,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "surface": "trigger",
@@ -31129,6 +31481,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Table ID",
           "mode": "advanced",
           "canonicalParamId": "tableId",
@@ -31165,6 +31518,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Row ID",
           "surface": "action",
           "condition": {
@@ -31188,6 +31542,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Row Data (JSON)",
           "surface": "action",
           "condition": {
@@ -31231,6 +31586,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Conflict Column",
           "mode": "advanced",
           "canonicalParamId": "conflictColumn",
@@ -31251,6 +31607,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Rows Data (Array of JSON)",
           "surface": "action",
           "condition": {
@@ -31265,6 +31622,7 @@
           "type": "filter-builder",
           "valueKind": "json",
           "storage": "native",
+          "tableFilter": true,
           "title": "Filter",
           "mode": "basic",
           "canonicalParamId": "filterInput",
@@ -31284,6 +31642,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Filter",
           "mode": "advanced",
           "canonicalParamId": "filterInput",
@@ -31318,6 +31677,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Order",
           "mode": "advanced",
           "canonicalParamId": "sortInput",
@@ -31332,6 +31692,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Limit",
           "surface": "action",
           "condition": {
@@ -31348,6 +31709,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Cursor",
           "surface": "action",
           "condition": {
@@ -31372,6 +31734,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Table ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "tableId",
@@ -31680,6 +32043,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Workflow ID",
           "mode": "advanced",
           "canonicalParamId": "workflowId",
@@ -31751,6 +32115,7 @@
           "type": "short-input",
           "valueKind": "none",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Webhook URL",
           "mode": "trigger",
           "readOnly": true
@@ -31770,6 +32135,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Authentication Token",
           "mode": "trigger",
           "required": false,
@@ -31783,6 +32149,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Secret Header Name (Optional)",
           "mode": "trigger",
           "required": false
@@ -31812,6 +32179,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Deduplication Field (Optional)",
           "mode": "trigger",
           "required": false
@@ -31850,6 +32218,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Response Status Code",
           "mode": "trigger",
           "condition": {
@@ -31863,6 +32232,7 @@
           "type": "code",
           "valueKind": "json",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Response Body",
           "mode": "trigger",
           "condition": {
@@ -31894,6 +32264,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "condition": {
@@ -31970,6 +32341,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Gmail Search Query",
           "mode": "trigger",
           "required": false
@@ -32009,6 +32381,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "condition": {
@@ -32147,6 +32520,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Spreadsheet ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "spreadsheetId",
@@ -32181,6 +32555,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Sheet Tab Name",
           "mode": "trigger-advanced",
           "canonicalParamId": "sheetName",
@@ -32243,6 +32618,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "condition": {
@@ -32414,6 +32790,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Bot Credential ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "botCredential",
@@ -32498,6 +32875,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Channel IDs",
           "mode": "trigger-advanced",
           "canonicalParamId": "channelFilter",
@@ -32607,6 +32985,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Response status label",
           "mode": "trigger",
           "condition": {
@@ -32704,6 +33083,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Emoji",
           "mode": "trigger",
           "condition": {
@@ -32720,6 +33100,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Name contains",
           "mode": "trigger",
           "condition": {
@@ -32735,6 +33116,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Action / Callback ID",
           "mode": "trigger",
           "condition": {
@@ -32751,6 +33133,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Command",
           "mode": "trigger",
           "condition": {
@@ -32819,6 +33202,7 @@
           "type": "code",
           "valueKind": "none",
           "storage": "native",
+          "neverDecoded": true,
           "title": "Event Payload Example",
           "mode": "trigger",
           "condition": {
@@ -33012,6 +33396,7 @@
           "type": "short-input",
           "valueKind": "string",
           "storage": "native",
+          "acceptsNumber": true,
           "title": "Table ID",
           "mode": "trigger-advanced",
           "canonicalParamId": "tableId",

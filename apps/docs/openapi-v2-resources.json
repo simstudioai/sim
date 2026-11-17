@@ -30482,6 +30482,18 @@
                                   "variables"
                                 ]
                               },
+                              "acceptsNumber": {
+                                "description": "Free text that also takes a number, which the runtime coerces.",
+                                "type": "boolean"
+                              },
+                              "neverDecoded": {
+                                "description": "User text whose JSON-looking content is never decoded.",
+                                "type": "boolean"
+                              },
+                              "tableFilter": {
+                                "description": "A table filter: builder rows or a predicate.",
+                                "type": "boolean"
+                              },
                               "valueShape": {
                                 "description": "Shape of the value in an agent tool entry; absent means string.",
                                 "type": "string",
@@ -31509,6 +31521,18 @@
                                   "variables"
                                 ]
                               },
+                              "acceptsNumber": {
+                                "description": "Free text that also takes a number, which the runtime coerces.",
+                                "type": "boolean"
+                              },
+                              "neverDecoded": {
+                                "description": "User text whose JSON-looking content is never decoded.",
+                                "type": "boolean"
+                              },
+                              "tableFilter": {
+                                "description": "A table filter: builder rows or a predicate.",
+                                "type": "boolean"
+                              },
                               "valueShape": {
                                 "description": "Shape of the value in an agent tool entry; absent means string.",
                                 "type": "string",
@@ -32330,6 +32354,18 @@
                       "description": "Structured value the canonical model decodes.",
                       "type": "string",
                       "enum": ["tools", "branches", "tableRows", "inputFormat", "variables"]
+                    },
+                    "acceptsNumber": {
+                      "description": "Free text that also takes a number, which the runtime coerces.",
+                      "type": "boolean"
+                    },
+                    "neverDecoded": {
+                      "description": "User text whose JSON-looking content is never decoded.",
+                      "type": "boolean"
+                    },
+                    "tableFilter": {
+                      "description": "A table filter: builder rows or a predicate.",
+                      "type": "boolean"
                     },
                     "valueShape": {
                       "description": "Shape of the value in an agent tool entry; absent means string.",

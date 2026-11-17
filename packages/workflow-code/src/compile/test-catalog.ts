@@ -12,13 +12,21 @@ import type {
  * the `BlockCatalog` contract so tests never depend on the registry projection.
  */
 
+/** The flags the registry projection sets by subBlock type (`TYPE_RULES`, value-kind.ts). */
+const TYPE_FLAGS: Partial<Record<CatalogSubBlock['type'], Partial<CatalogSubBlock>>> = {
+  'short-input': { acceptsNumber: true },
+  'long-input': { acceptsNumber: true, neverDecoded: true },
+  code: { neverDecoded: true },
+  'filter-builder': { tableFilter: true },
+}
+
 function sub(
   id: string,
   type: CatalogSubBlock['type'],
   valueKind: CatalogSubBlock['valueKind'],
   extra: Partial<CatalogSubBlock> = {}
 ): CatalogSubBlock {
-  return { id, type, valueKind, storage: 'native', ...extra }
+  return { id, type, valueKind, storage: 'native', ...TYPE_FLAGS[type], ...extra }
 }
 
 const ANY: CatalogOutput = { type: 'json' }

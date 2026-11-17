@@ -7877,6 +7877,9 @@ export type GetSourceCatalogResponse = {
               resourceKind?: string
               storage: 'native' | 'json-string'
               structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
               valueShape?: 'number' | 'boolean' | 'json'
             }
           | {
@@ -8097,6 +8100,9 @@ export type GetSourceCatalogResponse = {
               resourceKind?: string
               storage: 'native' | 'json-string'
               structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
               valueShape?: 'number' | 'boolean' | 'json'
             }
           | {
@@ -8277,6 +8283,9 @@ export type GetSourceCatalogResponse = {
       resourceKind?: string
       storage: 'native' | 'json-string'
       structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+      acceptsNumber?: boolean
+      neverDecoded?: boolean
+      tableFilter?: boolean
       valueShape?: 'number' | 'boolean' | 'json'
     }>
     lists?: Array<Array<string | number | boolean>>
