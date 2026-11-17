@@ -90,9 +90,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
     }
     const requested = new Set(input.kinds ?? APPLY_ORDER)
-    const kinds = APPLY_ORDER.filter(
-      (kind) => requested.has(kind) && KIND_ADAPTERS[kind].supported !== false
-    )
+    const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))
     const result: ReadWorkspaceSourceResult = {
       workspaceId: context.workspaceId,
       kinds,

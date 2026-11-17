@@ -251,15 +251,6 @@ export async function planWorkspaceSource(
     const paths = [...Object.keys(files), ...blobs.byPath.keys()].filter(
       (path) => kindOfPath(path) === kind
     )
-    if (adapter.supported === false) {
-      diagnostics.push(
-        error('E_KIND_UNSUPPORTED', `${KIND_DIRS[kind]}/ is not supported by this server yet.`, {
-          kind,
-          hint: `Remove ${KIND_DIRS[kind]}/ or apply with --only to skip it.`,
-        })
-      )
-      continue
-    }
     const grouped = adapter.codec.group(paths)
     const kindFindings = grouped.diagnostics.map(flattenDiagnostic)
     if (grouped.groups.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {

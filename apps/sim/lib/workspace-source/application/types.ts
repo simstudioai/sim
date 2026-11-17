@@ -119,8 +119,6 @@ interface ReadResource {
  */
 export interface KindAdapter<D, S, P = unknown> {
   codec: KindCodec<D>
-  /** `false` for a kind this release cannot apply: a managed folder of it is refused. */
-  supported?: false
   /**
    * The kind's stored resources. `allocate` binds a key to every unbound one (a get does; an
    * apply never does, so an unbound resource can still be adopted by name).

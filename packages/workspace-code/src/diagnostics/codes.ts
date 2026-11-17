@@ -33,8 +33,6 @@ type DeclarationCode =
   | 'E_LIMIT_EXCEEDED'
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   | 'E_KEY_INVALID'
-  /** A kind whose declarations this server cannot read or write yet. */
-  | 'E_KIND_UNSUPPORTED'
 
 /** `.sim/base.json`. */
 type BaseCode = 'E_BASE_JSON' | 'E_BASE_VERSION' | 'E_BASE_SHAPE' | 'E_BASE_UNKNOWN_FIELD'
