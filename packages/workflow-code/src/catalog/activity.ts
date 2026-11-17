@@ -15,7 +15,7 @@ import {
   resolveCanonicalMode,
 } from './canonical-index'
 import { evaluateCondition, recordLookup } from './conditions'
-import { buildCanonicalIndexForSurface, isTriggerSurface, onSurface } from './surface'
+import { isTriggerSurface, onSurface, serializedCanonicalIndex } from './surface'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
 import { catalogBlock, catalogTrigger } from './view'
 
@@ -201,7 +201,7 @@ export function canonicalActivityInputs(
     advancedMode: block.advancedMode,
     values,
     overrides,
-    index: buildCanonicalIndexForSurface(catalogBlock, block.triggerMode),
+    index: serializedCanonicalIndex(catalogBlock, block.triggerMode),
     deployRead: deployReadIds(catalog, catalogBlock, block.type, block.triggerMode, values),
   }
 }

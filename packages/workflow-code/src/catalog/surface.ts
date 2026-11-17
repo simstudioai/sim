@@ -41,9 +41,11 @@ export function isAdvancedMember(subBlock: Pick<CatalogSubBlock, 'mode'>): boole
  * The canonical groups of the declarations a block in `triggerMode` uses. Both surfaces may share
  * a `canonicalParamId` under different ids (Gmail's `credential`/`manualCredential` and
  * `triggerCredentials` are all `oauthCredential`); indexed together, the other surface's member
- * would join the pair without being either of its members.
+ * would join the pair without being either of its members. This is the serializer's rule; the
+ * editor's `buildCanonicalIndexForSurface` filters only the trigger surface and keeps every
+ * declaration on the action surface.
  */
-export function buildCanonicalIndexForSurface(
+export function serializedCanonicalIndex(
   block: Pick<CatalogBlock, 'category' | 'subBlocks'>,
   triggerMode: boolean
 ): CanonicalIndex {

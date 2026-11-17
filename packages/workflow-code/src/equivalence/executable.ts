@@ -23,7 +23,7 @@ import {
 } from '../canonicalize/subflows'
 import { executableInactiveParams } from '../catalog/activity'
 import { isCanonicalPair } from '../catalog/canonical-index'
-import { buildCanonicalIndexForSurface } from '../catalog/surface'
+import { serializedCanonicalIndex } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type {
@@ -143,7 +143,7 @@ function executableParams(
   for (const [id, param] of Object.entries(block.params)) {
     if (!inactive.has(id)) setOwn(params, id, param)
   }
-  const index = buildCanonicalIndexForSurface(declared, block.triggerMode)
+  const index = serializedCanonicalIndex(declared, block.triggerMode)
   for (const group of Object.values(index.groupsById)) {
     if (!isCanonicalPair(group)) continue
     const members = [group.basicId, ...group.advancedIds].filter(

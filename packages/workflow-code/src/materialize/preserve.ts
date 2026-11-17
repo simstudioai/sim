@@ -18,7 +18,7 @@
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { type CanonicalGroup, isCanonicalPair } from '../catalog/canonical-index'
-import { buildCanonicalIndexForSurface } from '../catalog/surface'
+import { serializedCanonicalIndex } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import { executableSubflow } from '../equivalence/executable'
@@ -83,7 +83,7 @@ function restorePairs(
   declared: CatalogBlock,
   catalog: BlockCatalog
 ): void {
-  const index = buildCanonicalIndexForSurface(declared, next.triggerMode)
+  const index = serializedCanonicalIndex(declared, next.triggerMode)
   const nextInactive = inactiveSet(next, declared, catalog)
   const prevInactive = inactiveSet(prev, declared, catalog)
   for (const group of Object.values(index.groupsById)) {
