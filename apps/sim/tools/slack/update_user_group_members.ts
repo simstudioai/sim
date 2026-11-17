@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 import { usergroupOutput, usergroupSchema } from '@/tools/slack/web-api-responses'
 
 /** https://docs.slack.dev/reference/methods/usergroups.users.update/ */
@@ -23,7 +23,13 @@ export const slackUpdateUserGroupMembersTool = createSlackWebApiTool({
       visibility: 'user-or-llm',
       description: 'User Group ID',
     },
-    users: { type: 'json', required: true, visibility: 'user-or-llm', description: 'User IDs' },
+    users: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'The complete member list as Slack user IDs, in a JSON array or a comma-separated string',
+    },
     additional_channels: {
       type: 'json',
       required: false,
@@ -51,8 +57,8 @@ export const slackUpdateUserGroupMembersTool = createSlackWebApiTool({
   },
   input: z.object({
     usergroup: z.string().trim().min(1),
-    users: slackJson(z.array(slackId).min(1)).transform((ids) => ids.join(',')),
-    additional_channels: slackJson(z.array(slackId))
+    users: slackIdList(z.array(slackId).min(1)).transform((ids) => ids.join(',')),
+    additional_channels: slackIdList(z.array(slackId))
       .transform((ids) => ids.join(','))
       .optional(),
     is_shared: z.boolean().optional(),

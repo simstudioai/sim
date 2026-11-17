@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { HexBlock } from '@/blocks/blocks/hex'
 import type { BlockToolParamsContext } from '@/blocks/types'
+import { getGroupTool } from '@/tools/hex/get_group'
 import { getProjectRunsTool } from '@/tools/hex/get_project_runs'
 import { getQueriedTablesTool } from '@/tools/hex/get_queried_tables'
 import { listGroupsTool } from '@/tools/hex/list_groups'
@@ -77,13 +78,13 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
   })
 
   it('get project runs keeps a run status an agent passes directly', () => {
-    const args = { operation: 'get_project_runs', projectId: PROJECT_ID, statusFilter: 'errored' }
+    const args = { projectId: PROJECT_ID, statusFilter: 'errored' }
     const built = requestUrl(getProjectRunsTool, args, { operation: 'get_project_runs' })
     expect(built.searchParams.get('statusFilter')).toBe('errored')
   })
 
   it('list groups keeps a user id an agent passes directly', () => {
-    const args = { operation: 'list_groups', userId: PROJECT_ID }
+    const args = { userId: PROJECT_ID }
     const built = requestUrl(listGroupsTool, args, { operation: 'list_groups' })
     expect(built.searchParams.get('userId')).toBe(PROJECT_ID)
   })
@@ -94,8 +95,13 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
   })
 
   it('get queried tables keeps a cursor an agent passes directly', () => {
-    const args = { operation: 'get_queried_tables', projectId: PROJECT_ID, after: 'tables-cursor' }
+    const args = { projectId: PROJECT_ID, after: 'tables-cursor' }
     const built = requestUrl(getQueriedTablesTool, args, { operation: 'get_queried_tables' })
     expect(built.searchParams.get('after')).toBe('tables-cursor')
+  })
+
+  it('get group sends the Group ID stored on an agent tool row', () => {
+    const built = requestUrl(getGroupTool, { groupIdInput: PROJECT_ID }, { operation: 'get_group' })
+    expect(built.pathname).toBe(`/api/v1/groups/${PROJECT_ID}`)
   })
 })

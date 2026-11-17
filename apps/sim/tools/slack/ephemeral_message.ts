@@ -4,6 +4,16 @@ import type {
 } from '@/tools/slack/types'
 import type { InternalToolConfig } from '@/tools/types'
 
+/** Block Kit blocks arrive parsed from workflow data or as the JSON editor's serialized string. */
+function parseEphemeralBlocks(blocks: SlackEphemeralMessageParams['blocks']): unknown {
+  if (typeof blocks !== 'string') return blocks || undefined
+  try {
+    return JSON.parse(blocks)
+  } catch {
+    throw new Error('Block Kit Blocks must be valid JSON')
+  }
+}
+
 export const slackEphemeralMessageTool: InternalToolConfig<
   SlackEphemeralMessageParams,
   SlackEphemeralMessageResponse
@@ -81,8 +91,7 @@ export const slackEphemeralMessageTool: InternalToolConfig<
       user: params.user?.trim(),
       text: params.text,
       thread_ts: params.threadTs?.trim() || undefined,
-      blocks:
-        typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,
+      blocks: parseEphemeralBlocks(params.blocks),
     }),
   },
 

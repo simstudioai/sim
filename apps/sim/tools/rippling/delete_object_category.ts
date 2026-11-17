@@ -1,6 +1,7 @@
 import type { RipplingDeleteObjectCategoryParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteObjectCategoryTool: ToolConfig<RipplingDeleteObjectCategoryParams> = {
   id: 'rippling_delete_object_category',
@@ -24,7 +25,7 @@ export const ripplingDeleteObjectCategoryTool: ToolConfig<RipplingDeleteObjectCa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/object-categories/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/object-categories/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

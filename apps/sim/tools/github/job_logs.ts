@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { JobLogsParams, JobLogsResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -26,7 +27,7 @@ function jobLogsPath(owner: string, repo: string, jobId: number): string {
   if (!Number.isSafeInteger(jobId) || jobId < 1) {
     throw new Error('job_id must be a positive integer')
   }
-  return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`
+  return `${githubRepoPath(owner, repo)}/actions/jobs/${jobId}/logs`
 }
 
 /** Byte offsets from a `Content-Range: bytes <start>-<end>/<total>` header. */

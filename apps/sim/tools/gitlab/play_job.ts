@@ -1,7 +1,8 @@
 import type { GitLabPlayJobParams, GitLabPlayJobResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobResponse> = {
   id: 'gitlab_play_job',
@@ -46,8 +47,8 @@ export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobRes
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${params.jobId}/play`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${safeUrlPathSegment(params.jobId, 'jobId')}/play`
     },
     method: 'POST',
     headers: (params) => ({

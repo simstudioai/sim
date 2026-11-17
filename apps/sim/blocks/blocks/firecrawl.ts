@@ -1,7 +1,7 @@
 import { FirecrawlIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, SubBlockType } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput } from '@/blocks/utils'
 
 /** The document being parsed, whether it was uploaded or passed in by reference. */
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
@@ -592,9 +592,9 @@ Example 2 - Product Data:
             return 'firecrawl_scrape'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           limit,
           urls,
           formats,

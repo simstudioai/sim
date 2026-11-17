@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { CloseIssueParams, IssueResponse } from '@/tools/github/types'
 import { ISSUE_OUTPUT_PROPERTIES, LABEL_OUTPUT, USER_OUTPUT } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -33,7 +34,7 @@ export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Reason for closing: completed or not_planned',
+      description: 'Reason for closing: completed, not_planned, or duplicate',
     },
     apiKey: {
       type: 'string',
@@ -45,7 +46,7 @@ export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

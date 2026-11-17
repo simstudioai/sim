@@ -2,6 +2,7 @@ import type { SentryUpdateProjectParams, SentryUpdateProjectResponse } from '@/t
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpdateProjectResponse> =
   {
@@ -72,7 +73,7 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
 
     request: {
       url: (params) =>
-        `${SENTRY_REGIONS.apiBase(params.region)}/projects/${params.organizationSlug}/${params.projectSlug}/`,
+        `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/`,
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

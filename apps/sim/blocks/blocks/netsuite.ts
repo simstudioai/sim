@@ -1,7 +1,7 @@
 import { NetSuiteIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalNumberInput, toolCallArg } from '@/blocks/utils'
 
 const RECORD_TYPE_OPERATIONS = [
   'netsuite_list_records',
@@ -94,10 +94,6 @@ const BATCH_WRITE_OPERATIONS = [
   'netsuite_batch_update_records',
   'netsuite_batch_upsert_records',
 ]
-
-function usesOperation(operation: unknown, operations: readonly string[]): boolean {
-  return typeof operation === 'string' && operations.includes(operation)
-}
 
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === true || value === 'true') return true
@@ -844,35 +840,36 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
-        if (typeof params.operation !== 'string') return {}
-        const { operation, resultTaskId, statusTaskId, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (!operation) return {}
+        const { resultTaskId, statusTaskId, ...rest } = params
         const taskId =
           operation === 'netsuite_get_async_status'
-            ? statusTaskId
+            ? (statusTaskId ?? toolCallArg(context, rest.taskId))
             : operation === 'netsuite_get_async_result'
-              ? resultTaskId
+              ? (resultTaskId ?? toolCallArg(context, rest.taskId))
               : undefined
         return {
           ...rest,
-          body: usesOperation(operation, BODY_OPERATIONS)
+          body: BODY_OPERATIONS.includes(operation)
             ? parseJson(rest.body, 'Record fields')
             : undefined,
-          items: usesOperation(operation, BATCH_WRITE_OPERATIONS)
+          items: BATCH_WRITE_OPERATIONS.includes(operation)
             ? parseJson(rest.items, 'Records')
             : undefined,
-          limit: usesOperation(operation, PAGING_OPERATIONS)
+          limit: PAGING_OPERATIONS.includes(operation)
             ? parseOptionalNumberInput(rest.limit, 'Limit', {
                 integer: true,
                 min: 1,
                 max: 1_000,
               })
             : undefined,
-          offset: usesOperation(operation, PAGING_OPERATIONS)
+          offset: PAGING_OPERATIONS.includes(operation)
             ? parseOptionalNumberInput(rest.offset, 'Offset', { integer: true, min: 0 })
             : undefined,
-          expand: usesOperation(operation, RECORD_QUERY_OPERATIONS) ? rest.expand : undefined,
-          expandSubResources: usesOperation(operation, RECORD_QUERY_OPERATIONS)
+          expand: RECORD_QUERY_OPERATIONS.includes(operation) ? rest.expand : undefined,
+          expandSubResources: RECORD_QUERY_OPERATIONS.includes(operation)
             ? optionalBoolean(rest.expandSubResources)
             : undefined,
           roleId:

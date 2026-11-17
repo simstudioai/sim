@@ -4,6 +4,7 @@ import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
 import { oktaAssignUserRoleTool } from '@/tools/okta/assign_user_role'
 import { oktaClearUserSessionsTool } from '@/tools/okta/clear_user_sessions'
+import { oktaCreateGroupRuleTool } from '@/tools/okta/create_group_rule'
 import { oktaCreateUserTool } from '@/tools/okta/create_user'
 import { oktaDeactivateUserTool } from '@/tools/okta/deactivate_user'
 import { oktaDeleteGroupRuleTool } from '@/tools/okta/delete_group_rule'
@@ -12,6 +13,7 @@ import { oktaEnrollFactorTool } from '@/tools/okta/enroll_factor'
 import { oktaGetLogsTool } from '@/tools/okta/get_logs'
 import { oktaListAppsTool } from '@/tools/okta/list_apps'
 import { oktaRemoveUserFromAppTool } from '@/tools/okta/remove_user_from_app'
+import { oktaRemoveUserFromGroupTool } from '@/tools/okta/remove_user_from_group'
 import { oktaResetFactorTool } from '@/tools/okta/reset_factor'
 import { oktaResetPasswordTool } from '@/tools/okta/reset_password'
 import { oktaUpdateUserTool } from '@/tools/okta/update_user'
@@ -549,5 +551,33 @@ describe('okta block params mapping', () => {
     })
 
     expect(merged.limit).toBeUndefined()
+  })
+})
+
+describe('okta create_group_rule id lists', () => {
+  it('accepts the group and user ids as arrays, as an agent sends them', () => {
+    const build = oktaCreateGroupRuleTool.request.body
+    if (!build) throw new Error('create_group_rule defines no body builder')
+    const body = builtBody(() =>
+      build({
+        ...AUTH,
+        ruleName: 'Engineering',
+        expression: 'user.department=="Engineering"',
+        assignUserToGroupIds: ['00g1', ' 00g2 '],
+        excludedUserIds: ['00u9'],
+      } as never)
+    )
+
+    expect(body.actions).toEqual({ assignUserToGroups: { groupIds: ['00g1', '00g2'] } })
+    expect(body.conditions).toMatchObject({ people: { users: { exclude: ['00u9'] } } })
+  })
+})
+
+describe('okta path segments', () => {
+  it('refuses a dot segment that would retarget a membership delete at the group', () => {
+    const build = oktaRemoveUserFromGroupTool.request.url
+    if (typeof build !== 'function')
+      throw new Error('remove_user_from_group defines no url builder')
+    expect(() => builtUrl(build, { ...AUTH, groupId: '00g1', userId: '..' })).toThrow(/userId/)
   })
 })

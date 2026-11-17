@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteReleaseParams, DeleteReleaseResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -39,7 +40,7 @@ export const deleteReleaseTool: ToolConfig<DeleteReleaseParams, DeleteReleaseRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/releases/${params.release_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases/${githubPathSegment(params.release_id, 'release_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

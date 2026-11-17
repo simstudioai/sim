@@ -3,6 +3,7 @@ import type {
   LiveSearchProvider,
   NativeSearchQuery,
 } from '@/lib/api/contracts/mothership-assistant-tools'
+import type { NativeService } from '@/lib/sim-search/live/http'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import type { TextMatch } from '@/lib/sim-search/live/text-match'
 
@@ -77,28 +78,33 @@ export interface NativePage {
   message?: string
 }
 
+/** Per-request options shared by every native client method. */
+export interface NativeRequestOptions {
+  /** Sends the request to a sibling host of the client's provider origin. */
+  service?: NativeService
+  /** Cancels this request alongside the client's own signal. */
+  signal?: AbortSignal
+}
+
 export interface NativeClient {
   json(
     path: string,
-    options?: {
+    options?: NativeRequestOptions & {
       query?: Record<string, string | string[]>
       body?: unknown
-      googleService?: 'sheets'
       /** Reuse this client's earlier response to the same GET instead of requesting it again. */
       memo?: boolean
-      /** Cancels this request alongside the client's own signal. */
-      signal?: AbortSignal
     }
   ): Promise<unknown>
   text(
     path: string,
     query?: Record<string, string>,
-    options?: { signal?: AbortSignal }
+    options?: NativeRequestOptions
   ): Promise<string>
   bytes(
     path: string,
     query?: Record<string, string>,
-    options?: { signal?: AbortSignal }
+    options?: NativeRequestOptions
   ): Promise<Buffer>
 }
 

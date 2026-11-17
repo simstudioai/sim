@@ -37,6 +37,56 @@ export async function hasConnectorPermissionGrant(
   return Boolean(grant)
 }
 
+/** The connectors among `connectorIds` that grant the reader's subject at least one collection. */
+export async function connectorsGrantingSubject(
+  connectorIds: readonly string[],
+  subjectToken: string
+): Promise<Set<string>> {
+  const table = knowledgeConnectorPermissionGrant
+  const granted = new Set<string>()
+  for (let offset = 0; offset < connectorIds.length; offset += 1000) {
+    const rows = await db
+      .selectDistinct({ connectorId: table.connectorId })
+      .from(table)
+      .where(
+        and(
+          eq(table.subjectToken, subjectToken),
+          inArray(table.connectorId, connectorIds.slice(offset, offset + 1000))
+        )
+      )
+    for (const row of rows) granted.add(row.connectorId)
+  }
+  return granted
+}
+
+/** Returns grants only for the bounded, canonical collections requested by the authorized caller. */
+export async function readConnectorPermissionGrants(
+  connectorId: string,
+  expectedRevision: number,
+  groupKeys: readonly string[],
+  subjectToken: string
+): Promise<Set<string>> {
+  const table = knowledgeConnectorPermissionGrant
+  const snapshot = knowledgeConnectorPermissionSnapshot
+  const keys = new Set<string>()
+  for (let offset = 0; offset < groupKeys.length; offset += 1000) {
+    const rows = await db
+      .select({ groupKey: table.groupKey })
+      .from(table)
+      .innerJoin(snapshot, eq(snapshot.connectorId, table.connectorId))
+      .where(
+        and(
+          eq(table.connectorId, connectorId),
+          eq(snapshot.revision, expectedRevision),
+          eq(table.subjectToken, subjectToken),
+          inArray(table.groupKey, groupKeys.slice(offset, offset + 1000))
+        )
+      )
+    for (const row of rows) keys.add(row.groupKey)
+  }
+  return keys
+}
+
 /** Call only after authorizing the connector; this materializes its private normalized input. */
 export async function loadConnectorPermissionSnapshot(connectorId: string) {
   const [row] = await db
@@ -98,17 +148,17 @@ export async function writeConnectorPermissions(
     await tx
       .delete(knowledgeConnectorPermissionGrant)
       .where(eq(knowledgeConnectorPermissionGrant.connectorId, connectorId))
+    let batch: Array<typeof knowledgeConnectorPermissionGrant.$inferInsert> = []
     for (const group of input.groups) {
-      for (let offset = 0; offset < group.subjects.length; offset += 1000) {
-        await tx
-          .insert(knowledgeConnectorPermissionGrant)
-          .values(
-            group.subjects
-              .slice(offset, offset + 1000)
-              .map((subjectToken) => ({ connectorId, groupKey: group.groupKey, subjectToken }))
-          )
+      for (const subjectToken of group.subjects) {
+        batch.push({ connectorId, groupKey: group.groupKey, subjectToken })
+        if (batch.length === 1000) {
+          await tx.insert(knowledgeConnectorPermissionGrant).values(batch)
+          batch = []
+        }
       }
     }
+    if (batch.length) await tx.insert(knowledgeConnectorPermissionGrant).values(batch)
   } catch {
     /** Query exceptions may contain bind parameters from the private payload. */
     throw new OrchestrationError(

@@ -5362,7 +5362,6 @@
   "apps/sim/tools/firecrawl/types.ts#SEARCH_METADATA_OUTPUT_PROPERTIES",
   "apps/sim/tools/firecrawl/types.ts#SEARCH_RESULT_OUTPUT",
   "apps/sim/tools/github/types.ts#BRANCH_REF_OUTPUT_PROPERTIES",
-  "apps/sim/tools/github/types.ts#COMMIT_DATA_OUTPUT_PROPERTIES",
   "apps/sim/tools/github/types.ts#COMMIT_REF_OUTPUT",
   "apps/sim/tools/github/types.ts#COMMIT_REF_OUTPUT_PROPERTIES",
   "apps/sim/tools/github/types.ts#COMMIT_STATS_OUTPUT_PROPERTIES",

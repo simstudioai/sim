@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Page } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -18,6 +19,21 @@ import postgres from 'postgres'
  * are made in SQL to prove the database keeps profiles and reporting lines consistent.
  */
 const logger = createLogger('PeopleE2E')
+
+/**
+ * Answers the cookie consent card whenever it appears, the way a visitor would. It shows only
+ * where the visitor's jurisdiction asks for consent, after the page loads, and on a phone-width
+ * viewport it docks over the chart's controls, so taps beneath it would never land.
+ */
+async function answerConsentPrompt(page: Page) {
+  const prompt = page.getByRole('region', { name: 'Cookie preferences' })
+  await page.addLocatorHandler(prompt, () =>
+    prompt
+      .getByRole('button', { name: /^(Reject all|Accept all)$/ })
+      .first()
+      .click()
+  )
+}
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]
@@ -555,6 +571,7 @@ async function run() {
       try {
         await mkdir(screenshotDir, { recursive: true })
         const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+        await answerConsentPrompt(page)
         page.setDefaultTimeout(60_000)
         await page
           .context()
@@ -734,6 +751,7 @@ async function run() {
         await expect(focused('Maya Chen')).toBeVisible()
 
         const empty = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+        await answerConsentPrompt(empty)
         empty.setDefaultTimeout(60_000)
         await empty
           .context()
@@ -756,6 +774,7 @@ async function run() {
           hasTouch: true,
           viewport: { width: 390, height: 844 },
         })
+        await answerConsentPrompt(mobile)
         mobile.setDefaultTimeout(60_000)
         await mobile
           .context()
@@ -808,6 +827,7 @@ async function run() {
           await sql`insert into people_directory_sync (organization_id, source, source_target, next_sync_at)
           values (${teamOrg}, 'okta', 'draft.okta.com', now() + interval '1 hour')`
           const page = await browser.newPage()
+          await answerConsentPrompt(page)
           page.setDefaultTimeout(60_000)
           await page
             .context()

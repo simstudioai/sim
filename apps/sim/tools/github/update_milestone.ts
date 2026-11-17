@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -90,7 +91,7 @@ export const updateMilestoneTool: ToolConfig<UpdateMilestoneParams, UpdateMilest
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/milestones/${params.milestone_number}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/milestones/${githubPathSegment(params.milestone_number, 'milestone_number')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

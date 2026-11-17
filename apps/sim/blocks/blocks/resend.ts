@@ -317,10 +317,18 @@ Return ONLY the email body - no explanations, no extra text.`,
         field: 'operation',
         value: ['get_audience', 'delete_audience', 'create_broadcast'],
       },
-      required: {
+      /**
+       * Create Broadcast needs an audience only when no segment is set. Without block values (the
+       * public catalog, Copilot validation) a segment may still be given, so only the audience
+       * operations require it.
+       */
+      required: (values) => ({
         field: 'operation',
-        value: ['get_audience', 'delete_audience'],
-      },
+        value:
+          values && !String(values.segmentId ?? '').trim()
+            ? ['get_audience', 'delete_audience', 'create_broadcast']
+            : ['get_audience', 'delete_audience'],
+      }),
     },
 
     {
@@ -455,10 +463,15 @@ Return ONLY the email body - no explanations, no extra text.`,
         if (operation === 'send_email') return 'resend_send'
         return `resend_${operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
 
         rest.unsubscribed = toBooleanFromInput(rest.unsubscribed)
+
+        // The tool prefers a segment, so a model's segmentId would retarget a row's pinned audience.
+        if (context?.pinnedParams?.has('audienceId') && !context.pinnedParams.has('segmentId')) {
+          rest.segmentId = undefined
+        }
 
         if (typeof rest.limit === 'string') {
           const limit = rest.limit.trim()

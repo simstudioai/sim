@@ -1,6 +1,7 @@
 import type { RipplingGetJobFunctionParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams> = {
   id: 'rippling_get_job_function',
@@ -19,7 +20,7 @@ export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/job-functions/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/job-functions/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

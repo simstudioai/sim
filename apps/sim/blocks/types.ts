@@ -615,6 +615,12 @@ export type CanvasSentence = readonly CanvasSentenceClause[]
 export interface BlockToolParamsContext {
   /** Operation selected by the configuring surface. */
   operation?: string
+  /**
+   * Ids of the values the tool row itself stores non-empty (as stored, before canonical
+   * resolution). A model argument never overrides one of these, so a mapper can tell a pinned
+   * value from one the model chose when two params name the same thing.
+   */
+  pinnedParams?: ReadonlySet<string>
 }
 
 export interface BlockConfig {

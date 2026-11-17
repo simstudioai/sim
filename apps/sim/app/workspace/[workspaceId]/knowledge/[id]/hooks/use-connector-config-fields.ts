@@ -178,6 +178,12 @@ export function useConnectorConfigFields({
 
   const isFieldVisible = useCallback(
     (field: ConnectorConfigField): boolean => {
+      if (
+        field.condition &&
+        (sourceConfig[field.condition.field] === field.condition.value) ===
+          Boolean(field.condition.negate)
+      )
+        return false
       if (accessMode === 'members' && field.hideInMemberMode) return false
       if (accessMode === 'admin' && field.hideInAdminMode) return false
       if (accessMode !== 'admin' && field.showInAdminModeOnly) return false
@@ -185,7 +191,7 @@ export function useConnectorConfigFields({
       const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
       return field.mode === activeMode
     },
-    [canonicalModes, accessMode]
+    [canonicalModes, accessMode, sourceConfig]
   )
 
   const isFieldPopulated = useCallback(
@@ -249,6 +255,7 @@ export function useConnectorConfigFields({
     if (!connectorConfig) return resolved
 
     for (const field of connectorConfig.configFields) {
+      if (field.condition && !isFieldVisible(field)) continue
       if (field.canonicalParamId) {
         if (processed.has(field.canonicalParamId)) continue
         processed.add(field.canonicalParamId)
@@ -266,7 +273,14 @@ export function useConnectorConfigFields({
     resolved[SOURCE_LABELS_KEY] =
       createSourceLabelMetadata(connectorConfig, resolved, selectionLabels) ?? null
     return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig, selectionLabels])
+  }, [
+    connectorConfig,
+    canonicalGroups,
+    canonicalModes,
+    sourceConfig,
+    selectionLabels,
+    isFieldVisible,
+  ])
 
   return {
     sourceConfig,

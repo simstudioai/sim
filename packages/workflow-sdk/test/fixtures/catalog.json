@@ -25977,8 +25977,7 @@
             "get_team_info": false,
             "get_team_profile": false,
             "unfurl_links": false
-          },
-          "required": true
+          }
         },
         {
           "id": "viewInteractivityPointer",
@@ -27646,13 +27645,6 @@
             "field": "operation",
             "value": [
               "set_agent_suggested_prompts",
-              "set_agent_session_status",
-              "rename_agent_session"
-            ]
-          },
-          "required": {
-            "field": "operation",
-            "value": [
               "set_agent_session_status",
               "rename_agent_session"
             ]
@@ -31057,7 +31049,7 @@
         },
         "status": {
           "type": "string",
-          "description": "List export job status"
+          "description": "List export job status, or agent session status"
         },
         "agentStatus": {
           "type": "string",
@@ -31110,6 +31102,14 @@
         "members": {
           "type": "json",
           "description": "Array of user IDs who are members of the channel"
+        },
+        "ids": {
+          "type": "json",
+          "description": "IDs of the returned channels or users"
+        },
+        "names": {
+          "type": "json",
+          "description": "Names of the returned channels or users"
         },
         "users": {
           "type": "json",
@@ -31635,7 +31635,8 @@
               "delete_rows_by_filter"
             ]
           },
-          "paramVisibility": "user-only"
+          "paramVisibility": "user-only",
+          "valueShape": "json"
         },
         {
           "id": "filter",
@@ -31670,7 +31671,8 @@
             "field": "operation",
             "value": "query_rows"
           },
-          "paramVisibility": "user-only"
+          "paramVisibility": "user-only",
+          "valueShape": "json"
         },
         {
           "id": "order",

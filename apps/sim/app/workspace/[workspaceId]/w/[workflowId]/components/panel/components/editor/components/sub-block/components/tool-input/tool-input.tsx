@@ -983,7 +983,7 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const preservedParams = getParamsForToolOperation(tool, newToolConfig)
+      const preservedParams = getParamsForToolOperation(tool, newToolConfig, operation)
 
       if (tool.type === 'jira') {
         const subBlockStore = useSubBlockStore.getState()

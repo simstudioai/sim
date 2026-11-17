@@ -1,3 +1,4 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_FILE_OUTPUT_PROPERTIES,
@@ -84,15 +85,15 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page for files (max 100, default: 30)',
-      default: 30,
+      description:
+        'Commits per page (max 100). Setting per_page or page paginates the commit list, and changed files are returned only on page 1. Leave both unset to get up to 250 commits and every changed file in one response.',
     },
     page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for files (default: 1)',
-      default: 1,
+      description:
+        'Page of the commit list. Changed files are returned only on page 1. Omit both page and per_page to get up to 250 commits in one response.',
     },
     apiKey: {
       type: 'string',
@@ -105,7 +106,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/compare/${params.base}...${params.head}`
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/compare/${githubRefPath(params.base, 'base')}...${githubRefPath(params.head, 'head')}`
       )
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))
@@ -128,7 +129,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
       message: c.commit.message,
       author: {
         login: c.author?.login,
-        name: c.commit.author.name,
+        name: c.commit.author?.name ?? null,
       },
     }))
 

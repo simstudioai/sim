@@ -139,7 +139,6 @@ const DISPLAY_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'webhook-config',
 ])
 
-const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'variables-input'])
 const DISPLAY_LABEL_READONLY_REASON = 'Display labels cannot be replaced'
 
 const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
@@ -228,9 +227,6 @@ function isSearchableLeafPath(
     ) {
       return false
     }
-  }
-  if (mode === 'text' && subBlockType && TEXT_VALUE_ONLY_SUBBLOCK_TYPES.has(subBlockType)) {
-    return lastSegment === 'value'
   }
   if (
     mode === 'text' &&

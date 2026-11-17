@@ -2,6 +2,7 @@ import type { SentryListIssuesParams, SentryListIssuesResponse } from '@/tools/s
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssuesResponse> = {
   id: 'sentry_issues_list',
@@ -29,8 +30,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Filter issues by numeric project ID (e.g., "4501234"). This organization-scoped endpoint requires the numeric project ID, not the project slug.',
+      description: 'Filter issues by project ID or slug (e.g., "4501234" or "my-project")',
     },
     query: {
       type: 'string',
@@ -44,7 +44,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       required: false,
       visibility: 'user-only',
       description:
-        'Time window for the per-issue stats series (e.g., "24h", "14d"). Note: this controls the stats returned with each issue, not which issues are returned — use the query (e.g., "age:-7d", "lastSeen:-24h") to filter results.',
+        'Time window to search (e.g., "24h", "14d"); only issues with events in this window are returned.',
     },
     cursor: {
       type: 'string',
@@ -75,7 +75,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
 
   request: {
     url: (params) => {
-      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/issues/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/`
       const queryParams: string[] = []
 
       if (params.projectSlug && params.projectSlug !== null && params.projectSlug !== '') {
@@ -188,6 +188,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           nextCursor,
           hasMore,
         },
+        nextCursor,
+        hasMore,
       },
     }
   },
@@ -292,6 +294,16 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           description: 'Whether there are more results available',
         },
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
     },
   },
 }

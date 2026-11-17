@@ -156,7 +156,7 @@ export function projectConnectorType(
     description: meta.description,
     version: meta.version,
     auth: projectAuth(meta.auth),
-    configFields: meta.configFields.map(projectConfigField),
+    configFields: meta.configFields.filter((field) => !field.searchOnly).map(projectConfigField),
     supportsIncrementalSync: meta.supportsIncrementalSync === true,
     tagDefinitions: (meta.tagDefinitions ?? []).map(projectTagDefinition),
   }

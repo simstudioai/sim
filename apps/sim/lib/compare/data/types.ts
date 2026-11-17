@@ -306,6 +306,11 @@ export interface CompetitorProfile {
    */
   faqs?: Array<{ question: string; answer: string }>
   /**
+   * Concrete evaluation steps appended to the generated "Can I migrate from {name} to Sim?"
+   * answer, for a competitor whose teams switch by rebuilding a prototype rather than importing it.
+   */
+  migrationSteps?: string
+  /**
    * Replaces the generated `Sim vs {name} | Sim, the AI Workspace` search title, at most 60
    * characters. Set it when buyers search this competitor for one time-sensitive reason, such
    * as a shutdown, that the generated title does not name.

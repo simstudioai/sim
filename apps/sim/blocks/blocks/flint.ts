@@ -1,7 +1,7 @@
 import { FlintIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Coerces the publish switch value to an explicit boolean, preserving an
@@ -155,10 +155,10 @@ Return ONLY the raw JSON array starting with [ and ending with ] - no explanatio
     access: ['flint_create_task', 'flint_generate_pages', 'flint_get_task'],
     config: {
       tool: (params) => params.operation || 'flint_create_task',
-      params: (params) => {
+      params: (params, context) => {
         const base: Record<string, unknown> = { apiKey: params.apiKey }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'flint_generate_pages':
             return {
               ...base,

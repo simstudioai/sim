@@ -51,20 +51,20 @@ export const commentTool: InternalToolConfig<CreateCommentParams, CreateCommentR
     line: {
       type: 'number',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Line number for review comment',
     },
     side: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Side of the diff (LEFT or RIGHT)',
       default: 'RIGHT',
     },
     commitId: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'The SHA of the commit to comment on. Defaults to the pull request head commit.',
     },
     apiKey: {

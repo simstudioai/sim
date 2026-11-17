@@ -4,6 +4,7 @@ import type { OktaApplication, OktaGetAppParams, OktaGetAppResponse } from '@/to
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetApp')
 
@@ -39,7 +40,7 @@ export const oktaGetAppTool: ToolConfig<OktaGetAppParams, OktaGetAppResponse> = 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}`
+      return `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

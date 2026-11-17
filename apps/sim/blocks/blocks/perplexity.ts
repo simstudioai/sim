@@ -1,5 +1,6 @@
 import { PerplexityIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const PerplexityBlock: BlockConfig = {
   type: 'perplexity',
@@ -202,16 +203,16 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
             return 'perplexity_chat'
         }
       },
-      params: (params) => {
-        if (params.operation === 'perplexity_search') {
-          // Process domain filter from comma-separated string to array
-          let domainFilter: string[] | undefined
-          if (params.search_domain_filter && typeof params.search_domain_filter === 'string') {
-            domainFilter = params.search_domain_filter
-              .split(',')
-              .map((d) => d.trim())
-              .filter((d) => d.length > 0)
-          }
+      params: (params, context) => {
+        if (mapperOperation(params, context) === 'perplexity_search') {
+          // The block takes a comma-separated string; a tool call already sends an array.
+          const rawDomains: unknown[] | undefined =
+            params.search_domain_filter && typeof params.search_domain_filter === 'string'
+              ? params.search_domain_filter.split(',')
+              : Array.isArray(params.search_domain_filter)
+                ? params.search_domain_filter
+                : undefined
+          const domainFilter = rawDomains?.map((d) => String(d).trim()).filter((d) => d.length > 0)
 
           const searchParams = {
             apiKey: params.apiKey,
@@ -237,7 +238,12 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
           content: params.content,
           systemPrompt: params.systemPrompt,
           max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
-          temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
+          temperature:
+            params.temperature === 0
+              ? 0
+              : params.temperature
+                ? Number.parseFloat(params.temperature)
+                : undefined,
         }
 
         return chatParams

@@ -53,7 +53,7 @@ export default async function ResumeExecutionPageWrapper({
         userId: session.user.id,
         sessionId: session.session.id,
       },
-      input: { workflowId, executionId },
+      input: { workflowId, executionId, includeSnapshot: false },
     })
   } catch (error) {
     const classified = asOrchestrationError(error)

@@ -1,6 +1,6 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GongBlock: BlockConfig = {
@@ -1088,11 +1088,11 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     ],
     config: {
       tool: (params) => `gong_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         // Map operation-specific subBlock IDs to tool param names, gated by the
         // selected operation so stale values from other operations never leak in
-        const operation = params.operation as string
+        const operation = mapperOperation(params, context)
         if (operation === 'get_call_transcript' || operation === 'get_extensive_calls') {
           if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
           if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
@@ -1123,7 +1123,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
         }
         if (operation === 'unassign_flow_prospects') {
-          result.flowId = params.unassignFlowId || undefined
+          result.flowId = params.unassignFlowId || toolCallArg(context, params.flowId) || undefined
         }
         return result
       },

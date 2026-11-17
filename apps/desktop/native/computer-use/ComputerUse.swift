@@ -58,6 +58,20 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     if result == .success || result == .cannotComplete && press { return }
     try axCheck(result)
 }
+/// Performs an advertised Accessibility action. An element can still refuse it (Finder and file-panel
+/// cells answer AXOpen with attributeUnsupported, -25205); nothing reached the app, so the snapshot stays valid.
+func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = false) throws {
+    var refused = false
+    do {
+        try dispatchAX(element, press: press) { element in
+            let result = AXUIElementPerformAction(element, action as CFString)
+            refused = result == .actionUnsupported || result == .attributeUnsupported
+            return result
+        }
+    } catch where refused {
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+    }
+}
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
 /// highlighted instead of running it. Return runs the highlighted item, as it would for a keyboard user.
 func completeMenuPress(_ item: AXUIElement, pid: pid_t) async throws {
@@ -153,11 +167,22 @@ func takesText(_ element: AXUIElement) -> Bool {
     return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
 }
 /// The window holding `element`: the element itself when it is a window or sheet, which report no
-/// window of their own, otherwise the window it reports.
+/// window of their own, otherwise the window it reports. Controls of an open or save panel belong to
+/// the panel's service process and report no window, so for them the nearest window or sheet among
+/// their ancestors is used.
 func containingWindow(_ element: AXUIElement) -> AXUIElement? {
-    if [kAXWindowRole, kAXSheetRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
-    guard let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-    return unsafeBitCast(raw, to: AXUIElement.self)
+    let windowRoles = [kAXWindowRole, kAXSheetRole]
+    if windowRoles.contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
+    if let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        return unsafeBitCast(raw, to: AXUIElement.self)
+    }
+    var current = element
+    for _ in 0..<64 {
+        guard let raw = attribute(current, kAXParentAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        current = unsafeBitCast(raw, to: AXUIElement.self)
+        if windowRoles.contains(attribute(current, kAXRoleAttribute) as? String ?? "") { return current }
+    }
+    return nil
 }
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
@@ -206,12 +231,12 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
         let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = false
         let app = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         guard app.bundleIdentifier == bundle, !app.isTerminated else { throw ComputerError("app_identity_mismatch", "Launched app identity does not match the requested bundle ID.") }
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(root, 0.1)
+        // Apps built on Electron or Catalyst take several seconds to show their first window; wait for
+        // one an observation can target rather than failing the read the agent will only repeat.
         var windowReady = false
-        for _ in 0..<20 {
+        for _ in 0..<80 {
             try checkCancellation()
-            if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement], !windows.isEmpty { windowReady = true; break }
+            if hasObservableWindow(app.processIdentifier) { windowReady = true; break }
             guard !app.isTerminated else { throw ComputerError("app_unavailable", "App exited while opening its window.") }
             try await Task.sleep(for: .milliseconds(100))
         }
@@ -230,6 +255,23 @@ func requireAccessibility() throws {
 func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
     return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+}
+/// Whether the app has a window an observation can list: an Accessibility window whose frame matches
+/// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it
+/// is listed and `activate_app` can bring it forward.
+func hasObservableWindow(_ pid: pid_t) -> Bool {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else { return false }
+    let frames = windows.compactMap { window -> CGRect? in
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        return elementRect(window)
+    }
+    return windowsFor(pid).contains { entry in
+        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0 else { return false }
+        return frames.contains(rect)
+    }
 }
 func windowRect(_ id: String?, pid: pid_t) throws -> CGRect {
     let id = try required(id, "windowId")
@@ -872,7 +914,7 @@ final class Driver {
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
             // Actions that open UI (a sheet, a menu) hold the reply like a press; others fail as uncertain on timeout.
             let opensUI = [kAXPressAction, kAXPickAction, kAXShowMenuAction].contains(action)
-            try dispatchAX(element, press: opensUI) { AXUIElementPerformAction($0, action as CFString) }
+            try performAXAction(element, action, press: opensUI)
             if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")
@@ -884,7 +926,7 @@ final class Driver {
             let button = p.button ?? "left"; let count = p.clickCount ?? 1
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
             if p.elementId != nil && button == "left" && count == 1, let element = try? snapshot.element(p.elementId), axActions(element).contains(kAXPressAction) {
-                try dispatchAX(element, press: true) { AXUIElementPerformAction($0, kAXPressAction as CFString) }
+                try performAXAction(element, kAXPressAction, press: true)
                 try await completeMenuPress(element, pid: pid)
             } else {
                 try await coordinateAction { dispatch in

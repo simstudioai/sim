@@ -20,6 +20,7 @@ import {
   setEncryptedConversationMessage,
 } from '@/providers/conversation-metadata'
 import { executeProviderTool } from '@/providers/runtime-context'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { Message, ProviderRequest } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
 
@@ -135,6 +136,19 @@ describe('durable conversation restoration and continuation', () => {
     await expect(
       continuePendingConversationCalls(toolRequest, await pendingSession())
     ).rejects.toBe(refused)
+  })
+
+  it('records a block mapper rejection as a failed tool call without dispatching it', async () => {
+    vi.mocked(prepareToolExecution).mockImplementationOnce(() => {
+      throw new ToolCallParamsError('Invalid JSON in Filter')
+    })
+    const session = await pendingSession()
+    await continuePendingConversationCalls(toolRequest, session)
+    expect(session.getPendingCalls()).toEqual([])
+    expect(session.getMessages('openai', 'model-a', 'binding-a')[1].content).toContain(
+      'Invalid JSON in Filter'
+    )
+    expect(executeProviderTool).not.toHaveBeenCalled()
   })
 
   it('clears a previously restored native message when the next fallback binding changes', async () => {

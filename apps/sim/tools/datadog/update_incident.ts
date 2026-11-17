@@ -132,7 +132,7 @@ export const updateIncidentTool: ToolConfig<UpdateIncidentParams, UpdateIncident
         attributes.notification_handles = handles.map((handle) => ({ handle }))
       }
 
-      return { data: { type: 'incidents', id: params.incidentId, attributes } }
+      return { data: { type: 'incidents', id: String(params.incidentId ?? '').trim(), attributes } }
     },
   },
 

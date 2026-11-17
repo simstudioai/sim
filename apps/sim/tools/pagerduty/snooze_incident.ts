@@ -4,6 +4,7 @@ import type {
 } from '@/tools/pagerduty/types'
 import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const snoozeIncidentTool: ToolConfig<
   PagerDutySnoozeIncidentParams,
@@ -44,7 +45,8 @@ export const snoozeIncidentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId.trim()}/snooze`,
+    url: (params) =>
+      `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/snooze`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

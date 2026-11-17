@@ -98,6 +98,78 @@ describe('Snowflake integration contracts', () => {
       mapParams({ operation: 'load_data', onError: 'SKIP_FILE_PERCENT', onErrorThreshold: '5' })
     ).toMatchObject({ onError: 'SKIP_FILE_5%', onErrorThreshold: undefined })
   })
+
+  it('coerces stored tool-row text on a tool call, where the operation arrives only in context', () => {
+    const mapParams = SnowflakeBlock.tools.config?.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+
+    expect(
+      mapParams(
+        { statement: 'SELECT 1', maxRows: '500', statementTimeoutSeconds: '60' },
+        { operation: 'execute_sql' }
+      )
+    ).toMatchObject({ maxRows: 500, statementTimeoutSeconds: 60 })
+    expect(mapParams({ limit: '50' }, { operation: 'list_databases' })).toMatchObject({
+      limit: 50,
+    })
+    expect(
+      mapParams(
+        { warehouseName: 'WH', autoSuspendSeconds: '600', autoResume: null },
+        { operation: 'alter_warehouse' }
+      )
+    ).toMatchObject({ autoSuspendSeconds: 600, autoResume: undefined })
+  })
+
+  it('keeps case-variant string switches a model sends on a tool call', () => {
+    const mapParams = SnowflakeBlock.tools.config?.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+
+    const unload = {
+      stagePath: '@S/x',
+      database: 'D',
+      schema: 'S',
+      table: 'T',
+      overwrite: 'TRUE',
+      header: 'True',
+      singleFile: ' false ',
+    }
+    expect({ ...unload, ...mapParams(unload, { operation: 'unload_data' }) }).toMatchObject({
+      overwrite: true,
+      header: true,
+      singleFile: false,
+    })
+    const alter = { warehouseName: 'W', autoResume: 'TRUE' }
+    expect({ ...alter, ...mapParams(alter, { operation: 'alter_warehouse' }) }).toMatchObject({
+      autoResume: true,
+    })
+  })
+
+  it('keeps the semantic source the model filled when the tool row seeded the dropdown', () => {
+    const mapParams = SnowflakeBlock.tools.config?.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+
+    const toolCall = {
+      question: 'Revenue by region?',
+      semanticSource: 'semantic_view',
+      semanticModelFile: '@DB.SCH.STAGE/model.yaml',
+    }
+    expect({
+      ...toolCall,
+      ...mapParams(toolCall, { operation: 'cortex_analyst_ask' }),
+    }).toMatchObject({ semanticModelFile: '@DB.SCH.STAGE/model.yaml', semanticSource: undefined })
+
+    const canvas = {
+      operation: 'cortex_analyst_ask',
+      question: 'Revenue by region?',
+      semanticSource: 'semantic_view',
+      semanticView: 'DB.SCH.VIEW',
+      semanticModelFile: '@DB.SCH.STAGE/stale.yaml',
+    }
+    expect(mergedBlockInputs(canvas)).toMatchObject({
+      semanticView: 'DB.SCH.VIEW',
+      semanticModelFile: undefined,
+    })
+  })
 })
 
 describe('Snowflake SQL API transport', () => {
@@ -334,11 +406,11 @@ describe('Snowflake SQL API transport', () => {
     })
   })
 
-  it('derives truncation only from partitionInfo, ignoring the deprecated SQL API signals', async () => {
+  it('ignores the Link header and reports code 391908 as truncated', async () => {
     const linked = await readSnowflakeResult(
       jsonResponse(
         {
-          code: '391908',
+          code: '090001',
           statementHandle: 'single-partition',
           data: [['1']],
           resultSetMetaData: { numRows: 1, partitionInfo: [{ rowCount: 1 }] },
@@ -350,6 +422,16 @@ describe('Snowflake SQL API transport', () => {
       )
     )
     expect(linked.result).toMatchObject({ nextPartition: null, truncated: false })
+
+    const tooLarge = await readSnowflakeResult(
+      jsonResponse({
+        code: '391908',
+        statementHandle: 'too-large',
+        data: [['1']],
+        resultSetMetaData: { numRows: 1, partitionInfo: [{ rowCount: 1 }] },
+      })
+    )
+    expect(tooLarge.result).toMatchObject({ nextPartition: null, truncated: true })
   })
 
   it('handles pending statements, documented DML stats, and Snowflake failures', async () => {

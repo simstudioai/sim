@@ -195,6 +195,69 @@ describe('native search endpoints', () => {
   })
 })
 
+describe('Slack file hits', () => {
+  const fileHits = async (files: Record<string, unknown>[]) => {
+    const api = client()
+    api.json.mockResolvedValue({ ok: true, results: { files } })
+    const { documents } = await searchSlack(api, {
+      ...input,
+      scopes: ['search:read.public', 'search:read.files'],
+    })
+    return documents.map(({ content }) => content)
+  }
+  const hit = (fields: Record<string, unknown>) => ({
+    file_id: 'F1',
+    title: 'Q3 plan',
+    content: 'Q3 plan',
+    permalink: 'https://team.slack.com/files/U1/F1',
+    ...fields,
+  })
+
+  it('says what each file is and whether a read can return its text, instead of echoing its title', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', size: 245760 }),
+        hit({ file_type: 'application/vnd.slack-docs' }),
+        hit({ file_type: 'text/csv; charset=utf-8' }),
+        hit({ file_type: 'image/png' }),
+        hit({ file_type: 'application/vnd.slack-list' }),
+      ])
+    ).toEqual([
+      'PDF, 240 KB. Reading it can return its full text.',
+      'Canvas. Reading it can return its full text.',
+      'CSV. Reading it can return its full text.',
+      'Image. Its contents cannot be read here; open the source.',
+      'List. Its contents cannot be read here; open the source.',
+    ])
+  })
+
+  it('keeps text Slack returns beyond the title and describes a file of unknown type plainly', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', content: 'Revenue grew 12% in Q3' }),
+        hit({ content: '' }),
+        hit({ file_type: 'application/x-unknown', title: 'Plan v2.1 final', content: '' }),
+      ])
+    ).toEqual([
+      'PDF. Reading it can return its full text.\nRevenue grew 12% in Q3',
+      'File. Its contents cannot be read here; open the source.',
+      'File. Its contents cannot be read here; open the source.',
+    ])
+  })
+
+  it('offers no full text for a file above the read limit or an empty one', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', size: 5 * 1024 * 1024 }),
+        hit({ file_type: 'text/plain', size: 0 }),
+      ])
+    ).toEqual([
+      'PDF, 5 MB. Too large to read in full here; open the source.',
+      'Text, 0 Bytes. The file is empty.',
+    ])
+  })
+})
+
 describe('Slack RTS pages', () => {
   const scopes = ['search:read.public']
   const slackPage = (first: number, count: number, nextCursor?: string) => ({

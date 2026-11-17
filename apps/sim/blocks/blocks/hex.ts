@@ -1,7 +1,7 @@
 import { HexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { isToolCall, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Sort fields each list endpoint accepts. The only Sort By field is the List Projects one, so a
@@ -711,7 +711,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       params: (params, context) => {
         const result: Record<string, unknown> = {}
-        const op = params.operation
+        const op = mapperOperation(params, context)
         const fieldOrToolArg = (field: unknown, arg: unknown) =>
           emptyToUndefined(field) ?? emptyToUndefined(toolCallArg(context, arg))
 

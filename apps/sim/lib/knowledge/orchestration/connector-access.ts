@@ -192,7 +192,13 @@ export type ConnectorAccessTarget =
   | { accessMode: ContentEngineAccessMode; credentialId: string | null }
 
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
-  knowledgeBase: { id: string; name: string; workspaceId?: string; organizationId?: string }
+  knowledgeBase: {
+    id: string
+    name: string
+    workspaceId?: string
+    organizationId?: string
+    isSearchIndex?: boolean
+  }
   connectorId: string
   target: ConnectorAccessTarget
   sourceConfig?: Record<string, unknown>

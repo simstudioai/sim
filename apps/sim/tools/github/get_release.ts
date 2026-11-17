@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetReleaseParams, ReleaseResponse } from '@/tools/github/types'
 import {
   RELEASE_ASSET_OUTPUT_PROPERTIES,
@@ -44,7 +45,7 @@ export const getReleaseTool: ToolConfig<GetReleaseParams, ReleaseResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/releases/${params.release_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases/${githubPathSegment(params.release_id, 'release_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

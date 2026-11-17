@@ -13,13 +13,12 @@ const logger = createLogger('OktaCreateGroupRule')
 
 /**
  * Splits a comma or newline separated ID list into trimmed, non-empty entries.
+ * An agent may send the list as a JSON array instead, which is taken as is.
  */
-function parseIdList(value: string | undefined): string[] {
+function parseIdList(value: unknown): string[] {
   if (!value) return []
-  return value
-    .split(/[\n,]/)
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0)
+  const entries = Array.isArray(value) ? value.map(String) : String(value).split(/[\n,]/)
+  return entries.map((id) => id.trim()).filter((id) => id.length > 0)
 }
 
 export const oktaCreateGroupRuleTool: ToolConfig<

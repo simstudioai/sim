@@ -4,6 +4,7 @@ import type { OktaClearUserSessionsParams, OktaClearUserSessionsResponse } from 
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaClearUserSessions')
 
@@ -65,7 +66,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
       }
 
       const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/sessions`
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/sessions`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'DELETE',

@@ -272,9 +272,9 @@ async function* sseData(body: ReadableStream<Uint8Array>): AsyncGenerator<string
   try {
     while (true) {
       const { done, value } = await reader.read()
-      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
-
-      const lines = buffer.split('\n')
+      // `buffer` never holds a newline, so only the new text needs splitting.
+      const lines = (done ? decoder.decode() : decoder.decode(value, { stream: true })).split('\n')
+      lines[0] = buffer + lines[0]
       buffer = done ? '' : (lines.pop() ?? '')
 
       for (const rawLine of lines) {

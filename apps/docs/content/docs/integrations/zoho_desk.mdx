@@ -212,7 +212,7 @@ Update fields on an existing Zoho Desk ticket.
 | `language` | string | No | Ticket language |
 | `channel` | string | No | Ticket origin channel |
 | `webUrl` | string | No | URL to access the ticket |
-| `sharedDepartments` | array | No | JSON array of shared departments and access privileges |
+| `sharedDepartments` | array | No | Departments to share the ticket with, each as \{"id": departmentId, "type": "READ_ONLY" \| "READ_WRITE" \| "RESTRICTED_ACCESS"\}. JSON array. |
 | `teamId` | string | No | Team ID |
 | `secondaryContacts` | array | No | JSON array of secondary contact IDs |
 | `entitySkills` | array | No | JSON array of skill IDs in priority order; at most 10 |
@@ -353,7 +353,7 @@ Add a comment to a Zoho Desk ticket.
 
 ### Zoho Desk List Threads
 
-List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
+List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content) come back only from Get Thread.
 
 <ReferenceDetails>
 
@@ -588,7 +588,7 @@ Create Ticket in Zoho Desk.
 | `uploads` | array | No | File attachments in the ticket. For more information, refer to the Uploads section JSON array. |
 | `resolution` | string | No | Resolution notes of the ticket |
 | `webUrl` | string | No | URL to access the resource |
-| `sharedDepartments` | array | No | List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. |
+| `sharedDepartments` | array | No | Departments to share the ticket with, each as \{"id": departmentId, "type": "READ_ONLY" \| "READ_WRITE" \| "RESTRICTED_ACCESS"\}. JSON array. |
 | `teamId` | string | No | ID of the team to assign the ticket |
 | `secondaryContacts` | array | No | List of Secondary contacts JSON array. |
 | `entitySkills` | array | No | JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority. |

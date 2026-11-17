@@ -268,6 +268,28 @@ Unsuspend a previously suspended user in your Okta organization. Returns the use
 
 </ReferenceDetails>
 
+### Unlock User in Okta
+
+Unlock a LOCKED_OUT user, or an ACTIVE user blocked from unknown devices, so they can sign in with their current password. Works only for Okta-sourced users, not directory-sourced accounts such as Active Directory.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or login to unlock |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Unlocked user ID |
+| `unlocked` | boolean | Whether the user was unlocked |
+| `success` | boolean | Operation success status |
+
+</ReferenceDetails>
+
 ### Reset Password in Okta
 
 Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.
@@ -538,6 +560,39 @@ List all members of a specific group in your Okta organization
 | `count` | number | Number of members returned |
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether more members are available |
+| `success` | boolean | Operation success status |
+
+</ReferenceDetails>
+
+### List User Groups from Okta
+
+List the groups a user is a member of, one page at a time (pass nextCursor back as after while hasMore is true). Use it for access reviews and offboarding instead of scanning the members of each group.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or login whose groups to list |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of groups to return per page \(Okta default: 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | Array of groups the user belongs to |
+|   ↳ `id` | string | Group ID |
+|   ↳ `name` | string | Group name |
+|   ↳ `description` | string | Group description |
+|   ↳ `type` | string | Group type \(OKTA_GROUP, APP_GROUP, BUILT_IN\) |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `lastMembershipUpdated` | string | Last membership change timestamp |
+| `count` | number | Number of groups returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more groups are available |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>

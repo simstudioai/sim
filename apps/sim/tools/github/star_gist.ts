@@ -1,3 +1,4 @@
+import { githubPathSegment } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -40,7 +41,8 @@ export const starGistTool: ToolConfig<StarGistParams, StarGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/star`,
+    url: (params) =>
+      `https://api.github.com/gists/${githubPathSegment(params.gist_id, 'gist_id')}/star`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

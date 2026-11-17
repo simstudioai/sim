@@ -2,7 +2,15 @@ import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
+
+/**
+ * A Yes/No dropdown value as a boolean: `'true'` is true and any other string (including a blank
+ * one) is false, while a boolean a model sent on a tool call passes through unchanged.
+ */
+function dropdownFlag(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : value === 'true'
+}
 
 /** Operations that act on a single user and therefore require the User ID field. */
 const USER_ID_OPERATIONS = [
@@ -856,54 +864,55 @@ export const MicrosoftAdBlock: BlockConfig = {
     config: {
       tool: (params) => `microsoft_ad_${params.operation}`,
       params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
         const top = Number(params.top)
         result.top = params.top && Number.isFinite(top) ? top : undefined
         if (params.nextLink) result.nextLink = params.nextLink
         const values = params as Record<string, unknown>
         result.filter =
-          values[FILTER_FIELD_BY_OPERATION[params.operation]] ||
+          values[FILTER_FIELD_BY_OPERATION[operation]] ||
           toolCallArg(context, params.filter) ||
           undefined
         result.search =
-          values[SEARCH_FIELD_BY_OPERATION[params.operation]] ||
+          values[SEARCH_FIELD_BY_OPERATION[operation]] ||
           toolCallArg(context, params.search) ||
           undefined
-        if (params.operation === 'get_user') {
+        if (operation === 'get_user') {
           result.includeManager = params.includeManager === true || params.includeManager === 'true'
         }
-        if (params.operation === 'list_user_memberships') {
+        if (operation === 'list_user_memberships') {
           result.transitive = params.membershipScope
             ? params.membershipScope === 'transitive'
             : (parseOptionalBooleanInput(toolCallArg(context, params.transitive)) ?? false)
         }
-        if (params.operation === 'set_password') {
-          result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
-          result.forceChangePasswordNextSignInWithMfa = params.forceChangePasswordNextSignInWithMfa
-            ? params.forceChangePasswordNextSignInWithMfa === 'true'
-            : undefined
+        if (operation === 'set_password') {
+          result.forceChangePasswordNextSignIn =
+            parseOptionalBooleanInput(params.forceChangePasswordNextSignIn) ?? true
+          result.forceChangePasswordNextSignInWithMfa = parseOptionalBooleanInput(
+            params.forceChangePasswordNextSignInWithMfa
+          )
         }
-        if (params.operation === 'update_user') {
-          result.accountEnabled = params.accountEnabled
-            ? params.accountEnabled === 'true'
-            : undefined
-        } else if (params.operation === 'create_user') {
+        if (operation === 'update_user') {
+          result.accountEnabled = parseOptionalBooleanInput(params.accountEnabled)
+        } else if (operation === 'create_user') {
           result.accountEnabled = params.accountEnabledCreate
             ? params.accountEnabledCreate === 'true'
-            : undefined
+            : parseOptionalBooleanInput(toolCallArg(context, params.accountEnabled))
         }
-        if (params.mailEnabled !== undefined) result.mailEnabled = params.mailEnabled === 'true'
+        if (params.mailEnabled !== undefined) result.mailEnabled = dropdownFlag(params.mailEnabled)
         if (params.securityEnabled !== undefined)
-          result.securityEnabled = params.securityEnabled === 'true'
+          result.securityEnabled = dropdownFlag(params.securityEnabled)
         // Map group-specific fields to tool param names
         if (params.groupDisplayName) result.displayName = params.groupDisplayName
         if (params.groupMailNickname) result.mailNickname = params.groupMailNickname
         if (params.groupDescription) result.description = params.groupDescription
         if (params.groupTypes !== undefined) result.groupTypes = params.groupTypes
-        if (params.operation === 'update_group') {
+        if (operation === 'update_group') {
           result.visibility = params.visibility || undefined
-        } else if (params.operation === 'create_group') {
-          result.visibility = params.visibilityCreate || undefined
+        } else if (operation === 'create_group') {
+          result.visibility =
+            params.visibilityCreate || toolCallArg(context, params.visibility) || undefined
         }
         return result
       },

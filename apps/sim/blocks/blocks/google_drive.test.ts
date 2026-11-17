@@ -76,10 +76,14 @@ describe('GoogleDriveBlock pagination', () => {
  * the per-operation fields (`permissionsPageSize`, `searchPageToken`, `searchQuery`) are never rendered.
  */
 describe('GoogleDriveBlock agent tool calls', () => {
-  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
-    const inputs = { ...args, operation }
-    return { ...inputs, ...buildParams(inputs, { operation }) }
-  }
+  /** A stored agent tool keeps its operation on the tool, so it reaches the mapper only in `context`. */
+  const agentCall = (
+    operation: string,
+    args: Record<string, unknown>
+  ): Record<string, unknown> => ({
+    ...args,
+    ...buildParams(args, { operation }),
+  })
 
   it.each(['search', 'list_permissions', 'list_revisions', 'list_comments'])(
     'keeps the model pageSize and pageToken on %s',
@@ -102,5 +106,40 @@ describe('GoogleDriveBlock agent tool calls', () => {
   it('keeps the model pageToken when the args carry no operation', () => {
     const args = { fileId: 'f-1', pageToken: 'next' }
     expect({ ...args, ...buildParams(args, { operation: 'list_comments' }) }.pageToken).toBe('next')
+  })
+
+  it('sends the file picked on the tool row over the fileId the model supplies', () => {
+    expect(agentCall('get_file', { getFileId: 'picked-1', fileId: 'model-1' }).fileId).toBe(
+      'picked-1'
+    )
+  })
+
+  it('sends the folders picked on the tool row over the ids the model supplies', () => {
+    const moved = agentCall('move', {
+      fileId: 'f-1',
+      moveDestFolderId: 'picked-dest',
+      destinationFolderId: 'model-dest',
+    })
+    expect(moved.destinationFolderId).toBe('picked-dest')
+    expect(
+      agentCall('list', { listFolderId: 'picked-folder', folderId: 'model-folder' }).folderId
+    ).toBe('picked-folder')
+  })
+
+  it('keeps the model fileId when the tool row has no file picked', () => {
+    expect(agentCall('get_file', { fileId: 'model-1' }).fileId).toBe('model-1')
+  })
+
+  it('keeps the export format the model supplies', () => {
+    expect(agentCall('export', { fileId: 'f-1', mimeType: 'text/plain' }).mimeType).toBe(
+      'text/plain'
+    )
+  })
+
+  it('keeps boolean args the model sends as booleans', () => {
+    expect(agentCall('update', { fileId: 'f-1', starred: true }).starred).toBe(true)
+    expect(agentCall('move', { fileId: 'f-1', removeFromCurrent: false }).removeFromCurrent).toBe(
+      false
+    )
   })
 })

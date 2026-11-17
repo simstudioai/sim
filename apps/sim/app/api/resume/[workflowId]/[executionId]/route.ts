@@ -15,9 +15,10 @@ export const GET = defineInternalJsonRoute({
     reason: 'Preserve existing authenticated resume-detail behavior',
   }),
   errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
-  mapInput: ({ params }) => ({
+  mapInput: ({ params, query }) => ({
     workflowId: params.workflowId,
     executionId: params.executionId,
+    includeSnapshot: query.includeSnapshot,
   }),
   useCase: readPausedWorkflowExecution,
   responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),

@@ -3,6 +3,7 @@ import { ZohoDeskIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Both members of the `orgId` canonical pair, so the clause survives advanced mode. */
@@ -1055,7 +1056,7 @@ export const ZohoDeskBlock: BlockConfig = {
       id: 'sharedDepartments',
       title: 'Shared Departments',
       type: 'code',
-      placeholder: '[]',
+      placeholder: '[{"id": "1892000000006909", "type": "READ_ONLY"}]',
       condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
       language: 'json',
@@ -1064,7 +1065,7 @@ export const ZohoDeskBlock: BlockConfig = {
         generationType: 'json-array',
         placeholder: 'Describe the shared departments',
         prompt:
-          'List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. Return ONLY the JSON array.',
+          'Departments to share the ticket with, as a JSON array of objects {"id": "<departmentId>", "type": "READ_ONLY" | "READ_WRITE" | "RESTRICTED_ACCESS"}. Return ONLY the JSON array.',
       },
     },
     {
@@ -2640,21 +2641,11 @@ export const ZohoDeskBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `zoho_desk_${params.operation}`,
-      params: (params) => {
-        const fields =
-          typeof params.operation === 'string'
-            ? ADDITIONAL_OPERATION_FIELDS[params.operation]
-            : undefined
-        if (fields) {
-          const result: Record<string, unknown> = { orgId: params.orgId }
-          for (const [name, config] of Object.entries(fields)) {
-            const value = params[name]
-            result[name] = normalizeParam(name, value, config)
-          }
-          return result
-        }
-        // Agent tools select the operation outside params; retain model args and map only configured aliases.
-        if (typeof params.operation !== 'string') {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        // Tool calls keep the model's args (keyed by tool param names), so they never take the
+        // canvas branches below, which rebuild each param from block-only fields.
+        if (isToolCall(context) || !operation) {
           const result: Record<string, unknown> = { ...params }
           for (const [alias, name] of Object.entries(LEGACY_AGENT_ALIASES)) {
             const value = orUndefined(params[alias])
@@ -2665,6 +2656,15 @@ export const ZohoDeskBlock: BlockConfig = {
               result[name] = normalizeParam(name, result[name], config)
           }
           result.customFields = parseCustomFields(result.customFields)
+          return result
+        }
+        const fields = ADDITIONAL_OPERATION_FIELDS[operation]
+        if (fields) {
+          const result: Record<string, unknown> = { orgId: params.orgId }
+          for (const [name, config] of Object.entries(fields)) {
+            const value = params[name]
+            result[name] = normalizeParam(name, value, config)
+          }
           return result
         }
         // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
@@ -2728,7 +2728,7 @@ export const ZohoDeskBlock: BlockConfig = {
         // param). Only forward it for add_comment so the UI can't imply an option
         // that has no effect elsewhere.
         result.contentType =
-          params.operation === 'add_comment' && typeof contentType === 'string' && contentType
+          operation === 'add_comment' && typeof contentType === 'string' && contentType
             ? contentType
             : undefined
 
@@ -2745,7 +2745,7 @@ export const ZohoDeskBlock: BlockConfig = {
         // comment-only field onto every other operation's params. Destructured
         // out of `rest` so the default never reaches non-comment operations.
         result.isPublic =
-          params.operation === 'add_comment' && isPublic !== undefined
+          operation === 'add_comment' && isPublic !== undefined
             ? isPublic === true || isPublic === 'true'
             : undefined
         // Gated to update_ticket for the same reason as contentType and isPublic
@@ -2757,15 +2757,15 @@ export const ZohoDeskBlock: BlockConfig = {
         // eight operations must receive neither - a ternary with a bare `else`
         // would forward a stale Update Ticket value into e.g. get_ticket.
         const activeStatus =
-          params.operation === 'list_tickets'
+          operation === 'list_tickets'
             ? rawStatusFilter
-            : params.operation === 'update_ticket'
+            : operation === 'update_ticket'
               ? rawStatus
               : undefined
         const activePriority =
-          params.operation === 'list_tickets'
+          operation === 'list_tickets'
             ? rawPriorityFilter
-            : params.operation === 'update_ticket'
+            : operation === 'update_ticket'
               ? rawPriority
               : undefined
         result.status = orUndefined(activeStatus)
@@ -2777,11 +2777,11 @@ export const ZohoDeskBlock: BlockConfig = {
         // keeps its value across an operation change, so an ungated spread would
         // send list_tickets' `createdTime` to list_comments, which Zoho rejects.
         const activeSortBy =
-          params.operation === 'list_tickets'
+          operation === 'list_tickets'
             ? rawSortBy
-            : params.operation === 'list_comments'
+            : operation === 'list_comments'
               ? rawCommentSortBy
-              : params.operation === 'list_threads'
+              : operation === 'list_threads'
                 ? rawThreadSortBy
                 : undefined
         result.sortBy = orUndefined(activeSortBy)
@@ -2793,22 +2793,22 @@ export const ZohoDeskBlock: BlockConfig = {
         // `contract` and `skills` - while List Tickets never reads
         // `ticketInclude`, so those two extra tokens can still never reach it.
         const activeInclude =
-          params.operation === 'list_tickets'
+          operation === 'list_tickets'
             ? rawInclude
-            : params.operation === 'get_ticket'
+            : operation === 'get_ticket'
               ? (orUndefined(rawTicketInclude) ?? rawInclude)
-              : params.operation === 'get_contact'
+              : operation === 'get_contact'
                 ? rawContactInclude
-                : params.operation === 'list_comments'
+                : operation === 'list_comments'
                   ? params.include
-                  : params.operation === 'get_thread'
+                  : operation === 'get_thread'
                     ? rawThreadInclude
                     : undefined
         result.include = orUndefined(activeInclude)
 
         // Gated for the same stale-value reason as the filters above: these three
         // are list_tickets-only query params, and no other operation declares them.
-        const isListTickets = params.operation === 'list_tickets'
+        const isListTickets = operation === 'list_tickets'
         result.assignee = isListTickets ? orUndefined(rawAssigneeFilter) : undefined
         result.channel = isListTickets ? orUndefined(rawChannelFilter) : undefined
         // Forward whatever was supplied and let the tool judge it. Filtering here
@@ -2820,37 +2820,35 @@ export const ZohoDeskBlock: BlockConfig = {
         result.receivedInDays = receivedInDays === undefined ? undefined : Number(receivedInDays)
 
         result.customFields =
-          params.operation === 'update_ticket' ? parseCustomFields(rawCustomFields) : undefined
-        result.viewId = params.operation === 'list_tickets' ? params.viewId : undefined
-        result.teamIds = params.operation === 'list_tickets' ? params.teamIds : undefined
-        result.selectedFields =
-          params.operation === 'list_tickets' ? params.selectedFields : undefined
-        result.ticketContactId =
-          params.operation === 'update_ticket' ? params.ticketContactId : undefined
+          operation === 'update_ticket' ? parseCustomFields(rawCustomFields) : undefined
+        result.viewId = operation === 'list_tickets' ? params.viewId : undefined
+        result.teamIds = operation === 'list_tickets' ? params.teamIds : undefined
+        result.selectedFields = operation === 'list_tickets' ? params.selectedFields : undefined
+        result.ticketContactId = operation === 'update_ticket' ? params.ticketContactId : undefined
         result.commentInclude =
-          params.operation === 'list_comments' ? orUndefined(params.commentInclude) : undefined
-        result.contact = params.operation === 'update_ticket' ? params.contact : undefined
-        result.productId = params.operation === 'update_ticket' ? params.productId : undefined
-        result.uploads = params.operation === 'update_ticket' ? params.uploads : undefined
-        result.email = params.operation === 'update_ticket' ? params.email : undefined
-        result.phone = params.operation === 'update_ticket' ? params.phone : undefined
-        result.language = params.operation === 'update_ticket' ? params.language : undefined
-        result.channel = params.operation === 'update_ticket' ? params.channel : result.channel
-        result.webUrl = params.operation === 'update_ticket' ? params.webUrl : undefined
+          operation === 'list_comments' ? orUndefined(params.commentInclude) : undefined
+        result.contact = operation === 'update_ticket' ? params.contact : undefined
+        result.productId = operation === 'update_ticket' ? params.productId : undefined
+        result.uploads = operation === 'update_ticket' ? params.uploads : undefined
+        result.email = operation === 'update_ticket' ? params.email : undefined
+        result.phone = operation === 'update_ticket' ? params.phone : undefined
+        result.language = operation === 'update_ticket' ? params.language : undefined
+        result.channel = operation === 'update_ticket' ? params.channel : result.channel
+        result.webUrl = operation === 'update_ticket' ? params.webUrl : undefined
         result.sharedDepartments =
-          params.operation === 'update_ticket' ? params.sharedDepartments : undefined
-        result.teamId = params.operation === 'update_ticket' ? params.teamId : undefined
+          operation === 'update_ticket' ? params.sharedDepartments : undefined
+        result.teamId = operation === 'update_ticket' ? params.teamId : undefined
         result.secondaryContacts =
-          params.operation === 'update_ticket' ? params.secondaryContacts : undefined
-        result.entitySkills = params.operation === 'update_ticket' ? params.entitySkills : undefined
+          operation === 'update_ticket' ? params.secondaryContacts : undefined
+        result.entitySkills = operation === 'update_ticket' ? params.entitySkills : undefined
         result.disableClosureNotification =
-          params.operation === 'update_ticket'
+          operation === 'update_ticket'
             ? params.disableClosureNotification === '' || params.disableClosureNotification == null
               ? undefined
               : params.disableClosureNotification === true ||
                 params.disableClosureNotification === 'true'
             : undefined
-        result.attachmentIds = params.operation === 'add_comment' ? params.attachmentIds : undefined
+        result.attachmentIds = operation === 'add_comment' ? params.attachmentIds : undefined
         return result
       },
     },

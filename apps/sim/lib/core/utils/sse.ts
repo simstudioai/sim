@@ -166,8 +166,10 @@ export async function readSSELines(source: SSESource, options: ReadSSELinesOptio
 
       const { done, value } = await readChunk()
 
-      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
+      // `buffer` never holds a newline, so split only the new text: re-splitting
+      // the whole pending line on every chunk is quadratic in the event size.
+      const lines = (done ? decoder.decode() : decoder.decode(value, { stream: true })).split('\n')
+      lines[0] = buffer + lines[0]
       buffer = done ? '' : (lines.pop() ?? '')
 
       for (const rawLine of lines) {

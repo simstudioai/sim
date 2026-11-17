@@ -31,14 +31,29 @@ List all workers with optional filtering and pagination
 | --------- | ---- | -------- | ----------- |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workers` | array | List of workers |
+|   ↳ `job_function_id` | string | Job function ID |
+|   ↳ `pay_schedule_id` | string | Pay schedule ID |
+|   ↳ `original_start_date` | string | Original start date |
+|   ↳ `work_schedule` | json | Work schedule |
+|   ↳ `compensation_grade` | json | Compensation grade |
+|   ↳ `user` | json | Expanded user \(expand=user\) |
+|   ↳ `manager` | json | Expanded manager \(expand=manager\) |
+|   ↳ `legal_entity` | json | Expanded legal entity \(expand=legal_entity\) |
+|   ↳ `employment_type` | json | Expanded employment type \(expand=employment_type\) |
+|   ↳ `compensation` | json | Expanded compensation \(expand=compensation\) |
+|   ↳ `department` | json | Expanded department \(expand=department\) |
+|   ↳ `teams` | json | Expanded teams, when requested via expand |
+|   ↳ `level` | json | Expanded level, when requested via expand |
+|   ↳ `job_function` | json | Expanded job function, when requested via expand |
+|   ↳ `business_partners` | json | Expanded business partners, when requested via expand |
 |   ↳ `id` | string | Worker ID |
 |   ↳ `created_at` | string | Record creation date |
 |   ↳ `updated_at` | string | Record update date |
@@ -73,6 +88,7 @@ List all workers with optional filtering and pagination
 |   ↳ `country_fields` | json | Country-specific fields |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -126,6 +142,21 @@ Get a specific worker by ID
 | `termination_details` | json | Termination details |
 | `custom_fields` | json | Custom fields |
 | `country_fields` | json | Country-specific fields |
+| `job_function_id` | string | Job function ID |
+| `pay_schedule_id` | string | Pay schedule ID |
+| `original_start_date` | string | Original start date |
+| `work_schedule` | json | Work schedule |
+| `compensation_grade` | json | Compensation grade |
+| `user` | json | Expanded user \(expand=user\) |
+| `manager` | json | Expanded manager \(expand=manager\) |
+| `legal_entity` | json | Expanded legal entity \(expand=legal_entity\) |
+| `employment_type` | json | Expanded employment type \(expand=employment_type\) |
+| `compensation` | json | Expanded compensation \(expand=compensation\) |
+| `department` | json | Expanded department \(expand=department\) |
+| `teams` | json | Expanded teams, when requested via expand |
+| `level` | json | Expanded level, when requested via expand |
+| `job_function` | json | Expanded job function, when requested via expand |
+| `business_partners` | json | Expanded business partners, when requested via expand |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -140,8 +171,8 @@ List all users with optional pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -165,6 +196,7 @@ List all users with optional pagination
 |   ↳ `photos` | json | Array of photo objects |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -215,8 +247,8 @@ List all companies
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -234,8 +266,11 @@ List all companies
 |   ↳ `parent_legal_entity_id` | string | Parent legal entity ID |
 |   ↳ `legal_entities_id` | json | Array of legal entity IDs |
 |   ↳ `physical_address` | json | Physical address of the holding entity |
+|   ↳ `parent_legal_entity` | json | Expanded parent legal entity \(expand=parent_legal_entity\) |
+|   ↳ `legal_entities` | json | Expanded legal entities \(expand=legal_entities\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -301,8 +336,8 @@ List all departments
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -320,6 +355,7 @@ List all departments
 |   ↳ `department_hierarchy` | json | Expanded department hierarchy |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -426,8 +462,8 @@ List all teams
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -442,6 +478,7 @@ List all teams
 |   ↳ `parent` | json | Expanded parent team |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -483,8 +520,8 @@ List all employment types
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -501,6 +538,7 @@ List all employment types
 |   ↳ `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -543,8 +581,8 @@ List all titles
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -557,6 +595,7 @@ List all titles
 |   ↳ `name` | string | Title name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -662,8 +701,8 @@ List all custom fields
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -677,8 +716,10 @@ List all custom fields
 |   ↳ `description` | string | Field description |
 |   ↳ `required` | boolean | Whether the field is required |
 |   ↳ `type` | string | Field type \(TEXT, DATE, NUMBER, CURRENCY, etc.\) |
+|   ↳ `options` | json | Choice values for SELECT and RADIO fields \(null for other types\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -693,8 +734,8 @@ List all job functions
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -707,6 +748,7 @@ List all job functions
 |   ↳ `name` | string | Job function name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -745,8 +787,8 @@ List all work locations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -760,6 +802,7 @@ List all work locations
 |   ↳ `address` | json | Address object |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -882,14 +925,17 @@ List all business partners
 | --------- | ---- | -------- | ----------- |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `businessPartners` | array | List of businessPartners |
+|   ↳ `business_partner_group` | json | Expanded business partner group \(expand=business_partner_group\) |
+|   ↳ `worker` | json | Expanded worker \(expand=worker\) |
+|   ↳ `client_group` | json | Expanded client group \(expand=client_group\) |
 |   ↳ `id` | string | Business partner ID |
 |   ↳ `created_at` | string | Record creation date |
 |   ↳ `updated_at` | string | Record update date |
@@ -899,6 +945,7 @@ List all business partners
 |   ↳ `client_group_member_count` | number | Client group member count |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -927,6 +974,9 @@ Get a specific business partner by ID
 | `worker_id` | string | Worker ID |
 | `client_group_id` | string | Client group ID |
 | `client_group_member_count` | number | Client group member count |
+| `business_partner_group` | json | Expanded business partner group \(expand=business_partner_group\) |
+| `worker` | json | Expanded worker \(expand=worker\) |
+| `client_group` | json | Expanded client group \(expand=client_group\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -989,14 +1039,15 @@ List all business partner groups
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `expand` | string | No | Comma-separated fields to expand |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `businessPartnerGroups` | array | List of businessPartnerGroups |
+|   ↳ `default_business_partner` | json | Expanded default business partner \(expand=default_business_partner\) |
 |   ↳ `id` | string | Business partner group ID |
 |   ↳ `created_at` | string | Record creation date |
 |   ↳ `updated_at` | string | Record update date |
@@ -1005,6 +1056,7 @@ List all business partner groups
 |   ↳ `default_business_partner_id` | string | Default business partner ID |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1032,6 +1084,7 @@ Get a specific business partner group by ID
 | `name` | string | Name |
 | `domain` | string | Domain |
 | `default_business_partner_id` | string | Default partner ID |
+| `default_business_partner` | json | Expanded default business partner \(expand=default_business_partner\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1094,7 +1147,8 @@ List all supergroups
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `filter` | string | No | Filter expression \(filterable fields: app_owner_id, group_type\) |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1122,6 +1176,7 @@ List all supergroups
 |   ↳ `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1177,7 +1232,8 @@ List members of a supergroup
 | --------- | ---- | -------- | ----------- |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
-| `orderBy` | string | No | Sort field |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1193,6 +1249,7 @@ List members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1209,7 +1266,8 @@ List inclusion members of a supergroup
 | --------- | ---- | -------- | ----------- |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
-| `orderBy` | string | No | Sort field |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1225,6 +1283,7 @@ List inclusion members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1241,7 +1300,8 @@ List exclusion members of a supergroup
 | --------- | ---- | -------- | ----------- |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
-| `orderBy` | string | No | Sort field |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1257,6 +1317,7 @@ List exclusion members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1313,6 +1374,7 @@ List all custom objects
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1333,6 +1395,7 @@ List all custom objects
 |   ↳ `enable_history` | boolean | Whether history is enabled |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -1467,6 +1530,7 @@ List all fields for a custom object
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1488,6 +1552,7 @@ List all fields for a custom object
 |   ↳ `managed_package_install_id` | string | Package install ID |
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -1643,6 +1708,7 @@ List all records for a custom object
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -1661,6 +1727,7 @@ List all records for a custom object
 |   ↳ `data` | json | Full record data including dynamic fields |
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -1737,7 +1804,9 @@ Query custom object records with filters
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `query` | string | No | Query expression |
 | `limit` | number | No | Maximum number of records to return |
-| `cursor` | string | No | Pagination cursor |
+| `search` | string | No | Search record names or owners \(token/prefix match\); ANDed with query |
+| `orderBy` | string | No | One field API name with optional asc or desc, e.g. name desc |
+| `cursor` | string | No | Pagination cursor: the cursor output of the previous page |
 
 #### Output
 
@@ -1771,7 +1840,7 @@ Create a custom object record
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `externalId` | string | No | External ID for the record |
-| `data` | json | Yes | Record data |
+| `data` | json | Yes | Field values keyed by field API name \(e.g. \{"name": "License 4", "status__c": "ACTIVE"\}\) |
 
 #### Output
 
@@ -1803,7 +1872,7 @@ Update a custom object record
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 | `externalId` | string | No | External ID for the record |
-| `data` | json | No | Updated record data |
+| `data` | json | No | Field values to set, keyed by field API name \(e.g. \{"status__c": "FINAL"\}\) |
 
 #### Output
 
@@ -1854,7 +1923,7 @@ Bulk create custom object records
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `rowsToWrite` | json | Yes | Array of records to create \[\{external_id?, data\}\] |
+| `rowsToWrite` | json | Yes | Array of flat records \[\{external_id?, &lt;field_api_name&gt;: value\}\] \(max 200\) |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
 
 #### Output
@@ -1877,7 +1946,7 @@ Bulk update custom object records
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `rowsToUpdate` | json | Yes | Array of records to update |
+| `rowsToUpdate` | json | Yes | Array of flat records \[\{id, &lt;field_api_name&gt;: value\}\] \(max 200\) |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
 
 #### Output
@@ -1900,14 +1969,15 @@ Bulk delete custom object records
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `rowsToDelete` | json | Yes | Array of records to delete |
+| `rowsToDelete` | json | Yes | Array of record ID strings to delete \(max 200\) |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the bulk delete succeeded |
+| `deleted` | boolean | Whether the bulk delete request succeeded |
+| `deletedRecordIds` | array | IDs whose deletion was applied; may be partial or empty when records fail or await approval |
 
 </ReferenceDetails>
 
@@ -2195,8 +2265,8 @@ List all custom settings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
+| `orderBy` | string | No | Sort field\(s\), comma-separated; append " desc" for descending \(e.g. created_at desc\) |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -2209,12 +2279,13 @@ List all custom settings
 |   ↳ `display_name` | string | Display name |
 |   ↳ `api_name` | string | API name |
 |   ↳ `data_type` | string | Data type |
-|   ↳ `secret_value` | string | Secret value |
+|   ↳ `secret_value` | string | Always null: Rippling never returns secret values |
 |   ↳ `string_value` | string | String value |
 |   ↳ `number_value` | number | Number value |
 |   ↳ `boolean_value` | boolean | Boolean value |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -2229,7 +2300,7 @@ Get a specific custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Resource ID |
+| `id` | string | Yes | Custom setting API name \(api_name\) |
 
 #### Output
 
@@ -2241,7 +2312,7 @@ Get a specific custom setting
 | `display_name` | string | Display name |
 | `api_name` | string | API name |
 | `data_type` | string | Data type |
-| `secret_value` | string | Secret value |
+| `secret_value` | string | Always null: Rippling never returns secret values |
 | `string_value` | string | String value |
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
@@ -2277,7 +2348,7 @@ Create a new custom setting
 | `display_name` | string | Display name |
 | `api_name` | string | API name |
 | `data_type` | string | Data type |
-| `secret_value` | string | Secret value |
+| `secret_value` | string | Always null: Rippling never returns secret values |
 | `string_value` | string | String value |
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
@@ -2294,7 +2365,7 @@ Update a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Setting ID |
+| `id` | string | Yes | Custom setting API name \(api_name\) |
 | `displayName` | string | No | Display name |
 | `apiName` | string | No | Unique API name |
 | `dataType` | string | No | Data type of the setting |
@@ -2313,7 +2384,7 @@ Update a custom setting
 | `display_name` | string | Display name |
 | `api_name` | string | API name |
 | `data_type` | string | Data type |
-| `secret_value` | string | Secret value |
+| `secret_value` | string | Always null: Rippling never returns secret values |
 | `string_value` | string | String value |
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
@@ -2330,7 +2401,7 @@ Delete a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | ID of the resource to delete |
+| `id` | string | Yes | Custom setting API name \(api_name\) to delete |
 
 #### Output
 
@@ -2350,6 +2421,7 @@ List all object categories
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `cursor` | string | No | Pagination cursor: the nextCursor output of the previous page |
 
 #### Output
 
@@ -2363,6 +2435,7 @@ List all object categories
 |   ↳ `description` | string | Description |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 

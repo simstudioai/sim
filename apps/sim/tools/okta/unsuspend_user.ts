@@ -4,6 +4,7 @@ import type { OktaUnsuspendUserParams, OktaUnsuspendUserResponse } from '@/tools
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaUnsuspendUser')
 
@@ -40,7 +41,7 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/unsuspend`
+        return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/unsuspend`
       },
       method: 'POST',
       headers: (params) => oktaHeaders(params.apiKey),

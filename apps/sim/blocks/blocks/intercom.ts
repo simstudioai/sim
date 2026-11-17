@@ -173,8 +173,9 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     if (event_created_at) cleanParams.created_at = Number(event_created_at)
   }
 
+  // A block field mapped above (pinned on a tool row) beats the model's arg under the tool's name.
   Object.entries(rest).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
+    if (hasInput(value) && cleanParams[key] === undefined) {
       cleanParams[key] = value
     }
   })

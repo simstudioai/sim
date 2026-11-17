@@ -7,9 +7,9 @@ import {
   loadConnectorPermissionSnapshot,
   readConnectorPermissionMetadata,
 } from '@/lib/knowledge/connectors/permission-store'
+import { type GitLabGroupScope, gitLabGroupScopeSchema } from '@/connectors/gitlab/group'
 import {
   GitLabCsvValidationError,
-  gitLabCsvSubjects,
   parseGitLabCsv,
 } from '@/connectors/gitlab/permission-config/parser'
 import {
@@ -19,13 +19,15 @@ import {
   setGitLabCsvContext,
 } from '@/connectors/gitlab/permission-config/types'
 
-const metadataSchema = gitLabPermissionSummarySchema
-  .omit({ provider: true, revision: true })
-  .extend({
+const summarySchema = gitLabPermissionSummarySchema.omit({ provider: true, revision: true })
+const metadataSchema = z.union([
+  summarySchema.merge(gitLabGroupScopeSchema),
+  summarySchema.extend({
     host: z.string().min(1),
     projectId: z.number().int().positive(),
     projectPath: z.string().min(1),
-  })
+  }),
+])
 type RevisionMetadata = z.output<typeof metadataSchema> & { revision: number }
 interface StoredRows {
   userMappingRows: [string, string][] | null
@@ -36,7 +38,7 @@ type Snapshot = RevisionMetadata & StoredRows
 export interface PreparedGitLabPermissions {
   expectedRevision: number
   snapshot: Snapshot
-  subjects: string[]
+  groups: ConnectorPermissionData['groups']
   rewriteAccess: boolean
 }
 
@@ -95,7 +97,7 @@ export async function loadGitLabPermissionSnapshot(connectorId: string): Promise
 
 export function prepareGitLabPermissions(
   input: GitLabPermissionInput,
-  project: { host: string; projectId: number; projectPath: string },
+  project: { host: string; projectId: number; projectPath: string } | GitLabGroupScope,
   existing: (RevisionMetadata & Partial<StoredRows>) | null,
   replacing: boolean
 ): PreparedGitLabPermissions {
@@ -135,12 +137,41 @@ export function prepareGitLabPermissions(
   if (input.mode === 'csv' && (!userMapping || !projectPermissions)) {
     throw new OrchestrationError('validation', 'Non-admin token mode requires both CSV files.')
   }
+  if ('group' in project && userMapping && projectPermissions) {
+    const paths = new Set(project.projects.map((entry) => entry.path))
+    if (projectPermissions.rows.some(([path]) => !paths.has(path)))
+      throw new OrchestrationError(
+        'validation',
+        'The CSV contains projects outside the configured GitLab group.'
+      )
+    if (existing && 'group' in existing) {
+      const previousIds = new Map(existing.projects.map((entry) => [entry.path, entry.id]))
+      if (
+        project.projects.some(
+          (entry) => previousIds.has(entry.path) && previousIds.get(entry.path) !== entry.id
+        )
+      )
+        throw new OrchestrationError(
+          'validation',
+          'A GitLab project identity changed. Create a new connection before granting access to a replacement project.'
+        )
+    }
+  }
+  const paths =
+    'group' in project ? project.projects.map((entry) => entry.path) : [project.projectPath]
+  const grants = new Map(paths.map((path) => [path, new Set<string>()]))
+  if (userMapping && projectPermissions) {
+    const identities = new Map(userMapping.rows)
+    for (const [path, id] of projectPermissions.rows) {
+      const email = identities.get(id)
+      if (email) grants.get(path)?.add(`u:${email}`)
+    }
+  }
+  const subjects = (path: string) => [...(grants.get(path) ?? [])].sort()
   return {
     expectedRevision: revision,
     snapshot: {
-      host: project.host,
-      projectId: project.projectId,
-      projectPath: project.projectPath,
+      ...project,
       mode: input.mode,
       revision: revision + 1,
       userMapping: userMapping
@@ -160,15 +191,22 @@ export function prepareGitLabPermissions(
       userMappingRows: userMapping?.rows ?? null,
       projectPermissionRows: projectPermissions?.rows ?? null,
     },
-    subjects:
-      userMapping && projectPermissions
-        ? gitLabCsvSubjects(userMapping.rows, projectPermissions.rows, project.projectPath)
-        : [],
+    groups:
+      'group' in project
+        ? project.projects.map((entry) => ({
+            groupKey: `project:${entry.id}`,
+            subjects: subjects(entry.path),
+          }))
+        : [{ groupKey: 'project', subjects: subjects(project.projectPath) }],
     rewriteAccess:
       replacing &&
       ((existing?.mode ?? 'administrator') !== input.mode ||
         (existing !== null &&
-          (existing.host !== project.host || existing.projectId !== project.projectId))),
+          (existing.host !== project.host ||
+            ('group' in existing || 'group' in project
+              ? JSON.stringify('group' in existing ? existing.group : null) !==
+                JSON.stringify('group' in project ? project.group : null)
+              : existing.projectId !== project.projectId)))),
   }
 }
 
@@ -183,7 +221,7 @@ export function gitLabPermissionData(prepared: PreparedGitLabPermissions): Conne
   return {
     metadata,
     payload: { userMappingRows, projectPermissionRows },
-    groups: [{ groupKey: 'project', subjects: prepared.subjects }],
+    groups: prepared.groups,
   }
 }
 
@@ -200,12 +238,16 @@ export async function readGitLabPermissionSummaries(
 }
 
 /** Workers load canonical mode without loading the potentially large CSV snapshot. */
-export async function seedGitLabCsvContext(
+export async function seedGitLabPermissionContext(
   connectorId: string,
   context: Record<string, unknown>
 ): Promise<void> {
   const [row] = await readConnectorPermissionMetadata([connectorId])
   if (!row) return
-  const { mode, host, projectId, projectPath } = readGitLabPermissionMetadata(row.metadata)
-  if (mode === 'csv') setGitLabCsvContext(context, { connectorId, host, projectId, projectPath })
+  const metadata = readGitLabPermissionMetadata(row.metadata)
+  if ('group' in metadata) {
+    const { host, group, projects } = metadata
+    context.gitLabGroupScope = { host, group, projects }
+    context.gitLabPermissionMode = metadata.mode
+  } else if (metadata.mode === 'csv') setGitLabCsvContext(context, { connectorId, ...metadata })
 }

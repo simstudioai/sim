@@ -420,6 +420,7 @@ Merge a merge request in a GitLab project
 | `squash` | boolean | No | Squash commits before merging |
 | `shouldRemoveSourceBranch` | boolean | No | Delete source branch after merge |
 | `mergeWhenPipelineSucceeds` | boolean | No | Merge when pipeline succeeds |
+| `sha` | string | No | HEAD SHA of the source branch; the merge fails if it does not match. Required when the group or instance requires a commit SHA on the merge requests API. |
 
 #### Output
 
@@ -1024,7 +1025,7 @@ Add an existing GitLab user to a project or group at a given access level
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | No | The ID of the user to add. Provide either userId or username. |
 | `username` | string | No | The username of the user to add. Provide either userId or username. |
-| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `accessLevel` | number | Yes | Access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\). 5 \(Minimal access\) is also valid for a top-level group on Premium and Ultimate. |
 | `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
 
@@ -1050,7 +1051,7 @@ Update a member's access level in a GitLab project or group
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The ID of the member to update |
-| `accessLevel` | number | Yes | New access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `accessLevel` | number | Yes | New access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\). 5 \(Minimal access\) is also valid for a top-level group on Premium and Ultimate. |
 | `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format. Pass an empty string to clear an existing expiration. |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\). Warning: when omitted, GitLab removes any custom role the member currently holds. |
 
@@ -1099,7 +1100,7 @@ Invite a person to a GitLab project or group by email address
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `email` | string | Yes | Email address to invite \(comma-separated for multiple\) |
-| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `accessLevel` | number | Yes | Access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\). 5 \(Minimal access\) is also valid for a top-level group on Premium and Ultimate. |
 | `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
 | `inviteSource` | string | No | Identifier recorded as the source of the invitation \(for attribution\) |
@@ -2018,7 +2019,7 @@ Add a SAML group link that maps an identity-provider group to a GitLab group at 
 | --------- | ---- | -------- | ----------- |
 | `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
 | `samlGroupName` | string | Yes | The name of the SAML group as sent by the identity provider |
-| `accessLevel` | number | Yes | Access level granted to members of the SAML group: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `accessLevel` | number | Yes | Access level granted to members of the SAML group: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\). 5 \(Minimal access\) is also valid for a top-level group. |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
 | `provider` | string | No | Unique provider name that must match for this group link to be applied \(GitLab 18.2+\) |
 

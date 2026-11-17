@@ -86,7 +86,7 @@ export const linearCreateCustomerTierTool: ToolConfig<
           mutation CustomerTierCreate($input: CustomerTierCreateInput!) {
             customerTierCreate(input: $input) {
               success
-              customerTier {
+              tier {
                 id
                 name
                 displayName
@@ -129,7 +129,7 @@ export const linearCreateCustomerTierTool: ToolConfig<
     return {
       success: true,
       output: {
-        customerTier: result.customerTier,
+        customerTier: result.tier,
       },
     }
   },

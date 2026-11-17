@@ -571,8 +571,9 @@ async function readMothershipExecuteResponse(
       const { done, value } = await reader.read()
       if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
+      // `buffer` never holds a newline, so only the new text needs splitting.
+      const lines = decoder.decode(value, { stream: true }).split('\n')
+      lines[0] = buffer + lines[0]
       buffer = lines.pop() ?? ''
       for (const line of lines) {
         await processLine(line)
@@ -700,8 +701,9 @@ function createMothershipStreamingExecution(
           if (cancelled) return
           if (done) break
 
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
+          // `buffer` never holds a newline, so only the new text needs splitting.
+          const lines = decoder.decode(value, { stream: true }).split('\n')
+          lines[0] = buffer + lines[0]
           buffer = lines.pop() ?? ''
           for (const line of lines) {
             await processLine(line)

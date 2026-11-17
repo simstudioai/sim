@@ -55,7 +55,8 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New project ID to link this request to',
+      description:
+        'Deprecated and ignored: Linear no longer accepts a project on customer requests.',
     },
   },
 
@@ -86,9 +87,6 @@ export const linearUpdateCustomerRequestTool: ToolConfig<
       }
       if (params.issueId != null && params.issueId !== '') {
         input.issueId = params.issueId
-      }
-      if (params.projectId != null && params.projectId !== '') {
-        input.projectId = params.projectId
       }
 
       return {

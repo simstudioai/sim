@@ -64,7 +64,7 @@ describe('ResumeExecutionPageWrapper', () => {
 
     expect(mocks.authorize).toHaveBeenCalledWith({
       principal: createSessionPrincipal(),
-      input: PAGE_PARAMS,
+      input: { ...PAGE_PARAMS, includeSnapshot: false },
     })
     expect(result.props).toMatchObject({
       params: PAGE_PARAMS,

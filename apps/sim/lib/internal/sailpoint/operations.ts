@@ -673,7 +673,7 @@ export async function executeSailPointOperation(
         context,
         (hosts) => ({
           url: `${hosts.apiBaseUrl}/access-request-config/v2`,
-          init: { method: 'GET' },
+          init: { method: 'GET', headers: { 'X-SailPoint-Experimental': 'true' } },
         }),
         'accessRequestConfig'
       )
