@@ -15,6 +15,8 @@ import { getErrorMessage } from '@sim/utils/errors'
  * Checks, each recorded in the report:
  * - Presidio masks a text over spaCy's limit: a name straddling an NER window edge,
  *   a name at the very end, and a custom pattern that spans whitespace.
+ * - Presidio masks a name beside a long unbroken run of brackets within seconds;
+ *   spaCy's own tokenizer needs time quadratic in such a run's length.
  * - A persisted log holding a 5M-character base64 PDF and a 3M-character text that
  *   names a person at the end: the PDF becomes the binary marker without reaching
  *   Presidio, the name is masked by real NER, and no request fails.
@@ -174,6 +176,28 @@ async function main(): Promise<void> {
     assert(masked.endsWith('to <PERSON> before Friday.'), 'The name at the end survived')
     assert(!masked.includes('EMP 123456'), 'The custom pattern spanning whitespace survived')
     assert(masked.includes('<EMPLOYEE_ID>'), 'Expected the custom replacement')
+    return { textChars: text.length }
+  })
+
+  await check('Presidio masks a name beside a long unbroken run within seconds', async () => {
+    const text = `${NAME_SENTENCE} ${'['.repeat(20_000)}${']'.repeat(20_000)}`
+    const response = await realFetch(new URL('/redact_batch', presidioUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texts: [text], language: 'en', entities: ['PERSON'] }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body = await response.text()
+    assert.equal(
+      response.status,
+      200,
+      `Presidio answered ${response.status}: ${body.slice(0, 200)}`
+    )
+    const [masked] = (JSON.parse(body) as { texts: string[] }).texts
+    assert(
+      masked.startsWith('Please send questions to <PERSON> before Friday. ['),
+      'The name beside the run was not masked'
+    )
     return { textChars: text.length }
   })
 
