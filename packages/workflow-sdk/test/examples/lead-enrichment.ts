@@ -31,7 +31,7 @@ export default workflow('Lead enrichment', {}, () => {
     { collection: pending.rows, batchSize: 10 },
     (p) => {
       const lookup = api('Lookup', {
-        url: t`https://crm.example.com/c/${p.currentItem.email}`,
+        url: t`https://crm.example.com/c/${p.currentItem.data.email}`,
         method: 'GET',
         headers: [{ cells: { Key: 'Authorization', Value: t`Bearer ${env.CRM_KEY}` } }],
       })

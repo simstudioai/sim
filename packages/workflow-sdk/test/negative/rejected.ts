@@ -9,6 +9,7 @@ import {
   js,
   knowledge,
   knowledgeBase,
+  loop,
   slack,
   t,
   table,
@@ -85,6 +86,20 @@ export default workflow('Rejected', {}, () => {
     data: { status: 'closed' },
     // @ts-expect-error a predicate names its column as `field`, not `column`
     filterInput: { column: 'status', op: 'eq', value: 'open' },
+  })
+
+  // A row's cells live under `data`, not on the row.
+  const leads = table.queryRows('Leads', { tableId: table('leads') })
+  loop.forEach('Each lead', { collection: leads.rows }, (p) => {
+    agent('Read cell', {
+      model: 'claude-sonnet-5-5',
+      messages: [{ role: 'user', content: t`${p.currentItem.data.email}` }],
+    })
+    // @ts-expect-error `email` is a cell: read it as `currentItem.data.email`
+    agent('Read flat', {
+      model: 'claude-sonnet-5-5',
+      messages: [{ role: 'user', content: t`${p.currentItem.email}` }],
+    })
   })
 
   // An operation that does not exist.

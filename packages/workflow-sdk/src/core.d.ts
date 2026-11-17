@@ -168,8 +168,17 @@ export declare function credential<K extends CredentialKey>(key: K): CredentialR
 export type TableColumns<K extends string> = K extends keyof WorkspaceTables
   ? WorkspaceTables[K]
   : { [column: string]: Json }
-/** One stored row: its columns plus the row id. */
-export type TableRow<K extends string> = TableColumns<K> & { id: string }
+/**
+ * One row as the table blocks output it: the row id, and its cells keyed by column name under
+ * `data` (`row.data.status`). Times are ISO strings.
+ */
+export interface TableRow<K extends string> {
+  id: string
+  data: TableColumns<K>
+  position: number
+  createdAt: string
+  updatedAt: string
+}
 /** Column values written to a row. */
 export type TableData<K extends string> = K extends keyof WorkspaceTables
   ? { [C in keyof WorkspaceTables[K]]?: Value<WorkspaceTables[K][C]> | JsonWithRefs }
