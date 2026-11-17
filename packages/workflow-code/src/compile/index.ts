@@ -165,9 +165,12 @@ function compileVariables(ctx: CompileContext, node: Node): void {
       continue
     }
     let type: string | null = null
+    let typeWritten = false
     let value: CanonicalVariable['value'] | undefined
+    let valueWritten = false
     for (const [field, fieldProperty] of objectEntries(ctx, declaration)) {
       if (field === 'type') {
+        typeWritten = true
         type = literalText(fieldProperty.value)
         if (type === null || !VARIABLE_TYPES.has(type)) {
           unsupported(
@@ -191,6 +194,7 @@ function compileVariables(ctx: CompileContext, node: Node): void {
           name = text
         }
       } else if (field === 'value') {
+        valueWritten = true
         value = compileJsonLiteral(ctx, fieldProperty.value)
       } else {
         unsupported(
@@ -201,11 +205,11 @@ function compileVariables(ctx: CompileContext, node: Node): void {
         )
       }
     }
-    if (type === null || value === undefined) {
-      if (type !== null)
-        unsupported(ctx, declaration, 'A variable needs a value.', "Write value: ''.")
-      continue
-    }
+    if (!typeWritten)
+      unsupported(ctx, declaration, 'A variable needs a type.', "Write type: 'string'.")
+    if (!valueWritten)
+      unsupported(ctx, declaration, 'A variable needs a value.', "Write value: ''.")
+    if (type === null || value === undefined) continue
     ctx.variables.set(key, { key, name, type: type as CanonicalVariable['type'], value })
   }
 }

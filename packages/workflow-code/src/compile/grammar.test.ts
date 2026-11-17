@@ -714,6 +714,22 @@ describe('errors, each with its code, location and hint', () => {
       undefined,
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
+    [
+      'a variable without a type',
+      START,
+      'E_UNSUPPORTED_SYNTAX',
+      "{ value: '' }",
+      "Write type: 'string'.",
+      "{ variables: { a: { value: '' } } }",
+    ],
+    [
+      'a variable with neither a type nor a value',
+      START,
+      'E_UNSUPPORTED_SYNTAX',
+      '{} }',
+      "Write type: 'string'.",
+      '{ variables: { a: {} } }',
+    ],
   ] as const)('reports %s', (_label, body, code, needle, hint, options?: string) => {
     const text = source(body, options)
     expectDiagnostic(run(text), code, locate(text, needle), hint)
