@@ -163,6 +163,9 @@ async function planTable(
     case 'adopt':
     case 'update': {
       const { state } = resolution.stored
+      if (resolution.action === 'adopt') {
+        ctx.pending.push({ kind: 'table', key, id: resolution.stored.id })
+      }
       const bindings = resolution.action === 'update' ? resolution.base.columns : undefined
       const changes = await diffTable(key, decl, state, bindings)
       change.diagnostics.push(...changes.diagnostics)

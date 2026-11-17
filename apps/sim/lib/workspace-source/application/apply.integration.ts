@@ -738,4 +738,30 @@ describe('workspace source apply', () => {
       ])
     }
   )
+
+  check('a workflow may use a table the same apply adopts', async () => {
+    const workspaceId = await newWorkspace()
+    const { table: unbound } = await tableUseCases.createTableUseCase.execute({
+      principal: owner,
+      input: {
+        workspaceId,
+        name: 'leads',
+        schema: { columns: [{ name: 'email', type: 'string', required: true }] },
+      },
+    })
+
+    const result = await apply(workspaceId, STARTER)
+
+    expect(result.failed).toBeUndefined()
+    expect(result.applied.map(({ action, kind, key }) => `${action} ${kind}:${key}`)).toEqual([
+      'adopt table:leads',
+      'create workflow:ingest',
+    ])
+    const [ingest] = await workflows(workspaceId)
+    const state = await loadWorkflowFromNormalizedTables(ingest.id)
+    const tableIds = Object.values(state?.blocks ?? {}).map(
+      (block) => block.subBlocks?.tableSelector?.value
+    )
+    expect(tableIds).toContain(unbound.id)
+  })
 })
