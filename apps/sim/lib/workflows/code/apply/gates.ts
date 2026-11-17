@@ -307,16 +307,12 @@ function gateTriggerUniqueness(
  */
 function gateFieldValues(
   entry: GatedBlock,
+  toolInputFields: ReadonlySet<string>,
   permissionConfig: PermissionGroupConfig | null,
   record: (skipped: SkippedItem[], param: string) => void
 ): void {
   const { block, baseBlock } = entry
   const operationType = entry.added ? 'add' : 'edit'
-  const toolInputFields = new Set(
-    getBlock(block.type)
-      ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
-      .map((subBlock) => subBlock.id) ?? []
-  )
   for (const field of entry.changedFields) {
     const skipped: SkippedItem[] = []
     const isInputAllowed = createSubBlockInputGate({
@@ -381,8 +377,7 @@ function isCredentialField(blockType: string, field: string): boolean {
 }
 
 function sandboxChanged(entry: GatedBlock): boolean {
-  if (!entry.changedFields.includes(SANDBOX_SUBBLOCK_ID)) return false
-  return entry.added ? isNonEmptyValue(subBlockValue(entry.block, SANDBOX_SUBBLOCK_ID)) : true
+  return entry.changedFields.includes(SANDBOX_SUBBLOCK_ID)
 }
 
 /**
@@ -448,16 +443,20 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     gateRetry(entry, retrySkipped)
     record(retrySkipped)
 
-    gateFieldValues(entry, permissionConfig, record)
+    const toolInputFields = new Set(
+      getBlock(block.type)
+        ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
+        .map((subBlock) => subBlock.id) ?? []
+    )
+    gateFieldValues(entry, toolInputFields, permissionConfig, record)
 
     if (args.isCopilot) {
-      const toolInputs = getBlock(block.type)?.subBlocks.filter((sb) => sb.type === 'tool-input')
-      for (const subBlock of toolInputs ?? []) {
-        if (!entry.changedFields.includes(subBlock.id)) continue
+      for (const field of toolInputFields) {
+        if (!entry.changedFields.includes(field)) continue
         const error = validateToolBindingAuthoring(
           block.type,
-          subBlockValue(block, subBlock.id),
-          subBlockValue(entry.baseBlock, subBlock.id)
+          subBlockValue(block, field),
+          subBlockValue(entry.baseBlock, field)
         )
         if (error) {
           diagnostics.push({
@@ -465,7 +464,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
             severity: 'error',
             message: error,
             ...located(block.id),
-            param: subBlock.id,
+            param: field,
           })
         }
       }
