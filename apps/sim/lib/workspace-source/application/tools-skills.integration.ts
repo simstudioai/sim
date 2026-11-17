@@ -849,4 +849,30 @@ describe('workspace source: custom tools and skills', () => {
       expect(Object.keys(read.files)).toEqual(['skills/tone.md'])
     }
   )
+
+  check(
+    'a get leaves out a tool whose schema holds a key no declaration may, and applies back unchanged',
+    async () => {
+      const workspaceId = await newWorkspace()
+      for (const key of ['__proto__', '$call']) {
+        await db.insert(customTools).values({
+          id: generateId(),
+          workspaceId,
+          userId: ownerId,
+          title: `Odd ${key}`,
+          schema: JSON.parse(
+            `{"type":"function","function":{"name":"odd","parameters":{"type":"object","properties":{"${key}":{"type":"string"}}}}}`
+          ),
+          code: 'return 1',
+        })
+      }
+
+      const read = await get(workspaceId)
+
+      expect(read.files).toEqual({})
+      expect(read.skipped.map((entry) => entry.kind)).toEqual(['custom-tool', 'custom-tool'])
+      const again = await apply(workspaceId, read.files, { base: read.base })
+      expect(again.plan.filter((change) => change.action !== 'noop')).toEqual([])
+    }
+  )
 })
