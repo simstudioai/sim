@@ -77,6 +77,7 @@ export function parseStoredPath(inner: string): RefSegment[] | null {
       segments.push({ kind: 'name', name })
       continue
     }
+    if (inner[cursor] !== '[') return null
     const close = inner.indexOf(']', cursor)
     if (close === -1) return null
     const digits = inner.slice(cursor + 1, close)
