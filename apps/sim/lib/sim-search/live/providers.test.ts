@@ -245,7 +245,7 @@ describe('Slack file hits', () => {
     ])
   })
 
-  it('does not offer the full text of a file above the read limit, and reports a zero-byte size', async () => {
+  it('offers no full text for a file above the read limit or an empty one', async () => {
     expect(
       await fileHits([
         hit({ file_type: 'application/pdf', size: 5 * 1024 * 1024 }),
@@ -253,7 +253,7 @@ describe('Slack file hits', () => {
       ])
     ).toEqual([
       'PDF, 5 MB. Too large to read in full here; open the source.',
-      'Text, 0 Bytes. Reading it returns its full text.',
+      'Text, 0 Bytes. The file is empty.',
     ])
   })
 })

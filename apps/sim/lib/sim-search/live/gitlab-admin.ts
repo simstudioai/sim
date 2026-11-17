@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -126,7 +126,7 @@ export async function listAdminGitLabAccounts(
     rows.map((source) => source.id)
   ).catch((error: unknown) => {
     logger.warn('GitLab source grants could not be checked; listing every source', {
-      error: getErrorMessage(error),
+      error: describeError(error),
     })
     return new Set<string>()
   })

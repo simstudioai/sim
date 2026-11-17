@@ -399,9 +399,11 @@ function slackFileHitContent(file: Record<string, unknown>, users: Map<string, s
   const format = slackFileFormat({ mimetype })
   const reading = !format
     ? 'Its contents cannot be read here; open the source.'
-    : withinDownloadLimit(format, file.size)
-      ? 'Reading it returns its full text.'
-      : 'Too large to read in full here; open the source.'
+    : file.size === 0
+      ? 'The file is empty.'
+      : withinDownloadLimit(format, file.size)
+        ? 'Reading it returns its full text.'
+        : 'Too large to read in full here; open the source.'
   const text = slackPlainText(string(file.content), users)
   return [`${summary}. ${reading}`, text === string(file.title) ? '' : text]
     .filter(Boolean)
