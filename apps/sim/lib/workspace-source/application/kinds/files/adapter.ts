@@ -16,7 +16,6 @@ import {
   fingerprintOf,
   type ResourceFingerprint,
   resourceAddress,
-  type WorkspaceDiagnosticCode,
 } from '@sim/workspace-code'
 import {
   type FileDecl,
@@ -48,7 +47,7 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
 import { admitOnce } from '@/lib/workspace-source/application/context'
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
-  finding,
+  kindFinding,
   planUndeclared,
   serverGoneFinding,
   staleFinding,
@@ -68,7 +67,6 @@ import type {
   SourceContext,
   StoredResource,
   StoredSet,
-  WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
 const logger = createLogger('WorkspaceSourceFiles')
@@ -200,15 +198,6 @@ async function hashUnrecorded(
   })
 }
 
-function fileFinding(
-  key: string,
-  code: WorkspaceDiagnosticCode,
-  message: string,
-  hint: string
-): WorkspaceSourceDiagnostic {
-  return finding(code, message, { hint, file: fileBlobPath(key), kind: 'file', key })
-}
-
 function contentStates(
   ctx: SourceContext,
   fileIds: string[]
@@ -267,11 +256,12 @@ function planFile(
   if (!existing && base) return planGone(change, decl, base, byId)
   if (existing?.state.unmanaged) {
     change.diagnostics.push(
-      fileFinding(
+      kindFinding(
+        'file',
         key,
         existing.state.unmanaged.code,
         `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged.reason}.`,
-        'Remove it from files/ and change it in the Files tab.'
+        { hint: 'Remove it from files/ and change it in the Files tab.', file: fileBlobPath(key) }
       )
     )
     return { ...change, storedId: existing.id }
@@ -302,11 +292,15 @@ function planFile(
       const renamed = renamedSegment(key)
       if (renamed !== null) {
         change.diagnostics.push(
-          fileFinding(
+          kindFinding(
+            'file',
             key,
             'E_FILE_NAME',
             `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
-            'Rename it locally to the name the server would store.'
+            {
+              hint: 'Rename it locally to the name the server would store.',
+              file: fileBlobPath(key),
+            }
           )
         )
       }
@@ -378,16 +372,12 @@ function refuseCollisions(
   )
   const kept = [...stored.bound.keys()].filter((key) => !deleted.has(key))
   for (const [key, conflict] of fileKeyConflicts([...kept, ...creates.keys()])) {
-    creates
-      .get(key)
-      ?.diagnostics.push(
-        fileFinding(
-          key,
-          'E_FILE_PATH_COLLISION',
-          `${conflict} on the server.`,
-          'Use the server’s spelling, or delete the server’s file in this apply (--allow-delete).'
-        )
-      )
+    creates.get(key)?.diagnostics.push(
+      kindFinding('file', key, 'E_FILE_PATH_COLLISION', `${conflict} on the server.`, {
+        hint: 'Use the server’s spelling, or delete the server’s file in this apply (--allow-delete).',
+        file: fileBlobPath(key),
+      })
+    )
   }
 }
 

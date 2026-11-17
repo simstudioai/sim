@@ -101,7 +101,7 @@ async function planTable(
         key,
         'E_TABLE_FOLDER',
         `The folder ${decl.folder} does not exist in this workspace.`,
-        'Create the folder first, or drop `folder` to keep the table at the root.'
+        { hint: 'Create the folder first, or drop `folder` to keep the table at the root.' }
       )
     )
   }
@@ -149,7 +149,7 @@ async function planTable(
             key,
             'E_APPLY_LOCKED',
             `Table "${state.table.name}" is schema-locked.`,
-            'Unlock its schema in the table settings, then apply again.'
+            { hint: 'Unlock its schema in the table settings, then apply again.' }
           )
         )
       }
@@ -166,7 +166,7 @@ async function planTable(
             key,
             'E_APPLY_DELETE_NOT_ALLOWED',
             `This ${losses.join(' and ')} of "${state.table.name}"${changes.lostCells > 0 ? `, losing ${changes.lostCells} cell(s)` : ''}.`,
-            'Pass --allow-delete to apply it, or keep the columns and options declared.'
+            { hint: 'Pass --allow-delete to apply it, or keep the columns and options declared.' }
           )
         )
       }

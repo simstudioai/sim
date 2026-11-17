@@ -26,7 +26,7 @@ import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
-  finding,
+  kindFinding,
   noBaseFinding,
   planUndeclared,
   serverGoneFinding,
@@ -131,10 +131,12 @@ async function planWorkflow(
   if (holder && holder.id !== existing?.id) {
     change.diagnostics.push(
       existing
-        ? finding(
+        ? kindFinding(
+            'workflow',
+            key,
             'E_NAME_TAKEN',
             `The workflow key "${key}" belongs to "${holder.name}", not the workflow this folder was read from.`,
-            { hint: 'Rename the folder back to the key it was read under.', kind: 'workflow', key }
+            { hint: 'Rename the folder back to the key it was read under.' }
           )
         : noBaseFinding('workflow', key)
     )
@@ -149,14 +151,12 @@ async function planWorkflow(
   }
   if (unchanged) {
     change.diagnostics.push(
-      finding(
+      kindFinding(
+        'workflow',
+        key,
         'E_WORKFLOW_FILES_MISSING',
         `${workflowFolder(key)} was sent unchanged, but its base names no workflow of this workspace.`,
-        {
-          hint: 'Edit the folder so the apply sends its files and creates the workflow here.',
-          kind: 'workflow',
-          key,
-        }
+        { hint: 'Edit the folder so the apply sends its files and creates the workflow here.' }
       )
     )
     return change

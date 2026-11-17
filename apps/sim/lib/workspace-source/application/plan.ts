@@ -27,6 +27,7 @@ import {
   finding,
   kindLimitFinding,
   overKindLimit,
+  refDeletedFinding,
 } from '@/lib/workspace-source/application/findings'
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
@@ -365,17 +366,7 @@ export async function planWorkspaceSource(
   for (const { kind, key, refs } of references) {
     for (const ref of refs) {
       if (!deleted.has(resourceAddress(ref.kind, ref.key))) continue
-      diagnostics.push(
-        finding(
-          'E_PLAN_REF_DELETED',
-          `${KIND_DIRS[kind]}/${key} uses ${ref.kind} "${ref.key}", which this apply deletes.`,
-          {
-            kind,
-            key,
-            hint: `Keep ${KIND_DIRS[ref.kind]}/${ref.key}, or stop using it first.`,
-          }
-        )
-      )
+      diagnostics.push(refDeletedFinding({ kind, key }, ref))
     }
   }
 

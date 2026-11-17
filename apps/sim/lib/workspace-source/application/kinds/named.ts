@@ -12,12 +12,11 @@ import {
   type KindCodec,
   type ResourceFingerprint,
   resourceAddress,
-  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  finding,
+  NOUNS,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -30,15 +29,12 @@ import type {
   PlannedChange,
   StoredResource,
   StoredSet,
-  WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
 /** How one named kind reads its stored records as declarations. */
 export interface NamedKind<D, S> {
   kind: Extract<WorkspaceKind, 'custom-tool' | 'skill'>
   codec: KindCodec<D>
-  /** How findings name the kind: `custom tool`, `skill`. */
-  noun: string
   /** The unique display name a declaration gives its resource. */
   nameOf(decl: D): string
   /** A stored record as the declaration it prints as. */
@@ -54,18 +50,6 @@ export interface NamedPlan {
 /** A stored record's fingerprint: of the declaration it prints as. */
 export function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
   return fingerprintOf(named.codec.canonical(named.declOf(state)))
-}
-
-/** A finding about a declared resource, pinned to the file that declares it. */
-export function declaredFinding(
-  kind: WorkspaceKind,
-  key: string,
-  file: string,
-  code: WorkspaceDiagnosticCode,
-  message: string,
-  hint?: string
-): WorkspaceSourceDiagnostic {
-  return finding(code, message, { ...(hint ? { hint } : {}), file, kind, key })
 }
 
 /**
@@ -207,15 +191,15 @@ export async function applyNamed<D extends object, S>(
   writes: NamedWrites<D, S>
 ): Promise<AppliedResource> {
   if (change.action === 'delete') {
-    if (!change.storedId) throw new Error(`A ${named.noun} delete needs the stored id`)
+    if (!change.storedId) throw new Error(`A ${NOUNS[named.kind]} delete needs the stored id`)
     await writes.remove(change.storedId)
     return { id: change.storedId, text: {} }
   }
   const decl = change.decl
-  if (!decl) throw new Error(`A ${named.noun} write needs its declaration`)
+  if (!decl) throw new Error(`A ${NOUNS[named.kind]} write needs its declaration`)
   if (change.action === 'create') return writtenRecord(named, change.key, await writes.create(decl))
   const id = change.storedId
-  if (!id) throw new Error(`A ${named.noun} update needs the stored id`)
+  if (!id) throw new Error(`A ${NOUNS[named.kind]} update needs the stored id`)
   const changed = writtenFields(change)
   const fields: Partial<D> = {}
   for (const field of Object.keys(decl) as Array<keyof D & string>) {
@@ -251,7 +235,7 @@ export function readRecord<D, S>(named: NamedKind<D, S>, record: StoredResource<
   if (!parsed.decl || fingerprintOf(named.codec.canonical(parsed.decl)) !== fingerprint) {
     throw new OrchestrationError(
       'validation',
-      `This ${named.noun} holds a value source files cannot express, so it is left out.`
+      `This ${NOUNS[named.kind]} holds a value source files cannot express, so it is left out.`
     )
   }
   return { text: printed.text, blobs: [], base: { id: record.id, fingerprint } }

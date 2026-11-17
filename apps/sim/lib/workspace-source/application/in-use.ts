@@ -5,10 +5,9 @@
  */
 import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
-import { KIND_DIRS } from '@sim/workspace-code'
 import { type WorkflowDecl, workflowSourceBase } from '@sim/workspace-code/kinds/workflow'
 import { sql } from 'drizzle-orm'
-import { finding } from '@/lib/workspace-source/application/findings'
+import { kindFinding, refDeletedFinding, where } from '@/lib/workspace-source/application/findings'
 import type { PlannedChange } from '@/lib/workspace-source/application/types'
 
 /** Workflows a warning names before it only counts the rest. */
@@ -89,24 +88,13 @@ export async function checkDeletesInUse(
     declared.set(base.workflowId, { key, edited: Object.keys(decl.files).length > 0 })
   }
   for (const change of deleting) {
-    const where = `${KIND_DIRS[change.kind]}/${change.key}`
     const undeclared: UsingWorkflow[] = []
     for (const user of using.get(change.storedId ?? '') ?? []) {
       if (deletedWorkflows.has(user.id)) continue
       const folder = declared.get(user.id)
       if (folder?.edited) continue
       if (folder && change.action === 'delete') {
-        change.diagnostics.push(
-          finding(
-            'E_PLAN_REF_DELETED',
-            `workflows/${folder.key} uses ${change.kind} "${change.key}", which this apply deletes.`,
-            {
-              kind: 'workflow',
-              key: folder.key,
-              hint: `Keep ${where}, or stop using it first.`,
-            }
-          )
-        )
+        change.diagnostics.push(refDeletedFinding({ kind: 'workflow', key: folder.key }, change))
         continue
       }
       undeclared.push(user)
@@ -120,14 +108,12 @@ export async function checkDeletesInUse(
     const more =
       undeclared.length > NAMED_WORKFLOWS ? ` and ${undeclared.length - NAMED_WORKFLOWS} more` : ''
     change.diagnostics.push(
-      finding(
+      kindFinding(
+        change.kind,
+        change.key,
         'W_RESOURCE_IN_USE',
-        `Deleting ${where} breaks ${undeclared.length} stored workflow(s) that use it: ${listed}${more}.`,
-        {
-          hint: 'Remove it from those workflows, or keep its declaration.',
-          kind: change.kind,
-          key: change.key,
-        }
+        `Deleting ${where(change.kind, change.key)} breaks ${undeclared.length} stored workflow(s) that use it: ${listed}${more}.`,
+        { hint: 'Remove it from those workflows, or keep its declaration.' }
       )
     )
   }

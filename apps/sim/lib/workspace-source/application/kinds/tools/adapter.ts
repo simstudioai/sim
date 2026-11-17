@@ -20,11 +20,11 @@ import {
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
+import { kindFinding } from '@/lib/workspace-source/application/findings'
 import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
   authorizeNamed,
-  declaredFinding,
   type NamedKind,
   type NamedPlan,
   planNamed,
@@ -53,7 +53,6 @@ const PAGE_SIZE = 200
 const tools: NamedKind<ToolDecl, StoredTool> = {
   kind: 'custom-tool',
   codec: toolCodec,
-  noun: 'custom tool',
   nameOf: (decl) => decl.title,
   /** A schema that is not an object (a legacy row) reads as `{}`; a get leaves such a tool out. */
   declOf: (state) => ({
@@ -108,13 +107,9 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
       } catch (error) {
         if (!(error instanceof OrchestrationError)) throw error
         change.diagnostics.push(
-          declaredFinding(
-            'custom-tool',
-            key,
-            toolDeclarationPath(key),
-            'E_TOOL_SCHEMA',
-            getErrorMessage(error)
-          )
+          kindFinding('custom-tool', key, 'E_TOOL_SCHEMA', getErrorMessage(error), {
+            file: toolDeclarationPath(key),
+          })
         )
       }
       changes.push(change)

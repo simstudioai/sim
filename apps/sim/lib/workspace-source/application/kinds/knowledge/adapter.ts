@@ -36,6 +36,7 @@ import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/
 import { admitOnce } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
+  kindFinding,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -50,7 +51,6 @@ import {
   hashDocs,
   indexingFindings,
   type KnowledgeChanges,
-  kbFinding,
 } from '@/lib/workspace-source/application/kinds/knowledge/diff'
 import {
   baseHashes,
@@ -128,19 +128,21 @@ async function embeddingFinding(
       key,
       error: getErrorMessage(error),
     })
-    return kbFinding(
+    return kindFinding(
+      KIND,
       key,
       'E_APPLY_REFUSED',
       'This server cannot resolve its embedding model, so it cannot create knowledge bases right now.',
-      'Apply again once the embedding provider is reachable.'
+      { hint: 'Apply again once the embedding provider is reachable.' }
     )
   }
   if (decl.embeddingModel === undefined || decl.embeddingModel === model) return undefined
-  return kbFinding(
+  return kindFinding(
+    KIND,
     key,
     'E_KB_EMBEDDING_MODEL',
     `This server creates knowledge bases with ${model}, not ${decl.embeddingModel}.`,
-    `Declare embeddingModel: '${model}', or leave it out.`
+    { hint: `Declare embeddingModel: '${model}', or leave it out.` }
   )
 }
 
@@ -166,11 +168,14 @@ async function planKnowledgeBase(
   const change: KnowledgeChange = { kind: KIND, key, action: 'noop', decl, diagnostics: [] }
   if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
     change.diagnostics.push(
-      kbFinding(
+      kindFinding(
+        KIND,
         key,
         'E_KB_FOLDER',
         `The folder ${decl.folder} does not exist in this workspace.`,
-        'Create the folder first, or drop `folder` to keep the knowledge base at the root.'
+        {
+          hint: 'Create the folder first, or drop `folder` to keep the knowledge base at the root.',
+        }
       )
     )
   }
@@ -217,11 +222,14 @@ async function planKnowledgeBase(
     decl.embeddingModel !== target.state.knowledgeBase.embeddingModel
   ) {
     change.diagnostics.push(
-      kbFinding(
+      kindFinding(
+        KIND,
         key,
         'E_KB_EMBEDDING_IMMUTABLE',
         `"${target.name}" embeds with ${target.state.knowledgeBase.embeddingModel}; the model is fixed when a knowledge base is created.`,
-        `Declare embeddingModel: '${target.state.knowledgeBase.embeddingModel}', or create a new knowledge base under another key.`
+        {
+          hint: `Declare embeddingModel: '${target.state.knowledgeBase.embeddingModel}', or create a new knowledge base under another key.`,
+        }
       )
     )
   }
@@ -596,7 +604,8 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const diagnostics: WorkspaceSourceDiagnostic[] = []
       if (unhashed.length > 0) {
         diagnostics.push(
-          kbFinding(
+          kindFinding(
+            KIND,
             stored.key,
             'I_KB_DOCS_UNHASHED',
             `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget.`
@@ -605,7 +614,8 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       }
       if (left > 0) {
         diagnostics.push(
-          kbFinding(
+          kindFinding(
+            KIND,
             stored.key,
             'I_KB_UNMANAGED_DOCS',
             `${left} document(s) of "${stored.name}" are not part of source (connector-synced, too large, unreadable, or sharing a file name) and are left as they are.`

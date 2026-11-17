@@ -17,11 +17,11 @@ import {
 } from '@/lib/skills/application/use-cases'
 import { builtinNameCollision, skillFieldProblem } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import { kindFinding } from '@/lib/workspace-source/application/findings'
 import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
   authorizeNamed,
-  declaredFinding,
   type NamedKind,
   type NamedPlan,
   planNamed,
@@ -41,7 +41,6 @@ type SkillChange = PlannedChange<SkillDecl, NamedPlan>
 const skills: NamedKind<SkillDecl, SkillDecl> = {
   kind: 'skill',
   codec: skillCodec,
-  noun: 'skill',
   nameOf: (decl) => decl.name,
   declOf: ({ name, description, content }) => ({ name, description, content }),
 }
@@ -65,7 +64,7 @@ function checkFields(change: SkillChange, decl: SkillDecl): void {
   const written = writtenFields(change)
   const finding = (code: 'E_DECL_SHAPE' | 'E_NAME_TAKEN', message: string) =>
     change.diagnostics.push(
-      declaredFinding('skill', change.key, skillPath(change.key), code, message)
+      kindFinding('skill', change.key, code, message, { file: skillPath(change.key) })
     )
   for (const field of FIELDS) {
     if (!written.includes(field)) continue

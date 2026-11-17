@@ -37,42 +37,82 @@ export const GET_HINT =
   'Run `sim workspaces source get` into a fresh directory, reapply your edit there, and apply again.'
 
 /** `tables/leads`: how a finding names a resource. */
-function where(kind: WorkspaceKind, key: string): string {
+export function where(kind: WorkspaceKind, key: string): string {
   return `${KIND_DIRS[kind]}/${key}`
 }
 
-/** A finding about one resource, its severity fixed by the code's prefix. */
+/** How findings name one resource of a kind. */
+export const NOUNS: Record<WorkspaceKind, string> = {
+  table: 'table',
+  'custom-tool': 'custom tool',
+  skill: 'skill',
+  'knowledge-base': 'knowledge base',
+  file: 'file',
+  workflow: 'workflow',
+}
+
+/**
+ * A finding about one resource, its severity fixed by the code's prefix; `file` pins it to the
+ * file that declares the resource.
+ */
 export function kindFinding(
   kind: WorkspaceKind,
   key: string,
   code: WorkspaceDiagnosticCode,
   message: string,
-  hint?: string
+  extras: { hint?: string; file?: string } = {}
 ): WorkspaceSourceDiagnostic {
-  return finding(code, message, { ...(hint ? { hint } : {}), kind, key })
+  return finding(code, message, {
+    ...(extras.hint !== undefined ? { hint: extras.hint } : {}),
+    ...(extras.file !== undefined ? { file: extras.file } : {}),
+    kind,
+    key,
+  })
 }
 
 export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return finding(
+  return kindFinding(
+    kind,
+    key,
     'E_APPLY_STALE',
     `${where(kind, key)} changed on the server since this directory was read.`,
-    { hint: GET_HINT, kind, key }
+    { hint: GET_HINT }
   )
 }
 
 export function noBaseFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return finding(
+  return kindFinding(
+    kind,
+    key,
     'E_APPLY_NO_BASE',
     `${where(kind, key)} exists on the server, but this directory has no base for it, so the apply cannot tell your edit from a server change.`,
-    { hint: GET_HINT, kind, key }
+    { hint: GET_HINT }
   )
 }
 
 export function serverChangedFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return finding(
+  return kindFinding(
+    kind,
+    key,
     'I_SERVER_CHANGED',
-    `${where(kind, key)} changed on the server; this directory leaves it as it is, and the next get shows the change.`,
-    { kind, key }
+    `${where(kind, key)} changed on the server; this directory leaves it as it is, and the next get shows the change.`
+  )
+}
+
+/**
+ * `E_PLAN_REF_DELETED` on `user` (a declared workflow, say) for using `ref`, which the apply
+ * deletes.
+ */
+export function refDeletedFinding(
+  user: { kind: WorkspaceKind; key: string },
+  ref: { kind: WorkspaceKind; key: string }
+): WorkspaceSourceDiagnostic {
+  return kindFinding(
+    user.kind,
+    user.key,
+    'E_PLAN_REF_DELETED',
+    `${where(user.kind, user.key)} uses ${ref.kind} "${ref.key}", which this apply deletes.`,
+    { hint: `Keep ${where(ref.kind, ref.key)}, or stop using it first.` }
   )
 }
 
@@ -88,29 +128,29 @@ export function serverGoneFinding(
 ): WorkspaceSourceDiagnostic {
   const gone = movedTo === undefined ? 'deleted on the server' : `moved on the server to ${movedTo}`
   if (stale) {
-    return finding(
+    return kindFinding(
+      kind,
+      key,
       'E_APPLY_STALE',
       `${where(kind, key)} was ${gone} since this directory was read.`,
-      {
-        hint: GET_HINT,
-        kind,
-        key,
-      }
+      { hint: GET_HINT }
     )
   }
-  return finding(
+  return kindFinding(
+    kind,
+    key,
     movedTo === undefined ? 'I_SERVER_DELETED' : 'I_SERVER_MOVED',
-    `${where(kind, key)} was ${gone}; this directory does not create it again, and the next get shows that.`,
-    { kind, key }
+    `${where(kind, key)} was ${gone}; this directory does not create it again, and the next get shows that.`
   )
 }
 
 /** A key that named a deleted resource now names the one this apply wrote. */
 export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
-  return finding(
+  return kindFinding(
+    kind,
+    key,
     'I_KEY_REBOUND',
-    `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`,
-    { kind, key }
+    `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`
   )
 }
 
@@ -130,16 +170,6 @@ export function kindLimitFinding(kind: WorkspaceKind): WorkspaceSourceDiagnostic
     `This workspace has more than ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} ${dir}/ resources, more than one directory holds.`,
     { hint: `Leave ${dir}/ out with --only.`, kind }
   )
-}
-
-/** How findings name one resource of a kind. */
-const NOUNS: Record<WorkspaceKind, string> = {
-  table: 'table',
-  'custom-tool': 'custom tool',
-  skill: 'skill',
-  'knowledge-base': 'knowledge base',
-  file: 'file',
-  workflow: 'workflow',
 }
 
 /** Who holds a name a declared resource wants: a stored resource, or another declaration. */
@@ -163,11 +193,9 @@ export function nameTakenFinding(
       : holder.key
         ? `the ${noun} under key "${holder.key}"`
         : `another ${noun} this directory does not manage`
-  return finding('E_NAME_TAKEN', `The ${noun} name "${name}" belongs to ${held}.`, {
+  return kindFinding(kind, key, 'E_NAME_TAKEN', `The ${noun} name "${name}" belongs to ${held}.`, {
     hint: 'Rename one of them, or declare that resource under its own key.',
     ...(file ? { file } : {}),
-    kind,
-    key,
   })
 }
 
@@ -263,19 +291,18 @@ export function planUndeclared<S, D, P>(
       storedId: resource.id,
       diagnostics: [
         managed
-          ? finding(
+          ? kindFinding(
+              kind,
+              key,
               'E_APPLY_DELETE_NOT_ALLOWED',
               `${where(kind, key)} is no longer declared; deleting "${resource.name}" needs --allow-delete.`,
-              {
-                hint: 'Pass --allow-delete to delete it, or restore its file to keep it.',
-                kind,
-                key,
-              }
+              { hint: 'Pass --allow-delete to delete it, or restore its file to keep it.' }
             )
-          : finding(
+          : kindFinding(
+              kind,
+              key,
               'W_UNDECLARED',
-              `"${resource.name}" (${kind} ${key}) is on the server but not in this directory; it is kept.`,
-              { kind, key }
+              `"${resource.name}" (${kind} ${key}) is on the server but not in this directory; it is kept.`
             ),
       ],
     })

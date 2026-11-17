@@ -6,7 +6,7 @@
  * replacement therefore has a new id and none of the old one's tag values.
  */
 import { sha256Hex } from '@sim/security/hash'
-import type { BaseResource, WorkspaceDiagnosticCode } from '@sim/workspace-code'
+import type { BaseResource } from '@sim/workspace-code'
 import type {
   KnowledgeBaseDecl,
   KnowledgeChunkingDecl,
@@ -60,15 +60,7 @@ export interface KnowledgeChanges {
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
-/** A finding about one knowledge base. */
-export function kbFinding(
-  key: string,
-  code: WorkspaceDiagnosticCode,
-  message: string,
-  hint?: string
-): WorkspaceSourceDiagnostic {
-  return kindFinding('knowledge-base', key, code, message, hint)
-}
+const KIND = 'knowledge-base'
 
 /** The full chunking settings a declaration resolves to. */
 export function chunkingConfig(chunking: KnowledgeChunkingDecl | undefined): ChunkingConfig {
@@ -96,7 +88,8 @@ export function checkWrites(
   const chunking = writes.chunking && chunkingConfigSchema.safeParse(writes.chunking)
   if (chunking && !chunking.success) {
     diagnostics.push(
-      kbFinding(
+      kindFinding(
+        KIND,
         key,
         'E_KB_CHUNKING',
         `The chunking settings are invalid: ${chunking.error.issues.map((issue) => issue.message).join('; ')}.`
@@ -106,9 +99,11 @@ export function checkWrites(
   for (const { name, doc } of writes.uploads) {
     const typeError = validateFileType(name, '')
     if (typeError) {
-      diagnostics.push(kbFinding(key, 'E_KB_DOC_NAME', `docs/${name}: ${typeError.message}`))
+      diagnostics.push(
+        kindFinding(KIND, key, 'E_KB_DOC_NAME', `docs/${name}: ${typeError.message}`)
+      )
     } else if (doc.size === 0) {
-      diagnostics.push(kbFinding(key, 'E_KB_DOC_EMPTY', `docs/${name} is empty.`))
+      diagnostics.push(kindFinding(KIND, key, 'E_KB_DOC_EMPTY', `docs/${name} is empty.`))
     }
   }
   return diagnostics
@@ -159,7 +154,8 @@ export function indexingFindings(
   if (uploads.length > 0) {
     const replaced = uploads.filter((upload) => upload.replaces).length
     findings.push(
-      kbFinding(
+      kindFinding(
+        KIND,
         key,
         'I_KB_REEMBED',
         `Indexes ${uploads.length} document(s) (${uploads.length - replaced} new, ${replaced} replaced); embedding runs in the background after the apply.`
@@ -168,11 +164,12 @@ export function indexingFindings(
   }
   if (chunkingChanged && storedDocs > 0) {
     findings.push(
-      kbFinding(
+      kindFinding(
+        KIND,
         key,
         'I_KB_CHUNKING',
         `New chunking applies to documents indexed from now on; ${storedDocs} stored document(s) keep their chunks.`,
-        'Replace a document to index it again.'
+        { hint: 'Replace a document to index it again.' }
       )
     )
   }
@@ -247,11 +244,14 @@ export async function diffKnowledgeBase(input: {
         continue
       }
       changes.diagnostics.push(
-        kbFinding(
+        kindFinding(
+          KIND,
           key,
           'E_KB_DOC_AMBIGUOUS',
           `Several stored documents are named "${name}", so docs/${name} cannot tell which one it is.`,
-          'Delete or rename the duplicates in the knowledge base, then get and apply again.'
+          {
+            hint: 'Delete or rename the duplicates in the knowledge base, then get and apply again.',
+          }
         )
       )
       continue
@@ -264,11 +264,12 @@ export async function diffKnowledgeBase(input: {
     }
     if (unchecked.has(current.id)) {
       changes.diagnostics.push(
-        kbFinding(
+        kindFinding(
+          KIND,
           key,
           'W_KB_DOC_UNCHECKED',
           `docs/${name} was not compared with the stored document: this request reached its download budget, so it is left as it is.`,
-          'Apply again to compare it.'
+          { hint: 'Apply again to compare it.' }
         )
       )
       continue
@@ -278,11 +279,12 @@ export async function diffKnowledgeBase(input: {
     changes.fields.push(`docs/${name} (replace)`)
     if (current.tagged) {
       changes.diagnostics.push(
-        kbFinding(
+        kindFinding(
+          KIND,
           key,
           'W_KB_DOC_TAGS',
           `Replacing docs/${name} uploads a new document; the stored one's tag values are not carried over.`,
-          'Set the tags again on the new document after the apply.'
+          { hint: 'Set the tags again on the new document after the apply.' }
         )
       )
     }
@@ -291,7 +293,8 @@ export async function diffKnowledgeBase(input: {
     if (Object.hasOwn(decl.docs, name)) continue
     if (!input.managed.has(current.id)) {
       changes.diagnostics.push(
-        kbFinding(
+        kindFinding(
+          KIND,
           key,
           'W_UNDECLARED',
           `Document "${name}" is in the knowledge base but not in docs/; it is kept.`
@@ -302,11 +305,12 @@ export async function diffKnowledgeBase(input: {
       changes.fields.push(`docs/${name} (delete)`)
     } else {
       changes.diagnostics.push(
-        kbFinding(
+        kindFinding(
+          KIND,
           key,
           'E_APPLY_DELETE_NOT_ALLOWED',
           `docs/${name} is no longer declared; deleting the stored document needs --allow-delete.`,
-          'Pass --allow-delete to delete it, or restore the file to keep it.'
+          { hint: 'Pass --allow-delete to delete it, or restore the file to keep it.' }
         )
       )
     }
