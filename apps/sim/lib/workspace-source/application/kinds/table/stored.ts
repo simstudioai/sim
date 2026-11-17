@@ -28,7 +28,7 @@ export function sourceColumns(table: TableDefinition): ColumnDefinition[] {
 }
 
 /** A stored table read as a declaration, with the column key each stored column printed under. */
-export interface TableAsDecl {
+interface TableAsDecl {
   decl: TableDecl
   /** Column id → source key. */
   keyById: Map<string, string>
@@ -53,7 +53,7 @@ function columnDecl(column: ColumnDefinition, key: string): TableColumnDecl {
  * column key → id) gives it; any other column is keyed by its name, so a fresh directory matches
  * columns by name.
  */
-export function tableAsDecl(
+function tableAsDecl(
   state: StoredTableState,
   bindings?: Readonly<Record<string, BaseColumn>>
 ): TableAsDecl {
@@ -76,6 +76,25 @@ export function tableAsDecl(
     columns,
   }
   return { decl, keyById, fingerprint: fingerprintOf(tableCodec.canonical(decl)) }
+}
+
+/**
+ * The fingerprint a plan compares with a base entry's: the declaration's, marked when a column the
+ * base binds is gone. A column replaced by a same-named, same-shaped one prints the same
+ * declaration, so without the mark a plan would read the table unchanged and drop the
+ * replacement's cells as an undeclared column.
+ */
+export function storedFingerprint(
+  state: StoredTableState,
+  bindings?: Readonly<Record<string, BaseColumn>>
+): ResourceFingerprint {
+  const { fingerprint } = tableAsDecl(state, bindings)
+  const ids = new Set(sourceColumns(state.table).map((column) => getColumnId(column)))
+  const unbound = Object.entries(bindings ?? {})
+    .filter(([, column]) => !ids.has(column.id))
+    .map(([key]) => key)
+    .sort(compareStrings)
+  return unbound.length === 0 ? fingerprint : fingerprintOf({ fingerprint, unbound })
 }
 
 /** The base entry and printed files of a stored table read under `bindings`. */

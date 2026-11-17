@@ -42,7 +42,7 @@ import {
 import {
   printStoredTable,
   type StoredTableState,
-  tableAsDecl,
+  storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/table/stored'
 import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
@@ -107,7 +107,7 @@ async function planTable(
       (candidate) => candidate.name.toLowerCase() === decl.name.toLowerCase()
     ),
     base: entry,
-    fingerprint: (resource, entry) => tableAsDecl(resource.state, entry?.columns).fingerprint,
+    fingerprint: (resource, entry) => storedFingerprint(resource.state, entry?.columns),
     holds: holdsIn(stored),
   })
   const planned = settle(
@@ -176,7 +176,7 @@ async function planTable(
               },
             }
           : {}),
-        serverFingerprint: tableAsDecl(state, bindings).fingerprint,
+        serverFingerprint: storedFingerprint(state, bindings),
         detail: { changes, ...(bindings ? { bindings } : {}) },
       }
     }
@@ -343,7 +343,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       ctx,
       {
         declared: changes,
-        fingerprint: (resource, entry) => tableAsDecl(resource.state, entry.columns).fingerprint,
+        fingerprint: (resource, entry) => storedFingerprint(resource.state, entry.columns),
         counts: (resource) => ({ rows: resource.state.table.rowCount }),
         detail: (_resource, entry) => (entry.columns ? { bindings: entry.columns } : undefined),
       }
@@ -394,7 +394,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
 
   async fingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A table check needs the stored table id')
-    return tableAsDecl(await reload(ctx, change.storedId), change.detail?.bindings).fingerprint
+    return storedFingerprint(await reload(ctx, change.storedId), change.detail?.bindings)
   },
 
   async apply(change, ctx) {
