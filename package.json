@@ -133,7 +133,8 @@
     "check:agent-stream-docs": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",
     "test:workflow-sync": "bun --no-env-file scripts/test-integration.ts lib/workspaces/__integration__",
-    "type-check": "turbo run type-check",
+    "type-check": "bun run type-check:scripts:esm && turbo run type-check",
+    "type-check:scripts:esm": "tsc --project scripts/tsconfig.mts.json",
     "release": "bun run scripts/create-single-release.ts",
     "test:scripts": "vitest run --config scripts/vitest.config.ts",
     "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts"

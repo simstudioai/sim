@@ -733,6 +733,9 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      - name: Type-check ESM maintenance scripts
+        run: bun run type-check:scripts:esm
+
       # Every affected workspace, following the same real task graph as tests. Root/unknown
       # changes select all. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
