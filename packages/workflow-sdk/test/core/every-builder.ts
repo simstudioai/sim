@@ -76,7 +76,10 @@ export default workflow(
     })
     const rows = table.queryRows('Rows', { tableId: table('leads') })
     const inline = fn('Inline', { code: js`return ${ref('answer.content')}` })
-    const python = fn('Python', { language: 'python', code: py`print(1)` })
+    const python = fn('Python', {
+      language: 'python',
+      code: py`print(${inline.result.any.depth.path})`,
+    })
     const fromFile = fn('From file', { code: codeFile('./functions/score.js') })
     const gate = condition('Gate', { yes: js`${rows.totalCount} > 0`, else: true })
     const route = router('Route', {

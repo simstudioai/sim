@@ -38,8 +38,17 @@ export interface AnyRef {
   readonly [REF]: unknown
 }
 
+/**
+ * A reference into untyped JSON, where any path is allowed at any depth. An interface rather than
+ * `Ref<Json>`, which TypeScript stops resolving after one step (`a.b.c` failed at `c`).
+ */
+interface UntypedRef {
+  readonly [REF]: Json
+  readonly [key: string]: UntypedRef
+}
+
 type RefPaths<T> = [Json] extends [T]
-  ? { readonly [key: string]: Ref<Json> }
+  ? { readonly [key: string]: UntypedRef }
   : T extends readonly (infer E)[]
     ? { readonly [index: number]: Ref<E>; readonly length: Ref<number> }
     : T extends object
