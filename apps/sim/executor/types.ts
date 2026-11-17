@@ -81,6 +81,12 @@ export type ResumeStatus = 'paused' | 'resumed' | 'failed' | 'queued' | 'resumin
 export interface PausePoint {
   contextId: string
   blockId?: string
+  /**
+   * The paused block's name as the run executed it, recorded when the pause is captured.
+   * Points persisted before names were recorded lack it; readers name those from the run's
+   * deployment version instead of the execution snapshot.
+   */
+  blockName?: string
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus

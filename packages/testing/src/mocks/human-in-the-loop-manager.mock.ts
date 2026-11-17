@@ -58,6 +58,7 @@ const pauseResumeManagerMockFns = {
   mockGetPausedExecutionById: vi.fn(),
   mockGetPausedExecutionDetail: vi.fn(),
   mockGetPauseContextDetail: vi.fn(),
+  mockGetPausedExecutionView: vi.fn(),
   mockProcessQueuedResumes: vi.fn(),
 }
 
@@ -221,6 +222,7 @@ export const humanInTheLoopManagerMock = {
     getPausedExecutionById: pauseResumeManagerMockFns.mockGetPausedExecutionById,
     getPausedExecutionDetail: pauseResumeManagerMockFns.mockGetPausedExecutionDetail,
     getPauseContextDetail: pauseResumeManagerMockFns.mockGetPauseContextDetail,
+    getPausedExecutionView: pauseResumeManagerMockFns.mockGetPausedExecutionView,
     processQueuedResumes: pauseResumeManagerMockFns.mockProcessQueuedResumes,
   },
 }

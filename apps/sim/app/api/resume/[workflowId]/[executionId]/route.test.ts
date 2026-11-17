@@ -121,4 +121,23 @@ describe('GET /api/resume/[workflowId]/[executionId]', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
   })
+
+  it('reads the execution snapshot unless the resume page opts out', async () => {
+    await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost/api/resume/workflow-1/execution-1?includeSnapshot=false'
+      ),
+      createRouteContext(params)
+    )
+    for (const { call } of routeCases) await call()
+
+    expect(mocks.execute.mock.calls.map(([call]) => call.input.includeSnapshot)).toEqual([
+      false,
+      true,
+      true,
+    ])
+  })
 })
