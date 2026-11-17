@@ -428,7 +428,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_CANON_TITLE_OVERRIDE` | A branch title that differs from its positional title. |
 | `W_CANON_SUBFLOW_REPAIRED` | A loop or parallel config the loader would repair. |
 | `W_CANON_SUBBLOCK_TYPE_DRIFT` | A stored subBlock type differs from the catalog's. |
-| `W_CANON_UNDECODABLE_JSON` | A stored JSON-text field that does not parse; kept as text. |
+| `W_CANON_UNDECODABLE_JSON` | A stored JSON-text field that does not parse, kept as text; or a branch list that is not rows with distinct ids, kept verbatim. |
 
 **Materialize** (binding the compiled workflow to stored ids)
 

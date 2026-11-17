@@ -1,6 +1,6 @@
 import { positionalKeys, positionalTitle } from '../canonicalize/branches'
 import type { BranchKey, CanonicalBranches } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import type { MaterializeContext } from './context'
 
 interface BranchWrite {
@@ -32,11 +32,11 @@ export function writeBranches(
   const ids: Record<BranchKey, string> = {}
   const stored = rows.map((row, index) => {
     const known = knownIds
-      .map((source) => source?.[row.key])
+      .map((source) => (source ? getOwn(source, row.key) : undefined))
       .find((id): id is string => id !== undefined && !used.has(id))
     const id = known ?? `${blockId}-${context.hooks.newId()}`
     used.add(id)
-    ids[row.key] = id
+    setOwn(ids, row.key, id)
     const entry: Record<string, unknown> = { id }
     if (row.titleOverride !== undefined) entry.title = row.titleOverride
     else if (!row.titleMissing) entry.title = positionalTitle(branches.kind, index, rows.length)

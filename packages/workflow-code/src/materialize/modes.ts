@@ -3,6 +3,7 @@ import { effectiveModes } from '../canonicalize/modes'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { CanonicalParamId, CanonicalTool, ParamMode } from '../model'
+import { getOwn, setOwn } from '../records'
 
 const INDEX_SCOPED_KEY = /^\d+:/
 
@@ -25,7 +26,7 @@ export function writeBlockModes(
   const inferred = effectiveModes(catalog, triggerMode, values, undefined, advancedMode)
   const next = { ...modes }
   for (const [id, mode] of Object.entries(desired)) {
-    if (Object.hasOwn(next, id) || inferred[id] !== mode) next[id] = mode
+    if (Object.hasOwn(next, id) || getOwn(inferred, id) !== mode) setOwn(next, id, mode)
   }
   return next
 }
@@ -50,7 +51,7 @@ export function writeToolModes(
     if (INDEX_SCOPED_KEY.test(key)) continue
     const separator = key.indexOf(':')
     if (separator !== -1 && types.has(key.slice(0, separator))) continue
-    next[key] = mode
+    setOwn(next, key, mode)
   }
   tools.forEach((tool, index) => {
     const block = catalogBlock(catalog, tool.type)
@@ -61,7 +62,7 @@ export function writeToolModes(
       const hadExplicit =
         (prevIndex !== undefined && Object.hasOwn(modes, `${prevIndex}:${id}`)) ||
         Object.hasOwn(modes, `${tool.type}:${id}`)
-      if (hadExplicit || inferred[id] !== mode) next[`${index}:${id}`] = mode
+      if (hadExplicit || getOwn(inferred, id) !== mode) next[`${index}:${id}`] = mode
     }
   })
   return next

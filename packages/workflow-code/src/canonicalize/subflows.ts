@@ -88,11 +88,13 @@ export function loopSpec(
   if (typeof loopType === 'string' && LOOP_TYPES.has(loopType)) {
     spec.loopType = loopType as LoopSpec['loopType']
   } else if (loopType !== undefined) {
+    // The serializer runs `data.loopType || 'for'` and never reads the map's type, so a falsy
+    // stored type runs `for` and any other unknown one fails in the loop orchestrator.
     rejectIfFromData(rejected, data, 'loopType')
-    if (typeof loop?.loopType === 'string' && LOOP_TYPES.has(loop.loopType)) {
-      spec.loopType = loop.loopType
-    }
-    repaired(context, blockKey, `Unknown loop type "${String(loopType)}"; the runtime runs "for"`)
+    const outcome = data.loopType
+      ? 'the runtime fails with "Unknown loop type"'
+      : 'the runtime runs "for"'
+    repaired(context, blockKey, `Unknown loop type "${String(loopType)}"; ${outcome}`)
   }
 
   // The count that runs is `block.data.count || 5` (`convertLoopBlockToLoop`): the serializer

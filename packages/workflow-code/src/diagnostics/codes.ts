@@ -171,7 +171,7 @@ export type CompileDiagnosticCode =
 export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
 
 /** `parseWorkflowLock` (lock.ts). */
-type LockDiagnosticCode =
+export type LockDiagnosticCode =
   /** The lock text is not valid JSON. */
   | 'E_LOCK_JSON'
   /** `version` is missing or not `1`. */
@@ -237,7 +237,10 @@ export type CanonicalizeDiagnosticCode =
   | 'W_CANON_SUBFLOW_REPAIRED'
   /** Stored `subBlock.type` differs from the catalog's, or map key ≠ `subBlock.id`. */
   | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
-  /** A stored JSON-string field that does not parse; kept as a native string. */
+  /**
+   * A stored JSON-string field that does not parse, kept as a native string; or a branch list
+   * that is not rows with distinct ids, kept verbatim as a param.
+   */
   | 'W_CANON_UNDECODABLE_JSON'
 
 /** materialize and identity resolution. */

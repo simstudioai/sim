@@ -146,6 +146,15 @@ describe('pruneSourceMeta and remapSourceMeta', () => {
     expect(Object.keys(copy.comments).sort()).toEqual(['block:new-a', 'header', 'var:v-2'])
   })
 
+  it('remaps a block id onto __proto__ as data', () => {
+    const meta = parsed(validMeta())
+    const copy = remapSourceMeta(meta, new Map([['blk-a', '__proto__']]), new Map())
+    expect(Object.keys(copy.idents)).toEqual(['__proto__'])
+    expect(Object.getOwnPropertyDescriptor(copy.idents, '__proto__')?.value).toBe('fetchUser')
+    expect(Object.getOwnPropertyDescriptor(copy.order, '__proto__')?.value).toBe(0)
+    expect(parseSourceMeta(copy).diagnostics).toBeUndefined()
+  })
+
   it('keeps one ident when two ids collapse onto one', () => {
     const meta = parsed(validMeta())
     const merged = remapSourceMeta(

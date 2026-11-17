@@ -24,21 +24,23 @@ interface ParamSite {
   forceText: boolean
 }
 
+/** Whether prev stored text, or, with no prev value, the catalog `storage` is `json-string`. */
+function storesAsText(site: ParamSite): boolean {
+  return site.prevRaw !== undefined && site.prevRaw !== null
+    ? typeof site.prevRaw === 'string'
+    : site.declaration?.storage === 'json-string'
+}
+
 /**
- * The encoding a decoded value is written in: JSON text when the field is
- * one canonicalize decodes and prev stored text (or, with no prev value, the catalog `storage` is
- * `json-string`); native otherwise. Scalars are always native, and a field canonicalize never
- * decodes keeps a structured value native so it reads back unchanged.
+ * The encoding a decoded value is written in: JSON text when the field is one canonicalize
+ * decodes and {@link storesAsText}; native otherwise. Scalars are always native, and a field
+ * canonicalize never decodes keeps a structured value native so it reads back unchanged.
  */
 function encodeStorage(json: unknown, site: ParamSite): unknown {
   if (typeof json !== 'object' || json === null) return json
   if (site.forceText) return JSON.stringify(json)
   if (!shouldDecode(site.declaration)) return json
-  const asText =
-    site.prevRaw !== undefined && site.prevRaw !== null
-      ? typeof site.prevRaw === 'string'
-      : site.declaration?.storage === 'json-string'
-  return asText ? JSON.stringify(json) : json
+  return storesAsText(site) ? JSON.stringify(json) : json
 }
 
 /**
@@ -174,8 +176,7 @@ export function matchPrevTools(
 /**
  * A tool-input list. A tool canonical-equal to the prev tool it continues
  * keeps prev's stored object; others are re-encoded, keeping prev's raw text for each param whose
- * decoded value is unchanged. The list is text when prev stored text (or, with no prev, when the
- * catalog says `json-string`).
+ * decoded value is unchanged. The list is text when {@link storesAsText}.
  */
 function encodeTools(tools: CanonicalTool[], site: ParamSite, context: MaterializeContext) {
   const prevList = parseStoredList(site.prevRaw) ?? []
@@ -189,11 +190,7 @@ function encodeTools(tools: CanonicalTool[], site: ParamSite, context: Materiali
     if (deepEqual(tool, canonical)) return raw
     return encodeTool(tool, { raw, canonical }, site, context)
   })
-  const asText =
-    site.prevRaw !== undefined && site.prevRaw !== null
-      ? typeof site.prevRaw === 'string'
-      : site.declaration?.storage === 'json-string'
-  return asText ? JSON.stringify(list) : list
+  return storesAsText(site) ? JSON.stringify(list) : list
 }
 
 /** The stored value of one changed param. */

@@ -45,7 +45,7 @@ interface SubflowEntryInputs {
   /** Ids of the blocks whose `data.parentId` is this container, in block order. */
   nodes: string[]
   prevEntry: Loop | Parallel | undefined
-  /** Whether the config, enabled flag or locked flag differs from prev's (always for new). */
+  /** Whether the config differs from prev's (always for new). */
   specChanged: boolean
   enabledChanged: boolean
   lockedChanged: boolean

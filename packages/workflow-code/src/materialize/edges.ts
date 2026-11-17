@@ -12,6 +12,7 @@ import {
 import type { Edge } from '@xyflow/react'
 import { edgeTupleKey } from '../anchors'
 import type { BlockKey, BranchKey, CanonicalEdge } from '../model'
+import { getOwn } from '../records'
 import type { MaterializeContext } from './context'
 
 /** A block's branch handles: its branch kind and the row ids its keys stand for. */
@@ -32,7 +33,7 @@ function storedTupleKey(
   const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
   return edgeTupleKey(
     edge.source,
-    storedPort(handle, blocks[edge.source], edge.source, branches),
+    storedPort(handle, getOwn(blocks, edge.source), edge.source, branches),
     edge.target
   )
 }
@@ -76,7 +77,7 @@ function sourceHandle(
       const handles = branches.get(sourceId)
       return getWorkflowBranchHandleId(
         handles?.kind ?? 'condition',
-        handles?.ids[edge.port.key] ?? `${sourceId}-${edge.port.key}`
+        (handles && getOwn(handles.ids, edge.port.key)) ?? `${sourceId}-${edge.port.key}`
       )
     }
   }
