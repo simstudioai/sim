@@ -52,6 +52,14 @@ export function isWorkspaceSourcePath(path: string): boolean {
   return path.split('/').every((segment) => segment.length > 0 && !segment.startsWith('.'))
 }
 
+/**
+ * Whether `key` can address a workspace file: its path under `files/`, as
+ * {@link isWorkspaceSourcePath} accepts it. A file's key is its path, not a resource key.
+ */
+export function isFileKey(key: string): boolean {
+  return isWorkspaceSourcePath(`${KIND_DIRS.file}/${key}`)
+}
+
 /** A knowledge base document: `knowledge/<key>/docs/<file>`. */
 const KNOWLEDGE_DOCUMENT = /^knowledge\/[^/]+\/docs\/[^/]+$/
 

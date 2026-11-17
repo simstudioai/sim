@@ -53,6 +53,19 @@ type TableCode =
   /** Workflow-group output columns are managed by their group and left alone. */
   | 'I_TABLE_WORKFLOW_COLUMNS'
 
+/** Workspace files. */
+type FileCode =
+  /** A path no workspace file may have: a dot or empty segment, a reserved name or character. */
+  | 'E_FILE_PATH'
+  /** Two paths that differ only in letter case, or a path that is both a file and a folder. */
+  | 'E_FILE_PATH_COLLISION'
+  /** A name the server would store differently (trimmed, whitespace collapsed, NFC). */
+  | 'E_FILE_NAME'
+  /** A file over the per-blob cap: a get skips it and an apply never writes it. */
+  | 'E_FILE_TOO_LARGE'
+  /** Bytes that do not match the hash or size the directory declared for them. */
+  | 'E_FILE_CONTENT'
+
 /** Plan and apply. */
 type PlanCode =
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -84,7 +97,7 @@ type PlanCode =
   /** A key bound to a deleted resource was bound to its replacement. */
   | 'I_KEY_REBOUND'
 
-export type WorkspaceDiagnosticCode = DeclarationCode | BaseCode | TableCode | PlanCode
+export type WorkspaceDiagnosticCode = DeclarationCode | BaseCode | TableCode | FileCode | PlanCode
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'
 

@@ -12,7 +12,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { type Json, jsonInput, type LockExtensionKey, readExtensions } from '@sim/workflow-code'
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, type WorkspaceKind } from './kind'
-import { isResourceKey } from './layout'
+import { isFileKey, isResourceKey } from './layout'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -71,7 +71,8 @@ function parseResourceAddress(address: string): { kind: WorkspaceKind; key: stri
   const colon = address.indexOf(':')
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)
-  return colon > 0 && isWorkspaceKind(kind) && isResourceKey(key) ? { kind, key } : null
+  if (colon <= 0 || !isWorkspaceKind(kind)) return null
+  return (kind === 'file' ? isFileKey(key) : isResourceKey(key)) ? { kind, key } : null
 }
 
 /** An empty base for `workspaceId`. */
