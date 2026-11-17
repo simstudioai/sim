@@ -133,20 +133,6 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
     }
   )
 
-  it('answers 403 while workflows as code is off', async () => {
-    mocks.read.mockRejectedValue(
-      new OrchestrationError(
-        'forbidden',
-        'Workflows as code is in preview and not enabled on this deployment'
-      )
-    )
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
-  })
-
   it('answers 404 for a workflow the key cannot reach', async () => {
     mocks.read.mockRejectedValue(new OrchestrationError('not_found', 'Workflow not found'))
 

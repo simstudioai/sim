@@ -67,6 +67,8 @@ describe('Code tab refresh', () => {
     )
     useWorkflowRegistry.setState({ activeWorkflowId: WORKFLOW_ID })
     useSubBlockStore.setState({ workflowValues: {} })
+    useVariablesStore.setState({ variables: {} })
+    useOperationQueueStore.getState().reset()
     const container = document.createElement('div')
     root = createRoot(container)
     act(() => {

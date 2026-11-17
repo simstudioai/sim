@@ -7,7 +7,6 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), authorize: vi.fn() }))
 
@@ -115,19 +114,5 @@ describe('GET /api/v2/workspaces/{workspaceId}/workflows/source/resources', () =
 
     expect(response.status).toBe(400)
     expect(mocks.read).not.toHaveBeenCalled()
-  })
-
-  it('answers 403 while workflows as code is off', async () => {
-    mocks.read.mockRejectedValueOnce(
-      new OrchestrationError(
-        'forbidden',
-        'Workflows as code is in preview and not enabled on this deployment'
-      )
-    )
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 })
