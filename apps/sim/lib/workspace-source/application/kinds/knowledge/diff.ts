@@ -5,7 +5,9 @@
  * the knowledge use cases have none (`upsertKnowledgeDocument` creates a new document too). The
  * replacement therefore has a new id and none of the old one's tag values.
  */
+import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BaseResource } from '@sim/workspace-code'
 import {
   DEFAULT_CHUNKING,
@@ -35,6 +37,8 @@ import type {
   SourceContext,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+
+const logger = createLogger('KnowledgeWorkspaceSourceDiff')
 
 /** One document the apply uploads; `replaces` is the stored document it then deletes. */
 export interface DocUpload {
@@ -114,7 +118,8 @@ export function checkWrites(
  * Downloads and hashes each of `docs` whose hash `hashes` lacks, through the original-document
  * use case, adding it to `hashes`: the request's budget is spent in order first, then the
  * downloads run a few at a time. A document whose bytes are gone stays unhashed. Returns the
- * documents left unhashed because the request's download budget ran out.
+ * documents left unchecked: past the request's download budget, or whose download failed (logged),
+ * so one unreadable document never fails the whole get or plan.
  */
 export async function hashDocs(
   ctx: SourceContext,
@@ -125,23 +130,34 @@ export async function hashDocs(
   const unknown = new Map<string, StoredDoc>()
   for (const doc of docs) if (!hashes.has(doc.id)) unknown.set(doc.id, doc)
   const { taken, left } = takeHashBudget(ctx, unknown.values(), (doc) => doc.fileSize)
+  const failed: StoredDoc[] = []
   const digests = await mapWithConcurrency(taken, HASH_CONCURRENCY, async (doc) => {
-    const original = await readOriginalKnowledgeDocument.execute({
-      principal: ctx.principal,
-      input: {
+    try {
+      const original = await readOriginalKnowledgeDocument.execute({
+        principal: ctx.principal,
+        input: {
+          knowledgeBaseId,
+          documentId: doc.id,
+          assertedWorkspaceId: ctx.workspace.workspaceId,
+          maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
+        },
+      })
+      return original.sourceAvailable ? sha256Hex(original.buffer) : null
+    } catch (error) {
+      logger.warn('Could not read a knowledge document to hash it', {
         knowledgeBaseId,
         documentId: doc.id,
-        assertedWorkspaceId: ctx.workspace.workspaceId,
-        maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
-      },
-    })
-    return original.sourceAvailable ? sha256Hex(original.buffer) : null
+        error: getErrorMessage(error),
+      })
+      failed.push(doc)
+      return null
+    }
   })
   taken.forEach((doc, index) => {
     const sha256 = digests[index]
     if (sha256 !== null) hashes.set(doc.id, sha256)
   })
-  return left
+  return [...left, ...failed]
 }
 
 /** The info line a change gets for the documents it indexes, and for chunking it changes. */
@@ -269,7 +285,7 @@ export async function diffKnowledgeBase(input: {
           KIND,
           key,
           'W_KB_DOC_UNCHECKED',
-          `docs/${name} was not compared with the stored document: this request reached its download budget, so it is left as it is.`,
+          `docs/${name} was not compared with the stored document (this request reached its download budget, or the stored bytes could not be read), so it is left as it is.`,
           { hint: 'Apply again to compare it.' }
         )
       )

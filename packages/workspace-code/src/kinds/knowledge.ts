@@ -278,6 +278,18 @@ function parseKnowledgeBase(
     ...finding,
     ...resource,
   }))
+  // A document sent as text would be missing from `docs`, which reads as a request to delete it.
+  for (const path of Object.keys(text)) {
+    if (path === file) continue
+    diagnostics.push(
+      fileFinding(
+        'E_DECL_SHAPE',
+        key,
+        path,
+        `${path} was sent as text; a knowledge document travels as a blob, by hash.`
+      )
+    )
+  }
   const docs = readDocs(key, blobs, diagnostics)
   if (read.value === undefined) return { diagnostics }
   const report = fieldReporter(source, read.spans, diagnostics, resource)

@@ -158,6 +158,18 @@ describe('knowledgeCodec', () => {
     expect(parsed.diagnostics.map((finding) => finding.code)).toEqual(['E_DECL_SHAPE'])
   })
 
+  it('refuses a document sent as text, which would otherwise read as deleted', () => {
+    const parsed = knowledgeCodec.parse(
+      'policies',
+      { ...declaration("{ name: 'Policies' }"), 'knowledge/policies/docs/a.md': '# A\n' },
+      []
+    )
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.file])).toEqual([
+      ['E_DECL_SHAPE', 'knowledge/policies/docs/a.md'],
+    ])
+  })
+
   it('refuses hostile document names, bad hashes and oversized documents', () => {
     const parsed = knowledgeCodec.parse('policies', declaration("{ name: 'Policies' }"), [
       { path: 'knowledge/policies/docs/.env', sha256: HASH, size: 1 },

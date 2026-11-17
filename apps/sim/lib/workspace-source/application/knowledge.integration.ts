@@ -64,6 +64,7 @@ import {
   deleteKnowledgeBaseOperation,
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
+import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import type {
   ApplyWorkspaceSourceInput,
   ApplyWorkspaceSourceResult,
@@ -1145,4 +1146,30 @@ describe('knowledge bases as workspace source', () => {
     expect(read.blobs).toHaveLength(1)
     expect(codes(read.diagnostics, 'info')).toContain('I_KB_UNMANAGED_DOCS')
   })
+
+  check(
+    'a document whose bytes cannot be read is listed unhashed, not failing the get',
+    async () => {
+      const { workspaceId } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [broken] = await docs(stored.id)
+      const readOriginal = readOriginalKnowledgeDocument.execute
+      const failing = vi
+        .spyOn(readOriginalKnowledgeDocument, 'execute')
+        .mockImplementation(async (args) => {
+          if (args.input.documentId === broken.id) throw new Error('storage unavailable')
+          return readOriginal.call(readOriginalKnowledgeDocument, args)
+        })
+
+      const read = await get(workspaceId).finally(() => failing.mockRestore())
+
+      const listed = read.blobs.find((blob) => blob.id === broken.id)
+      expect(listed).toMatchObject({ path: `knowledge/policies/docs/${broken.filename}` })
+      expect(listed?.sha256).toBeUndefined()
+      expect(read.blobs.filter((blob) => blob.sha256 !== undefined)).toHaveLength(
+        read.blobs.length - 1
+      )
+      expect(codes(read.diagnostics, 'info')).toContain('I_KB_DOCS_UNHASHED')
+    }
+  )
 })

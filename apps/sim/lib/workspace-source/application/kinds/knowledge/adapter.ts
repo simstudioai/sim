@@ -573,7 +573,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
             KIND,
             stored.key,
             'I_KB_DOCS_UNHASHED',
-            `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget.`
+            `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget, or could not read their bytes.`
           )
         )
       }
