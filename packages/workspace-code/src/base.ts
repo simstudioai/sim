@@ -20,21 +20,21 @@ export type ResourceFingerprint = `rf1:${string}`
 /** `kind:key`, the base's resource address. */
 export type ResourceAddress = `${WorkspaceKind}:${string}`
 
-export interface BaseColumn {
+export type BaseColumn = {
   [extension: LockExtensionKey]: Json
   id: string
   /** Select option name → option id. */
   options?: Record<string, string>
 }
 
-export interface BaseBlob {
+export type BaseBlob = {
   [extension: LockExtensionKey]: Json
   id: string
   rev: number | string
   sha256: string
 }
 
-export interface BaseResource {
+export type BaseResource = {
   [extension: LockExtensionKey]: Json
   id: string
   /** Absent for a workflow, whose freshness lives in its own `.sim/base.json`. */
@@ -43,7 +43,7 @@ export interface BaseResource {
   blobs?: Record<string, BaseBlob>
 }
 
-export interface WorkspaceBaseV1 {
+export type WorkspaceBaseV1 = {
   [extension: LockExtensionKey]: Json
   version: 1
   workspaceId: string

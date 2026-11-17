@@ -1,0 +1,278 @@
+import { APPLY_ORDER } from '@sim/workspace-code'
+import { isWorkspaceSourcePath } from '@sim/workspace-code/layout'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { z } from 'zod'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
+
+const kindSchema = z
+  .enum(APPLY_ORDER, {
+    error: `kind: expected one of ${APPLY_ORDER.map((kind) => `"${kind}"`).join(' | ')}`,
+  })
+  .describe(
+    'A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`.'
+  )
+
+const paramsSchema = z
+  .object({ workspaceId: workspaceIdSchema.describe('Workspace to read or apply.') })
+  .strict()
+
+const getQuerySchema = z
+  .object({
+    kinds: z
+      .string()
+      .min(1, 'kinds cannot be empty')
+      .transform((value) => value.split(',').map((kind) => kind.trim()))
+      .pipe(z.array(kindSchema).max(APPLY_ORDER.length, 'kinds lists each kind at most once'))
+      .optional()
+      .describe('Comma-separated kinds to read; every kind the server supports when omitted.'),
+  })
+  .strict()
+
+const pathSchema = z
+  .string()
+  .min(1, 'a path cannot be empty')
+  .max(1024, 'a path cannot exceed 1024 characters')
+  .refine(
+    isWorkspaceSourcePath,
+    'a path must sit inside a kind folder, with no `.` or `..` segments'
+  )
+
+const sha256Schema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'sha256 must be 64 lowercase hex digits')
+  .describe('SHA-256 of the bytes, lowercase hex.')
+
+const diagnosticSchema = z
+  .object({
+    code: z.string().describe('Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`.'),
+    severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
+    message: z.string().describe('What was found.'),
+    hint: z.string().optional().describe('How to address it.'),
+    file: z.string().optional().describe('Directory file the finding is in.'),
+    line: z.number().int().optional().describe('1-based line in `file`.'),
+    column: z.number().int().optional().describe('1-based column in `file`.'),
+    endLine: z.number().int().optional().describe('1-based line the finding ends on.'),
+    endColumn: z.number().int().optional().describe('1-based column the finding ends at.'),
+    frame: z.string().optional().describe('The source lines around the finding, with a caret row.'),
+    path: z.string().optional().describe('JSON Pointer into a JSON file, such as the base.'),
+    kind: z.string().optional().describe('Kind of the resource the finding is about.'),
+    key: z.string().optional().describe('Key of the resource the finding is about.'),
+    blockKey: z.string().optional().describe('Workflow block the finding is about.'),
+    param: z.string().optional().describe('Block field the finding is about.'),
+  })
+  .describe('A finding about the directory, pinned to its file when it has one.')
+
+/** An `x-` field of the base: data the format does not define, kept as written. */
+const extensionSchema = z.unknown().describe('An `x-` extension field, kept as written.')
+
+const baseResourceSchema = z
+  .object({
+    id: z.string().describe('Stored id the key is bound to.'),
+    fingerprint: z
+      .string()
+      .optional()
+      .describe('`rf1:` fingerprint of the resource as last read; absent for a workflow.'),
+    columns: z
+      .record(
+        z.string(),
+        z.object({
+          id: z.string().describe('Stored column id.'),
+          options: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe('Select option name → option id.'),
+        })
+      )
+      .optional()
+      .describe('Table column key → stored column.'),
+  })
+  .catchall(extensionSchema)
+  .describe('One resource in the base.')
+
+const baseSchema = z
+  .object({
+    version: z.literal(1).describe('Base format version.'),
+    workspaceId: z.string().describe('Workspace the directory was read from.'),
+    resources: z
+      .record(z.string(), baseResourceSchema)
+      .describe('`kind:key` → the stored resource and its fingerprint.'),
+  })
+  .catchall(extensionSchema)
+  .describe(
+    '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.'
+  )
+
+const blobSchema = z
+  .object({
+    path: pathSchema.describe('Directory path of the binary file.'),
+    sha256: sha256Schema,
+    size: z
+      .number()
+      .int()
+      .min(0)
+      .max(
+        WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
+        `size cannot exceed ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}`
+      )
+      .describe('Bytes.'),
+  })
+  .strict()
+
+const changeSchema = z
+  .object({
+    kind: kindSchema,
+    key: z.string().describe('Resource key.'),
+    action: z
+      .enum(['create', 'update', 'adopt', 'delete', 'noop'])
+      .describe('`adopt` binds the key to an existing resource of the same name, then updates it.'),
+    fields: z.array(z.string()).optional().describe('What changes.'),
+    destructive: z
+      .object({
+        what: z.string().describe('What is lost.'),
+        counts: z.record(z.string(), z.number().int()).describe('How much is lost.'),
+      })
+      .optional()
+      .describe('Data the change deletes; present only with `allowDelete`.'),
+    id: z.string().optional().describe('Stored id, once known.'),
+  })
+  .describe('One planned or applied change.')
+
+const readDataSchema = z
+  .object({
+    workspaceId: z.string().describe('Workspace id.'),
+    kinds: z.array(kindSchema).describe('The kinds read; the directory manages exactly these.'),
+    files: z.record(z.string(), z.string()).describe('Directory path → file text.'),
+    blobs: z
+      .array(
+        blobSchema.extend({
+          id: z.string().describe('Stored id of the binary file.'),
+          href: z.string().describe('Where to download its bytes.'),
+        })
+      )
+      .describe('Binary files, downloaded separately by `href`.'),
+    base: baseSchema,
+    skipped: z
+      .array(
+        z.object({
+          kind: kindSchema,
+          key: z.string().describe('Resource key.'),
+          reason: z.string().describe('Why it was left out.'),
+        })
+      )
+      .describe('Resources left out, such as a workflow too large to read as source.'),
+    diagnostics: z.array(diagnosticSchema).describe('Findings from reading.'),
+  })
+  .describe('A workspace as source.')
+
+/** `GET /api/v2/workspaces/{workspaceId}/source`: the workspace as a source directory. */
+export const v2GetWorkspaceSourceContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workspaces/[workspaceId]/source',
+  params: paramsSchema,
+  query: getQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(readDataSchema) },
+})
+
+const applyQuerySchema = z
+  .object({
+    dryRun: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.'
+      ),
+  })
+  .strict()
+
+const applyBodySchema = z
+  .object({
+    files: z
+      .record(pathSchema, z.string())
+      .describe(
+        'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.'
+      ),
+    blobs: z
+      .array(
+        blobSchema.extend({
+          content: z
+            .string()
+            .optional()
+            .describe(
+              'Base64 bytes; send only the paths the previous round listed in `needBlobs`.'
+            ),
+        })
+      )
+      .optional()
+      .describe('Binary files by hash.'),
+    base: baseSchema.optional(),
+    kinds: z
+      .array(kindSchema)
+      .max(APPLY_ORDER.length)
+      .describe(
+        'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.'
+      ),
+    options: z
+      .object({
+        allowDelete: z
+          .boolean()
+          .optional()
+          .describe('Delete resources, columns and data the directory no longer declares.'),
+        only: z.array(kindSchema).optional().describe('Apply only these kinds.'),
+      })
+      .strict()
+      .optional()
+      .describe('How far the apply may go.'),
+    provenance: z
+      .object({
+        client: z.enum(['cli', 'api']).describe('What submitted the directory.'),
+        gitSha: z
+          .string()
+          .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+          .optional()
+          .describe('The commit the directory was taken from; recorded in the audit log.'),
+      })
+      .strict()
+      .optional()
+      .describe('Where the directory came from, for the audit log.'),
+  })
+  .strict()
+
+const applyDataSchema = z
+  .object({
+    workspaceId: z.string().describe('Workspace id.'),
+    dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
+    plan: z.array(changeSchema).describe('Every planned change, no-ops included, in apply order.'),
+    applied: z.array(changeSchema).describe('The changes written, in order.'),
+    failed: z
+      .object({
+        kind: kindSchema,
+        key: z.string().describe('Resource key.'),
+        code: z.string().describe('Diagnostic code.'),
+        message: z.string().describe('What failed.'),
+      })
+      .optional()
+      .describe(
+        'The change that failed mid-apply. The changes before it are written (`applied`); the rest were not attempted. Applying the same directory again continues.'
+      ),
+    needBlobs: z.array(z.string()).describe('Binary paths whose content the next round must send.'),
+    remainingBlobs: z
+      .array(z.string())
+      .describe('Binary writes this round skipped for missing content.'),
+    files: z
+      .record(z.string(), z.string())
+      .describe('Files re-printed from what was saved, for every resource written.'),
+    base: baseSchema.describe('The base after this apply: the next apply’s `base`.'),
+    diagnostics: z.array(diagnosticSchema).describe('Warnings, and on a dry run every error.'),
+  })
+  .describe('The outcome of applying workspace source.')
+
+/** `POST /api/v2/workspaces/{workspaceId}/source`: apply a workspace source directory. */
+export const v2ApplyWorkspaceSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/source',
+  params: paramsSchema,
+  query: applyQuerySchema,
+  body: applyBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
+})

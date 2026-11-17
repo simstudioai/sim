@@ -1,0 +1,146 @@
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import {
+  documentedSchema,
+  RATE_LIMIT_HEADERS,
+  RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
+} from '@/lib/api/contracts/v2/openapi/shared'
+import {
+  v2ApplyWorkspaceSourceContract,
+  v2GetWorkspaceSourceContract,
+} from '@/lib/api/contracts/v2/workspace-source'
+import { defineOpenApiRoute } from '@/lib/api/openapi/types'
+import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
+
+const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
+const TABLE_ID = 'tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c'
+const FINGERPRINT = 'rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d'
+
+const LEADS_TS = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'leads',
+  columns: {
+    email: column.string({ required: true, unique: true }),
+    status: column.select({ options: ['new', 'won'] }),
+  },
+})
+`
+
+const BASE_EXAMPLE = {
+  version: 1,
+  workspaceId: WORKSPACE_ID,
+  resources: {
+    'table:leads': {
+      id: TABLE_ID,
+      fingerprint: FINGERPRINT,
+      columns: {
+        email: { id: 'col_8e1c4a7b2d5f' },
+        status: { id: 'col_3b6d9f2a5c8e', options: { new: 'k2Pq9x', won: 'r7Tn4m' } },
+      },
+    },
+  },
+}
+
+export const workspaceSourceOpenApiRoutes = [
+  defineOpenApiRoute(
+    v2GetWorkspaceSourceContract,
+    {
+      applicationOperation: workspaceSourceOperations.read,
+      operationId: 'getWorkspaceSource',
+      summary: 'Get workspace source',
+      description: `Read the workspace as a source directory: one declaration file per table (\`tables/<key>.ts\`), one folder per workflow (\`workflows/<key>/\`, exactly as Get Workflow Source prints it, with its lock and base), binary files by hash, and \`base\`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. \`kinds\` narrows the read; the directory then manages only those kinds. A workflow too large to read as source is listed in \`skipped\`. Rows, environment values and credentials are never part of source. This read records no audit event. Returns \`403\` while workflows as code is not enabled.`,
+      tags: ['Workflows'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The workspace as source.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2GetWorkspaceSourceContract.params,
+        'GetWorkspaceSourceParams',
+        'Get workspace source path parameters',
+        'Workspace to read.'
+      ),
+      query: documentedSchema(
+        v2GetWorkspaceSourceContract.query,
+        'GetWorkspaceSourceQuery',
+        'Get workspace source query',
+        'Which kinds to read.'
+      ),
+      response: documentedSchema(
+        v2GetWorkspaceSourceContract.response.schema,
+        'GetWorkspaceSourceResponse',
+        'Get workspace source response',
+        'The workspace as a source directory.',
+        [
+          {
+            data: {
+              workspaceId: WORKSPACE_ID,
+              kinds: ['table', 'workflow'],
+              files: { 'tables/leads.ts': LEADS_TS },
+              blobs: [],
+              base: BASE_EXAMPLE,
+              skipped: [],
+              diagnostics: [],
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ApplyWorkspaceSourceContract,
+    {
+      applicationOperation: workspaceSourceOperations.apply,
+      operationId: 'applyWorkspaceSource',
+      summary: 'Apply workspace source',
+      description: `Apply a workspace source directory: create and update what it declares, in dependency order (tables before the workflows that use them). Send the files of every managed kind, \`kinds\` (the kind folders the directory holds), and the \`base\` from Get Workspace Source. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns \`409\` (\`SOURCE_STALE\`); a schema-locked table \`423\`; a directory over a size limit \`413\` (at most ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} resources per kind, ${WORKSPACE_SOURCE_LIMITS.maxWorkflows} workflows and ${WORKSPACE_SOURCE_LIMITS.maxChanges} changes per apply). A resource, table column or option the directory no longer declares is deleted only with \`options.allowDelete\`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow changes follow Apply Workflow Source, which a workspace API key cannot call, so a workspace API key gets \`E_APPLY_FORBIDDEN\` for workflows (narrow the apply with \`options.only\`). Writes commit one by one: a write that fails mid-apply answers \`200\` with \`failed\` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next \`base\`. \`dryRun=true\` plans, checks and authorizes without writing and answers \`200\` with the findings in \`diagnostics\`. Returns \`403\` while workflows as code is not enabled.`,
+      tags: ['Workflows'],
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The applied (or planned) changes.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2ApplyWorkspaceSourceContract.params,
+        'ApplyWorkspaceSourceParams',
+        'Apply workspace source path parameters',
+        'Workspace to apply to.'
+      ),
+      query: documentedSchema(
+        v2ApplyWorkspaceSourceContract.query,
+        'ApplyWorkspaceSourceQuery',
+        'Apply workspace source query',
+        'Whether to plan without writing.'
+      ),
+      body: documentedSchema(
+        v2ApplyWorkspaceSourceContract.body,
+        'ApplyWorkspaceSourceBody',
+        'Apply workspace source body',
+        'The directory files, its managed kinds and the base they were read with.',
+        [{ files: { 'tables/leads.ts': LEADS_TS }, kinds: ['table'], base: BASE_EXAMPLE }]
+      ),
+      response: documentedSchema(
+        v2ApplyWorkspaceSourceContract.response.schema,
+        'ApplyWorkspaceSourceResponse',
+        'Apply workspace source response',
+        'The plan, what was written, and the files re-printed from it.',
+        [
+          {
+            data: {
+              workspaceId: WORKSPACE_ID,
+              dryRun: false,
+              plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
+              applied: [],
+              needBlobs: [],
+              remainingBlobs: [],
+              files: {},
+              base: BASE_EXAMPLE,
+              diagnostics: [],
+            },
+          },
+        ]
+      ),
+    }
+  ),
+]

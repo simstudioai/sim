@@ -14,6 +14,8 @@
     "applyWorkflowSource",
     "createWorkflowFromSource",
     "getSourceResources",
+    "getWorkspaceSource",
+    "applyWorkspaceSource",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",

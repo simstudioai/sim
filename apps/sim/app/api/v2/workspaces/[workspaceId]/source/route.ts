@@ -1,0 +1,62 @@
+import { WORKSPACE_SOURCE_REQUEST_MAX_BYTES } from '@sim/workspace-code/limits'
+import {
+  v2ApplyWorkspaceSourceContract,
+  v2GetWorkspaceSourceContract,
+} from '@/lib/api/contracts/v2/workspace-source'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2WorkspaceSourceErrorPolicy } from '@/lib/workspace-source/api/route-policies'
+import { applyWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
+import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
+import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+/**
+ * GET /api/v2/workspaces/[workspaceId]/source — the workspace as a source directory: declaration
+ * files, workflow folders, binary files by hash, and the base. Unaudited. `headSafe: false`
+ * because the first read of a resource with no key allocates one. Answers 403 while the
+ * `workflow-code` flag is off.
+ */
+export const GET = defineV2JsonRoute({
+  contract: v2GetWorkspaceSourceContract,
+  auth: v2ApiKeyAuth,
+  headSafe: false,
+  operation: workspaceSourceOperations.read,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkspaceSourceErrorPolicy,
+  mapInput: ({ params, query }) => ({
+    workspaceId: params.workspaceId,
+    ...(query.kinds ? { kinds: query.kinds } : {}),
+  }),
+  useCase: readWorkspaceSource,
+  present: (source) => ({ data: source }),
+})
+
+/**
+ * POST /api/v2/workspaces/[workspaceId]/source — applies a workspace source directory. Any error
+ * in the plan writes nothing (400, 409 stale, 423 locked, 413 over a limit); a dry run answers
+ * 200 with its findings. A write that fails mid-apply answers 200 with `failed` and what was
+ * written before it. Draws on the source-write budget.
+ */
+export const POST = defineV2JsonRoute({
+  contract: v2ApplyWorkspaceSourceContract,
+  auth: v2ApiKeyAuth,
+  operation: workspaceSourceOperations.apply,
+  rateLimit: v2RateLimits.sourceWrite,
+  errorPolicy: v2WorkspaceSourceErrorPolicy,
+  parseOptions: { maxBodyBytes: WORKSPACE_SOURCE_REQUEST_MAX_BYTES },
+  mapInput: ({ params, query, body }) => ({
+    workspaceId: params.workspaceId,
+    files: body.files,
+    kinds: body.kinds,
+    ...(body.blobs ? { blobs: body.blobs } : {}),
+    ...(body.base ? { base: body.base } : {}),
+    ...(body.options?.only ? { only: body.options.only } : {}),
+    ...(body.options?.allowDelete !== undefined ? { allowDelete: body.options.allowDelete } : {}),
+    ...(body.provenance ? { provenance: body.provenance } : {}),
+    ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
+  }),
+  useCase: applyWorkspaceSource,
+  present: (result) => ({ data: result }),
+})

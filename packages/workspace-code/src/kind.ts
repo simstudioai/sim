@@ -1,27 +1,22 @@
 import type { Json } from '@sim/workflow-code'
 import type { WorkspaceDiagnostic } from './diagnostics'
 
-/** A resource kind a workspace source directory can declare. */
-export type WorkspaceKind =
-  | 'custom-tool'
-  | 'skill'
-  | 'table'
-  | 'knowledge-base'
-  | 'file'
-  | 'workflow'
-
 /**
- * The order an apply writes kinds in, so a resource exists before anything that references it
- * (a workflow names tables, tools and skills). Deletes run in the reverse order.
+ * Every kind a workspace source directory can declare, in the order an apply writes them: a
+ * resource exists before anything that references it (a workflow names tables, tools and skills).
+ * Deletes run in the reverse order.
  */
-export const APPLY_ORDER: readonly WorkspaceKind[] = [
+export const APPLY_ORDER = [
   'custom-tool',
   'skill',
   'table',
   'knowledge-base',
   'file',
   'workflow',
-]
+] as const
+
+/** A resource kind a workspace source directory can declare. */
+export type WorkspaceKind = (typeof APPLY_ORDER)[number]
 
 /** The top-level folder each kind lives in; a kind is managed only when its folder exists. */
 export const KIND_DIRS = {

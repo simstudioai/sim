@@ -28,6 +28,7 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { sourceResourcesOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/source-resources'
 import { workflowSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workflow-source'
+import { workspaceSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-source'
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -1819,5 +1820,6 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
     ...workflowSourceOpenApiRoutes,
     ...sourceResourcesOpenApiRoutes,
     ...workspaceSyncOpenApiRoutes,
+    ...workspaceSourceOpenApiRoutes,
   ],
 })

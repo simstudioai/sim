@@ -8451,6 +8451,318 @@
           }
         }
       }
+    },
+    "/api/v2/workspaces/{workspaceId}/source": {
+      "get": {
+        "operationId": "getWorkspaceSource",
+        "summary": "Get workspace source",
+        "description": "Read the workspace as a source directory: one declaration file per table (`tables/<key>.ts`), one folder per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), binary files by hash, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A workflow too large to read as source is listed in `skipped`. Rows, environment values and credentials are never part of source. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workspaces.source.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to read or apply.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to read or apply."
+            }
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated kinds to read; every kind the server supports when omitted.",
+            "schema": {
+              "description": "Comma-separated kinds to read; every kind the server supports when omitted.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace as source.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceSourceResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "kinds": ["table", "workflow"],
+                        "files": {
+                          "tables/leads.ts": "// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({\n  name: 'leads',\n  columns: {\n    email: column.string({ required: true, unique: true }),\n    status: column.select({ options: ['new', 'won'] }),\n  },\n})\n"
+                        },
+                        "blobs": [],
+                        "base": {
+                          "version": 1,
+                          "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                          "resources": {
+                            "table:leads": {
+                              "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                              "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                              "columns": {
+                                "email": {
+                                  "id": "col_8e1c4a7b2d5f"
+                                },
+                                "status": {
+                                  "id": "col_3b6d9f2a5c8e",
+                                  "options": {
+                                    "new": "k2Pq9x",
+                                    "won": "r7Tn4m"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "skipped": [],
+                        "diagnostics": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "applyWorkspaceSource",
+        "summary": "Apply workspace source",
+        "description": "Apply a workspace source directory: create and update what it declares, in dependency order (tables before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), and the `base` from Get Workspace Source. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow changes follow Apply Workflow Source, which a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.source.apply",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to read or apply.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to read or apply."
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "description": "Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.",
+            "schema": {
+              "description": "Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The directory files, its managed kinds and the base they were read with.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyWorkspaceSourceBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "files": {
+                      "tables/leads.ts": "// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({\n  name: 'leads',\n  columns: {\n    email: column.string({ required: true, unique: true }),\n    status: column.select({ options: ['new', 'won'] }),\n  },\n})\n"
+                    },
+                    "kinds": ["table"],
+                    "base": {
+                      "version": 1,
+                      "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                      "resources": {
+                        "table:leads": {
+                          "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                          "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                          "columns": {
+                            "email": {
+                              "id": "col_8e1c4a7b2d5f"
+                            },
+                            "status": {
+                              "id": "col_3b6d9f2a5c8e",
+                              "options": {
+                                "new": "k2Pq9x",
+                                "won": "r7Tn4m"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The applied (or planned) changes.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyWorkspaceSourceResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "dryRun": false,
+                        "plan": [
+                          {
+                            "kind": "table",
+                            "key": "leads",
+                            "action": "noop",
+                            "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c"
+                          }
+                        ],
+                        "applied": [],
+                        "needBlobs": [],
+                        "remainingBlobs": [],
+                        "files": {},
+                        "base": {
+                          "version": 1,
+                          "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                          "resources": {
+                            "table:leads": {
+                              "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                              "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                              "columns": {
+                                "email": {
+                                  "id": "col_8e1c4a7b2d5f"
+                                },
+                                "status": {
+                                  "id": "col_3b6d9f2a5c8e",
+                                  "options": {
+                                    "new": "k2Pq9x",
+                                    "won": "r7Tn4m"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "diagnostics": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -23593,6 +23905,928 @@
         "additionalProperties": false,
         "title": "List workspace operations response",
         "description": "A page of stored operation receipts."
+      },
+      "GetWorkspaceSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                },
+                "description": "The kinds read; the directory manages exactly these."
+              },
+              "files": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Directory path → file text."
+              },
+              "blobs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024,
+                      "description": "Directory path of the binary file."
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$",
+                      "description": "SHA-256 of the bytes, lowercase hex."
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000,
+                      "description": "Bytes."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Stored id of the binary file."
+                    },
+                    "href": {
+                      "type": "string",
+                      "description": "Where to download its bytes."
+                    }
+                  },
+                  "required": ["path", "sha256", "size", "id", "href"],
+                  "additionalProperties": false
+                },
+                "description": "Binary files, downloaded separately by `href`."
+              },
+              "base": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "number",
+                    "const": 1,
+                    "description": "Base format version."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "Workspace the directory was read from."
+                  },
+                  "resources": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Stored id the key is bound to."
+                        },
+                        "fingerprint": {
+                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                          "type": "string"
+                        },
+                        "columns": {
+                          "description": "Table column key → stored column.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stored column id."
+                              },
+                              "options": {
+                                "description": "Select option name → option id.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": ["id"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["id"],
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept as written."
+                      },
+                      "description": "One resource in the base."
+                    },
+                    "description": "`kind:key` → the stored resource and its fingerprint."
+                  }
+                },
+                "required": ["version", "workspaceId", "resources"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept as written."
+                },
+                "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
+              },
+              "skipped": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "custom-tool",
+                        "skill",
+                        "table",
+                        "knowledge-base",
+                        "file",
+                        "workflow"
+                      ],
+                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                    },
+                    "key": {
+                      "type": "string",
+                      "description": "Resource key."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "Why it was left out."
+                    }
+                  },
+                  "required": ["kind", "key", "reason"],
+                  "additionalProperties": false
+                },
+                "description": "Resources left out, such as a workflow too large to read as source."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": ["error", "warning", "info"],
+                      "description": "Diagnostic severity."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "What was found."
+                    },
+                    "hint": {
+                      "description": "How to address it.",
+                      "type": "string"
+                    },
+                    "file": {
+                      "description": "Directory file the finding is in.",
+                      "type": "string"
+                    },
+                    "line": {
+                      "description": "1-based line in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "column": {
+                      "description": "1-based column in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "1-based line the finding ends on.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endColumn": {
+                      "description": "1-based column the finding ends at.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "frame": {
+                      "description": "The source lines around the finding, with a caret row.",
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "JSON Pointer into a JSON file, such as the base.",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "description": "Kind of the resource the finding is about.",
+                      "type": "string"
+                    },
+                    "key": {
+                      "description": "Key of the resource the finding is about.",
+                      "type": "string"
+                    },
+                    "blockKey": {
+                      "description": "Workflow block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Block field the finding is about.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["code", "severity", "message"],
+                  "additionalProperties": false,
+                  "description": "A finding about the directory, pinned to its file when it has one."
+                },
+                "description": "Findings from reading."
+              }
+            },
+            "required": [
+              "workspaceId",
+              "kinds",
+              "files",
+              "blobs",
+              "base",
+              "skipped",
+              "diagnostics"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get workspace source response",
+        "description": "The workspace as a source directory.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "kinds": ["table", "workflow"],
+              "files": {
+                "tables/leads.ts": "// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({\n  name: 'leads',\n  columns: {\n    email: column.string({ required: true, unique: true }),\n    status: column.select({ options: ['new', 'won'] }),\n  },\n})\n"
+              },
+              "blobs": [],
+              "base": {
+                "version": 1,
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "resources": {
+                  "table:leads": {
+                    "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                    "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                    "columns": {
+                      "email": {
+                        "id": "col_8e1c4a7b2d5f"
+                      },
+                      "status": {
+                        "id": "col_3b6d9f2a5c8e",
+                        "options": {
+                          "new": "k2Pq9x",
+                          "won": "r7Tn4m"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "skipped": [],
+              "diagnostics": []
+            }
+          }
+        ]
+      },
+      "ApplyWorkspaceSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "dryRun": {
+                "type": "boolean",
+                "description": "True when nothing was written because `dryRun` was set."
+              },
+              "plan": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "custom-tool",
+                        "skill",
+                        "table",
+                        "knowledge-base",
+                        "file",
+                        "workflow"
+                      ],
+                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                    },
+                    "key": {
+                      "type": "string",
+                      "description": "Resource key."
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": ["create", "update", "adopt", "delete", "noop"],
+                      "description": "`adopt` binds the key to an existing resource of the same name, then updates it."
+                    },
+                    "fields": {
+                      "description": "What changes.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "destructive": {
+                      "description": "Data the change deletes; present only with `allowDelete`.",
+                      "type": "object",
+                      "properties": {
+                        "what": {
+                          "type": "string",
+                          "description": "What is lost."
+                        },
+                        "counts": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "description": "How much is lost."
+                        }
+                      },
+                      "required": ["what", "counts"],
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "description": "Stored id, once known.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "key", "action"],
+                  "additionalProperties": false,
+                  "description": "One planned or applied change."
+                },
+                "description": "Every planned change, no-ops included, in apply order."
+              },
+              "applied": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "custom-tool",
+                        "skill",
+                        "table",
+                        "knowledge-base",
+                        "file",
+                        "workflow"
+                      ],
+                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                    },
+                    "key": {
+                      "type": "string",
+                      "description": "Resource key."
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": ["create", "update", "adopt", "delete", "noop"],
+                      "description": "`adopt` binds the key to an existing resource of the same name, then updates it."
+                    },
+                    "fields": {
+                      "description": "What changes.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "destructive": {
+                      "description": "Data the change deletes; present only with `allowDelete`.",
+                      "type": "object",
+                      "properties": {
+                        "what": {
+                          "type": "string",
+                          "description": "What is lost."
+                        },
+                        "counts": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "description": "How much is lost."
+                        }
+                      },
+                      "required": ["what", "counts"],
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "description": "Stored id, once known.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "key", "action"],
+                  "additionalProperties": false,
+                  "description": "One planned or applied change."
+                },
+                "description": "The changes written, in order."
+              },
+              "failed": {
+                "description": "The change that failed mid-apply. The changes before it are written (`applied`); the rest were not attempted. Applying the same directory again continues.",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                    "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Resource key."
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "Diagnostic code."
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "What failed."
+                  }
+                },
+                "required": ["kind", "key", "code", "message"],
+                "additionalProperties": false
+              },
+              "needBlobs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Binary paths whose content the next round must send."
+              },
+              "remainingBlobs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Binary writes this round skipped for missing content."
+              },
+              "files": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Files re-printed from what was saved, for every resource written."
+              },
+              "base": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "number",
+                    "const": 1,
+                    "description": "Base format version."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "Workspace the directory was read from."
+                  },
+                  "resources": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Stored id the key is bound to."
+                        },
+                        "fingerprint": {
+                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                          "type": "string"
+                        },
+                        "columns": {
+                          "description": "Table column key → stored column.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stored column id."
+                              },
+                              "options": {
+                                "description": "Select option name → option id.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": ["id"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["id"],
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept as written."
+                      },
+                      "description": "One resource in the base."
+                    },
+                    "description": "`kind:key` → the stored resource and its fingerprint."
+                  }
+                },
+                "required": ["version", "workspaceId", "resources"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept as written."
+                },
+                "description": "The base after this apply: the next apply’s `base`."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": ["error", "warning", "info"],
+                      "description": "Diagnostic severity."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "What was found."
+                    },
+                    "hint": {
+                      "description": "How to address it.",
+                      "type": "string"
+                    },
+                    "file": {
+                      "description": "Directory file the finding is in.",
+                      "type": "string"
+                    },
+                    "line": {
+                      "description": "1-based line in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "column": {
+                      "description": "1-based column in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "1-based line the finding ends on.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endColumn": {
+                      "description": "1-based column the finding ends at.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "frame": {
+                      "description": "The source lines around the finding, with a caret row.",
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "JSON Pointer into a JSON file, such as the base.",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "description": "Kind of the resource the finding is about.",
+                      "type": "string"
+                    },
+                    "key": {
+                      "description": "Key of the resource the finding is about.",
+                      "type": "string"
+                    },
+                    "blockKey": {
+                      "description": "Workflow block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Block field the finding is about.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["code", "severity", "message"],
+                  "additionalProperties": false,
+                  "description": "A finding about the directory, pinned to its file when it has one."
+                },
+                "description": "Warnings, and on a dry run every error."
+              }
+            },
+            "required": [
+              "workspaceId",
+              "dryRun",
+              "plan",
+              "applied",
+              "needBlobs",
+              "remainingBlobs",
+              "files",
+              "base",
+              "diagnostics"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Apply workspace source response",
+        "description": "The plan, what was written, and the files re-printed from it.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "dryRun": false,
+              "plan": [
+                {
+                  "kind": "table",
+                  "key": "leads",
+                  "action": "noop",
+                  "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c"
+                }
+              ],
+              "applied": [],
+              "needBlobs": [],
+              "remainingBlobs": [],
+              "files": {},
+              "base": {
+                "version": 1,
+                "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                "resources": {
+                  "table:leads": {
+                    "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                    "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                    "columns": {
+                      "email": {
+                        "id": "col_8e1c4a7b2d5f"
+                      },
+                      "status": {
+                        "id": "col_3b6d9f2a5c8e",
+                        "options": {
+                          "new": "k2Pq9x",
+                          "won": "r7Tn4m"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "diagnostics": []
+            }
+          }
+        ]
+      },
+      "ApplyWorkspaceSourceBody": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged."
+          },
+          "blobs": {
+            "description": "Binary files by hash.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024,
+                  "description": "Directory path of the binary file."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "SHA-256 of the bytes, lowercase hex."
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000000,
+                  "description": "Bytes."
+                },
+                "content": {
+                  "description": "Base64 bytes; send only the paths the previous round listed in `needBlobs`.",
+                  "type": "string"
+                }
+              },
+              "required": ["path", "sha256", "size"],
+              "additionalProperties": false
+            }
+          },
+          "base": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "const": 1,
+                "description": "Base format version."
+              },
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace the directory was read from."
+              },
+              "resources": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Stored id the key is bound to."
+                    },
+                    "fingerprint": {
+                      "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                      "type": "string"
+                    },
+                    "columns": {
+                      "description": "Table column key → stored column.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stored column id."
+                          },
+                          "options": {
+                            "description": "Select option name → option id.",
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["id"]
+                      }
+                    }
+                  },
+                  "required": ["id"],
+                  "additionalProperties": {
+                    "description": "An `x-` extension field, kept as written."
+                  },
+                  "description": "One resource in the base."
+                },
+                "description": "`kind:key` → the stored resource and its fingerprint."
+              }
+            },
+            "required": ["version", "workspaceId", "resources"],
+            "additionalProperties": {
+              "description": "An `x-` extension field, kept as written."
+            },
+            "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
+          },
+          "kinds": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+              "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+            },
+            "description": "The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent."
+          },
+          "options": {
+            "description": "How far the apply may go.",
+            "type": "object",
+            "properties": {
+              "allowDelete": {
+                "description": "Delete resources, columns and data the directory no longer declares.",
+                "type": "boolean"
+              },
+              "only": {
+                "description": "Apply only these kinds.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "provenance": {
+            "description": "Where the directory came from, for the audit log.",
+            "type": "object",
+            "properties": {
+              "client": {
+                "type": "string",
+                "enum": ["cli", "api"],
+                "description": "What submitted the directory."
+              },
+              "gitSha": {
+                "description": "The commit the directory was taken from; recorded in the audit log.",
+                "type": "string",
+                "pattern": "^[0-9a-f]{7,64}$"
+              }
+            },
+            "required": ["client"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["files", "kinds"],
+        "additionalProperties": false,
+        "title": "Apply workspace source body",
+        "description": "The directory files, its managed kinds and the base they were read with.",
+        "examples": [
+          {
+            "files": {
+              "tables/leads.ts": "// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({\n  name: 'leads',\n  columns: {\n    email: column.string({ required: true, unique: true }),\n    status: column.select({ options: ['new', 'won'] }),\n  },\n})\n"
+            },
+            "kinds": ["table"],
+            "base": {
+              "version": 1,
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "resources": {
+                "table:leads": {
+                  "id": "tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c",
+                  "fingerprint": "rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d",
+                  "columns": {
+                    "email": {
+                      "id": "col_8e1c4a7b2d5f"
+                    },
+                    "status": {
+                      "id": "col_3b6d9f2a5c8e",
+                      "options": {
+                        "new": "k2Pq9x",
+                        "won": "r7Tn4m"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     }
   },
