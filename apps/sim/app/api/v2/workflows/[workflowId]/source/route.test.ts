@@ -335,7 +335,7 @@ function meterOperationBuckets() {
 }
 
 /** The generic v2 budget the rate-limiter mock gives every plan. */
-const GENERIC_BUDGET = v2RateLimiterModuleMock.getRateLimit('free').maxTokens
+const GENERIC_BUDGET = v2RateLimiterModuleMock.getRateLimit().maxTokens
 
 async function writesUntilLimited(write: () => Promise<Response>): Promise<number | null> {
   for (let sent = 1; sent <= GENERIC_BUDGET; sent += 1) {

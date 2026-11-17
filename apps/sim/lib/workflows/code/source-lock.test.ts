@@ -150,7 +150,6 @@ describe('mergeSourceMetaFromLock', () => {
         hints: { blocks: { fetch: { ident: 'getIt', order: 1 }, send: { order: 0 } } },
         workflow: {
           annotations: {
-            inactive: {},
             comments: {
               [encodeAnchor({ kind: 'block', block: 'send' })]: [
                 { text: ' notify', kind: 'line', placement: 'leading' },
@@ -212,7 +211,7 @@ describe('lock helper properties', () => {
         )
         const stored2 = mergeSourceMetaFromLock(null, first, {
           hints: { blocks: {} },
-          workflow: { annotations: { inactive: {}, comments: {} } },
+          workflow: { annotations: { comments: {} } },
         })
         expect(buildLockFromState(stored2, canonical)).toEqual(first)
       })
@@ -225,7 +224,7 @@ describe('lock helper properties', () => {
         const first = buildLockFromState(null, canonicalOf(stored))
         const sourceMeta = mergeSourceMetaFromLock(null, first, {
           hints: { blocks: {} },
-          workflow: { annotations: { inactive: {}, comments: {} } },
+          workflow: { annotations: { comments: {} } },
         })
         const renamed = buildLockFromState(
           sourceMeta,
