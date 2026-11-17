@@ -20,6 +20,7 @@ import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/co
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import {
+  isAdminGitLabAccountId,
   listAdminGitLabAccounts,
   resolveAdminGitLabAccount,
 } from '@/lib/sim-search/live/gitlab-admin'
@@ -114,7 +115,7 @@ export async function listLiveAccounts(
   const [visible, mcp, admin] = await Promise.all([
     workspaceContext ? filterWorkspaceAccountCredentials(workspaceContext, candidates) : candidates,
     listManagedMcpSearchAccounts(owner, userId, denied),
-    denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner),
+    denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner, userId),
   ])
   if (visible.length === 0) return [...mcp, ...admin]
   // Metadata is fetched in one batch; a fresh binding check still precedes token resolution.
@@ -162,7 +163,9 @@ export async function resolveLiveAccount(
 ) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
-    throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
+    throw isAdminGitLabAccountId(accountId)
+      ? new NativeSearchError('unavailable', 'This GitLab source is not available to your account.')
+      : new NativeSearchError('reconnect', 'This search connection is no longer available.')
   return resolveListedLiveAccount(owner, userId, current, signal)
 }
 

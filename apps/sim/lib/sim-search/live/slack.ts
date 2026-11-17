@@ -27,6 +27,9 @@ import type {
   NativePage,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
+import { formatFileSize } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import { fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
 
 /** Slack's own label for an account whose name is unavailable. */
 const SLACK_MEMBER = 'Slack member'
@@ -324,7 +327,7 @@ async function searchSlackPage(
       kind: 'file',
       title: string(file.title),
       url: string(file.permalink),
-      content: slackPlainText(string(file.content), users),
+      content: slackFileHitContent(file, users),
       author: string(file.author_name),
       ...(Number.isFinite(updated) && updated > 0
         ? { modifiedAt: new Date(updated).toISOString() }
@@ -352,7 +355,7 @@ type SlackFileFormat = 'html' | 'plain' | 'pdf' | 'docx'
 
 /** How a file's full text can be read, or undefined when Slack offers only its preview. */
 function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undefined {
-  const mimetype = string(file.mimetype).split(';')[0].trim().toLowerCase()
+  const mimetype = normalizeMimeType(string(file.mimetype))
   if (
     string(file.filetype) === 'quip' ||
     mimetype === 'application/vnd.slack-docs' ||
@@ -361,6 +364,50 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
     return 'html'
   if (mimetype.startsWith('text/') || mimetype === 'application/json') return 'plain'
   return documentExtension(mimetype)
+}
+
+/** Whether a read downloads a file of this size; an unreported size is tried and capped while reading. */
+function withinDownloadLimit(format: SlackFileFormat, size: unknown): boolean {
+  return !(Number(size) > MAX_FILE_DOWNLOAD_BYTES[format])
+}
+
+const SLACK_FILE_LABELS: Readonly<Record<string, string>> = {
+  'application/vnd.slack-docs': 'Canvas',
+  'application/vnd.slack-list': 'List',
+}
+
+/** The shared label for a known type; a title is not a filename, so it never supplies one. */
+function knownFileLabel(mimetype: string): string {
+  const label = fileBrowserTypeLabel(mimetype, '')
+  return label && label !== mimetype ? label : 'File'
+}
+
+/**
+ * Slack search returns only a file's title, repeated as its content. A hit says what the file is
+ * and whether reading it can return its text, so a reader can tell which files to open.
+ */
+function slackFileHitContent(file: Record<string, unknown>, users: Map<string, string>): string {
+  const mimetype = normalizeMimeType(string(file.file_type))
+  const summary = [
+    SLACK_FILE_LABELS[mimetype] ?? knownFileLabel(mimetype),
+    typeof file.size === 'number' && file.size >= 0
+      ? formatFileSize(file.size, { includeBytes: true })
+      : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+  const format = slackFileFormat({ mimetype })
+  const reading = !format
+    ? 'Its contents cannot be read here; open the source.'
+    : file.size === 0
+      ? 'The file is empty.'
+      : withinDownloadLimit(format, file.size)
+        ? 'Reading it can return its full text.'
+        : 'Too large to read in full here; open the source.'
+  const text = slackPlainText(string(file.content), users)
+  return [`${summary}. ${reading}`, text === string(file.title) ? '' : text]
+    .filter(Boolean)
+    .join('\n')
 }
 
 const BYTE_ORDER_MARKS = [
@@ -400,7 +447,7 @@ async function slackFileText(
   signal?: AbortSignal
 ): Promise<{ text: string } | { unavailable?: string }> {
   const format = slackFileFormat(file)
-  if (!format || Number(file.size) > MAX_FILE_DOWNLOAD_BYTES[format]) return {}
+  if (!format || !withinDownloadLimit(format, file.size)) return {}
   const source = slackFileDownloadUrl(file)
   if (!source) return {}
   const timeout = AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS)

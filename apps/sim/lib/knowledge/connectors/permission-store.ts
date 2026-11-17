@@ -37,6 +37,28 @@ export async function hasConnectorPermissionGrant(
   return Boolean(grant)
 }
 
+/** The connectors among `connectorIds` that grant the reader's subject at least one collection. */
+export async function connectorsGrantingSubject(
+  connectorIds: readonly string[],
+  subjectToken: string
+): Promise<Set<string>> {
+  const table = knowledgeConnectorPermissionGrant
+  const granted = new Set<string>()
+  for (let offset = 0; offset < connectorIds.length; offset += 1000) {
+    const rows = await db
+      .selectDistinct({ connectorId: table.connectorId })
+      .from(table)
+      .where(
+        and(
+          eq(table.subjectToken, subjectToken),
+          inArray(table.connectorId, connectorIds.slice(offset, offset + 1000))
+        )
+      )
+    for (const row of rows) granted.add(row.connectorId)
+  }
+  return granted
+}
+
 /** Returns grants only for the bounded, canonical collections requested by the authorized caller. */
 export async function readConnectorPermissionGrants(
   connectorId: string,
