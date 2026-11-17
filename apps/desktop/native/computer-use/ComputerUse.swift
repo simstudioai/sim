@@ -56,9 +56,10 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     let result = operation(element)
     if ![.illegalArgument, .attributeUnsupported, .actionUnsupported, .notImplemented, .apiDisabled].contains(result) { inputDispatched = true }
     if result == .success || result == .cannotComplete && press { return }
-    // Some elements advertise an action they then refuse (Finder and file-panel cells with AXOpen); nothing reached the app.
-    if result == .actionUnsupported {
-        throw ComputerError("unsupported_action", "The element advertises this action but refused it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+    // An element can refuse a request it advertises; Finder and file-panel cells answer AXOpen with
+    // attributeUnsupported (-25205). Nothing reached the app, so the snapshot stays valid.
+    if result == .actionUnsupported || result == .attributeUnsupported {
+        throw ComputerError("unsupported_action", "The element refused this request although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
     }
     try axCheck(result)
 }
