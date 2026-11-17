@@ -1252,6 +1252,28 @@ describe('canonicalize: subflows', () => {
     expect(codes(result)).toContain('W_CANON_SUBFLOW_REPAIRED')
   })
 
+  it('reports an invalid stored loop type as the runtime reads it, never from the loops map', () => {
+    const cases = [
+      { loopType: '', message: 'the runtime runs "for"' },
+      { loopType: 'bogus', message: 'the runtime fails with "Unknown loop type"' },
+    ]
+    for (const { loopType, message } of cases) {
+      const result = run(
+        workflow([blockState('l1', 'loop', 'Each', {}, { data: { loopType, count: 2 } })], {
+          loops: {
+            l1: { id: 'l1', nodes: [], iterations: 2, loopType: 'forEach', enabled: true },
+          },
+        })
+      )
+      const each = onlyBlock(result, 'each')
+      expect(each.subflow).toMatchObject({ kind: 'loop', loopType: 'for' })
+      expect(Object.getOwnPropertyDescriptor(each.extra ?? {}, 'loopType')?.value).toBe(loopType)
+      const repaired = result.diagnostics.filter((d) => d.code === 'W_CANON_SUBFLOW_REPAIRED')
+      expect(repaired).toHaveLength(1)
+      expect(repaired[0].message).toContain(message)
+    }
+  })
+
   it('takes the count that runs, not a count only the loops map holds', () => {
     const result = run(
       workflow([blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'for' } })], {
