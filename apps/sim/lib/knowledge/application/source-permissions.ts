@@ -66,6 +66,8 @@ async function readPermissionSource({ organizationId, sourceId }: SourceInput) {
       connectorType: knowledgeConnector.connectorType,
       revision: snapshot.revision,
       metadata: snapshot.metadata,
+      sourceConfig: knowledgeConnector.sourceConfig,
+      encryptedApiKey: knowledgeConnector.encryptedApiKey,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -100,7 +102,7 @@ export const replaceSearchSourcePermissions = defineAuthorizedOrganizationUseCas
         'The permissions must match the configured source provider.'
       )
     }
-    const prepared = source.replacement.prepare(source, expectedRevision, permissions)
+    const prepared = await source.replacement.prepare(source, expectedRevision, permissions, source)
     const revision = await db.transaction(async (tx) => {
       await lockOrganizationSearchApproval(tx, organizationId)
       await authorizeOrganizationOperation(

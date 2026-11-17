@@ -325,6 +325,10 @@ export interface SyncResult {
  * Config field for source-specific settings (rendered in the add-connector UI).
  */
 export interface ConnectorConfigField {
+  /** Excluded from knowledge base ingestion setup. */
+  searchOnly?: true
+  /** Show and serialize the field only when the selected configuration value matches. */
+  condition?: { field: string; value: string; negate?: boolean }
   id: string
   title: string
   /** Label when configuring a central crawl that mirrors source permissions. */

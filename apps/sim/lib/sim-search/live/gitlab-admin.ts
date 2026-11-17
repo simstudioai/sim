@@ -6,21 +6,32 @@ import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
-import { hasConnectorPermissionGrant } from '@/lib/knowledge/connectors/permission-store'
+import {
+  hasConnectorPermissionGrant,
+  readConnectorPermissionGrants,
+  readConnectorPermissionMetadata,
+} from '@/lib/knowledge/connectors/permission-store'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
-import { collectNativePages } from '@/lib/sim-search/live/pages'
+import { collectNativePages, joinMessages } from '@/lib/sim-search/live/pages'
 import type {
   LiveAccount,
   NativeClient,
   NativeDocument,
+  NativePage,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
-import { seedGitLabCsvContext } from '@/connectors/gitlab/permission-config/repository'
+import { type GitLabGroupScope, gitLabProjectInGroup } from '@/connectors/gitlab/group'
 import {
+  readGitLabPermissionMetadata,
+  seedGitLabCsvContext,
+} from '@/connectors/gitlab/permission-config/repository'
+import {
+  type GitLabCsvSyncContext,
   getGitLabCsvContext,
   gitLabCsvGroupToken,
+  setGitLabCsvContext,
 } from '@/connectors/gitlab/permission-config/types'
 import {
   getGitLabDocumentAcls,
@@ -104,16 +115,17 @@ export function gitLabSourceKinds(config: Record<string, unknown>): string[] {
 }
 
 /** Fresh source ACL evidence is request-local. CSV grants remain connector-local and administrator maintained. */
-export async function createAdminGitLabSession(input: {
+interface GitLabSessionInput {
   owner: ResourceOwner
   userId: string
   source: AdminSource
   token: string
   client: NativeClient
   signal: AbortSignal
-}) {
-  const { owner, userId, source, token, client, signal } = input
-  const { config } = source
+}
+
+export async function createAdminGitLabSession(input: GitLabSessionInput) {
+  const { owner, userId } = input
   const access = await createUserKnowledgeAccessProvider(userId, {
     workspaceId: owner.workspaceId ?? undefined,
     organizationId: owner.organizationId ?? undefined,
@@ -129,15 +141,33 @@ export async function createAdminGitLabSession(input: {
       'unavailable',
       'GitLab search requires a verified organization identity.'
     )
+  if (input.source.config.scope === 'group') return createGroupSession(input, own)
+  return createProjectSession(input, own)
+}
+
+async function createProjectSession(
+  input: GitLabSessionInput,
+  own: string,
+  groupProject?: { identity: GitLabCsvSyncContext; csv: boolean }
+) {
+  const { source, token, client, signal } = input
+  const { config } = source
   const context = {}
-  await seedGitLabCsvContext(source.id, context)
+  if (groupProject?.csv) setGitLabCsvContext(context, groupProject.identity)
+  else if (!groupProject) await seedGitLabCsvContext(source.id, context)
   const csv = getGitLabCsvContext(context)
   const tokens = new Set([own])
   let project: string
   let projectPath: string
   if (csv) {
     /** Indexed ACL rewrites do not govern current CSV grants for provider-backed reads. */
-    if (!(await hasConnectorPermissionGrant(source.id, 'project', own)))
+    if (
+      !(await hasConnectorPermissionGrant(
+        source.id,
+        groupProject ? `project:${groupProject.identity.projectId}` : 'project',
+        own
+      ))
+    )
       throw new NativeSearchError(
         'unavailable',
         'This GitLab source is not available to your account.'
@@ -175,6 +205,15 @@ export async function createAdminGitLabSession(input: {
     project = string(current.id)
     projectPath = string(current.path_with_namespace)
   }
+  if (
+    groupProject &&
+    (project !== String(groupProject.identity.projectId) ||
+      projectPath !== groupProject.identity.projectPath)
+  )
+    throw new NativeSearchError(
+      'unavailable',
+      'An admin must refresh permissions for this GitLab project.'
+    )
   if (!project || !projectPath)
     throw new NativeSearchError('unavailable', 'GitLab project identity could not be verified.')
   signal.throwIfAborted()
@@ -322,6 +361,183 @@ export async function createAdminGitLabSession(input: {
           'This document is no longer available to your account.'
         )
       return document
+    },
+  }
+}
+
+/** Traverse bounded project pages; every continuation and document read rechecks current grants. */
+async function createGroupSession(input: GitLabSessionInput, own: string) {
+  const { source, client } = input
+  const [stored] = await readConnectorPermissionMetadata([source.id])
+  const metadata = stored && readGitLabPermissionMetadata(stored.metadata)
+  if (
+    !metadata ||
+    !('group' in metadata) ||
+    metadata.host !== normalizeGitLabHost(source.config.host) ||
+    ![String(metadata.group.id), metadata.group.path].includes(
+      string(source.config.group).trim()
+    ) ||
+    (source.config.includeSubgroups === 'true') !== metadata.group.includeSubgroups
+  )
+    throw new NativeSearchError('unavailable', 'An admin must update this GitLab group connection.')
+  const grants =
+    metadata.mode === 'csv'
+      ? await readConnectorPermissionGrants(
+          source.id,
+          stored.revision,
+          metadata.projects.map((project) => `project:${project.id}`),
+          own
+        )
+      : null
+  const projects = metadata.projects.filter(
+    (project) => !grants || grants.has(`project:${project.id}`)
+  )
+  const group = object(await client.json(`/api/v4/groups/${metadata.group.id}`, { memo: true }))
+  if (
+    string(group.id) !== String(metadata.group.id) ||
+    string(group.full_path) !== metadata.group.path
+  )
+    throw new NativeSearchError('unavailable', 'An admin must refresh the GitLab group connection.')
+  const sessions = new Map<number, ReturnType<typeof createProjectSession>>()
+  const session = (project: GitLabGroupScope['projects'][number]) => {
+    if (!gitLabProjectInGroup(project.path, metadata.group))
+      throw new NativeSearchError(
+        'unavailable',
+        'This project is outside the configured GitLab group.'
+      )
+    let result = sessions.get(project.id)
+    if (!result) {
+      result = createProjectSession(
+        {
+          ...input,
+          source: {
+            ...source,
+            config: {
+              ...source.config,
+              scope: undefined,
+              group: undefined,
+              project: String(project.id),
+            },
+          },
+        },
+        own,
+        {
+          csv: metadata.mode === 'csv',
+          identity: {
+            connectorId: source.id,
+            host: metadata.host,
+            projectId: project.id,
+            projectPath: project.path,
+          },
+        }
+      )
+      sessions.set(project.id, result)
+    }
+    return result
+  }
+  const referencedProject = (container?: string) =>
+    projects.find((project) => container === String(project.id) || container === project.path)
+  return {
+    async verify(reference: Reference, evidence?: Record<string, unknown>) {
+      const project = referencedProject(reference.container)
+      return project ? (await session(project)).verify(reference, evidence) : false
+    },
+    async read(reference: Reference) {
+      const project = referencedProject(reference.container)
+      if (!project)
+        throw new NativeSearchError(
+          'unavailable',
+          'This GitLab document is not available to your account.'
+        )
+      return (await session(project)).read(reference)
+    },
+    async search(search: NativeSearchInput): Promise<NativePage> {
+      if (search.native?.project) {
+        const project = referencedProject(search.native.project)
+        return project ? (await session(project)).search(search) : { documents: [] }
+      }
+      const kinds = gitLabSourceKinds(source.config).filter(
+        (kind) => !search.native?.kind || kind === search.native.kind
+      )
+      const raw = search.native?.cursor ?? `${stored.revision}:${search.limit}:0:0:1`
+      if (!/^\d{1,10}:\d{1,3}:\d{1,4}:\d:\d{1,4}$/.test(raw))
+        throw new NativeSearchError('unavailable', 'Invalid GitLab group page.')
+      const [revision, pageSize, ...position] = raw.split(':').map(Number)
+      if (revision !== stored.revision || pageSize !== search.limit)
+        throw new NativeSearchError(
+          'unavailable',
+          'GitLab permissions or page size changed. Restart the search.'
+        )
+      let [projectIndex = 0, kindIndex = 0, page = 1] = position
+      if (page < 1 || projectIndex > projects.length || (kinds.length && kindIndex >= kinds.length))
+        throw new NativeSearchError('unavailable', 'Invalid GitLab group page.')
+      const documents: NativeDocument[] = []
+      const failures: string[] = []
+      let partial = false
+      let collections = 0
+      while (
+        projectIndex < projects.length &&
+        kinds.length &&
+        collections < 4 &&
+        documents.length === 0
+      ) {
+        input.signal.throwIfAborted()
+        const project = projects[projectIndex]
+        const kind = kinds[kindIndex]
+        if (!project || !kind) break
+        try {
+          const current = await (await session(project)).search({
+            ...search,
+            limit: search.limit,
+            native: {
+              provider: 'gitlab',
+              query: search.query,
+              ...search.native,
+              project: String(project.id),
+              kind: kind as 'code' | 'wiki' | 'issues' | 'merge_requests',
+              cursor: String(page),
+            },
+          })
+          documents.push(...current.documents)
+          partial ||= Boolean(current.partial)
+          if (current.nextCursor) page = Number(current.nextCursor)
+          else {
+            page = 1
+            kindIndex += 1
+            if (kindIndex >= kinds.length) {
+              kindIndex = 0
+              projectIndex += 1
+            }
+          }
+        } catch (error) {
+          partial = true
+          failures.push(
+            error instanceof NativeSearchError
+              ? error.message
+              : 'One GitLab collection could not be searched.'
+          )
+          page = 1
+          kindIndex += 1
+          if (kindIndex >= kinds.length) {
+            kindIndex = 0
+            projectIndex += 1
+          }
+        }
+        collections += 1
+      }
+      return {
+        documents,
+        partial,
+        ...(projectIndex < projects.length && kinds.length
+          ? {
+              nextCursor: `${stored.revision}:${search.limit}:${projectIndex}:${kindIndex}:${page}`,
+            }
+          : {}),
+        message: joinMessages([
+          'Searched configured GitLab group projects with per-project permissions. Continue with the cursor for remaining projects and results.',
+          ...failures,
+        ]),
+      }
     },
   }
 }

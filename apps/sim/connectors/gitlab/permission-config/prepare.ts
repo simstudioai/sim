@@ -8,10 +8,11 @@ import {
   prepareGitLabPermissions,
 } from '@/connectors/gitlab/permission-config/repository'
 import type { GitLabPermissionInput } from '@/connectors/gitlab/permission-config/types'
-import { validateGitLabCsvToken } from '@/connectors/gitlab/permissions'
+import { discoverGitLabGroup, validateGitLabCsvToken } from '@/connectors/gitlab/permissions'
 
 /** Prepares private writes after the application has authorized the canonical connector owner. */
 export async function prepareGitLabPermissionChange(input: {
+  isSearchIndex?: boolean
   connectorType: string
   accessMode: string
   sourceConfig: Record<string, unknown>
@@ -38,6 +39,14 @@ export async function prepareGitLabPermissionChange(input: {
       'Token and CSV settings require permission-aware access.'
     )
   }
+  if (
+    input.sourceConfig.scope === 'group' &&
+    (input.isSearchIndex !== true || input.accessMode !== 'admin')
+  )
+    throw new OrchestrationError(
+      'validation',
+      'GitLab groups require an administrator-managed Search source.'
+    )
   const existing = input.existing ? await loadGitLabPermissionSnapshot(input.existing.id) : null
   if (input.accessMode !== 'admin' && !existing) return {}
   if (!input.permissions && !existing && !input.apiKey) return {}
@@ -59,12 +68,21 @@ export async function prepareGitLabPermissionChange(input: {
   const sameProject =
     existing &&
     previousConfig &&
+    !('group' in existing) &&
+    input.sourceConfig.scope !== 'group' &&
     previousConfig.host === input.sourceConfig.host &&
     previousConfig.project === input.sourceConfig.project
   const project =
-    sameProject && !input.apiKey && existing.mode === permissions.mode
+    sameProject &&
+    existing &&
+    !('group' in existing) &&
+    !input.apiKey &&
+    existing.mode === permissions.mode
       ? { host: existing.host, projectId: existing.projectId, projectPath: existing.projectPath }
-      : await validateGitLabCsvToken(
+      : await (input.sourceConfig.scope === 'group'
+          ? (token: string, config: Record<string, unknown>) =>
+              discoverGitLabGroup(token, config, permissions.mode)
+          : validateGitLabCsvToken)(
           input.apiKey ??
             (input.existing?.encryptedApiKey
               ? (await decryptApiKey(input.existing.encryptedApiKey)).decrypted
