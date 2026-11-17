@@ -34,7 +34,7 @@ import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/validation'
 import { admitOnce } from '@/lib/workspace-source/application/context'
-import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { isRefusal, refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
   missingFolderFinding,
@@ -118,7 +118,7 @@ async function embeddingFinding(
   try {
     model = (await configured()).model
   } catch (error) {
-    if (error instanceof OrchestrationError && error.code !== 'internal') {
+    if (isRefusal(error)) {
       return refusalDiagnostic(error, { kind: KIND, key })
     }
     logger.error('Embedding model unavailable while planning a knowledge base', {

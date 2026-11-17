@@ -92,10 +92,22 @@ function isNameTaken(error: unknown): error is OrchestrationError {
 }
 
 /**
+ * Whether `error` is a use case refusing the request, as opposed to a failure of the server or
+ * something it depends on (`internal`, or `unavailable`: an outage answers 503, never the
+ * caller's fault).
+ */
+export function isRefusal(error: unknown): error is OrchestrationError {
+  return (
+    error instanceof OrchestrationError && error.code !== 'internal' && error.code !== 'unavailable'
+  )
+}
+
+/**
  * A child use case's refusal as a finding about one resource: forbidden is `E_APPLY_FORBIDDEN`,
  * locked `E_APPLY_LOCKED`, a taken key or a name a use case reports taken `E_NAME_TAKEN`, any
  * other expected failure (another conflict included) `E_APPLY_REFUSED` with its message.
- * Anything else (a database or network failure) is rethrown, never reported as the caller's fault.
+ * Anything else (a database, network or dependency failure) is rethrown, never reported as the
+ * caller's fault.
  */
 export function refusalDiagnostic(
   error: unknown,
@@ -112,7 +124,7 @@ export function refusalDiagnostic(
       ...resource,
     })
   }
-  if (!(error instanceof OrchestrationError) || error.code === 'internal') throw error
+  if (!isRefusal(error)) throw error
   const message = getErrorMessage(error)
   switch (error.code) {
     case 'forbidden':

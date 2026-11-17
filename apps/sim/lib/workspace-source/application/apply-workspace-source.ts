@@ -8,12 +8,12 @@ import {
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
   assertUnchanged,
+  isRefusal,
   PartiallyAppliedError,
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
@@ -112,7 +112,7 @@ function failureOf(
       diagnostics: error.diagnostics.map((finding) => ({ ...finding, ...resource })),
     }
   }
-  if (error instanceof OrchestrationError && error.code !== 'internal') {
+  if (isRefusal(error)) {
     const refusal = refusalDiagnostic(error, resource)
     return {
       failed: { ...resource, code: refusal.code, message: refusal.message },

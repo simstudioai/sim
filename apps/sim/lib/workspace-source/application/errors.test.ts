@@ -13,6 +13,11 @@ describe('refusalDiagnostic', () => {
     )
   })
 
+  it('rethrows an outage, so the request answers 503 rather than blaming the caller', () => {
+    const outage = new OrchestrationError('unavailable', 'The egress gateway is unreachable')
+    expect(() => refusalDiagnostic(outage, { kind: 'table', key: 'leads' })).toThrow(outage)
+  })
+
   it('reports any other conflict as a refusal with its message, not a taken name', () => {
     const busy = new OrchestrationError('conflict', 'A job is already in progress for this table')
     expect(refusalDiagnostic(busy, { kind: 'table', key: 'leads' })).toMatchObject({
