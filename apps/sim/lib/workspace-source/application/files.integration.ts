@@ -529,6 +529,7 @@ describe('workspace source files', () => {
 
     const emptied = await apply(workspaceId, {}, { base: reread.base, allowDelete: true })
     expect(summary(emptied.applied).sort()).toEqual(['delete docs/plan.md', 'delete notes.txt'])
+    expect(codes(emptied.diagnostics, 'warning')).toEqual([])
     expect((await storedFiles(workspaceId)).map((file) => file.id)).toEqual([huge.id])
 
     const replaced = await refusal(
