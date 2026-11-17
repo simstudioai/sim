@@ -12,6 +12,14 @@ export function defineTable(): never {
   return notExecutable('defineTable')
 }
 
+export function defineTool(): never {
+  return notExecutable('defineTool')
+}
+
+export function codeFile(): never {
+  return notExecutable('codeFile')
+}
+
 export const column = new Proxy(
   {},
   {

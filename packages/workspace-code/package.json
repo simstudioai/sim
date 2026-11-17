@@ -48,7 +48,9 @@
   "devDependencies": {
     "@babel/types": "7.29.8",
     "@sim/tsconfig": "workspace:*",
+    "@types/js-yaml": "4.0.9",
     "fast-check": "3.23.2",
+    "js-yaml": "4.3.2",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }

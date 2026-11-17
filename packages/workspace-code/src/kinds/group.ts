@@ -16,22 +16,36 @@ function unknownFile(path: string, expected: string): WorkspaceDiagnostic {
   })
 }
 
-/** Groups a kind whose resources are one file each: `<dir>/<key><extension>`. */
+/**
+ * Groups a kind whose resources are files named by key: `<dir>/<key><extension>`, one file per
+ * extension (`tools/<key>.ts` and `tools/<key>.js` group under one key).
+ */
 export function groupByFile(
   dir: string,
-  extension: string,
+  extensions: string | readonly string[],
   paths: readonly string[]
 ): GroupedPaths {
+  const allowed = typeof extensions === 'string' ? [extensions] : extensions
   const groups = new Map<string, string[]>()
   const diagnostics: WorkspaceDiagnostic[] = []
   for (const path of paths) {
     const name = path.slice(dir.length + 1)
-    if (name.includes('/') || !name.endsWith(extension)) {
-      diagnostics.push(unknownFile(path, `one \`<key>${extension}\` file per resource`))
+    const extension = allowed.find((candidate) => name.endsWith(candidate))
+    if (name.includes('/') || extension === undefined) {
+      const [primary, ...companions] = allowed.map((candidate) => `\`<key>${candidate}\``)
+      const expected = companions.length
+        ? `one ${primary} per resource, with its code in ${companions.join(' or ')}`
+        : `one ${primary} file per resource`
+      diagnostics.push(unknownFile(path, expected))
       continue
     }
     const key = name.slice(0, -extension.length)
-    if (!isResourceKey(key)) diagnostics.push(keyProblem(path, key))
+    if (!isResourceKey(key)) {
+      diagnostics.push(keyProblem(path, key))
+      continue
+    }
+    const group = groups.get(key)
+    if (group) group.push(path)
     else groups.set(key, [path])
   }
   return { groups, diagnostics }
