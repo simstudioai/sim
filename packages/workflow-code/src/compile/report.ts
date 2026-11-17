@@ -1,3 +1,4 @@
+import { truncateAtCodePoint } from '@sim/utils/string'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import {
   codeFrame,
@@ -86,7 +87,7 @@ export class ErrorLimitReached extends Error {
 }
 
 function capLength(text: string): string {
-  return text.length > MAX_MESSAGE_LENGTH ? `${text.slice(0, MAX_MESSAGE_LENGTH)}…` : text
+  return truncateAtCodePoint(text, MAX_MESSAGE_LENGTH, '…')
 }
 
 /**
