@@ -29,13 +29,22 @@
  * - `search-title` / `search-description`: a published post's search title (`seoTitle ?? title`
  *   with the " | Sim" suffix) fits in 60 characters and its search description
  *   (`seoDescription ?? description`) in 160, the lengths Google shows before truncating.
+ * - `sim-count`: a library post's count of Sim's integrations, actions, or triggers is true
+ *   against the generated catalog (`INTEGRATION_TOTALS`): no higher than the total, and no
+ *   lower than 90% of it. Answer engines quote these figures, so an overclaim such as
+ *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
+ *   A count belongs to Sim when the nearest "Sim" before it on the line is at most 12 words back
+ *   with no capitalized word between, which leaves competitor counts alone.
+ *   Blog and changelog posts are dated, so their counts are true as of publication.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { compile } from '@mdx-js/mdx'
+import { INTEGRATION_TOTALS } from '@sim/deployment-config/integration-totals'
 import integrationsJson from '@sim/deployment-config/integrations.json'
+import { formatLowerBound } from '@sim/utils/formatting'
 import { SIM_DOCS_URL, SIM_SITE_URL } from '@sim/utils/site'
 import matter from 'gray-matter'
 import type { Root } from 'mdast'
@@ -65,6 +74,10 @@ export type Rule =
   | 'internal-link'
   | 'search-title'
   | 'search-description'
+  | 'sim-count'
+
+/** The catalog units a Sim count claim can name. */
+type SimCountUnit = 'integrations' | 'actions' | 'triggers'
 
 /** Appended to every post title by the root layout's `title.template`. */
 const SEARCH_TITLE_SUFFIX = ' | Sim'
@@ -94,6 +107,8 @@ export interface ContentCheckConfig {
   customerSlugs: readonly string[]
   /** Canonical integration, model, and documentation pages served by the current source tree. */
   linkedPages: ReadonlySet<string>
+  /** Sim's catalog totals that `sim-count` holds library claims to. */
+  simCatalog: Readonly<Record<SimCountUnit, number>>
 }
 
 /** Post folders per section, keyed by slug, with each post's `draft` flag. */
@@ -118,6 +133,37 @@ const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\n]*\)/
 const FAQ_HEADING = /^#{1,6}\s+FAQs?\s*:?\s*$/i
 const CODE_FENCE = /^\s*(```|~~~)/
 const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
+/** A catalog count such as "1,000+ integrations": group 1 is the number, group 2 the unit. */
+const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/g
+const SIM_NAME = /\bSim\b/g
+const SIM_CLAIM_MAX_WORDS = 12
+/** A Sim count below this share of the catalog total is left from an older catalog. */
+const SIM_COUNT_FLOOR = 0.9
+
+/**
+ * The counts on one line of text that belong to Sim, with the claim as written. A sentence or
+ * clause that moves on to another product starts with a capitalized word, which ends Sim's claim.
+ */
+function simCountClaims(text: string): { claim: string; count: number; unit: SimCountUnit }[] {
+  const claims: { claim: string; count: number; unit: SimCountUnit }[] = []
+  for (const match of text.matchAll(COUNT_CLAIM)) {
+    const before = text.slice(0, match.index)
+    const lastSim = [...before.matchAll(SIM_NAME)].at(-1)
+    if (lastSim?.index === undefined) continue
+    const words = before
+      .slice(lastSim.index + lastSim[0].length)
+      .split(/\s+/)
+      .map((word) => word.replace(/^[^A-Za-z0-9]+/, ''))
+      .filter(Boolean)
+    if (words.length > SIM_CLAIM_MAX_WORDS || words.some((word) => /^[A-Z]/.test(word))) continue
+    claims.push({
+      claim: match[0],
+      count: Number.parseInt(match[1].replaceAll(',', ''), 10),
+      unit: match[2] as SimCountUnit,
+    })
+  }
+  return claims
+}
 
 function isSection(value: string): value is Section {
   return (SECTIONS as readonly string[]).includes(value)
@@ -397,6 +443,23 @@ export async function checkPost(
 
   const data = parsed.data as Record<string, unknown>
 
+  const checkSimCounts = (text: string, line: number) => {
+    if (section !== 'library') return
+    for (const { claim, count, unit } of simCountClaims(text)) {
+      const total = config.simCatalog[unit]
+      if (count <= total && count >= total * SIM_COUNT_FLOOR) continue
+      report(
+        line,
+        'sim-count',
+        count > total
+          ? `"${claim}" overstates Sim's catalog, which has ${total} ${unit}.`
+          : `"${claim}" is stale: Sim's catalog has ${total} ${unit}.`,
+        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts).`
+      )
+    }
+  }
+  frontmatterLines.forEach((text, index) => checkSimCounts(text, index + 2))
+
   if (section === 'changelog' && result.success) {
     const { date, updated, draft, ogAlt } = result.data
     if (!draft && (date.getTime() > Date.now() || (updated && updated.getTime() > Date.now()))) {
@@ -540,6 +603,7 @@ export async function checkPost(
     }
     if (fence !== null) return
     const line = bodyOffset + index + 1
+    checkSimCounts(text, line)
     if (FAQ_HEADING.test(text.trim())) {
       report(
         line,
@@ -771,6 +835,7 @@ async function main() {
     movedBlogSlugs: LIBRARY_MOVED_BLOG_SLUGS,
     customerSlugs: CUSTOMER_STORIES.map((story) => story.slug),
     linkedPages: readLinkedPages(path.join(root, 'apps/docs')),
+    simCatalog: INTEGRATION_TOTALS,
   }
 
   const args = process.argv.slice(2)
