@@ -2,6 +2,7 @@ import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
 import { type BabelErrorShape, babelErrorShape, childNodes } from '../babel'
 import { codeFileLanguage } from '../code-files'
+import { createJsContextScanner } from '../code-files/lexer'
 import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
 
@@ -47,54 +48,23 @@ const PARSER_OPTIONS: ParserOptions = {
 
 /**
  * Offset at which bracket nesting first exceeds `maxDepth`, or -1. Runs before Babel, whose
- * recursive descent would otherwise overflow the stack on a depth bomb. Strings, templates and
- * comments are skipped well enough that their brackets never count; regex bodies may, which only
- * matters for pathological input that is rejected anyway.
+ * recursive descent would otherwise overflow the stack on a depth bomb. Only brackets in code
+ * count: strings, templates, regex literals and comments are skipped by the code-file lexer
+ * (`createJsContextScanner`), so `/\(/` is not an open parenthesis. A template's `${` counts as
+ * one level.
  */
 export function bracketDepthOverflow(text: string, maxDepth: number): number {
-  const templateDepths: number[] = []
+  const scanner = createJsContextScanner(text)
   let depth = 0
   for (let i = 0; i < text.length; i++) {
     const char = text[i]
-    const next = text[i + 1]
-    if (char === '/' && next === '/') {
-      const end = text.indexOf('\n', i)
-      i = end === -1 ? text.length : end
-      continue
-    }
-    if (char === '/' && next === '*') {
-      const end = text.indexOf('*/', i + 2)
-      i = end === -1 ? text.length : end + 1
-      continue
-    }
-    if (char === "'" || char === '"') {
-      for (i++; i < text.length && text[i] !== char && text[i] !== '\n'; i++) {
-        if (text[i] === '\\') i++
-      }
-      continue
-    }
-    if (char === '`' || (char === '}' && templateDepths[templateDepths.length - 1] === depth)) {
-      if (char === '}') {
-        templateDepths.pop()
-        depth--
-      }
-      for (i++; i < text.length && text[i] !== '`'; i++) {
-        if (text[i] === '\\') {
-          i++
-        } else if (text[i] === '$' && text[i + 1] === '{') {
-          depth++
-          templateDepths.push(depth)
-          i++
-          break
-        }
-      }
-      if (depth > maxDepth) return i
-      continue
-    }
-    if (char === '(' || char === '[' || char === '{') {
+    const opens = char === '(' || char === '[' || char === '{'
+    if (!opens && char !== ')' && char !== ']' && char !== '}') continue
+    if (scanner.contextAt(i) !== 'code') continue
+    if (opens) {
       depth++
       if (depth > maxDepth) return i
-    } else if (char === ')' || char === ']' || char === '}') {
+    } else {
       depth = Math.max(0, depth - 1)
     }
   }

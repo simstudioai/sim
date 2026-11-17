@@ -308,6 +308,23 @@ describe('one set of limits for get and compile', () => {
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).not.toBeNull()
   })
 
+  it('skips regex literal bodies, so many regexes with brackets and quotes pass', () => {
+    const lines = Array.from({ length: 250 }, (_, i) =>
+      [
+        `const p${i} = s.split(/\\(/)`,
+        `if (/'/.test(s${i})) { go() }`,
+        `const u${i} = /^https?:\\/\\/x[({]/.test(s) && (a)`,
+      ].join('\n')
+    )
+    const files = {
+      'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./regex.js') })\n})\n`,
+      'workflows/regex.js': `${lines.join('\n')}\nreturn 1\n`,
+    }
+    const { 'workflows/hostile.ts': entry, ...codeFiles } = files
+    expect(errorCodes(run(entry, undefined, codeFiles))).toEqual([])
+    expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
+  })
+
   it('passes a source nested within the cap', () => {
     const files = { 'workflows/hostile.ts': entryWith(nested(20)) }
     expect(errorCodes(run(files['workflows/hostile.ts']))).not.toContain('E_LIMIT_EXCEEDED')
