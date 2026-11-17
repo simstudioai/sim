@@ -21,6 +21,7 @@ import {
 } from '@sim/workspace-code'
 import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   finding,
@@ -66,7 +67,8 @@ export interface WorkspacePlan {
 type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
 
 /**
- * The blob manifest by path, refusing a path listed twice or one that holds no binary file. With
+ * The blob manifest by path (hash and size only) and the paths whose content this round sent,
+ * refusing a path listed twice or one that holds no binary file. With
  * `decode`, the content each blob carries is decoded once and checked against its declared hash
  * and size, so bytes that changed while they were sent refuse the apply before anything is
  * written, and a round carrying more than `maxBlobBytesPerRequest` is refused; a dry run never
@@ -76,9 +78,10 @@ function readBlobs(
   blobs: readonly SubmittedBlob[],
   decode: boolean,
   diagnostics: WorkspaceSourceDiagnostic[]
-): { byPath: Map<string, SubmittedBlob>; carried: Map<string, Buffer> } {
-  const byPath = new Map<string, SubmittedBlob>()
+): { byPath: Map<string, BlobEntry>; carried: Map<string, Buffer>; sent: Set<string> } {
+  const byPath = new Map<string, BlobEntry>()
   const carried = new Map<string, Buffer>()
+  const sent = new Set<string>()
   let carriedBytes = 0
   for (const blob of blobs) {
     const refuse = (message: string, hint?: string) =>
@@ -93,7 +96,8 @@ function readBlobs(
       refuse(`${blob.path} is listed twice.`)
       continue
     }
-    byPath.set(blob.path, blob)
+    if (blob.content !== undefined) sent.add(blob.path)
+    byPath.set(blob.path, { path: blob.path, sha256: blob.sha256, size: blob.size })
     if (!decode || blob.content === undefined) continue
     const bytes = Buffer.from(blob.content, 'base64')
     if (bytes.byteLength !== blob.size || sha256Hex(bytes) !== blob.sha256) {
@@ -116,8 +120,11 @@ function readBlobs(
       )
     )
   }
-  return { byPath, carried }
+  return { byPath, carried, sent }
 }
+
+/** Changes a plan authorizes at once. */
+const AUTHORIZE_CONCURRENCY = 6
 
 /** Findings one plan reports; past it, one more finding counts the rest. */
 const MAX_PLAN_FINDINGS = 1_000
@@ -383,22 +390,21 @@ export async function planWorkspaceSource(
   }
   /** A plan already refused authorizes nothing more: up to every change of every kind. */
   const refused = diagnostics.some((finding) => finding.severity === 'error')
-  for (const change of refused ? [] : writes) {
-    if (change.diagnostics.some((finding) => finding.severity === 'error')) continue
+  const authorizable = refused
+    ? []
+    : writes.filter((change) => !change.diagnostics.some((finding) => finding.severity === 'error'))
+  await mapWithConcurrency(authorizable, AUTHORIZE_CONCURRENCY, async (change) => {
     try {
       await KIND_ADAPTERS[change.kind].authorize(change, ctx)
     } catch (caught) {
       change.diagnostics.push(refusalDiagnostic(caught, { kind: change.kind, key: change.key }))
     }
-  }
+  })
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
-  const sent = new Set(
-    [...blobs.byPath.values()].filter((blob) => blob.content !== undefined).map((blob) => blob.path)
-  )
   const needBlobs = [
     ...new Set(
-      writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !sent.has(path))
+      writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !blobs.sent.has(path))
     ),
   ]
   return { changes, diagnostics: capFindings(diagnostics), base, needBlobs, carried: blobs.carried }

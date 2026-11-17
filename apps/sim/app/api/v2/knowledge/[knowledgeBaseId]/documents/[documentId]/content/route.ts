@@ -35,7 +35,12 @@ export const GET = defineV2BinaryRoute({
       throw new OrchestrationError('not_found', 'This document has no stored original.')
     }
     return {
-      body: new Uint8Array(document.buffer),
+      /** A view of the read's bytes, not a copy: a Buffer is backed by a plain ArrayBuffer. */
+      body: new Uint8Array(
+        document.buffer.buffer as ArrayBuffer,
+        document.buffer.byteOffset,
+        document.buffer.byteLength
+      ),
       contentType: 'application/octet-stream',
       contentDisposition: `attachment; ${encodeFilenameForHeader(document.name)}`,
       contentLength: document.buffer.byteLength,

@@ -20,6 +20,24 @@ export function newHashBudget(): HashBudget {
   return { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, count: MAX_HASHED_PER_REQUEST }
 }
 
+/** Downloads one plan or get runs at once while hashing. */
+export const HASH_CONCURRENCY = 4
+
+/**
+ * Splits `items` into those the request's budget covers, spent in order so the outcome never
+ * depends on download timing, and those it leaves unhashed.
+ */
+export function takeHashBudget<T>(
+  ctx: SourceContext,
+  items: Iterable<T>,
+  sizeOf: (item: T) => number
+): { taken: T[]; left: T[] } {
+  const taken: T[] = []
+  const left: T[] = []
+  for (const item of items) (spendHash(ctx, sizeOf(item)) ? taken : left).push(item)
+  return { taken, left }
+}
+
 /** Takes one download of `bytes` from the request's budget, or returns `false` when it does not fit. */
 export function spendHash(ctx: SourceContext, bytes: number): boolean {
   const budget = ctx.hashBudget

@@ -33,6 +33,7 @@ import {
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/validation'
+import { admitOnce } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   nameHolder,
@@ -113,11 +114,12 @@ function uploadPaths(key: string, uploads: readonly DocUpload[]): string[] {
  */
 async function embeddingFinding(
   key: string,
-  decl: KnowledgeBaseDecl
+  decl: KnowledgeBaseDecl,
+  configured: () => ReturnType<typeof getConfiguredKbEmbedding>
 ): Promise<WorkspaceSourceDiagnostic | undefined> {
   let model: string
   try {
-    model = (await getConfiguredKbEmbedding()).model
+    model = (await configured()).model
   } catch (error) {
     if (error instanceof OrchestrationError && error.code !== 'internal') {
       return refusalDiagnostic(error, { kind: KIND, key })
@@ -158,7 +160,8 @@ async function planKnowledgeBase(
   decl: KnowledgeBaseDecl,
   stored: StoredSet<StoredKnowledgeState>,
   ctx: PlanContext,
-  folders: ReadonlySet<string>
+  folders: ReadonlySet<string>,
+  configured: () => ReturnType<typeof getConfiguredKbEmbedding>
 ): Promise<KnowledgeChange> {
   const change: KnowledgeChange = { kind: KIND, key, action: 'noop', decl, diagnostics: [] }
   if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
@@ -187,8 +190,15 @@ async function planKnowledgeBase(
       }
     }
   } else if (bound) {
-    /** Without a base for it, the stored documents are hashed so a matching directory is a no-op. */
-    await hashDocs(ctx, bound.id, sourceDocs(boundDocs).byName.values(), hashes)
+    /**
+     * Without a base for it, the stored documents the directory declares at the same size are
+     * hashed, so a matching directory is a no-op; any other could never match.
+     */
+    const comparable = [...sourceDocs(boundDocs).byName.values()].filter(
+      (doc) =>
+        Object.hasOwn(decl.docs, doc.filename) && decl.docs[doc.filename].size === doc.fileSize
+    )
+    await hashDocs(ctx, bound.id, comparable, hashes)
   }
   const resolution = resolveDeclared({
     local,
@@ -224,7 +234,7 @@ async function planKnowledgeBase(
   switch (resolution.action) {
     case 'create': {
       change.diagnostics.push(...nameTaken(key, decl.name, stored))
-      const embedding = await embeddingFinding(key, decl)
+      const embedding = await embeddingFinding(key, decl, configured)
       if (embedding) change.diagnostics.push(embedding)
       const uploads = Object.entries(decl.docs).map(([name, doc]) => ({ name, doc }))
       change.diagnostics.push(
@@ -426,8 +436,14 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const folders = new Set(listed.map((folder) => folder.path))
       const changes: KnowledgeChange[] = []
       const declaredNames = new Map<string, string>()
+      /** The server's embedding model, resolved once for every create this plan makes. */
+      let embedding: ReturnType<typeof getConfiguredKbEmbedding> | undefined
+      const configured = () => {
+        embedding ??= getConfiguredKbEmbedding()
+        return embedding
+      }
       for (const [key, decl] of desired) {
-        const change = await planKnowledgeBase(key, decl, stored, ctx, folders)
+        const change = await planKnowledgeBase(key, decl, stored, ctx, folders, configured)
         refuseDeclaredTwice(declaredNames, change, decl.name)
         changes.push(change)
       }
@@ -482,10 +498,9 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           input: { workspaceId, name: change.decl.name },
         })
         if (Object.keys(change.decl.docs).length > 0) {
-          await admitWorkspaceKnowledgeDocumentUpload.authorize({
-            principal,
-            input: { workspaceId },
-          })
+          await admitOnce(ctx, 'knowledge-document:upload', () =>
+            admitWorkspaceKnowledgeDocumentUpload.authorize({ principal, input: { workspaceId } })
+          )
         }
         return
       }

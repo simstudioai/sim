@@ -22,6 +22,8 @@ export interface SourceContext {
   createdBy: string | null
   /** What the request may still download to hash; spread copies of the context share it. */
   hashBudget: HashBudget
+  /** Workspace-wide admissions this request already ran, by key (see `admitOnce`). */
+  admitted: Map<string, Promise<unknown>>
 }
 
 export interface PlanContext extends SourceContext {

@@ -1,5 +1,4 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -12,6 +11,7 @@ import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/co
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
+import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
   assertUnchanged,
   PartiallyAppliedError,
@@ -19,7 +19,6 @@ import {
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
 import { finding } from '@/lib/workspace-source/application/findings'
-import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -167,10 +166,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
     await requireWorkflowCodeEnabled()
     const ctx: ApplyContext = {
-      principal,
-      workspace: context,
-      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
-      hashBudget: newHashBudget(),
+      ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true

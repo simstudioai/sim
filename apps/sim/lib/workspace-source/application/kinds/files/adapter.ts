@@ -27,6 +27,7 @@ import {
 } from '@sim/workspace-code/kinds/files'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { encodeVfsPathSegments, normalizeDisplaySegment } from '@/lib/vfs/path'
@@ -44,6 +45,7 @@ import {
 } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { createWorkspaceFileBufferByPath } from '@/lib/workspace-files/application/write-workspace-file-by-path'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { admitOnce } from '@/lib/workspace-source/application/context'
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
   finding,
@@ -51,7 +53,11 @@ import {
   serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
-import { spendHash } from '@/lib/workspace-source/application/hash-budget'
+import {
+  HASH_CONCURRENCY,
+  spendHash,
+  takeHashBudget,
+} from '@/lib/workspace-source/application/hash-budget'
 import { resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
@@ -167,26 +173,31 @@ async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> 
 /**
  * Hashes the stored bytes of each declared file whose hash neither the server nor the base
  * records, when its size matches the declared one (only then can the bytes be equal), within the
- * request's hashing budget. Knowing the hash lets an apply whose earlier round wrote the file
- * without saving the base adopt it instead of refusing it. A file past the budget, or whose bytes
- * cannot be read, keeps no hash, so it plans as no-base or stale and the rest still apply.
+ * request's hashing budget (spent in declaration order, then downloaded a few at a time). Knowing
+ * the hash lets an apply whose earlier round wrote the file without saving the base adopt it
+ * instead of refusing it. A file past the budget, or whose bytes cannot be read, keeps no hash, so
+ * it plans as no-base or stale and the rest still apply.
  */
 async function hashUnrecorded(
   ctx: PlanContext,
   desired: ReadonlyMap<string, FileDecl>,
   stored: StoredSet<StoredFileState>
 ): Promise<void> {
+  const unrecorded: StoredFile[] = []
   for (const [key, decl] of desired) {
     const file = stored.bound.get(key)
     if (!file || file.state.unmanaged || file.state.size !== decl.size) continue
     if (serverSha(file, ctx.base?.resources[resourceAddress('file', key)]) !== null) continue
-    if (!spendHash(ctx, file.state.size)) continue
+    unrecorded.push(file)
+  }
+  const { taken } = takeHashBudget(ctx, unrecorded, (file) => file.state.size)
+  await mapWithConcurrency(taken, HASH_CONCURRENCY, async (file) => {
     try {
       file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
     } catch (error) {
       logger.warn('Could not read a stored file to hash it', { fileId: file.id, error })
     }
-  }
+  })
 }
 
 function fileFinding(
@@ -380,11 +391,14 @@ function refuseCollisions(
   }
 }
 
-/** The bytes a write sends, checked against the declared hash when the plan decoded them. */
-function contentOf(change: FileChange, ctx: ApplyContext): Buffer {
-  const bytes = ctx.blobs?.content.get(fileBlobPath(change.key))
-  if (!change.decl || !bytes) throw new Error('A file write needs its declaration and bytes')
-  return bytes
+/**
+ * The bytes a write sends and their SHA-256: the plan decoded them and checked them against the
+ * declared hash, so the declaration's hash is theirs.
+ */
+function contentOf(change: FileChange, ctx: ApplyContext): { content: Buffer; sha256: string } {
+  const content = ctx.blobs?.content.get(fileBlobPath(change.key))
+  if (!change.decl || !content) throw new Error('A file write needs its declaration and bytes')
+  return { content, sha256: change.decl.sha256 }
 }
 
 /** The base entry of a file just written, from what the server recorded. */
@@ -465,7 +479,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'create') {
-      await admitCreateWorkspaceFile(principal, workspaceId)
+      await admitOnce(ctx, 'file:create', () => admitCreateWorkspaceFile(principal, workspaceId))
       return
     }
     if (!change.storedId) return
@@ -494,8 +508,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
       })
       return { id: fileId, text: {} }
     }
-    const content = contentOf(change, ctx)
-    const sha256 = sha256Hex(content)
+    const { content, sha256 } = contentOf(change, ctx)
     if (change.action === 'create') {
       const segments = change.key.split('/')
       const created = await createWorkspaceFileBufferByPath.execute({

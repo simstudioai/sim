@@ -14,12 +14,13 @@ import type {
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
-import { spendHash } from '@/lib/workspace-source/application/hash-budget'
+import { HASH_CONCURRENCY, takeHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import {
   type StoredDoc,
   type StoredKnowledgeBase,
@@ -115,7 +116,8 @@ export function checkWrites(
 
 /**
  * Downloads and hashes each of `docs` whose hash `hashes` lacks, through the original-document
- * use case, adding it to `hashes`. A document whose bytes are gone stays unhashed. Returns the
+ * use case, adding it to `hashes`: the request's budget is spent in order first, then the
+ * downloads run a few at a time. A document whose bytes are gone stays unhashed. Returns the
  * documents left unhashed because the request's download budget ran out.
  */
 export async function hashDocs(
@@ -124,13 +126,10 @@ export async function hashDocs(
   docs: Iterable<StoredDoc>,
   hashes: Map<string, string>
 ): Promise<StoredDoc[]> {
-  const unbudgeted: StoredDoc[] = []
-  for (const doc of docs) {
-    if (hashes.has(doc.id)) continue
-    if (!spendHash(ctx, doc.fileSize)) {
-      unbudgeted.push(doc)
-      continue
-    }
+  const unknown = new Map<string, StoredDoc>()
+  for (const doc of docs) if (!hashes.has(doc.id)) unknown.set(doc.id, doc)
+  const { taken, left } = takeHashBudget(ctx, unknown.values(), (doc) => doc.fileSize)
+  const digests = await mapWithConcurrency(taken, HASH_CONCURRENCY, async (doc) => {
     const original = await readOriginalKnowledgeDocument.execute({
       principal: ctx.principal,
       input: {
@@ -140,9 +139,13 @@ export async function hashDocs(
         maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
       },
     })
-    if (original.sourceAvailable) hashes.set(doc.id, sha256Hex(original.buffer))
-  }
-  return unbudgeted
+    return original.sourceAvailable ? sha256Hex(original.buffer) : null
+  })
+  taken.forEach((doc, index) => {
+    const sha256 = digests[index]
+    if (sha256 !== null) hashes.set(doc.id, sha256)
+  })
+  return left
 }
 
 /** The info line a change gets for the documents it indexes, and for chunking it changes. */
@@ -178,9 +181,10 @@ export function indexingFindings(
 
 /**
  * Diffs a declaration against a stored knowledge base and its documents. `hashes` holds the
- * document hashes known so far (from the base); a declared document whose stored hash is unknown
- * is downloaded and hashed, so an unchanged document is never re-embedded, and the hash is added.
- * One the request's download budget leaves unhashed is neither uploaded nor deleted, only named.
+ * document hashes known so far (from the base); a declared document of the stored size whose hash
+ * is unknown is downloaded and hashed, so an unchanged document is never re-embedded, and the hash
+ * is added (one of another size is replaced without a download). One the request's download
+ * budget leaves unhashed is neither uploaded nor deleted, only named.
  * Only a document the base records (`managed`) is deleted when undeclared; any other is kept. A
  * name held twice is settled when `base` shows a replace that stopped before its delete.
  */
@@ -223,10 +227,19 @@ export async function diffKnowledgeBase(input: {
   }
 
   const { byName, ambiguous } = sourceDocs(docs)
+  const comparable: StoredDoc[] = []
+  for (const [name, doc] of Object.entries(decl.docs)) {
+    const holders = ambiguous.get(name)
+    const current = byName.get(name)
+    if (holders && base && holders.length === 2) comparable.push(...holders)
+    else if (current && current.fileSize === doc.size) comparable.push(current)
+  }
+  const unchecked = new Set(
+    (await hashDocs(ctx, stored.id, comparable, hashes)).map((doc) => doc.id)
+  )
   for (const [name, doc] of Object.entries(decl.docs)) {
     const holders = ambiguous.get(name)
     if (holders) {
-      if (base && holders.length === 2) await hashDocs(ctx, stored.id, holders, hashes)
       const superseded = supersededDuplicate(holders, hashes, base, doc.sha256)
       if (superseded) {
         changes.superseded.push(superseded)
@@ -249,8 +262,7 @@ export async function diffKnowledgeBase(input: {
       changes.fields.push(`docs/${name} (add)`)
       continue
     }
-    const [unchecked] = await hashDocs(ctx, stored.id, [current], hashes)
-    if (unchecked) {
+    if (unchecked.has(current.id)) {
       changes.diagnostics.push(
         kbFinding(
           key,

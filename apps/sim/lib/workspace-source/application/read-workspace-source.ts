@@ -1,4 +1,3 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -10,16 +9,12 @@ import {
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
+import { sourceContext } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { kindLimitFinding, overKindLimit } from '@/lib/workspace-source/application/findings'
-import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
-import type {
-  ReadBlob,
-  SourceContext,
-  WorkspaceSourceDiagnostic,
-} from '@/lib/workspace-source/application/types'
+import type { ReadBlob, WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ReadWorkspaceSourceInput {
@@ -84,12 +79,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ReadWorkspaceSourceResult> {
     await requireWorkflowCodeEnabled()
-    const ctx: SourceContext = {
-      principal,
-      workspace: context,
-      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
-      hashBudget: newHashBudget(),
-    }
+    const ctx = sourceContext(principal, context)
     const requested = new Set(input.kinds ?? APPLY_ORDER)
     const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))
     const result: ReadWorkspaceSourceResult = {

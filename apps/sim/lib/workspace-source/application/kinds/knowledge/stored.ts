@@ -97,12 +97,26 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
  * left out too, after the first in name order, so a get never writes two documents to one file.
  * The rule and order are `foldedFileKey` over sorted names, as the knowledge codec reads them.
  */
-export function sourceDocs(docs: readonly StoredDoc[]): {
+export function sourceDocs(docs: readonly StoredDoc[]): SourceDocs {
+  const cached = sourceDocsCache.get(docs)
+  if (cached) return cached
+  const read = readSourceDocs(docs)
+  sourceDocsCache.set(docs, read)
+  return read
+}
+
+/** The documents source manages, by name (see {@link sourceDocs}). */
+interface SourceDocs {
   byName: Map<string, StoredDoc>
   ambiguous: Map<string, StoredDoc[]>
   /** Documents source leaves alone (connector-synced, too large, an odd name, ambiguous). */
   unmanaged: number
-} {
+}
+
+/** {@link sourceDocs} by document list: one plan reads one list several ways. */
+const sourceDocsCache = new WeakMap<readonly StoredDoc[], SourceDocs>()
+
+function readSourceDocs(docs: readonly StoredDoc[]): SourceDocs {
   const named = new Map<string, StoredDoc[]>()
   let unmanaged = 0
   for (const doc of docs) {
