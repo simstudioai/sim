@@ -7,7 +7,7 @@ date: 2026-11-17
 updated: 2026-11-17
 authors:
   - andrew
-readingTime: 9
+readingTime: 10
 tags: [Zapier, Automation, AI Agents, Pricing, Sim]
 ogImage: /library/zapier-pricing-at-scale/cover.jpg
 draft: false
@@ -81,9 +81,13 @@ For example, suppose an agent run uses 8,000 input tokens and 2,000 output token
 
 `Model cost per run = (8,000 ÷ 1,000,000 × input-token price) + (2,000 ÷ 1,000,000 × output-token price)`
 
-Then calculate the complete Sim scenario:
+Then calculate the complete Sim scenario separately for Cloud and self-hosting:
 
-`Monthly Sim cost = Sim Cloud plan or self-hosting cost + model API usage + external API usage + storage and observability + expected operating labor`
+`Monthly Sim Cloud cost = plan fee + Cloud usage not covered by included plan credits + BYOK model API usage + external API usage + storage and observability + expected operating labor`
+
+`Monthly self-hosted Sim cost = infrastructure + model API usage + external API usage + storage and observability + expected operating labor`
+
+A billable Sim Cloud workflow run has a base charge of one credit before model or tool usage, while billing-disabled self-hosted deployments do not apply Sim plan-based usage billing. Apply the plan's included credits when calculating the remaining Cloud usage charge. Sim documents these rules and the current credit value on its [official costs page](https://docs.sim.ai/platform/costs).
 
 Workspace BYOK is available on every Sim Cloud plan as of November 2026, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise. Sim documents these distinctions on its [official costs page](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
