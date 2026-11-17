@@ -230,6 +230,22 @@ describe('header, names and hand-written references', () => {
   })
 
   it.each([
+    ['an Arabic letter mark', 0x061c],
+    ['a Mongolian vowel separator', 0x180e],
+    ['a word joiner', 0x2060],
+    ['an invisible plus', 0x2064],
+    ['a deprecated shaping control', 0x206f],
+    ['a zero-width no-break space', 0xfeff],
+  ])('treats %s as invisible in names and printed text', (_, code) => {
+    const char = String.fromCharCode(code)
+    const escaped = `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`
+    expect(codes(run(source(`  api('Pay${escaped}out', { url: 'x' })`)))).toEqual([
+      'W_SUSPICIOUS_CHARACTER',
+    ])
+    expect(quoteString(`Pay${char}out`)).toBe(`'Pay${escaped}out'`)
+  })
+
+  it.each([
     ['a cased block name', "'<A.data>'", true],
     ['a name that is no block', "'<nobody.data>'", true],
     ['the normalized key of a block', "'<a.data>'", false],

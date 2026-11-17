@@ -58,7 +58,7 @@ type CompileScopeCode =
   | 'E_KEY_OVERRIDE'
   /** A block's display name is the empty string. */
   | 'E_EMPTY_NAME'
-  /** A block name holds a bidi control or zero-width character (`isSuspiciousCharacter`). */
+  /** A block name holds an invisible or bidi control character (`isSuspiciousCharacter`). */
   | 'W_SUSPICIOUS_CHARACTER'
   /** A block or workflow name that is not a string literal. */
   | 'E_NAME_NOT_LITERAL'
