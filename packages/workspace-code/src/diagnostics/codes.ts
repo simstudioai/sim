@@ -53,6 +53,27 @@ type TableCode =
   /** Workflow-group output columns are managed by their group and left alone. */
   | 'I_TABLE_WORKFLOW_COLUMNS'
 
+/** Knowledge bases. */
+type KnowledgeCode =
+  /** A declared embedding model that differs from the stored one: it is fixed at creation. */
+  | 'E_KB_EMBEDDING_IMMUTABLE'
+  /** A new knowledge base declares a model this server does not create knowledge bases with. */
+  | 'E_KB_EMBEDDING_MODEL'
+  /** The server holds several documents under one declared file name. */
+  | 'E_KB_DOC_AMBIGUOUS'
+  /** A document file name or type the knowledge base cannot hold. */
+  | 'E_KB_DOC_NAME'
+  /** Chunking settings outside what a knowledge base accepts. */
+  | 'E_KB_CHUNKING'
+  /** A knowledge base folder that does not exist in the workspace. */
+  | 'E_KB_FOLDER'
+  /** Replacing a document drops the tag values the stored one holds. */
+  | 'W_KB_DOC_TAGS'
+  /** How many documents the apply indexes (embeds) after it writes them. */
+  | 'I_KB_REEMBED'
+  /** Documents source leaves alone: connector-synced, too large, or not a plain file name. */
+  | 'I_KB_UNMANAGED_DOCS'
+
 /** Plan and apply. */
 type PlanCode =
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -84,7 +105,12 @@ type PlanCode =
   /** A key bound to a deleted resource was bound to its replacement. */
   | 'I_KEY_REBOUND'
 
-export type WorkspaceDiagnosticCode = DeclarationCode | BaseCode | TableCode | PlanCode
+export type WorkspaceDiagnosticCode =
+  | DeclarationCode
+  | BaseCode
+  | TableCode
+  | KnowledgeCode
+  | PlanCode
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'
 
