@@ -508,3 +508,30 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(request).not.toHaveBeenCalled()
   })
 })
+
+describe('exit codes in --help', () => {
+  /** The exit-code paragraph `--help` prints after a command's options, as one line. */
+  async function exitCodesHelp(command: 'apply' | 'create'): Promise<string> {
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    await program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', command, '--help'])
+      .catch(() => {})
+    const help = out.mock.calls.map(([chunk]) => String(chunk)).join('')
+    return help.slice(help.indexOf('Exit codes:')).replace(/\s+/g, ' ')
+  }
+
+  it('lists for apply only the codes an apply returns, with no create-only --name', async () => {
+    const help = await exitCodesHelp('apply')
+
+    expect(help).toContain('5 the workflow changed')
+    expect(help).not.toContain('SOURCE_NAME_TAKEN')
+  })
+
+  it('lists for create only the codes a create returns, never stale', async () => {
+    const help = await exitCodesHelp('create')
+
+    expect(help).toContain('0 created')
+    expect(help).toContain('SOURCE_NAME_TAKEN')
+    expect(help).not.toMatch(/\b5 /)
+  })
+})
