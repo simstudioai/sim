@@ -508,6 +508,7 @@ describe('workspace source apply', () => {
       expect(recreated.applied.map(({ action, key }) => `${action} ${key}`)).toContain(
         'create leads'
       )
+      expect(codes(recreated.diagnostics, 'info')).toContain('I_KEY_REBOUND')
       const [second] = await tables(workspaceId)
       expect(second.id).not.toBe(first.id)
       const [binding] = await db

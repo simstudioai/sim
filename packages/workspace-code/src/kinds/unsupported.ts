@@ -1,9 +1,8 @@
-import { diagnostic } from '../diagnostics'
 import type { KindCodec, KindDir, WorkspaceKind } from '../kind'
 
 /**
- * A kind this release cannot read yet: any file in its folder is refused with
- * `E_KIND_UNSUPPORTED`, so a directory never half-applies a kind the server would ignore.
+ * A kind this release cannot read yet. Its adapter is `supported: false`, so the plan refuses
+ * its folder with `E_KIND_UNSUPPORTED` before grouping anything; the codec only names the kind.
  */
 export function unsupportedCodec(kind: WorkspaceKind, dir: KindDir): KindCodec<never> {
   const refuse = (): never => {
@@ -12,18 +11,7 @@ export function unsupportedCodec(kind: WorkspaceKind, dir: KindDir): KindCodec<n
   return {
     kind,
     dir,
-    group: (paths) => ({
-      groups: new Map(),
-      diagnostics:
-        paths.length === 0
-          ? []
-          : [
-              diagnostic('E_KIND_UNSUPPORTED', `${dir}/ is not supported by this server yet.`, {
-                kind,
-                hint: `Remove ${dir}/ or apply with --only to skip it.`,
-              }),
-            ],
-    }),
+    group: () => ({ groups: new Map(), diagnostics: [] }),
     parse: refuse,
     print: refuse,
     canonical: refuse,

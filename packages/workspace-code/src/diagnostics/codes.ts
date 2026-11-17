@@ -50,8 +50,6 @@ type TableCode =
   | 'E_TABLE_FOLDER'
   /** A column dropped and one of the same type added: probably a rename, which loses the cells. */
   | 'W_LIKELY_RENAME'
-  /** Workflow-group output columns are managed by their group and left alone. */
-  | 'I_TABLE_WORKFLOW_COLUMNS'
 
 /** Plan and apply. */
 type PlanCode =
@@ -83,7 +81,7 @@ type PlanCode =
   | 'W_BASE_OTHER_WORKSPACE'
   /** The server changed a resource the directory leaves as it was; the next get shows it. */
   | 'I_SERVER_CHANGED'
-  /** A key bound to a deleted resource was bound to its replacement. */
+  /** A key bound to a deleted resource was bound to the one this apply wrote. */
   | 'I_KEY_REBOUND'
 
 export type WorkspaceDiagnosticCode = DeclarationCode | BaseCode | TableCode | PlanCode

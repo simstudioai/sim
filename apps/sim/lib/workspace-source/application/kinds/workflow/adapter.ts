@@ -24,7 +24,11 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
-import { noBaseFinding, planUndeclared } from '@/lib/workspace-source/application/findings'
+import {
+  noBaseFinding,
+  planUndeclared,
+  reboundFinding,
+} from '@/lib/workspace-source/application/findings'
 import type {
   KindAdapter,
   PlanContext,
@@ -293,7 +297,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
           principal,
           input: { workspaceId, files: decl.files, ...provenance },
         })
-    await claimResourceKey({
+    const claim = await claimResourceKey({
       workspaceId,
       kind: 'workflow',
       key: change.key,
@@ -310,7 +314,10 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         lock: result.lock,
         base: result.base,
       }).text,
-      diagnostics: inFolder(change.key, result.diagnostics),
+      diagnostics: [
+        ...inFolder(change.key, result.diagnostics),
+        ...(claim === 'rebound' ? [reboundFinding('workflow', change.key)] : []),
+      ],
     }
   },
 

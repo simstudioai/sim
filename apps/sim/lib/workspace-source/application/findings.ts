@@ -56,6 +56,17 @@ export function serverChangedFinding(kind: WorkspaceKind, key: string): Workspac
   }
 }
 
+/** A key that named a deleted resource now names the one this apply wrote. */
+export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
+  return {
+    code: 'I_KEY_REBOUND',
+    severity: 'info',
+    message: `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`,
+    kind,
+    key,
+  }
+}
+
 /** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
 interface UndeclaredOptions<S> {
   /** The kind's planned changes for declared resources: a resource one of them targets stays. */

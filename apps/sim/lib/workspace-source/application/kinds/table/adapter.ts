@@ -31,6 +31,7 @@ import {
 import {
   noBaseFinding,
   planUndeclared,
+  reboundFinding,
   serverChangedFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
@@ -469,7 +470,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
           },
         },
       })
-      await claimResourceKey({
+      const claim = await claimResourceKey({
         workspaceId,
         kind: 'table',
         key: change.key,
@@ -477,7 +478,10 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
         origin: 'created',
         createdBy: ctx.createdBy,
       })
-      return written(ctx, change.key, table.id, decl)
+      return {
+        ...(await written(ctx, change.key, table.id, decl)),
+        ...(claim === 'rebound' ? { diagnostics: [reboundFinding('table', change.key)] } : {}),
+      }
     }
     const tableId = change.storedId
     const plan = change.detail
