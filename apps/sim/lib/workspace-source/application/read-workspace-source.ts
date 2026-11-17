@@ -92,6 +92,8 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       diagnostics: [],
     }
     const budget = directoryBudget()
+    /** Kinds left out: the caller may not load them, or the workspace holds too many. */
+    const unread = new Set<WorkspaceKind>()
     for (const kind of kinds) {
       const adapter = KIND_ADAPTERS[kind]
       let stored: Awaited<ReturnType<typeof adapter.load>>
@@ -99,12 +101,12 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         stored = await adapter.load(ctx, { allocate: true })
       } catch (error) {
         result.diagnostics.push(refusalDiagnostic(error, { kind }))
-        result.kinds = result.kinds.filter((read) => read !== kind)
+        unread.add(kind)
         continue
       }
       if (overKindLimit(stored)) {
         result.diagnostics.push(kindLimitFinding(kind))
-        result.kinds = result.kinds.filter((read) => read !== kind)
+        unread.add(kind)
         continue
       }
       for (const [key, resource] of stored.bound) {
@@ -125,6 +127,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         }
       }
     }
+    result.kinds = kinds.filter((kind) => !unread.has(kind))
     return result
   },
 })

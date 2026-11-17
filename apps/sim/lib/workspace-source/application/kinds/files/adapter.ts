@@ -11,16 +11,12 @@
  */
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import {
-  type BaseResource,
-  fingerprintOf,
-  type ResourceFingerprint,
-  resourceAddress,
-} from '@sim/workspace-code'
+import { type BaseResource, resourceAddress } from '@sim/workspace-code'
 import {
   type FileDecl,
   fileBlobPath,
   fileCodec,
+  fileFingerprint,
   fileKeyConflicts,
   filePathProblem,
 } from '@sim/workspace-code/kinds/files'
@@ -113,10 +109,6 @@ function storedPath(file: WorkspaceFileRecord): { key: string; problem: string |
   }
 }
 
-function fingerprint(sha256: string): ResourceFingerprint {
-  return fingerprintOf(fileCodec.canonical({ sha256, size: 0 }))
-}
-
 /**
  * A file's base entry: its id and fingerprint, plus the revision and hash it was read at under its
  * blob path, so a later plan knows the server's bytes are unchanged even without a stored hash.
@@ -124,7 +116,7 @@ function fingerprint(sha256: string): ResourceFingerprint {
 function fileBase(key: string, id: string, rev: string, sha256: string): BaseResource {
   return {
     id,
-    fingerprint: fingerprint(sha256),
+    fingerprint: fileFingerprint(sha256),
     blobs: { [fileBlobPath(key)]: { id, rev, sha256 } },
   }
 }
@@ -149,7 +141,7 @@ function serverSha(file: StoredFile, base?: BaseResource): string | null {
  */
 function serverFingerprint(file: StoredFile, base?: BaseResource): string {
   const sha = serverSha(file, base)
-  return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
+  return sha === null ? `unknown:${file.state.rev}` : fileFingerprint(sha)
 }
 
 /** Reads a stored file's bytes, under the content read's own authorization. */
@@ -234,7 +226,7 @@ function planGone(
   byId: ReadonlyMap<string, StoredFile>
 ): FileChange {
   const moved = byId.get(base.id)
-  const stale = base.fingerprint !== fingerprint(decl.sha256)
+  const stale = base.fingerprint !== fileFingerprint(decl.sha256)
   change.diagnostics.push(
     serverGoneFinding('file', change.key, stale, moved ? fileBlobPath(moved.key) : undefined)
   )
@@ -265,7 +257,7 @@ function planFile(
     return { ...change, storedId: existing.id }
   }
   const resolution = resolveDeclared({
-    local: fingerprint(decl.sha256),
+    local: fileFingerprint(decl.sha256),
     stored: existing,
     base,
     fingerprint: serverFingerprint,

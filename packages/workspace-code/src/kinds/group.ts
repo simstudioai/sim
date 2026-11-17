@@ -22,10 +22,9 @@ function unknownFile(path: string, expected: string): WorkspaceDiagnostic {
  */
 export function groupByFile(
   dir: string,
-  extensions: string | readonly string[],
+  allowed: readonly string[],
   paths: readonly string[]
 ): GroupedPaths {
-  const allowed = typeof extensions === 'string' ? [extensions] : extensions
   const groups = new Map<string, string[]>()
   const diagnostics: WorkspaceDiagnostic[] = []
   for (const path of paths) {

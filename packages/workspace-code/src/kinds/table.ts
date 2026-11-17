@@ -99,6 +99,11 @@ export function isDeclarableColumnKey(name: string): boolean {
   return name !== '__proto__'
 }
 
+/** The declaration file of table `key`. */
+function tablePath(key: string): string {
+  return `${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION}`
+}
+
 /** The stored name of a declared column. */
 export function columnName(key: string, column: TableColumnDecl): string {
   return column.name ?? key
@@ -196,7 +201,7 @@ function parseTable(
   key: string,
   text: Readonly<Record<string, string>>
 ): { decl?: TableDecl; diagnostics: WorkspaceDiagnostic[] } {
-  const file = `${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION}`
+  const file = tablePath(key)
   const source = text[file] ?? ''
   const read = readDeclaration(file, source, { callee: CALLEE, calls: COLUMN_CALLS })
   const diagnostics = read.diagnostics.map((finding) => ({ ...finding, kind: 'table', key }))
@@ -304,7 +309,7 @@ function canonicalColumn(key: string, column: TableColumnDecl): Json {
 
 /** Reads and prints `tables/<key>.ts`. */
 export const tableCodec: KindCodec<TableDecl> = {
-  group: (paths) => groupByFile(KIND_DIRS.table, DECLARATION_EXTENSION, paths),
+  group: (paths) => groupByFile(KIND_DIRS.table, [DECLARATION_EXTENSION], paths),
   parse: (key, text) => parseTable(key, text),
   print(key, decl) {
     const value: Record<string, Json> = { name: decl.name }
@@ -315,7 +320,7 @@ export const tableCodec: KindCodec<TableDecl> = {
     )
     return {
       text: {
-        [`${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION}`]: printDeclaration(CALLEE, value),
+        [tablePath(key)]: printDeclaration(CALLEE, value),
       },
       blobs: [],
     }

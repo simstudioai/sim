@@ -143,7 +143,7 @@ export function localDeclarations(paths: readonly string[]): LocalDeclarations {
   const under = (dir: string, suffix = '') =>
     paths.filter((path) => path.startsWith(`${dir}/`) && path.endsWith(suffix))
   const byFile = (dir: string, extension: string) => [
-    ...groupByFile(dir, extension, under(dir)).groups.keys(),
+    ...groupByFile(dir, [extension], under(dir)).groups.keys(),
   ]
   const knowledgeDir = KIND_DIRS['knowledge-base']
   return {
@@ -165,43 +165,27 @@ export function assertWorkspacePaths(paths: Iterable<string>): void {
   }
 }
 
-/** The kinds whose folder the directory holds. */
-async function presentKinds(dir: string): Promise<WorkspaceKind[]> {
-  const present: WorkspaceKind[] = []
-  for (const kind of APPLY_ORDER) {
-    const keep = await readSourceText(dir, `${KIND_DIRS[kind]}/${KEEP_FILE}`)
-    const files = await listSourceFiles(dir, KIND_DIRS[kind])
-    if (keep !== null || files.length > 0) present.push(kind)
-  }
-  return present
-}
-
 /**
- * The files under the managed kinds' folders: `paths`, the source files, and `ignored`, the rest
- * (a hidden name, or a character no workspace path holds), which are never sent. The `.gitkeep`
- * marker is neither.
+ * The folders of `kinds`, each walked once: `present`, the kinds whose folder holds any file (its
+ * `.gitkeep` marker included); `paths`, their source files; and `ignored`, the rest (a hidden
+ * name, or a character no workspace path holds), which are never sent. The marker is neither.
  */
-async function kindFolderFiles(
+export async function kindFolders(
   dir: string,
   kinds: readonly WorkspaceKind[]
-): Promise<{ paths: string[]; ignored: string[] }> {
+): Promise<{ present: WorkspaceKind[]; paths: string[]; ignored: string[] }> {
+  const present: WorkspaceKind[] = []
   const paths: string[] = []
   const ignored: string[] = []
   for (const kind of kinds) {
-    for (const path of await listSourceFiles(dir, KIND_DIRS[kind])) {
+    const files = await listSourceFiles(dir, KIND_DIRS[kind])
+    if (files.length > 0) present.push(kind)
+    for (const path of files) {
       if (isWorkspaceSourcePath(path)) paths.push(path)
-      else if (path.split('/').at(-1) !== KEEP_FILE) ignored.push(path)
+      else if (path !== keepFile(kind)) ignored.push(path)
     }
   }
-  return { paths, ignored }
-}
-
-/** Every source file of the managed kinds on disk: what a get may replace or prune. */
-export async function managedFiles(
-  dir: string,
-  kinds: readonly WorkspaceKind[]
-): Promise<string[]> {
-  return (await kindFolderFiles(dir, kinds)).paths
+  return { present, paths, ignored }
 }
 
 /** A kind folder's marker, so an emptied folder keeps managing its kind. */
@@ -231,8 +215,14 @@ export async function readWorkspaceDir(
   only: readonly WorkspaceKind[] | undefined,
   known: readonly BlobEntry[] = []
 ): Promise<WorkspaceSubmission> {
-  const kinds = (await presentKinds(dir)).filter((kind) => !only || only.includes(kind))
-  const { paths, ignored } = await kindFolderFiles(dir, kinds)
+  const {
+    present: kinds,
+    paths,
+    ignored,
+  } = await kindFolders(
+    dir,
+    APPLY_ORDER.filter((kind) => !only || only.includes(kind))
+  )
   const textPaths = paths.filter((path) => !isBlobPath(path))
   const texts = await inBatches(textPaths, (path) => readSourceText(dir, path))
   const files: Record<string, string> = {}
@@ -247,10 +237,16 @@ export async function readWorkspaceDir(
     const folder = path.split('/', 2).join('/')
     folders.set(folder, [...(folders.get(folder) ?? []), path])
   }
+  /** How many files of each workflow folder `.sim/written.json` records. */
+  const recorded = new Map<string, number>()
+  for (const path of Object.keys(written)) {
+    if (kindOfPath(path) !== 'workflow') continue
+    const folder = path.split('/', 2).join('/')
+    recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
+  }
   for (const [folder, folderPaths] of folders) {
-    const recorded = Object.keys(written).filter((path) => path.startsWith(`${folder}/`))
     const unchanged =
-      recorded.length === folderPaths.length &&
+      recorded.get(folder) === folderPaths.length &&
       folderPaths.every((path) => written[path] === digest(files[path]))
     if (!unchanged) continue
     for (const path of folderPaths) {

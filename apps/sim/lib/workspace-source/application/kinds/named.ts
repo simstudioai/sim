@@ -198,10 +198,9 @@ export async function applyNamed<D extends object, S>(
   const id = change.storedId
   if (!id) throw new Error(`A ${NOUNS[named.kind]} update needs the stored id`)
   const changed = writtenFields(change)
-  const fields: Partial<D> = {}
-  for (const field of Object.keys(decl) as Array<keyof D & string>) {
-    if (changed.includes(field)) fields[field] = decl[field]
-  }
+  const fields = Object.fromEntries(
+    Object.entries(decl).filter(([field]) => changed.includes(field))
+  ) as Partial<D>
   const state = changed.length === 0 ? await writes.get(id) : await writes.update(id, fields)
   return writtenRecord(named, change.key, { id, state })
 }

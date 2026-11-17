@@ -8,12 +8,14 @@
  */
 import type { Json } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
+import type { ResourceFingerprint } from '../base'
 import {
   diagnostic,
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
   wholeFile,
 } from '../diagnostics'
+import { fingerprintOf } from '../fingerprint'
 import { type BlobEntry, isWellFormedBlob, KIND_DIRS, type KindCodec } from '../kind'
 import { isFileKey } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
@@ -207,6 +209,16 @@ function parseFile(
 }
 
 /** Reads and prints `files/**`. */
+/** A file's canonical form: its bytes, by hash (its size and name are not part of it). */
+function fileCanonical(sha256: string): Json {
+  return { sha256 }
+}
+
+/** The fingerprint of a file whose bytes hash to `sha256`, as its codec computes it. */
+export function fileFingerprint(sha256: string): ResourceFingerprint {
+  return fingerprintOf(fileCanonical(sha256))
+}
+
 export const fileCodec: KindCodec<FileDecl> = {
   group: groupFiles,
   parse: parseFile,
@@ -214,5 +226,5 @@ export const fileCodec: KindCodec<FileDecl> = {
     text: {},
     blobs: [{ path: fileBlobPath(key), sha256: decl.sha256, size: decl.size }],
   }),
-  canonical: (decl): Json => ({ sha256: decl.sha256 }),
+  canonical: (decl): Json => fileCanonical(decl.sha256),
 }

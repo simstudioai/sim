@@ -45,8 +45,8 @@ import {
 import {
   assertWorkspacePaths,
   keepFile,
+  kindFolders,
   localDeclarations,
-  managedFiles,
   skippedFile,
   WORKSPACE_TREE,
 } from './workspace-source-dir'
@@ -117,7 +117,7 @@ async function writeWorkspaceSource(
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
   const written = await readWrittenDigests(dir)
-  const onDisk = await managedFiles(dir, source.kinds)
+  const { paths: onDisk } = await kindFolders(dir, source.kinds)
   const gone = new Set(
     onDisk.filter(
       (path) =>

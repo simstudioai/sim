@@ -36,6 +36,14 @@ import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/applicati
  */
 const CONVERSION_SCAN_LIMIT = 50_000
 
+/** The column change of one `op`. */
+type ColumnOp<O extends ColumnChange['op']> = Extract<ColumnChange, { op: O }>
+
+/** A type guard for the column changes of one `op`, for `find` and `filter`. */
+export function isColumnOp<O extends ColumnChange['op']>(op: O) {
+  return (change: ColumnChange): change is ColumnOp<O> => change.op === op
+}
+
 /** A column as the add and update use cases take it. */
 export interface ColumnInput {
   name: string
@@ -303,12 +311,12 @@ export async function diffTable(
     changes.fields.push(...fields.map((field) => `columns.${columnKey}.${field}`))
   }
 
-  const dropped = changes.columns.filter((change) => change.op === 'drop')
-  const added = changes.columns.filter((change) => change.op === 'add')
+  const dropped = changes.columns.filter(isColumnOp('drop'))
+  const added = changes.columns.filter(isColumnOp('add'))
   for (const drop of dropped) {
     const dropType = columns.find((column) => getColumnId(column) === drop.columnId)?.type
-    const twin = added.find((add) => add.op === 'add' && add.column.type === dropType)
-    if (twin && twin.op === 'add') {
+    const twin = added.find((add) => add.column.type === dropType)
+    if (twin) {
       report(
         'W_LIKELY_RENAME',
         `Column "${drop.name}" is dropped and "${twin.key}" added with the same type, which loses ${drop.cells} cell(s).`,

@@ -36,6 +36,7 @@ import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   columnInput,
   diffTable,
+  isColumnOp,
   type TableChanges,
 } from '@/lib/workspace-source/application/kinds/table/diff'
 import {
@@ -224,16 +225,17 @@ async function applyUpdate(
   ctx: SourceContext,
   change: TableChange,
   tableId: string,
-  plan: TablePlan & { changes: TableChanges },
+  changes: TableChanges,
+  bindings: TablePlan['bindings'],
   decl: TableDecl
 ): Promise<void> {
   try {
-    await applyChanges(ctx, tableId, plan.changes)
+    await applyChanges(ctx, tableId, changes)
   } catch (error) {
     const state = await reload(ctx, tableId).catch(() => null)
     if (!state) throw error
-    const bindings = bindingsAfter(state, decl, plan.bindings)
-    throw new PartiallyAppliedError(error, printStoredTable(state, change.key, bindings).base)
+    const after = bindingsAfter(state, decl, bindings)
+    throw new PartiallyAppliedError(error, printStoredTable(state, change.key, after).base)
   }
 }
 
@@ -339,22 +341,22 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     }
     await updateTableUseCase.authorize({ principal, input: { tableId, workspaceId } })
     const columns = change.detail?.changes?.columns ?? []
-    const add = columns.find((column) => column.op === 'add')
-    const update = columns.find((column) => column.op === 'update')
-    const drop = columns.find((column) => column.op === 'drop')
-    if (add?.op === 'add') {
+    const add = columns.find(isColumnOp('add'))
+    const update = columns.find(isColumnOp('update'))
+    const drop = columns.find(isColumnOp('drop'))
+    if (add) {
       await addTableColumnUseCase.authorize({
         principal,
         input: { tableId, workspaceId, column: add.column },
       })
     }
-    if (update?.op === 'update') {
+    if (update) {
       await updateTableColumnUseCase.authorize({
         principal,
         input: { tableId, workspaceId, columnName: update.columnId, updates: update.updates },
       })
     }
-    if (drop?.op === 'drop') {
+    if (drop) {
       await deleteTableColumnUseCase.authorize({
         principal,
         input: { tableId, workspaceId, columnName: drop.columnId },
@@ -402,7 +404,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       await applyChanges(ctx, tableId, plan.changes)
       return written(ctx, change.key, tableId, decl)
     }
-    await applyUpdate(ctx, change, tableId, { ...plan, changes: plan.changes }, decl)
+    await applyUpdate(ctx, change, tableId, plan.changes, plan.bindings, decl)
     return written(ctx, change.key, tableId, decl)
   },
 

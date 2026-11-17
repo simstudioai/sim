@@ -380,17 +380,18 @@ export async function planWorkspaceSource(
     )
   }
   /** A plan already refused authorizes nothing more: up to every change of every kind. */
-  const refused = diagnostics.some((finding) => finding.severity === 'error')
-  const authorizable = refused
-    ? []
-    : writes.filter((change) => !change.diagnostics.some((finding) => finding.severity === 'error'))
-  await mapWithConcurrency(authorizable, AUTHORIZE_CONCURRENCY, async (change) => {
-    try {
-      await KIND_ADAPTERS[change.kind].authorize(change, ctx)
-    } catch (caught) {
-      change.diagnostics.push(refusalDiagnostic(caught, { kind: change.kind, key: change.key }))
-    }
-  })
+  if (!diagnostics.some((finding) => finding.severity === 'error')) {
+    const authorizable = writes.filter(
+      (change) => !change.diagnostics.some((finding) => finding.severity === 'error')
+    )
+    await mapWithConcurrency(authorizable, AUTHORIZE_CONCURRENCY, async (change) => {
+      try {
+        await KIND_ADAPTERS[change.kind].authorize(change, ctx)
+      } catch (caught) {
+        change.diagnostics.push(refusalDiagnostic(caught, { kind: change.kind, key: change.key }))
+      }
+    })
+  }
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
   const needBlobs = [

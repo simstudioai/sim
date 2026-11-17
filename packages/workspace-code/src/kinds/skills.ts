@@ -166,7 +166,7 @@ function readQuoted(raw: string): string | null {
 
 /** Reads and prints `skills/<key>.md`. */
 export const skillCodec: KindCodec<SkillDecl> = {
-  group: (paths) => groupByFile(KIND_DIRS.skill, EXTENSION, paths),
+  group: (paths) => groupByFile(KIND_DIRS.skill, [EXTENSION], paths),
   parse: (key, text) => parseSkill(key, text),
   print: (key, decl) => ({
     text: {
