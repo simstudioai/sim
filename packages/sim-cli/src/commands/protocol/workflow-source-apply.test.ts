@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileWorkflow } from '@sim/workflow-code'
+import { COOKBOOK_TS } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -456,6 +457,23 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     })
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
     expect(stderrLines().join('\n')).toContain('Edit')
+  })
+
+  it('writes the cookbook example into the scaffold, outside what the tsconfig.json type-checks', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new Error(`unexpected request ${path}`)
+    })
+
+    await create('--dir', empty)
+
+    expect(readFileSync(join(empty, '.sim/examples/cookbook.ts'), 'utf8')).toBe(COOKBOOK_TS)
+    const [, ...tsconfig] = readFileSync(join(empty, 'tsconfig.json'), 'utf8').split('\n')
+    expect(JSON.parse(tsconfig.join('\n')).include).toEqual(['workflow.ts', '.sim/sdk/**/*.d.ts'])
   })
 
   it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {

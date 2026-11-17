@@ -25,7 +25,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source get <workflowId> --dir ./support-triage
    ```
 
-   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names. It also writes a `tsconfig.json` that resolves them, unless the directory already has its own `tsconfig.json`, which is left as it is.
+   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names. It also writes a `tsconfig.json` that resolves them, unless the directory already has its own `tsconfig.json`, which is left as it is, plus two files for coding agents: `.sim/AGENTS.md`, a short guide, and `.sim/examples/cookbook.ts`, one correct example of each common block to copy from. The example names placeholder resources, so `tsconfig.json` leaves it out of the type-check.
 
    Getting into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
 

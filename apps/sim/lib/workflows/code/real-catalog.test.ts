@@ -17,9 +17,11 @@ import {
   printWorkflow,
 } from '@sim/workflow-code'
 import {
+  COOKBOOK_TS,
   generateSdkTypes,
   generateWorkspaceTypes,
   SPECIAL_BUILDER_KEYS,
+  type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -44,6 +46,22 @@ const SDK_ROOT = path.join(REPO_ROOT, 'packages/workflow-sdk')
 const workDir = mkdtempSync(path.join(tmpdir(), 'workflow-sdk-real-catalog-'))
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }))
+
+/** The resources `.sim/examples/cookbook.ts` names, as a workspace that has them lists them. */
+const COOKBOOK_WORKSPACE: WorkspaceManifest = {
+  tables: {
+    orders: {
+      columns: {
+        orderId: { type: 'string' },
+        status: { type: 'string' },
+        risk: { type: 'string' },
+      },
+    },
+  },
+  knowledgeBases: ['policies'],
+  credentials: { 'ops-slack': { provider: 'slack' } },
+  env: ['ANTHROPIC_API_KEY'],
+}
 
 describe('canonicalize and codegen over the real block catalog', () => {
   it('keeps the SDK fixture catalog equal to the real projection of its blocks', () => {
@@ -183,6 +201,34 @@ describe('canonicalize and codegen over the real block catalog', () => {
       ].join('\n')
     )
     expect(typeCheck('table-rows', [path.join(dir, '*.ts')])).toBe('')
+  }, 120_000)
+
+  it('type-checks and compiles the cookbook the CLI writes, with no error or warning', () => {
+    writeSdkTypes()
+    const dir = path.join(workDir, 'cookbook')
+    mkdirSync(dir, { recursive: true })
+    const workspaceTypes = generateWorkspaceTypes(COOKBOOK_WORKSPACE)
+    writeFileSync(path.join(dir, workspaceTypes.path), workspaceTypes.text)
+    writeFileSync(path.join(dir, 'cookbook.ts'), COOKBOOK_TS)
+    expect(typeCheck('cookbook', [path.join(dir, '*.ts')])).toBe('')
+
+    const compiled = compileWorkflow({
+      entry: { path: 'workflow.ts', text: COOKBOOK_TS },
+      files: new Map(),
+      catalog,
+      sdkMajor: catalog.sdkMajor,
+      envNames: new Set(COOKBOOK_WORKSPACE.env),
+    })
+    expect(
+      compiled.diagnostics
+        .filter(
+          (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning'
+        )
+        .map(
+          (diagnostic) =>
+            `${diagnostic.code} ${diagnostic.blockKey ?? ''}.${diagnostic.param ?? ''}: ${diagnostic.message}`
+        )
+    ).toEqual([])
   }, 120_000)
 
   it('prints a numeric short or long text value as source that type-checks and compiles clean', () => {

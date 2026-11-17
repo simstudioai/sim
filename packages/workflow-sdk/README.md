@@ -47,6 +47,7 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs) and env var names, so `table('tickets')`, `credential('support-slack')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk`. |
 | `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
+| `.sim/examples/cookbook.ts` | One correct example of each common block (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response). Read it before writing. It names example resources, so `tsconfig.json` leaves it out. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
 
 `sim workflows source resources <workspaceId>` lists the resource keys source can name.
@@ -127,6 +128,7 @@ files are stored verbatim. One file per block; imports between function files ar
 | Path | Contents |
 |------|----------|
 | `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-core-text.ts`. |
+| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-cookbook-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
 | `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts`, deterministic, sorted by path) and `generateWorkspaceTypes(manifest)` (`workspace.d.ts`). |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |

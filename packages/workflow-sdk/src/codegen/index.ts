@@ -1,3 +1,4 @@
+export { COOKBOOK_TS } from './cookbook-text.generated'
 export { CORE_DTS } from './core-text.generated'
 export {
   type GenerateSdkTypesFn,

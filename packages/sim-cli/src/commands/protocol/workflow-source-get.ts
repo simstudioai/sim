@@ -5,6 +5,7 @@ import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import {
+  COOKBOOK_TS,
   CORE_DTS,
   generateSdkTypes,
   generateWorkspaceTypes,
@@ -33,6 +34,7 @@ import {
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
   SOURCE_BASE_FILE,
+  SOURCE_COOKBOOK_FILE,
   SOURCE_GITATTRIBUTES_FILE,
   SOURCE_LOCK_FILE,
   type SourceDirChange,
@@ -238,6 +240,12 @@ const AGENTS_GUIDE = `# Sim workflow source
 
 This directory is a Sim workflow written as TypeScript. The server compiles \`${SOURCE_ENTRY_FILE}\` statically; nothing in it runs. The workflow id is \`workflowId\` in \`${SOURCE_BASE_FILE}\`.
 
+## Start here
+
+1. Read \`${SOURCE_COOKBOOK_FILE}\` before writing: one correct example of every common block (agent, condition, function, table, knowledge search, Slack, human in the loop, loop, response). Its resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
+2. For any other block, read one \`${SDK_DIR}/operations/<block>/<operation>.d.ts\` per operation you use.
+3. Do not read \`${SDK_DIR}/blocks/*.d.ts\` or \`${SDK_DIR}/models.d.ts\` whole: they are large. \`grep\` them for a builder or a model id.
+
 ## Edit loop (run from this directory)
 
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`bunx tsc -p .\` type-checks locally (the directory has no \`package.json\`, so \`tsc\` itself may not be installed; \`bunx\` fetches it).
@@ -268,7 +276,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 ## Types
 
 - \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`BlockMeta\`).
-- \`${SDK_DIR}/operations/<block>/<operation>.d.ts\`: one operation's params and outputs. Read these to learn a block; \`${SDK_DIR}/blocks/*.d.ts\` lists every builder.
+- \`${SDK_DIR}/operations/<block>/<operation>.d.ts\`: one operation's params and outputs; \`${SDK_DIR}/blocks/*.d.ts\` lists every builder of a block.
 - \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows and env names.
 
 ## Diagnostics and exit codes
@@ -353,9 +361,10 @@ function finishTree(
 }
 
 /**
- * Everything beside the printed source that makes a directory editable: the agent guide, the
- * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
- * CLI's `tsconfig.json` and the LF lines.
+ * Everything beside the printed source that makes a directory editable: the agent guide and the
+ * cookbook example (both rewritten every time and never in `.sim/written.json`), the declarations
+ * (regenerated only when the catalog or generator changed), `workspace.d.ts`, the CLI's
+ * `tsconfig.json` and the LF lines.
  */
 async function sourceTreeChange(
   dir: string,
@@ -364,6 +373,7 @@ async function sourceTreeChange(
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
+    [SOURCE_COOKBOOK_FILE, COOKBOOK_TS],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
   ]
   const remove: string[] = []
@@ -507,7 +517,7 @@ function withSourceExitCode(error: unknown): unknown {
  * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
  * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
  * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them, a
- * short `.sim/AGENTS.md` and the `.gitattributes` lines that keep the source LF. Without `--dir`
+ * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines that keep the source LF. Without `--dir`
  * the generated handler runs unchanged. Commander offers no way to read the action it holds, so
  * it is captured and delegated to, as `runs get` does.
  */
