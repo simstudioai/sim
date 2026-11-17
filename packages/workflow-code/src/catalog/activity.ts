@@ -98,7 +98,7 @@ function deployedTriggerId(
  * `triggerCredentials` as the credential reference. Trigger-mode fields reach a run through the
  * webhook provider config, never through the block serializer.
  */
-export function deployReadIds(
+function deployReadIds(
   catalog: BlockCatalog,
   block: CatalogBlock,
   blockType: string,

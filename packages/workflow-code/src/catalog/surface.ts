@@ -33,7 +33,7 @@ export function onSurface(
 }
 
 /** The advanced member of a basic/advanced pair, on either surface. */
-export function isAdvancedMember(subBlock: Pick<CatalogSubBlock, 'mode'>): boolean {
+function isAdvancedMember(subBlock: Pick<CatalogSubBlock, 'mode'>): boolean {
   return subBlock.mode === 'advanced' || subBlock.mode === 'trigger-advanced'
 }
 
