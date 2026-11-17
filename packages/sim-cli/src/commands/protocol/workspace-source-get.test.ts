@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -214,6 +215,30 @@ describe('workspaces source get', () => {
         { path: 'files/report.bin', sha256: listed().sha256, size: BYTES.length },
       ])
     })
+  })
+
+  it('writes a tsconfig whose type-check covers tool and knowledge base declarations', async () => {
+    const declaration = (helper: string, body: string) =>
+      `// @sim-sdk 1\nimport { ${helper} } from '@sim/workflow-sdk/workspace'\n\nexport default ${helper}(${body})\n`
+    serve(
+      {
+        'tools/lookup.ts': declaration('defineTool', '{ title: 42 }'),
+        'knowledge/policies/knowledge.ts': declaration('defineKnowledgeBase', '{ name: 42 }'),
+      },
+      { kinds: ['custom-tool', 'knowledge-base'] }
+    )
+    await get()
+
+    const tsc = join(__dirname, '../../../../../node_modules/.bin/tsc')
+    let output = ''
+    try {
+      execFileSync(tsc, ['--noEmit', '-p', dir], { encoding: 'utf8', stdio: 'pipe' })
+    } catch (error) {
+      const failure = error as { stdout?: string; stderr?: string }
+      output = `${failure.stdout ?? ''}${failure.stderr ?? ''}`
+    }
+    expect(output).toContain('tools/lookup.ts')
+    expect(output).toContain('knowledge/policies/knowledge.ts')
   })
 
   it('reads --only by folder name as well as by kind', async () => {

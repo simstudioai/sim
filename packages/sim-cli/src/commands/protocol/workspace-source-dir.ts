@@ -52,6 +52,8 @@ const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
     },
     include: [
       `${KIND_DIRS.table}/*.ts`,
+      `${KIND_DIRS['custom-tool']}/*.ts`,
+      `${KIND_DIRS['knowledge-base']}/*/knowledge.ts`,
       `${KIND_DIRS.workflow}/*/${SOURCE_ENTRY_FILE}`,
       `${SOURCE_SDK_DIR}/**/*.d.ts`,
     ],
