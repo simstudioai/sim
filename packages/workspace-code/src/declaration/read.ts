@@ -25,7 +25,7 @@ import {
   sdkHeader,
 } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
-import { diagnostic, located, spanAt, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
 /** The module every declaration imports from. */
@@ -111,8 +111,9 @@ function calleeName(node: Node): string | null {
 /**
  * Parses one declaration file and decodes its default export's argument. Refuses (with every
  * finding located in `text`) a missing header, an import from anywhere but the workspace SDK, a
- * renamed or unused import, anything beside the imports and the one default export, and any value
- * outside the grammar. Bytes and nesting are capped before Babel runs.
+ * renamed import, anything beside the imports and the one default export, and any value outside
+ * the grammar. Unused imports are accepted. Bytes and nesting are capped before Babel runs, and
+ * locating every value is linear in the file.
  */
 export function readDeclaration(
   file: string,
@@ -121,7 +122,8 @@ export function readDeclaration(
 ): ReadDeclaration {
   const spans = new Map<string, SourceSpan>()
   const diagnostics: WorkspaceDiagnostic[] = []
-  const at = (start: number, end: number) => located(text, spanAt(file, text, start, end))
+  const locator = sourceLocator(file, text)
+  const at = (start: number, end: number) => locator.located(locator.span(start, end))
   const nodeAt = (node: Node) => at(node.start ?? 0, node.end ?? node.start ?? 0)
   const fail = (): ReadDeclaration => ({ spans, diagnostics })
 
@@ -307,7 +309,7 @@ export function readDeclaration(
   }
 
   const readValue = (node: Node, pointer: string): Json | undefined => {
-    spans.set(pointer, spanAt(file, text, node.start ?? 0, node.end ?? 0))
+    spans.set(pointer, locator.span(node.start ?? 0, node.end ?? 0))
     switch (node.type) {
       case 'StringLiteral':
         return readString(node, node.value)

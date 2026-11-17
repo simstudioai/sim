@@ -6,7 +6,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Json, SourceSpan } from '@sim/workflow-code'
 import {
   diagnostic,
-  located,
+  sourceLocator,
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
 } from '../diagnostics'
@@ -27,6 +27,7 @@ export function fieldReporter(
   diagnostics: WorkspaceDiagnostic[],
   resource: { kind: string; key: string }
 ): FieldReport {
+  let locator: ReturnType<typeof sourceLocator> | undefined
   return (code, pointer, message, hint) => {
     let at = pointer
     let span = spans.get(at)
@@ -37,7 +38,7 @@ export function fieldReporter(
     diagnostics.push(
       diagnostic(code, message, {
         ...resource,
-        ...(span ? located(text, span) : {}),
+        ...(span ? (locator ??= sourceLocator(span.file, text)).located(span) : {}),
         ...(hint ? { hint } : {}),
       })
     )
