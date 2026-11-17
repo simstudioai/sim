@@ -25,7 +25,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
-import { inBatches, readWrittenDigests } from './workflow-source-layout'
+import { inBatches, isMissing, readWrittenDigests } from './workflow-source-layout'
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
@@ -85,7 +85,7 @@ export async function blobDigest(dir: string, path: string): Promise<string | nu
   try {
     return (await hashFile(join(await realpath(dir), path))).sha256
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (isMissing(error)) return null
     throw error
   }
 }
@@ -136,9 +136,6 @@ export async function downloadBlob(
   blob: ListedBlob,
   file: string
 ): Promise<string> {
-  if (!blob.href.startsWith('/')) {
-    throw new SimApiError(`${blob.path} names a download on another origin: ${blob.href}`, 0)
-  }
   const download = downloadOf(blob.href)
   if (!download) {
     throw new SimApiError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`, 0)

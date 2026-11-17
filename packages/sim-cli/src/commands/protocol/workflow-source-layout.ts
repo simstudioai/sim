@@ -167,7 +167,8 @@ export function mergedGitattributes(
   return `${prefix}${missing.join('\n')}\n`
 }
 
-function isMissing(error: unknown): boolean {
+/** Whether a file-system error means the path does not exist (`ENOENT`, or a file as a folder). */
+export function isMissing(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException)?.code
   return code === 'ENOENT' || code === 'ENOTDIR'
 }
