@@ -46,6 +46,7 @@ import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
+import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
@@ -110,6 +111,34 @@ function withPendingResources(
       null,
     nameOf: (kind, id) => resources.nameOf?.(kind, id) ?? byId(kind, id)?.name ?? null,
     isBuiltin: resources.isBuiltin,
+  }
+}
+
+/**
+ * `lint` without the unresolved resource references that name only ids an enclosing apply has yet
+ * to create: a dry run of a directory that adds a skill and the workflow using it is not a warning.
+ */
+const PENDABLE_REFERENCES = new Set(['resource', 'custom-tool', 'skill'])
+
+function withoutPendingReferences(
+  lint: WorkflowLintReport,
+  pending: readonly PendingResource[]
+): WorkflowLintReport {
+  if (pending.length === 0) return lint
+  const pendingIds = new Set(pending.map((entry) => entry.id))
+  const awaitsPending = (value: unknown) => {
+    const ids = typeof value === 'string' ? value.split(',').map((id) => id.trim()) : value
+    return (
+      Array.isArray(ids) &&
+      ids.length > 0 &&
+      ids.every((id) => typeof id === 'string' && pendingIds.has(id))
+    )
+  }
+  return {
+    ...lint,
+    unresolvedReferences: lint.unresolvedReferences.filter(
+      (reference) => !PENDABLE_REFERENCES.has(reference.kind) || !awaitsPending(reference.value)
+    ),
   }
 }
 
@@ -437,7 +466,11 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     ...materializeDiagnostics,
     ...refusals,
     ...normalized.diagnostics,
-    ...lintDiagnostics(lint, changedIds, (id) => keyById.get(id)),
+    ...lintDiagnostics(
+      withoutPendingReferences(lint, input.pendingResources ?? []),
+      changedIds,
+      (id) => keyById.get(id)
+    ),
   ].map(locate)
   if (hasErrors(diagnostics)) return { refused: diagnostics }
 
