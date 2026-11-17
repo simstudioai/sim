@@ -70,7 +70,10 @@ export interface TableChanges {
   fields: string[]
   /** Cells a drop empties, and cells a removed option takes a selection from. */
   lostCells: number
-  /** Select options removed (or renamed, which removes the old name) from stored columns. */
+  /**
+   * Select options removed from stored columns, by id: a rename that changes more than letter
+   * case removes the old option.
+   */
   removedOptions: number
   diagnostics: WorkspaceSourceDiagnostic[]
 }
@@ -295,7 +298,9 @@ export async function diffTable(
         const options = normalizeSelectOptionsInput(names, existing) ?? []
         updates.options = options
         fields.push('options')
-        const removed = existing.filter((option) => !names.includes(option.name)).length
+        // By id, as the column write removes them: a letter-case rename keeps its option.
+        const keptIds = new Set(options.map((option) => option.id))
+        const removed = existing.filter((option) => !keptIds.has(option.id)).length
         if (current.type === 'select' && removed > 0) {
           kept = options
           changes.removedOptions += removed
