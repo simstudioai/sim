@@ -1,5 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -45,6 +47,7 @@ import {
 } from '@/connectors/gitlab/permissions'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 
+const logger = createLogger('SimSearchGitLabSources')
 const PREFIX = 'gitlab-source:'
 
 /** Canonical admin-managed sources only. Neither credentials nor indexed documents leave this module. */
@@ -90,10 +93,26 @@ function hasCsvPermissions(metadata: unknown): boolean {
   }
 }
 
+/** The IDs of CSV-permission sources that grant the viewer no project. */
+async function ungrantedSources(
+  owner: ResourceOwner,
+  userId: string,
+  ids: string[]
+): Promise<Set<string>> {
+  const csv = (await readConnectorPermissionMetadata(ids))
+    .filter((row) => hasCsvPermissions(row.metadata))
+    .map((row) => row.connectorId)
+  const own = csv.length ? await viewerToken(owner, userId) : undefined
+  if (!own) return new Set()
+  const granted = await connectorsGrantingSubject(csv, own)
+  return new Set(csv.filter((id) => !granted.has(id)))
+}
+
 /**
  * A source whose uploaded permissions grant the viewer nothing could never return a result, so it
  * is left out rather than reported unavailable on every search. Sources that check permissions
- * with GitLab, and any whose stored permissions cannot be read, stay listed: their session decides.
+ * with GitLab, any whose stored permissions cannot be read, and every source when this check
+ * itself fails stay listed: their session decides.
  */
 export async function listAdminGitLabAccounts(
   owner: ResourceOwner,
@@ -101,15 +120,18 @@ export async function listAdminGitLabAccounts(
 ): Promise<LiveAccount[]> {
   const rows = await sources(owner)
   if (!rows.length) return []
-  const metadata = await readConnectorPermissionMetadata(rows.map((source) => source.id))
-  const csv = new Set(
-    metadata.filter((row) => hasCsvPermissions(row.metadata)).map((row) => row.connectorId)
-  )
-  // Listing is only a filter: a failed identity lookup lists every source for its session to refuse.
-  const own = csv.size ? await viewerToken(owner, userId).catch(() => null) : null
-  const granted = own ? await connectorsGrantingSubject([...csv], own) : null
+  const hidden = await ungrantedSources(
+    owner,
+    userId,
+    rows.map((source) => source.id)
+  ).catch((error: unknown) => {
+    logger.warn('GitLab source grants could not be checked; listing every source', {
+      error: getErrorMessage(error),
+    })
+    return new Set<string>()
+  })
   return rows
-    .filter((source) => !granted || !csv.has(source.id) || granted.has(source.id))
+    .filter((source) => !hidden.has(source.id))
     .map((source) => ({
       id: `${PREFIX}${source.id}`,
       provider: 'gitlab',
@@ -120,9 +142,14 @@ export async function listAdminGitLabAccounts(
     }))
 }
 
+/** Whether a live account ID names an administrator-managed GitLab source. */
+export function isAdminGitLabAccountId(accountId: string): boolean {
+  return accountId.startsWith(PREFIX)
+}
+
 export async function resolveAdminGitLabAccount(owner: ResourceOwner, account: LiveAccount) {
   const [source] = await sources(owner, account.id.slice(PREFIX.length))
-  if (!account.id.startsWith(PREFIX) || !source?.encryptedApiKey)
+  if (!isAdminGitLabAccountId(account.id) || !source?.encryptedApiKey)
     throw new NativeSearchError(
       'unavailable',
       'Ask an organization admin to check the GitLab connection.'

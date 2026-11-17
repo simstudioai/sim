@@ -236,10 +236,24 @@ describe('Slack file hits', () => {
       await fileHits([
         hit({ file_type: 'application/pdf', content: 'Revenue grew 12% in Q3' }),
         hit({ content: '' }),
+        hit({ file_type: 'application/x-unknown', title: 'Plan v2.1 final', content: '' }),
       ])
     ).toEqual([
       'PDF. Reading it returns its full text.\nRevenue grew 12% in Q3',
       'File. Its contents cannot be read here; open the source.',
+      'File. Its contents cannot be read here; open the source.',
+    ])
+  })
+
+  it('does not offer the full text of a file above the read limit, and reports a zero-byte size', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', size: 5 * 1024 * 1024 }),
+        hit({ file_type: 'text/plain', size: 0 }),
+      ])
+    ).toEqual([
+      'PDF, 5 MB. Too large to read in full here; open the source.',
+      'Text, 0 Bytes. Reading it returns its full text.',
     ])
   })
 })

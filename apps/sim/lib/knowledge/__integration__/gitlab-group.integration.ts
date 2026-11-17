@@ -55,6 +55,7 @@ describe('GitLab group Search permission boundary', () => {
   let moved = false
   let failedDiscovery = false
   let added = false
+  let aliceLegacyResult: { documentId: string } | undefined
   let confidential = false
   let providerState = 'healthy'
   const checks: string[] = []
@@ -433,9 +434,8 @@ describe('GitLab group Search permission boundary', () => {
       input: { organizationId: ids.organizationId, sourceId: legacyId },
     })
     expect(legacyRevision).toEqual({ revision: 1 })
-    expect(
-      (await search(ids.aliceId, '11', undefined, 20, legacyId)).results.length
-    ).toBeGreaterThan(0)
+    aliceLegacyResult = (await search(ids.aliceId, '11', undefined, 20, legacyId)).results[0]
+    expect(aliceLegacyResult).toBeDefined()
     await replaceSearchSourcePermissions.execute({
       principal: principal(ids.aliceId),
       input: {
@@ -480,6 +480,10 @@ describe('GitLab group Search permission boundary', () => {
     expect(alice.every((account) => account.status === 'ok')).toBe(true)
     expect(new Set((await accounts(ids.bobId)).map((account) => account.accountId))).toEqual(
       new Set([`gitlab-source:${sourceId}`, `gitlab-source:${legacyId}`])
+    )
+    if (!aliceLegacyResult) throw new Error('Missing result found before revocation')
+    await expect(read(ids.aliceId, aliceLegacyResult.documentId)).rejects.toThrow(
+      'This GitLab source is not available to your account.'
     )
     checks.push('Sources granting the reader nothing are left out of their searches')
   })

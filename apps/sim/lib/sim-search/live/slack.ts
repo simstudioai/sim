@@ -366,9 +366,20 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
   return documentExtension(mimetype)
 }
 
+/** Whether a read downloads a file of this size; an unreported size is tried and capped while reading. */
+function withinDownloadLimit(format: SlackFileFormat, size: unknown): boolean {
+  return !(Number(size) > MAX_FILE_DOWNLOAD_BYTES[format])
+}
+
 const SLACK_FILE_LABELS: Readonly<Record<string, string>> = {
   'application/vnd.slack-docs': 'Canvas',
   'application/vnd.slack-list': 'List',
+}
+
+/** The shared label for a known type; a title is not a filename, so it never supplies one. */
+function knownFileLabel(mimetype: string): string {
+  const label = fileBrowserTypeLabel(mimetype, '')
+  return label && label !== mimetype ? label : 'File'
 }
 
 /**
@@ -377,16 +388,20 @@ const SLACK_FILE_LABELS: Readonly<Record<string, string>> = {
  */
 function slackFileHitContent(file: Record<string, unknown>, users: Map<string, string>): string {
   const mimetype = normalizeMimeType(string(file.file_type))
-  const size = Number(file.size)
   const summary = [
-    SLACK_FILE_LABELS[mimetype] ?? (fileBrowserTypeLabel(mimetype, string(file.title)) || 'File'),
-    size > 0 ? formatFileSize(size, { includeBytes: true }) : '',
+    SLACK_FILE_LABELS[mimetype] ?? knownFileLabel(mimetype),
+    typeof file.size === 'number' && file.size >= 0
+      ? formatFileSize(file.size, { includeBytes: true })
+      : '',
   ]
     .filter(Boolean)
     .join(', ')
-  const reading = slackFileFormat({ mimetype })
-    ? 'Reading it returns its full text.'
-    : 'Its contents cannot be read here; open the source.'
+  const format = slackFileFormat({ mimetype })
+  const reading = !format
+    ? 'Its contents cannot be read here; open the source.'
+    : withinDownloadLimit(format, file.size)
+      ? 'Reading it returns its full text.'
+      : 'Too large to read in full here; open the source.'
   const text = slackPlainText(string(file.content), users)
   return [`${summary}. ${reading}`, text === string(file.title) ? '' : text]
     .filter(Boolean)
@@ -430,7 +445,7 @@ async function slackFileText(
   signal?: AbortSignal
 ): Promise<{ text: string } | { unavailable?: string }> {
   const format = slackFileFormat(file)
-  if (!format || Number(file.size) > MAX_FILE_DOWNLOAD_BYTES[format]) return {}
+  if (!format || !withinDownloadLimit(format, file.size)) return {}
   const source = slackFileDownloadUrl(file)
   if (!source) return {}
   const timeout = AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS)

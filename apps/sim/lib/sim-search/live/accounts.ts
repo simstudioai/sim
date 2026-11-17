@@ -20,6 +20,7 @@ import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/co
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import {
+  isAdminGitLabAccountId,
   listAdminGitLabAccounts,
   resolveAdminGitLabAccount,
 } from '@/lib/sim-search/live/gitlab-admin'
@@ -162,7 +163,9 @@ export async function resolveLiveAccount(
 ) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
-    throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
+    throw isAdminGitLabAccountId(accountId)
+      ? new NativeSearchError('unavailable', 'This GitLab source is not available to your account.')
+      : new NativeSearchError('reconnect', 'This search connection is no longer available.')
   return resolveListedLiveAccount(owner, userId, current, signal)
 }
 
