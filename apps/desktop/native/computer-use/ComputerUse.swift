@@ -56,12 +56,21 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     let result = operation(element)
     if ![.illegalArgument, .attributeUnsupported, .actionUnsupported, .notImplemented, .apiDisabled].contains(result) { inputDispatched = true }
     if result == .success || result == .cannotComplete && press { return }
-    // An element can refuse a request it advertises; Finder and file-panel cells answer AXOpen with
-    // attributeUnsupported (-25205). Nothing reached the app, so the snapshot stays valid.
-    if result == .actionUnsupported || result == .attributeUnsupported {
-        throw ComputerError("unsupported_action", "The element refused this request although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
-    }
     try axCheck(result)
+}
+/// Performs an advertised Accessibility action. An element can still refuse it (Finder and file-panel
+/// cells answer AXOpen with attributeUnsupported, -25205); nothing reached the app, so the snapshot stays valid.
+func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = false) throws {
+    var refused = false
+    do {
+        try dispatchAX(element, press: press) { element in
+            let result = AXUIElementPerformAction(element, action as CFString)
+            refused = result == .actionUnsupported || result == .attributeUnsupported
+            return result
+        }
+    } catch where refused {
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+    }
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
 /// highlighted instead of running it. Return runs the highlighted item, as it would for a keyboard user.
@@ -877,7 +886,7 @@ final class Driver {
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
             // Actions that open UI (a sheet, a menu) hold the reply like a press; others fail as uncertain on timeout.
             let opensUI = [kAXPressAction, kAXPickAction, kAXShowMenuAction].contains(action)
-            try dispatchAX(element, press: opensUI) { AXUIElementPerformAction($0, action as CFString) }
+            try performAXAction(element, action, press: opensUI)
             if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")
@@ -889,7 +898,7 @@ final class Driver {
             let button = p.button ?? "left"; let count = p.clickCount ?? 1
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
             if p.elementId != nil && button == "left" && count == 1, let element = try? snapshot.element(p.elementId), axActions(element).contains(kAXPressAction) {
-                try dispatchAX(element, press: true) { AXUIElementPerformAction($0, kAXPressAction as CFString) }
+                try performAXAction(element, kAXPressAction, press: true)
                 try await completeMenuPress(element, pid: pid)
             } else {
                 try await coordinateAction { dispatch in
