@@ -142,11 +142,6 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       ...(input.provenance ? { provenance: input.provenance } : {}),
-      blobs: new Map(
-        (input.blobs ?? []).flatMap((blob) =>
-          blob.content === undefined ? [] : [[blob.path, Buffer.from(blob.content, 'base64')]]
-        )
-      ),
     }
     const plan = await planWorkspaceSource(input, ctx)
     const dryRun = input.dryRun === true
@@ -166,6 +161,19 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     if (dryRun) return result
 
     const missing = new Set(plan.needBlobs)
+    const writeCtx: ApplyContext = {
+      ...ctx,
+      blobs: {
+        content: new Map(
+          (input.blobs ?? []).flatMap((blob) =>
+            blob.content === undefined
+              ? []
+              : [[blob.path, Buffer.from(blob.content, 'base64')] as const]
+          )
+        ),
+        complete: missing.size === 0,
+      },
+    }
     const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
     for (const change of plan.changes) {
       if (change.action === 'noop' && change.base) {
@@ -174,12 +182,16 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     }
     for (const change of writeOrder(plan.changes)) {
       const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
-      if (waiting.length > 0 || (change.action === 'delete' && missing.size > 0)) {
-        result.remainingBlobs.push(...waiting)
+      const carried = waiting.length < (change.needsBlobs ?? []).length
+      result.remainingBlobs.push(...waiting)
+      if (
+        (waiting.length > 0 && !(change.partialBlobs && carried)) ||
+        (change.action === 'delete' && missing.size > 0)
+      ) {
         continue
       }
       try {
-        const written = await KIND_ADAPTERS[change.kind].apply(change, ctx)
+        const written = await KIND_ADAPTERS[change.kind].apply(change, writeCtx)
         const address = resourceAddress(change.kind, change.key)
         if (written.base) base.resources[address] = written.base
         else delete base.resources[address]

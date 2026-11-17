@@ -405,7 +405,7 @@ function refuseCollisions(
 
 /** The bytes a write sends, refused unless they are the ones the directory declared. */
 function contentOf(change: FileChange, ctx: ApplyContext): Buffer {
-  const bytes = ctx.blobs.get(fileBlobPath(change.key))
+  const bytes = ctx.blobs?.content.get(fileBlobPath(change.key))
   if (!change.decl || !bytes) throw new Error('A file write needs its declaration and bytes')
   if (bytes.length !== change.decl.size || sha256Hex(bytes) !== change.decl.sha256) {
     throw new OrchestrationError(

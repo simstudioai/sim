@@ -34,8 +34,8 @@ export interface PlanContext extends SourceContext {
 
 export interface ApplyContext extends SourceContext {
   provenance?: { client: 'cli' | 'api'; gitSha?: string }
-  /** The bytes of the blobs this round carries, by directory path. */
-  blobs: ReadonlyMap<string, Buffer>
+  /** The bytes this round carries by directory path, and whether it carries all the plan needs. */
+  blobs?: { content: ReadonlyMap<string, Buffer>; complete: boolean }
 }
 
 /** A stored resource of one kind: its key (when bound), id, display name and kind state. */
@@ -65,6 +65,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
   destructive?: { what: string; counts: Record<string, number> }
   /** Blob paths the change writes, whose content the request must carry. */
   needsBlobs?: string[]
+  /**
+   * The change writes the blobs a round carries and leaves the rest to the next round, so one
+   * resource's blobs (a knowledge base's documents) may span rounds. Otherwise it waits for all.
+   */
+  partialBlobs?: boolean
   decl?: D
   storedId?: string
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */

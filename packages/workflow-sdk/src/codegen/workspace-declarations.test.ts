@@ -21,8 +21,11 @@ export default defineTable({
 })
 `
 
-/** Lays out a workspace directory as the CLI writes it and type-checks `check.ts` in it. */
-function typecheckWorkspace(check: string): string {
+/**
+ * Lays out a workspace directory as the CLI writes it and type-checks `check.ts` in it, beside
+ * any `extra` declaration files.
+ */
+function typecheckWorkspace(check: string, extra: Record<string, string> = {}): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'sim-workspace-types-'))
   try {
     const write = (file: string, text: string) => {
@@ -36,6 +39,7 @@ function typecheckWorkspace(check: string): string {
     write('.sim/sdk/workspace.d.ts', generateWorkspaceTypes({ tableDeclarations: ['leads'] }).text)
     write('tables/leads.ts', LEADS)
     write('workflows/w/check.ts', check)
+    for (const [file, text] of Object.entries(extra)) write(file, text)
     write(
       'tsconfig.json',
       JSON.stringify({
@@ -54,7 +58,12 @@ function typecheckWorkspace(check: string): string {
             '@sim/workflow-sdk/workspace': ['./.sim/sdk/workspace/index.d.ts'],
           },
         },
-        include: ['tables/*.ts', 'workflows/*/*.ts', '.sim/sdk/**/*.d.ts'],
+        include: [
+          'tables/*.ts',
+          'knowledge/*/knowledge.ts',
+          'workflows/*/*.ts',
+          '.sim/sdk/**/*.d.ts',
+        ],
       })
     )
     return typecheck(path.join(dir, 'tsconfig.json'))
@@ -80,5 +89,27 @@ export const badColumn: Row = { email: 'a', status: 'new', tags: [], score: 1 }
 `)
     expect(output).toContain(`'"lost"' is not assignable`)
     expect(output).toContain(`'score' does not exist`)
+  }, 120_000)
+
+  it('type a knowledge base declaration and reject an unknown chunking strategy', () => {
+    const knowledgeBase = (chunking: string) => `// @sim-sdk 1
+import { defineKnowledgeBase } from '@sim/workflow-sdk/workspace'
+
+export default defineKnowledgeBase({
+  name: 'Policies',
+  folder: '/support',
+  chunking: ${chunking},
+  embeddingModel: 'text-embedding-3-small',
+})
+`
+    const output = typecheckWorkspace('export {}\n', {
+      'knowledge/good/knowledge.ts': knowledgeBase(
+        "{ maxSize: 512, strategy: 'recursive', strategyOptions: { recipe: 'markdown' } }"
+      ),
+      'knowledge/bad/knowledge.ts': knowledgeBase("{ strategy: 'paragraph' }"),
+    })
+    expect(output).toContain('knowledge/bad/knowledge.ts')
+    expect(output).toContain(`'"paragraph"' is not assignable`)
+    expect(output).not.toContain('knowledge/good/knowledge.ts')
   }, 120_000)
 })

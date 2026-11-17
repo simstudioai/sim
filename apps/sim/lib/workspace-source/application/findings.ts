@@ -40,6 +40,17 @@ function where(kind: WorkspaceKind, key: string): string {
   return `${KIND_DIRS[kind]}/${key}`
 }
 
+/** A finding about one resource, its severity fixed by the code's prefix. */
+export function kindFinding(
+  kind: WorkspaceKind,
+  key: string,
+  code: WorkspaceDiagnosticCode,
+  message: string,
+  hint?: string
+): WorkspaceSourceDiagnostic {
+  return finding(code, message, { ...(hint ? { hint } : {}), kind, key })
+}
+
 export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {
   return finding(
     'E_APPLY_STALE',

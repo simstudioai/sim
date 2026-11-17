@@ -78,6 +78,35 @@ type FileCode =
   /** Bytes that do not match the hash or size the directory declared for them. */
   | 'E_FILE_CONTENT'
 
+/** Knowledge bases. */
+type KnowledgeCode =
+  /** A declared embedding model that differs from the stored one: it is fixed at creation. */
+  | 'E_KB_EMBEDDING_IMMUTABLE'
+  /** A new knowledge base declares a model this server does not create knowledge bases with. */
+  | 'E_KB_EMBEDDING_MODEL'
+  /** The server holds several documents under one declared file name. */
+  | 'E_KB_DOC_AMBIGUOUS'
+  /** A document file name or type the knowledge base cannot hold. */
+  | 'E_KB_DOC_NAME'
+  /** An empty document, which a knowledge base cannot index. */
+  | 'E_KB_DOC_EMPTY'
+  /** Chunking settings outside what a knowledge base accepts. */
+  | 'E_KB_CHUNKING'
+  /** A knowledge base folder that does not exist in the workspace. */
+  | 'E_KB_FOLDER'
+  /** Replacing a document drops the tag values the stored one holds. */
+  | 'W_KB_DOC_TAGS'
+  /** A stored document whose bytes this request had no budget left to download and compare. */
+  | 'W_KB_DOC_UNCHECKED'
+  /** How many documents the apply indexes (embeds) after it writes them. */
+  | 'I_KB_REEMBED'
+  /** Changed chunking applies to documents indexed from now on; stored ones keep their chunks. */
+  | 'I_KB_CHUNKING'
+  /** Documents a get lists without a hash: it had no budget left to download them. */
+  | 'I_KB_DOCS_UNHASHED'
+  /** Documents source leaves alone: connector-synced, too large, or not a plain file name. */
+  | 'I_KB_UNMANAGED_DOCS'
+
 /** Plan and apply. */
 type PlanCode =
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -118,6 +147,7 @@ export type WorkspaceDiagnosticCode =
   | ToolCode
   | SkillCode
   | FileCode
+  | KnowledgeCode
   | PlanCode
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'

@@ -20,6 +20,10 @@ export function codeFile(): never {
   return notExecutable('codeFile')
 }
 
+export function defineKnowledgeBase(): never {
+  return notExecutable('defineKnowledgeBase')
+}
+
 export const column = new Proxy(
   {},
   {
