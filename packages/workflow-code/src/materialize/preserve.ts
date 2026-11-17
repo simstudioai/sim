@@ -113,13 +113,6 @@ function restorePairs(
   }
 }
 
-function sameParams(
-  left: Record<SubBlockId, CanonicalParam>,
-  right: Record<SubBlockId, CanonicalParam>
-): boolean {
-  return deepEqual(left, right)
-}
-
 /**
  * Whether `id` stays inactive once prev's value is back in it. A field whose activity hangs on its
  * own value (a standalone advanced field runs only while non-empty) is inactive only because
@@ -155,7 +148,7 @@ function restoreInactive(
         setParam(next.params, id, restored)
       }
     }
-    if (sameParams(before, next.params)) return
+    if (deepEqual(before, next.params)) return
   }
 }
 

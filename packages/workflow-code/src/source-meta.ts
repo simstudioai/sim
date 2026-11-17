@@ -19,7 +19,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { decodeAnchor, encodeAnchor } from './anchors'
 import type { SourceMetaDiagnosticCode } from './diagnostics/codes'
 import type { Diagnostic } from './diagnostics/frame'
-import { stableStringify } from './hash'
 import {
   isExtensionKey,
   isJson,
@@ -31,6 +30,7 @@ import {
   readIdent,
 } from './lock'
 import type { Anchor, AnchorKey, CodeComment, Json } from './model'
+import { deepEqual } from './records'
 
 export interface WorkflowSourceMetaV1 {
   [extension: LockExtensionKey]: Json
@@ -322,7 +322,7 @@ export function remapSourceMeta(
 
 /** Whether two values hold the same entries, extensions included, in any key order. */
 export function sourceMetaEquals(a: WorkflowSourceMetaV1, b: WorkflowSourceMetaV1): boolean {
-  return stableStringify(a) === stableStringify(b)
+  return deepEqual(a, b)
 }
 
 /** Whether `meta` holds nothing worth storing (no entries and no extensions). */
