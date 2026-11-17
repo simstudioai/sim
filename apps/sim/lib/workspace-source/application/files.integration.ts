@@ -50,6 +50,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 }))
 
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
@@ -218,6 +219,31 @@ async function editInUi(workspaceId: string, fileId: string, text: string) {
     principal: owner,
     input: { fileId, assertedWorkspaceId: workspaceId, content: Buffer.from(text) },
   })
+}
+
+/** A Files tab upload into `folderPath` (slash-separated, created as needed). */
+async function uploadInUi(workspaceId: string, folderPath: string, name: string, text: string) {
+  const { folderId } = await ensureWorkspaceFileFolderPath({
+    workspaceId,
+    userId: ownerId,
+    pathSegments: folderPath ? folderPath.split('/') : [],
+  })
+  return uploadWorkspaceFile(workspaceId, ownerId, Buffer.from(text), name, 'text/plain', {
+    folderId,
+    notifyWorkspaceChange: false,
+  })
+}
+
+/** The directory a get writes: every listed blob with the bytes stored under it. */
+async function downloaded(
+  workspaceId: string,
+  read: Awaited<ReturnType<typeof get>>
+): Promise<Record<string, Buffer>> {
+  const files: Record<string, Buffer> = {}
+  for (const blob of read.blobs) {
+    files[blob.path] = Buffer.from(await bytesOf(workspaceId, blob.id))
+  }
+  return files
 }
 
 /** Creates the starter files and returns the directory a get then writes. */
@@ -634,4 +660,46 @@ describe('workspace source files', () => {
     expect(result.failed).toMatchObject({ key: 'a.txt', code: 'E_APPLY_REFUSED' })
     expect(await storedFiles(workspaceId)).toEqual([])
   })
+
+  check(
+    'server files and folders a case-insensitive disk would merge are left out of get, and an apply names the collision',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await uploadInUi(workspaceId, 'docs', 'a.txt', 'in the docs folder')
+      await uploadInUi(workspaceId, '', 'docs', 'a file named like the folder')
+      await uploadInUi(workspaceId, 'Reports', 'x.txt', 'upper')
+      await uploadInUi(workspaceId, 'reports', 'y.txt', 'lower')
+
+      const read = await get(workspaceId)
+
+      expect(read.skipped).toEqual([
+        { kind: 'file', key: 'docs', reason: expect.stringContaining('files/docs is a folder') },
+        {
+          kind: 'file',
+          key: 'reports/y.txt',
+          reason: expect.stringContaining('differs only in letter case from files/Reports'),
+        },
+      ])
+      expect(read.blobs.map((blob) => blob.path).sort()).toEqual([
+        'files/Reports/x.txt',
+        'files/docs/a.txt',
+      ])
+      const before = await storedFiles(workspaceId)
+
+      const directory = await downloaded(workspaceId, read)
+      const again = await apply(workspaceId, directory, { base: read.base, allowDelete: true })
+      expect(again.applied).toEqual([])
+      expect(codes(again.diagnostics, 'warning')).toEqual([])
+
+      const declared = await refusal(
+        apply(
+          workspaceId,
+          { 'files/reports/y.txt': Buffer.from('lower, edited') },
+          { base: read.base, allowDelete: true }
+        )
+      )
+      expect(codes(declared.diagnostics)).toEqual(['E_FILE_PATH_COLLISION'])
+      expect(await storedFiles(workspaceId)).toEqual(before)
+    }
+  )
 })

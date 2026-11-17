@@ -18,6 +18,7 @@ import {
   type FileDecl,
   fileBlobPath,
   fileCodec,
+  fileKeyConflicts,
   filePathProblem,
   foldedFileKey,
 } from '@sim/workspace-code/kinds/files'
@@ -60,14 +61,19 @@ import type {
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
+/** Why a directory never holds a stored file, as the code a declaration of it is refused with. */
+interface Unmanaged {
+  code: 'E_FILE_TOO_LARGE' | 'E_FILE_PATH' | 'E_FILE_PATH_COLLISION'
+  reason: string
+}
+
 /** One stored workspace file, keyed by its path under `files/`. */
 interface StoredFileState {
   size: number
   rev: string
   /** SHA-256 of the current bytes when version history records it. */
   sha256: string | null
-  /** Why a directory never holds this file (too large, unsafe path, case collision). */
-  unmanaged?: string
+  unmanaged?: Unmanaged
 }
 
 type StoredFile = StoredResource<StoredFileState>
@@ -210,10 +216,8 @@ function planFile(
     change.diagnostics.push(
       finding(
         key,
-        existing.state.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes
-          ? 'E_FILE_TOO_LARGE'
-          : 'E_FILE_PATH',
-        `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged}.`,
+        existing.state.unmanaged.code,
+        `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged.reason}.`,
         'Remove it from files/ and change it in the Files tab.'
       )
     )
@@ -370,21 +374,19 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
       files.map((file) => file.id)
     )
     const set: StoredSet<StoredFileState> = { bound: new Map(), unbound: [] }
-    const held = new Map<string, string>()
     for (const file of files) {
       const content = states.get(file.id)
       const { key, problem } = storedPath(file)
       if (!content || (set.bound.has(key) && !set.bound.get(key)?.state.unmanaged)) continue
-      const twin = held.get(foldedFileKey(key))
-      const unmanaged =
+      const unmanaged: Unmanaged | undefined =
         file.size > maxBlobBytes
-          ? `it is ${file.size} bytes, over the ${maxBlobBytes}-byte limit`
+          ? {
+              code: 'E_FILE_TOO_LARGE',
+              reason: `it is ${file.size} bytes, over the ${maxBlobBytes}-byte limit`,
+            }
           : problem !== null
-            ? `no directory can hold its path: ${problem}`
-            : twin !== undefined
-              ? `its path differs only in letter case from ${fileBlobPath(twin)}`
-              : undefined
-      if (unmanaged === undefined) held.set(foldedFileKey(key), key)
+            ? { code: 'E_FILE_PATH', reason: `no directory can hold its path: ${problem}` }
+            : undefined
       set.bound.set(key, {
         key,
         id: file.id,
@@ -396,6 +398,11 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
           ...(unmanaged ? { unmanaged } : {}),
         },
       })
+    }
+    const held = [...set.bound.values()].filter((file) => !file.state.unmanaged)
+    for (const [key, reason] of fileKeyConflicts(held.map((file) => file.key))) {
+      const file = set.bound.get(key)
+      if (file) file.state.unmanaged = { code: 'E_FILE_PATH_COLLISION', reason }
     }
     return set
   },
@@ -489,8 +496,8 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const { state, id, key } = stored
     if (state.unmanaged) {
       throw new OrchestrationError(
-        state.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes ? 'payload_too_large' : 'validation',
-        `${fileBlobPath(key)} is left out: ${state.unmanaged}.`
+        state.unmanaged.code === 'E_FILE_TOO_LARGE' ? 'payload_too_large' : 'validation',
+        `${fileBlobPath(key)} is left out: ${state.unmanaged.reason}.`
       )
     }
     const workspaceId = ctx.workspace.workspaceId
