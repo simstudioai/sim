@@ -46,6 +46,9 @@ const TABLE_COLUMN_TYPES = [
 
 type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number]
 
+/** The code the server stamps on a `currency` column declared without one. */
+export const DEFAULT_CURRENCY_CODE = 'USD'
+
 export interface TableColumnDecl {
   type: TableColumnType
   /** The stored column name, when it differs from the column's key. */
@@ -288,7 +291,9 @@ function canonicalColumn(key: string, column: TableColumnDecl): Json {
     ...(column.type === 'select'
       ? { options: column.options ?? [], multiple: column.multiple === true }
       : {}),
-    ...(column.type === 'currency' ? { currencyCode: column.currencyCode ?? null } : {}),
+    ...(column.type === 'currency'
+      ? { currencyCode: column.currencyCode ?? DEFAULT_CURRENCY_CODE }
+      : {}),
   }
 }
 

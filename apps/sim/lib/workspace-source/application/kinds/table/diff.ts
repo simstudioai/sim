@@ -6,7 +6,12 @@
  */
 import { db } from '@sim/db'
 import type { BaseColumn } from '@sim/workspace-code'
-import { columnName, type TableColumnDecl, type TableDecl } from '@sim/workspace-code/kinds/table'
+import {
+  columnName,
+  DEFAULT_CURRENCY_CODE,
+  type TableColumnDecl,
+  type TableDecl,
+} from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   countCellsLosingTheirOptions,
@@ -259,7 +264,8 @@ export async function diffTable(
     }
     if (
       target.type === 'currency' &&
-      (target.currencyCode ?? null) !== (current.currencyCode ?? null)
+      (target.currencyCode ?? DEFAULT_CURRENCY_CODE) !==
+        (current.currencyCode ?? DEFAULT_CURRENCY_CODE)
     ) {
       if (target.currencyCode) updates.currencyCode = target.currencyCode
       fields.push('currencyCode')

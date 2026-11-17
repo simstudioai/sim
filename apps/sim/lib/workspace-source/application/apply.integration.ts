@@ -764,4 +764,36 @@ describe('workspace source apply', () => {
     )
     expect(tableIds).toContain(unbound.id)
   })
+
+  check('a currency column declared without a code settles on the server default', async () => {
+    const workspaceId = await newWorkspace()
+    const options = { kinds: ['table' as const], only: ['table' as const] }
+    const declare = (description?: string) => ({
+      'tables/deals.ts': LEADS.replace(
+        "name: 'leads',",
+        `name: 'deals',${description ? ` description: '${description}',` : ''}`
+      ).replace('columns: {', 'columns: {\n    amount: column.currency(),'),
+    })
+    const created = await apply(
+      workspaceId,
+      { 'tables/deals.ts': LEADS.replace("name: 'leads'", "name: 'deals'") },
+      options
+    )
+    const added = await apply(workspaceId, declare(), { ...options, base: created.base })
+    expect(added.applied).toMatchObject([{ action: 'update', key: 'deals' }])
+    const [deals] = await tables(workspaceId)
+    await tableUseCases.updateTableUseCase.execute({
+      principal: owner,
+      input: { tableId: deals.id, workspaceId, name: 'deals_renamed' },
+    })
+
+    const untouched = await apply(workspaceId, declare(), { ...options, base: added.base })
+
+    expect(untouched.plan.map(({ action, key }) => `${action} ${key}`)).toEqual(['noop deals'])
+
+    const read = await get(workspaceId)
+    const edited = await apply(workspaceId, declare('Won deals'), { ...options, base: read.base })
+
+    expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
+  })
 })
