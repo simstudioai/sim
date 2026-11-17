@@ -202,6 +202,16 @@ const HOST_GLOBALS = new Set([
 /** Member names banned however they are reached: `x.constructor` is `Function` for any function. */
 const HOST_MEMBERS = new Set([...HOST_GLOBALS, 'constructor'])
 
+/** The member a destructuring element reads: `constructor` in `{ constructor: F }` or `{ constructor }`. */
+function destructuredMember(node: ts.BindingElement): string | undefined {
+  const key = node.propertyName ?? node.name
+  if (ts.isIdentifier(key) || ts.isStringLiteralLike(key)) return key.text
+  if (ts.isComputedPropertyName(key) && ts.isStringLiteralLike(key.expression)) {
+    return key.expression.text
+  }
+  return undefined
+}
+
 /** Whether `node` names a host global as a value rather than as a key or a type. */
 function isHostGlobalReference(node: ts.Identifier): boolean {
   if (!HOST_GLOBALS.has(node.text)) return false
@@ -257,6 +267,12 @@ async function scanPurePackageFile(file: string): Promise<Offender[]> {
     }
     if (ts.isPropertyAccessExpression(node) && node.name.text === 'constructor') {
       report(node, '@sim/workflow-code reads .constructor')
+    }
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const member = destructuredMember(node)
+      if (member && HOST_MEMBERS.has(member)) {
+        report(node, `@sim/workflow-code destructures ${member}`)
+      }
     }
     if (
       ts.isElementAccessExpression(node) &&
