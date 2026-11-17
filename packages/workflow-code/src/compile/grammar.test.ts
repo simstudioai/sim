@@ -744,6 +744,20 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a resource inside a JSON field literal',
+      "table.insertRow('Row', { data: { id: table('orders') } })",
+      'E_UNSUPPORTED_SYNTAX',
+      "table('orders')",
+      'Write a string, number, boolean, null, array or object here.',
+    ],
+    [
+      'a canonical node inside a JSON field literal',
+      "table.insertRow('Row', { data: [raw({ $sim: 'var', key: 'retries' })] })",
+      'E_UNSUPPORTED_SYNTAX',
+      'raw({',
+      'Write a string, number, boolean, null, array or object here.',
+    ],
+    [
       'a template tag called as a function',
       "const a = api('A', { url: t('x') })",
       'E_UNSUPPORTED_SYNTAX',
