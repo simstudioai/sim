@@ -17,8 +17,9 @@ import {
   countCellsLosingTheirOptions,
   countEmptyCells,
   countFilledCells,
+  getColumnRetypeScanBatchSize,
   isValueCompatibleWithColumn,
-  readColumnValues,
+  readColumnRetypePage,
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
@@ -28,7 +29,10 @@ import {
 } from '@/lib/workspace-source/application/kinds/table/stored'
 import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
 
-/** Cells a type change reads to tell whether they convert; past this, the apply's own gate decides. */
+/**
+ * Cells a type change reads, a page at a time, to tell whether they convert; past this, the
+ * apply's own gate decides.
+ */
 const CONVERSION_SCAN_LIMIT = 50_000
 
 /** A column as the add and update use cases take it. */
@@ -107,6 +111,39 @@ function pairColumns(
     }
   }
   return pairs
+}
+
+/**
+ * Cells of `columnId` (up to {@link CONVERSION_SCAN_LIMIT}) whose value does not convert to
+ * `target`, read a page at a time so a column of large cells never sits in memory at once.
+ */
+async function countIncompatibleCells(
+  table: StoredTableState['table'],
+  columnId: string,
+  target: ColumnDefinition
+): Promise<number> {
+  const batch = getColumnRetypeScanBatchSize()
+  let incompatible = 0
+  let scanned = 0
+  let afterId: string | undefined
+  while (scanned < CONVERSION_SCAN_LIMIT) {
+    const limit = Math.min(batch, CONVERSION_SCAN_LIMIT - scanned)
+    const rows = await readColumnRetypePage(
+      db,
+      table.id,
+      table.workspaceId,
+      columnId,
+      limit,
+      afterId
+    )
+    for (const row of rows) {
+      if (!isValueCompatibleWithColumn(row.value, target)) incompatible += 1
+    }
+    scanned += rows.length
+    afterId = rows.at(-1)?.id
+    if (rows.length < limit) break
+  }
+  return incompatible
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
@@ -196,19 +233,14 @@ export async function diffTable(
     if (target.type !== current.type) {
       updates.type = target.type
       fields.push('type')
-      const values = await readColumnValues(
-        db,
-        table.id,
-        table.workspaceId,
-        columnId,
-        CONVERSION_SCAN_LIMIT
-      )
-      const definition: ColumnDefinition = { ...target, id: columnId }
-      const incompatible = values.filter((value) => !isValueCompatibleWithColumn(value, definition))
-      if (incompatible.length > 0) {
+      const incompatible = await countIncompatibleCells(table, columnId, {
+        ...target,
+        id: columnId,
+      })
+      if (incompatible > 0) {
         refuse(
           'E_TABLE_TYPE_CONVERSION',
-          `Column "${current.name}" cannot become ${target.type}: ${incompatible.length} cell(s) hold values that do not convert.`,
+          `Column "${current.name}" cannot become ${target.type}: ${incompatible} cell(s) hold values that do not convert.`,
           'Fix or clear those cells first, or add a new column instead.'
         )
       }

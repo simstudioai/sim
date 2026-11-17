@@ -79,8 +79,12 @@ export interface ColumnMutationOptions {
   expectedWorkspaceId?: string
 }
 
-async function readColumnRetypePage(
-  trx: DbTransaction,
+/**
+ * One page of `columnKey`'s stored values (missing and null cells skipped), by row id after
+ * `afterId`. Pages of {@link getColumnRetypeScanBatchSize} rows stay under the scan's byte cap.
+ */
+export async function readColumnRetypePage(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string,
@@ -1407,32 +1411,6 @@ export async function countFilledCells(
       )
     )
   return result?.count ?? 0
-}
-
-/**
- * Up to `limit` stored values of `columnKey` (missing and null cells skipped), for a check that
- * reads them in Node, such as whether a type change can convert them.
- */
-export async function readColumnValues(
-  executor: DbExecutor,
-  tableId: string,
-  workspaceId: string,
-  columnKey: string,
-  limit: number
-): Promise<unknown[]> {
-  const rows = await executor
-    .select({ value: sql<unknown>`${userTableRows.data}->${columnKey}::text` })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId),
-        sql`${userTableRows.data} ? ${columnKey}`,
-        sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
-      )
-    )
-    .limit(limit)
-  return rows.map((row) => row.value)
 }
 
 /**

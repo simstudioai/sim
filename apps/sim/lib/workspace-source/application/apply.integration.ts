@@ -34,6 +34,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
 import * as tableUseCases from '@/lib/table/application/tables'
+import { getColumnRetypeScanBatchSize } from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
@@ -806,5 +807,37 @@ describe('workspace source apply', () => {
 
     expect(codes(dryRun.diagnostics, 'warning')).toEqual(['W_BASE_OTHER_WORKSPACE'])
     expect(dryRun.plan.map(({ action }) => action)).toEqual(['create', 'create'])
+  })
+
+  check('counts a type change’s unconvertible cells across every scan page', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const leads = await storedTable(workspaceId)
+    const emailId = leads.schema.columns.find((column) => column.name === 'email')?.id ?? ''
+    const pageSize = getColumnRetypeScanBatchSize()
+    const values = Array.from({ length: pageSize * 2 + 1 }, (_, index) =>
+      index % pageSize === 0 ? `bad-${index}` : String(index)
+    )
+    await db.insert(userTableRows).values(
+      values.map((value, position) => ({
+        id: generateId(),
+        tableId: leads.id,
+        workspaceId,
+        data: { [emailId]: value },
+        position,
+      }))
+    )
+    const files = {
+      ...read.files,
+      'tables/leads.ts': read.files['tables/leads.ts'].replace(
+        'column.string({ required: true })',
+        'column.number({ required: true })'
+      ),
+    }
+
+    const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+
+    expect(codes(refused.diagnostics)).toEqual(['E_TABLE_TYPE_CONVERSION'])
+    expect(refused.diagnostics[0].message).toContain('3 cell(s)')
   })
 })
