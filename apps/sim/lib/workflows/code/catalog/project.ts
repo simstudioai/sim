@@ -482,12 +482,20 @@ function projectGraph(block: BlockConfig): CatalogBlockGraph {
 
 /**
  * Outputs derived from params at run time, mirroring `getEffectiveBlockOutputs`: the agent's
- * `responseFormat`, the human-in-the-loop resume form, and any block whose Start-style
+ * `responseFormat`, a table block's rows (typed by the selected table's columns), the
+ * human-in-the-loop resume form, and any block whose Start-style
  * `input-format` field adds outputs. A trigger block (`category: 'triggers'`, such as the generic
  * webhook) declares that field on the trigger surface, and it still adds outputs.
  */
 function projectDynamicOutputs(block: BlockConfig): CatalogBlock['dynamicOutputs'] {
   if (block.type === 'agent') return { source: 'responseFormat', param: 'responseFormat' }
+  const tableSelector =
+    block.category === 'triggers'
+      ? undefined
+      : block.subBlocks.find((subBlock) => subBlock.type === 'table-selector')
+  if (tableSelector) {
+    return { source: 'tableRows', param: tableSelector.canonicalParamId ?? tableSelector.id }
+  }
   const inputFormat = block.subBlocks.find(
     (subBlock) =>
       subBlock.type === 'input-format' &&

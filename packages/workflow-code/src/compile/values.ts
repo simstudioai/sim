@@ -654,7 +654,8 @@ function checkOutputPath(
     return
   }
   const block = catalogBlockOf(target)
-  if (!block || block.dynamicOutputs) return
+  // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
+  if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
   const schemas = outputSchemasFor(ctx.catalog, block, builder)
   if (!schemas.some((outputs) => outputKnown(outputs, segments))) {

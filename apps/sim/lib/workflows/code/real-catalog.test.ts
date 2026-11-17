@@ -16,7 +16,11 @@ import {
   compileWorkflow,
   printWorkflow,
 } from '@sim/workflow-code'
-import { generateSdkTypes, SPECIAL_BUILDER_KEYS } from '@sim/workflow-sdk/codegen'
+import {
+  generateSdkTypes,
+  generateWorkspaceTypes,
+  SPECIAL_BUILDER_KEYS,
+} from '@sim/workflow-sdk/codegen'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
@@ -125,6 +129,33 @@ describe('canonicalize and codegen over the real block catalog', () => {
     const diagnostics = typeCheck('examples', [path.join(SDK_ROOT, 'test/examples/**/*.ts')])
     expect(files.some((file) => file.path === 'blocks/slack_v2.d.ts')).toBe(true)
     expect(diagnostics).toBe('')
+  }, 120_000)
+
+  it("types the table blocks' rows and written cells by the workspace table's columns", () => {
+    writeSdkTypes()
+    const dir = path.join(workDir, 'table-rows')
+    mkdirSync(dir, { recursive: true })
+    const workspaceTypes = generateWorkspaceTypes({
+      tables: { tickets: { columns: { subject: { type: 'string' }, status: { type: 'string' } } } },
+    })
+    writeFileSync(path.join(dir, workspaceTypes.path), workspaceTypes.text)
+    writeFileSync(
+      path.join(dir, 'workflow.ts'),
+      [
+        "import { agent, loop, t, table, workflow } from '@sim/workflow-sdk'",
+        "export default workflow('Rows', () => {",
+        "  const open = table.queryRows('Open', { tableId: table('tickets') })",
+        "  loop.forEach('Each', { collection: open.rows }, (p) => {",
+        "    agent('Read', { model: 'claude-sonnet-4-6', messages: [{ role: 'user', content: t`${p.currentItem.data.subject}` }] })",
+        '    // @ts-expect-error `tickets` has no column `subjct`',
+        '    t`${p.currentItem.data.subjct}`',
+        '  })',
+        '  // @ts-expect-error `tickets` has no column `priority` to write',
+        "  table.insertRow('Add', { tableId: table('tickets'), data: { priority: 'high' } })",
+        '})',
+      ].join('\n')
+    )
+    expect(typeCheck('table-rows', [path.join(dir, '*.ts')])).toBe('')
   }, 120_000)
 
   it('prints a numeric short or long text value as source that type-checks and compiles clean', () => {
