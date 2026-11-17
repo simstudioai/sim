@@ -1,12 +1,17 @@
 import { compareStrings } from '@sim/utils/string'
-import type { ApplyDiagnosticCode, Diagnostic } from '@sim/workflow-code'
+import {
+  type ApplyDiagnosticCode,
+  type BlockCatalog,
+  catalogBlock,
+  type Diagnostic,
+} from '@sim/workflow-code'
 import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
 import { type BlockState, isSubflowType } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { blockKeyOf, type GraphDiff, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import type { GraphDiff, SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import {
   applyBlockRetry,
@@ -83,6 +88,7 @@ function isGatedSkip(item: SkippedItem): item is SkippedItem & { type: GatedSkip
 
 type GateErrorCode =
   | (typeof SKIP_TYPE_APPLY_CODES)[GatedSkipType]
+  | 'E_APPLY_TYPE_NOT_ADDABLE'
   | 'E_APPLY_CREDENTIAL_UNREACHABLE'
   | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
 
@@ -94,6 +100,13 @@ export interface GateSourceDiffArgs {
   base: SourceGraph
   target: SourceGraph
   diff: GraphDiff
+  /** The per-workflow source catalog: a type it marks `addable: false` may stay but not be placed. */
+  catalog: BlockCatalog
+  /**
+   * The source key of a block by id, for locating a finding in the submitted text: the key the
+   * write binds, else the stored one. A legacy collision key (`name~2`) is not the block's name.
+   */
+  keyOf: (id: string) => string | undefined
   permissionConfig: PermissionGroupConfig | null
   /** The governed human subject: credential reachability is checked as this user. */
   subjectUserId: string
@@ -172,15 +185,20 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
 /**
  * The block-type gates the engine runs on `add`, `insert_into_subflow` and an `edit` that
  * changes `type`: registry membership, deployment visibility plus the integration allowlist, and
- * the sunset refusal. Returns whether the placement passed.
+ * the sunset refusal. Returns whether the placement passed. First, a type the source catalog
+ * keeps only for blocks that already use it is refused (`notAddable`); the engine has no such
+ * rule, so the remaining gates still run and report alongside it.
  */
 function gateBlockPlacement(
   entry: GatedBlock,
+  catalog: BlockCatalog,
   permissionConfig: PermissionGroupConfig | null,
-  skipped: SkippedItem[]
+  skipped: SkippedItem[],
+  notAddable: (block: BlockState) => void
 ): boolean {
   const { block } = entry
   const operationType = entry.added ? 'add' : 'edit'
+  if (catalogBlock(catalog, block.type)?.addable === false) notAddable(block)
   if (isSubflowType(block.type)) return true
   if (!getBlock(block.type)) {
     skipped.push({
@@ -376,10 +394,14 @@ function sandboxChanged(entry: GatedBlock): boolean {
  * Locked blocks are refused separately, by `findLockedBlockRefusals`.
  */
 export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGateDiagnostic[]> {
-  const { base, target, diff, permissionConfig, subjectUserId, workspaceId, isCopilot } = args
+  const { base, target, diff, catalog, keyOf, permissionConfig, subjectUserId, workspaceId } = args
   const gated = collectGatedBlocks(base, target, diff)
   const diagnostics: SourceGateDiagnostic[] = []
   const otherTypes = createOtherTypes(target)
+  const located = (blockId: string) => {
+    const blockKey = keyOf(blockId)
+    return blockKey === undefined ? { blockId } : { blockId, blockKey }
+  }
 
   const record = (skipped: SkippedItem[], param?: string) => {
     for (const item of skipped) {
@@ -387,13 +409,11 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
       if (!isGatedSkip(item)) {
         throw new Error(`A source gate reported ${item.type}, which compile already refuses`)
       }
-      const block = target.blocks[item.blockId] ?? base.blocks[item.blockId]
       diagnostics.push({
         code: SKIP_TYPE_APPLY_CODES[item.type],
         severity: 'error',
         message: item.reason,
-        blockId: item.blockId,
-        ...(block ? { blockKey: blockKeyOf(block) } : {}),
+        ...located(item.blockId),
         ...(param ? { param } : {}),
       })
     }
@@ -403,7 +423,14 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     const { block } = entry
     if (entry.added || entry.typeChanged) {
       const skipped: SkippedItem[] = []
-      const placed = gateBlockPlacement(entry, permissionConfig, skipped)
+      const placed = gateBlockPlacement(entry, catalog, permissionConfig, skipped, (refused) =>
+        diagnostics.push({
+          code: 'E_APPLY_TYPE_NOT_ADDABLE',
+          severity: 'error',
+          message: `Block type "${refused.type}" can stay where it is already used but cannot be added`,
+          ...located(refused.id),
+        })
+      )
       if (placed) gateTriggerUniqueness(entry, otherTypes(block.type), skipped)
       record(skipped)
       if (!placed) continue
@@ -413,8 +440,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
         code: 'W_APPLY_TYPE_CHANGED',
         severity: 'warning',
         message: `Block "${block.name}" changes type from "${entry.baseBlock?.type}" to "${block.type}" and keeps its id`,
-        blockId: block.id,
-        blockKey: blockKeyOf(block),
+        ...located(block.id),
       })
     }
 
@@ -424,7 +450,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
 
     gateFieldValues(entry, permissionConfig, record)
 
-    if (isCopilot) {
+    if (args.isCopilot) {
       const toolInputs = getBlock(block.type)?.subBlocks.filter((sb) => sb.type === 'tool-input')
       for (const subBlock of toolInputs ?? []) {
         if (!entry.changedFields.includes(subBlock.id)) continue
@@ -438,8 +464,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
             code: 'E_APPLY_INVALID_SUBBLOCK_FIELD',
             severity: 'error',
             message: error,
-            blockId: block.id,
-            blockKey: blockKeyOf(block),
+            ...located(block.id),
             param: subBlock.id,
           })
         }
@@ -455,40 +480,32 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
         code: 'E_APPLY_DISABLED_ANCESTOR',
         severity: 'error',
         message: `Cannot enable block "${block.name}" while one of its parent containers is disabled. Enable the parent first.`,
-        blockId: block.id,
-        blockKey: blockKeyOf(block),
+        ...located(block.id),
       })
     }
   }
 
-  const credentialErrors = await gateCredentialInputs(gated, base, {
-    userId: subjectUserId,
-    workspaceId,
-  })
+  const sandboxBlocks = gated.filter(sandboxChanged)
+  const [credentialErrors, hasSandboxAccess] = await Promise.all([
+    gateCredentialInputs(gated, base, { userId: subjectUserId, workspaceId }),
+    sandboxBlocks.length > 0 ? hasWorkspaceSandboxAccess(workspaceId) : true,
+  ])
   for (const error of credentialErrors) {
-    const block = target.blocks[error.blockId]
-    const located = {
-      message: error.error,
-      blockId: error.blockId,
-      param: error.field,
-      ...(block ? { blockKey: blockKeyOf(block) } : {}),
-    }
+    const finding = { message: error.error, ...located(error.blockId), param: error.field }
     diagnostics.push(
       isCredentialField(error.blockType, error.field)
-        ? { code: 'E_APPLY_CREDENTIAL_UNREACHABLE', severity: 'error', ...located }
-        : { code: 'W_APPLY_HOSTED_KEY_DROPPED', severity: 'warning', ...located }
+        ? { code: 'E_APPLY_CREDENTIAL_UNREACHABLE', severity: 'error', ...finding }
+        : { code: 'W_APPLY_HOSTED_KEY_DROPPED', severity: 'warning', ...finding }
     )
   }
 
-  const sandboxBlocks = gated.filter(sandboxChanged)
-  if (sandboxBlocks.length > 0 && !(await hasWorkspaceSandboxAccess(workspaceId))) {
+  if (!hasSandboxAccess) {
     for (const { block } of sandboxBlocks) {
       diagnostics.push({
         code: 'E_APPLY_SANDBOX_PLAN_REQUIRED',
         severity: 'error',
         message: MAX_PLAN_REQUIRED,
-        blockId: block.id,
-        blockKey: blockKeyOf(block),
+        ...located(block.id),
         param: SANDBOX_SUBBLOCK_ID,
       })
     }

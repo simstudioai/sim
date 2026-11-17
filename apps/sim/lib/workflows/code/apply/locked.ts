@@ -7,7 +7,6 @@ import {
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  blockKeyOf,
   type GraphDiff,
   isLocked,
   parentIdOf,
@@ -23,17 +22,6 @@ import {
  */
 
 export type LockedBlockDiagnostic = Diagnostic<'E_APPLY_LOCKED_BLOCK'>
-
-function refusal(block: BlockState, message: string): LockedBlockDiagnostic {
-  return {
-    code: 'E_APPLY_LOCKED_BLOCK',
-    severity: 'error',
-    message,
-    blockId: block.id,
-    blockKey: blockKeyOf(block),
-    hint: 'Unlock the block on the canvas first, or leave it exactly as it is stored.',
-  }
-}
 
 function describe(block: BlockState, blocks: Record<string, BlockState>): string {
   const parentId = parentIdOf(block)
@@ -62,17 +50,27 @@ function leavesWithRemovedContainer(id: string, base: SourceGraph, target: Sourc
  * Returns one refusal per locked block the diff from `base` to `target` touches, plus one per
  * attempt to lock a block or to put a new child into a locked container. Edges into or out of a
  * locked block may not be added or removed, except when the edge goes because its other end
- * was deleted.
+ * was deleted. `keyOf` names a block's source key by id, to locate each refusal.
  */
 export function findLockedBlockRefusals(
   base: SourceGraph,
   target: SourceGraph,
-  diff: GraphDiff
+  diff: GraphDiff,
+  keyOf: (id: string) => string | undefined
 ): LockedBlockDiagnostic[] {
   const isLockedInBase = (id: string) => isWorkflowBlockProtected(id, base.blocks)
   const refusals = new Map<string, LockedBlockDiagnostic>()
   const refuse = (block: BlockState, message: string) => {
-    if (!refusals.has(block.id)) refusals.set(block.id, refusal(block, message))
+    if (refusals.has(block.id)) return
+    const blockKey = keyOf(block.id)
+    refusals.set(block.id, {
+      code: 'E_APPLY_LOCKED_BLOCK',
+      severity: 'error',
+      message,
+      blockId: block.id,
+      ...(blockKey !== undefined ? { blockKey } : {}),
+      hint: 'Unlock the block on the canvas first, or leave it exactly as it is stored.',
+    })
   }
 
   for (const id of diff.removed) {

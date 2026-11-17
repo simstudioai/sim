@@ -25,6 +25,7 @@ import {
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
+import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
@@ -32,6 +33,7 @@ import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { isDeferredSkippedItem } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
+import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import * as providerModels from '@/providers/models'
 
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
@@ -146,6 +148,11 @@ const MOCK_REGISTRY_BLOCKS: Record<string, unknown> = {
 ;(getBlock as Mock).mockImplementation((type: string) => MOCK_REGISTRY_BLOCKS[type])
 
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+/** No type is kept-but-not-addable, and findings carry no source key. */
+const SOURCE_SCOPE = {
+  catalog: buildBlockCatalog({ blocks: [], trigger: () => undefined, sdkNames: SDK_NAMES }),
+  keyOf: () => undefined,
+}
 
 const ID = {
   a: '11111111-1111-4111-8111-111111111111',
@@ -285,8 +292,9 @@ const APPLY_CODE_CATEGORY: Record<string, string> = {
 async function sourceRefusals(testCase: ParityCase): Promise<string[]> {
   const diff = diffGraphs(testCase.base, testCase.target)
   const diagnostics = [
-    ...findLockedBlockRefusals(testCase.base, testCase.target, diff),
+    ...findLockedBlockRefusals(testCase.base, testCase.target, diff, SOURCE_SCOPE.keyOf),
     ...(await gateSourceDiff({
+      ...SOURCE_SCOPE,
       base: testCase.base,
       target: testCase.target,
       diff,
@@ -859,6 +867,7 @@ describe('source gates agree with the editing engine', () => {
 
 function gate(base: SourceGraph, target: SourceGraph, permissionConfig: PermissionGroupConfig) {
   return gateSourceDiff({
+    ...SOURCE_SCOPE,
     base,
     target,
     diff: diffGraphs(base, target),
@@ -942,6 +951,7 @@ describe('gateSourceDiff', () => {
     const base = graph(block(ID.a, 'function', 'Fn'))
     const target = graph(block(ID.a, 'function', 'Fn', { sub: { sandboxId: 'sbx_1' } }))
     const diagnostics = await gateSourceDiff({
+      ...SOURCE_SCOPE,
       base,
       target,
       diff: diffGraphs(base, target),
@@ -957,6 +967,7 @@ describe('gateSourceDiff', () => {
     const base = graph(block(ID.a, 'table_v2', 'Rows'))
     const target = graph(block(ID.a, 'agent', 'Rows'))
     const diagnostics = await gateSourceDiff({
+      ...SOURCE_SCOPE,
       base,
       target,
       diff: diffGraphs(base, target),
@@ -972,6 +983,7 @@ describe('gateSourceDiff', () => {
     const base = graph(block(ID.a, 'api_trigger', 'API'), block(ID.b, 'agent', 'Agent'))
     const target = graph(block(ID.a, 'api_trigger', 'API'), block(ID.b, 'api_trigger', 'Agent'))
     const diagnostics = await gateSourceDiff({
+      ...SOURCE_SCOPE,
       base,
       target,
       diff: diffGraphs(base, target),
@@ -987,6 +999,7 @@ describe('gateSourceDiff', () => {
     const base = graph(block(ID.a, 'api_trigger', 'API'))
     const target = graph(block(ID.b, 'api_trigger', 'API'))
     const diagnostics = await gateSourceDiff({
+      ...SOURCE_SCOPE,
       base,
       target,
       diff: diffGraphs(base, target),

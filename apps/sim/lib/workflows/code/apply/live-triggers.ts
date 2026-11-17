@@ -10,7 +10,6 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Diagnostic } from '@sim/workflow-code'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { blockKeyOf } from '@/lib/workflows/code/apply/graph-diff'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 
 type LiveEffect = 'webhook' | 'schedule' | 'chat output' | 'MCP tool'
@@ -30,11 +29,12 @@ function chatOutputBlockIds(outputConfigs: unknown): string[] {
  * streams its output, or the workflow's MCP tool when the block is the start trigger that defines
  * the tool's inputs. Source apply writes only the draft, so nothing stops yet: the deployment keeps
  * serving them until the next deploy, which removes them. A workflow with no active deployment
- * serves nothing and gets no warning.
+ * serves nothing and gets no warning. `keyOf` names a block's source key by id.
  */
 export async function findLiveTriggerRemovals(
   workflowId: string,
-  dropped: BlockState[]
+  dropped: BlockState[],
+  keyOf: (id: string) => string | undefined
 ): Promise<TriggerRemovedDiagnostic[]> {
   if (dropped.length === 0) return []
   const [active] = await db
@@ -109,6 +109,7 @@ export async function findLiveTriggerRemovals(
     const found = effects.get(block.id)
     if (!found) return []
     const list = [...found].join(', ')
+    const blockKey = keyOf(block.id)
     return [
       {
         code: 'W_APPLY_TRIGGER_REMOVED',
@@ -116,7 +117,7 @@ export async function findLiveTriggerRemovals(
         message: `Block "${block.name}" is removed or retyped in the draft, but the live deployment still serves its ${list}. This apply changes only the draft: they keep running until the next deploy, which removes them.`,
         hint: 'Keep the block, or deploy when you are ready for them to stop.',
         blockId: block.id,
-        blockKey: blockKeyOf(block),
+        ...(blockKey !== undefined ? { blockKey } : {}),
       },
     ]
   })

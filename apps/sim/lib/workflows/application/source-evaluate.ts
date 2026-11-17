@@ -5,7 +5,7 @@ import {
   type BlockCatalog,
   type CanonicalWorkflow,
   type CanonicalWorkflowMeta,
-  canonicalize,
+  canonicalizeUnderLock,
   compileWorkflow,
   type Diagnostic,
   diffCanonical,
@@ -22,7 +22,6 @@ import {
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
-import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, inArray, ne } from 'drizzle-orm'
@@ -43,11 +42,11 @@ import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { findLiveTriggerRemovals } from '@/lib/workflows/code/apply/live-triggers'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
-import { boundLock, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { loadEnvNames, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import type { StoredSource } from '@/lib/workflows/code/print-stored'
+import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
-import { canonicalizeUnderLock, type StoredCanonical } from '@/lib/workflows/code/stored-canonical'
+import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
@@ -69,6 +68,8 @@ export interface SourceEvaluationInput {
   storedCanonical: StoredCanonical
   storedSourceMeta: WorkflowSourceMetaV1 | null
   catalog: BlockCatalog
+  /** Env names the subject's runs resolve, for `env('…')` checks. */
+  envNames: ReadonlySet<string>
   /** Attribution for resource keys a submitted reference allocates. */
   createdBy: string | null
   files: Record<string, string>
@@ -143,6 +144,19 @@ async function findBlockIdsClaimedElsewhere(workflowId: string, ids: string[]): 
 }
 
 /**
+ * The post-materialize lock `mergeSourceMetaFromLock` re-keys onto: every bound key with its id,
+ * and the submitted lock's ident and order for a block the file does not state them for.
+ */
+function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowLockV1 {
+  const blocks: Record<string, WorkflowLockBlock> = {}
+  for (const [key, block] of Object.entries(identity.blocks)) {
+    const previous = Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
+    blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
+  }
+  return { version: 1, blocks, variables: identity.variables }
+}
+
+/**
  * Evaluates submitted source against a stored draft without writing it: compile against the live
  * catalog, parse the lock, materialize onto the stored graph (keeping every unchanged value's
  * stored bytes and every id the lock binds), then every gate (locked blocks, engine gates,
@@ -163,16 +177,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   let resources = input.storedCanonical.resources
   let meta = input.stored.meta
   /**
-   * The stored graph as the submitted lock reads it: what `stored()` keeps values from and what
-   * the diff compares the compiled source against.
+   * The stored graph as the submitted lock reads it: what `stored()` keeps values from, what
+   * materialize matches against, and what the diff compares the compiled source against.
    */
-  let storedCanonical = canonicalizeUnderLock(
+  const storedCanonical = canonicalizeUnderLock(
     state,
     { catalog, meta, resources },
     input.storedCanonical.canonical,
     lock
   )
-  const envNames = new Set(await loadEnvNames(scope.workspaceId, scope.subjectUserId))
   const compiled = compileWorkflow({
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
     files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
@@ -183,7 +196,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...Object.keys(storedCanonical.identity.blocks),
     ]),
     stored: storedCanonical.workflow,
-    envNames,
+    envNames: input.envNames,
   })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
@@ -208,19 +221,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
           ? input.create.description
           : compiledWorkflow.meta.description,
     }
-    storedCanonical = canonicalize(state, { catalog, meta, resources })
   }
 
   const compiledKeys: ResourceKeyRef[] = []
   collectResourceKeys(compiledWorkflow.blocks, compiledKeys)
   const storedResources = resources
-  if (compiledKeys.some(({ kind, key }) => storedResources.toId(kind, key) === null)) {
-    const { loaded } = input.storedCanonical
-    resources = await loadResourceKeyResolver(
+  const newKeys = compiledKeys.filter(({ kind, key }) => storedResources.toId(kind, key) === null)
+  if (newKeys.length > 0) {
+    const extra = await loadResourceKeyResolver(
       scope.workspaceId,
-      { ids: loaded.ids, keys: [...loaded.keys, ...compiledKeys] },
+      { keys: newKeys },
       { actorUserId: input.createdBy }
     )
+    resources = {
+      toKey: (kind, id) => storedResources.toKey(kind, id) ?? extra.toKey(kind, id),
+      toId: (kind, key) => storedResources.toId(kind, key) ?? extra.toId(kind, key),
+    }
   }
 
   const hasLockEntries =
@@ -240,6 +256,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       catalog,
       hooks,
       prev: state,
+      prevCanonical: storedCanonical,
       resources,
       compiledIdents,
       lockFreshness,
@@ -284,7 +301,11 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     Object.entries(materialized.identity.blocks).map(([key, block]) => [key, block.id])
   )
   const keyById = new Map([...idByKey].map(([key, id]) => [id, key]))
-  const keyOf = (id: string) => keyById.get(id) ?? ''
+  const storedKeyById = new Map(
+    Object.entries(storedCanonical.identity.blocks).map(([key, block]) => [block.id, key])
+  )
+  /** A block's source key: the one this write binds, else the stored one for a removed block. */
+  const keyOf = (id: string) => keyById.get(id) ?? storedKeyById.get(id)
   const locate = createLocator(files, compiled.spans, idByKey)
   const materializeDiagnostics = [...materialized.diagnostics, ...claimedDiagnostics]
   if (hasErrors(materializeDiagnostics)) {
@@ -323,6 +344,8 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       base: storedGraph,
       target: { blocks, edges },
       diff: graphDiff,
+      catalog,
+      keyOf,
       permissionConfig,
       subjectUserId: scope.subjectUserId,
       workspaceId: scope.workspaceId,
@@ -330,27 +353,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     }),
     findLiveTriggerRemovals(
       scope.workflowId,
-      [...graphDiff.removed, ...typeChanged].map((id) => state.blocks[id])
+      [...graphDiff.removed, ...typeChanged].map((id) => state.blocks[id]),
+      keyOf
     ),
   ])
   const refusals: Diagnostic[] = [
-    ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff),
+    ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff, keyOf),
     ...gateDiagnostics,
     ...liveTriggerRefusals,
   ]
-
-  for (const id of [...graphDiff.added, ...typeChanged]) {
-    const block = blocks[id]
-    if (block && catalogBlock(catalog, block.type)?.addable === false) {
-      refusals.push({
-        code: 'E_APPLY_TYPE_NOT_ADDABLE',
-        severity: 'error',
-        message: `Block type "${block.type}" can stay where it is already used but cannot be added`,
-        blockId: id,
-        blockKey: keyOf(id),
-      })
-    }
-  }
 
   for (const diagnostic of gateDiagnostics) {
     if (diagnostic.code !== 'W_APPLY_HOSTED_KEY_DROPPED' || !diagnostic.blockId) continue
@@ -366,7 +377,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     }
   }
 
-  const normalized = normalizeChangedValues(blocks, graphDiff, keyOf)
+  const normalized = normalizeChangedValues(blocks, graphDiff, (id) => keyById.get(id) ?? '')
   blocks = await snapshotMcpToolOutputSchemas(normalized.blocks, state.blocks, {
     principal,
     workspaceId: scope.workspaceId,

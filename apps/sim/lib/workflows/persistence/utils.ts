@@ -14,6 +14,7 @@ import { toRecord } from '@sim/utils/object'
 import {
   loadWorkflowFromNormalizedTablesRaw,
   persistMigratedBlocks,
+  type RawNormalizedWorkflow,
 } from '@sim/workflow-persistence/load'
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
@@ -636,11 +637,24 @@ export async function loadWorkflowFromNormalizedTables(
 ): Promise<NormalizedWorkflowData | null> {
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
+  return fromRawNormalized(workflowId, raw, externalTx ?? db)
+}
 
+/**
+ * A raw normalized load with every block migration applied, as
+ * {@link loadWorkflowFromNormalizedTables} returns it: for a caller that already
+ * holds the raw graph (read under a row lock) and must not read it twice. Tool
+ * sanitization rewrites agent tool values on `raw`'s blocks in place.
+ */
+export async function fromRawNormalized(
+  workflowId: string,
+  raw: RawNormalizedWorkflow,
+  executor: DbOrTx
+): Promise<NormalizedWorkflowData> {
   const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
     raw.blocks,
     raw.workspaceId,
-    externalTx ?? db
+    executor
   )
 
   if (migrated) {

@@ -6,7 +6,6 @@ import {
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import type {
   CanonicalizeResult,
@@ -19,12 +18,14 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { principalAuditSource } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveWorkflowFolderPath } from '@/lib/workflows/application/folders'
-import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
+import {
+  requireMutableFolder,
+  requireMutableWorkflow,
+} from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadStoredSource } from '@/lib/workflows/application/read-workflow-source'
@@ -45,15 +46,16 @@ import {
 } from '@/lib/workflows/application/source-error'
 import { evaluateSource } from '@/lib/workflows/application/source-evaluate'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-locate'
+import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
+import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
-  fingerprintOf,
   type PrintedSource,
   printStoredSource,
   type StoredSource,
-} from '@/lib/workflows/code/apply/print'
-import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
+  storedFingerprint,
+} from '@/lib/workflows/code/print-stored'
+import { loadEnvNames } from '@/lib/workflows/code/resources'
+import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -203,14 +205,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
     )
     const facts = analyticsFacts(principal, input, 'create', context.workspaceId)
     try {
-      try {
-        await assertFolderMutable(folderId)
-      } catch (error) {
-        if (error instanceof FolderLockedError) {
-          throw new OrchestrationError('locked', error.message)
-        }
-        throw error
-      }
+      await requireMutableFolder(folderId)
       return await runSourceApply(
         principal,
         { ...input, lock: { version: 1, blocks: {}, variables: {} } },
@@ -301,11 +296,28 @@ async function runSourceApply(
       : { ...target.workspace, workflowId: target.workflowId }
   const isNew = target.kind === 'new'
   const dryRun = input.dryRun === true
+  const subjectUserId = resolvePrincipalAttribution(principal, {
+    workspaceBillingOwnerUserId: context.billedAccountUserId,
+  }).attributedUserId
+  const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
+  /** Who and where the write acts: what the evaluation gates and the commit re-checks run as. */
+  const scope = {
+    workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
+    workspaceOrganizationId: context.workspaceOrganizationId,
+    subjectUserId,
+  }
 
-  const [gate, stored, storedSourceMeta] = await Promise.all([
+  const [gate, stored, storedSourceMeta, prefetched, envNames] = await Promise.all([
     resolveCatalogGate(principal, context, { customBlockInputs: true }),
     target.kind === 'existing' ? loadStoredSource(target.context) : EMPTY_STORED_SOURCE,
     target.kind === 'existing' ? readWorkflowSourceMeta(db, context.workflowId) : null,
+    prefetchStoredResources({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      createdBy,
+    }),
+    loadEnvNames(context.workspaceId, subjectUserId),
   ])
   /**
    * A dry run writes no graph, so whether the draft differs from its deployment is known now and
@@ -315,24 +327,18 @@ async function runSourceApply(
     dryRun && !isNew ? checkNeedsRedeployment(context.workflowId) : null
   dryRunNeedsRedeployment?.catch(() => {})
   return withCatalogBlockScope(gate, async () => {
-    const subjectUserId = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    }).attributedUserId
     const catalog = buildSourceCatalog({
       gate,
       organizationId: context.workspaceOrganizationId,
       storedTypes: Object.values(stored.state.blocks).map((block) => block.type),
     })
-    const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
     const storedCanonical = await canonicalizeStored({
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
+      prefetched,
       state: stored.state,
       meta: stored.meta,
       catalog,
-      createdBy,
     })
-    const storedFingerprint = fingerprintOf(storedCanonical.canonical)
+    const baseFingerprint = storedFingerprint(storedCanonical.canonical)
 
     /** The one response shape: what is (or would be) stored, printed, and the outcome. */
     const result = async (
@@ -369,7 +375,7 @@ async function runSourceApply(
     const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
       if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
       return result(
-        { files: input.files, lock: input.lock, fingerprint: storedFingerprint },
+        { files: input.files, lock: input.lock, fingerprint: baseFingerprint },
         { applied: false, diff: emptyDiffSummary(), diagnostics }
       )
     }
@@ -385,8 +391,8 @@ async function runSourceApply(
         },
       ])
     }
-    if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
-      if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint)
+    if (target.kind === 'existing' && baseFingerprint !== target.base.fingerprint) {
+      if (!dryRun) throw new WorkflowSourceStaleError(baseFingerprint)
       return refuse([
         {
           code: 'E_APPLY_STALE',
@@ -399,16 +405,12 @@ async function runSourceApply(
 
     const evaluation = await evaluateSource({
       principal,
-      scope: {
-        workflowId: context.workflowId,
-        workspaceId: context.workspaceId,
-        workspaceOrganizationId: context.workspaceOrganizationId,
-        subjectUserId,
-      },
+      scope,
       stored,
       storedCanonical,
       storedSourceMeta,
       catalog,
+      envNames: new Set(envNames),
       createdBy,
       files: input.files,
       lock: input.lock,
@@ -448,11 +450,6 @@ async function runSourceApply(
       principalKind: principal.kind,
     }
 
-    const scope = {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      subjectUserId,
-    }
     if (plan.noop) {
       const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
       /** Unchanged source meta prints the same text, so only changed meta prints the "before". */
@@ -463,7 +460,13 @@ async function runSourceApply(
       const wroteSourceMeta =
         !isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)
       if (wroteSourceMeta && target.kind === 'existing') {
-        await commitSourceMeta({ scope, plan, stored, storedFingerprint, catalog })
+        await commitSourceMeta({
+          scope,
+          plan,
+          stored,
+          storedFingerprint: baseFingerprint,
+          catalog,
+        })
       }
       return result(printed, {
         applied: false,
@@ -496,7 +499,13 @@ async function runSourceApply(
       target.kind === 'new'
         ? await commitSourceCreate({ scope, plan, folderId: target.folderId })
         : {
-            ...(await commitSourceReplace({ scope, plan, stored, storedFingerprint, catalog })),
+            ...(await commitSourceReplace({
+              scope,
+              plan,
+              stored,
+              storedFingerprint: baseFingerprint,
+              catalog,
+            })),
             name: stored.meta.name,
           }
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)

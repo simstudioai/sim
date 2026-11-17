@@ -136,6 +136,8 @@ function withStoredLayout(current: SourceGraph, target: SourceGraph): SourceGrap
   return { blocks, edges: target.edges }
 }
 
+const noKey = () => undefined
+
 describe('findLockedBlockRefusals', () => {
   it('refuses every change the locked-block merge would undo, across every lock layout', () => {
     let admitted = 0
@@ -145,7 +147,7 @@ describe('findLockedBlockRefusals', () => {
         const base = baseGraph(locked)
         const target = structuredClone(base)
         mutate(target)
-        const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target))
+        const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)
         if (refusals.length > 0) {
           refused++
           continue
@@ -168,7 +170,7 @@ describe('findLockedBlockRefusals', () => {
     const merged = preserveProtectedWorkflowBlocks(base, target)
     expect(merged.blocks.b.name).toBe('b')
     expect(
-      findLockedBlockRefusals(base, target, diffGraphs(base, target)).map((d) => d.blockId)
+      findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey).map((d) => d.blockId)
     ).toEqual(['b'])
   })
 
@@ -177,7 +179,7 @@ describe('findLockedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.n = block('n')
     target.edges.push(edge('n', 'b'))
-    const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target))
+    const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)
     expect(refusals).toEqual([
       expect.objectContaining({ code: 'E_APPLY_LOCKED_BLOCK', blockId: 'b' }),
     ])
@@ -188,7 +190,7 @@ describe('findLockedBlockRefusals', () => {
     const target = structuredClone(base)
     target.edges = target.edges.filter((e) => e.id !== 'a->b')
     expect(
-      findLockedBlockRefusals(base, target, diffGraphs(base, target)).map((d) => d.blockId)
+      findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey).map((d) => d.blockId)
     ).toEqual(['a'])
   })
 
@@ -196,7 +198,7 @@ describe('findLockedBlockRefusals', () => {
     const base = baseGraph(new Set(['b']))
     const target = structuredClone(base)
     removeBlocks(target, ['a'])
-    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([])
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)).toEqual([])
   })
 
   it('refuses locking a block or creating one locked', () => {
@@ -205,7 +207,7 @@ describe('findLockedBlockRefusals', () => {
     target.blocks.a.locked = true
     target.blocks.n = { ...block('n'), locked: true }
     expect(
-      findLockedBlockRefusals(base, target, diffGraphs(base, target))
+      findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)
         .map((d) => d.blockId)
         .sort()
     ).toEqual(['a', 'n'])
@@ -215,7 +217,7 @@ describe('findLockedBlockRefusals', () => {
     const base = baseGraph(new Set(['a']))
     const target = structuredClone(base)
     target.blocks.a.locked = false
-    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)).toEqual([
       expect.objectContaining({ blockId: 'a', message: expect.stringContaining('lock') }),
     ])
   })
@@ -225,7 +227,7 @@ describe('findLockedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.child.position = { x: 500, y: 500 }
     target.blocks.loop.data = { ...target.blocks.loop.data, width: 900 }
-    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([])
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target), noKey)).toEqual([])
   })
 })
 

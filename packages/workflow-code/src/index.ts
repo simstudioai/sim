@@ -1,5 +1,5 @@
 export { decodeAnchor, encodeAnchor } from './anchors'
-export { type CanonicalizeResult, canonicalize } from './canonicalize'
+export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { executableInactiveParams } from './catalog/activity'
 export { compactBlockCatalog } from './catalog/compact'
 export type {
@@ -46,6 +46,7 @@ export {
   isJson,
   type LockIdentity,
   parseWorkflowLock,
+  readIdent,
   type SourceBase,
   type SourceFingerprint,
   type SourceHints,
@@ -57,7 +58,6 @@ export type { MaterializeHooks } from './materialize/context'
 export type {
   AnchorKey,
   BlockKey,
-  BranchKey,
   CanonicalBlock,
   CanonicalEdge,
   CanonicalParam,
@@ -73,8 +73,8 @@ export type {
 } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
 export { printKey, quoteString } from './print/strings'
-export { parseJsonContainer, setOwn } from './records'
-export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
+export { invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
+export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
 export {
   mapAnchorIds,
   parseSourceMeta,

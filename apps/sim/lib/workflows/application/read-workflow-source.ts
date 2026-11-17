@@ -22,14 +22,15 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
+import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
+import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
   type PrintedSource,
   printStoredSource,
   type StoredSource,
-} from '@/lib/workflows/code/apply/print'
-import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
-import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
+  storedCanonicalHash,
+} from '@/lib/workflows/code/print-stored'
+import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
 
 interface GetWorkflowSourceInput {
   workflowId: string
@@ -146,10 +147,15 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     await requireWorkflowCodeEnabled()
-    const [{ state, meta }, gate, sourceMeta] = await Promise.all([
+    const [{ state, meta }, gate, sourceMeta, prefetched] = await Promise.all([
       loadStoredSource(context),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMeta(db, context.workflowId),
+      prefetchStoredResources({
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      }),
     ])
     const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
     assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
@@ -160,14 +166,8 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         storedTypes: Object.values(state.blocks).map((block) => block.type),
       })
     )
-    const { canonical, resources } = await canonicalizeStored({
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      state,
-      meta,
-      catalog,
-      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
-    })
+    const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
+    const canonicalHash = storedCanonicalHash(canonical)
     const printed = printStoredSource({
       state,
       meta,
@@ -189,7 +189,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         fingerprint: printed.fingerprint,
         catalogHash: catalog.hash,
       },
-      canonicalHash: printed.canonicalHash,
+      canonicalHash,
       sdkMajor: catalog.sdkMajor,
       blockTypes: usedBlockTypes(canonical.workflow),
       diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),

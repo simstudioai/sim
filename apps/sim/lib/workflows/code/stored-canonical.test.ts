@@ -12,6 +12,7 @@ import {
   type BlockCatalog,
   type CatalogBlock,
   canonicalize,
+  canonicalizeUnderLock,
   expandBlockCatalog,
   type ResourceKeyResolver,
   type ResourceKind,
@@ -32,7 +33,7 @@ vi.unmock('@/blocks/registry')
 
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { canonicalizeStored, canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
+import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
@@ -255,6 +256,13 @@ describe('canonicalizeStored', () => {
   ])
   const expected = (graph: WorkflowState, kinds: ResourceKind[]) =>
     canonicalize(graph, { catalog, meta, resources: fakeResolver(idsOf(kinds)) })
+  const canonicalizeIn = async (workflowId: string, graph: WorkflowState) =>
+    canonicalizeStored({
+      prefetched: await prefetchStoredResources({ workflowId, workspaceId: 'ws', createdBy: null }),
+      state: graph,
+      meta,
+      catalog: catalog as BlockCatalog,
+    })
 
   beforeEach(() => {
     hoisted.loadResourceKeyResolver.mockImplementation(
@@ -263,19 +271,12 @@ describe('canonicalizeStored', () => {
   })
 
   it('resolves resource keys on a cold workflow, then needs one pass once warm', async () => {
-    const input = {
-      workflowId: 'wf-warm',
-      workspaceId: 'ws',
-      meta,
-      catalog: catalog as BlockCatalog,
-      createdBy: null,
-    }
-    const cold = await canonicalizeStored({ ...input, state: withTable })
+    const cold = await canonicalizeIn('wf-warm', withTable)
     expect(cold.canonical).toEqual(expected(withTable, ['table']))
     expect(JSON.stringify(cold.canonical.workflow)).toContain('table-key')
 
     hoisted.loadResourceKeyResolver.mockClear()
-    const warm = await canonicalizeStored({ ...input, state: withTable })
+    const warm = await canonicalizeIn('wf-warm', withTable)
     expect(warm.canonical).toEqual(cold.canonical)
     expect(hoisted.loadResourceKeyResolver).toHaveBeenCalledTimes(1)
     expect(hoisted.loadResourceKeyResolver.mock.calls[0][1]).toEqual({
@@ -285,17 +286,13 @@ describe('canonicalizeStored', () => {
   })
 
   it('re-resolves when a workflow starts referencing a resource its hint lacks', async () => {
-    const input = {
-      workflowId: 'wf-grows',
-      workspaceId: 'ws',
-      meta,
-      catalog: catalog as BlockCatalog,
-      createdBy: null,
-    }
-    await canonicalizeStored({ ...input, state: withTable })
-    const grown = await canonicalizeStored({ ...input, state: withTableAndKb })
+    await canonicalizeIn('wf-grows', withTable)
+    const grown = await canonicalizeIn('wf-grows', withTableAndKb)
     expect(grown.canonical).toEqual(expected(withTableAndKb, ['table', 'knowledge-base']))
     expect(JSON.stringify(grown.canonical.workflow)).toContain('knowledge-base-key')
-    expect(grown.loaded.ids.map((ref) => ref.kind).sort()).toEqual(['knowledge-base', 'table'])
+
+    hoisted.loadResourceKeyResolver.mockClear()
+    await canonicalizeIn('wf-grows', withTableAndKb)
+    expect(hoisted.loadResourceKeyResolver).toHaveBeenCalledTimes(1)
   })
 })
