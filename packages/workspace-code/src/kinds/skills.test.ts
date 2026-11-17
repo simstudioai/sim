@@ -1,4 +1,5 @@
 import fc from 'fast-check'
+import { load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { type SkillDecl, skillCodec } from './skills'
 
@@ -34,6 +35,21 @@ describe('skillCodec', () => {
         expect(parsed.diagnostics).toEqual([])
         expect(parsed.decl).toEqual(decl)
         if (parsed.decl) expect(skillCodec.print('tone', parsed.decl)).toEqual(printed)
+      }),
+      { numRuns: 500 }
+    )
+  })
+
+  it('prints frontmatter a YAML reader reads as the same strings', () => {
+    const scalar = fc.oneof(
+      fc.stringOf(fc.constantFrom('0', '1', '9', 'e', 'x', 'F', 'y', 'n', '-', '.', ':', '_', ' ')),
+      fc.constantFrom('1e3', '0x1F', '0o17', '2024-01-01', '12:30', 'y', 'N', '.5', '1_000', 'NULL')
+    )
+    fc.assert(
+      fc.property(scalar, scalar, (name, description) => {
+        const printed = skillCodec.print('tone', { name, description, content: '' })
+        const frontmatter = printed.text['skills/tone.md'].split('---\n')[1]
+        expect(load(frontmatter)).toEqual({ name, description })
       }),
       { numRuns: 500 }
     )

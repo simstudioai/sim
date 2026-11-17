@@ -11,8 +11,10 @@
  * ```
  *
  * A frontmatter value is plain text on one line, or a JSON string (`"…"`, also valid YAML) when
- * plain text could not hold it exactly: a value with a line break, surrounding spaces, quotes or
- * YAML syntax characters. The server checks names and lengths against the skill rules.
+ * plain text could not hold it exactly: a value with a line break, surrounding spaces, quotes,
+ * `: ` or ` #`, one ending in `:`, or one starting with anything but a letter, digit or `(`. The
+ * printer also quotes a value a YAML reader would take for a boolean, null, number or date. The
+ * server checks names and lengths against the skill rules.
  */
 import { unstorableCharacter } from '../declaration/read'
 import { diagnostic, located, spanAt, type WorkspaceDiagnostic } from '../diagnostics'
@@ -50,8 +52,11 @@ function isPlain(value: string): boolean {
   )
 }
 
-/** A plain value YAML would read as a boolean, null or number rather than text. */
-const YAML_SCALAR = /^(?:true|false|yes|no|on|off|null|~|[-+]?[0-9][0-9._]*)$/i
+/**
+ * A plain value a YAML reader may take for something other than text: a YAML 1.1 or 1.2 boolean or
+ * null, or anything starting with a digit (numbers in every base, dates, times, `1_000`).
+ */
+const YAML_SCALAR = /^(?:true|false|yes|no|y|n|on|off|null|~|[0-9].*)$/i
 
 function printValue(value: string): string {
   return isPlain(value) && !YAML_SCALAR.test(value) ? value : JSON.stringify(value)
