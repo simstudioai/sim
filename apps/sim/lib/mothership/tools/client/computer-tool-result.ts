@@ -17,6 +17,8 @@ interface KnownTree {
   snapshotId: string
   bundleId: string
   windowId: string
+  /** The app's windows when shown, so a window, sheet or popover that opens or closes gets a whole tree. */
+  windowIds: string[]
   rows: Map<string, string>
   changesSinceFull: number
 }
@@ -213,6 +215,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
           snapshotId: state.snapshotId,
           bundleId: state.bundleId,
           windowId: state.windowId,
+          windowIds: allWindows.map((window) => window.windowId),
           rows: known,
           changesSinceFull: base.changesSinceFull + 1,
         },
@@ -301,6 +304,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
       snapshotId: state.snapshotId,
       bundleId: state.bundleId,
       windowId: state.windowId,
+      windowIds: allWindows.map((window) => window.windowId),
       rows: new Map([...selected].map((id) => [id, rows.get(id) ?? ''])),
       changesSinceFull: 0,
     },
@@ -309,7 +313,9 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
 
 /**
  * The rows that differ from what the model was shown of `base`, or undefined when a whole tree is
- * clearer: another app or window, a long chain of change lists, or most of the tree changing.
+ * clearer: another app or window, a window, sheet or popover opening or closing, a long chain of
+ * change lists, most of the tree changing, or nothing visible changing at all (an empty list reads
+ * as a failed action, while the whole tree shows where things stand).
  */
 function changesSince(
   base: KnownTree,
@@ -320,12 +326,14 @@ function changesSince(
   if (
     base.bundleId !== result.bundleId ||
     base.windowId !== result.windowId ||
-    base.changesSinceFull >= MAX_CHAINED_CHANGES
+    base.changesSinceFull >= MAX_CHAINED_CHANGES ||
+    base.windowIds.join() !== result.windows.map((window) => window.windowId).join()
   )
     return undefined
   const ids = shown.map((node) => node.elementId).filter((id) => rows.get(id) !== base.rows.get(id))
   if (ids.length * 2 > shown.length) return undefined
   const present = new Set(result.nodes.map((node) => node.elementId))
   const removed = [...base.rows.keys()].filter((id) => !present.has(id))
+  if (ids.length === 0 && removed.length === 0) return undefined
   return { ids, removed }
 }

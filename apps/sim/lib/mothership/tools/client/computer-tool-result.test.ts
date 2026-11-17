@@ -367,22 +367,44 @@ describe('change-only observations after an action', () => {
     computerToolResultForModel(buttons('d1', labels))
     const renamed = [...labels.slice(0, 5), 'Renamed']
     computerToolResultForModel(click(buttons('d2', renamed)), { ...stable, baseSnapshotId: 'd1' })
-    const result = computerToolResultForModel(click(buttons('d3', renamed)), {
+    const result = computerToolResultForModel(click(buttons('d3', ['Uno', ...renamed.slice(1)])), {
       ...stable,
       baseSnapshotId: 'd2',
     })
     expect(field(result, 'changedSince')).toBe('d2')
-    expect(tree(result)).toBe('')
+    expect(tree(result)).toContain('label="Uno"')
+    expect(tree(result)).not.toContain('label="Renamed"')
+  })
+
+  it('sends a whole tree when an action changed nothing visible', () => {
+    computerToolResultForModel(buttons('k1', labels))
+    const result = computerToolResultForModel(click(buttons('k2', labels)), {
+      ...stable,
+      baseSnapshotId: 'k1',
+    })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree when a window, sheet or popover opens', () => {
+    computerToolResultForModel(buttons('m1', labels))
+    const next = buttons('m2', [...labels.slice(0, 5), 'Renamed'])
+    next.windows.push({ windowId: '9', title: 'Sheet', x: 0, y: 0, width: 200, height: 100 })
+    const result = computerToolResultForModel(click(next), { ...stable, baseSnapshotId: 'm1' })
+    expect(field(result, 'changedSince')).toBeUndefined()
   })
 
   it('returns to a whole tree after a run of change lists', () => {
     computerToolResultForModel(buttons('f0', labels))
     let result: unknown
     for (let step = 1; step <= 5; step++)
-      result = computerToolResultForModel(click(buttons(`f${step}`, labels)), {
-        ...stable,
-        baseSnapshotId: `f${step - 1}`,
-      })
+      result = computerToolResultForModel(
+        click(buttons(`f${step}`, [...labels.slice(0, 5), `Step ${step}`])),
+        {
+          ...stable,
+          baseSnapshotId: `f${step - 1}`,
+        }
+      )
     expect(field(result, 'changedSince')).toBeUndefined()
     expect(tree(result).split('\n')).toHaveLength(6)
   })
