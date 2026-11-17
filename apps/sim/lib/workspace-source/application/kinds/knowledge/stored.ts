@@ -17,6 +17,7 @@ import {
   knowledgeCodec,
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -49,10 +50,19 @@ export function docRevision(doc: StoredDoc): number {
 
 const DOC_PAGE = 100
 
-/** Every document of a knowledge base the caller can read, through the document list use case. */
+/**
+ * Every document of a knowledge base the caller can read, through the document list use case.
+ * Refuses one holding more documents than a directory lists (`maxBlobs`), after one page past it.
+ */
 export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Promise<StoredDoc[]> {
   const docs = new Map<string, StoredDoc>()
   for (let offset = 0; ; offset += DOC_PAGE) {
+    if (docs.size > WORKSPACE_SOURCE_LIMITS.maxBlobs) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `This knowledge base holds more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} documents, more than one directory lists.`
+      )
+    }
     const page = await listKnowledgeDocuments.execute({
       principal: ctx.principal,
       input: {

@@ -741,7 +741,7 @@ describe('workspace source: custom tools and skills', () => {
     const refused = await refusal(apply(workspaceId, TOOLS, { kinds: ['custom-tool'] }))
 
     expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toMatchObject([
-      { code: 'E_APPLY_REFUSED', kind: 'custom-tool' },
+      { code: 'E_LIMIT_EXCEEDED', kind: 'custom-tool' },
     ])
     expect((await snapshot(workspaceId)).tools).toHaveLength(extra)
   })
@@ -825,4 +825,28 @@ describe('workspace source: custom tools and skills', () => {
     expect(result.failed).toMatchObject({ key: 'lookup', code: 'E_APPLY_STALE' })
     expect((await snapshot(workspaceId)).tools.map((tool) => tool.id)).toEqual([toolId])
   })
+
+  check(
+    'a get of a workspace holding more tools than one directory may leaves out only that kind',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await db.insert(customTools).values(
+        Array.from({ length: WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind + 1 }, (_, index) => ({
+          id: generateId(),
+          workspaceId,
+          userId: ownerId,
+          title: `Tool ${index}`,
+          schema: { type: 'function', function: { name: `tool_${index}`, parameters: {} } },
+          code: 'return 1',
+        }))
+      )
+      await apply(workspaceId, SKILLS, { kinds: ['skill'] })
+
+      const read = await get(workspaceId)
+
+      expect(read.kinds).toEqual(['skill'])
+      expect(codes(read.diagnostics)).toEqual(['E_LIMIT_EXCEEDED'])
+      expect(Object.keys(read.files)).toEqual(['skills/tone.md'])
+    }
+  )
 })

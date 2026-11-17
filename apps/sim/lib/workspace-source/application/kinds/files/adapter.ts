@@ -413,12 +413,6 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
         limit: maxResourcesPerKind + 1,
       },
     })
-    if (files.length > maxResourcesPerKind) {
-      throw new OrchestrationError(
-        'payload_too_large',
-        `This workspace has more than ${maxResourcesPerKind} files, more than one directory holds. Leave files/ out with --only.`
-      )
-    }
     const states = await contentStates(
       ctx,
       files.map((file) => file.id)

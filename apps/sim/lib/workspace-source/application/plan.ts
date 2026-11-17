@@ -21,7 +21,11 @@ import {
 import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
-import { finding } from '@/lib/workspace-source/application/findings'
+import {
+  finding,
+  kindLimitFinding,
+  overKindLimit,
+} from '@/lib/workspace-source/application/findings'
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
@@ -315,6 +319,10 @@ export async function planWorkspaceSource(
     if (kindFindings.some((finding) => finding.severity === 'error')) continue
     try {
       const stored = await adapter.load(ctx, { allocate: false })
+      if (overKindLimit(stored)) {
+        diagnostics.push(kindLimitFinding(kind))
+        continue
+      }
       changes.push(...(await adapter.plan(desired, stored, planCtx)))
     } catch (caught) {
       diagnostics.push(refusalDiagnostic(caught, { kind }))

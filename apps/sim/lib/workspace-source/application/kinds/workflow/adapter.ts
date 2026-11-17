@@ -14,6 +14,7 @@ import {
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
 import { WORKFLOW_LOCK_FILE } from '@sim/workspace-code/layout'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,
@@ -215,7 +216,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       })
       workflows.push(...page.workflows)
       cursorKeys = page.nextCursorKeys
-    } while (cursorKeys)
+    } while (cursorKeys && workflows.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
     const records = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,

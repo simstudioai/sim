@@ -10,6 +10,7 @@ import {
   type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type {
   PlanContext,
   PlannedChange,
@@ -110,6 +111,24 @@ export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourc
     'I_KEY_REBOUND',
     `${where(kind, key)} named a deleted ${kind}; the key now names the one this apply wrote.`,
     { kind, key }
+  )
+}
+
+/**
+ * Whether a kind's stored set holds more resources than one directory may. A kind's load lists at
+ * most a page past the limit, so a workspace over it costs one bounded read, never a full listing.
+ */
+export function overKindLimit(stored: StoredSet<unknown>): boolean {
+  return stored.bound.size + stored.unbound.length > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind
+}
+
+/** `E_LIMIT_EXCEEDED` for a kind the workspace holds more of than one directory may. */
+export function kindLimitFinding(kind: WorkspaceKind): WorkspaceSourceDiagnostic {
+  const dir = KIND_DIRS[kind]
+  return finding(
+    'E_LIMIT_EXCEEDED',
+    `This workspace has more than ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} ${dir}/ resources, more than one directory holds.`,
+    { hint: `Leave ${dir}/ out with --only.`, kind }
   )
 }
 

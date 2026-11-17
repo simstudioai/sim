@@ -82,12 +82,6 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
       for (const tool of page.tools) records.push({ id: tool.id, name: tool.title, state: tool })
       cursorKeys = page.nextCursorKeys ?? undefined
     } while (cursorKeys && records.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
-    if (cursorKeys) {
-      throw new OrchestrationError(
-        'payload_too_large',
-        `This workspace has more than ${records.length} custom tools, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} one directory can hold.`
-      )
-    }
     return bindStored(ctx, 'custom-tool', records, { allocate })
   },
 
