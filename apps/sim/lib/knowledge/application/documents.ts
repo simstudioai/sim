@@ -30,6 +30,7 @@ import {
   resolveActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeResourceContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
+  resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
@@ -382,6 +383,19 @@ export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseName: context.knowledgeBase.name,
       workspaceId: context.workspaceId,
     }
+  },
+})
+
+/**
+ * Admits uploads into a knowledge base the caller is about to create in a workspace, before it
+ * has an id: the same upload policy `uploadKnowledgeDocument` enforces, checked at workspace scope.
+ */
+export const admitWorkspaceKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.uploadDocument,
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ context }) {
+    return { workspaceId: context.workspaceId }
   },
 })
 
