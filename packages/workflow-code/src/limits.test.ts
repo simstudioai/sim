@@ -1,23 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { utf8Bytes } from './limits'
 
-const encoded = (text: string) => new TextEncoder().encode(text).length
-
 describe('utf8Bytes', () => {
-  it('counts what TextEncoder writes, lone surrogates included', () => {
-    for (const text of [
-      'a',
-      'é',
-      '中',
-      '😀',
-      '\uD800',
-      '\uDC00',
-      '\uD800a',
-      '\uD800é',
-      '\uD800中',
-      '\uD800𐀀',
-    ]) {
-      expect(utf8Bytes(text)).toBe(encoded(text))
-    }
+  it('counts the bytes UTF-8 encoding writes, a lone surrogate as U+FFFD', () => {
+    const cases: Array<[string, number]> = [
+      ['a', 1],
+      ['é', 2],
+      ['中', 3],
+      ['😀', 4],
+      ['\uD800', 3],
+      ['\uDC00', 3],
+      ['\uD800a', 4],
+      ['\uD800é', 5],
+      ['\uD800中', 6],
+      ['\uD800𐀀', 7],
+    ]
+    for (const [text, bytes] of cases) expect(utf8Bytes(text)).toBe(bytes)
   })
 })
