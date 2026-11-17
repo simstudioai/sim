@@ -472,14 +472,14 @@ export const simProfile: CompetitorProfile = {
       },
       humanInTheLoop: {
         value:
-          'Yes: dedicated approval block that pauses a run and waits for a human-submitted "Resume Form," with durable pause/resume via persisted execution snapshots and notification hooks (e.g. Slack, email) carrying the resume link',
+          'Yes: dedicated approval block that pauses a run and waits for a human-submitted "Resume Form," with durable pause/resume via persisted execution snapshots. Reviewers can be notified through Slack, Gmail, Microsoft Teams, Twilio SMS, or a webhook carrying the approval link, and approve in the Sim approval portal or through the resume API, after which the run continues',
         shortValue: 'Approval block with durable pause/resume and notifications',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
             label: 'Sim Docs: Human in the Loop Block',
-            asOf: '2026-07-02',
+            asOf: '2026-11-16',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/snapshot.ts',
