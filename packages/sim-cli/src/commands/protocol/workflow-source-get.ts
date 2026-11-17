@@ -30,6 +30,7 @@ import {
   locallyEditedFiles,
   mergedGitattributes,
   readPreviousLock,
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
@@ -457,14 +458,8 @@ export async function writeSourceDirectory(
 
 /** The workflow `.sim/base.json` says the directory holds, or `null` when it names none. */
 async function heldWorkflowId(dir: string): Promise<string | null> {
-  const text = await readSourceText(dir, SOURCE_BASE_FILE)
-  if (text === null) return null
-  try {
-    const held = toRecord(JSON.parse(text)).workflowId
-    return typeof held === 'string' ? held : null
-  } catch {
-    return null
-  }
+  const held = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).workflowId
+  return typeof held === 'string' ? held : null
 }
 
 /**

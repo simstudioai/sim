@@ -128,8 +128,13 @@ function orphanedCodeFiles(
  * The lock an earlier get, apply or create left, read leniently (missing or invalid is `null`):
  * it names the function files the CLI wrote, which is all a prune needs from it.
  */
-export async function readPreviousLock(dir: string): Promise<unknown> {
-  const text = await readSourceText(dir, SOURCE_LOCK_FILE)
+export function readPreviousLock(dir: string): Promise<unknown> {
+  return readSourceJson(dir, SOURCE_LOCK_FILE)
+}
+
+/** A JSON file in the source directory, read leniently: `null` when it is missing or invalid. */
+export async function readSourceJson(dir: string, path: string): Promise<unknown> {
+  const text = await readSourceText(dir, path)
   if (text === null) return null
   try {
     return JSON.parse(text)
@@ -310,18 +315,10 @@ function digest(text: string): string {
 
 /** The digests the CLI recorded for its last write, empty when it recorded none. */
 async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
-  const text = await readSourceText(dir, SOURCE_WRITTEN_FILE)
-  if (text === null) return {}
-  try {
-    const files = toRecord(toRecord(JSON.parse(text)).files)
-    return Object.fromEntries(
-      Object.entries(files).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string'
-      )
-    )
-  } catch {
-    return {}
-  }
+  const files = toRecord(toRecord(await readSourceJson(dir, SOURCE_WRITTEN_FILE)).files)
+  return Object.fromEntries(
+    Object.entries(files).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  )
 }
 
 /**
