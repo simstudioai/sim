@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), authorize: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/workflows/code/source-resources', () => ({
+vi.mock('@/lib/workflows/application/read-source-resources', () => ({
   readSourceResources: {
     operation: { id: 'workflows.source.resources.read' },
     authorize: mocks.authorize,

@@ -1,7 +1,7 @@
 import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { readSourceCatalog } from '@/lib/workflows/code/catalog/read-source-catalog'
+import { readSourceCatalog } from '@/lib/workflows/application/read-source-catalog'
 import { catalogErrorPolicy } from '@/app/api/v2/lib/catalog'
 
 export const dynamic = 'force-dynamic'

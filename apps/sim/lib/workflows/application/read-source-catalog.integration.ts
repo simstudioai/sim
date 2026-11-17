@@ -9,7 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
-import { readSourceCatalog } from '@/lib/workflows/code/catalog/read-source-catalog'
+import { readSourceCatalog } from '@/lib/workflows/application/read-source-catalog'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
