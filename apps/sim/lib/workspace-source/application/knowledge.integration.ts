@@ -36,16 +36,17 @@ import {
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, vi } from 'vitest'
 
 const embedding = vi.hoisted(() => ({ failure: null as Error | null }))
 /**
  * The indexer stand-in at `processDocumentsWithQueue`, where every upload path's dispatch picks
- * its backend: it records each document handed to it and, unless `hold` is set (as a queued
- * Trigger.dev run would), marks it indexed, so a get after an apply reads settled documents.
+ * its backend: it records each document handed to it and marks it indexed. While `gate` is set it
+ * first waits for it, as the in-process backend waits for parsing and embedding.
  */
 const indexer = vi.hoisted(() => ({
-  hold: false,
+  gate: null as Promise<void> | null,
+  release: () => {},
   dispatched: [] as Array<{ documentId: string; lane: string }>,
 }))
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
@@ -69,12 +70,11 @@ vi.mock('@/lib/knowledge/documents/service', async (importOriginal) => {
     ) => {
       const ids = documents.map((doc) => doc.documentId)
       indexer.dispatched.push(...ids.map((documentId) => ({ documentId, lane })))
-      if (!indexer.hold) {
-        await database
-          .update(documentTable)
-          .set({ processingStatus: 'completed' })
-          .where(within(documentTable.id, ids))
-      }
+      if (indexer.gate) await indexer.gate
+      await database
+        .update(documentTable)
+        .set({ processingStatus: 'completed' })
+        .where(within(documentTable.id, ids))
       return { requested: ids.length, accepted: ids.length, failed: 0, failedDocumentIds: [] }
     },
   }
@@ -172,13 +172,47 @@ function round(dir: Directory, wanted: readonly string[]): string[] {
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files' | 'blobs'>> & {
   principal?: Principal
   carry?: Carry
+  /** Return before the indexing the apply's uploads started has finished. */
+  unsettled?: boolean
 }
 
 const runner = sourceRunner(['knowledge-base'], owner)
 
-function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) {
-  const { carry = 'all', ...input } = options
-  return runner.apply(workspaceId, { files: dir.files, blobs: blobs(dir, carry), ...input })
+/**
+ * Applies `dir`, then waits for the indexing its uploads started after answering, so the next
+ * read sees settled documents and nothing runs on past the check.
+ */
+async function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) {
+  const { carry = 'all', unsettled = false, ...input } = options
+  try {
+    return await runner.apply(workspaceId, { files: dir.files, blobs: blobs(dir, carry), ...input })
+  } finally {
+    if (!unsettled) await indexed(workspaceId)
+  }
+}
+
+/** Waits until no processing event for a knowledge base of the workspace is queued or running. */
+async function indexed(workspaceId: string) {
+  await vi.waitFor(
+    async () => {
+      const inFlight = await db
+        .select({ id: outboxEvent.id })
+        .from(outboxEvent)
+        .innerJoin(
+          knowledgeBase,
+          eq(knowledgeBase.id, sql`${outboxEvent.payload}->>'knowledgeBaseId'`)
+        )
+        .where(
+          and(
+            eq(outboxEvent.eventType, KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT),
+            inArray(outboxEvent.status, ['pending', 'processing']),
+            eq(knowledgeBase.workspaceId, workspaceId)
+          )
+        )
+      expect(inFlight).toEqual([])
+    },
+    { timeout: 10_000, interval: 25 }
+  )
 }
 
 function get(workspaceId: string) {
@@ -331,6 +365,11 @@ beforeAll(async () => {
   ])
 })
 
+afterEach(() => {
+  indexer.release()
+  indexer.gate = null
+})
+
 afterAll(async () => {
   await writeReport()
   resetUploadsSetupMock()
@@ -344,7 +383,9 @@ afterAll(async () => {
 describe('knowledge bases as workspace source', () => {
   check('creates a knowledge base with its documents, which index in the background', async () => {
     const workspaceId = await newWorkspace()
-    indexer.hold = true
+    indexer.gate = new Promise((resolve) => {
+      indexer.release = resolve
+    })
 
     const dryRun = await apply(workspaceId, POLICIES, { dryRun: true, carry: 'none' })
 
@@ -356,7 +397,13 @@ describe('knowledge bases as workspace source', () => {
     ).toContain('Indexes 2 document(s) (2 new, 0 replaced)')
     expect(await knowledgeBases(workspaceId)).toEqual([])
 
-    const result = await apply(workspaceId, POLICIES)
+    // Indexing never finishes while the gate is shut, so an apply that waited for it never returns.
+    const result = await Promise.race([
+      apply(workspaceId, POLICIES, { unsettled: true }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('The apply waited for its documents to index')), 5_000)
+      ),
+    ])
 
     expect(result.failed).toBeUndefined()
     expect(result.remainingBlobs).toEqual([])
@@ -366,8 +413,14 @@ describe('knowledge bases as workspace source', () => {
       ['refunds.md', 'pending'],
       ['shipping.txt', 'pending'],
     ])
-    // Handed to the dispatcher before the apply returned, as an upload's completion hands its
-    // document, not left in the outbox for a drain this server may never run.
+    const indexing = result.diagnostics.find((finding) => finding.code === 'I_KB_PROCESSING')
+    expect(indexing?.message).toContain('2 document(s) of "Policies" are still being indexed')
+    expect(codes((await get(workspaceId)).diagnostics, 'info')).toEqual(['I_KB_PROCESSING'])
+
+    indexer.release()
+    await indexed(workspaceId)
+
+    // Handed to the dispatcher by the upload itself, not left in the outbox for a drain.
     const ids = storedDocs.map((doc) => doc.id)
     expect(
       indexer.dispatched
@@ -375,10 +428,11 @@ describe('knowledge bases as workspace source', () => {
         .sort((a, b) => compareStrings(a.documentId, b.documentId))
     ).toEqual(ids.sort(compareStrings).map((documentId) => ({ documentId, lane: 'interactive' })))
     expect(await undrainedProcessing(ids)).toEqual([])
-    const indexing = result.diagnostics.find((finding) => finding.code === 'I_KB_PROCESSING')
-    expect(indexing?.message).toContain('2 document(s) of "Policies" are still being indexed')
-    expect(codes((await get(workspaceId)).diagnostics, 'info')).toEqual(['I_KB_PROCESSING'])
-    indexer.hold = false
+    expect((await docs(stored.id)).map((doc) => doc.processingStatus)).toEqual([
+      'completed',
+      'completed',
+    ])
+    expect(codes((await get(workspaceId)).diagnostics, 'info')).toEqual([])
     const entry = result.base.resources['knowledge-base:policies']
     expect(entry?.id).toBe(stored.id)
     expect(Object.keys(entry?.blobs ?? {}).sort()).toEqual(['refunds.md', 'shipping.txt'])
@@ -973,6 +1027,7 @@ describe('knowledge bases as workspace source', () => {
           },
         })
       }
+      await indexed(workspaceId)
       const before = await snapshot(workspaceId)
 
       const adopted = await apply(workspaceId, big, { carry: 'none' })
@@ -1267,6 +1322,7 @@ describe('knowledge bases as workspace source', () => {
         },
       })
     }
+    await indexed(workspaceId)
 
     const read = await get(workspaceId)
 

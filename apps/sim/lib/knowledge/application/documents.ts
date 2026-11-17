@@ -502,8 +502,9 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           : {}),
       }
     )
-    // Dispatched now, as an upload session's completion dispatches, not when the outbox drains.
-    if (processingEventId) await relayKnowledgeDocumentProcessing(processingEventId)
+    // Dispatched now, not when the outbox drains, and not awaited: the in-process backend indexes
+    // the document inside the dispatch, and an upload answers once its document is registered.
+    if (processingEventId) void relayKnowledgeDocumentProcessing(processingEventId)
     return { document, created: true as const }
   },
   projectAudit: ({ input, context, result }) => ({

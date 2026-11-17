@@ -47,9 +47,12 @@ export function enqueueKnowledgeDocumentProcessing(
 /**
  * Delivers one enqueued processing event right after the transaction that wrote it commits, so the
  * document reaches `processDocumentsWithQueue`, and the dispatch backend it picks (Trigger.dev or
- * in-process), when its upload returns, as an upload session's completion does, instead of when
- * the outbox is next drained. The event stays the durable record: one this relay cannot claim or
- * finish is left to the drain, which retries it. Never throws.
+ * in-process), when it is uploaded instead of when the outbox is next drained. Callers do not
+ * await it: the in-process backend indexes the document before the dispatch resolves.
+ *
+ * The event stays the durable record. The relay claims it as the drain does (row lock, `pending`
+ * only), so the two never both run it; one the relay cannot claim, or whose run fails or dies
+ * mid-lease, is left to the drain, which retries it. Never throws.
  */
 export async function relayKnowledgeDocumentProcessing(eventId: string): Promise<void> {
   try {
