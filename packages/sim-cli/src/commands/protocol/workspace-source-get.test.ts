@@ -120,6 +120,13 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
   })
 
+  it('refuses a workflow sidecar path that climbs out of its folder, writing nothing', async () => {
+    serve({ 'tables/leads.ts': LEADS, 'workflows/../.sim/base.json': '{}' })
+
+    await expect(get()).rejects.toThrow(/unsafe file path: workflows\/\.\.\/\.sim\/base\.json/)
+    expect(existsSync(join(dir, 'tables/leads.ts'))).toBe(false)
+  })
+
   it('keeps the base entries of the kinds a get leaves unread', async () => {
     serve(
       { 'tables/leads.ts': LEADS },

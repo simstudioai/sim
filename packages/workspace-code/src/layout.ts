@@ -45,8 +45,13 @@ export function kindOfPath(path: string): WorkspaceKind | null {
 /** A character a file name never holds: controls, backslash, and the Windows reserved set. */
 const UNSAFE_CHARACTER = /[\u0000-\u001f\u007f\\:*?"<>|]/
 
-/** A workflow directory's own sidecars, the only dot-segment paths a server answer may name. */
-const WORKFLOW_SIDECAR = /^workflows\/[^/]+\/\.sim\/(?:lock|base)\.json$/
+/**
+ * A workflow directory's own sidecars, the only dot-segment paths a server answer may name. The
+ * folder is a resource key, so `workflows/../.sim/base.json` never passes as one.
+ */
+const WORKFLOW_SIDECAR = new RegExp(
+  `^workflows/${RESOURCE_KEY_SOURCE}/\\.sim/(?:lock|base)\\.json$`
+)
 
 /**
  * Whether a server answer may write `path` into the directory: inside a kind's folder, every
