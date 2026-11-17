@@ -10,6 +10,7 @@ import { db } from '@sim/db'
 import {
   credential,
   credentialMember,
+  environment,
   member,
   organization,
   permissionGroup,
@@ -17,6 +18,7 @@ import {
   permissions,
   user,
   workspace,
+  workspaceEnvironment,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
@@ -32,6 +34,7 @@ import { readSourceResources } from '@/lib/workflows/application/read-source-res
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const workspaceId = generateId()
+const otherWorkspaceId = generateId()
 const adminId = generateId()
 const readerId = generateId()
 const tokenOwnerId = generateId()
@@ -45,6 +48,10 @@ const ids = {
   shared: generateId(),
   /** Another user's personal token, visible to its owner only. */
   personalToken: generateId(),
+  /** A workspace secret the reader is an active credential member of. */
+  memberOfSecret: generateId(),
+  /** Another user's personal secret shared with the reader in this workspace. */
+  sharedPersonalSecret: generateId(),
 }
 
 async function listedCredentialIds(principal: Principal): Promise<string[]> {
@@ -95,6 +102,12 @@ describe('source resources manifest', () => {
       name: 'Source resources',
       ownerId: adminId,
       billedAccountUserId: adminId,
+    })
+    await insertWorkspaceFixture(db, {
+      id: otherWorkspaceId,
+      name: 'Source resources elsewhere',
+      ownerId: readerId,
+      billedAccountUserId: readerId,
     })
     await db.insert(permissionGroup).values({
       id: groupId,
@@ -163,13 +176,30 @@ describe('source resources manifest', () => {
         createdBy: tokenOwnerId,
       },
     ])
+    await db.insert(workspaceEnvironment).values({
+      id: generateId(),
+      workspaceId,
+      variables: { SUPPORT_TOKEN: 'encrypted', ADMIN_ONLY_TOKEN: 'encrypted' },
+    })
+    await db.insert(environment).values([
+      { id: readerId, userId: readerId, variables: { READER_TOKEN: 'encrypted' } },
+      { id: tokenOwnerId, userId: tokenOwnerId, variables: { OWNER_SHARED: 'encrypted' } },
+    ])
     await db.insert(credential).values([
       {
-        id: generateId(),
+        id: ids.memberOfSecret,
         workspaceId,
         type: 'env_workspace',
         displayName: 'SUPPORT_TOKEN',
         envKey: 'SUPPORT_TOKEN',
+        createdBy: adminId,
+      },
+      {
+        id: generateId(),
+        workspaceId,
+        type: 'env_workspace',
+        displayName: 'ADMIN_ONLY_TOKEN',
+        envKey: 'ADMIN_ONLY_TOKEN',
         createdBy: adminId,
       },
       {
@@ -181,19 +211,41 @@ describe('source resources manifest', () => {
         envOwnerUserId: readerId,
         createdBy: readerId,
       },
+      {
+        id: ids.sharedPersonalSecret,
+        type: 'env_personal',
+        workspaceId,
+        displayName: 'OWNER_SHARED',
+        envKey: 'OWNER_SHARED',
+        envOwnerUserId: tokenOwnerId,
+        createdBy: tokenOwnerId,
+      },
+      {
+        id: generateId(),
+        type: 'env_personal',
+        workspaceId: otherWorkspaceId,
+        displayName: 'OTHER_WORKSPACE_TOKEN',
+        envKey: 'OTHER_WORKSPACE_TOKEN',
+        envOwnerUserId: readerId,
+        createdBy: readerId,
+      },
     ])
-    await db.insert(credentialMember).values({
-      id: generateId(),
-      credentialId: ids.memberOf,
-      userId: readerId,
-      role: 'member',
-      status: 'active',
-    })
+    await db.insert(credentialMember).values(
+      [ids.memberOf, ids.memberOfSecret, ids.sharedPersonalSecret].map((credentialId) => ({
+        id: generateId(),
+        credentialId,
+        userId: readerId,
+        role: 'member' as const,
+        status: 'active' as const,
+      }))
+    )
   })
 
   afterAll(async () => {
-    await db.delete(credential).where(eq(credential.workspaceId, workspaceId))
-    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+    await db
+      .delete(credential)
+      .where(inArray(credential.workspaceId, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, [adminId, readerId, tokenOwnerId]))
   })
@@ -219,12 +271,20 @@ describe('source resources manifest', () => {
       await withholdInGroup({})
     })
 
-    it('lists the workspace env names and the caller’s personal ones to a member', async () => {
+    it('lists to a member only the env names their runs resolve in this workspace', async () => {
       const manifest = await readSourceResources.execute({
         principal: session(readerId),
         input: { workspaceId },
       })
-      expect(manifest.env).toEqual(['READER_TOKEN', 'SUPPORT_TOKEN'])
+      expect(manifest.env).toEqual(['OWNER_SHARED', 'READER_TOKEN', 'SUPPORT_TOKEN'])
+    })
+
+    it('lists every workspace env name to an admin', async () => {
+      const manifest = await readSourceResources.execute({
+        principal: session(adminId),
+        input: { workspaceId },
+      })
+      expect(manifest.env).toEqual(['ADMIN_ONLY_TOKEN', 'SUPPORT_TOKEN'])
     })
 
     it('omits env names when the caller’s group hides secrets, as the env-var autocomplete does', async () => {
@@ -244,7 +304,7 @@ describe('source resources manifest', () => {
         input: { workspaceId },
       })
       expect(manifest.credentials).toEqual([])
-      expect(manifest.env).toEqual(['READER_TOKEN', 'SUPPORT_TOKEN'])
+      expect(manifest.env).toEqual(['OWNER_SHARED', 'READER_TOKEN', 'SUPPORT_TOKEN'])
     })
 
     it('omits env names for a workspace API key, which the secrets listing denies', async () => {
