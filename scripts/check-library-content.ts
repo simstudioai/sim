@@ -36,6 +36,8 @@
  *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
  *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim.
  *   Sentence ends and contrasts ("while", "unlike", "compared with") start a new clause.
+ *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
+ *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
@@ -146,16 +148,16 @@ const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
 const SIM_NAME = /\bSim\b/
 /** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
-/** A comparison set off by commas inside a sentence, as in "Sim, unlike Zapier, has ...". */
-const PARENTHETICAL_COMPARISON = new RegExp(String.raw`,\s+(?:like|${CONTRAST})\s+[^,\d]*,`, 'gi')
 /**
- * A sentence end, a contrast that hands the rest of the sentence to another subject, or a
- * relative clause about a product other than Sim ("Zapier, which has ...").
+ * A comparison set off by commas right after Sim, as in "Sim, unlike Zapier, has ...". The span
+ * ends at the first comma that is not a thousands separator, so "Sim, unlike n8n, ..." matches.
  */
-const CLAUSE_BREAK = new RegExp(
-  String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+|(?<!\bSim),\s+(?:which|who)\s+`,
-  'i'
+const SIM_PARENTHETICAL = new RegExp(
+  String.raw`\bSim,\s+(?:like|${CONTRAST})\s+(?:[^,]|,(?=\d))*?,(?!\d)`,
+  'gi'
 )
+/** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
+const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+`, 'i')
 /** An opening comparison ("Unlike Sim, ...") whose main clause is about another product. */
 const LEADING_COMPARISON = new RegExp(String.raw`^(?:like|${CONTRAST})\b[^,]*,\s*`, 'i')
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
@@ -163,10 +165,11 @@ const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
 const SIM_COUNT_FLOOR = 0.9
 
-/** Every count in a table row whose first cell names Sim. */
-function simTableRowCounts(row: string): RegExpMatchArray[] {
-  return SIM_NAME.test(row.split('|')[1]?.trim().split(/\s/)[0] ?? '')
-    ? [...row.matchAll(COUNT_CLAIM)]
+/** Every count in a table row whose label (first non-empty cell) names Sim. */
+function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
+  const label = cells.map((cell) => cell.trim()).find((cell) => cell !== '') ?? ''
+  return SIM_NAME.test(label.split(/\s/)[0])
+    ? cells.flatMap((cell) => [...cell.matchAll(COUNT_CLAIM)])
     : []
 }
 
@@ -174,7 +177,7 @@ function simTableRowCounts(row: string): RegExpMatchArray[] {
 function simProseCounts(text: string): RegExpMatchArray[] {
   const sentences = text
     .replace(LINE_PREFIX, '')
-    .replace(PARENTHETICAL_COMPARISON, '')
+    .replace(SIM_PARENTHETICAL, 'Sim')
     .split(CLAUSE_BREAK)
   return sentences.flatMap((sentence) => {
     const clause = sentence.replace(LEADING_COMPARISON, '')
@@ -189,7 +192,8 @@ function simProseCounts(text: string): RegExpMatchArray[] {
 /** The counts on one line of text that belong to Sim, with the claim as written. */
 function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
   const text = line.replace(INLINE_MARKERS, '').replace(LINK_TEXT, '$1')
-  const matches = text.trimStart().startsWith('|') ? simTableRowCounts(text) : simProseCounts(text)
+  const cells = text.split('|')
+  const matches = cells.length > 2 ? simTableRowCounts(cells) : simProseCounts(text)
   return matches.map((match) => ({
     claim: match[0],
     count: Number.parseInt(match[1].replaceAll(',', ''), 10),
@@ -486,7 +490,7 @@ export async function checkPost(
         count > total
           ? `"${claim}" overstates Sim's catalog, which has ${total} ${unit}.`
           : `"${claim}" is stale: Sim's catalog has ${total} ${unit}.`,
-        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts).`
+        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts). If the count is another product's, name it as the owner ("Zapier's 9,000+") or give it its own sentence.`
       )
     }
   }
