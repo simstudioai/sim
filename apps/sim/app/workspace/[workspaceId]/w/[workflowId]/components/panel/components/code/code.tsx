@@ -19,10 +19,12 @@ const REFRESH_DEBOUNCE_MS = 750
 
 const CODE_VIEW_OPTIONS = { ...TEXT_EDITOR_OPTIONS, readOnly: true, domReadOnly: true }
 
-/** Canvas geometry operations, which the printed source never shows. */
+/** Canvas geometry operations (moves and handle orientation), which the printed source never shows. */
 const GEOMETRY_OPERATIONS: ReadonlySet<string> = new Set([
   BLOCK_OPERATIONS.UPDATE_POSITION,
   BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
+  BLOCK_OPERATIONS.TOGGLE_HANDLES,
+  BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES,
 ])
 
 /**
