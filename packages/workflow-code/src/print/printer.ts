@@ -1403,7 +1403,6 @@ class WorkflowPrinter {
       callback,
     ])
 
-    for (const key of this.preorder) this.comments.takeOrphans(key)
     const header = this.comments.take(anchors.header)
     const footer = this.comments.take(anchors.footer)
     this.comments.dropRemaining()
