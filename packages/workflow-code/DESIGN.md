@@ -310,8 +310,8 @@ code `frame`; Babel's 0-based columns become 1-based, and lines split the way Ba
 
 ## Materialize
 
-`materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness,
-inferRenames? })` → `{ state, identity, entries, needsLayout, diagnostics }`. It resolves identity,
+`materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness })` →
+`{ state, identity, entries, needsLayout, diagnostics }`. It resolves identity,
 then writes the stored graph so that a no-op is byte-identical (O1):
 
 - a param canonical-equal to prev's keeps prev's raw value;

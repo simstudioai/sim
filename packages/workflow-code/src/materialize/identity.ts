@@ -69,7 +69,6 @@ interface IdentityInputs {
   hooks: MaterializeHooks
   freshness: LockFreshness
   compiledIdents: Record<BlockKey, string> | undefined
-  inferRenames: boolean
   diagnostics: Diagnostic<MaterializeDiagnosticCode>[]
 }
 
@@ -230,7 +229,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (prevId !== undefined) match(key, prevId, 'db-name')
   }
 
-  if (prev && inputs.inferRenames) {
+  if (prev) {
     inferRenames({
       workflow,
       prev,

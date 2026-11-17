@@ -116,8 +116,6 @@ export interface MaterializeOptions {
   /** The stored graph being replaced. Absent for a new workflow. */
   prev?: WorkflowState
   resources?: ResourceKeyResolver
-  /** Disables identity rule 4 (inferred renames); no surface sets it, tests and tools only. */
-  inferRenames?: boolean
   /**
    * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
    * rule 2 matches a lock entry whose key is gone by its ident, so a human who edits only the
@@ -180,7 +178,6 @@ export function materialize(
     hooks,
     freshness: options.lockFreshness,
     compiledIdents: options.compiledIdents,
-    inferRenames: options.inferRenames !== false,
     diagnostics,
   })
   // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas

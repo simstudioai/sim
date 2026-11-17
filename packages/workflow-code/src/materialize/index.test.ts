@@ -509,7 +509,7 @@ describe('materialize: identity', () => {
     expect(codes(result)).toEqual(['W_MAT_INFERRED_RENAME'])
   })
 
-  it('does not infer a rename when neighbours disagree, or when turned off', () => {
+  it('does not infer a rename when neighbours disagree', () => {
     const prev = base()
     const moved = edit(renameFetch(canonical(prev).workflow), (draft) => {
       draft.edges = draft.edges.filter((e) => e.from !== 'start')
@@ -522,8 +522,6 @@ describe('materialize: identity', () => {
       idSource: 'minted',
     })
     expect(disagreeing.entries).toContainEqual({ status: 'deleted', key: 'fetch', id: 'a1' })
-    const off = run(renameFetch(canonical(prev).workflow), null, { prev, inferRenames: false })
-    expect(off.entries).toContainEqual(expect.objectContaining({ status: 'created', key: 'load' }))
   })
 
   it('treats two renames of one type and parent as ambiguous: delete plus create', () => {
@@ -789,7 +787,7 @@ describe('materialize: positions and server-owned fields', () => {
         },
       },
     }
-    const result = run(target, lock, { prev, lockFreshness: 'stale', inferRenames: false })
+    const result = run(target, lock, { prev, lockFreshness: 'stale' })
     expect(result.state.blocks.f1.position).toEqual({ x: 5, y: 6 })
     const two = result.state.blocks[result.identity.blocks.two.id]
     expect(two.position).toEqual({ x: 1, y: 2 })
