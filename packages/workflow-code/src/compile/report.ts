@@ -50,7 +50,11 @@ export interface Range {
 }
 
 interface ReportExtras {
-  hint?: string
+  /**
+   * A function is called only when the diagnostic is recorded, so a costly did-you-mean is never
+   * computed for a warning past {@link MAX_WARNINGS}.
+   */
+  hint?: string | (() => string | undefined)
   blockKey?: BlockKey
   param?: SubBlockId
   related?: Array<{ at: Range; message: string }>
@@ -162,13 +166,14 @@ export class Reporter {
     const severity = severityOf(code)
     if (severity === 'error') this.errorCount++
     else this.warningCount++
+    const hint = typeof extras.hint === 'function' ? extras.hint() : extras.hint
     const diagnostic = {
       code,
       severity,
       message: capLength(message),
       span,
       frame: codeFrame(lines, span),
-      ...(extras.hint !== undefined && { hint: capLength(extras.hint) }),
+      ...(hint !== undefined && { hint: capLength(hint) }),
       ...(extras.blockKey !== undefined && { blockKey: extras.blockKey }),
       ...(extras.param !== undefined && { param: extras.param }),
       ...(extras.related && {

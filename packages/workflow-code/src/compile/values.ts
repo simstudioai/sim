@@ -685,7 +685,7 @@ function checkOutputPath(
         'W_UNKNOWN_OUTPUT_PATH',
         `A ${containerKind} has no output ${first.name}.`,
         at,
-        { hint: didYouMean(first.name, known), blockKey }
+        { hint: () => didYouMean(first.name, known), blockKey }
       )
     }
     return
@@ -732,7 +732,8 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
             `${written}: no workflow variable is keyed ${name}.`,
             at,
             {
-              hint: didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
+              hint: () =>
+                didYouMean(name, ctx.variables.keys(), (key) => `${REF_ROOT}.variable.${key}`),
               blockKey,
             }
           )
@@ -755,7 +756,7 @@ export function checkCodeFileRefs(ctx: CompileContext): void {
         {
           hint: suggested
             ? `${REF_ROOT} names a block by its key: write ${formatMemberPath(REF_ROOT, [{ kind: 'name', name: suggested.key }, ...rest])}.`
-            : didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
+            : () => didYouMean(head.name, ctx.declsByKey.keys(), (key) => `${REF_ROOT}.${key}`),
           blockKey,
         }
       )

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_ERRORS, MAX_WARNINGS } from './report'
+import { MAX_ERRORS, MAX_WARNINGS, Reporter } from './report'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
@@ -160,6 +160,27 @@ describe('hostile sources produce diagnostics only', () => {
     expect(result.workflow).not.toBeNull()
     expect(result.diagnostics).toHaveLength(MAX_WARNINGS + 1)
     expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
+  })
+
+  it('never computes the did-you-mean of a warning past the cap', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    let computed = 0
+    for (let i = 0; i < 1_000; i++) {
+      reporter.report(
+        'W_UNRESOLVED_REF',
+        'x',
+        { file: 'w.ts', start: 0, end: 1 },
+        {
+          hint: () => {
+            computed++
+            return 'Did you mean y?'
+          },
+        }
+      )
+    }
+    expect(computed).toBe(MAX_WARNINGS)
+    expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
   })
 
   it('caps a diagnostic message that quotes a huge name', () => {
