@@ -10,6 +10,8 @@ export {
 export {
   type FlatDiagnostic,
   flattenDiagnostic,
+  type RefusalClass,
+  refusalClass,
   severityOf,
   type WorkspaceDiagnosticCode,
 } from './diagnostics'

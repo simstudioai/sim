@@ -1,4 +1,4 @@
-import { APPLY_ORDER, KIND_DIRS } from '@sim/workspace-code'
+import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
@@ -58,20 +58,21 @@ const SYMBOLS: Record<Change['action'], string> = {
   noop: ' ',
 }
 
-/**
- * The exit status of a dry run that found errors, matching the status a commit's refusal maps to
- * (`WorkspaceSourceRejectedError`): 5 stale, then 6 locked, then 7 too large, else 1.
- */
+/** The exit code of each refusal class, as a commit's refusal maps to it: 5, 6, 7, else 1. */
+const REFUSAL_EXIT_CODES: Record<RefusalClass, number> = {
+  conflict: SOURCE_STALE_EXIT_CODE,
+  locked: SOURCE_LOCKED_EXIT_CODE,
+  payload_too_large: SOURCE_TOO_LARGE_EXIT_CODE,
+  validation: 1,
+}
+
+/** The exit status of a dry run that found errors: the status a commit's refusal maps to. */
 function refusedExitCode(diagnostics: ApplyData['diagnostics']): number {
-  const codes = new Set(
-    diagnostics.filter((finding) => finding.severity === 'error').map((finding) => finding.code)
-  )
-  if (codes.has('E_APPLY_STALE')) return SOURCE_STALE_EXIT_CODE
-  if (codes.has('E_APPLY_LOCKED')) return SOURCE_LOCKED_EXIT_CODE
-  if (codes.has('E_LIMIT_EXCEEDED') || codes.has('E_PLAN_TOO_LARGE')) {
-    return SOURCE_TOO_LARGE_EXIT_CODE
-  }
-  return 1
+  return REFUSAL_EXIT_CODES[
+    refusalClass(
+      diagnostics.filter((finding) => finding.severity === 'error').map((finding) => finding.code)
+    )
+  ]
 }
 
 /** The plan as a person reads it: per kind, the counts, then each change with what it touches. */

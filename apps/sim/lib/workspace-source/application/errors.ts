@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
+import { type BaseResource, refusalClass, type WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeBaseConflictError } from '@/lib/knowledge/service'
 import { TableConflictError } from '@/lib/table/service'
@@ -25,23 +25,18 @@ import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
  * locked one `423`, a size limit `413`, anything else `400`.
  */
 export class WorkspaceSourceRejectedError extends OrchestrationError {
-  readonly stale: boolean
-
   constructor(readonly diagnostics: WorkspaceSourceDiagnostic[]) {
     const errors = diagnostics.filter((finding) => finding.severity === 'error')
-    const codes = new Set(errors.map((finding) => finding.code))
     super(
-      codes.has('E_APPLY_STALE')
-        ? 'conflict'
-        : codes.has('E_APPLY_LOCKED')
-          ? 'locked'
-          : codes.has('E_LIMIT_EXCEEDED') || codes.has('E_PLAN_TOO_LARGE')
-            ? 'payload_too_large'
-            : 'validation',
+      refusalClass(errors.map((finding) => finding.code)),
       `The workspace source has ${errors.length} error(s); nothing was written. See details.diagnostics.`
     )
     this.name = 'WorkspaceSourceRejectedError'
-    this.stale = codes.has('E_APPLY_STALE')
+  }
+
+  /** Whether a resource changed on the server since the directory was read. */
+  get stale(): boolean {
+    return this.code === 'conflict'
   }
 }
 

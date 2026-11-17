@@ -178,3 +178,21 @@ export type SeverityOfCode<C extends string> = C extends `E_${string}`
 export function severityOf(code: string): DiagnosticSeverity {
   return code.startsWith('E_') ? 'error' : code.startsWith('W_') ? 'warning' : 'info'
 }
+
+/** How a refused apply is classed: its HTTP status on the server, its exit code in the CLI. */
+export type RefusalClass = 'conflict' | 'locked' | 'payload_too_large' | 'validation'
+
+/**
+ * The class of a refusal with these error codes, the most specific first: a resource changed
+ * since the directory was read (`conflict`), then a locked one, then a size limit, else
+ * `validation`.
+ */
+export function refusalClass(codes: Iterable<string>): RefusalClass {
+  const present = new Set(codes)
+  if (present.has('E_APPLY_STALE')) return 'conflict'
+  if (present.has('E_APPLY_LOCKED')) return 'locked'
+  if (present.has('E_LIMIT_EXCEEDED') || present.has('E_PLAN_TOO_LARGE')) {
+    return 'payload_too_large'
+  }
+  return 'validation'
+}
