@@ -180,7 +180,9 @@
     // exports. `test/examples`, `test/negative` and `test/core` are type-check fixtures whose
     // default export is the workflow: nothing imports them, because `test/typecheck-project.ts`
     // globs them into a tsconfig that a test runs tsgo against. `cookbook/workflow.ts` is the
-    // example the CLI writes as text (`COOKBOOK_TS`), type-checked by apps/sim's real-catalog test.
+    // example the CLI writes as text (`COOKBOOK_TS`), type-checked by apps/sim's real-catalog test;
+    // `cookbook/workspace/**` is the example workspace directory it writes as `WORKSPACE_COOKBOOK`
+    // (its `tools/*.js` is custom tool code, which runs in a sandbox, not as a module).
     "packages/workflow-sdk": {
       "includeEntryExports": false,
       "entry": [
@@ -188,6 +190,7 @@
         "src/codegen/index.ts",
         "scripts/*.ts",
         "cookbook/*.ts",
+        "cookbook/workspace/**/*.{ts,js}",
         "test/core/*.ts",
         "test/examples/*.ts",
         "test/negative/*.ts"
