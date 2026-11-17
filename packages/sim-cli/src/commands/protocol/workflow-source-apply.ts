@@ -129,7 +129,7 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
  * info code folded into one line (a new workflow places every block by autolayout, which is no
  * reason to print a frame per block and bury the warnings).
  */
-export function printDiagnostics(diagnostics: Diagnostic[]): void {
+function printDiagnostics(diagnostics: Diagnostic[]): void {
   const infos = new Map<string, Diagnostic[]>()
   for (const diagnostic of diagnostics) {
     if (diagnostic.severity !== 'info') {
