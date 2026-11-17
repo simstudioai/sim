@@ -27,7 +27,8 @@ import { catalogBlock, catalogBuilderPaths, catalogBuildersOfType } from '../cat
 import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import { printsAsElseTrue } from '../forms/condition'
+import { branchesAtTopLevel, printsAsElseTrue } from '../forms/condition'
+import { inputFormatSugar } from '../forms/input-format'
 import { type ResponseForm, readResponseForm } from '../forms/response'
 import {
   JsonRef,
@@ -175,33 +176,6 @@ function kebab(ident: string): string {
 }
 
 const NULL_EXPR: Expr = { doc: 'null', shape: 'literal', depth: 1 }
-const INTEGER_LIKE = /^(0|[1-9][0-9]*)$/
-const INPUT_FIELD_KEYS = new Set(['name', 'type', 'value', 'description', 'required'])
-
-/**
- * The `inputFormat` record sugar: `{ subject: 'string' }` for `{ name, type, value: '' }`
- * items, `{ name: { type, value?, description?, required? } }` otherwise. `null` when any item
- * would not compile back to the same list (unknown keys, duplicate or integer-like names).
- */
-function inputFormatSugar(
-  value: Value
-): Array<{ name: string; item: Record<string, Value> }> | null {
-  if (!Array.isArray(value) || value.length === 0) return null
-  const seen = new Set<string>()
-  const items: Array<{ name: string; item: Record<string, Value> }> = []
-  for (const entry of value) {
-    if (!isPlainRecord(entry)) return null
-    const record = entry
-    const name = record.name
-    if (typeof name !== 'string' || typeof record.type !== 'string') return null
-    if (seen.has(name) || INTEGER_LIKE.test(name) || name === '__proto__') return null
-    if (Object.keys(record).some((key) => !INPUT_FIELD_KEYS.has(key))) return null
-    seen.add(name)
-    items.push({ name, item: record })
-  }
-  return items
-}
-
 /**
  * A value in a password field that holds literal text: anything but `null`, `''` or text made
  * only of reference and `{{ENV}}` tokens. It prints as `stored()`, never as the secret.
@@ -1096,10 +1070,11 @@ class WorkflowPrinter {
       const collides = paramProps.some((prop) =>
         branchProps.some((branch) => branch.key === prop.key)
       )
-      if (branchSpec.kind === 'condition' && !generic && !collides) {
+      const atTopLevel = branchesAtTopLevel(branchSpec.kind, !generic)
+      if (atTopLevel && !collides) {
         topLevel = [...branchProps, ...paramProps]
       } else {
-        if (branchSpec.kind === 'condition' && collides) generic = true
+        if (atTopLevel) generic = true
         topLevel = [
           ...paramProps,
           { key: printKey(branchSpec.subBlockId), value: objectExpr(branchProps) },

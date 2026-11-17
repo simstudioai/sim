@@ -1,6 +1,8 @@
 /**
  * The condition block's `else: true` sugar, both directions: the last `else` row with an empty
- * value prints as `else: true`, and `else: true` written last compiles to that row.
+ * value prints as `else: true`, and `else: true` written last compiles to that row. Also where the
+ * branches sit in source: a condition built through its catalog builder writes them as top-level
+ * params, every other branching block under its branch subBlock id.
  */
 
 import type { Node } from '@babel/types'
@@ -9,6 +11,14 @@ import type { CanonicalBranchRow } from '../model'
 
 /** The branch key a condition with two or more branches ends with. */
 export const ELSE_KEY = 'else'
+
+/** Whether branch entries sit beside the params rather than under the branch subBlock id. */
+export function branchesAtTopLevel(
+  kind: WorkflowBranchKind | undefined,
+  viaCatalogBuilder: boolean
+): boolean {
+  return viaCatalogBuilder && kind === 'condition'
+}
 
 /** Whether row `index` of `count` prints as `else: true`. */
 export function printsAsElseTrue(

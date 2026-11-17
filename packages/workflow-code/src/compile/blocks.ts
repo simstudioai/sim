@@ -20,7 +20,8 @@ import {
   fromCodeFile,
 } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
-import { ELSE_KEY, isElseTrue } from '../forms/condition'
+import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
+import { inputFormatItems } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { utf8Bytes } from '../limits'
 import {
@@ -392,21 +393,6 @@ function parseCodeFile(
   return back.code
 }
 
-/** input-format sugar: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list. */
-function inputFormatItems(value: Value): Value {
-  if (!isPlainRecord(value)) return value
-  return Object.entries(value).map(([name, entry]) => {
-    if (typeof entry === 'string') return { name, type: entry, value: '' }
-    const item: Record<string, Value> = { name }
-    if (isPlainRecord(entry)) {
-      for (const [key, field] of Object.entries(entry)) setOwn(item, key, field)
-    } else {
-      setOwn(item, 'value', entry)
-    }
-    return item
-  })
-}
-
 interface WrittenParam {
   property: ObjectProperty
   param: string
@@ -762,7 +748,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   }
   const index = catalogBlock ? buildFieldIndex(catalogBlock, triggerMode, pinned) : null
   const branchField = catalogBlock?.graph.branches
-  const conditionForm = builder.kind === 'catalog' && branchField?.kind === 'condition'
+  const conditionForm = branchesAtTopLevel(branchField?.kind, builder.kind === 'catalog')
 
   if (paramsNode && paramsNode.type !== 'ObjectExpression') {
     unsupported(
