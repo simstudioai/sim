@@ -27,12 +27,14 @@ function serialize(value: unknown, ancestors: Set<object>): string {
   ancestors.add(value)
   let text: string
   if (Array.isArray(value)) {
-    text = `[${value
-      .map((item) => {
-        if (item === undefined) throw new TypeError('Cannot hash undefined inside an array')
-        return serialize(item, ancestors)
-      })
-      .join(',')}]`
+    const items: string[] = []
+    // Indexed, not `map`: `map` skips a hole, which would hash `[,]` as `[]`.
+    for (let index = 0; index < value.length; index++) {
+      const item: unknown = value[index]
+      if (item === undefined) throw new TypeError('Cannot hash undefined inside an array')
+      items.push(serialize(item, ancestors))
+    }
+    text = `[${items.join(',')}]`
   } else {
     const prototype = Object.getPrototypeOf(value)
     if (prototype !== Object.prototype && prototype !== null) {
@@ -53,9 +55,9 @@ function serialize(value: unknown, ancestors: Set<object>): string {
 /**
  * Deterministic JSON: object keys sorted by UTF-16 code unit (`compareStrings`), array order kept,
  * `undefined` object fields dropped, no whitespace. Key order of the input never changes the
- * output, which matters because jsonb does not keep it. Throws `TypeError` on
- * anything JSON cannot represent exactly (NaN, ±Infinity, `undefined` in arrays, functions,
- * bigint, class instances) and on cycles. `JSON.stringify` escapes lone surrogates, so the output
+ * output, which matters because jsonb does not keep it. Throws `TypeError` on anything JSON
+ * cannot represent exactly (NaN, ±Infinity, `undefined` or holes in arrays, functions, bigint,
+ * class instances) and on cycles. `JSON.stringify` escapes lone surrogates, so the output
  * is well-formed and distinct strings never collide after UTF-8 encoding.
  */
 export function stableStringify(value: unknown): string {
