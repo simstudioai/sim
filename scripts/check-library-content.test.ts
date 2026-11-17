@@ -339,6 +339,11 @@ describe('check-library-content', () => {
       'overstates',
     ],
     ['Sim, unlike n8n, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    [
+      'While Sim has 1,000+ integrations, Zapier focuses on simple automations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
     ['Sim | Governed agents | 1,000+ integrations |', '1,000+ integrations', 'overstates'],
     [
       '[Sim](https://www.sim.ai) combines [Chat](https://docs.sim.ai/execution/chat) with 1,000+ integrations.',
@@ -396,6 +401,9 @@ describe('check-library-content', () => {
         '- Unlike Sim, Zapier lists 9,000+ integrations.',
         "Sim has fewer than [Zapier](https://zapier.com)'s 9,000+ integrations.",
         'Sim has 280+ integrations, unlike Zapier, which has 9,000+ integrations.',
+        'Zapier, unlike Sim, has 9,000+ integrations.',
+        'Zapier, like Sim, has 9,000+ integrations.',
+        'Sim, unlike Zapier, which has 9,000+ integrations, is open source.',
         'n8n | Alternative to Sim | 2,000+ integrations |',
         'Sim has 280+ integrations, while Zapier lists 9,000+ integrations.',
         "Sim has 280+ integrations, fewer than Zapier's 9,000+ integrations.",

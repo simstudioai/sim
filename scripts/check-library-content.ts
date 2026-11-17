@@ -149,17 +149,24 @@ const SIM_NAME = /\bSim\b/
 /** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
 /**
- * A comparison set off by commas right after Sim, as in "Sim, unlike Zapier, has ...". The span
- * ends at the first comma that is not a thousands separator, so "Sim, unlike n8n, ..." matches.
+ * A comparison set off by commas, as in "Sim, unlike Zapier, has ..." or "Zapier, like Sim, has
+ * ...", removed so the sentence keeps its subject. The span ends at the first comma that is not a
+ * thousands separator, and it is kept when a relative clause follows ("unlike Zapier, which has").
  */
-const SIM_PARENTHETICAL = new RegExp(
-  String.raw`\bSim,\s+(?:like|${CONTRAST})\s+(?:[^,]|,(?=\d))*?,(?!\d)`,
+const PARENTHETICAL_COMPARISON = new RegExp(
+  String.raw`,\s+(?:like|${CONTRAST})\s+(?:[^,]|,(?=\d))*?,(?!\d)(?!\s*(?:which|that|who)\b)`,
   'gi'
 )
 /** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
 const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+`, 'i')
-/** An opening comparison ("Unlike Sim, ...") whose main clause is about another product. */
-const LEADING_COMPARISON = new RegExp(String.raw`^(?:like|${CONTRAST})\b[^,]*,\s*`, 'i')
+/**
+ * An opening comparison ("Unlike Sim, ...") whose main clause is about another product. An opener
+ * that states a count of its own ("While Sim has 280+ integrations, ...") is kept.
+ */
+const LEADING_COMPARISON = new RegExp(
+  String.raw`^(?:like|${CONTRAST})\b(?:[^,]|,(?=\d))*?,(?!\d)\s*`,
+  'i'
+)
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -177,10 +184,14 @@ function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
 function simProseCounts(text: string): RegExpMatchArray[] {
   const sentences = text
     .replace(LINE_PREFIX, '')
-    .replace(SIM_PARENTHETICAL, 'Sim')
+    .replace(PARENTHETICAL_COMPARISON, '')
     .split(CLAUSE_BREAK)
   return sentences.flatMap((sentence) => {
-    const clause = sentence.replace(LEADING_COMPARISON, '')
+    const opener = LEADING_COMPARISON.exec(sentence)?.[0]
+    const clause =
+      opener !== undefined && opener.match(COUNT_CLAIM) === null
+        ? sentence.slice(opener.length)
+        : sentence
     return [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
       const before = clause.slice(0, match.index)
       const owner = POSSESSIVE_OWNER.exec(before)?.[1]
