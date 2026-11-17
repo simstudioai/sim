@@ -652,6 +652,21 @@ describe('materialize: identity', () => {
     )
   })
 
+  it('does not call a stale lock entry re-created when a block re-added under its key matches', () => {
+    const pulled = base()
+    const lock = lockFor(pulled)
+    const readded = blockState('a9', 'function', 'Fetch', { code: 'return 1' })
+    const prev = workflowState([pulled.blocks.start, readded, pulled.blocks.a2], {
+      edges: [edge('e1', 'start', 'a9'), edge('e2', 'a9', 'a2')],
+      variables: pulled.variables,
+    })
+    const result = run(canonical(pulled, lock).workflow, lock, { prev, lockFreshness: 'stale' })
+    expect(result.entries).toContainEqual(
+      expect.objectContaining({ status: 'matched', key: 'fetch', id: 'a9', via: 'db-name' })
+    )
+    expect(codes(result)).not.toContain('W_MAT_DELETED_SINCE_PULL')
+  })
+
   it('reuses an unclaimed lock id for a new workflow and reports duplicate lock ids', () => {
     const pulled = base()
     const lock = lockFor(pulled)

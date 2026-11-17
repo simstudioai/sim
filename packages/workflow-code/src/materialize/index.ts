@@ -130,9 +130,9 @@ export interface MaterializeOptions {
   /**
    * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
    * `stale` when it does not, `none` when there is no lock. A `stale` lock entry whose id left
-   * prev is re-created with `W_MAT_DELETED_SINCE_PULL`. Rule 4 (inferred renames) runs for every
-   * freshness: under a fresh lock it pairs only blocks whose key and ident both changed, since a
-   * rename that kept either is matched by rules 1-2.
+   * prev is re-created with `W_MAT_DELETED_SINCE_PULL` unless a later rule matches its key.
+   * Rule 4 (inferred renames) runs for every freshness: under a fresh lock it pairs only blocks
+   * whose key and ident both changed, since a rename that kept either is matched by rules 1-2.
    */
   lockFreshness: LockFreshness
 }

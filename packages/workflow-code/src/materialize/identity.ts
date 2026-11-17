@@ -117,8 +117,9 @@ function duplicateLockKeys(
  * 5. otherwise a new id (the lock's id when it is unclaimed, else a minted one).
  *
  * A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
- * `sunset.replacedBy` pair, which keeps the id. A stale lock entry whose id left prev is ignored
- * with `W_MAT_DELETED_SINCE_PULL`. Lock keys sharing one id are ignored with
+ * `sunset.replacedBy` pair, which keeps the id. A stale lock entry whose id left prev is ignored;
+ * when no later rule matches its key, the block is created with `W_MAT_DELETED_SINCE_PULL`.
+ * Lock keys sharing one id are ignored with
  * `E_MAT_DUPLICATE_LOCK_ID`.
  */
 export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
@@ -186,18 +187,15 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     return owner !== undefined && owner !== key
   }
 
+  /** Stale lock entries whose id left prev; reported only if no later rule matches the key. */
+  const deletedSincePull = new Map<BlockKey, string>()
   for (const key of keys) {
     const entry = lockEntry(key)
     if (!entry || identMoved(key)) continue
     if (Object.hasOwn(prevBlocks, entry.id)) {
       match(key, entry.id, 'lock-key')
     } else if (prev && inputs.freshness === 'stale') {
-      diagnostics.push({
-        code: 'W_MAT_DELETED_SINCE_PULL',
-        severity: 'warning',
-        message: `Block "${key}" (${entry.id}) was deleted after the lock was pulled; it is re-created`,
-        blockKey: key,
-      })
+      deletedSincePull.set(key, entry.id)
     } else {
       settled.set(key, { lockId: entry.id })
     }
@@ -257,6 +255,15 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       prevKey: null,
       lockOwned: reusable,
       entry: { status: 'created', key, id, idSource: reusable ? 'lock' : 'minted' },
+    })
+  }
+  for (const [key, lockId] of deletedSincePull) {
+    if (resolved.get(key)?.entry.status !== 'created') continue
+    diagnostics.push({
+      code: 'W_MAT_DELETED_SINCE_PULL',
+      severity: 'warning',
+      message: `Block "${key}" (${lockId}) was deleted after the lock was pulled; it is re-created`,
+      blockKey: key,
     })
   }
 
