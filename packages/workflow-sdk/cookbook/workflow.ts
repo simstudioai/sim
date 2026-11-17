@@ -19,7 +19,8 @@ import {
 } from '@sim/workflow-sdk'
 
 // An example to copy from, not a workflow of yours: `orders`, `policies`, `ops-slack` and
-// ANTHROPIC_API_KEY stand in for this workspace's resources (see .sim/sdk/workspace.d.ts).
+// ANTHROPIC_API_KEY stand in for this workspace's resources. `sim workflows source resources
+// <workspaceId>` lists the real keys, and .sim/sdk/workspace.d.ts types them.
 export default workflow('Cookbook', { description: 'One example of each common block.' }, () => {
   // Triggers: trigger.start (API/manual input), trigger.schedule, trigger.webhook.
   const start = trigger.start('Start', { inputFormat: { orderId: 'string', amount: 'number' } })
