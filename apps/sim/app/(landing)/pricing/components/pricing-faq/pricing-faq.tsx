@@ -28,12 +28,12 @@ const PRICING_FAQS = [
   },
   {
     question: 'What is a credit, and what does an agent run cost?',
-    answer: `One credit is $${1 / CREDITS_PER_DOLLAR}, so $1 buys ${CREDITS_PER_DOLLAR} credits. Each workflow run has a base charge of 1 credit, plus the model, tool, and sandbox usage it records when it uses Sim-hosted keys. Every run in Logs shows its exact cost.`,
+    answer: `One credit is $${1 / CREDITS_PER_DOLLAR}, so $1 buys ${CREDITS_PER_DOLLAR} credits. Each workflow run has a base charge of 1 credit, plus model and tool usage on Sim-hosted keys and any sandbox runtime. Every run in Logs shows its exact cost.`,
   },
   {
     question: 'Can I use my own model API keys?',
     answer:
-      'Yes. Add your provider keys under Settings → BYOK and Sim uses them instead of its hosted keys. You pay the provider directly for those calls, and Sim does not add a model charge. The 1-credit base run charge still applies.',
+      'Yes. Add your provider keys under Settings → BYOK and Sim uses them instead of its hosted keys. You pay the provider directly for those calls, and Sim adds no usage charge for them. The 1-credit base run charge still applies, as do hosted tool and sandbox charges for anything that does not run on your keys.',
   },
   {
     question: 'Can I self-host Sim for free?',
@@ -68,7 +68,7 @@ export function PricingFAQ() {
       <JsonLd data={PRICING_FAQ_JSON_LD} />
       <h2
         id='pricing-faq-heading'
-        className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+        className='mb-8 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
       >
         Frequently asked questions
       </h2>
