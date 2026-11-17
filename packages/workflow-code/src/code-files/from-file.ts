@@ -1,14 +1,8 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, MemberExpression, Node } from '@babel/types'
 import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
-import { babelErrorShape, childNodes } from '../babel'
-import {
-  ENV_VAR_NAME,
-  formatStoredPath,
-  isIndexSegment,
-  isNameSegment,
-  type RefSegment,
-} from './ref-path'
+import { babelErrorShape, childNodes, memberSegment } from '../babel'
+import { ENV_VAR_NAME, formatStoredPath, type RefSegment } from './ref-path'
 import { type CodeFileLanguage, ENV_ROOT, REF_ROOT } from './to-file'
 
 interface CodeFileSyntaxError {
@@ -120,22 +114,6 @@ function flattenChain(top: MemberExpression): { root: Expression; members: Membe
   }
   members.reverse()
   return { root: object, members }
-}
-
-function memberSegment(member: MemberExpression): RefSegment | null {
-  const property = member.property
-  if (!member.computed) {
-    return property.type === 'Identifier' && isNameSegment(property.name)
-      ? { kind: 'name', name: property.name }
-      : null
-  }
-  if (property.type === 'StringLiteral' && isNameSegment(property.value)) {
-    return { kind: 'name', name: property.value }
-  }
-  if (property.type === 'NumericLiteral' && isIndexSegment(property.value)) {
-    return { kind: 'index', index: property.value }
-  }
-  return null
 }
 
 function envName(member: MemberExpression): string | null {
