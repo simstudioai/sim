@@ -54,6 +54,7 @@ import {
   compileJsonLiteral,
   compileValue,
   isSelectorForm,
+  nestedValue,
   objectEntries,
   type ValueSite,
 } from './values'
@@ -1021,6 +1022,8 @@ function compileExtraParams(
     recordSpan(ctx, { kind: 'param', block: decl.key, param: id }, property)
     const compiled = compileValue(ctx, property.value, site)
     if (compiled?.kind === 'value') setOwn(params, id, { kind: 'value', value: compiled.value })
+    else if (compiled && compiled.kind !== 'absent')
+      nestedValue(ctx, property.value, compiled, site)
   }
 }
 

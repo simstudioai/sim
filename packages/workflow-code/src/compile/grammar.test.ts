@@ -726,6 +726,20 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'codeFile() in an extra field',
+      "const a = api('A', { url: 'x' }, { extra: { script: codeFile('./fns/a.js') } })",
+      'E_UNSUPPORTED_SYNTAX',
+      "codeFile('./fns/a.js') }",
+      "Write code: codeFile('./functions/x.js').",
+    ],
+    [
+      'todo() in an extra field',
+      "const a = api('A', { url: 'x' }, { extra: { later: todo() } })",
+      'E_UNSUPPORTED_SYNTAX',
+      'todo() }',
+      'Write todo() as the param value.',
+    ],
+    [
       'a wiring target nothing declares',
       `${START}\nconst fetchUser = api('Fetch', { url: 'x' })\nstart.to(fetchUsr)`,
       'E_UNKNOWN_IDENTIFIER',
