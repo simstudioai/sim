@@ -123,6 +123,27 @@ export function readBooleanField(
   return raw
 }
 
+/** Whether `value` is one of `values`, narrowing it to their type. */
+export function isOneOf<T extends string>(values: readonly T[], value: string): value is T {
+  return (values as readonly string[]).includes(value)
+}
+
+/**
+ * `value.folder` as a path from the workspace root (`example`, say), reporting a wrong type or a
+ * relative path.
+ */
+export function readFolderField(
+  value: Record<string, Json>,
+  report: FieldReport,
+  example: string
+): string | undefined {
+  const folder = readStringField(value, 'folder', '', report)
+  if (folder !== undefined && !folder.startsWith('/')) {
+    report('E_DECL_SHAPE', '/folder', `folder is a path from the root, such as \`${example}\`.`)
+  }
+  return folder
+}
+
 /** `value` as an object, reporting anything else. */
 export function readObject(
   value: Json | undefined,
@@ -130,7 +151,7 @@ export function readObject(
   report: FieldReport,
   what: string
 ): Record<string, Json> | undefined {
-  if (isRecordLike(value) && !Array.isArray(value)) return value as Record<string, Json>
+  if (isRecordLike(value)) return value as Record<string, Json>
   report('E_DECL_SHAPE', pointer, `${what} must be an object.`)
   return undefined
 }

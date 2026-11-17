@@ -11,7 +11,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { type Json, jsonInput, type LockExtensionKey, readExtensions } from '@sim/workflow-code'
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
-import { isWorkspaceKind, type WorkspaceKind } from './kind'
+import { isWorkspaceKind, SHA256_HEX, type WorkspaceKind } from './kind'
 import { isFileKey, isResourceKey } from './layout'
 import { pointerSegment } from './pointer'
 
@@ -63,7 +63,6 @@ const RESOURCE_FIELDS = ['id', 'fingerprint', 'columns', 'blobs']
 const COLUMN_FIELDS = ['id', 'options']
 const BLOB_FIELDS = ['id', 'rev', 'sha256']
 const FINGERPRINT = /^rf1:[0-9a-f]{64}$/
-const SHA256 = /^[0-9a-f]{64}$/
 
 /** The address of a resource in the base. */
 export function resourceAddress(kind: WorkspaceKind, key: string): ResourceAddress {
@@ -221,7 +220,7 @@ function parseResource(
           !isNonEmptyString(blob.id) ||
           !(typeof rev === 'number' || isNonEmptyString(rev)) ||
           typeof blob.sha256 !== 'string' ||
-          !SHA256.test(blob.sha256)
+          !SHA256_HEX.test(blob.sha256)
         ) {
           shape(blobPath, 'A blob entry needs an `id`, a `rev` and a `sha256`.')
           continue

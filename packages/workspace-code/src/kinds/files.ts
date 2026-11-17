@@ -14,7 +14,7 @@ import {
   type WorkspaceDiagnosticCode,
   wholeFile,
 } from '../diagnostics'
-import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
+import { type BlobEntry, isWellFormedBlob, KIND_DIRS, type KindCodec } from '../kind'
 import { isFileKey } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
@@ -25,7 +25,6 @@ export interface FileDecl {
   size: number
 }
 
-const SHA256 = /^[0-9a-f]{64}$/
 /** Names Windows reserves for devices, with or without an extension. */
 const RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i
 const MAX_SEGMENT_BYTES = 255
@@ -185,7 +184,7 @@ function parseFile(
       ],
     }
   }
-  if (!SHA256.test(blob.sha256) || !Number.isSafeInteger(blob.size) || blob.size < 0) {
+  if (!isWellFormedBlob(blob)) {
     return {
       diagnostics: [
         pathFinding('E_FILE_CONTENT', path, `${path} needs a SHA-256 hash and a byte size.`),

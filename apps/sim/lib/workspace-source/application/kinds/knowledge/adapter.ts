@@ -37,6 +37,7 @@ import { admitOnce } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
+  missingFolderFinding,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -162,19 +163,8 @@ async function planKnowledgeBase(
   configured: () => ReturnType<typeof getConfiguredKbEmbedding>
 ): Promise<KnowledgeChange> {
   const change: KnowledgeChange = { kind: KIND, key, action: 'noop', decl, diagnostics: [] }
-  if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
-    change.diagnostics.push(
-      kindFinding(
-        KIND,
-        key,
-        'E_KB_FOLDER',
-        `The folder ${decl.folder} does not exist in this workspace.`,
-        {
-          hint: 'Create the folder first, or drop `folder` to keep the knowledge base at the root.',
-        }
-      )
-    )
-  }
+  const missingFolder = missingFolderFinding(KIND, key, decl.folder, folders)
+  if (missingFolder) change.diagnostics.push(missingFolder)
   const local = fingerprintOf(knowledgeCodec.canonical(decl))
   const base = ctx.base?.resources[resourceAddress(KIND, key)]
   const bound = stored.bound.get(key)

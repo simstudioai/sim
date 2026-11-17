@@ -9,7 +9,7 @@ import { type SourceBase, setOwn } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec, type WorkspaceKind } from '../kind'
-import { WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
+import { RESOURCE_KEY_SOURCE, WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
 import { groupByFolder } from './group'
 
 /** A workflow folder's files, as the workflow compiler reads them. */
@@ -57,7 +57,7 @@ const REFERENCE_KINDS = {
 
 /** `table('leads')`, `skill("tone")`, …: a reference call with a literal key. */
 const REFERENCE_CALL = new RegExp(
-  `\\b(${Object.keys(REFERENCE_KINDS).join('|')})\\(\\s*(['"])([a-z][a-z0-9_-]{0,63})\\2`,
+  `\\b(${Object.keys(REFERENCE_KINDS).join('|')})\\(\\s*(['"])(${RESOURCE_KEY_SOURCE})\\2`,
   'g'
 )
 

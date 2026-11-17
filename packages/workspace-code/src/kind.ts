@@ -42,6 +42,14 @@ export interface BlobEntry {
   size: number
 }
 
+/** A lowercase hex SHA-256, as a blob entry and a base record one. */
+export const SHA256_HEX = /^[0-9a-f]{64}$/
+
+/** Whether a blob entry carries a SHA-256 and a byte size (its content is checked elsewhere). */
+export function isWellFormedBlob(blob: Pick<BlobEntry, 'sha256' | 'size'>): boolean {
+  return SHA256_HEX.test(blob.sha256) && Number.isSafeInteger(blob.size) && blob.size >= 0
+}
+
 /** The paths of one kind, grouped by the resource key that owns them. */
 export interface GroupedPaths {
   groups: Map<string, string[]>

@@ -16,6 +16,7 @@
  * printer also quotes a value a YAML reader would take for a boolean, null, number or date. The
  * server checks names and lengths against the skill rules.
  */
+import { isOneOf } from '../declaration/fields'
 import { unstorableCharacter } from '../declaration/read'
 import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
@@ -63,10 +64,6 @@ function printValue(value: string): string {
   return isPlain(value) && !YAML_SCALAR.test(value) ? value : JSON.stringify(value)
 }
 
-function isField(name: string): name is SkillField {
-  return (FIELDS as readonly string[]).includes(name)
-}
-
 function parseSkill(
   key: string,
   text: Readonly<Record<string, string>>
@@ -108,11 +105,11 @@ function parseSkill(
     offset += line.length + 1
     const colon = line.indexOf(':')
     const field = colon === -1 ? '' : line.slice(0, colon)
-    if (!isField(field) || line[colon + 1] !== ' ') {
+    if (!isOneOf(FIELDS, field) || line[colon + 1] !== ' ') {
       report(
         at,
         at + line.length,
-        isField(field) || colon === -1
+        isOneOf(FIELDS, field) || colon === -1
           ? 'Each frontmatter line is `field: value`.'
           : `Unknown frontmatter field "${field}"; a skill has only name and description.`
       )

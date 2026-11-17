@@ -18,14 +18,16 @@ import {
   type FieldReport,
   fieldPointer,
   fieldReporter,
+  isOneOf,
   readBooleanField,
+  readFolderField,
   readObject,
   readStringField,
 } from '../declaration/fields'
 import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
 import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
-import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
+import { type BlobEntry, isWellFormedBlob, KIND_DIRS, type KindCodec } from '../kind'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { filePathProblem, foldedFileKey } from './files'
 import { groupByFolder } from './group'
@@ -71,14 +73,14 @@ export interface KnowledgeBaseDecl {
 }
 
 /**
- * The chunking a knowledge base gets when none is declared. Mirrors `DEFAULT_CHUNKING_CONFIG`
- * (apps/sim/lib/knowledge/constants), so an undeclared and a spelled-out default agree.
+ * The chunking a knowledge base gets when none is declared: what its fingerprint assumes and what
+ * an apply creates it with. Mirrors `DEFAULT_CHUNKING_CONFIG` (apps/sim/lib/knowledge/constants),
+ * so an undeclared and a spelled-out default agree.
  */
-const DEFAULT_CHUNKING = { maxSize: 1024, minSize: 100, overlap: 200 } as const
+export const DEFAULT_CHUNKING = { maxSize: 1024, minSize: 100, overlap: 200 } as const
 
 /** Mirrors `KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH` (apps/sim/lib/knowledge/constants). */
 const MAX_DESCRIPTION_LENGTH = 10_000
-const SHA256 = /^[0-9a-f]{64}$/
 
 const CALLEE = 'defineKnowledgeBase'
 const DECLARATION_FILE = 'knowledge.ts'
@@ -105,10 +107,6 @@ export function isKnowledgeDocName(name: string): boolean {
   return !name.includes('/') && filePathProblem(name) === null
 }
 
-function oneOf<T extends string>(values: readonly T[], value: string): value is T {
-  return (values as readonly string[]).includes(value)
-}
-
 function readSizeField(
   value: Record<string, Json>,
   field: string,
@@ -133,7 +131,7 @@ function readEnumField<T extends string>(
 ): T | undefined {
   const raw = readStringField(value, field, pointer, report)
   if (raw === undefined) return undefined
-  if (oneOf(allowed, raw)) return raw
+  if (isOneOf(allowed, raw)) return raw
   report(
     'E_DECL_SHAPE',
     fieldPointer(pointer, field),
@@ -235,7 +233,7 @@ function readDocs(
           'Keep one of them: a case-insensitive disk holds them as one.'
         )
       )
-    } else if (!SHA256.test(blob.sha256) || !Number.isSafeInteger(blob.size) || blob.size < 0) {
+    } else if (!isWellFormedBlob(blob)) {
       diagnostics.push(
         fileFinding('E_DECL_SHAPE', key, blob.path, `${blob.path} has no valid hash and size.`)
       )
@@ -290,10 +288,7 @@ function parseKnowledgeBase(
   const description = readStringField(value, 'description', '', report, {
     maxLength: MAX_DESCRIPTION_LENGTH,
   })
-  const folder = readStringField(value, 'folder', '', report)
-  if (folder !== undefined && !folder.startsWith('/')) {
-    report('E_DECL_SHAPE', '/folder', 'folder is a path from the root, such as `/support`.')
-  }
+  const folder = readFolderField(value, report, '/support')
   const chunking = value.chunking === undefined ? undefined : readChunking(value.chunking, report)
   const embeddingModel = readStringField(value, 'embeddingModel', '', report)
   if (diagnostics.some((finding) => finding.severity === 'error') || name === undefined) {

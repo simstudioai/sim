@@ -14,7 +14,6 @@ import {
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
 import { WORKFLOW_LOCK_FILE } from '@sim/workspace-code/layout'
-import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,
@@ -31,7 +30,7 @@ import {
   planUndeclared,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored } from '@/lib/workspace-source/application/keys'
+import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
   PlanContext,
@@ -205,9 +204,8 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
 
   async load(ctx, { allocate }) {
     const { workspaceId } = ctx.workspace
-    const workflows: Array<{ id: string; name: string }> = []
-    let cursorKeys: Awaited<ReturnType<typeof listWorkflows.execute>>['nextCursorKeys'] = null
-    do {
+    type CursorKeys = Awaited<ReturnType<typeof listWorkflows.execute>>['nextCursorKeys']
+    const workflows = await listUpTo(async (cursorKeys: CursorKeys | undefined) => {
       const page = await listWorkflows.execute({
         principal: ctx.principal,
         input: {
@@ -220,9 +218,8 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
           ...(cursorKeys ? { cursorKeys } : {}),
         },
       })
-      workflows.push(...page.workflows)
-      cursorKeys = page.nextCursorKeys
-    } while (cursorKeys && workflows.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
+      return { items: page.workflows, next: page.nextCursorKeys }
+    })
     const records = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,

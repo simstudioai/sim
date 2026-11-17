@@ -17,8 +17,10 @@ export const WORKFLOW_BASE_FILE = '.sim/base.json'
 /** The entry file of a table declaration: `tables/<key>.ts`. */
 export const DECLARATION_EXTENSION = '.ts'
 
-/** The stored resource key format (`workspace_resource_key.key`). */
-const RESOURCE_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/
+/** The stored resource key format (`workspace_resource_key.key`), unanchored. */
+export const RESOURCE_KEY_SOURCE = '[a-z][a-z0-9_-]{0,63}'
+
+const RESOURCE_KEY_PATTERN = new RegExp(`^${RESOURCE_KEY_SOURCE}$`)
 
 /** Whether `value` is a resource key: lowercase, starting with a letter, at most 64 characters. */
 export function isResourceKey(value: string): boolean {

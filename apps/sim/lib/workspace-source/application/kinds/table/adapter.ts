@@ -26,6 +26,7 @@ import { getTableById } from '@/lib/table/service'
 import { PartiallyAppliedError } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
+  missingFolderFinding,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -89,17 +90,8 @@ async function planTable(
   folders: ReadonlySet<string>
 ): Promise<TableChange> {
   const change: TableChange = { kind: 'table', key, action: 'noop', decl, diagnostics: [] }
-  if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
-    change.diagnostics.push(
-      kindFinding(
-        'table',
-        key,
-        'E_TABLE_FOLDER',
-        `The folder ${decl.folder} does not exist in this workspace.`,
-        { hint: 'Create the folder first, or drop `folder` to keep the table at the root.' }
-      )
-    )
-  }
+  const missingFolder = missingFolderFinding('table', key, decl.folder, folders)
+  if (missingFolder) change.diagnostics.push(missingFolder)
   const entry = ctx.base?.resources[resourceAddress('table', key)]
   const resolution = resolveDeclared({
     local: fingerprintOf(tableCodec.canonical(decl)),

@@ -9,7 +9,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
 import { type ToolDecl, toolCodec, toolDeclarationPath } from '@sim/workspace-code/kinds/tools'
-import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -21,7 +20,7 @@ import {
 } from '@/lib/custom-tools/application/use-cases'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
-import { bindStored } from '@/lib/workspace-source/application/keys'
+import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
   authorizeNamed,
@@ -78,9 +77,7 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
   codec: toolCodec,
 
   async load(ctx, { allocate }) {
-    const records: Array<{ id: string; name: string; state: StoredTool }> = []
-    let cursorKeys: CursorKey[] | undefined
-    do {
+    const tools = await listUpTo(async (cursorKeys: CursorKey[] | undefined) => {
       const page = await listWorkspaceCustomToolsUseCase.execute({
         principal: ctx.principal,
         input: {
@@ -91,9 +88,9 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
           ...(cursorKeys ? { cursorKeys } : {}),
         },
       })
-      for (const tool of page.tools) records.push({ id: tool.id, name: tool.title, state: tool })
-      cursorKeys = page.nextCursorKeys ?? undefined
-    } while (cursorKeys && records.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
+      return { items: page.tools, next: page.nextCursorKeys }
+    })
+    const records = tools.map((tool) => ({ id: tool.id, name: tool.title, state: tool }))
     return bindStored(ctx, 'custom-tool', records, { allocate })
   },
 

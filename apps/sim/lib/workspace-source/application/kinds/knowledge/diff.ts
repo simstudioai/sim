@@ -7,16 +7,16 @@
  */
 import { sha256Hex } from '@sim/security/hash'
 import type { BaseResource } from '@sim/workspace-code'
-import type {
-  KnowledgeBaseDecl,
-  KnowledgeChunkingDecl,
-  KnowledgeDocDecl,
+import {
+  DEFAULT_CHUNKING,
+  type KnowledgeBaseDecl,
+  type KnowledgeChunkingDecl,
+  type KnowledgeDocDecl,
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
-import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
@@ -66,9 +66,9 @@ const KIND = 'knowledge-base'
 /** The full chunking settings a declaration resolves to. */
 export function chunkingConfig(chunking: KnowledgeChunkingDecl | undefined): ChunkingConfig {
   return {
-    maxSize: chunking?.maxSize ?? DEFAULT_CHUNKING_CONFIG.maxSize,
-    minSize: chunking?.minSize ?? DEFAULT_CHUNKING_CONFIG.minSize,
-    overlap: chunking?.overlap ?? DEFAULT_CHUNKING_CONFIG.overlap,
+    maxSize: chunking?.maxSize ?? DEFAULT_CHUNKING.maxSize,
+    minSize: chunking?.minSize ?? DEFAULT_CHUNKING.minSize,
+    overlap: chunking?.overlap ?? DEFAULT_CHUNKING.overlap,
     ...(chunking?.strategy !== undefined ? { strategy: chunking.strategy } : {}),
     ...(chunking?.strategyOptions !== undefined
       ? { strategyOptions: chunking.strategyOptions }

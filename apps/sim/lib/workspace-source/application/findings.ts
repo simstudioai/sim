@@ -100,6 +100,26 @@ export function serverChangedFinding(kind: WorkspaceKind, key: string): Workspac
 }
 
 /**
+ * The finding for a declared `folder` the workspace does not hold (`folders` lists the paths it
+ * does), or `undefined` when the folder exists or is the root.
+ */
+export function missingFolderFinding(
+  kind: 'table' | 'knowledge-base',
+  key: string,
+  folder: string | undefined,
+  folders: ReadonlySet<string>
+): WorkspaceSourceDiagnostic | undefined {
+  if (!folder || folder === '/' || folders.has(folder)) return undefined
+  return kindFinding(
+    kind,
+    key,
+    kind === 'table' ? 'E_TABLE_FOLDER' : 'E_KB_FOLDER',
+    `The folder ${folder} does not exist in this workspace.`,
+    { hint: `Create the folder first, or drop \`folder\` to keep the ${NOUNS[kind]} at the root.` }
+  )
+}
+
+/**
  * `E_PLAN_REF_DELETED` on `user` (a declared workflow, say) for using `ref`, which the apply
  * deletes.
  */

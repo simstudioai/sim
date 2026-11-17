@@ -4,6 +4,7 @@
  */
 import { db } from '@sim/db'
 import type { WorkspaceKind } from '@sim/workspace-code'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
 import type {
   PlannedChange,
@@ -44,6 +45,24 @@ export async function bindStored<S>(
     else set.bound.set(key, { ...record, key })
   }
   return set
+}
+
+/**
+ * A kind's stored resources, page by page, until the listing ends or holds more than one directory
+ * may (`maxResourcesPerKind`): a workspace over the limit costs one page past it, never a full
+ * listing.
+ */
+export async function listUpTo<T, C>(
+  fetchPage: (cursor: C | undefined) => Promise<{ items: readonly T[]; next: C | null | undefined }>
+): Promise<T[]> {
+  const items: T[] = []
+  let cursor: C | undefined
+  do {
+    const page = await fetchPage(cursor)
+    items.push(...page.items)
+    cursor = page.next ?? undefined
+  } while (cursor !== undefined && items.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
+  return items
 }
 
 /**

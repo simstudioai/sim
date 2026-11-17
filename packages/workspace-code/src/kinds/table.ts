@@ -20,7 +20,9 @@ import {
   type FieldReport,
   fieldPointer,
   fieldReporter,
+  isOneOf,
   readBooleanField,
+  readFolderField,
   readObject,
   readStringField,
 } from '../declaration/fields'
@@ -102,10 +104,6 @@ export function columnName(key: string, column: TableColumnDecl): string {
   return column.name ?? key
 }
 
-function isColumnType(value: string): value is TableColumnType {
-  return (TABLE_COLUMN_TYPES as readonly string[]).includes(value)
-}
-
 function readColumn(
   key: string,
   value: Json,
@@ -113,7 +111,7 @@ function readColumn(
   report: FieldReport
 ): TableColumnDecl | undefined {
   const type = isDeclarationCall(value) ? value.$call.slice('column.'.length) : ''
-  if (!isDeclarationCall(value) || !isColumnType(type)) {
+  if (!isDeclarationCall(value) || !isOneOf(TABLE_COLUMN_TYPES, type)) {
     report(
       'E_DECL_SHAPE',
       pointer,
@@ -222,10 +220,7 @@ function parseTable(
   const description = readStringField(value, 'description', '', report, {
     maxLength: MAX_DESCRIPTION_LENGTH,
   })
-  const folder = readStringField(value, 'folder', '', report)
-  if (folder !== undefined && !folder.startsWith('/')) {
-    report('E_DECL_SHAPE', '/folder', 'folder is a path from the root, such as `/reports`.')
-  }
+  const folder = readFolderField(value, report, '/reports')
   const columns: Record<string, TableColumnDecl> = {}
   const rawColumns =
     value.columns === undefined
