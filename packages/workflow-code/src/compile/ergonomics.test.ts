@@ -363,6 +363,15 @@ describe('JSON field literals', () => {
     expect(codes(result)).toEqual(['W_JSON_REF_UNTYPED'])
   })
 
+  it('refuses an inputFormat entry whose name differs from its key, which names the field', () => {
+    const result = run(
+      source(
+        "  const start = trigger.start('Start', { inputFormat: { subject: { name: 'other', type: 'string' } } })"
+      )
+    )
+    expect(codes(result)).toEqual(['E_UNSUPPORTED_SYNTAX'])
+  })
+
   it("types a human form's fields under submission, as the SDK does", () => {
     const workflow = compiled(
       source(

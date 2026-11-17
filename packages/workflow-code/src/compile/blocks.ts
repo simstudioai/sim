@@ -21,7 +21,7 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
-import { inputFormatItems } from '../forms/input-format'
+import { inputFormatItems, renamedInputFields } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
@@ -701,6 +701,15 @@ function compileField(
   let value = compiled.value
   const checked = compiled.form === 'literal'
   if (target.structured === 'inputFormat' && compiled.form === 'literal') {
+    for (const renamed of renamedInputFields(value)) {
+      unsupported(
+        ctx,
+        property.value,
+        `The ${renamed.key} field also writes name ${JSON.stringify(renamed.name)}; the key names the field.`,
+        `Rename the key, or remove name from ${renamed.key}.`,
+        decl.key
+      )
+    }
     value = inputFormatItems(value)
   }
   setOwn(params, target.id, { kind: 'value', value })
