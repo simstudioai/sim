@@ -16,6 +16,7 @@
  */
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, Node, ObjectExpression } from '@babel/types'
+import { isRecordLike } from '@sim/utils/object'
 import {
   babelErrorShape,
   babelMessage,
@@ -66,13 +67,7 @@ const PARSER_OPTIONS: ParserOptions = {
 
 /** Whether a decoded value is a helper call the reader produced. */
 export function isDeclarationCall(value: unknown): value is DeclarationCall {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    typeof (value as Record<string, unknown>)[CALL_KEY] === 'string' &&
-    Array.isArray((value as Record<string, unknown>).args)
-  )
+  return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
 }
 
 /** One RFC 6901 pointer segment. */
