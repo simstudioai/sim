@@ -4,18 +4,17 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
-import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
+import {
+  SOURCE_LOCKED_EXIT_CODE,
+  SOURCE_PARTIAL_EXIT_CODE,
+  SOURCE_STALE_EXIT_CODE,
+  SOURCE_TOO_LARGE_EXIT_CODE,
+} from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody, ApplyWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import {
-  confirm,
-  printDiagnostics,
-  printRefusal,
-  refusedExitCode,
-  requireConsent,
-} from './workflow-source-apply'
+import { confirm, printDiagnostics, printRefusal, requireConsent } from './workflow-source-apply'
 import {
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
@@ -57,6 +56,22 @@ const SYMBOLS: Record<Change['action'], string> = {
   adopt: '=',
   delete: '-',
   noop: ' ',
+}
+
+/**
+ * The exit status of a dry run that found errors, matching the status a commit's refusal maps to
+ * (`WorkspaceSourceRejectedError`): 5 stale, then 6 locked, then 7 too large, else 1.
+ */
+function refusedExitCode(diagnostics: ApplyData['diagnostics']): number {
+  const codes = new Set(
+    diagnostics.filter((finding) => finding.severity === 'error').map((finding) => finding.code)
+  )
+  if (codes.has('E_APPLY_STALE')) return SOURCE_STALE_EXIT_CODE
+  if (codes.has('E_APPLY_LOCKED')) return SOURCE_LOCKED_EXIT_CODE
+  if (codes.has('E_LIMIT_EXCEEDED') || codes.has('E_PLAN_TOO_LARGE')) {
+    return SOURCE_TOO_LARGE_EXIT_CODE
+  }
+  return 1
 }
 
 /** The plan as a person reads it: per kind, the counts, then each change with what it touches. */

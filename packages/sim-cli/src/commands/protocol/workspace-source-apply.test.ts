@@ -241,4 +241,23 @@ describe('workspaces source apply', () => {
     write('files/b.txt', 'stale')
     await expect(apply('--yes', '--allow-delete')).resolves.toBeUndefined()
   })
+
+  it.each([
+    [['E_APPLY_LOCKED'], 6],
+    [['E_PLAN_TOO_LARGE'], 7],
+    [['E_LIMIT_EXCEEDED'], 7],
+    [['E_LIMIT_EXCEEDED', 'E_APPLY_LOCKED', 'E_APPLY_STALE'], 5],
+    [['E_DECL_SHAPE'], 1],
+  ])('exits on a refused dry run as a commit refusing %j would', async (codes, exitCode) => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
+      })
+    )
+
+    await apply('--dry-run')
+
+    expect(process.exitCode).toBe(exitCode)
+  })
 })
