@@ -322,8 +322,10 @@ it.each(CASES)('$name', async (testCase) => {
 
     const direct = await withPermissionGroupScope(async () =>
       categories([
-        ...findLockedBlockRefusals(base, target, diffGraphs(base, target)),
+        ...findLockedBlockRefusals(base, target, diffGraphs(base, target), () => undefined),
         ...(await gateSourceDiff({
+          catalog,
+          keyOf: () => undefined,
           base,
           target,
           diff: diffGraphs(base, target),

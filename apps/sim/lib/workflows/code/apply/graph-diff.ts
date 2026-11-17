@@ -1,9 +1,6 @@
 import { compareStrings } from '@sim/utils/string'
-import {
-  type BlockState,
-  normalizeWorkflowBlockName,
-  type WorkflowState,
-} from '@sim/workflow-types/workflow'
+import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
+import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 
 /** The two parts of a stored graph the source gates compare. */
@@ -12,11 +9,11 @@ export type SourceGraph = Pick<WorkflowState, 'blocks' | 'edges'>
 type GraphEdge = WorkflowState['edges'][number]
 
 /**
- * Block keys that only place a block on the canvas. Source apply keeps stored positions for
+ * Block keys that only place a block on the canvas. Source apply keeps stored layout for
  * existing blocks, so a difference here is never a semantic change.
  */
-const LAYOUT_BLOCK_KEYS: ReadonlySet<string> = new Set(['position', 'height', 'layout'])
-const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(['width', 'height'])
+const LAYOUT_BLOCK_KEYS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_FIELDS)
+const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
 
 /** One block present on both sides whose semantic content differs. */
 interface ModifiedBlock {
@@ -42,11 +39,6 @@ export interface GraphDiff {
   modified: ModifiedBlock[]
   edgesAdded: GraphEdge[]
   edgesRemoved: GraphEdge[]
-}
-
-/** The source key a block is named by: its normalized name. */
-export function blockKeyOf(block: BlockState): string {
-  return normalizeWorkflowBlockName(block.name ?? '')
 }
 
 export function parentIdOf(block: BlockState | undefined): string | undefined {

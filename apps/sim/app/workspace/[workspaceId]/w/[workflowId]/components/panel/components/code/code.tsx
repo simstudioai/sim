@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { BLOCK_OPERATIONS, BLOCKS_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
@@ -21,8 +22,12 @@ const REFRESH_DEBOUNCE_MS = 750
 
 const CODE_VIEW_OPTIONS = { ...TEXT_EDITOR_OPTIONS, readOnly: true, domReadOnly: true }
 
-/** Canvas geometry: block fields and operations the printed source never shows. */
-const GEOMETRY_FIELDS: ReadonlySet<string> = new Set(['position', 'height', 'layout'])
+/**
+ * Canvas geometry: block fields and operations the printed source never shows. `data` is
+ * compared field by field instead, since a resize writes its width and height.
+ */
+const GEOMETRY_FIELDS: ReadonlySet<string> = new Set([...BLOCK_LAYOUT_FIELDS, 'data'])
+const GEOMETRY_DATA_FIELDS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
 const GEOMETRY_OPERATIONS: ReadonlySet<string> = new Set([
   BLOCK_OPERATIONS.UPDATE_POSITION,
   BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
@@ -40,15 +45,22 @@ function blocksChangedBeyondGeometry(
     const before = previous[id]
     if (block === before) return false
     if (!before) return true
-    const fields = (value: BlockState) =>
-      Object.entries(value).filter(([field]) => !GEOMETRY_FIELDS.has(field))
-    const kept = new Map(fields(before))
-    const changed = fields(block)
     return (
-      changed.length !== kept.size ||
-      changed.some(([field, value]) => !kept.has(field) || kept.get(field) !== value)
+      differsBeyond(block, before, GEOMETRY_FIELDS) ||
+      differsBeyond(block.data ?? {}, before.data ?? {}, GEOMETRY_DATA_FIELDS)
     )
   })
+}
+
+/** Whether two records differ by identity in any field outside `ignored`. */
+function differsBeyond(next: object, previous: object, ignored: ReadonlySet<string>): boolean {
+  const fields = (value: object) => Object.entries(value).filter(([field]) => !ignored.has(field))
+  const kept = new Map(fields(previous))
+  const changed = fields(next)
+  return (
+    changed.length !== kept.size ||
+    changed.some(([field, value]) => !kept.has(field) || kept.get(field) !== value)
+  )
 }
 
 /**

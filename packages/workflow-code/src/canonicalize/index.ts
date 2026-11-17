@@ -12,7 +12,8 @@ import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { LockIdentity, LockIdentityBlock, LockLayout, WorkflowLockV1 } from '../lock'
+import { BLOCK_LAYOUT_DATA_FIELDS, layoutOf } from '../layout'
+import type { LockIdentity, LockIdentityBlock, LockLayout } from '../lock'
 import type {
   BlockKey,
   BranchKey,
@@ -34,8 +35,8 @@ import { canonicalParams } from './params'
 import { loopSpec, parallelSpec, SUBFLOW_DATA_KEYS } from './subflows'
 import { toJson, toValue } from './values'
 
-/** `block.data` keys the model or the lock layout owns; anything else is kept under `extra`. */
-const LAYOUT_DATA_KEYS = new Set(['width', 'height'])
+/** `block.data` keys the lock layout owns; with the model's own keys, the rest is `extra`. */
+const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
 
 function isRetryConfig(value: unknown): value is BlockRetryConfig {
   return (
@@ -62,18 +63,7 @@ function canonicalRetry(retry: unknown): BlockRetryConfig | null {
   }
 }
 
-function layoutOf(block: BlockState): LockLayout {
-  const layout: LockLayout = { x: block.position?.x ?? 0, y: block.position?.y ?? 0 }
-  const data = block.data ?? {}
-  if (typeof data.width === 'number') layout.w = data.width
-  if (typeof data.height === 'number') layout.h = data.height
-  if (typeof block.height === 'number') layout.height = block.height
-  if (typeof block.horizontalHandles === 'boolean')
-    layout.horizontalHandles = block.horizontalHandles
-  return layout
-}
-
-/** Lock branch keys by block id, then row id → key. */
+/** Lock branch keys by block id, then row id → key; a later entry for an id wins. */
 function lockBranchKeysById(
   lock: CanonicalizeOptions['lock']
 ): Map<string, Map<string, BranchKey>> {
@@ -91,8 +81,8 @@ export interface CanonicalizeOptions {
   catalog: BlockCatalog
   /** The workflow row's name and description, which `WorkflowState` does not carry. */
   meta: CanonicalWorkflowMeta
-  /** Supplies branch keys by row id; never changes block keys. */
-  lock?: WorkflowLockV1 | null
+  /** Supplies branch keys by block id and row id; never changes block keys. */
+  lock?: Pick<LockIdentity, 'blocks'> | null
   resources?: ResourceKeyResolver
 }
 
@@ -287,4 +277,38 @@ export function canonicalize(
     annotations: { comments: {} },
   }
   return { workflow, identity, layout, diagnostics }
+}
+
+/**
+ * Whether canonicalizing with `lock` gives exactly `lockless` (the same state canonicalized with
+ * no lock). A row the lock keys must already have that key; a row it does not key keeps its
+ * lockless key, because the keys the lock pre-assigns are other rows' own lockless keys and so
+ * never displace one.
+ */
+function lockKeepsCanonical(lock: CanonicalizeOptions['lock'], lockless: LockIdentity): boolean {
+  const lockKeysById = lockBranchKeysById(lock)
+  if (lockKeysById.size === 0) return true
+  for (const block of Object.values(lockless.blocks)) {
+    const byRow = block.branches ? lockKeysById.get(block.id) : undefined
+    if (!byRow || !block.branches) continue
+    for (const [key, rowId] of Object.entries(block.branches)) {
+      const locked = byRow.get(rowId)
+      if (locked !== undefined && locked !== key) return false
+    }
+  }
+  return true
+}
+
+/**
+ * `state` canonicalized with `lock`, reusing `lockless` (the same state and options with no lock)
+ * when the lock changes nothing, which is the common case: the lock only supplies branch keys.
+ */
+export function canonicalizeUnderLock(
+  state: WorkflowState,
+  options: Omit<CanonicalizeOptions, 'lock'>,
+  lockless: CanonicalizeResult,
+  lock: CanonicalizeOptions['lock']
+): CanonicalizeResult {
+  if (lockKeepsCanonical(lock, lockless.identity)) return lockless
+  return canonicalize(state, { ...options, lock })
 }

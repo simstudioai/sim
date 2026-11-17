@@ -23,6 +23,15 @@ export function getOwn<T>(record: Readonly<Record<string, T>>, key: string): T |
   return Object.hasOwn(record, key) ? record[key] : undefined
 }
 
+/** `record` inverted to value → key; when several keys share a value, the first one wins. */
+export function invertRecord(record: Readonly<Record<string, string>>): Map<string, string> {
+  const inverse = new Map<string, string>()
+  for (const [key, value] of Object.entries(record)) {
+    if (!inverse.has(value)) inverse.set(value, key)
+  }
+  return inverse
+}
+
 /** Sets `target[key]`, or deletes it when `value` is `undefined`. Keys are typed, never stored data. */
 export function setOrDelete<T extends object, K extends keyof T>(
   target: T,

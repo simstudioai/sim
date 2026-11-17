@@ -20,7 +20,7 @@ import type {
   ResourceKeyResolver,
   VarKey,
 } from '../model'
-import { deepEqual, getOwn, setOwn } from '../records'
+import { deepEqual, getOwn, invertRecord, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
@@ -28,10 +28,6 @@ import { type IdentityEntry, type LockFreshness, resolveIdentity } from './ident
 import { restorePreserved } from './preserve'
 import { subflowEntry } from './subflows'
 import { rewriteRenamedReferences } from './values'
-
-function invert(record: Record<string, string>): Map<string, string> {
-  return new Map(Object.entries(record).map(([key, id]) => [id, key]))
-}
 
 /**
  * Variables keep their ids by key: the lock's id, then prev's, else a new one. A variable
@@ -45,7 +41,7 @@ function writeVariables(
   hooks: MaterializeHooks
 ): { variables: Record<string, Variable>; idByKey: Map<VarKey, string> } {
   const prevVariables = prev?.variables ?? {}
-  const prevKeyById = invert(prevCanonical?.identity.variables ?? {})
+  const prevKeyById = invertRecord(prevCanonical?.identity.variables ?? {})
   const lockIds = lock?.variables ?? {}
   const lockIdCounts = new Map<string, number>()
   for (const id of Object.values(lockIds)) lockIdCounts.set(id, (lockIdCounts.get(id) ?? 0) + 1)
@@ -115,6 +111,11 @@ export interface MaterializeOptions {
   hooks: MaterializeHooks
   /** The stored graph being replaced. Absent for a new workflow. */
   prev?: WorkflowState
+  /**
+   * `prev` canonicalized under `lock` with `resources`, when the caller already holds it; only its
+   * blocks, edges, variables and identity are read, so its `meta` may differ from the input's.
+   */
+  prevCanonical?: CanonicalizeResult
   resources?: ResourceKeyResolver
   /**
    * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
@@ -167,7 +168,8 @@ export function materialize(
   const { catalog, hooks, prev } = options
   const diagnostics: Diagnostic<MaterializeDiagnosticCode>[] = []
   const prevCanonical = prev
-    ? canonicalize(prev, { catalog, meta: input.meta, lock, resources: options.resources })
+    ? (options.prevCanonical ??
+      canonicalize(prev, { catalog, meta: input.meta, lock, resources: options.resources }))
     : null
 
   const resolution = resolveIdentity({

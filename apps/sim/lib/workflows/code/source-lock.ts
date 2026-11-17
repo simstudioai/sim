@@ -21,9 +21,9 @@ import {
   type CodeComment,
   decodeAnchor,
   encodeAnchor,
-  isIdentifierName,
+  invertRecord,
   mapAnchorIds,
-  SDK_RESERVED_IDENTIFIERS,
+  readIdent,
   type SourceHints,
   sourceMetaExtensions,
   type WorkflowLockBlock,
@@ -32,7 +32,7 @@ import {
 } from '@sim/workflow-code'
 
 function isUsableIdent(ident: string | undefined): ident is string {
-  return ident !== undefined && isIdentifierName(ident) && !SDK_RESERVED_IDENTIFIERS.has(ident)
+  return ident !== undefined && 'ident' in readIdent(ident)
 }
 
 /** Re-maps the block and variable segments of comment anchors; an anchor mapped to `null` is dropped. */
@@ -52,14 +52,6 @@ function rekeyComments(
   return result
 }
 
-function invert(record: Record<string, string>): Map<string, string> {
-  const inverse = new Map<string, string>()
-  for (const [key, id] of Object.entries(record)) {
-    if (!inverse.has(id)) inverse.set(id, key)
-  }
-  return inverse
-}
-
 export interface SourceMetaPrintInputs {
   /** `ident` and `order` per block key, for `PrintInput.hints`. */
   hints: SourceHints
@@ -77,10 +69,10 @@ export function hintsFromSourceMeta(
 ): SourceMetaPrintInputs {
   const hints: SourceHints = { blocks: {} }
   if (!sourceMeta) return { hints, comments: {} }
-  const keyById = invert(
+  const keyById = invertRecord(
     Object.fromEntries(Object.entries(canonical.identity.blocks).map(([key, b]) => [key, b.id]))
   )
-  const varKeyById = invert(canonical.identity.variables)
+  const varKeyById = invertRecord(canonical.identity.variables)
   for (const [key, block] of Object.entries(canonical.identity.blocks)) {
     const ident = sourceMeta.idents[block.id]
     const order = sourceMeta.order[block.id]

@@ -1,9 +1,19 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { omit } from '@sim/utils/object'
-import { type BlockCatalog, canonicalize, type SourceFingerprint } from '@sim/workflow-code'
+import {
+  type BlockCatalog,
+  canonicalize,
+  type SourceFingerprint,
+  setOrDelete,
+  sourceFingerprint,
+} from '@sim/workflow-code'
+import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
+import {
+  loadWorkflowFromNormalizedTablesRaw,
+  type RawNormalizedWorkflow,
+} from '@sim/workflow-persistence/load'
 import {
   readWorkflowSourceMeta,
   writeWorkflowSourceMeta,
@@ -13,6 +23,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { requireMutableFolder } from '@/lib/workflows/application/mutability'
 import {
   WorkflowSourceNameTakenError,
   WorkflowSourceStaleError,
@@ -20,7 +31,7 @@ import {
 import type { SourcePlan } from '@/lib/workflows/application/source-evaluate'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
-import { fingerprintOf, type StoredSource } from '@/lib/workflows/code/apply/print'
+import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import {
   performCreateWorkflowTransition,
@@ -39,7 +50,7 @@ import {
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import {
-  loadWorkflowFromNormalizedTables,
+  fromRawNormalized,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
@@ -78,14 +89,23 @@ export async function previewSourceCommit(
 }
 
 /**
- * The stored draft re-read under the row lock: blocks, edges and the row's variables and meta.
- * Refuses (423) a workflow locked, directly or by a folder above it, after the use case's
- * `requireMutableWorkflow` ran: locking a workflow updates this row, so it waits for the lock this
- * transaction holds and cannot slip in between the check and the write.
+ * The stored draft re-read under the row lock: blocks, edges and the row's variables and meta,
+ * from `raw` when the caller already read the graph under that lock. Refuses (423) a workflow
+ * locked, directly or by a folder above it, after the use case's `requireMutableWorkflow` ran:
+ * locking a workflow updates this row, so it waits for the lock this transaction holds and cannot
+ * slip in between the check and the write.
  */
-async function loadMutableStoredSourceIn(tx: DbOrTx, workflowId: string): Promise<StoredSource> {
+async function loadMutableStoredSourceIn(
+  tx: DbOrTx,
+  workflowId: string,
+  raw?: RawNormalizedWorkflow
+): Promise<StoredSource> {
+  const loadGraph = async () => {
+    const loaded = raw ?? (await loadWorkflowFromNormalizedTablesRaw(workflowId, tx))
+    return loaded ? fromRawNormalized(workflowId, loaded, tx) : null
+  }
   const [normalized, [row]] = await Promise.all([
-    loadWorkflowFromNormalizedTables(workflowId, tx),
+    loadGraph(),
     tx
       .select({
         name: workflowTable.name,
@@ -100,14 +120,7 @@ async function loadMutableStoredSourceIn(tx: DbOrTx, workflowId: string): Promis
   ])
   if (!row) throw new OrchestrationError('not_found', 'Workflow not found')
   if (row.locked) throw new OrchestrationError('locked', 'Workflow is locked')
-  try {
-    await assertFolderMutable(row.folderId, tx)
-  } catch (error) {
-    if (error instanceof FolderLockedError) {
-      throw new OrchestrationError('locked', 'Workflow is locked by its containing folder')
-    }
-    throw error
-  }
+  await requireMutableFolder(row.folderId, tx, 'Workflow is locked by its containing folder')
   return {
     state: {
       blocks: (normalized?.blocks ?? {}) as Record<string, BlockState>,
@@ -131,15 +144,13 @@ interface ExistingDraftCommit {
 }
 
 /**
- * A block's canvas geometry: what a drag or resize writes and the fingerprint ignores. Everything
- * else on a block is either in the fingerprint or preserved state the plan carries from `stored`.
+ * A block without its canvas layout: what a drag, resize or handle flip writes and the
+ * fingerprint ignores. Everything else on a block is either in the fingerprint or preserved state
+ * the plan carries from `stored`.
  */
-const LAYOUT_KEYS = ['position', 'height', 'layout'] as const
-const LAYOUT_DATA_KEYS = ['width', 'height'] as const
-
-function withoutLayout(block: BlockState): Omit<BlockState, (typeof LAYOUT_KEYS)[number]> {
-  const rest = omit(block, [...LAYOUT_KEYS])
-  return block.data ? { ...rest, data: omit(block.data, [...LAYOUT_DATA_KEYS]) } : rest
+function withoutLayout(block: BlockState): Omit<BlockState, (typeof BLOCK_LAYOUT_FIELDS)[number]> {
+  const rest = omit(block, [...BLOCK_LAYOUT_FIELDS])
+  return block.data ? { ...rest, data: omit(block.data, [...BLOCK_LAYOUT_DATA_FIELDS]) } : rest
 }
 
 function withoutBlockLayout(source: StoredSource) {
@@ -161,14 +172,17 @@ function withoutBlockLayout(source: StoredSource) {
 async function recheckAndWriteSourceMeta(
   tx: DbOrTx,
   args: ExistingDraftCommit,
-  options: { layoutOnly: boolean }
+  options: { layoutOnly: boolean; raw?: RawNormalizedWorkflow }
 ): Promise<StoredSource> {
   const { scope, plan, stored, catalog } = args
-  const current = await loadMutableStoredSourceIn(tx, scope.workflowId)
+  const current = await loadMutableStoredSourceIn(tx, scope.workflowId, options.raw)
   if (!isEqual(current, stored)) {
-    const fingerprint = fingerprintOf(
-      canonicalize(current.state, { catalog, meta: current.meta, resources: plan.resources })
-    )
+    const { workflow, identity } = canonicalize(current.state, {
+      catalog,
+      meta: current.meta,
+      resources: plan.resources,
+    })
+    const fingerprint = sourceFingerprint(workflow, identity)
     if (fingerprint !== args.storedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
     if (options.layoutOnly && !isEqual(withoutBlockLayout(current), withoutBlockLayout(stored))) {
       throw new WorkflowSourceStaleError(fingerprint)
@@ -184,12 +198,6 @@ async function recheckAndWriteSourceMeta(
     )
   )
   return current
-}
-
-/** `value` set on `record[key]`, or the key removed for `undefined`. */
-function assignOrDelete<T extends object, K extends keyof T>(record: T, key: K, value: T[K]): void {
-  if (value === undefined) delete record[key]
-  else record[key] = value
 }
 
 /**
@@ -214,15 +222,15 @@ function mergeConcurrentLayout(
       continue
     }
     const next: BlockState = { ...block }
-    for (const key of LAYOUT_KEYS) {
-      if (!isEqual(now[key], before[key])) assignOrDelete(next, key, now[key])
+    for (const key of BLOCK_LAYOUT_FIELDS) {
+      if (!isEqual(now[key], before[key])) setOrDelete(next, key, now[key])
     }
     if (block.data) {
       const data = { ...block.data }
-      for (const key of LAYOUT_DATA_KEYS) {
+      for (const key of BLOCK_LAYOUT_DATA_FIELDS) {
         const resizedByPlan = !isEqual(block.data[key], before.data?.[key])
         if (!resizedByPlan && !isEqual(now.data?.[key], before.data?.[key])) {
-          assignOrDelete(data, key, now.data?.[key])
+          setOrDelete(data, key, now.data?.[key])
         }
       }
       next.data = data
@@ -250,8 +258,8 @@ export async function commitSourceReplace(args: ExistingDraftCommit): Promise<Co
     workspaceId: scope.workspaceId,
     attributedUserId: scope.subjectUserId,
     subjectUserId: scope.subjectUserId,
-    state: async (tx) => {
-      const current = await recheckAndWriteSourceMeta(tx, args, { layoutOnly: true })
+    state: async (tx, raw) => {
+      const current = await recheckAndWriteSourceMeta(tx, args, { layoutOnly: true, raw })
       const next = {
         blocks: mergeConcurrentLayout(plan.blocks, current.state.blocks, args.stored.state.blocks),
         edges: plan.edges,

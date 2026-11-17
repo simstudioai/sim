@@ -9,19 +9,15 @@
  *   that resolved exactly them. The references a workflow made last time are remembered, resolved
  *   up front through the workspace's resource keys, and checked after the pass; only a workflow that
  *   gained a reference pays a second pass.
- * - The lock. Canonicalize reads a lock only for branch keys, by row id
- *   (`CanonicalizeOptions.lock`: it never changes block keys). When every key the lock supplies
- *   for a row equals the key the lockless pass gave that row, the lock changes nothing.
+ * - The lock. Canonicalize reads a lock only for branch keys, by row id (it never changes block
+ *   keys), so `canonicalizeUnderLock` reuses the lockless result whenever the lock agrees with it.
  */
 import {
   type BlockCatalog,
-  type BranchKey,
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
   canonicalize,
-  type LockIdentity,
   type ResourceKeyResolver,
-  type WorkflowLockV1,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { LRUCache } from 'lru-cache'
@@ -36,12 +32,9 @@ import { loadResourceKeyResolver, type ResourceReferences } from '@/lib/workflow
  */
 const referencesByWorkflow = new LRUCache<string, ResourceReferences>({ max: 20_000 })
 
-interface StoredCanonicalInput {
+interface StoredResourceScope {
   workflowId: string
   workspaceId: string
-  state: WorkflowState
-  meta: CanonicalWorkflowMeta
-  catalog: BlockCatalog
   /**
    * The caller's human subject: attribution for resource keys allocated by this read, and whose
    * credential access bounds which credentials print by key. `null` for an actorless caller.
@@ -49,13 +42,38 @@ interface StoredCanonicalInput {
   createdBy: string | null
 }
 
+/** The resolver for a workflow's remembered references, loaded before its graph is. */
+export interface PrefetchedStoredResources extends StoredResourceScope {
+  loaded: ResourceReferences
+  resources: ResourceKeyResolver
+}
+
+/**
+ * Resolves the resource references the workflow's stored graph made last time, which needs no
+ * graph: started beside the graph load, it takes the resolver load off the critical path.
+ */
+export async function prefetchStoredResources(
+  scope: StoredResourceScope
+): Promise<PrefetchedStoredResources> {
+  const loaded = referencesByWorkflow.get(scope.workflowId) ?? { ids: [], keys: [] }
+  const resources = await loadResourceKeyResolver(scope.workspaceId, loaded, {
+    actorUserId: scope.createdBy,
+  })
+  return { ...scope, loaded, resources }
+}
+
+interface StoredCanonicalInput {
+  prefetched: PrefetchedStoredResources
+  state: WorkflowState
+  meta: CanonicalWorkflowMeta
+  catalog: BlockCatalog
+}
+
 export interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult
-  /** Answers every reference in `loaded` from this workspace's resource keys. */
+  /** Answers every reference the stored graph makes from this workspace's resource keys. */
   resources: ResourceKeyResolver
-  /** The references `resources` has resolved: every one the stored graph makes, maybe more. */
-  loaded: ResourceReferences
 }
 
 const idRefKey = (kind: string, id: string) => `${kind}\u0000${id}`
@@ -76,9 +94,9 @@ function unionReferences(base: ResourceReferences, extra: ResourceReferences): R
  * the workspace's persisted resource keys (`resolveKeys` / `resolveIds`), allocated on first reference.
  */
 export async function canonicalizeStored(input: StoredCanonicalInput): Promise<StoredCanonical> {
-  const { workflowId, workspaceId, state, meta, catalog, createdBy } = input
-  let loaded: ResourceReferences = referencesByWorkflow.get(workflowId) ?? { ids: [], keys: [] }
-  let resources = await loadResourceKeyResolver(workspaceId, loaded, { actorUserId: createdBy })
+  const { state, meta, catalog } = input
+  const { workflowId, workspaceId, createdBy } = input.prefetched
+  let { loaded, resources } = input.prefetched
   for (;;) {
     const referenced: ResourceReferences = { ids: [], keys: [] }
     const current = resources
@@ -104,53 +122,9 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
     }
     if (missing.ids.length === 0 && missing.keys.length === 0) {
       referencesByWorkflow.set(workflowId, unionReferences({ ids: [], keys: [] }, referenced))
-      return { canonical, resources, loaded }
+      return { canonical, resources }
     }
     loaded = unionReferences(loaded, missing)
     resources = await loadResourceKeyResolver(workspaceId, loaded, { actorUserId: createdBy })
   }
-}
-
-/**
- * Whether canonicalizing with `lock` gives exactly `lockless` (the same state canonicalized with
- * no lock). The lock's branch keys are read by block id then row id, the later entry for an id
- * winning, as canonicalize reads them. A row the lock keys must already have that key; a row it
- * does not key keeps its lockless key, because the keys the lock pre-assigns are other rows' own
- * lockless keys and so never displace one.
- */
-function lockKeepsCanonical(
-  lock: Pick<WorkflowLockV1, 'blocks'> | null | undefined,
-  lockless: LockIdentity
-): boolean {
-  const lockKeysById = new Map<string, Map<string, BranchKey>>()
-  for (const entry of Object.values(lock?.blocks ?? {})) {
-    if (!entry.branches) continue
-    const byRow = new Map<string, BranchKey>()
-    for (const [key, rowId] of Object.entries(entry.branches)) byRow.set(rowId, key)
-    lockKeysById.set(entry.id, byRow)
-  }
-  if (lockKeysById.size === 0) return true
-  for (const block of Object.values(lockless.blocks)) {
-    const byRow = block.branches ? lockKeysById.get(block.id) : undefined
-    if (!byRow || !block.branches) continue
-    for (const [key, rowId] of Object.entries(block.branches)) {
-      const locked = byRow.get(rowId)
-      if (locked !== undefined && locked !== key) return false
-    }
-  }
-  return true
-}
-
-/**
- * `state` canonicalized with `lock`, reusing `lockless` (the same state, catalog, meta and
- * resources with no lock) when the lock changes nothing.
- */
-export function canonicalizeUnderLock(
-  state: WorkflowState,
-  options: { catalog: BlockCatalog; meta: CanonicalWorkflowMeta; resources: ResourceKeyResolver },
-  lockless: CanonicalizeResult,
-  lock: WorkflowLockV1
-): CanonicalizeResult {
-  if (lockKeepsCanonical(lock, lockless.identity)) return lockless
-  return canonicalize(state, { ...options, lock })
 }

@@ -434,6 +434,55 @@ check('a legacy ~n key block keeps its stored secret through get → apply uncha
   expect(before.state?.blocks[loserId]?.subBlocks.apiKey?.value).toBe('sk-loser-secret')
 })
 
+check('a refusal on a legacy ~n key block points at that block, not its namesake', async () => {
+  const workflowId = generateId()
+  const now = new Date()
+  await db.insert(workflow).values({
+    id: workflowId,
+    userId: ownerId,
+    workspaceId,
+    name: `Source apply ${workflowId}`,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const fn = (id: string, name: string, code: string, locked: boolean): BlockState => ({
+    id,
+    type: 'function',
+    name,
+    position: { x: 0, y: 0 },
+    subBlocks: { code: { id: 'code', type: 'code', value: code } },
+    outputs: {},
+    enabled: true,
+    locked,
+  })
+  const winnerId = generateId()
+  const loserId = generateId()
+  const saved = await saveWorkflowToNormalizedTables(workflowId, {
+    blocks: {
+      [winnerId]: fn(winnerId, 'Score 1', 'return 1', false),
+      [loserId]: fn(loserId, 'score1', 'return 2', true),
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+  if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+  const source = await getSource(workflowId)
+  const files = edit(source.files, 'return 2', 'return 3')
+
+  const error = await expectRejected(apply(source, files), 'E_APPLY_LOCKED_BLOCK')
+
+  const refusal = error.diagnostics.find((d) => d.code === 'E_APPLY_LOCKED_BLOCK')
+  expect(refusal).toMatchObject({ blockId: loserId, blockKey: 'score1~2', file: 'workflow.ts' })
+  const framed = files['workflow.ts']
+    .split('\n')
+    .slice((refusal?.line ?? 0) - 1, refusal?.endLine ?? 0)
+    .join('\n')
+  expect(framed).toContain("'score1~2'")
+  expect(framed).not.toContain("'Score 1'")
+})
+
 check('a one-field edit changes exactly that stored field and keeps every id', async () => {
   const seeded = await seedWorkflow()
   const source = await getSource(seeded.workflowId)
@@ -566,6 +615,40 @@ check('a canvas drag committed under the row lock survives the apply', async () 
   expect(after.state?.blocks[seeded.scoreId]?.position).toEqual({ x: 777, y: 333 })
   expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 8')
 })
+
+check(
+  'a canvas handle flip committed under the row lock survives the apply, like a drag',
+  async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    let outcome: Promise<unknown> = Promise.resolve()
+    let settled = false
+
+    await db.transaction(async (tx) => {
+      const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, seeded.workflowId))
+        .for('update')
+      outcome = runOutsideTransactionContext(() =>
+        apply(source, edit(source.files, SCORE_CODE, 'return 8')).finally(() => {
+          settled = true
+        })
+      )
+      await waitForBlocked(Number(self?.pid), () => settled)
+      await tx
+        .update(workflowBlocks)
+        .set({ horizontalHandles: false })
+        .where(eq(workflowBlocks.id, seeded.scoreId))
+    })
+
+    await expect(outcome).resolves.toMatchObject({ applied: true })
+    const after = await snapshot(seeded.workflowId)
+    expect(after.state?.blocks[seeded.scoreId]?.horizontalHandles).toBe(false)
+    expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 8')
+  }
+)
 
 check('a block added to a loop stores the loop resized by the targeted layout', async () => {
   const workflowId = generateId()

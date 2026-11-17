@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { describePrincipalAuth } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
+import { LRUCache } from 'lru-cache'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
@@ -88,7 +89,6 @@ export const v2ApiKeyAuth = {
 } as const
 
 export interface V2RateLimitPolicy {
-  readonly kind: 'public_api' | 'source_write'
   /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
@@ -148,6 +148,9 @@ async function enforceV2Buckets(
   return rateLimit.allowed ? null : v2RateLimitError(snapshot)
 }
 
+/** Validated bodies a route with an entity tag keeps; each can be megabytes (the source catalog). */
+const VALIDATED_BODY_CACHE_MAX = 4
+
 /**
  * The budget for writing workflow source (apply, dry run, and create from source), per subject
  * and on every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
@@ -163,7 +166,6 @@ const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
 export const v2RateLimits = {
   /** The plan's API budget, one bucket per operation. */
   publicApi: {
-    kind: 'public_api',
     async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
       return enforceV2Buckets(request, auth, operation.id, getRateLimit(plan, 'api-endpoint'), cost)
@@ -174,7 +176,6 @@ export const v2RateLimits = {
    * an apply and a create from source cannot double it.
    */
   sourceWrite: {
-    kind: 'source_write',
     async enforce(request, auth, _operation, cost = 1) {
       return enforceV2Buckets(
         request,
@@ -549,7 +550,9 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * A strong validator for a result whose content is already content-addressed (the block
    * catalog's hash). When set, a success carries `ETag`, and a request whose `If-None-Match`
    * names that tag (or `*`) is answered `304` with no body, after the use case ran, so
-   * authorization is unchanged. Every other route leaves it unset (`v2-api-conventions`).
+   * authorization is unchanged. The tag identifies the representation, so the route keeps the last
+   * few validated bodies by tag and skips re-validating one it already served. Every other route
+   * leaves it unset (`v2-api-conventions`).
    */
   entityTag?(result: NoInfer<R>): string
 }
@@ -587,6 +590,10 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
+  /** Validated bodies by entity tag, so a repeat 200 skips presenting and re-validating. */
+  const validatedByTag = options.entityTag
+    ? new LRUCache<string, NonNullable<unknown>>({ max: VALIDATED_BODY_CACHE_MAX })
+    : undefined
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -666,12 +673,21 @@ export function defineV2JsonRoute<
             headers: { 'Cache-Control': 'private, no-store', ETag: entityTag },
           })
         }
-        const body = await options.present(result, parsed.data)
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('V2 JSON route response mode changed after initialization')
         }
-        const validatedBody = responseSchema.schema.parse(body)
+        const cached = entityTag ? validatedByTag?.get(entityTag) : undefined
+        const validatedBody: unknown =
+          cached ?? responseSchema.schema.parse(await options.present(result, parsed.data))
+        if (
+          entityTag &&
+          cached === undefined &&
+          validatedBody !== undefined &&
+          validatedBody !== null
+        ) {
+          validatedByTag?.set(entityTag, validatedBody)
+        }
         const responseStatus = options.statusForResult?.(result) ?? successStatus
         if (!successStatuses.includes(responseStatus)) {
           throw new Error(

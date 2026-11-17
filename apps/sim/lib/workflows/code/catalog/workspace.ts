@@ -34,6 +34,14 @@ const CATALOG_CACHE_MAX = 16
 const compileCatalogs = new LRUCache<string, BlockCatalog>({ max: CATALOG_CACHE_MAX })
 
 /**
+ * Workspace catalogs with a workflow's not-addable types overlaid, by base catalog hash and the
+ * sorted overlaid types. Only registry configs are overlaid through it: they are process constants,
+ * so the types name the content; a custom block's config is not, and its overlay is rebuilt. An
+ * overlay shares its base's maps, so an entry costs little beyond the added types.
+ */
+const notAddableOverlays = new LRUCache<string, BlockCatalog>({ max: 64 })
+
+/**
  * The content a build reads, hashed: every included built-in type (the registry config is a
  * process constant), every included custom block's full row (the config is derived from the row
  * alone), and the organization the catalog is scoped to. The rows and the scope are in the key,
@@ -102,13 +110,30 @@ export function buildSourceCatalog(scope: SourceCatalogScope): BlockCatalog {
   }
 
   const notAddable = new Map<string, BlockConfig>()
+  let allRegistry = true
   for (const type of scope.storedTypes ?? []) {
     if (included.has(type) || notAddable.has(type)) continue
-    const block = Object.hasOwn(registry, type) ? registry[type] : getBlock(type)
-    if (block) notAddable.set(type, block)
+    const isRegistry = Object.hasOwn(registry, type)
+    const block = isRegistry ? registry[type] : getBlock(type)
+    if (!block) continue
+    notAddable.set(type, block)
+    allRegistry &&= isRegistry
   }
-  return withNotAddableBlocks(workspaceCatalog, [...notAddable.values()], {
-    trigger: registryTrigger,
-    sdkNames: SDK_NAMES,
-  })
+  if (notAddable.size === 0) return workspaceCatalog
+  const overlay = () =>
+    withNotAddableBlocks(workspaceCatalog, [...notAddable.values()], {
+      trigger: registryTrigger,
+      sdkNames: SDK_NAMES,
+    })
+  if (!allRegistry) return overlay()
+  const overlayKey = JSON.stringify([
+    workspaceCatalog.hash,
+    [...notAddable.keys()].sort(compareStrings),
+  ])
+  let catalog = notAddableOverlays.get(overlayKey)
+  if (catalog === undefined) {
+    catalog = overlay()
+    notAddableOverlays.set(overlayKey, catalog)
+  }
+  return catalog
 }

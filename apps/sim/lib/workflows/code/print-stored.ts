@@ -4,19 +4,18 @@ import {
   type CanonicalWorkflowMeta,
   canonicalDigests,
   canonicalize,
+  canonicalizeUnderLock,
   type Diagnostic,
   type LockIdentity,
   printWorkflow,
   type ResourceKeyResolver,
   type SourceFingerprint,
   sourceFingerprint,
-  type WorkflowLockBlock,
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { buildLockFromState, hintsFromSourceMeta } from '@/lib/workflows/code/source-lock'
-import { canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
 
 /** A stored draft as canonicalize reads it, plus the row fields the canonical `meta` carries. */
 export interface StoredSource {
@@ -50,13 +49,40 @@ export interface PrintedSource {
   lock: WorkflowLockV1
   /** The `sf1:` freshness token of the state, which ignores the lock and canvas positions. */
   fingerprint: SourceFingerprint
-  /** `canonicalHash` of the same lockless model, from the same serialization. */
-  canonicalHash: string
-  /** The canonical model the files print. */
-  canonical: CanonicalizeResult
   diagnostics: Diagnostic[]
   /** The printer's upper bound on `workflow.ts`'s syntax-tree depth. */
   entryDepth: number
+}
+
+/**
+ * Digests by lockless model. One source get or apply digests the same model up to three times
+ * (the base check, the print, the no-op "before" print); weak keys keep an entry exactly as long
+ * as its model, which nothing mutates after canonicalize returns it.
+ */
+const digestsByModel = new WeakMap<
+  CanonicalizeResult,
+  { fingerprint: SourceFingerprint; canonicalHash?: string }
+>()
+
+/**
+ * The `sf1:` fingerprint of a lockless canonical model: what {@link printStoredSource} reports
+ * and what every apply compares `base.fingerprint` against. Computed once per model.
+ */
+export function storedFingerprint(lockless: CanonicalizeResult): SourceFingerprint {
+  const cached = digestsByModel.get(lockless)
+  if (cached) return cached.fingerprint
+  const fingerprint = sourceFingerprint(lockless.workflow, lockless.identity)
+  digestsByModel.set(lockless, { fingerprint })
+  return fingerprint
+}
+
+/** `canonicalHash` of a lockless canonical model, from the same serialization as its fingerprint. */
+export function storedCanonicalHash(lockless: CanonicalizeResult): string {
+  const cached = digestsByModel.get(lockless)
+  if (cached?.canonicalHash !== undefined) return cached.canonicalHash
+  const digests = canonicalDigests(lockless.workflow, lockless.identity)
+  digestsByModel.set(lockless, digests)
+  return digests.canonicalHash
 }
 
 /**
@@ -67,14 +93,10 @@ export interface PrintedSource {
  */
 export function printStoredSource(input: PrintStoredSourceInput): PrintedSource {
   const { state, meta, catalog, resources, sourceMeta } = input
-  const lockless = input.lockless ?? canonicalize(state, { catalog, meta, resources })
+  const options = { catalog, meta, resources }
+  const lockless = input.lockless ?? canonicalize(state, options)
   const canonical = input.identity
-    ? canonicalizeUnderLock(
-        state,
-        { catalog, meta, resources },
-        lockless,
-        boundLock(input.identity)
-      )
+    ? canonicalizeUnderLock(state, options, lockless, input.identity)
     : lockless
   const metaInputs = hintsFromSourceMeta(sourceMeta, canonical)
   for (const [key, codeFile] of Object.entries(input.codeFiles ?? {})) {
@@ -93,40 +115,11 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
     hints: metaInputs.hints,
     options: { functionCode: input.functionCode },
   })
-  const digests = canonicalDigests(lockless.workflow, lockless.identity)
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
     lock: buildLockFromState(sourceMeta, canonical, printed.hints),
-    fingerprint: digests.fingerprint,
-    canonicalHash: digests.canonicalHash,
-    canonical,
+    fingerprint: storedFingerprint(lockless),
     diagnostics: printed.diagnostics,
     entryDepth: printed.entryDepth,
   }
-}
-
-/**
- * The `sf1:` fingerprint of a lockless canonical model: what {@link printStoredSource} reports
- * and what every apply compares `base.fingerprint` against.
- */
-export function fingerprintOf(
-  lockless: Pick<CanonicalizeResult, 'workflow' | 'identity'>
-): SourceFingerprint {
-  return sourceFingerprint(lockless.workflow, lockless.identity)
-}
-
-/**
- * The post-materialize lock `mergeSourceMetaFromLock` re-keys onto: every bound key with its id,
- * and the submitted lock's ident and order for a block the file does not state them for. Without
- * a submitted lock it carries only identity: `canonicalize` reads a lock's ids and branch keys and
- * nothing else, so the printer-owned fields are placeholders the print replaces.
- */
-export function boundLock(identity: LockIdentity, submitted?: WorkflowLockV1): WorkflowLockV1 {
-  const blocks: Record<string, WorkflowLockBlock> = {}
-  for (const [key, block] of Object.entries(identity.blocks)) {
-    const previous =
-      submitted && Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
-    blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
-  }
-  return { version: 1, blocks, variables: identity.variables }
 }

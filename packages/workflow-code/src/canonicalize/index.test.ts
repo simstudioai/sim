@@ -969,17 +969,7 @@ describe('canonicalize: branches', () => {
     )
     const result = run(workflow([blockState('c1', 'condition', 'Cond', { conditions: rows })]), {
       lock: {
-        version: 1,
-        variables: {},
-        blocks: {
-          cond: {
-            id: 'c1',
-            parent: null,
-            ident: 'cond',
-            order: 0,
-            branches: { highValue: 'c1-if' },
-          },
-        },
+        blocks: { cond: { id: 'c1', parent: null, branches: { highValue: 'c1-if' } } },
       },
     })
     expect(onlyBlock(result, 'cond').branches?.rows?.map((row) => row.key)).toEqual([
