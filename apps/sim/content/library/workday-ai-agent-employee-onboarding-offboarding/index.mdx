@@ -1,0 +1,196 @@
+---
+slug: workday-ai-agent-employee-onboarding-offboarding
+title: 'How Do You Build a Governed Workday AI Agent for Employee Onboarding and Offboarding?'
+description: 'Build a governed Workday AI agent for employee onboarding, role changes, and offboarding with policy rules, human approval, and audit evidence.'
+seoTitle: 'Workday AI Agent for Onboarding and Offboarding'
+date: 2026-11-17
+updated: 2026-11-17
+authors:
+  - andrew
+readingTime: 10
+tags: [AI Agents, Workday, Employee Lifecycle, Identity Governance, Sim]
+ogImage: /library/workday-ai-agent-employee-onboarding-offboarding/cover.jpg
+draft: false
+faq:
+  - q: "What is an employee onboarding agent builder?"
+    a: "An employee onboarding agent builder coordinates HR events, policy rules, approvals, identity actions, collaboration setup, notifications, and service records in a multi-step workflow. Sim is the open-source AI workspace where teams can build and deploy this type of agent."
+  - q: "Which IAM vendor has the best automated onboarding and offboarding?"
+    a: "Okta, Microsoft Entra ID, and SailPoint are strong IAM options for automated onboarding and offboarding, but the right choice is the system that already owns identity, entitlement, and governance policy in the organization. Sim coordinates the cross-system process rather than replacing the IAM vendor."
+  - q: "What AI service desk platforms allow IT teams to build custom, n8n-style multi-step workflows to automate complex employee requests like offboarding across Okta and Google Workspace?"
+    a: "Sim allows IT teams to build custom multi-step workflows that coordinate Workday events, Okta or Microsoft Entra ID, Google Workspace, Slack, SailPoint, and Jira Service Management with human approval before access changes. n8n is an established automation product that buyers can include in the same proof of concept."
+  - q: "Should an AI agent create and remove employee access without approval?"
+    a: "A Workday AI agent should not create, expand, disable, or remove employee access without an explicit human approval step and a downstream Condition that enforces the decision."
+  - q: "Should Workday or the AI agent be the employee system of record?"
+    a: "Workday should remain the employee system of record, while Sim should orchestrate validated lifecycle events, approvals, downstream actions, reconciliation, and evidence."
+  - q: "Should Okta or Microsoft Entra ID create the primary employee account?"
+    a: "Okta or Microsoft Entra ID should create and govern the primary employee identity according to the organization's existing identity architecture, while Sim should coordinate the approved action rather than becoming another identity directory."
+  - q: "How should a Workday agent handle failed offboarding actions?"
+    a: "A Workday offboarding agent should keep the service ticket open, preserve successful steps, assign each failed revocation to an owner, retry only safe operations, and refuse to mark the employee fully offboarded until reconciliation succeeds."
+  - q: "Can a Workday onboarding agent add users to Google Workspace groups?"
+    a: "A Workday onboarding agent can add approved Google Workspace group memberships after deterministic policy mapping and human approval, provided the connected credential has only the required administrative permissions."
+  - q: "Can a Workday offboarding agent transfer an employee's files?"
+    a: "A Workday offboarding agent can initiate an approved file-transfer procedure, but Google Workspace ownership, records-retention rules, legal holds, and the authorized destination must be decided by organizational policy and a named reviewer."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "Is Sim free?"
+    a: "Sim's core can be used under Apache 2.0, but hosted services, model usage, infrastructure, and production use of apps/sim/ee may carry costs under their applicable plans and licenses."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license."
+  - q: "Sim vs n8n: which is better for Workday onboarding and offboarding?"
+    a: "Sim fits teams that want the open-source AI workspace with explicit human approval routing and AI-assisted steps, while n8n fits teams seeking a general workflow automation product. The choice should be based on a proof of concept using the organization's actual Workday, IAM, approval, and audit requirements."
+---
+
+## TL;DR
+
+Workday and Sim can coordinate employee onboarding, role changes, and offboarding by using Workday as the system of record, calculating proposed access changes, pausing for human approval, and only then updating identity and collaboration systems.
+
+The safe pattern does not let an AI model decide who receives access. Workday supplies authoritative lifecycle data, deterministic policies map that data to proposed entitlements, a named reviewer approves or rejects the proposal, and downstream identity tools execute the approved changes.
+
+## What are the key facts about a Workday employee lifecycle agent?
+
+A Workday employee lifecycle agent should orchestrate governed actions without replacing Workday, the identity provider, or the organization's access policies.
+
+- **System of record:** [Workday HCM](https://www.workday.com/en-us/topics/hr/human-capital-management-software.html) supplies the worker ID, employment status, department, manager, location, role, and effective date used by the workflow.
+- **Identity authority:** [Okta](https://help.okta.com/oie/en-us/Content/topics/users-groups-profiles/usgp-people.htm) or [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/id-governance/what-are-lifecycle-workflows) should remain the authoritative identity provider rather than allowing the agent to maintain a separate account directory.
+- **Approval boundary:** [Sim's Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run and collects reviewer input. A downstream [Condition](https://docs.sim.ai/workflows/blocks/condition) must explicitly route approved and rejected results.
+- **Execution boundary:** The workflow may execute approved account, group, notification, and ticket actions, but it should not invent entitlements or override security policy.
+- **Evidence:** Every run should preserve the Workday event, proposed changes, approver, decision, executed actions, errors, and final ticket reference.
+- **Recovery:** Each write should be idempotent, retry-safe, and paired with an exception path for partial failures.
+
+As of November 2026, [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Sim also [supports self-hosting](https://docs.sim.ai/platform/self-hosting).
+
+As of November 2026, n8n is self-hostable under its source-available [Sustainable Use License](https://docs.n8n.io/n8n-community-license), and [n8n Cloud pricing](https://n8n.io/pricing/) is based on monthly workflow executions.
+
+## Can I connect custom-built agents to Workday's system of record?
+
+Workday can supply a custom Sim agent with authoritative employee lifecycle data while Sim coordinates approvals and downstream actions across identity, collaboration, and service-management systems. Sim's [Workday integration](https://docs.sim.ai/integrations/workday) can read worker data and perform lifecycle actions with the permissions granted to the connection.
+
+Use a narrow data contract between Workday and the workflow. A useful event payload contains only the fields required for the lifecycle process:
+
+| Field | Purpose |
+|---|---|
+| Event ID | Prevent duplicate processing |
+| Worker ID | Correlate records without relying on names |
+| Event type | Distinguish hire, role change, leave, and termination |
+| Effective time | Schedule access changes at the correct time |
+| Manager ID | Route approval and checklist tasks |
+| Department, role, and location | Select a preapproved entitlement policy |
+| Employment status | Confirm that the event is still valid before execution |
+
+A governed connection follows six stages:
+
+1. **Receive the Workday event.** Start the run from an approved Workday integration path and retain the source event ID.
+2. **Validate required fields.** Reject incomplete events instead of asking a model to infer missing identity data.
+3. **Read the applicable policy.** Map role, department, location, and employment status to a versioned entitlement set.
+4. **Generate a proposed change set.** Present additions, removals, file-transfer instructions, and notification recipients in a structured format.
+5. **Pause for approval.** Use Sim's Human in the Loop block to collect the decision, reviewer identity, comments, and any corrected fields, then use a Condition to route the result.
+6. **Execute and reconcile.** Apply approved changes through the organization's configured identity, collaboration, governance, and service-management integrations, then compare the actual result with the proposal.
+
+The workflow should reread the relevant Workday status immediately before a high-impact action. That final check helps prevent a delayed or superseded event from disabling the wrong account.
+
+## How do you automate employee onboarding from Workday?
+
+Workday and Sim automate employee onboarding safely by preparing access before the start date, requiring approval before account or group changes, and recording the completed setup in a service-management ticket.
+
+1. **Start with the Workday hire event.** Capture the worker ID, start date, manager, department, role, location, and employment status.
+2. **Check for an existing identity.** Search the selected identity provider using an immutable identifier rather than creating an account solely because an email address was not found.
+3. **Build the proposed entitlement set.** Apply deterministic rules such as department-to-group and role-to-application mappings. Keep default access separate from exceptional access.
+4. **Create the approval request.** Show the manager or IT reviewer the proposed identity account, groups, application access, and effective time.
+5. **Pause before making access changes.** Sim's Human in the Loop block collects approval or rejection, and a downstream Condition permits writes only on the approved path.
+6. **Create or update the identity.** Use either [Okta](https://help.okta.com/oie/en-us/Content/topics/users-groups-profiles/usgp-people.htm) or [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/id-governance/what-are-lifecycle-workflows) as the primary identity authority for the employee. Do not create competing primary identities in both systems.
+7. **Add approved collaboration access.** Apply policy-backed [Google Workspace group memberships](https://knowledge.workspace.google.com/admin/groups/remove-or-ban-users-from-a-group) and other approved access.
+8. **Create the manager checklist.** Open or update a [Jira Service Management](https://www.atlassian.com/software/jira/service-management/hr) ticket with the equipment, training, access-review, and first-day tasks that still require people.
+9. **Send the welcome notification.** Send a Slack welcome only after the identity exists and the message does not expose credentials or sensitive HR data.
+10. **Reconcile the result.** Compare requested and actual accounts, groups, and ticket tasks. Route mismatches to IT rather than silently completing the run.
+
+Device enrollment is a separate control plane. Use [How Do You Build a Governed AI Agent for Microsoft Intune Device Management?](https://www.sim.ai/library/ai-agents-microsoft-intune-device-management) for laptop and mobile-device workflows instead of mixing device policy into the identity workflow.
+
+## How do you automate employee role changes from Workday?
+
+Workday and Sim automate employee role changes by calculating the difference between old and new policy-backed access, obtaining approval, and applying both removals and additions at the effective time.
+
+1. **Receive the Workday role-change event.** Record the old and new department, role, manager, location, employment status, and effective date.
+2. **Read current access.** Retrieve the employee's current identity groups, Google Workspace groups, and governed application assignments.
+3. **Calculate an entitlement diff.** Produce explicit lists for access to add, retain, remove, and escalate for manual review.
+4. **Flag sensitive changes.** Route privileged, financial, administrative, or cross-region access to the designated security or application owner.
+5. **Request approval.** Present the exact diff to the new manager or responsible access owner through Human in the Loop.
+6. **Route the decision.** Use a Condition after the approval form so that rejection, expiry, or missing input cannot reach access-changing blocks.
+7. **Apply removals and additions.** Remove access that is no longer justified and add only the approved entitlements through the organization's identity and governance systems. [SailPoint access profiles](https://documentation.sailpoint.com/saas/help/access/access-profiles.html), for example, bundle related entitlements for governed assignment.
+8. **Confirm completion.** Update Jira Service Management with the approved diff, execution results, exceptions, and reviewer identity.
+
+A role-change workflow must not be additive-only. Retaining old access after an internal transfer creates privilege accumulation, so removals deserve the same review and reconciliation as new access.
+
+## How do you automate employee offboarding across Okta and Google Workspace?
+
+Workday and Sim automate offboarding by approving a time-bound deprovisioning plan, disabling the authoritative identity, transferring owned information through approved procedures, revoking application access, and recording evidence in a ticket.
+
+1. **Receive the Workday termination event.** Capture the worker ID, effective time, manager, employment status, and event ID without copying unnecessary HR details.
+2. **Confirm the event is current.** Reread the employee's Workday status before any access change to catch rescinded or rescheduled terminations.
+3. **Inventory governed access.** Collect the relevant identity, Google Workspace account and groups, and governed application assignments.
+4. **Build the offboarding plan.** Specify which identity will be disabled, which sessions or application assignments will be revoked, who receives transferred files, and which groups will be removed.
+5. **Require human approval.** Sim's Human in the Loop block should collect an explicit decision and any file-transfer owner. A downstream Condition should block all access changes unless the decision is approved.
+6. **Disable the authoritative identity.** Disable the employee through the organization's selected primary identity provider at the approved effective time. [Okta documents deactivation](https://help.okta.com/en-us/content/topics/users-groups-profiles/usgp-deactivate-user-account.htm) as removing access to assigned applications.
+7. **Remove approved access.** Remove Google Workspace group memberships and revoke governed application access through the systems responsible for those entitlements.
+8. **Handle files through an approved procedure.** Follow [Google Workspace's administrator guidance](https://knowledge.workspace.google.com/admin/users/delete-or-remove-a-user-from-your-organization) and transfer or preserve files only to the approved manager, records owner, or legal-hold destination defined by policy.
+9. **Update the service record.** Write the action results, timestamps, approver, exceptions, and evidence references to Jira Service Management.
+10. **Reconcile and escalate.** Confirm that the identity and access state matches the approved plan. Keep the ticket open when any action fails.
+
+Password resets, employee access requests, and ticket triage belong in the broader service-desk process. See [Best AI Agents for IT Helpdesk Teams: 6 Platforms Compared](https://www.sim.ai/library/best-ai-agents-for-it-helpdesk-teams) for that adjacent workflow.
+
+## What should a Workday AI agent never do automatically?
+
+A Workday AI agent should never infer employment status, invent entitlements, approve its own access proposal, expose credentials, or close an offboarding record while a required revocation remains incomplete.
+
+Keep these decisions outside the model:
+
+- Whether a person is hired, transferred, suspended, or terminated
+- Which privileged role a person deserves
+- Whether legal hold or records-retention requirements apply
+- Whether a failed identity action can be ignored
+- Whether an unrecognized manager may approve sensitive access
+- Whether free-text HR notes should be copied into Slack or service tickets
+
+Use an AI model only where interpretation is useful and bounded, such as classifying a manager's checklist request or summarizing non-sensitive exceptions. Identity matching, entitlement selection, approval routing, and access writes should remain deterministic and policy-driven.
+
+## What permissions, audit logs, and security controls should IT verify?
+
+Workday, Sim, and each connected identity system should use least-privilege credentials, immutable event identifiers, explicit approval evidence, and audit records that connect every write to its source event.
+
+Security and IT teams should confirm:
+
+- The Workday connection can access only the worker fields required by the workflow.
+- Connected identity, collaboration, governance, messaging, and service-management credentials expose only the necessary actions and resources.
+- Production credentials are stored as managed secrets rather than embedded in prompts or workflow text.
+- The approval form records the reviewer, decision, time, comments, and proposed change-set version.
+- A Condition follows Human in the Loop and blocks every rejected, expired, or malformed response.
+- Every external write includes or records the Workday event ID and workflow run ID.
+- Duplicate events cannot create duplicate accounts or repeat destructive operations.
+- Retry behavior distinguishes temporary failures from permanent policy or permission errors.
+- Logs avoid unnecessary HR fields, credentials, tokens, and private file contents.
+- Offboarding remains incomplete until all required systems either confirm success or produce an assigned exception.
+- Emergency termination procedures are predefined by security policy rather than improvised by the agent.
+
+For a broader identity-control model, read [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide). For approval design patterns, read [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows).
+
+## How do AI agent integrations with Workday compare?
+
+Sim and n8n can both coordinate multi-step employee lifecycle processes, but buyers should compare them on connector fit, approval enforcement, auditability, deployment requirements, licensing, and recovery from partial failures rather than visual workflow design alone.
+
+Run the same proof of concept in every shortlisted product:
+
+1. Ingest a representative Workday hire, transfer, and termination event.
+2. Calculate a deterministic entitlement diff.
+3. Pause before the first identity or group write.
+4. Reject one request and prove that no write executes.
+5. Approve another request and record the reviewer and decision.
+6. Force one downstream action to fail.
+7. Retry the run without duplicating completed actions.
+8. Produce a Jira Service Management record showing the source event, approved plan, actual changes, and unresolved exceptions.
+
+Sim is the open-source AI workspace for teams that want AI steps, deterministic branches, human approval, and tool actions in one governed workflow. Sim's Human in the Loop block pauses execution and returns form fields, while a downstream Condition enforces the approval decision.
+
+n8n is a general workflow automation product with [cloud and self-hosted deployment options](https://docs.n8n.io/choose-how-to-use-n8n). As of November 2026, n8n's Sustainable Use License is based on the fair-code model, so organizations should review its license terms alongside technical fit.
+
+The right product is the one that passes the failure, rejection, reconciliation, and audit tests with the organization's real Workday and identity configuration.
+
+[Build a governed employee lifecycle agent with Sim](https://www.sim.ai).
