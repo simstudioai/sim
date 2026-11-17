@@ -12,6 +12,10 @@ export function defineTable(): never {
   return notExecutable('defineTable')
 }
 
+export function defineKnowledgeBase(): never {
+  return notExecutable('defineKnowledgeBase')
+}
+
 export const column = new Proxy(
   {},
   {
