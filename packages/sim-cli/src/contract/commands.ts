@@ -649,6 +649,8 @@ export const CLI_CONTRACT: CliContract = {
   // get --dir` does by hand; a one-off read has no cached hash to send.
   getSourceCatalog: {
     command: 'workflows source catalog',
+    describe: 'Show the block catalog workflow source is checked against',
+    profileWorkspacePath: true,
     flags: { 'if-none-match': { omit: true } },
   },
   /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
@@ -656,6 +658,7 @@ export const CLI_CONTRACT: CliContract = {
   /** One document, not a page: `workflows source get --dir` writes it as `workspace.d.ts`. */
   getSourceResources: {
     command: 'workflows source resources',
+    profileWorkspacePath: true,
     describe:
       'List the tables, knowledge bases, credentials, workflows and env names source can name',
   },

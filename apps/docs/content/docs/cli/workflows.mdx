@@ -1375,21 +1375,11 @@ Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printe
 
 API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
-### Get source catalog
+### Show the block catalog workflow source is checked against
 
 ```bash
-sim workflows source catalog <workspaceId> [options]
+sim workflows source catalog [options]
 ```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
-
-</CommandTable>
 
 **Options**
 
@@ -1406,18 +1396,8 @@ API request and response schemas: [getSourceCatalog](/api-reference/catalog/getS
 ### List the tables, knowledge bases, credentials, workflows and env names source can name
 
 ```bash
-sim workflows source resources <workspaceId>
+sim workflows source resources
 ```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose resources to list. |
-
-</CommandTable>
 
 API request and response schemas: [getSourceResources](/api-reference/workflows/getSourceResources).
 

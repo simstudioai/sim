@@ -438,6 +438,27 @@ describe('line endings', () => {
   })
 })
 
+describe('the workspace-scoped source reads', () => {
+  it.each([
+    ['resources', 'manifest'],
+    ['catalog', 'catalog'],
+  ] as const)(
+    'reads %s from the profile workspace, like every other workspace route',
+    async (command, route) => {
+      let reads = 0
+      const answer = server[route]
+      server[route] = (headers: Headers) => {
+        reads++
+        return answer(headers)
+      }
+
+      await sim('workflows', 'source', command)
+
+      expect(reads).toBe(1)
+    }
+  )
+})
+
 describe('catalog and declarations', () => {
   it('refuses a catalog for another SDK major, telling the person to upgrade, writing nothing', async () => {
     server.catalog = () => json({ data: { ...CATALOG, sdkMajor: 2 } })
