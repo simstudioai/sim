@@ -67,8 +67,6 @@ function json(value: unknown): string {
 
 /** The codec of `workflows/<key>/`: it carries the files; the workflow pipeline compiles them. */
 export const workflowCodec: KindCodec<WorkflowDecl> = {
-  kind: 'workflow',
-  dir: KIND_DIRS.workflow,
   group: (paths) => groupByFolder(KIND_DIRS.workflow, paths),
   parse(key, text) {
     const folder = `${workflowFolder(key)}/`

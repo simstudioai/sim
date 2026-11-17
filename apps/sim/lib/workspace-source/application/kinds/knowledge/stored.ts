@@ -36,7 +36,6 @@ export interface StoredDoc {
   id: string
   filename: string
   fileSize: number
-  fileUrl: string
   uploadedAt: Date
   connectorId: string | null
   /** Whether it holds a tag value, which a replace does not carry over. */
@@ -78,7 +77,6 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         id: doc.id,
         filename: doc.filename,
         fileSize: doc.fileSize,
-        fileUrl: doc.fileUrl,
         uploadedAt: doc.uploadedAt,
         connectorId: doc.connectorId,
         tagged: ALL_TAG_SLOTS.some((field) => doc[field] !== null && doc[field] !== ''),
@@ -221,7 +219,7 @@ export interface KnowledgeView {
  * for the documents whose bytes are known (from the base, a download or this apply's upload).
  */
 export function knowledgeView(
-  stored: StoredKnowledgeBase,
+  state: StoredKnowledgeState,
   docs: readonly StoredDoc[],
   hashes: ReadonlyMap<string, string>
 ): KnowledgeView {
@@ -238,7 +236,7 @@ export function knowledgeView(
     printed.push([doc.filename, { sha256, size: doc.fileSize }])
     blobs.push([doc.filename, { id: doc.id, rev: docRevision(doc), sha256 }])
   }
-  const settings = storedSettings(stored)
+  const settings = storedSettings(state)
   const fingerprint = fingerprintOf(
     knowledgeCodec.canonical({ ...settings, docs: Object.fromEntries(fingerprinted) })
   )
@@ -246,7 +244,7 @@ export function knowledgeView(
     decl: { ...settings, docs: Object.fromEntries(printed) },
     fingerprint,
     base: {
-      id: stored.id,
+      id: state.knowledgeBase.id,
       fingerprint,
       ...(blobs.length > 0 ? { blobs: Object.fromEntries(blobs) } : {}),
     },
@@ -254,9 +252,9 @@ export function knowledgeView(
 }
 
 /** A stored knowledge base's settings as a declaration, without its documents. */
-function storedSettings(stored: StoredKnowledgeBase): Omit<KnowledgeBaseDecl, 'docs'> {
-  const { knowledgeBase, folderPath } = stored.state
-  const chunking = storedChunking(stored.state)
+function storedSettings(state: StoredKnowledgeState): Omit<KnowledgeBaseDecl, 'docs'> {
+  const { knowledgeBase, folderPath } = state
+  const chunking = storedChunking(state)
   return {
     name: knowledgeBase.name,
     ...(knowledgeBase.description ? { description: knowledgeBase.description } : {}),
@@ -288,13 +286,13 @@ function settingsFingerprint(
  */
 export function movedTowardDecl(input: {
   decl: KnowledgeBaseDecl
-  stored: StoredKnowledgeBase
+  state: StoredKnowledgeState
   docs: readonly StoredDoc[]
   hashes: ReadonlyMap<string, string>
   base: BaseResource
 }): boolean {
-  const { decl, stored, docs, hashes, base } = input
-  const settings = storedSettings(stored)
+  const { decl, state, docs, hashes, base } = input
+  const settings = storedSettings(state)
   const baseDocs = new Map(
     Object.entries(base.blobs ?? {}).map(([name, entry]) => [name, entry.sha256])
   )

@@ -309,8 +309,6 @@ function canonicalColumn(key: string, column: TableColumnDecl): Json {
 
 /** Reads and prints `tables/<key>.ts`. */
 export const tableCodec: KindCodec<TableDecl> = {
-  kind: 'table',
-  dir: KIND_DIRS.table,
   group: (paths) => groupByFile(KIND_DIRS.table, DECLARATION_EXTENSION, paths),
   parse: (key, text) => parseTable(key, text),
   print(key, decl) {

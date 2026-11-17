@@ -43,13 +43,11 @@ import type {
 /** Workflows per page while listing a workspace's workflows. */
 const LIST_PAGE = 200
 
-interface StoredWorkflowState {
-  name: string
-}
+/** A stored workflow carries nothing beyond its id and name: the pipeline reads the rest. */
+type StoredWorkflowState = null
 
 /** What an update applies, decided at plan time: the folder's validated lock and base. */
 interface WorkflowPlan {
-  workflowId: string
   lock: WorkflowLockV1
   base: SourceBase
 }
@@ -185,7 +183,7 @@ async function planWorkflow(
         action: result.diff.noop ? 'noop' : 'update',
         storedId: existing.id,
         fields: diffFields(result.diff),
-        detail: { workflowId: existing.id, lock: read.lock, base },
+        detail: { lock: read.lock, base },
       }
     }
     const result = await createWorkflowFromSource.execute({
@@ -228,7 +226,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     const records = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,
-      state: { name: workflow.name },
+      state: null,
     }))
     return bindStored(ctx, 'workflow', records, { allocate })
   },
@@ -269,7 +267,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     if (change.decl && change.detail) {
       await applyWorkflowSource.authorize({
         principal,
-        input: { ...change.detail, files: change.decl.files },
+        input: { workflowId: change.storedId, ...change.detail, files: change.decl.files },
       })
     }
   },
@@ -286,16 +284,19 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     if (!decl) throw new Error('A workflow write needs its files')
     const provenance = ctx.provenance ? { provenance: ctx.provenance } : {}
     const plan = change.detail
-    if (change.action !== 'create' && !plan) throw new Error('A workflow update needs its plan')
-    const result = plan
-      ? await applyWorkflowSource.execute({
-          principal,
-          input: { ...plan, files: decl.files, ...provenance },
-        })
-      : await createWorkflowFromSource.execute({
-          principal,
-          input: { workspaceId, files: decl.files, ...provenance },
-        })
+    if (change.action !== 'create' && (!plan || !change.storedId)) {
+      throw new Error('A workflow update needs its plan')
+    }
+    const result =
+      plan && change.storedId
+        ? await applyWorkflowSource.execute({
+            principal,
+            input: { workflowId: change.storedId, ...plan, files: decl.files, ...provenance },
+          })
+        : await createWorkflowFromSource.execute({
+            principal,
+            input: { workspaceId, files: decl.files, ...provenance },
+          })
     const base: BaseResource = { id: result.workflowId }
     return {
       id: result.workflowId,

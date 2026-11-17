@@ -15,15 +15,12 @@ import {
 } from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
-import type { StoredResource } from '@/lib/workspace-source/application/types'
 
 /** A stored table as source sees it: the definition and its folder path (`/` at the root). */
 export interface StoredTableState {
   table: TableDefinition
   folderPath: string
 }
-
-export type StoredTable = StoredResource<StoredTableState>
 
 /** Source columns only: a workflow group's output columns belong to their group. */
 export function sourceColumns(table: TableDefinition): ColumnDefinition[] {
@@ -83,13 +80,13 @@ export function tableAsDecl(
 
 /** The base entry and printed files of a stored table read under `bindings`. */
 export function printStoredTable(
-  stored: StoredTable,
+  state: StoredTableState,
   key: string,
   bindings?: Readonly<Record<string, BaseColumn>>
-): { base: BaseResource; printed: PrintedDeclaration; fingerprint: ResourceFingerprint } {
-  const { decl, keyById, fingerprint } = tableAsDecl(stored.state, bindings)
+): { base: BaseResource; printed: PrintedDeclaration } {
+  const { decl, keyById, fingerprint } = tableAsDecl(state, bindings)
   const columns: Record<string, BaseColumn> = {}
-  for (const column of sourceColumns(stored.state.table)) {
+  for (const column of sourceColumns(state.table)) {
     const columnKey = keyById.get(getColumnId(column))
     if (columnKey === undefined) continue
     setOwn(columns, columnKey, {
@@ -103,8 +100,7 @@ export function printStoredTable(
     Object.entries(columns).sort(([a], [b]) => compareStrings(a, b))
   )
   return {
-    base: { id: stored.id, fingerprint, columns: sorted },
+    base: { id: state.table.id, fingerprint, columns: sorted },
     printed: tableCodec.print(key, decl),
-    fingerprint,
   }
 }

@@ -210,8 +210,6 @@ function parseTool(
 
 /** Reads and prints `tools/<key>.ts` and `tools/<key>.js`. */
 export const toolCodec: KindCodec<ToolDecl> = {
-  kind: 'custom-tool',
-  dir: KIND_DIRS['custom-tool'],
   group: (paths) =>
     groupByFile(KIND_DIRS['custom-tool'], [DECLARATION_EXTENSION, CODE_EXTENSION], paths),
   parse: (key, text) => parseTool(key, text),

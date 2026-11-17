@@ -377,8 +377,6 @@ export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): 
 
 /** Reads and prints `knowledge/<key>/`. */
 export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
-  kind: 'knowledge-base',
-  dir: KIND_DIRS['knowledge-base'],
   group: groupKnowledge,
   parse: parseKnowledgeBase,
   print(key, decl) {

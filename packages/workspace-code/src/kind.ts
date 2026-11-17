@@ -28,8 +28,6 @@ export const KIND_DIRS = {
   workflow: 'workflows',
 } as const satisfies Record<WorkspaceKind, string>
 
-type KindDir = (typeof KIND_DIRS)[WorkspaceKind]
-
 /** Whether `value` names a kind, as `--only` and the API's `kinds` spell it. */
 export function isWorkspaceKind(value: string): value is WorkspaceKind {
   return Object.hasOwn(KIND_DIRS, value)
@@ -68,8 +66,6 @@ export interface PrintedDeclaration {
  * registry of codecs with different declaration types type-checks.
  */
 export interface KindCodec<D> {
-  kind: WorkspaceKind
-  dir: KindDir
   /** Groups the kind's paths by resource key; a path no resource owns is `E_DECL_UNKNOWN_FILE`. */
   group(paths: readonly string[]): GroupedPaths
   /** Reads one resource's text files (workspace-relative path → text) and blobs. */

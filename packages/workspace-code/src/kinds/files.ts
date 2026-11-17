@@ -209,8 +209,6 @@ function parseFile(
 
 /** Reads and prints `files/**`. */
 export const fileCodec: KindCodec<FileDecl> = {
-  kind: 'file',
-  dir: KIND_DIRS.file,
   group: groupFiles,
   parse: parseFile,
   print: (key, decl) => ({

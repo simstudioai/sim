@@ -39,7 +39,6 @@ import {
 } from '@/lib/workspace-source/application/kinds/table/diff'
 import {
   printStoredTable,
-  type StoredTable,
   type StoredTableState,
   tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
@@ -62,10 +61,6 @@ interface TablePlan {
 }
 
 type TableChange = PlannedChange<TableDecl, TablePlan>
-
-function storedTable(key: string, state: StoredTableState): StoredTable {
-  return { key, id: state.table.id, name: state.table.name, state }
-}
 
 /** The table folder paths a load read, so the plan that follows checks folders without re-reading. */
 const loadedFolders = new WeakMap<StoredSet<StoredTableState>, ReadonlySet<string>>()
@@ -120,7 +115,8 @@ async function planTable(
     resolution,
     change,
     (resource) =>
-      printStoredTable(resource, key, entry?.id === resource.id ? entry.columns : undefined).base
+      printStoredTable(resource.state, key, entry?.id === resource.id ? entry.columns : undefined)
+        .base
   )
   if ('settled' in planned) return planned.settled
   switch (planned.action) {
@@ -153,9 +149,10 @@ async function planTable(
           )
         )
       }
-      if ((changes.dropped > 0 || changes.lostCells > 0) && !ctx.allowDelete) {
+      const dropped = changes.columns.filter((column) => column.op === 'drop').length
+      if ((dropped > 0 || changes.lostCells > 0) && !ctx.allowDelete) {
         const losses = [
-          ...(changes.dropped > 0 ? [`drops ${changes.dropped} column(s)`] : []),
+          ...(dropped > 0 ? [`drops ${dropped} column(s)`] : []),
           ...(changes.lostCells > 0 && changes.removedOptions > 0
             ? [`removes ${changes.removedOptions} select option(s)`]
             : []),
@@ -175,12 +172,12 @@ async function planTable(
         action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
         storedId: planned.stored.id,
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
-        ...(changes.dropped > 0 || changes.lostCells > 0
+        ...(dropped > 0 || changes.lostCells > 0
           ? {
               destructive: {
                 what: 'cells',
                 counts: {
-                  columns: changes.dropped,
+                  columns: dropped,
                   ...(changes.removedOptions > 0 ? { options: changes.removedOptions } : {}),
                   cells: changes.lostCells,
                 },
@@ -223,11 +220,7 @@ async function written(
   decl: TableDecl
 ): Promise<AppliedResource> {
   const state = await reload(ctx, tableId)
-  const { base, printed } = printStoredTable(
-    storedTable(key, state),
-    key,
-    bindingsAfter(state, decl)
-  )
+  const { base, printed } = printStoredTable(state, key, bindingsAfter(state, decl))
   return { id: tableId, base, text: printed.text }
 }
 
@@ -248,10 +241,7 @@ async function applyUpdate(
     const state = await reload(ctx, tableId).catch(() => null)
     if (!state) throw error
     const bindings = bindingsAfter(state, decl, plan.bindings)
-    throw new PartiallyAppliedError(
-      error,
-      printStoredTable(storedTable(change.key, state), change.key, bindings).base
-    )
+    throw new PartiallyAppliedError(error, printStoredTable(state, change.key, bindings).base)
   }
 }
 
@@ -425,7 +415,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
   },
 
   async read(stored) {
-    const { base, printed } = printStoredTable(stored, stored.key)
+    const { base, printed } = printStoredTable(stored.state, stored.key)
     return { text: printed.text, blobs: [], base }
   },
 }

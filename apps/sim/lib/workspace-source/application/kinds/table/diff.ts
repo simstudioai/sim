@@ -49,8 +49,8 @@ export interface ColumnInput {
 
 type ColumnChange =
   | { op: 'add'; key: string; column: ColumnInput }
-  | { op: 'update'; key: string; columnId: string; updates: Partial<ColumnInput>; fields: string[] }
-  | { op: 'drop'; key: string; columnId: string; name: string; cells: number }
+  | { op: 'update'; columnId: string; updates: Partial<ColumnInput> }
+  | { op: 'drop'; columnId: string; name: string; cells: number }
 
 export interface TableChanges {
   table: { name?: string; description?: string | null; folderPath?: string }
@@ -59,7 +59,6 @@ export interface TableChanges {
   fields: string[]
   /** Cells a drop or a removed option loses. */
   lostCells: number
-  dropped: number
   /** Select options removed (or renamed, which removes the old name) from stored columns. */
   removedOptions: number
   diagnostics: WorkspaceSourceDiagnostic[]
@@ -173,7 +172,6 @@ export async function diffTable(
     columns: [],
     fields: [],
     lostCells: 0,
-    dropped: 0,
     removedOptions: 0,
     diagnostics,
   }
@@ -205,14 +203,12 @@ export async function diffTable(
     const cells = filled.get(getColumnId(column)) ?? 0
     changes.columns.push({
       op: 'drop',
-      key: column.name,
       columnId: getColumnId(column),
       name: column.name,
       cells,
     })
     changes.fields.push(`columns.${column.name} (drop)`)
     changes.lostCells += cells
-    changes.dropped += 1
   }
 
   for (const [columnKey, declared] of Object.entries(decl.columns)) {
@@ -303,7 +299,7 @@ export async function diffTable(
       fields.push('currencyCode')
     }
     if (fields.length === 0) continue
-    changes.columns.push({ op: 'update', key: columnKey, columnId, updates, fields })
+    changes.columns.push({ op: 'update', columnId, updates })
     changes.fields.push(...fields.map((field) => `columns.${columnKey}.${field}`))
   }
 

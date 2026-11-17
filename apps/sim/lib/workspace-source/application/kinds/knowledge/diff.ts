@@ -22,6 +22,7 @@ import { validateFileType } from '@/lib/uploads/utils/validation'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
 import { HASH_CONCURRENCY, takeHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import {
+  baseHashes,
   type StoredDoc,
   type StoredKnowledgeBase,
   sameChunking,
@@ -182,8 +183,8 @@ export function indexingFindings(
  * is unknown is downloaded and hashed, so an unchanged document is never re-embedded, and the hash
  * is added (one of another size is replaced without a download). One the request's download
  * budget leaves unhashed is neither uploaded nor deleted, only named.
- * Only a document the base records (`managed`) is deleted when undeclared; any other is kept. A
- * name held twice is settled when `base` shows a replace that stopped before its delete.
+ * Only a document the base records (an update's `base`) is deleted when undeclared; any other is
+ * kept. A name held twice is settled when `base` shows a replace that stopped before its delete.
  */
 export async function diffKnowledgeBase(input: {
   key: string
@@ -191,12 +192,12 @@ export async function diffKnowledgeBase(input: {
   stored: StoredKnowledgeBase
   docs: readonly StoredDoc[]
   hashes: Map<string, string>
-  managed: ReadonlySet<string>
   base?: BaseResource
   ctx: PlanContext
 }): Promise<KnowledgeChanges> {
   const { key, decl, stored, docs, hashes, base, ctx } = input
   const { knowledgeBase, folderPath } = stored.state
+  const managed = new Set(base ? baseHashes(docs, base).keys() : [])
   const changes: KnowledgeChanges = {
     settings: {},
     uploads: [],
@@ -291,7 +292,7 @@ export async function diffKnowledgeBase(input: {
   }
   for (const [name, current] of byName) {
     if (Object.hasOwn(decl.docs, name)) continue
-    if (!input.managed.has(current.id)) {
+    if (!managed.has(current.id)) {
       changes.diagnostics.push(
         kindFinding(
           KIND,

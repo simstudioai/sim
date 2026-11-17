@@ -60,7 +60,6 @@ import {
   loadDocs,
   movedTowardDecl,
   type StoredDoc,
-  type StoredKnowledgeBase,
   type StoredKnowledgeState,
   sourceDocs,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
@@ -90,17 +89,13 @@ const KIND = 'knowledge-base'
 
 const logger = createLogger('KnowledgeWorkspaceSource')
 
-function storedKnowledgeBase(key: string, state: StoredKnowledgeState): StoredKnowledgeBase {
-  return { key, id: state.knowledgeBase.id, name: state.knowledgeBase.name, state }
-}
-
 /** Re-reads one knowledge base through the read use case, refusing one that left the workspace. */
-async function reload(ctx: SourceContext, key: string, id: string): Promise<StoredKnowledgeBase> {
+async function reload(ctx: SourceContext, id: string): Promise<StoredKnowledgeState> {
   const { knowledgeBase, folderPath } = await readKnowledgeBase.execute({
     principal: ctx.principal,
     input: { knowledgeBaseId: id, assertedWorkspaceId: ctx.workspace.workspaceId },
   })
-  return storedKnowledgeBase(key, { knowledgeBase, folderPath })
+  return { knowledgeBase, folderPath }
 }
 
 /** The paths of the documents a change uploads. */
@@ -189,9 +184,9 @@ async function planKnowledgeBase(
   /** Set when the server moved only toward this directory since the base: planned from the base. */
   let converged: string | undefined
   if (bound && based) {
-    if (knowledgeView(bound, boundDocs, hashes).fingerprint !== based.fingerprint) {
+    if (knowledgeView(bound.state, boundDocs, hashes).fingerprint !== based.fingerprint) {
       await hashDocs(ctx, bound.id, hashableDocs(boundDocs), hashes)
-      if (movedTowardDecl({ decl, stored: bound, docs: boundDocs, hashes, base: based })) {
+      if (movedTowardDecl({ decl, state: bound.state, docs: boundDocs, hashes, base: based })) {
         converged = based.fingerprint
       }
     }
@@ -213,7 +208,8 @@ async function planKnowledgeBase(
       (candidate) => candidate.name === decl.name && !candidate.state.knowledgeBase.isSearchIndex
     ),
     base,
-    fingerprint: (resource) => converged ?? knowledgeView(resource, boundDocs, hashes).fingerprint,
+    fingerprint: (resource) =>
+      converged ?? knowledgeView(resource.state, boundDocs, hashes).fingerprint,
     holds: holdsIn(stored),
   })
   const target = 'stored' in resolution ? resolution.stored : undefined
@@ -237,7 +233,7 @@ async function planKnowledgeBase(
   const planned = settle(
     resolution,
     change,
-    (resource) => knowledgeView(resource, boundDocs, hashes).base
+    (resource) => knowledgeView(resource.state, boundDocs, hashes).base
   )
   if ('settled' in planned) return planned.settled
   switch (planned.action) {
@@ -272,9 +268,6 @@ async function planKnowledgeBase(
         stored: resource,
         docs: storedDocs,
         hashes,
-        managed: new Set(
-          planned.action === 'update' ? baseHashes(storedDocs, planned.base).keys() : []
-        ),
         ...(planned.action === 'update' ? { base: planned.base } : {}),
         ctx,
       })
@@ -287,7 +280,7 @@ async function planKnowledgeBase(
       )
       const changed =
         changes.fields.length > 0 || changes.uploads.length > 0 || changes.deletes.length > 0
-      const view = knowledgeView(resource, storedDocs, hashes)
+      const view = knowledgeView(resource.state, storedDocs, hashes)
       /** A server a partial apply already moved to the directory records its base as a no-op. */
       const refreshed =
         planned.action === 'update' && !changed && view.fingerprint !== planned.base.fingerprint
@@ -407,8 +400,7 @@ async function written(
   id: string,
   hashes: ReadonlyMap<string, string>
 ): Promise<AppliedResource> {
-  const resource = await reload(ctx, key, id)
-  const view = knowledgeView(resource, await loadDocs(ctx, id), hashes)
+  const view = knowledgeView(await reload(ctx, id), await loadDocs(ctx, id), hashes)
   return { id, base: view.base, text: knowledgeCodec.print(key, view.decl).text }
 }
 
@@ -464,7 +456,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           const docs = await loadDocs(ctx, resource.id)
           const hashes = baseHashes(docs, entry)
           undeclared.set(resource.id, {
-            fingerprint: knowledgeView(resource, docs, hashes).fingerprint,
+            fingerprint: knowledgeView(resource.state, docs, hashes).fingerprint,
             hashes,
           })
         }
@@ -532,7 +524,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
     async fingerprintNow(change, ctx) {
       const id = change.storedId
       if (!id) throw new Error('A knowledge base check needs the stored id')
-      const [current, docs] = await Promise.all([reload(ctx, change.key, id), loadDocs(ctx, id)])
+      const [current, docs] = await Promise.all([reload(ctx, id), loadDocs(ctx, id)])
       return knowledgeView(current, docs, change.detail?.hashes ?? new Map()).fingerprint
     },
 
@@ -588,7 +580,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const { byName, unmanaged } = sourceDocs(docs)
       const hashes = new Map<string, string>()
       const unhashed = await hashDocs(ctx, stored.id, byName.values(), hashes)
-      const view = knowledgeView(stored, docs, hashes)
+      const view = knowledgeView(stored.state, docs, hashes)
       const printed = knowledgeCodec.print(stored.key, view.decl)
       const left = unmanaged + byName.size - hashes.size - unhashed.length
       const diagnostics: WorkspaceSourceDiagnostic[] = []
