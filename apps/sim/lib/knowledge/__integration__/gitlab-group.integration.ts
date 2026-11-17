@@ -53,6 +53,7 @@ describe('GitLab group Search permission boundary', () => {
   let failedDiscovery = false
   let added = false
   let confidential = false
+  let providerState = 'healthy'
   const checks: string[] = []
   const token = 'disposable-group-test-token'
   const principal = (userId: string): Principal => ({
@@ -90,9 +91,10 @@ describe('GitLab group Search permission boundary', () => {
       request.headers.authorization !== `Bearer ${token}`
     )
       return reply(401, {})
+    if (providerState === 'revoked') return reply(401, {})
     if (path === '/api/v4/user') return reply(200, { id: 50, state: 'active', locked: false })
     if (path === '/api/v4/groups/team' || path === '/api/v4/groups/7')
-      return reply(200, { id: 7, full_path: 'team' })
+      return reply(200, { id: 7, full_path: providerState === 'renamed' ? 'renamed-team' : 'team' })
     if (path === '/api/v4/groups/7/projects') {
       if (url.searchParams.get('with_shared') !== 'false') return reply(400, {})
       const projects = [
@@ -134,6 +136,8 @@ describe('GitLab group Search permission boundary', () => {
         web_url: `https://gitlab.fixture.test/${projectPath}`,
       })
     if (match[2] === '/search') {
+      if (providerState === 'search-token-expired') return reply(401, {})
+      if (providerState === 'search-rate-limited') return reply(429, {}, { 'retry-after': '60' })
       const page = Number(url.searchParams.get('page') ?? 1)
       const size = Number(url.searchParams.get('per_page') ?? 20)
       return reply(200, [issue(1), issue(2), issue(3)].slice((page - 1) * size, page * size))
@@ -279,6 +283,15 @@ describe('GitLab group Search permission boundary', () => {
       .where(eq(knowledgeConnector.id, sourceId))
     expect(saved?.nextSyncAt).toBeNull()
     expect(saved?.nextMemberSyncAt).toBeNull()
+    for (const state of ['revoked', 'renamed']) {
+      providerState = state
+      try {
+        await expect(update()).rejects.toMatchObject({ code: 'validation' })
+      } finally {
+        providerState = 'healthy'
+      }
+    }
+
     for (const changedScope of [
       { ...config, group: 'another-group' },
       { ...config, includeSubgroups: 'true' },
@@ -348,6 +361,23 @@ describe('GitLab group Search permission boundary', () => {
     moved = true
     expect((await search(ids.aliceId)).results).toEqual([])
     moved = false
+    for (const [state, status] of [
+      ['search-token-expired', 'reconnect'],
+      ['search-rate-limited', 'rate_limited'],
+    ]) {
+      providerState = state
+      const requests = transport.paths.length
+      try {
+        const failed = await search(ids.aliceId)
+        expect(failed.results).toEqual([])
+        expect(failed.live?.accounts[0]?.status).toBe(status)
+        expect(
+          transport.paths.slice(requests).filter((path) => path.endsWith('/search'))
+        ).toHaveLength(1)
+      } finally {
+        providerState = 'healthy'
+      }
+    }
     checks.push('Per-project identity, reference, confidentiality and moved-project isolation')
   })
 

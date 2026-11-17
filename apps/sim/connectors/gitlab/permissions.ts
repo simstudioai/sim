@@ -68,13 +68,13 @@ export async function validateGitLabCsvToken(
   }
 }
 
-/** Resolve a bounded, complete group scope before any permission snapshot can be replaced. */
-export async function discoverGitLabGroup(
+/** Validate the current token and resolve the canonical group without enumerating its projects. */
+export async function validateGitLabGroupToken(
   token: string,
   config: Record<string, unknown>,
   mode: 'csv' | 'administrator',
   signal?: AbortSignal
-): Promise<GitLabGroupScope> {
+): Promise<Pick<GitLabGroupScope, 'host' | 'group'>> {
   const host = normalizeGitLabHost(config.host)
   const requested = typeof config.group === 'string' ? config.group.trim() : ''
   if (!requested || (config.project !== undefined && config.project !== ''))
@@ -114,6 +114,18 @@ export async function discoverGitLabGroup(
     path: record.full_path,
     includeSubgroups: config.includeSubgroups === 'true',
   }
+  return { host, group }
+}
+
+/** Resolve a bounded, complete group scope before any permission snapshot can be replaced. */
+export async function discoverGitLabGroup(
+  token: string,
+  config: Record<string, unknown>,
+  mode: 'csv' | 'administrator',
+  signal?: AbortSignal
+): Promise<GitLabGroupScope> {
+  const { host, group } = await validateGitLabGroupToken(token, config, mode, signal)
+  const base = `https://${host}/api/v4`
   const rows = await listAll<GitLabPermissionProject>(
     `${base}/groups/${group.id}/projects?with_shared=false&include_subgroups=${group.includeSubgroups}&order_by=id&sort=asc`,
     token,

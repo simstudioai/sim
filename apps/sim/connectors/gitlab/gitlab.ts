@@ -16,6 +16,7 @@ import {
 import {
   getGitLabDocumentAcls,
   openGitLabDirectory,
+  validateGitLabGroupToken,
   validateGitLabPermissionToken,
 } from '@/connectors/gitlab/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -1339,12 +1340,33 @@ export const gitlabConnector: ConnectorConfig = {
           error: 'GitLab groups require an administrator-managed Search source.',
         }
       const scope = gitLabGroupScopeSchema.safeParse(syncContext.gitLabGroupScope)
-      if (!scope.success || !gitLabGroupMatchesConfig(scope.data, sourceConfig))
+      const mode = syncContext.gitLabPermissionMode
+      if (
+        !scope.success ||
+        (mode !== 'csv' && mode !== 'administrator') ||
+        !gitLabGroupMatchesConfig(scope.data, sourceConfig)
+      )
         return {
           valid: false,
           error: 'Save the GitLab group with its token and permission settings.',
         }
-      return { valid: true }
+      try {
+        const current = await validateGitLabGroupToken(accessToken, sourceConfig, mode)
+        if (
+          current.group.id !== scope.data.group.id ||
+          current.group.path !== scope.data.group.path
+        )
+          return {
+            valid: false,
+            error: 'The GitLab group identity changed. Update the source and its permissions.',
+          }
+        return { valid: true }
+      } catch (error) {
+        return {
+          valid: false,
+          error: getErrorMessage(error, 'Could not validate the GitLab group.'),
+        }
+      }
     }
     const project = (sourceConfig.project as string)?.trim()
     if (!project) {

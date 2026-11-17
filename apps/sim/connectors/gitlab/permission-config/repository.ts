@@ -248,5 +248,6 @@ export async function seedGitLabPermissionContext(
   if ('group' in metadata) {
     const { host, group, projects } = metadata
     context.gitLabGroupScope = { host, group, projects }
+    context.gitLabPermissionMode = metadata.mode
   } else if (metadata.mode === 'csv') setGitLabCsvContext(context, { connectorId, ...metadata })
 }

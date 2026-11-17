@@ -506,6 +506,12 @@ async function createGroupSession(input: GitLabSessionInput, own: string) {
             }
           }
         } catch (error) {
+          input.signal.throwIfAborted()
+          if (
+            error instanceof NativeSearchError &&
+            ['reconnect', 'rate_limited'].includes(error.status)
+          )
+            throw error
           partial = true
           failures.push(
             error instanceof NativeSearchError

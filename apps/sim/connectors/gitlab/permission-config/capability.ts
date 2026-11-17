@@ -79,6 +79,7 @@ export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
         if ('group' in prepared.snapshot) {
           const { host, group, projects } = prepared.snapshot
           context.gitLabGroupScope = { host, group, projects }
+          context.gitLabPermissionMode = prepared.snapshot.mode
         }
         if (prepared.snapshot.mode === 'csv' && !('group' in prepared.snapshot))
           setGitLabCsvContext(context, { connectorId, ...prepared.snapshot })
