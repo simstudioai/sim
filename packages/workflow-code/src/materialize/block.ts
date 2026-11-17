@@ -311,7 +311,6 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     if (param.kind !== 'value') continue
     const declaration = declarationFor(catalog, paramId, target.triggerMode)
     if (declaration?.structured !== 'inputFormat') continue
-    // inputFormat ids as canonicalize lifts them into the lock.
     const found = [
       ...liftedFieldIds(parseStoredList(getOwn(subBlocks, paramId)?.value) ?? []).values(),
     ]

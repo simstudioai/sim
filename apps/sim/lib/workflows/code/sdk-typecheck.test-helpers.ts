@@ -21,7 +21,8 @@ export function writeSdkTypes(dir: string, catalog: BlockCatalog) {
 
 /**
  * Type-checks `include` against `core.d.ts` and the declarations under `<dir>/types` with the
- * workspace compiler and the options every source directory gets. Returns the compiler's output: empty when everything checks.
+ * workspace compiler and the options every source directory gets. Returns the compiler's output:
+ * empty when everything checks.
  */
 export function typeCheckAgainstSdk(dir: string, name: string, include: string[]): string {
   const tsconfig = path.join(dir, `tsconfig.${name}.json`)

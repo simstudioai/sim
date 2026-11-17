@@ -77,7 +77,6 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
     }
   )
 
-  /** Every structural case, plus the first per-block cases of each block type. */
   const sampled = sampleCorpus(generateRegistryCorpus(), { perType: CASES_PER_BLOCK_TYPE }).filter(
     (corpusCase) => !corpusCase.unknownTypes
   )

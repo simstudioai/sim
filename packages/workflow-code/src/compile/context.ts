@@ -41,7 +41,10 @@ export type ResolvedBuilder =
       /** `null` for the bare `parallel(...)` form, which leaves `parallelType` unset. */
       method: string | null
     }
-  /** `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims its key. */
+  /**
+   * `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims
+   * its key.
+   */
   | { kind: 'unknown' }
 
 /** One block declaration collected in pass 1, before its values are compiled. */
@@ -114,7 +117,7 @@ interface CodeFileBudget {
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
 }
 
-/** The state one compile threads through every pass: inputs, the reporter and what has been collected. */
+/** The state one compile threads through every pass: inputs, the reporter and what it collected. */
 export interface CompileContext {
   file: string
   reporter: Reporter

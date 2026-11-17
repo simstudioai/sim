@@ -54,9 +54,7 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       dirty = true
       schedule()
     }
-    const unsubscribeDraft = subscribeToDraftChanges(workflowId, markDirty, {
-      ignoreGeometry: true,
-    })
+    const unsubscribeDraft = subscribeToDraftChanges(workflowId, markDirty)
     const unsubscribeQueue = useOperationQueueStore.subscribe((state, previous) => {
       if (state.operations === previous.operations) return
       const queued = new Set(previous.operations.map((operation) => operation.id))

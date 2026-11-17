@@ -32,9 +32,10 @@ function storesAsText(site: ParamSite): boolean {
 }
 
 /**
- * The encoding a decoded value is written in: JSON text when the field is one canonicalize
- * decodes and {@link storesAsText}; native otherwise. Scalars are always native, and a field
- * canonicalize never decodes keeps a structured value native so it reads back unchanged.
+ * The encoding a decoded value is written in: JSON text when the site forces text, or when the
+ * field is one canonicalize decodes and {@link storesAsText}; native otherwise. Scalars are always
+ * native, and a field canonicalize never decodes keeps a structured value native so it reads back
+ * unchanged.
  */
 function encodeStorage(json: unknown, site: ParamSite): unknown {
   if (typeof json !== 'object' || json === null) return json
@@ -44,9 +45,9 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
 }
 
 /**
- * Puts inputFormat field ids back: canonicalize moved the id of every
- * field with a unique name to the lock, so each such field takes the lock's id for its name, then
- * prev's, else a new one. Fields that kept their id inline are untouched. The editor's `collapsed`
+ * Puts inputFormat field ids back: canonicalize moved the id of every field whose name and id are
+ * both unique to the lock, so each such field takes the lock's id for its name, then prev's, else a
+ * new one. Fields that kept their id inline are untouched. The editor's `collapsed`
  * flag is carried over from the prev field with the same id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
@@ -174,9 +175,9 @@ export function matchPrevTools(
 }
 
 /**
- * A tool-input list. A tool canonical-equal to the prev tool it continues
- * keeps prev's stored object; others are re-encoded, keeping prev's raw text for each param whose
- * decoded value is unchanged. The list is text when {@link storesAsText}.
+ * A tool-input list. A tool canonical-equal to the prev tool it continues keeps prev's stored
+ * object; others are re-encoded, keeping prev's raw text for each param whose decoded value is
+ * unchanged. The list is text when {@link storesAsText}.
  */
 function encodeTools(tools: CanonicalTool[], site: ParamSite, context: MaterializeContext) {
   const prevList = parseStoredList(site.prevRaw) ?? []

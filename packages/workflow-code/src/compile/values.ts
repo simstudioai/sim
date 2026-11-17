@@ -507,7 +507,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           site.decl.key
         )
       }
-      // Variables are keyed by their normalized name, while the SDK types `vars` by the key as declared.
+      // Variables are keyed by normalized name; the SDK types `vars` by the key as declared.
       const key = normalizeWorkflowBlockName(name)
       if (!ctx.variables.has(key)) {
         ctx.reporter.report(

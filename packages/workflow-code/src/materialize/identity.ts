@@ -119,8 +119,7 @@ function duplicateLockKeys(
  * A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
  * `sunset.replacedBy` pair, which keeps the id. A stale lock entry whose id left prev is ignored;
  * when no later rule matches its key, the block is created with `W_MAT_DELETED_SINCE_PULL`.
- * Lock keys sharing one id are ignored with
- * `E_MAT_DUPLICATE_LOCK_ID`.
+ * Lock keys sharing one id are ignored with `E_MAT_DUPLICATE_LOCK_ID`.
  */
 export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   const { workflow, lock, prev, catalog, hooks, diagnostics } = inputs

@@ -44,7 +44,7 @@ function portForHandle(handle: string, from: BlockDecl): Port {
 /** Implicit branch keys of a never-persisted branch list. */
 const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as const
 
-/** Pass 2 of wiring: validates each edge a wiring statement denotes and collects the accepted ones. */
+/** Pass 2 of wiring: validates each edge a wiring statement denotes and collects accepted ones. */
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
   /** Set once wiring would exceed `limits.maxEdges`; every later edge is dropped unchecked. */

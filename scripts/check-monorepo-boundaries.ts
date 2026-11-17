@@ -202,7 +202,10 @@ const HOST_GLOBALS = new Set([
 /** Member names banned however they are reached: `x.constructor` is `Function` for any function. */
 const HOST_MEMBERS = new Set([...HOST_GLOBALS, 'constructor'])
 
-/** The member a destructuring element reads: `constructor` in `{ constructor: F }` or `{ constructor }`. */
+/**
+ * The member a destructuring element reads: `constructor` in `{ constructor: F }` or
+ * `{ constructor }`.
+ */
 function destructuredMember(node: ts.BindingElement): string | undefined {
   const key = node.propertyName ?? node.name
   if (ts.isIdentifier(key) || ts.isStringLiteralLike(key)) return key.text

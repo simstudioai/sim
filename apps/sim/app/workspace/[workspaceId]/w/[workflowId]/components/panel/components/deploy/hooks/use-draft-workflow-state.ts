@@ -113,15 +113,10 @@ function workflowVariablesChanged(
 
 /**
  * Calls `onChange` whenever the draft {@link useDraftWorkflowState} returns for `workflowId`
- * changes: the canvas graph, this workflow's sub-block values, or its variables. With
- * `ignoreGeometry`, a block change that only moves or resizes it does not count. Returns the
- * unsubscribe function.
+ * changes: the canvas graph, this workflow's sub-block values, or its variables. A block change
+ * that only moves or resizes it does not count. Returns the unsubscribe function.
  */
-export function subscribeToDraftChanges(
-  workflowId: string,
-  onChange: () => void,
-  { ignoreGeometry = false }: { ignoreGeometry?: boolean } = {}
-): () => void {
+export function subscribeToDraftChanges(workflowId: string, onChange: () => void): () => void {
   const unsubscribers = [
     useWorkflowStore.subscribe((state, previous) => {
       if (
@@ -129,7 +124,7 @@ export function subscribeToDraftChanges(
         state.loops !== previous.loops ||
         state.parallels !== previous.parallels ||
         (state.blocks !== previous.blocks &&
-          (!ignoreGeometry || blocksChangedBeyondGeometry(state.blocks, previous.blocks)))
+          blocksChangedBeyondGeometry(state.blocks, previous.blocks))
       ) {
         onChange()
       }

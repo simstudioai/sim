@@ -163,12 +163,8 @@ async function requireEnvWorkspaceAccess(
   workspaceAccess?: WorkspaceAccess
 ): Promise<boolean> {
   const access = workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
-  /**
-   * A workspace that no longer exists and one the caller may not read are different facts
-   * and take different corrections — stop using the id versus ask for access. Collapsing
-   * them sent every deleted-workspace call down the access-denied path, where it read as a
-   * permissions problem nobody could reproduce.
-   */
+  // A deleted workspace and a forbidden one need different fixes (stop using the id vs ask for
+  // access), so they throw distinct errors.
   if (!access.exists) {
     throw new Error(`Workspace ${workspaceId} does not exist`)
   }
