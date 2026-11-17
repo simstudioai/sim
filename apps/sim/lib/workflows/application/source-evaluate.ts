@@ -219,7 +219,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     resources = await loadResourceKeyResolver(
       scope.workspaceId,
       { ids: loaded.ids, keys: [...loaded.keys, ...compiledKeys] },
-      { createdBy: input.createdBy }
+      { actorUserId: input.createdBy }
     )
   }
 

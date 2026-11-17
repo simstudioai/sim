@@ -283,10 +283,11 @@ describe('workspace resource keys against PostgreSQL', () => {
       { key: 'docs', origin: 'allocated' },
     ])
 
-    const resolver = await loadResourceKeyResolver(workspaceId, {
-      ids: [{ kind: 'table', id: newer }],
-      keys: [{ kind: 'table', key: 'docs' }],
-    })
+    const resolver = await loadResourceKeyResolver(
+      workspaceId,
+      { ids: [{ kind: 'table', id: newer }], keys: [{ kind: 'table', key: 'docs' }] },
+      { actorUserId: userId }
+    )
     expect(resolver.toId('table', 'docs')).toBeNull()
     expect(resolver.toId('table', 'docs-2')).toBe(newer)
   })

@@ -1,8 +1,6 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
-  credential,
-  credentialMember,
   knowledgeBase,
   userTableDefinitions,
   workflowBlocks,
@@ -10,7 +8,7 @@ import {
 } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, asc, eq, inArray, isNull, notInArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import type { SourceResources } from '@/lib/api/contracts/v2/source-resources'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
@@ -19,17 +17,14 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
-import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
-import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
 import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { loadEnvNames } from '@/lib/workflows/code/resources'
+import { loadEnvNames, loadVisibleCredentials } from '@/lib/workflows/code/resources'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
@@ -37,9 +32,6 @@ import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
  * `truncated`; source can still name a later resource by its key.
  */
 const MAX_MANIFEST_RESOURCES_PER_KIND = 1000
-
-/** Credential types a `credential(...)` can name: every saved account, never an env secret. */
-const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
 type ManifestColumn = SourceResources['tables'][number]['columns'][number]
 type ManifestWorkflowInputs = SourceResources['workflows'][number]['inputs']
@@ -106,42 +98,6 @@ async function loadWorkflowInputs(
     )
   }
   return inputs
-}
-
-/**
- * The saved credentials (never env secrets) the caller may see, by the credential listing's own
- * access rule: a user sees what they are a member of, their own personal tokens and, as a
- * workspace admin, every shared credential. A caller with no human subject (a workspace API key)
- * sees the shared credentials only, never anyone's personal ones.
- */
-async function loadVisibleCredentials(workspaceId: string, userId: string | undefined) {
-  const columns = {
-    id: credential.id,
-    name: credential.displayName,
-    type: credential.type,
-    providerId: credential.providerId,
-  }
-  const scope = and(
-    eq(credential.workspaceId, workspaceId),
-    notInArray(credential.type, [...ENV_CREDENTIAL_TYPES])
-  )
-  const order = [asc(credential.createdAt), asc(credential.id)]
-  if (!userId) {
-    return db
-      .select(columns)
-      .from(credential)
-      .where(and(scope, inArray(credential.type, SHARED_CREDENTIAL_TYPES)))
-      .orderBy(...order)
-      .limit(PAGE)
-  }
-  const access = await checkWorkspaceAccess(workspaceId, userId)
-  return db
-    .select(columns)
-    .from(credential)
-    .leftJoin(credentialMember, credentialMembershipJoin(userId))
-    .where(and(scope, credentialAccessClause(userId, access.canAdmin)))
-    .orderBy(...order)
-    .limit(PAGE)
 }
 
 /**
@@ -226,7 +182,7 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
         .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
         .limit(PAGE),
-      visible.credentials ? loadVisibleCredentials(workspaceId, userId) : [],
+      visible.credentials ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE }) : [],
       db
         .select({ id: workflowTable.id, name: workflowTable.name })
         .from(workflowTable)

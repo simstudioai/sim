@@ -42,7 +42,10 @@ interface StoredCanonicalInput {
   state: WorkflowState
   meta: CanonicalWorkflowMeta
   catalog: BlockCatalog
-  /** Attribution for resource keys allocated by this read; `null` for an actorless caller. */
+  /**
+   * The caller's human subject: attribution for resource keys allocated by this read, and whose
+   * credential access bounds which credentials print by key. `null` for an actorless caller.
+   */
   createdBy: string | null
 }
 
@@ -75,7 +78,7 @@ function unionReferences(base: ResourceReferences, extra: ResourceReferences): R
 export async function canonicalizeStored(input: StoredCanonicalInput): Promise<StoredCanonical> {
   const { workflowId, workspaceId, state, meta, catalog, createdBy } = input
   let loaded: ResourceReferences = referencesByWorkflow.get(workflowId) ?? { ids: [], keys: [] }
-  let resources = await loadResourceKeyResolver(workspaceId, loaded, { createdBy })
+  let resources = await loadResourceKeyResolver(workspaceId, loaded, { actorUserId: createdBy })
   for (;;) {
     const referenced: ResourceReferences = { ids: [], keys: [] }
     const current = resources
@@ -104,7 +107,7 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
       return { canonical, resources, loaded }
     }
     loaded = unionReferences(loaded, missing)
-    resources = await loadResourceKeyResolver(workspaceId, loaded, { createdBy })
+    resources = await loadResourceKeyResolver(workspaceId, loaded, { actorUserId: createdBy })
   }
 }
 
