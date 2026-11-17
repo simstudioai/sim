@@ -15,4 +15,5 @@ export {
   type WorkspaceManifest,
   type WorkspaceManifestColumn,
 } from './workspace'
+export { WORKSPACE_COOKBOOK } from './workspace-cookbook-text.generated'
 export { WORKSPACE_SDK_DTS } from './workspace-text.generated'
