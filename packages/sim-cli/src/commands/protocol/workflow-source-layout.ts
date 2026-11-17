@@ -270,14 +270,14 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
     }
   }
   if (embedStore.getStore()) {
-    const fetched: Array<readonly [string, Buffer]> = []
+    const fetched: Array<readonly [string, Uint8Array<ArrayBuffer>]> = []
     if (fetches.length > 0) {
       const scratch = await mkdtemp(join(tmpdir(), 'sim-source-fetch-'))
       try {
         for (const [path, stage] of fetches) {
           const file = join(scratch, String(fetched.length))
           await stage(file)
-          fetched.push([path, await readFile(file)])
+          fetched.push([path, new Uint8Array(await readFile(file))])
         }
       } finally {
         await rm(scratch, { recursive: true, force: true })
