@@ -142,6 +142,11 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       ...(input.provenance ? { provenance: input.provenance } : {}),
+      blobs: new Map(
+        (input.blobs ?? []).flatMap((blob) =>
+          blob.content === undefined ? [] : [[blob.path, Buffer.from(blob.content, 'base64')]]
+        )
+      ),
     }
     const plan = await planWorkspaceSource(input, ctx)
     const dryRun = input.dryRun === true

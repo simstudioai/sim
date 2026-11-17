@@ -65,6 +65,19 @@ type SkillCode =
   /** `skills/<key>.md` does not open with a frontmatter block of `name` and `description`. */
   'E_SKILL_FRONTMATTER'
 
+/** Workspace files. */
+type FileCode =
+  /** A path no workspace file may have: a dot or empty segment, a reserved name or character. */
+  | 'E_FILE_PATH'
+  /** Two paths that differ only in letter case, or a path that is both a file and a folder. */
+  | 'E_FILE_PATH_COLLISION'
+  /** A name the server would store differently (trimmed, whitespace collapsed, NFC). */
+  | 'E_FILE_NAME'
+  /** A file over the per-blob cap: a get skips it and an apply never writes it. */
+  | 'E_FILE_TOO_LARGE'
+  /** Bytes that do not match the hash or size the directory declared for them. */
+  | 'E_FILE_CONTENT'
+
 /** Plan and apply. */
 type PlanCode =
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -104,6 +117,7 @@ export type WorkspaceDiagnosticCode =
   | TableCode
   | ToolCode
   | SkillCode
+  | FileCode
   | PlanCode
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'

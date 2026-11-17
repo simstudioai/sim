@@ -34,6 +34,8 @@ export interface PlanContext extends SourceContext {
 
 export interface ApplyContext extends SourceContext {
   provenance?: { client: 'cli' | 'api'; gitSha?: string }
+  /** The bytes of the blobs this round carries, by directory path. */
+  blobs: ReadonlyMap<string, Buffer>
 }
 
 /** A stored resource of one kind: its key (when bound), id, display name and kind state. */
@@ -83,10 +85,17 @@ export interface AppliedResource {
   diagnostics?: WorkspaceSourceDiagnostic[]
 }
 
-/** A blob a get lists: where to download it beside its hash. */
-export interface ReadBlob extends BlobEntry {
+/**
+ * A blob a get lists: where to download it beside its hash. A blob listed without `sha256` is one
+ * the server did not hash within the request's budget; the client hashes the bytes it downloads
+ * and records them in the base with `id` and `rev`.
+ */
+export interface ReadBlob extends Omit<BlobEntry, 'sha256'> {
+  sha256?: string
   id: string
   href: string
+  /** The content revision, present when `sha256` is absent. */
+  rev?: string
 }
 
 /** One stored resource as source. */

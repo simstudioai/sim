@@ -213,7 +213,10 @@ export async function planWorkspaceSource(
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
     const adapter = KIND_ADAPTERS[kind]
-    const paths = Object.keys(files).filter((path) => kindOfPath(path) === kind)
+    const paths = [
+      ...Object.keys(files),
+      ...(submission.blobs ?? []).map((blob) => blob.path),
+    ].filter((path) => kindOfPath(path) === kind)
     if (adapter.supported === false) {
       diagnostics.push(
         error('E_KIND_UNSUPPORTED', `${KIND_DIRS[kind]}/ is not supported by this server yet.`, {
@@ -227,7 +230,9 @@ export async function planWorkspaceSource(
     const kindFindings = grouped.diagnostics.map(flattenDiagnostic)
     const desired = new Map<string, unknown>()
     for (const [key, group] of grouped.groups) {
-      const text = Object.fromEntries(group.map((path) => [path, files[path]]))
+      const text = Object.fromEntries(
+        group.filter((path) => Object.hasOwn(files, path)).map((path) => [path, files[path]])
+      )
       const blobs = (submission.blobs ?? []).filter((blob) => group.includes(blob.path))
       const parsed = adapter.codec.parse(key, text, blobs)
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))

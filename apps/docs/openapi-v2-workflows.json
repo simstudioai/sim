@@ -23947,9 +23947,9 @@
                       "description": "Directory path of the binary file."
                     },
                     "sha256": {
+                      "description": "Absent when the server did not hash the bytes within the request; hash the downloaded bytes and record them in the base with `id` and `rev`.",
                       "type": "string",
-                      "pattern": "^[0-9a-f]{64}$",
-                      "description": "SHA-256 of the bytes, lowercase hex."
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "size": {
                       "type": "integer",
@@ -23964,9 +23964,13 @@
                     "href": {
                       "type": "string",
                       "description": "Where to download its bytes."
+                    },
+                    "rev": {
+                      "description": "Content revision, present when `sha256` is absent.",
+                      "type": "string"
                     }
                   },
-                  "required": ["path", "sha256", "size", "id", "href"],
+                  "required": ["path", "size", "id", "href"],
                   "additionalProperties": false
                 },
                 "description": "Binary files, downloaded separately by `href`."
@@ -23996,7 +24000,7 @@
                           "description": "Stored id the key is bound to."
                         },
                         "fingerprint": {
-                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow, and for a binary file listed without `sha256` until the client records its hash.",
                           "type": "string"
                         },
                         "columns": {
@@ -24470,7 +24474,7 @@
                           "description": "Stored id the key is bound to."
                         },
                         "fingerprint": {
-                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                          "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow, and for a binary file listed without `sha256` until the client records its hash.",
                           "type": "string"
                         },
                         "columns": {
@@ -24770,7 +24774,7 @@
                       "description": "Stored id the key is bound to."
                     },
                     "fingerprint": {
-                      "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow.",
+                      "description": "`rf1:` fingerprint of the resource as last read; absent for a workflow, and for a binary file listed without `sha256` until the client records its hash.",
                       "type": "string"
                     },
                     "columns": {
