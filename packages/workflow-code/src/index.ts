@@ -29,7 +29,12 @@ export {
   catalogTrigger,
   expandBlockCatalog,
 } from './catalog/view'
-export { checkCodeFileBijection, fromCodeFile, isIdentifierName } from './code-files'
+export {
+  checkCodeFileBijection,
+  createJsContextScanner,
+  fromCodeFile,
+  isIdentifierName,
+} from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
 export { didYouMean } from './compile/hints'
 export {
