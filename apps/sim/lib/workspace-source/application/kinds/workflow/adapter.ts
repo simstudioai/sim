@@ -241,11 +241,13 @@ async function planWorkflow(
         },
       })
       change.diagnostics.push(...inFolder(key, result.diagnostics))
+      // A graph no-op that changes only idents, order or comments still writes its source meta.
+      const metaOnly = result.diff.noop && result.sourceMetaChanged
       return {
         ...change,
-        action: result.diff.noop ? 'noop' : 'update',
+        action: result.diff.noop && !metaOnly ? 'noop' : 'update',
         storedId: existing.id,
-        fields: diffFields(result.diff),
+        fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
         refs: sourceRefs(result.references),
         detail: { lock: read.lock, base },
       }

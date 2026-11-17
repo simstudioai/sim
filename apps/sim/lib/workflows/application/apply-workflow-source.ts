@@ -113,6 +113,11 @@ interface ApplyWorkflowSourceResult {
   applied: boolean
   /** True when source meta was stored: with a graph write, or alone for a graph no-op. */
   wroteSourceMeta: boolean
+  /**
+   * True when a graph no-op still changes source meta (idents, order or comments): stored by a
+   * commit, and on a dry run what a commit would store.
+   */
+  sourceMetaChanged: boolean
   diff: SourceDiffSummary
   /** Warnings on success; on a dry run, every finding including the errors a commit would refuse. */
   diagnostics: WorkflowSourceDiagnostic[]
@@ -355,7 +360,12 @@ async function runSourceApply(
         Partial<
           Pick<
             ApplyWorkflowSourceResult,
-            'workflowName' | 'mintedIds' | 'references' | 'notes' | 'wroteSourceMeta'
+            | 'workflowName'
+            | 'mintedIds'
+            | 'references'
+            | 'notes'
+            | 'wroteSourceMeta'
+            | 'sourceMetaChanged'
           >
         >
     ): Promise<ApplyWorkflowSourceResult> => ({
@@ -367,6 +377,7 @@ async function runSourceApply(
       references: [],
       notes: [],
       wroteSourceMeta: false,
+      sourceMetaChanged: false,
       ...outcome,
       files: printed.files,
       lock: printed.lock,
@@ -468,12 +479,12 @@ async function runSourceApply(
     if (plan.noop) {
       const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
       /** Unchanged source meta prints the same text, so only changed meta prints the "before". */
-      const before =
-        dryRun || isEqual(plan.sourceMeta, storedSourceMeta)
-          ? printed
-          : print(stored.state, storedSourceMeta, storedCanonical.canonical)
-      const wroteSourceMeta =
+      const before = isEqual(plan.sourceMeta, storedSourceMeta)
+        ? printed
+        : print(stored.state, storedSourceMeta, storedCanonical.canonical)
+      const sourceMetaChanged =
         !isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)
+      const wroteSourceMeta = sourceMetaChanged && !dryRun
       if (wroteSourceMeta && target.kind === 'existing') {
         await commitSourceMeta({
           scope,
@@ -490,6 +501,7 @@ async function runSourceApply(
         references: plan.references,
         notes: plan.notes,
         wroteSourceMeta,
+        sourceMetaChanged,
       })
     }
 
