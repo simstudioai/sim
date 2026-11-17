@@ -5841,6 +5841,19 @@ export type DownloadFileVersionQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
 
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content` */
+export type DownloadKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type DownloadKnowledgeDocumentQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadKnowledgeDocumentResponse = never
+
 /** `GET /api/v2/projects/[projectId]/files/bulk-download` */
 export type DownloadProjectFileItemsParams = {
   projectId: string
@@ -20198,6 +20211,24 @@ export const V2_OPERATIONS = {
     summary: 'Download file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  downloadKnowledgeDocument: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'binary',
+    summary: 'Download document',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   downloadProjectFileItems: {

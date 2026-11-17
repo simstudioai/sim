@@ -24719,6 +24719,7 @@
           },
           "blobs": {
             "description": "Binary files by hash.",
+            "maxItems": 20000,
             "type": "array",
             "items": {
               "type": "object",
