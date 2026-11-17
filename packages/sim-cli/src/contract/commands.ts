@@ -660,7 +660,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows source resources',
     profileWorkspacePath: true,
     describe:
-      'List the tables, knowledge bases, credentials, workflows and env names source can name',
+      'List the tables, knowledge bases, credentials, workflows, skills, custom tools and env names source can name',
   },
   replaceWorkflowState: {
     command: 'workflows state replace',

@@ -72,6 +72,14 @@ const sourceResourcesSchema = z
           .describe('A workflow: `childWorkflow(key)`.')
       )
       .describe('Workflows, oldest first.'),
+    skills: z
+      .array(manifestResourceSchema.describe('A workspace skill: `skill(key)`.'))
+      .describe('Workspace skills, oldest first. Built-in skills have no key and are not listed.'),
+    customTools: z
+      .array(
+        manifestResourceSchema.describe('A workspace custom tool, by its title: `customTool(key)`.')
+      )
+      .describe('Workspace custom tools, oldest first.'),
     env: z
       .array(z.string())
       .describe(

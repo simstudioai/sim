@@ -8,7 +8,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
-import { permissions, skill, user, workflow, workspace } from '@sim/db/schema'
+import { customTools, permissions, skill, user, workflow, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
@@ -21,6 +21,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
+import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { resolveKeys } from '@/lib/workspaces/resource-keys'
@@ -88,8 +89,8 @@ async function seedSkill(name: string): Promise<string> {
   return id
 }
 
-/** Start → Writer (an agent holding `skills`). */
-async function seedWorkflow(skills: unknown) {
+/** Start → Writer (an agent holding `skills`, and `tools` when given). */
+async function seedWorkflow(skills: unknown, tools?: unknown[]) {
   const workflowId = generateId()
   const now = new Date()
   await db.insert(workflow).values({
@@ -106,6 +107,7 @@ async function seedWorkflow(skills: unknown) {
     model: ['combobox', 'claude-sonnet-4-5'],
     messages: ['messages-input', [{ role: 'user', content: 'Write.' }]],
     skills: ['skill-input', skills],
+    ...(tools ? { tools: ['tool-input', tools] as [string, unknown] } : {}),
   })
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
     blocks: { [start.id]: start, [writer.id]: writer },
@@ -146,6 +148,11 @@ async function storedSkills(workflowId: string, blockId: string) {
   return stored?.blocks[blockId]?.subBlocks.skills?.value
 }
 
+async function storedTools(workflowId: string, blockId: string) {
+  const stored = await loadWorkflowFromNormalizedTables(workflowId)
+  return stored?.blocks[blockId]?.subBlocks.tools?.value
+}
+
 beforeAll(async () => {
   featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
     async (flag: string) => flag === 'workflow-code'
@@ -181,6 +188,7 @@ afterAll(async () => {
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
   await db.delete(skill).where(eq(skill.workspaceId, workspaceId))
+  await db.delete(customTools).where(eq(customTools.workspaceId, workspaceId))
   await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, ownerId))
 })
@@ -258,3 +266,55 @@ check('naming a skill key that does not exist is refused', async () => {
   })
   expect(await storedSkills(workflowId, writerId)).toEqual([{ skillId: toneId, name: 'Tone 3' }])
 })
+
+check(
+  'a skill and a custom tool no source has named apply by the keys the resource manifest lists',
+  async () => {
+    const skillId = generateId()
+    await db.insert(skill).values({
+      id: skillId,
+      workspaceId,
+      userId: ownerId,
+      name: 'Listed only',
+      description: 'Never referenced',
+      content: '# Listed only',
+    })
+    const toolId = generateId()
+    await db.insert(customTools).values({
+      id: toolId,
+      workspaceId,
+      userId: ownerId,
+      title: 'listed_lookup',
+      schema: { type: 'function', function: { name: 'listed_lookup', parameters: {} } },
+      code: 'return 1',
+    })
+    const manifest = await withPermissionGroupScope(() =>
+      readSourceResources.execute({ principal: owner, input: { workspaceId } })
+    )
+    const { workflowId, writerId } = await seedWorkflow([], [])
+    const source = await getSource(workflowId)
+    const written = edit(
+      edit(source.files, 'skills: []', "skills: [skill('listed-only')]"),
+      'tools: []',
+      "tools: [customTool('listed-lookup')]"
+    )
+    written['workflow.ts'] = written['workflow.ts'].replace(
+      /^import \{ /m,
+      'import { customTool, skill, '
+    )
+
+    const applied = await apply(source, written)
+
+    expect(applied.applied).toBe(true)
+    expect(await storedSkills(workflowId, writerId)).toEqual([{ skillId, name: 'Listed only' }])
+    expect(await storedTools(workflowId, writerId)).toEqual([
+      expect.objectContaining({ type: 'custom-tool', customToolId: toolId }),
+    ])
+    expect(manifest.skills).toContainEqual({ key: 'listed-only', id: skillId, name: 'Listed only' })
+    expect(manifest.customTools).toContainEqual({
+      key: 'listed-lookup',
+      id: toolId,
+      name: 'listed_lookup',
+    })
+  }
+)
