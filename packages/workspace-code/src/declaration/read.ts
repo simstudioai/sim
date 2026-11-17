@@ -26,7 +26,13 @@ import {
   sdkHeader,
 } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
-import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
+import {
+  diagnostic,
+  findingLimitReached,
+  MAX_FINDINGS_PER_FILE,
+  sourceLocator,
+  type WorkspaceDiagnostic,
+} from '../diagnostics'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
 /** The module every declaration imports from. */
@@ -107,8 +113,8 @@ function calleeName(node: Node): string | null {
  * Parses one declaration file and decodes its default export's argument. Refuses (with every
  * finding located in `text`) a missing header, an import from anywhere but the workspace SDK, a
  * renamed import, anything beside the imports and the one default export, and any value outside
- * the grammar. Unused imports are accepted. Bytes and nesting are capped before Babel runs, and
- * locating every value is linear in the file.
+ * the grammar. Unused imports are accepted. Bytes and nesting are capped before Babel runs,
+ * locating every value is linear in the file, and decoding stops at `MAX_FINDINGS_PER_FILE`.
  */
 export function readDeclaration(
   file: string,
@@ -174,12 +180,24 @@ export function readDeclaration(
     return fail()
   }
 
+  let stopped = false
+  const record = (finding: WorkspaceDiagnostic) => {
+    if (stopped) return
+    if (diagnostics.length >= MAX_FINDINGS_PER_FILE) {
+      stopped = true
+      diagnostics.push(findingLimitReached({ span: finding.span, frame: finding.frame }))
+      return
+    }
+    diagnostics.push(finding)
+  }
+
   const imported = new Set<string>()
   let exported: Expression | null = null
   for (const statement of program.body) {
+    if (stopped) return fail()
     if (statement.type === 'ImportDeclaration') {
       if (statement.source.value !== WORKSPACE_SDK_MODULE || statement.importKind === 'type') {
-        diagnostics.push(
+        record(
           diagnostic('E_DECL_IMPORT', `Import only from '${WORKSPACE_SDK_MODULE}'.`, {
             ...nodeAt(statement),
           })
@@ -192,7 +210,7 @@ export function readDeclaration(
             ? specifier.imported.name
             : null
         if (name === null || specifier.local.name !== name) {
-          diagnostics.push(
+          record(
             diagnostic('E_DECL_IMPORT', 'Import the SDK names as they are, without renaming.', {
               ...nodeAt(specifier),
             })
@@ -217,7 +235,7 @@ export function readDeclaration(
         continue
       }
     }
-    diagnostics.push(
+    record(
       diagnostic(
         'E_DECL_EXPORT',
         `The file holds only imports and one \`export default ${options.callee}({ … })\`.`,
@@ -227,7 +245,7 @@ export function readDeclaration(
   }
   if (exported === null) {
     if (diagnostics.length === 0) {
-      diagnostics.push(
+      record(
         diagnostic(
           'E_DECL_EXPORT',
           `The file has no \`export default ${options.callee}({ … })\`.`,
@@ -240,7 +258,7 @@ export function readDeclaration(
     return fail()
   }
   if (!imported.has(options.callee)) {
-    diagnostics.push(
+    record(
       diagnostic('E_DECL_IMPORT', `Import ${options.callee} from '${WORKSPACE_SDK_MODULE}'.`, {
         ...at(0, 0),
       })
@@ -248,7 +266,7 @@ export function readDeclaration(
   }
 
   const unsupported = (node: Node, message: string, hint?: string) => {
-    diagnostics.push(
+    record(
       diagnostic('E_DECL_UNSUPPORTED', message, {
         ...nodeAt(node),
         ...(hint ? { hint } : {}),
@@ -288,7 +306,7 @@ export function readDeclaration(
         continue
       }
       if (Object.hasOwn(object, key)) {
-        diagnostics.push(
+        record(
           diagnostic('E_DECL_DUPLICATE_KEY', `"${key}" is declared twice.`, {
             ...nodeAt(property.key),
           })
@@ -304,6 +322,7 @@ export function readDeclaration(
   }
 
   const readValue = (node: Node, pointer: string): Json | undefined => {
+    if (stopped) return undefined
     spans.set(pointer, locator.span(node.start ?? 0, node.end ?? 0))
     switch (node.type) {
       case 'StringLiteral':
@@ -370,7 +389,7 @@ export function readDeclaration(
         }
         const root = name.split('.')[0]
         if (!imported.has(root)) {
-          diagnostics.push(
+          record(
             diagnostic('E_DECL_IMPORT', `Import ${root} from '${WORKSPACE_SDK_MODULE}'.`, {
               ...nodeAt(node.callee),
             })

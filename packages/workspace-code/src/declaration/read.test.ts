@@ -5,6 +5,7 @@
  */
 import * as workflowCode from '@sim/workflow-code'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FINDINGS_PER_FILE } from '../diagnostics'
 import { tableCodec } from '../kinds/table'
 import { readDeclaration } from './read'
 
@@ -47,35 +48,48 @@ describe('readDeclaration on large files', () => {
     expect(fullTextScans()).toBeLessThanOrEqual(1)
   })
 
-  it('frames thousands of findings in one file without rescanning it per finding', () => {
+  it('stops a file of thousands of bad values after the finding cap', () => {
     const count = 20_000
     const text = `${HEADER}export default defineTable({ x: [${Array(count).fill('a').join(',\n')}] })\n`
 
     const read = readDeclaration('tables/big.ts', text, { callee: 'defineTable' })
 
-    expect(read.diagnostics).toHaveLength(count)
-    expect(read.diagnostics[count - 1]).toMatchObject({
+    expect(read.diagnostics).toHaveLength(MAX_FINDINGS_PER_FILE + 1)
+    expect(read.diagnostics[MAX_FINDINGS_PER_FILE - 1]).toMatchObject({
       code: 'E_DECL_UNSUPPORTED',
-      span: { line: count + 2, column: 1 },
+      span: { line: MAX_FINDINGS_PER_FILE + 2, column: 1 },
     })
+    expect(read.diagnostics[MAX_FINDINGS_PER_FILE]).toMatchObject({ code: 'E_LIMIT_EXCEEDED' })
     expect(fullTextScans()).toBeLessThanOrEqual(1)
   })
 
-  it('reports field findings across a large file with one scan of it', () => {
+  it('cuts a finding message that quotes a long key', () => {
+    const key = 'k'.repeat(50_000)
+    const text = `${HEADER}export default defineTable({ ${key}: 1, ${key}: 2 })\n`
+
+    const read = readDeclaration('tables/t.ts', text, { callee: 'defineTable' })
+
+    expect(read.diagnostics).toHaveLength(1)
+    expect(read.diagnostics[0].code).toBe('E_DECL_DUPLICATE_KEY')
+    expect(read.diagnostics[0].message.length).toBeLessThan(2_000)
+  })
+
+  it('caps field findings across a large file, with one scan of it', () => {
     const count = 2_000
     const columns = Array.from({ length: count }, (_, i) => `c${i}: column.select({})`).join(',\n')
     const text = `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\nexport default defineTable({ name: 't', columns: {\n${columns}\n} })\n`
 
     const parsed = tableCodec.parse('big', { 'tables/big.ts': text }, [])
 
+    expect(parsed.diagnostics).toHaveLength(MAX_FINDINGS_PER_FILE + 1)
     const options = parsed.diagnostics.filter((finding) => finding.code === 'E_TABLE_OPTIONS')
-    expect(options).toHaveLength(count)
-    expect(options[count - 1].span).toMatchObject({ line: count + 3 })
+    expect(options.at(-1)?.span).toMatchObject({ line: options.length + 3 })
+    expect(parsed.diagnostics.at(-1)).toMatchObject({ code: 'E_LIMIT_EXCEEDED' })
     expect(fullTextScans()).toBeLessThanOrEqual(2)
   })
 
   it('counts lines at CRLF, CR, LF and U+2028 as Babel does', () => {
-    const text = `${HEADER.replace('\n', '\r\n')}export default defineTable({\r  a: 1,   b: 'x',\n  c: true })\n`
+    const text = `${HEADER.replace('\n', '\r\n')}export default defineTable({\r  a: 1,\u2028  b: 'x',\n  c: true })\n`
 
     const read = readDeclaration('tables/t.ts', text, { callee: 'defineTable' })
 

@@ -1,3 +1,4 @@
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { codeFrame, type DiagnosticFields, type SourceSpan, splitLines } from '@sim/workflow-code'
 import {
   type DiagnosticSeverity,
@@ -24,13 +25,37 @@ export type WorkspaceDiagnostic<C extends WorkspaceDiagnosticCode = WorkspaceDia
 /** The optional fields of a finding. */
 export type DiagnosticExtras = Omit<DiagnosticFields, 'message'> & ResourceFields
 
-/** A finding with its severity filled in from the code. */
+/**
+ * Findings one declaration file lists; past it the file gets one `E_LIMIT_EXCEEDED` and the rest
+ * are dropped, so a file of bad values costs no more than its first hundred.
+ */
+export const MAX_FINDINGS_PER_FILE = 100
+/** Code units of a message or hint kept; longer text, which quotes the source, is cut. */
+const MAX_MESSAGE_LENGTH = 1_000
+
+/** The finding that ends a file's list at {@link MAX_FINDINGS_PER_FILE}. */
+export function findingLimitReached(extras: DiagnosticExtras = {}): WorkspaceDiagnostic {
+  return diagnostic(
+    'E_LIMIT_EXCEEDED',
+    `Stopped after ${MAX_FINDINGS_PER_FILE} findings in this file.`,
+    { ...extras, hint: 'Fix these and apply again to see the rest.' }
+  )
+}
+
+/** A finding with its severity filled in from the code, and its message and hint length-capped. */
 export function diagnostic<C extends WorkspaceDiagnosticCode>(
   code: C,
   message: string,
   extras: DiagnosticExtras = {}
 ): WorkspaceDiagnostic<C> {
-  return { ...extras, code, message, severity: severityOf(code) } as WorkspaceDiagnostic<C>
+  const { hint, ...rest } = extras
+  return {
+    ...rest,
+    ...(hint !== undefined ? { hint: truncateAtCodePoint(hint, MAX_MESSAGE_LENGTH, '…') } : {}),
+    code,
+    message: truncateAtCodePoint(message, MAX_MESSAGE_LENGTH, '…'),
+    severity: severityOf(code),
+  } as WorkspaceDiagnostic<C>
 }
 
 /** Spans and code frames in one file, splitting its lines once however many it locates. */

@@ -6,6 +6,8 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Json, SourceSpan } from '@sim/workflow-code'
 import {
   diagnostic,
+  findingLimitReached,
+  MAX_FINDINGS_PER_FILE,
   sourceLocator,
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
@@ -20,7 +22,11 @@ export type FieldReport = (
   hint?: string
 ) => void
 
-/** A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. */
+/**
+ * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once
+ * `diagnostics` holds `MAX_FINDINGS_PER_FILE` findings it records one `E_LIMIT_EXCEEDED` and
+ * drops the rest.
+ */
 export function fieldReporter(
   text: string,
   spans: ReadonlyMap<string, SourceSpan>,
@@ -28,19 +34,23 @@ export function fieldReporter(
   resource: { kind: string; key: string }
 ): FieldReport {
   let locator: ReturnType<typeof sourceLocator> | undefined
+  let capped = false
   return (code, pointer, message, hint) => {
+    if (capped) return
     let at = pointer
     let span = spans.get(at)
     while (!span && at !== '') {
       at = at.slice(0, Math.max(0, at.lastIndexOf('/')))
       span = spans.get(at)
     }
+    const location = span ? (locator ??= sourceLocator(span.file, text)).located(span) : {}
+    if (diagnostics.length >= MAX_FINDINGS_PER_FILE) {
+      capped = true
+      diagnostics.push(findingLimitReached({ ...resource, ...location }))
+      return
+    }
     diagnostics.push(
-      diagnostic(code, message, {
-        ...resource,
-        ...(span ? (locator ??= sourceLocator(span.file, text)).located(span) : {}),
-        ...(hint ? { hint } : {}),
-      })
+      diagnostic(code, message, { ...resource, ...location, ...(hint ? { hint } : {}) })
     )
   }
 }
