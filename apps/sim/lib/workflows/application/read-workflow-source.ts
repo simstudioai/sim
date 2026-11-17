@@ -86,6 +86,8 @@ function describeExcess(excess: SourceLimitExcess): string {
   switch (excess.limit) {
     case 'maxBlocks':
       return `it has ${excess.actual} blocks, over the ${excess.max}-block limit`
+    case 'maxEdges':
+      return `it has ${excess.actual} connections, over the ${excess.max}-connection limit`
     case 'maxFiles':
       return `it prints ${excess.actual} files, over the ${excess.max}-file limit`
     case 'maxTotalBytes':
@@ -100,9 +102,9 @@ function describeExcess(excess: SourceLimitExcess): string {
  */
 function assertFitsSourceLimits(
   source: Pick<PrintedSource, 'files' | 'entryDepth'>,
-  blockCount: number
+  counts: { blocks: number; edges: number }
 ): void {
-  const excesses = sourceLimitExcesses(source.files, blockCount)
+  const excesses = sourceLimitExcesses(source.files, counts)
   if (excesses.length > 0) {
     throw new OrchestrationError(
       'payload_too_large',
@@ -149,8 +151,8 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMeta(db, context.workflowId),
     ])
-    const blockCount = Object.keys(state.blocks).length
-    assertFitsSourceLimits({ files: {}, entryDepth: 0 }, blockCount)
+    const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
+    assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
     const catalog = await withCatalogBlockScope(gate, async () =>
       buildSourceCatalog({
         gate,
@@ -175,7 +177,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       functionCode: input.functionCode ?? 'files',
       lockless: canonical,
     })
-    assertFitsSourceLimits(printed, blockCount)
+    assertFitsSourceLimits(printed, counts)
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,

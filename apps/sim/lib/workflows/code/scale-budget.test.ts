@@ -25,7 +25,10 @@ import {
   printWorkflow,
 } from '@sim/workflow-code'
 import { SOURCE_LIMITS, sourceLimitExcesses } from '@sim/workflow-code/limits'
-import { MAX_WORKFLOW_GRAPH_BLOCKS } from '@/lib/api/contracts/v2/workflows'
+import {
+  MAX_WORKFLOW_GRAPH_BLOCKS,
+  MAX_WORKFLOW_GRAPH_EDGES,
+} from '@/lib/api/contracts/v2/workflows'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
@@ -199,7 +202,12 @@ describe('workflow source at the block cap', () => {
     expect(errorsOf(compiled)).toEqual([])
     expect(Object.keys(workflow?.blocks ?? {})).toHaveLength(MAX_WORKFLOW_GRAPH_BLOCKS)
     const files = Object.fromEntries(printed.files.map((file) => [file.path, file.text]))
-    expect(sourceLimitExcesses(files, MAX_WORKFLOW_GRAPH_BLOCKS)).toEqual([])
+    expect(
+      sourceLimitExcesses(files, {
+        blocks: MAX_WORKFLOW_GRAPH_BLOCKS,
+        edges: workflow?.edges.length ?? 0,
+      })
+    ).toEqual([])
     expect(elapsed).toBeLessThan(ROUND_TRIP_BUDGET_MS)
   })
 
@@ -207,8 +215,15 @@ describe('workflow source at the block cap', () => {
     const source = syntheticSource(MAX_WORKFLOW_GRAPH_BLOCKS + 1)
     const compiled = compileText([{ path: 'workflow.ts', text: source }])
     expect(errorsOf(compiled).map((diagnostic) => diagnostic.code)).toEqual(['E_LIMIT_EXCEEDED'])
-    expect(sourceLimitExcesses({}, MAX_WORKFLOW_GRAPH_BLOCKS + 1)).toEqual([
+    expect(sourceLimitExcesses({}, { blocks: MAX_WORKFLOW_GRAPH_BLOCKS + 1, edges: 0 })).toEqual([
       { limit: 'maxBlocks', actual: MAX_WORKFLOW_GRAPH_BLOCKS + 1, max: SOURCE_LIMITS.maxBlocks },
     ])
+  })
+
+  it('refuses a stored graph over the edge cap in the get check, matching compile', () => {
+    expect(sourceLimitExcesses({}, { blocks: 2, edges: MAX_WORKFLOW_GRAPH_EDGES + 1 })).toEqual([
+      { limit: 'maxEdges', actual: MAX_WORKFLOW_GRAPH_EDGES + 1, max: SOURCE_LIMITS.maxEdges },
+    ])
+    expect(SOURCE_LIMITS.maxEdges).toBe(MAX_WORKFLOW_GRAPH_EDGES)
   })
 })

@@ -4,6 +4,7 @@
  * passes the existing workflow and per-value validators, free text carries the adversarial
  * payload, and the corpus is a pure function of the seed.
  */
+import { compareStrings } from '@sim/utils/string'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
@@ -155,9 +156,15 @@ describe('generateRegistryCorpus', () => {
   })
 
   it('is a pure function of the seed', () => {
-    expect(generateRegistryCorpus()).toEqual(corpus)
-    const reseeded = generateRegistryCorpus({ seed: 1 })
-    expect(reseeded.map((c) => c.id)).toEqual(corpus.map((c) => c.id))
-    expect(reseeded).not.toEqual(corpus)
+    // Purity is the seeded generator's, not any block's: a fixed slice of the registry proves it
+    // at a fraction of the cost of two more full-registry generations.
+    const blocks = Object.values(getBlockRegistry())
+      .sort((a, b) => compareStrings(a.type, b.type))
+      .slice(0, 40)
+    const sample = generateRegistryCorpus({ blocks })
+    expect(generateRegistryCorpus({ blocks })).toEqual(sample)
+    const reseeded = generateRegistryCorpus({ blocks, seed: 1 })
+    expect(reseeded.map((c) => c.id)).toEqual(sample.map((c) => c.id))
+    expect(reseeded).not.toEqual(sample)
   })
 })

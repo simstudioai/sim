@@ -43,7 +43,7 @@ export const SOURCE_ENTRY_FILE = 'workflow.ts'
 
 /** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
-  limit: 'maxBlocks' | 'maxFiles' | 'maxTotalBytes'
+  limit: 'maxBlocks' | 'maxEdges' | 'maxFiles' | 'maxTotalBytes'
   actual: number
   max: number
 }
@@ -64,16 +64,19 @@ export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number 
 }
 
 /**
- * Every size limit a printed source of `blockCount` blocks exceeds, in limit order; empty when it
- * fits. Depth is `sourceDepthOverflow`'s.
+ * Every size limit a printed source of a workflow with `counts` blocks and edges exceeds, in limit
+ * order; empty when it fits. Depth is `sourceDepthOverflow`'s.
  */
 export function sourceLimitExcesses(
   files: Readonly<Record<string, string>>,
-  blockCount: number
+  counts: { blocks: number; edges: number }
 ): SourceLimitExcess[] {
   const excesses: SourceLimitExcess[] = []
-  if (blockCount > SOURCE_LIMITS.maxBlocks) {
-    excesses.push({ limit: 'maxBlocks', actual: blockCount, max: SOURCE_LIMITS.maxBlocks })
+  if (counts.blocks > SOURCE_LIMITS.maxBlocks) {
+    excesses.push({ limit: 'maxBlocks', actual: counts.blocks, max: SOURCE_LIMITS.maxBlocks })
+  }
+  if (counts.edges > SOURCE_LIMITS.maxEdges) {
+    excesses.push({ limit: 'maxEdges', actual: counts.edges, max: SOURCE_LIMITS.maxEdges })
   }
   const paths = Object.keys(files)
   if (paths.length > SOURCE_LIMITS.maxFiles) {
