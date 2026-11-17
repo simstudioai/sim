@@ -58,16 +58,30 @@ function tableAsDecl(
   bindings?: Readonly<Record<string, BaseColumn>>
 ): TableAsDecl {
   const boundKey = new Map(Object.entries(bindings ?? {}).map(([key, column]) => [column.id, key]))
-  const columns: Record<string, TableColumnDecl> = {}
+  const stored = sourceColumns(state.table)
   const keyById = new Map<string, string>()
-  for (const column of sourceColumns(state.table)) {
+  const taken = new Set<string>()
+  // Bound keys first, so a column keyed by its name never takes a renamed column's key.
+  for (const column of stored) {
+    const key = boundKey.get(getColumnId(column))
+    if (key === undefined || !isDeclarableColumnKey(key) || taken.has(key)) continue
+    keyById.set(getColumnId(column), key)
+    taken.add(key)
+  }
+  for (const column of stored) {
     const id = getColumnId(column)
-    let key = boundKey.get(id) ?? column.name
-    for (let suffix = 2; !isDeclarableColumnKey(key) || Object.hasOwn(columns, key); suffix += 1) {
+    if (keyById.has(id)) continue
+    let key = column.name
+    for (let suffix = 2; !isDeclarableColumnKey(key) || taken.has(key); suffix += 1) {
       key = `${column.name}_${suffix}`
     }
-    setOwn(columns, key, columnDecl(column, key))
     keyById.set(id, key)
+    taken.add(key)
+  }
+  const columns: Record<string, TableColumnDecl> = {}
+  for (const column of stored) {
+    const key = keyById.get(getColumnId(column)) ?? column.name
+    setOwn(columns, key, columnDecl(column, key))
   }
   const decl: TableDecl = {
     name: state.table.name,
