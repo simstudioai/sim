@@ -810,6 +810,45 @@ describe('workspace source apply', () => {
     expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
   })
 
+  check(
+    'a currency column stored in EUR and declared without a code moves to the default',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const options = { kinds: ['table' as const], only: ['table' as const] }
+      const declare = (amount: string) => ({
+        'tables/deals.ts': LEADS.replace("name: 'leads'", "name: 'deals'").replace(
+          'columns: {',
+          `columns: {\n    amount: ${amount},`
+        ),
+      })
+      const created = await apply(
+        workspaceId,
+        declare("column.currency({ currencyCode: 'EUR' })"),
+        options
+      )
+      expect(created.failed).toBeUndefined()
+
+      const moved = await apply(workspaceId, declare('column.currency()'), {
+        ...options,
+        base: created.base,
+      })
+
+      expect(moved.failed).toBeUndefined()
+      expect(moved.applied).toMatchObject([
+        { action: 'update', key: 'deals', fields: ['columns.amount.currencyCode'] },
+      ])
+      const amount = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'amount'
+      )
+      expect(amount?.currencyCode ?? 'USD').toBe('USD')
+      const again = await apply(workspaceId, declare('column.currency()'), {
+        ...options,
+        base: moved.base,
+      })
+      expect(again.plan.map(({ action }) => action)).toEqual(['noop'])
+    }
+  )
+
   check('warns that a base read from another workspace creates everything anew', async () => {
     const workspaceId = await newWorkspace()
     const read = await setUp(workspaceId)
