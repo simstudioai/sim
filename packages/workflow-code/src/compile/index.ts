@@ -60,6 +60,7 @@ export interface CompileInput {
 export interface CompileResult {
   /** `null` iff any diagnostic is an error. Name-keyed, like every CWM: ids bind in materialize. */
   workflow: CanonicalWorkflow | null
+  /** Spans into the entry count from after a leading byte order mark (see `compileWorkflow`). */
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
@@ -347,10 +348,13 @@ const BYTE_ORDER_MARK = '\uFEFF'
  * imports and every block declaration, nested bodies included; pass 2 evaluates values,
  * references, branches and wiring against the catalog. Nothing in the file is executed: values are
  * read from literal syntax only, and anything else is a located diagnostic.
+ *
+ * A leading byte order mark (Windows editors, PowerShell 5.1) is dropped before anything reads the
+ * entry, so it cannot hide the SDK header. Every span of the entry, offsets included, is into the
+ * text after it, which is also where editors put line 1 column 1.
  */
 export function compileWorkflow(input: CompileInput): CompileResult {
   const file = input.entry.path
-  // A leading BOM (Windows editors, PowerShell 5.1) would hide the SDK header on the first line.
   const text = input.entry.text.startsWith(BYTE_ORDER_MARK)
     ? input.entry.text.slice(BYTE_ORDER_MARK.length)
     : input.entry.text
