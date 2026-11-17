@@ -81,7 +81,7 @@ export function pointerSegment(segment: string | number): string {
 }
 
 /** A string a stored value cannot hold: NUL, or an unpaired UTF-16 surrogate. */
-function unstorableCharacter(text: string): string | null {
+export function unstorableCharacter(text: string): string | null {
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i)
     if (code === 0) return 'a NUL character'

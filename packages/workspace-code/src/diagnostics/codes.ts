@@ -53,6 +53,20 @@ type TableCode =
   /** Workflow-group output columns are managed by their group and left alone. */
   | 'I_TABLE_WORKFLOW_COLUMNS'
 
+/** Custom tools. */
+type ToolCode =
+  /** The schema is not a function declaration a custom tool may store. */
+  | 'E_TOOL_SCHEMA'
+  /** `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not parse. */
+  | 'E_TOOL_CODE'
+  /** A tool this apply deletes is still used by stored workflows, which lose it. */
+  | 'W_TOOL_IN_USE'
+
+/** Skills. */
+type SkillCode =
+  /** `skills/<key>.md` does not open with a frontmatter block of `name` and `description`. */
+  'E_SKILL_FRONTMATTER'
+
 /** Plan and apply. */
 type PlanCode =
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -84,7 +98,13 @@ type PlanCode =
   /** A key bound to a deleted resource was bound to its replacement. */
   | 'I_KEY_REBOUND'
 
-export type WorkspaceDiagnosticCode = DeclarationCode | BaseCode | TableCode | PlanCode
+export type WorkspaceDiagnosticCode =
+  | DeclarationCode
+  | BaseCode
+  | TableCode
+  | ToolCode
+  | SkillCode
+  | PlanCode
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'
 

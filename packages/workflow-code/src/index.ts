@@ -29,7 +29,7 @@ export {
   catalogTrigger,
   expandBlockCatalog,
 } from './catalog/view'
-export { isIdentifierName } from './code-files'
+export { checkCodeFileBijection, fromCodeFile, isIdentifierName } from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
 export {
   babelMessage,
