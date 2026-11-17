@@ -508,36 +508,53 @@ describe('workspace source files', () => {
     }
   )
 
-  check('a file over the blob cap is skipped by get and never touched by apply', async () => {
-    const workspaceId = await newWorkspace()
-    const read = await setUp(workspaceId)
-    const huge = await uploadWorkspaceFile(
-      workspaceId,
-      ownerId,
-      Buffer.alloc(WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1, 'h'),
-      'huge.bin',
-      'application/octet-stream',
-      { notifyWorkspaceChange: false }
-    )
+  check(
+    'a file over the blob cap, or with a path no directory holds, is skipped by get and never touched by apply',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const huge = await uploadWorkspaceFile(
+        workspaceId,
+        ownerId,
+        Buffer.alloc(WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1, 'h'),
+        'huge.bin',
+        'application/octet-stream',
+        { notifyWorkspaceChange: false }
+      )
 
-    const reread = await get(workspaceId)
-    expect(reread.skipped).toEqual([
-      { kind: 'file', key: 'huge.bin', reason: expect.stringContaining('over the') },
-    ])
-    expect(reread.blobs.map((blob) => blob.path)).not.toContain('files/huge.bin')
-    expect(reread.base.resources['file:huge.bin']).toBeUndefined()
+      const unsafe = await uploadWorkspaceFile(
+        workspaceId,
+        ownerId,
+        Buffer.from('colon'),
+        'q1:summary.txt',
+        'text/plain',
+        { notifyWorkspaceChange: false }
+      )
 
-    const emptied = await apply(workspaceId, {}, { base: reread.base, allowDelete: true })
-    expect(summary(emptied.applied).sort()).toEqual(['delete docs/plan.md', 'delete notes.txt'])
-    expect(codes(emptied.diagnostics, 'warning')).toEqual([])
-    expect((await storedFiles(workspaceId)).map((file) => file.id)).toEqual([huge.id])
+      const reread = await get(workspaceId)
+      expect(reread.skipped).toEqual([
+        { kind: 'file', key: 'huge.bin', reason: expect.stringContaining('over the') },
+        {
+          kind: 'file',
+          key: 'q1:summary.txt',
+          reason: expect.stringContaining('reserved character'),
+        },
+      ])
+      expect(reread.blobs.map((blob) => blob.path)).not.toContain('files/huge.bin')
+      expect(reread.base.resources['file:huge.bin']).toBeUndefined()
 
-    const replaced = await refusal(
-      apply(workspaceId, { 'files/huge.bin': Buffer.from('small') }, { base: emptied.base })
-    )
-    expect(codes(replaced.diagnostics)).toEqual(['E_FILE_TOO_LARGE'])
-    expect(read.base.resources['file:huge.bin']).toBeUndefined()
-  })
+      const emptied = await apply(workspaceId, {}, { base: reread.base, allowDelete: true })
+      expect(summary(emptied.applied).sort()).toEqual(['delete docs/plan.md', 'delete notes.txt'])
+      expect(codes(emptied.diagnostics, 'warning')).toEqual([])
+      expect((await storedFiles(workspaceId)).map((file) => file.id)).toEqual([huge.id, unsafe.id])
+
+      const replaced = await refusal(
+        apply(workspaceId, { 'files/huge.bin': Buffer.from('small') }, { base: emptied.base })
+      )
+      expect(codes(replaced.diagnostics)).toEqual(['E_FILE_TOO_LARGE'])
+      expect(read.base.resources['file:huge.bin']).toBeUndefined()
+    }
+  )
 
   check(
     'a file the directory dropped is deleted only with --allow-delete, into Recently Deleted',

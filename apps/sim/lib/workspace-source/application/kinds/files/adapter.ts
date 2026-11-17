@@ -79,12 +79,22 @@ interface FilePlan {
 
 type FileChange = PlannedChange<FileDecl, FilePlan>
 
-/** A stored file's path under `files/`: its folder names, then its name. */
-function storedKey(file: WorkspaceFileRecord): string {
+/**
+ * A stored file's path under `files/` (its folder names, then its name), and why no directory can
+ * hold it when a folder or file name has a slash in it, or its folder path cannot be read.
+ */
+function storedPath(file: WorkspaceFileRecord): { key: string; problem: string | null } {
+  let segments: string[]
   try {
-    return [...parseWorkspaceFileFolderDisplayPath(file.folderPath ?? ''), file.name].join('/')
+    segments = [...parseWorkspaceFileFolderDisplayPath(file.folderPath ?? ''), file.name]
   } catch {
-    return file.name
+    return { key: `${file.folderPath}/${file.name}`, problem: 'its folder path cannot be read' }
+  }
+  const key = segments.join('/')
+  const slashed = segments.find((segment) => segment.includes('/'))
+  return {
+    key,
+    problem: slashed === undefined ? filePathProblem(key) : `"${slashed}" has a slash in its name`,
   }
 }
 
@@ -200,7 +210,9 @@ function planFile(
     change.diagnostics.push(
       finding(
         key,
-        'E_FILE_TOO_LARGE',
+        existing.state.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes
+          ? 'E_FILE_TOO_LARGE'
+          : 'E_FILE_PATH',
         `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged}.`,
         'Remove it from files/ and change it in the Files tab.'
       )
@@ -361,9 +373,8 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const held = new Map<string, string>()
     for (const file of files) {
       const content = states.get(file.id)
-      const key = storedKey(file)
-      if (!content || set.bound.has(key)) continue
-      const problem = filePathProblem(key)
+      const { key, problem } = storedPath(file)
+      if (!content || (set.bound.has(key) && !set.bound.get(key)?.state.unmanaged)) continue
       const twin = held.get(foldedFileKey(key))
       const unmanaged =
         file.size > maxBlobBytes
