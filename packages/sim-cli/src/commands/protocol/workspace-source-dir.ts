@@ -4,8 +4,7 @@
  * `.sim/base.json`, and the SDK declarations once at the root. Path safety, staged writes and the
  * `.sim/written.json` record are the workflow source directory's (`workflow-source-layout.ts`).
  */
-import { createHash } from 'node:crypto'
-import { readFile, realpath } from 'node:fs/promises'
+import { readFile, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
@@ -16,6 +15,8 @@ import {
   WORKFLOW_BASE_FILE,
   WORKSPACE_BASE_FILE,
 } from '@sim/workspace-code/layout'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import {
@@ -31,6 +32,7 @@ import {
   readWrittenDigests,
   SOURCE_SDK_DIR,
 } from './workflow-source-layout'
+import { hashFile } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
 const WORKSPACE_SDK_DIR = `${SOURCE_SDK_DIR}/workspace`
@@ -202,7 +204,8 @@ function workflowFolderOf(path: string): string | null {
 /**
  * Reads the directory for an apply. A workflow folder whose every file is as the CLI last wrote it
  * is sent with only its `.sim/base.json`: the server treats it as unchanged, so an apply sends
- * only the workflows that were edited.
+ * only the workflows that were edited. Blobs are hashed as streams, and one over the size limit
+ * is refused (exit 7) before it is read.
  */
 export async function readWorkspaceDir(
   dir: string,
@@ -235,8 +238,18 @@ export async function readWorkspaceDir(
   }
   const root = await realpath(dir)
   const blobs = await inBatches(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const bytes = await readFile(join(root, path))
-    return { path, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length }
+    const file = join(root, path)
+    const { size } = await stat(file)
+    if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
+      throw new SimApiError(
+        `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
+        0,
+        'SOURCE_TOO_LARGE',
+        undefined,
+        SOURCE_TOO_LARGE_EXIT_CODE
+      )
+    }
+    return { path, ...(await hashFile(file)) }
   })
   const baseText = await readSourceText(dir, WORKSPACE_BASE_FILE)
   let base: ApplyWorkspaceSourceBody['base']

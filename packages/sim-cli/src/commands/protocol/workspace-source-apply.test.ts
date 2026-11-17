@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
@@ -259,5 +268,17 @@ describe('workspaces source apply', () => {
     await apply('--dry-run')
 
     expect(process.exitCode).toBe(exitCode)
+  })
+
+  it('refuses a local blob over the size limit before reading it, and exits 7', async () => {
+    write('files/huge.bin', '')
+    truncateSync(join(dir, 'files/huge.bin'), WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1)
+    request.mockResolvedValue(answer())
+
+    await expect(apply('--yes')).rejects.toMatchObject({
+      exitCode: 7,
+      message: expect.stringContaining('files/huge.bin'),
+    })
+    expect(request).not.toHaveBeenCalled()
   })
 })

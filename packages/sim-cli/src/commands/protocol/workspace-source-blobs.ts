@@ -5,8 +5,8 @@
  * `.sim/written.json` records for it.
  */
 import { createHash } from 'node:crypto'
-import { createWriteStream } from 'node:fs'
-import { readFile, realpath } from 'node:fs/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -69,11 +69,21 @@ function downloadOf(href: string): BlobDownload | null {
   return null
 }
 
+/** SHA-256 and size of `file`, read as a stream so a large file costs constant memory. */
+export async function hashFile(file: string): Promise<{ sha256: string; size: number }> {
+  const hash = createHash('sha256')
+  let size = 0
+  for await (const chunk of createReadStream(file)) {
+    hash.update(chunk as Buffer)
+    size += (chunk as Buffer).length
+  }
+  return { sha256: hash.digest('hex'), size }
+}
+
 /** SHA-256 of the file at `path` in the directory, or `null` when there is none. */
 export async function blobDigest(dir: string, path: string): Promise<string | null> {
   try {
-    const bytes = await readFile(join(await realpath(dir), path))
-    return createHash('sha256').update(bytes).digest('hex')
+    return (await hashFile(join(await realpath(dir), path))).sha256
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
