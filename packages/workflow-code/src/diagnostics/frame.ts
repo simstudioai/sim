@@ -59,6 +59,11 @@ interface FrameLocation {
 /** Babel's line terminators (`lineBreak` in @babel/parser): CRLF, LF, CR, U+2028, U+2029. */
 export const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
 const CONTEXT_LINES = 2
+/** Code units of a long line a frame shows. */
+const FRAME_WIDTH = 160
+/** Code units of a long line shown before the column, when the line extends that far left. */
+const FRAME_LEAD = 60
+const ELLIPSIS = '…'
 
 /** `text` split at Babel's line terminators. */
 export function splitLines(text: string): string[] {
@@ -78,6 +83,10 @@ function position(value: number | undefined, fallback: number, min: number, max:
  * fewer than one. Tabs before the caret are kept so it lines up under tabbed source. A location
  * outside the text, NaN or infinite is clamped, never thrown. No ANSI escapes. A caller framing
  * many locations in one file passes its lines (split as {@link splitLines} does) to split once.
+ *
+ * A line longer than {@link FRAME_WIDTH} shows only a window of that many code units around the
+ * column, the same window on every row, with `…` where text is cut, so a frame's size never
+ * depends on line length.
  */
 export function codeFrame(text: string | readonly string[], loc: FrameLocation): string {
   const lines = typeof text === 'string' ? splitLines(text) : text
@@ -95,16 +104,27 @@ export function codeFrame(text: string | readonly string[], loc: FrameLocation):
   const last = Math.min(lines.length, line + CONTEXT_LINES)
   const width = String(last).length
   const blankGutter = ' '.repeat(width)
+  const windowStart = Math.max(0, Math.min(column - 1 - FRAME_LEAD, source.length - FRAME_WIDTH))
+  const windowEnd = windowStart + FRAME_WIDTH
 
   const rows: string[] = []
   for (let n = first; n <= last; n++) {
-    const content = lines[n - 1]
+    const content = clip(lines[n - 1], windowStart, windowEnd)
     const marker = n >= line && n <= endLine ? '>' : ' '
     rows.push(`${marker} ${String(n).padStart(width)} |${content ? ` ${content}` : ''}`)
     if (n === line) {
-      const padding = source.slice(0, column - 1).replace(/[^\t]/g, ' ')
-      rows.push(`  ${blankGutter} | ${padding}${'^'.repeat(caretCount)}`)
+      const cut = windowStart > 0 ? ' ' : ''
+      const padding = source.slice(windowStart, column - 1).replace(/[^\t]/g, ' ')
+      const shown = Math.min(caretCount, Math.max(1, windowEnd - (column - 1)))
+      rows.push(`  ${blankGutter} | ${cut}${padding}${'^'.repeat(shown)}`)
     }
   }
   return rows.join('\n')
+}
+
+/** `text[start, end)`, with `…` on each side where text is cut. */
+function clip(text: string, start: number, end: number): string {
+  if (start === 0 && text.length <= end) return text
+  if (start >= text.length) return text.length > 0 ? ELLIPSIS : ''
+  return `${start > 0 ? ELLIPSIS : ''}${text.slice(start, end)}${text.length > end ? ELLIPSIS : ''}`
 }

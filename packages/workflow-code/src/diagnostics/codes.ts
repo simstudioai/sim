@@ -32,6 +32,13 @@ type CompileSyntaxCode =
    * cannot store either (`compile/characters.ts`).
    */
   | 'E_INVALID_CHARACTER'
+  /**
+   * The compile stopped at `MAX_ERRORS` errors; this one sits where the next error was found.
+   * Fixing the errors listed and compiling again shows the rest.
+   */
+  | 'E_TOO_MANY_ERRORS'
+  /** `MAX_WARNINGS` warnings were listed; this one sits where the next was found, and the rest are omitted. */
+  | 'W_TOO_MANY_WARNINGS'
 
 /** Names, identifiers and scope. */
 type CompileScopeCode =

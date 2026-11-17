@@ -123,6 +123,15 @@ interface ParsedSource {
   headerEnd: number
 }
 
+/** The `// @sim-sdk N` header on the first line: its major and end offset. */
+export function sdkHeader(text: string): Pick<ParsedSource, 'sdkMajor' | 'headerEnd'> {
+  const header = HEADER.exec(text)
+  return {
+    sdkMajor: header ? Number(header[1]) : null,
+    headerEnd: header ? header[0].length : 0,
+  }
+}
+
 /**
  * Parses a workflow file with Babel (typescript, errorRecovery, attachComment) after the
  * byte and bracket-depth caps, then checks the AST depth cap. Babel errors are
@@ -134,12 +143,7 @@ export function parseWorkflowSource(
   limits: Required<CompileLimits>,
   reporter: Reporter
 ): ParsedSource {
-  const header = HEADER.exec(text)
-  const parsed: ParsedSource = {
-    ast: null,
-    sdkMajor: header ? Number(header[1]) : null,
-    headerEnd: header ? header[0].length : 0,
-  }
+  const parsed: ParsedSource = { ast: null, ...sdkHeader(text) }
 
   if (utf8Bytes(text, limits.maxTotalBytes) > limits.maxTotalBytes) {
     reporter.report(

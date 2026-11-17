@@ -24,8 +24,8 @@ import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode } from './hints'
-import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource } from './parse'
-import { Reporter } from './report'
+import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
+import { ErrorLimitReached, Reporter } from './report'
 import { collectBody } from './scope'
 import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
 
@@ -349,7 +349,6 @@ const BYTE_ORDER_MARK = '\uFEFF'
  * read from literal syntax only, and anything else is a located diagnostic.
  */
 export function compileWorkflow(input: CompileInput): CompileResult {
-  const limits = { ...DEFAULT_LIMITS, ...input.limits }
   const file = input.entry.path
   // A leading BOM (Windows editors, PowerShell 5.1) would hide the SDK header on the first line.
   const text = input.entry.text.startsWith(BYTE_ORDER_MARK)
@@ -357,7 +356,21 @@ export function compileWorkflow(input: CompileInput): CompileResult {
     : input.entry.text
   const reporter = new Reporter()
   reporter.addFile(file, text)
+  try {
+    return compileEntry(input, file, text, reporter)
+  } catch (error) {
+    if (error instanceof ErrorLimitReached) return emptyResult(reporter, sdkHeader(text).sdkMajor)
+    throw error
+  }
+}
 
+function compileEntry(
+  input: CompileInput,
+  file: string,
+  text: string,
+  reporter: Reporter
+): CompileResult {
+  const limits = { ...DEFAULT_LIMITS, ...input.limits }
   checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {

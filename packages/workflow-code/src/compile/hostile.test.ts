@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
+import { MAX_ERRORS, MAX_WARNINGS } from './report'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
@@ -140,6 +141,34 @@ describe('hostile sources produce diagnostics only', () => {
     expect(
       codes(result).some((code) => code === 'E_LIMIT_EXCEEDED' || code === 'E_UNSUPPORTED_SYNTAX')
     ).toBe(true)
+  })
+
+  it('stops after 100 errors, framing a 40 KB line in bounded output', () => {
+    const result = run(wrap('x;'.repeat(20_000)))
+    expect(result.workflow).toBeNull()
+    expect(result.diagnostics).toHaveLength(MAX_ERRORS + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('E_TOO_MANY_ERRORS')
+    const frameChars = result.diagnostics.reduce((sum, d) => sum + d.frame.length, 0)
+    expect(frameChars).toBeLessThan(result.diagnostics.length * 1_000)
+  })
+
+  it('lists 100 warnings and omits the rest without failing the compile', () => {
+    let body = ''
+    for (let i = 0; i < 150; i++) body += `const a${i} = api('A${i}', { url: a${i + 1}.data })\n`
+    body += `const a150 = api('A150', { url: 'x' })`
+    const result = run(wrap(body))
+    expect(result.workflow).not.toBeNull()
+    expect(result.diagnostics).toHaveLength(MAX_WARNINGS + 1)
+    expect(result.diagnostics.at(-1)?.code).toBe('W_TOO_MANY_WARNINGS')
+  })
+
+  it('caps a diagnostic message that quotes a huge name', () => {
+    const name = 'n'.repeat(100_000)
+    const result = run(
+      wrap(`const a = api('${name}', { url: 'x' })\nconst b = api('${name}', { url: 'x' })`)
+    )
+    expect(codes(result)).toContain('E_DUPLICATE_NAME')
+    for (const d of result.diagnostics) expect(d.message.length).toBeLessThanOrEqual(1_001)
   })
 
   it('never reads a code file outside the repository or past the size cap', () => {
