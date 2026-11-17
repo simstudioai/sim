@@ -12,13 +12,14 @@ export const revalidate = 0
  * POST /api/v2/workspaces/[workspaceId]/workflows/source — creates a workflow from TypeScript
  * source through the same pipeline and checks as an apply, in one all-or-nothing write. Error
  * diagnostics answer 400 and nothing is created; a dry run answers 200 with its diagnostics and
- * creates nothing. Answers 403 while the `workflow-code` flag is off.
+ * creates nothing. Answers 403 while the `workflow-code` flag is off. Shares the source-write budget
+ * with apply (`v2RateLimits.sourceWrite`).
  */
 export const POST = defineV2JsonRoute({
   contract: v2CreateWorkflowFromSourceContract,
   auth: v2ApiKeyAuth,
   operation: workflowOperations.createFromSource,
-  rateLimit: v2RateLimits.publicApi,
+  rateLimit: v2RateLimits.sourceWrite,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkspaceSourceCreate,
   parseOptions: { maxBodyBytes: SOURCE_REQUEST_MAX_BYTES },
   mapInput: ({ params, query, body }) => ({

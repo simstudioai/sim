@@ -40,12 +40,14 @@ export const GET = defineV2JsonRoute({
  * all-or-nothing write. Error diagnostics (and a `base` read from another workflow) answer 400, a
  * stale fingerprint 409, a locked workflow 423; a dry run answers 200 with its diagnostics in the
  * body. Answers 403 while the `workflow-code` flag is off. Analytics are recorded by the use case.
+ * Applies and dry runs draw on the source-write budget (`v2RateLimits.sourceWrite`), not the
+ * generic one: each compiles and diffs a body of up to `SOURCE_REQUEST_MAX_BYTES`.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkflowSourceContract,
   auth: v2ApiKeyAuth,
   operation: workflowOperations.applySource,
-  rateLimit: v2RateLimits.publicApi,
+  rateLimit: v2RateLimits.sourceWrite,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowGraphAuthorization,
   parseOptions: { maxBodyBytes: SOURCE_REQUEST_MAX_BYTES },
   mapInput: ({ params, query, body }) => ({
