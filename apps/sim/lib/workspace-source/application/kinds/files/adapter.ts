@@ -555,7 +555,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
           assertedWorkspaceId: workspaceId,
           content,
           provenanceMode: 'replace_empty',
-          expectedUpdatedAt: new Date(change.detail.rev),
+          expectedRevision: change.detail.rev,
         },
       })
     } catch (error) {

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, inArray, isNull } from 'drizzle-orm'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -34,8 +34,10 @@ import {
   loadWorkspaceFileVersionHeads,
 } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
+import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 
 export interface ListAllWorkspaceFilesInput {
@@ -416,7 +418,10 @@ export interface ReadWorkspaceFileContentStatesInput {
 
 /** What a live workspace file holds now, without reading its bytes. */
 export interface WorkspaceFileContentState {
-  /** The content revision: `content_updated_at`, which advances on every content write. */
+  /**
+   * The content revision `workspaceFileRevision` issues, which advances on every content write; a
+   * content write takes it back as `expectedRevision`.
+   */
   rev: string
   /** SHA-256 of the current bytes, when the file's history records it for this revision. */
   sha256: string | null
@@ -436,10 +441,7 @@ export const readWorkspaceFileContentStates = defineAuthorizedWorkspaceFileUseCa
   async execute({ input, context }): Promise<Map<string, WorkspaceFileContentState>> {
     if (input.fileIds.length === 0) return new Map()
     const live = and(
-      eq(workspaceFiles.workspaceId, context.workspaceId),
-      isNull(workspaceFiles.projectId),
-      isNull(workspaceFiles.organizationId),
-      eq(workspaceFiles.context, 'workspace'),
+      fileOwnerCondition({ entityType: 'workspace', entityId: context.workspaceId }),
       isNull(workspaceFiles.deletedAt),
       inArray(workspaceFiles.id, [...input.fileIds])
     )
@@ -457,10 +459,12 @@ export const readWorkspaceFileContentStates = defineAuthorizedWorkspaceFileUseCa
       ),
     ])
     return new Map(
-      rows.map((row) => {
+      rows.flatMap((row): Array<[string, WorkspaceFileContentState]> => {
+        const rev = workspaceFileRevision({ ...row, updatedAt: row.contentUpdatedAt })
+        if (rev === null) return []
         const head = heads.get(row.id)
         const sha256 = head && isVersionHeadCurrent(head, row) ? head.contentHash : null
-        return [row.id, { rev: row.contentUpdatedAt.toISOString(), sha256 }]
+        return [[row.id, { rev, sha256 }]]
       })
     )
   },
