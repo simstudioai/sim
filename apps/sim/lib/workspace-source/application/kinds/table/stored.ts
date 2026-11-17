@@ -9,6 +9,7 @@ import {
 } from '@sim/workspace-code'
 import {
   isDeclarableColumnKey,
+  suffixedColumnKey,
   type TableColumnDecl,
   type TableDecl,
   tableCodec,
@@ -73,7 +74,7 @@ function tableAsDecl(
     if (keyById.has(id)) continue
     let key = column.name
     for (let suffix = 2; !isDeclarableColumnKey(key) || taken.has(key); suffix += 1) {
-      key = `${column.name}_${suffix}`
+      key = suffixedColumnKey(column.name, suffix)
     }
     keyById.set(id, key)
     taken.add(key)

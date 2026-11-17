@@ -119,6 +119,15 @@ export function isDeclarableColumnKey(name: string): boolean {
   return name !== '__proto__'
 }
 
+/**
+ * The key a stored column prints under when its name is taken: `name_<suffix>`, with the name
+ * shortened so the key stays within the column-name limit the reader enforces.
+ */
+export function suffixedColumnKey(name: string, suffix: number): string {
+  const tail = `_${suffix}`
+  return `${name.slice(0, MAX_COLUMN_NAME_LENGTH - tail.length)}${tail}`
+}
+
 /** The declaration file of table `key`. */
 function tablePath(key: string): string {
   return `${KIND_DIRS.table}/${key}${DECLARATION_EXTENSION}`
