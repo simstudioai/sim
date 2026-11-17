@@ -364,6 +364,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
+| `E_REF_UNREPRESENTABLE` | A reference to a block whose key holds a character a reference cannot carry (`Q&A`, `x>y`); rename the block. |
 | `E_EDGE_SCOPE` | An edge across subflow scopes. |
 | `E_EDGE_NOTE` | An edge to or from a note. |
 | `E_TARGET_TRIGGER` | An edge into a trigger. |

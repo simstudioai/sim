@@ -283,6 +283,16 @@ describe('accepted grammar', () => {
     })
   })
 
+  it('references a block whose key holds characters a reference carries', () => {
+    const wf = ok(
+      source(
+        "const its = api(\"it's\", { url: 'x' })\nconst b = api('B', { url: t`${its.data}`, body: its })"
+      )
+    )
+    expect(paramValue(wf, 'b', 'url')).toBe("<it's.data>")
+    expect(paramValue(wf, 'b', 'body')).toBe("<it's>")
+  })
+
   it('compiles loops and parallels with innermost and named loop params', () => {
     const wf = ok(
       source(
@@ -667,6 +677,34 @@ describe('errors, each with its code, location and hint', () => {
       'E_UNSUPPORTED_SYNTAX',
       "threadTs: '1'",
       'Write it in params.',
+    ],
+    [
+      'a reference to a block whose key reads as text',
+      "const qa = api('Q&A', { url: 'x' })\nconst b = api('B', { url: t`${qa.data}` })",
+      'E_REF_UNREPRESENTABLE',
+      'qa.data',
+      'Rename the block without any of < > = + * / ! & | [ ].',
+    ],
+    [
+      'a reference to a block whose key ends the token early',
+      "const xy = api('x>y', { url: 'x' })\nconst b = api('B', { body: xy })",
+      'E_REF_UNREPRESENTABLE',
+      'xy }',
+      undefined,
+    ],
+    [
+      'a reference to a block whose key holds a bracket',
+      "const ab = api('a.b[0]', { url: 'x' })\nconst b = api('B', { url: ab.data })",
+      'E_REF_UNREPRESENTABLE',
+      'ab.data',
+      undefined,
+    ],
+    [
+      'a named loop param of a loop whose key reads as text',
+      "const outer = loop.for('Q&A', { count: 1 }, (p) => {\n  const inner = loop.for('In', { count: 1 }, (r) => {\n    const a = api('A', { url: t`${p.index}` })\n    r.to(a)\n  })\n  p.to(inner)\n})",
+      'E_REF_UNREPRESENTABLE',
+      'p.index',
+      undefined,
     ],
     [
       'two variables whose names normalize alike',

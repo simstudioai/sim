@@ -74,6 +74,11 @@ type CompileScopeCode =
    * kept verbatim, so a rename never rewrites it. `hint` names the ident form.
    */
   | 'W_REF_NOT_NORMALIZED'
+  /**
+   * A reference to a block whose key holds a character a stored reference cannot carry (`&`, `>`,
+   * `[`...): the runtime would read the token as text or as another block.
+   */
+  | 'E_REF_UNREPRESENTABLE'
 
 /** Wiring. */
 type CompileEdgeCode =
