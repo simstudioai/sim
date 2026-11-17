@@ -458,10 +458,11 @@ check('a refusal on a legacy ~n key block points at that block, not its namesake
   })
   const winnerId = generateId()
   const loserId = generateId()
+  // Stored blocks load in heap order; only a dotted name loses its key in every order.
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
     blocks: {
-      [winnerId]: fn(winnerId, 'Score 1', 'return 1', false),
-      [loserId]: fn(loserId, 'score1', 'return 2', true),
+      [winnerId]: fn(winnerId, 'score1', 'return 1', false),
+      [loserId]: fn(loserId, 'Score.1', 'return 2', true),
     },
     edges: [],
     loops: {},
