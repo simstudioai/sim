@@ -182,28 +182,48 @@ function workspaceManifestFrom({
   }
 }
 
+/** What a workspace directory declares itself, typed beside the stored resources. */
+export type LocalDeclarations = Pick<
+  WorkspaceManifest,
+  'tableDeclarations' | 'knowledgeBases' | 'skills' | 'customTools'
+>
+
 /**
- * The workspace's resources as `workspace.d.ts`, with the tables a workspace directory declares
- * typed from their declarations. When the resources cannot be listed (a `403` for a caller the
- * manifest does not admit, a `404` from a server that predates the route) only the declared
- * tables are typed, or `null` without any: the source still writes and type-checks, with every
- * other key a plain string.
+ * The workspace's resources as `workspace.d.ts`, with what a workspace directory declares typed
+ * too: its tables from their declarations, and its knowledge base, skill and custom tool keys
+ * beside the stored ones. When the resources cannot be listed (a `403` for a caller the manifest
+ * does not admit, a `404` from a server that predates the route) only the declared resources are
+ * typed, or `null` without any: the source still writes and type-checks, with every other key a
+ * plain string.
  */
 export async function loadWorkspaceTypes(
   client: OperationClient<'getSourceResources'>,
   workspaceId: string,
-  local: Pick<WorkspaceManifest, 'tableDeclarations'> = {}
+  local: LocalDeclarations = {}
 ): Promise<string | null> {
   try {
     const { data } = await client.request<GetSourceResourcesResponse>('getSourceResources', {
       params: { workspaceId },
     })
-    return generateWorkspaceTypes({ ...workspaceManifestFrom(data), ...local }).text
+    const stored = workspaceManifestFrom(data)
+    const both = (key: 'knowledgeBases' | 'skills' | 'customTools') => [
+      ...(stored[key] ?? []),
+      ...(local[key] ?? []),
+    ]
+    return generateWorkspaceTypes({
+      ...stored,
+      ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
+      knowledgeBases: both('knowledgeBases'),
+      skills: both('skills'),
+      customTools: both('customTools'),
+    }).text
   } catch (error) {
     if (!(error instanceof SimApiError) || (error.status !== 403 && error.status !== 404)) {
       throw error
     }
-    return local.tableDeclarations?.length ? generateWorkspaceTypes(local).text : null
+    return Object.values(local).some((keys) => keys && keys.length > 0)
+      ? generateWorkspaceTypes(local).text
+      : null
   }
 }
 

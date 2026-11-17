@@ -41,6 +41,7 @@ import {
 import {
   assertWorkspacePaths,
   keepFile,
+  localDeclarations,
   managedFiles,
   skippedFile,
   WORKSPACE_TREE,
@@ -104,7 +105,7 @@ async function mergedBase(dir: string, source: WorkspaceSource): Promise<Workspa
  * files (downloaded and checked against their listed size and SHA-256 before anything moves into
  * place; one already on disk with that hash is kept), the base,
  * `.sim/skipped.json`, a marker in each read kind's folder, the SDK declarations (with
- * `workspace.d.ts` typing the tables the directory declares), the CLI's `tsconfig.json` and agent
+ * `workspace.d.ts` typing the resources the directory declares), the CLI's `tsconfig.json` and agent
  * guide. Files of a read kind the CLI wrote earlier that the answer no longer holds (the resource
  * is gone) are removed. Refuses, unless `force`, to replace or remove a file with edits no apply
  * has saved.
@@ -143,13 +144,9 @@ async function writeWorkspaceSource(
       )
     }
   }
-  const tables = Object.keys(source.files).flatMap((path) => {
-    const match = /^tables\/([^/]+)\.ts$/.exec(path)
-    return match ? [match[1]] : []
-  })
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, { workspaceId: source.workspaceId, blockTypes: [] }),
-    loadWorkspaceTypes(client, source.workspaceId, { tableDeclarations: tables }),
+    loadWorkspaceTypes(client, source.workspaceId, localDeclarations(Object.keys(source.files))),
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)

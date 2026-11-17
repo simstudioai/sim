@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fingerprintOf } from '@sim/workspace-code'
@@ -17,6 +17,7 @@ vi.mock('../../context', async () => (await import('../../test/context-mock')).c
 const { mockRequest: request, mockRequestRaw: requestRaw } = contextMockFns
 const SOURCE_PATH = '/api/v2/workspaces/ws_local/source'
 const CATALOG_PATH = '/api/v2/workspaces/ws_local/workflows/source/catalog'
+const RESOURCES_PATH = '/api/v2/workspaces/ws_local/workflows/source/resources'
 const CATALOG = JSON.parse(
   readFileSync(join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json'), 'utf8')
 )
@@ -32,7 +33,8 @@ function serve(
     kinds = ['table'],
     resources = {},
     blobs = [],
-  }: { kinds?: string[]; resources?: object; blobs?: object[] } = {}
+    manifest,
+  }: { kinds?: string[]; resources?: object; blobs?: object[]; manifest?: object } = {}
 ) {
   request.mockImplementation(async (path: string) => {
     if (path === SOURCE_PATH) {
@@ -49,6 +51,7 @@ function serve(
       }
     }
     if (path === CATALOG_PATH) return { data: CATALOG }
+    if (path === RESOURCES_PATH && manifest) return { data: manifest }
     throw new SimApiError('not found', 404)
   })
 }
@@ -298,6 +301,54 @@ describe('workspaces source get', () => {
     }
     expect(output).toContain('tools/lookup.ts')
     expect(output).toContain('knowledge/policies/knowledge.ts')
+  })
+
+  it('types the skill and custom tool keys the directory declares beside the stored ones', async () => {
+    const uses = (skillKey: string) =>
+      `// @sim-sdk 1\nimport { agent, customTool, skill, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support', {}, () => {\n  agent('Answer', { model: 'claude-sonnet-5-5', tools: [customTool('lookup')], skills: [skill('${skillKey}'), skill('stored')] })\n})\n`
+    serve(
+      {
+        'skills/tone.md': '---\nname: tone\ndescription: Warm\n---\nBe warm.\n',
+        'tools/lookup.ts':
+          "// @sim-sdk 1\nimport { defineTool } from '@sim/workflow-sdk/workspace'\n\nexport default defineTool({ title: 'Lookup', schema: { type: 'function', function: { name: 'lookup', parameters: { type: 'object', properties: {} } } }, code: '' })\n",
+      },
+      {
+        kinds: ['custom-tool', 'skill'],
+        manifest: {
+          workspaceId: 'ws_local',
+          tables: [],
+          knowledgeBases: [],
+          credentials: [],
+          workflows: [],
+          skills: [{ key: 'stored', id: 'skill-1', name: 'stored' }],
+          customTools: [],
+          env: [],
+          truncated: false,
+        },
+      }
+    )
+    await get()
+    const typecheck = (source: string) => {
+      mkdirSync(join(dir, 'workflows/support'), { recursive: true })
+      writeFileSync(join(dir, 'workflows/support/workflow.ts'), source)
+      try {
+        execFileSync(
+          join(__dirname, '../../../../../node_modules/.bin/tsc'),
+          ['--noEmit', '-p', dir],
+          {
+            encoding: 'utf8',
+            stdio: 'pipe',
+          }
+        )
+        return ''
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string }
+        return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
+      }
+    }
+
+    expect(typecheck(uses('tone'))).toBe('')
+    expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
   })
 
   it('reads --only by folder name as well as by kind', async () => {

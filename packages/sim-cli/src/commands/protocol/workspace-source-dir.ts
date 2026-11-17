@@ -18,7 +18,11 @@ import {
 } from '@sim/workspace-code/layout'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { type SourceTreeProfile, TSCONFIG_MARKER } from './workflow-source-get'
+import {
+  type LocalDeclarations,
+  type SourceTreeProfile,
+  TSCONFIG_MARKER,
+} from './workflow-source-get'
 import {
   digest,
   inBatches,
@@ -95,6 +99,25 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
   sdk: Object.entries(WORKSPACE_SDK_DTS).map(
     ([name, text]) => [`${WORKSPACE_SDK_DIR}/${name}`, text] as const
   ),
+}
+
+/**
+ * The keys a directory's files declare, by kind: `tables/<key>.ts`, `knowledge/<key>/knowledge.ts`,
+ * `skills/<key>.md` and `tools/<key>.ts`. `workspace.d.ts` types them beside the stored resources.
+ */
+export function localDeclarations(paths: readonly string[]): LocalDeclarations {
+  const keys = (dir: string, suffix: string) =>
+    paths.flatMap((path) => {
+      if (!path.startsWith(`${dir}/`) || !path.endsWith(suffix)) return []
+      const key = path.slice(dir.length + 1, -suffix.length)
+      return key.length > 0 && !key.includes('/') ? [key] : []
+    })
+  return {
+    tableDeclarations: keys(KIND_DIRS.table, '.ts'),
+    knowledgeBases: keys(KIND_DIRS['knowledge-base'], '/knowledge.ts'),
+    skills: keys(KIND_DIRS.skill, '.md'),
+    customTools: keys(KIND_DIRS['custom-tool'], '.ts'),
+  }
 }
 
 /** Refuses a server answer naming a path outside every kind folder, before anything is written. */
