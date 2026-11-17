@@ -1,5 +1,4 @@
 /** @vitest-environment jsdom */
-import { File } from 'node:buffer'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
@@ -20,7 +19,9 @@ describe('GitLab permission file selection', () => {
     }
     act(() => root.render(createElement(Probe)))
     const csv = (content: string, filename: string) =>
-      Object.assign(new File([content], filename), { webkitRelativePath: '' })
+      Object.assign(new File([content], filename), {
+        arrayBuffer: async () => new TextEncoder().encode(content).buffer,
+      })
     try {
       act(() => current().setMode('csv'))
       const users = csv('1,a@example.test\n'.repeat(300_000), 'users.csv')
