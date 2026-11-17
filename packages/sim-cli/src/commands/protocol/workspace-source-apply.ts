@@ -1,5 +1,5 @@
 import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
-import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { WORKFLOW_LOCK_FILE, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { roundPaths } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -16,6 +16,8 @@ import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './workflow-source-apply'
 import {
+  orphanedCodeFiles,
+  readSourceJson,
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
@@ -117,9 +119,39 @@ async function blobRound(
   return blobs
 }
 
+/** A workflow folder's lock, as an apply answer names it. */
+const WORKFLOW_LOCK_PATH = new RegExp(
+  `^${KIND_DIRS.workflow}/([^/]+)/${WORKFLOW_LOCK_FILE.replace('.', '\\.')}$`
+)
+
+/**
+ * The function files of each workflow the apply wrote that its new lock no longer names, as a
+ * single-workflow apply prunes them: named by the lock the folder held (so the CLI wrote them)
+ * and not written now. A file the person added and no lock named is kept.
+ */
+async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
+  const orphaned: string[] = []
+  for (const [path, text] of Object.entries(files)) {
+    const match = WORKFLOW_LOCK_PATH.exec(path)
+    if (!match) continue
+    const folder = `${KIND_DIRS.workflow}/${match[1]}`
+    const written = Object.keys(files)
+      .filter((file) => file.startsWith(`${folder}/`))
+      .map((file) => file.slice(folder.length + 1))
+    const previous = await readSourceJson(dir, path)
+    let next: unknown = null
+    try {
+      next = JSON.parse(text)
+    } catch {}
+    orphaned.push(...orphanedCodeFiles(previous, next, written).map((file) => `${folder}/${file}`))
+  }
+  return orphaned
+}
+
 /**
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
  * their digests in `.sim/written.json`, beside the digests of the blobs the server now holds.
+ * The function files a written workflow no longer uses are removed, from disk and the record.
  */
 async function saveApplied(
   dir: string,
@@ -127,13 +159,16 @@ async function saveApplied(
   submission: WorkspaceSubmission
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
+  const orphaned = await orphanedWorkflowFiles(dir, data.files)
   const kept = { ...(await readWrittenDigests(dir)), ...appliedBlobDigests(submission, data.base) }
+  for (const path of orphaned) delete kept[path]
   await updateSourceDir(dir, {
     write: [
       ...Object.entries(data.files),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`],
       [SOURCE_WRITTEN_FILE, writtenRecord(data.files, kept)],
     ],
+    remove: orphaned,
   })
 }
 

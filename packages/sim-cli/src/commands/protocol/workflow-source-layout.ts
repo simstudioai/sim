@@ -125,7 +125,7 @@ export function lockCodeFiles(lock: unknown): Set<string> {
  * wrote them), no longer named by the new lock, and not being written now. A file the person
  * added and no lock ever named is never pruned.
  */
-function orphanedCodeFiles(
+export function orphanedCodeFiles(
   previousLock: unknown,
   nextLock: unknown,
   written: Iterable<string>

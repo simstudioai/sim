@@ -1,5 +1,6 @@
 import { mkdir, mkdtemp, realpath, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { isRecordLike } from '@sim/utils/object'
 import {
   APPLY_ORDER,
   isWorkspaceKind,
@@ -29,6 +30,7 @@ import {
 import {
   editedFiles,
   inBatches,
+  readSourceJson,
   readSourceText,
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
@@ -92,6 +94,30 @@ async function mergedBase(dir: string, source: WorkspaceSource): Promise<Workspa
     ([address]) => !read.has(address.slice(0, address.indexOf(':')))
   )
   return { ...source.base, resources: { ...Object.fromEntries(kept), ...source.base.resources } }
+}
+
+/**
+ * The skipped list after a get: what this get left out, beside the entries the directory's list
+ * holds for the kinds it did not read (a `--only` get keeps them, as it keeps their base entries).
+ */
+async function mergedSkipped(
+  dir: string,
+  source: WorkspaceSource
+): Promise<WorkspaceSource['skipped']> {
+  const current = await readSourceJson(dir, WORKSPACE_SKIPPED_FILE)
+  const read = new Set<string>(source.kinds)
+  const kept = Array.isArray(current)
+    ? current.filter(
+        (entry): entry is WorkspaceSource['skipped'][number] =>
+          isRecordLike(entry) &&
+          typeof entry.kind === 'string' &&
+          isWorkspaceKind(entry.kind) &&
+          !read.has(entry.kind) &&
+          typeof entry.key === 'string' &&
+          typeof entry.reason === 'string'
+      )
+    : []
+  return [...kept, ...source.skipped]
 }
 
 /**
@@ -181,7 +207,7 @@ async function writeWorkspaceSource(
         source.blobs.map((blob) => [blob.path, blob.sha256 ?? hashed.get(blob.path) ?? ''])
       ),
     }
-    const skipped = skippedFile(source.skipped)
+    const skipped = skippedFile(await mergedSkipped(dir, source))
     const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
     const write: Array<readonly [string, string]> = [
       ...Object.entries(source.files),

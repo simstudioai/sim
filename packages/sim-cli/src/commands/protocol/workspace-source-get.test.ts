@@ -127,6 +127,28 @@ describe('workspaces source get', () => {
     expect(existsSync(join(dir, 'tables/leads.ts'))).toBe(false)
   })
 
+  it('keeps the skipped entries of the kinds a get leaves unread', async () => {
+    const big = { kind: 'file', key: 'big.bin', reason: 'over the size limit' }
+    serve({ 'tables/leads.ts': LEADS }, { kinds: ['table', 'file'] })
+    request.mockImplementationOnce(async () => ({
+      data: {
+        workspaceId: 'ws_local',
+        kinds: ['table', 'file'],
+        files: { 'tables/leads.ts': LEADS },
+        blobs: [],
+        base: { version: 1, workspaceId: 'ws_local', resources: {} },
+        skipped: [big],
+        diagnostics: [],
+      },
+    }))
+    await get()
+
+    serve({ 'tables/leads.ts': LEADS })
+    await get('--only', 'table')
+
+    expect(JSON.parse(readFileSync(join(dir, '.sim/skipped.json'), 'utf8'))).toEqual([big])
+  })
+
   it('keeps the base entries of the kinds a get leaves unread', async () => {
     serve(
       { 'tables/leads.ts': LEADS },

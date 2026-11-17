@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -102,6 +103,34 @@ describe('workspaces source apply', () => {
     await apply('--yes')
 
     expect(Object.keys(bodies()[0].files)).toContain('workflows/ingest/workflow.ts')
+  })
+
+  it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
+    const lock = (codeFiles: string[]) =>
+      `${JSON.stringify({ version: 1, blocks: Object.fromEntries(codeFiles.map((file, index) => [`b${index}`, { id: `blk_${index}`, codeFile: file }])), variables: {} })}\n`
+    write('workflows/ingest/.sim/lock.json', lock(['functions/score.js', 'functions/old.js']))
+    write('workflows/ingest/functions/score.js', 'return 1\n')
+    write('workflows/ingest/functions/old.js', 'return 2\n')
+    write('workflows/ingest/functions/mine.js', 'return 3\n')
+    request.mockResolvedValue(
+      answer({
+        applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
+        files: {
+          'workflows/ingest/workflow.ts': INGEST,
+          'workflows/ingest/functions/score.js': 'return 1\n',
+          'workflows/ingest/.sim/lock.json': lock(['functions/score.js']),
+          'workflows/ingest/.sim/base.json': '{}\n',
+        },
+      })
+    )
+
+    await apply('--yes')
+
+    expect(existsSync(join(dir, 'workflows/ingest/functions/old.js'))).toBe(false)
+    expect(existsSync(join(dir, 'workflows/ingest/functions/score.js'))).toBe(true)
+    expect(existsSync(join(dir, 'workflows/ingest/functions/mine.js'))).toBe(true)
+    const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files
+    expect(Object.keys(written)).not.toContain('workflows/ingest/functions/old.js')
   })
 
   it('saves what a part-way apply wrote and exits 8', async () => {
