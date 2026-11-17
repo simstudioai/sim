@@ -172,8 +172,15 @@ describe('knowledgeCodec', () => {
       ['E_KB_DOC_NAME', 'knowledge/policies/docs/a\u0007b.md'],
       ['E_KB_DOC_NAME', 'knowledge/policies/docs/a\\b.md'],
       ['E_LIMIT_EXCEEDED', 'knowledge/policies/docs/huge.pdf'],
-      ['E_KB_DOC_NAME', 'knowledge/policies/docs/short.md'],
+      ['E_DECL_SHAPE', 'knowledge/policies/docs/short.md'],
     ])
+  })
+
+  it('reads a name of any length, as the server stores one', () => {
+    const name = 'P'.repeat(300)
+    const parsed = knowledgeCodec.parse('policies', declaration(`{ name: '${name}' }`), [])
+    expect(parsed.diagnostics).toEqual([])
+    expect(parsed.decl?.name).toBe(name)
   })
 
   it('groups by folder and refuses nested documents and stray files', () => {

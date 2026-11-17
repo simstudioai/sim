@@ -76,7 +76,6 @@ const DEFAULT_CHUNKING = { maxSize: 1024, minSize: 100, overlap: 200 } as const
 
 /** Mirrors `KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH` (apps/sim/lib/knowledge/constants). */
 const MAX_DESCRIPTION_LENGTH = 10_000
-const MAX_NAME_LENGTH = 255
 const MAX_DOC_NAME_LENGTH = 255
 const SHA256 = /^[0-9a-f]{64}$/
 
@@ -201,7 +200,7 @@ function readChunking(raw: Json, report: FieldReport): KnowledgeChunkingDecl | u
 }
 
 function fileFinding(
-  code: 'E_KB_DOC_NAME' | 'E_LIMIT_EXCEEDED' | 'E_DECL_UNKNOWN_FILE',
+  code: 'E_KB_DOC_NAME' | 'E_DECL_SHAPE' | 'E_LIMIT_EXCEEDED' | 'E_DECL_UNKNOWN_FILE',
   key: string,
   path: string,
   message: string,
@@ -230,7 +229,7 @@ function readDocs(
       )
     } else if (!SHA256.test(blob.sha256) || !Number.isSafeInteger(blob.size) || blob.size < 0) {
       diagnostics.push(
-        fileFinding('E_KB_DOC_NAME', key, blob.path, `${blob.path} has no valid hash and size.`)
+        fileFinding('E_DECL_SHAPE', key, blob.path, `${blob.path} has no valid hash and size.`)
       )
     } else if (blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
       diagnostics.push(
@@ -278,10 +277,7 @@ function parseKnowledgeBase(
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
   checkKnownFields(value, KNOWLEDGE_FIELDS, '', report)
-  const name = readStringField(value, 'name', '', report, {
-    required: true,
-    maxLength: MAX_NAME_LENGTH,
-  })
+  const name = readStringField(value, 'name', '', report, { required: true })
   const description = readStringField(value, 'description', '', report, {
     maxLength: MAX_DESCRIPTION_LENGTH,
   })
