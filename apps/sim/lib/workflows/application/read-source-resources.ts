@@ -25,6 +25,7 @@ import { loadEnvNames, loadVisibleCredentials } from '@/lib/workflows/code/resou
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
@@ -159,7 +160,11 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
   execute: async ({ principal, context }): Promise<SourceResources> => {
     const workspaceId = context.workspaceId
     const userId = resolvePrincipalSubjectUserId(principal)
-    const visible = await visibleSections(principal, context)
+    // One access read for both caller-scoped loaders; the authorization above settled the rest.
+    const [visible, access] = await Promise.all([
+      visibleSections(principal, context),
+      userId ? checkWorkspaceAccess(workspaceId, userId) : undefined,
+    ])
 
     const [tableRows, kbRows, credentialRows, workflowRows, env] = await Promise.all([
       db
@@ -183,14 +188,16 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
         .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
         .limit(PAGE),
-      visible.credentials ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE }) : [],
+      visible.credentials
+        ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE, access })
+        : [],
       db
         .select({ id: workflowTable.id, name: workflowTable.name })
         .from(workflowTable)
         .where(and(eq(workflowTable.workspaceId, workspaceId), isNull(workflowTable.archivedAt)))
         .orderBy(asc(workflowTable.createdAt), asc(workflowTable.id))
         .limit(PAGE),
-      visible.env ? loadEnvNames(workspaceId, userId) : [],
+      visible.env ? loadEnvNames(workspaceId, userId, access) : [],
     ])
 
     const tables = capped(tableRows)

@@ -3,7 +3,8 @@ import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { compareStrings } from '@sim/utils/string'
+import { eq, inArray, type SQLWrapper, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -150,6 +151,68 @@ interface AccessibleEncryptedEnvironment {
   workspaceUnredactedKeys: string[]
 }
 
+type AccessibleEnvCredential = Awaited<ReturnType<typeof getAccessibleEnvCredentials>>[number]
+
+/**
+ * Throws unless the caller may read `workspaceId`, and returns whether they administer it. A
+ * caller that already resolved the access passes it rather than reading it again.
+ */
+async function requireEnvWorkspaceAccess(
+  workspaceId: string,
+  userId: string,
+  workspaceAccess?: WorkspaceAccess
+): Promise<boolean> {
+  const access = workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
+  /**
+   * A workspace that no longer exists and one the caller may not read are different facts
+   * and take different corrections — stop using the id versus ask for access. Collapsing
+   * them sent every deleted-workspace call down the access-denied path, where it read as a
+   * permissions problem nobody could reproduce.
+   */
+  if (!access.exists) {
+    throw new Error(`Workspace ${workspaceId} does not exist`)
+  }
+  if (!access.hasAccess) {
+    throw new Error(`Access denied to workspace ${workspaceId}`)
+  }
+  return access.canAdmin
+}
+
+/**
+ * What a caller's env credentials grant in a workspace: the workspace keys they may use (every
+ * key for an admin), and for each shared personal key the owner whose stored value it reads (the
+ * caller's own first, then the most recently updated share).
+ */
+function envCredentialGrants(
+  rows: readonly AccessibleEnvCredential[],
+  userId: string,
+  workspaceCanAdmin: boolean
+): { usesWorkspaceKey: (envKey: string) => boolean; personalOwners: Map<string, string> } {
+  const workspaceCredentialKeys = new Set(
+    rows.filter((row) => row.type === 'env_workspace').map((row) => row.envKey)
+  )
+  const personalCredentialRows = rows
+    .filter((row) => row.type === 'env_personal' && row.envOwnerUserId)
+    .sort((a, b) => {
+      const aIsRequester = a.envOwnerUserId === userId
+      const bIsRequester = b.envOwnerUserId === userId
+      if (aIsRequester && !bIsRequester) return -1
+      if (!aIsRequester && bIsRequester) return 1
+      return b.updatedAt.getTime() - a.updatedAt.getTime()
+    })
+
+  const personalOwners = new Map<string, string>()
+  for (const row of personalCredentialRows) {
+    if (!personalOwners.has(row.envKey) && row.envOwnerUserId) {
+      personalOwners.set(row.envKey, row.envOwnerUserId)
+    }
+  }
+  return {
+    usesWorkspaceKey: (envKey) => workspaceCanAdmin || workspaceCredentialKeys.has(envKey),
+    personalOwners,
+  }
+}
+
 /**
  * Loads only the encrypted environment slices the caller may use.
  *
@@ -162,23 +225,9 @@ async function loadAccessibleEncryptedEnvironment(
   workspaceId?: string,
   options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<AccessibleEncryptedEnvironment> {
-  let workspaceCanAdmin = false
-  if (workspaceId) {
-    const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
-    /**
-     * A workspace that no longer exists and one the caller may not read are different facts
-     * and take different corrections — stop using the id versus ask for access. Collapsing
-     * them sent every deleted-workspace call down the access-denied path, where it read as a
-     * permissions problem nobody could reproduce.
-     */
-    if (!access.exists) {
-      throw new Error(`Workspace ${workspaceId} does not exist`)
-    }
-    if (!access.hasAccess) {
-      throw new Error(`Access denied to workspace ${workspaceId}`)
-    }
-    workspaceCanAdmin = access.canAdmin
-  }
+  const workspaceCanAdmin = workspaceId
+    ? await requireEnvWorkspaceAccess(workspaceId, userId, options?.workspaceAccess)
+    : false
 
   const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
     db.select().from(environment).where(eq(environment.userId, userId)).limit(1),
@@ -198,26 +247,8 @@ async function loadAccessibleEncryptedEnvironment(
   const allWorkspaceEncrypted: Record<string, string> = (workspaceRows[0]?.variables as any) || {}
 
   const hasCredentialFiltering = Boolean(workspaceId)
-  const workspaceCredentialKeys = new Set(
-    accessibleEnvCredentials.filter((row) => row.type === 'env_workspace').map((row) => row.envKey)
-  )
-
-  const personalCredentialRows = accessibleEnvCredentials
-    .filter((row) => row.type === 'env_personal' && row.envOwnerUserId)
-    .sort((a, b) => {
-      const aIsRequester = a.envOwnerUserId === userId
-      const bIsRequester = b.envOwnerUserId === userId
-      if (aIsRequester && !bIsRequester) return -1
-      if (!aIsRequester && bIsRequester) return 1
-      return b.updatedAt.getTime() - a.updatedAt.getTime()
-    })
-
-  const selectedPersonalOwners = new Map<string, string>()
-  for (const row of personalCredentialRows) {
-    if (!selectedPersonalOwners.has(row.envKey) && row.envOwnerUserId) {
-      selectedPersonalOwners.set(row.envKey, row.envOwnerUserId)
-    }
-  }
+  const grants = envCredentialGrants(accessibleEnvCredentials, userId, workspaceCanAdmin)
+  const selectedPersonalOwners = grants.personalOwners
 
   const ownerUserIds = Array.from(new Set(selectedPersonalOwners.values()))
   const ownerEnvironmentRows =
@@ -252,13 +283,9 @@ async function loadAccessibleEncryptedEnvironment(
       }
     }
 
-    workspaceEncrypted = workspaceCanAdmin
-      ? { ...allWorkspaceEncrypted }
-      : Object.fromEntries(
-          Object.entries(allWorkspaceEncrypted).filter(([envKey]) =>
-            workspaceCredentialKeys.has(envKey)
-          )
-        )
+    workspaceEncrypted = Object.fromEntries(
+      Object.entries(allWorkspaceEncrypted).filter(([envKey]) => grants.usesWorkspaceKey(envKey))
+    )
   }
 
   return {
@@ -287,6 +314,64 @@ export async function getEffectiveEnvironmentVariableNames(
   return [
     ...new Set([...Object.keys(personalEncrypted), ...Object.keys(workspaceEncrypted)]),
   ].sort()
+}
+
+/** A stored env map's names as a JSON array, so no value leaves the database. */
+function envNamesOf(variables: SQLWrapper, storedOnly = false) {
+  const stored = storedOnly ? sql` where entry.value <> ''` : sql``
+  return sql<
+    string[]
+  >`coalesce((select json_agg(entry.key) from json_each_text(${variables}) as entry${stored}), '[]')`
+}
+
+/**
+ * The names {@link getEffectiveEnvironmentVariableNames} lists in a workspace, reading key names
+ * only: the same workspace access, credential grants, and shared-personal stored-value checks,
+ * with no ciphertext fetched. A caller that already resolved the workspace access passes it.
+ */
+export async function getWorkspaceEnvironmentVariableNames(
+  userId: string,
+  workspaceId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
+): Promise<string[]> {
+  const workspaceCanAdmin = await requireEnvWorkspaceAccess(
+    workspaceId,
+    userId,
+    options?.workspaceAccess
+  )
+  const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
+    db
+      .select({ names: envNamesOf(environment.variables) })
+      .from(environment)
+      .where(eq(environment.userId, userId))
+      .limit(1),
+    db
+      .select({ names: envNamesOf(workspaceEnvironment.variables) })
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+      .limit(1),
+    getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin: workspaceCanAdmin }),
+  ])
+  const grants = envCredentialGrants(accessibleEnvCredentials, userId, workspaceCanAdmin)
+
+  const ownerUserIds = [...new Set(grants.personalOwners.values())]
+  const ownerRows =
+    ownerUserIds.length > 0
+      ? await db
+          .select({ userId: environment.userId, names: envNamesOf(environment.variables, true) })
+          .from(environment)
+          .where(inArray(environment.userId, ownerUserIds))
+      : []
+  const storedNamesByOwner = new Map(ownerRows.map((row) => [row.userId, new Set(row.names)]))
+
+  const names = new Set(personalRows[0]?.names ?? [])
+  for (const [envKey, ownerUserId] of grants.personalOwners) {
+    if (storedNamesByOwner.get(ownerUserId)?.has(envKey)) names.add(envKey)
+  }
+  for (const envKey of workspaceRows[0]?.names ?? []) {
+    if (grants.usesWorkspaceKey(envKey)) names.add(envKey)
+  }
+  return [...names].sort(compareStrings)
 }
 
 export interface ResolvedEnvironmentVariable {

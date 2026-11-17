@@ -5,8 +5,8 @@ import type { ResourceKeyResolver, ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
-import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceEnvironmentVariableNames } from '@/lib/environment/utils'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   type ResourceIdRef,
   type ResourceKeyMap,
@@ -40,6 +40,8 @@ interface VisibleCredentialQuery {
   limit: number
   /** Only these ids, when given. */
   ids?: string[]
+  /** The caller's workspace access, when already resolved. */
+  access?: WorkspaceAccess
 }
 
 /**
@@ -73,7 +75,7 @@ export async function loadVisibleCredentials(
       .orderBy(...order)
       .limit(query.limit)
   }
-  const access = await checkWorkspaceAccess(workspaceId, userId)
+  const access = query.access ?? (await checkWorkspaceAccess(workspaceId, userId))
   return db
     .select(columns)
     .from(credential)
@@ -184,13 +186,17 @@ async function withoutHiddenCredentials(
  * workspace secret only when the caller is an admin or an active member of its credential, plus
  * their personal variables and the personal ones shared with them here. With no human subject,
  * the workspace's secrets only, as a run with no caller resolves them for the workspace's billing
- * account.
+ * account. Names only: no secret value is read. `access` is the caller's workspace access, when
+ * already resolved.
  */
 export async function loadEnvNames(
   workspaceId: string,
-  userId: string | undefined
+  userId: string | undefined,
+  access?: WorkspaceAccess
 ): Promise<string[]> {
-  if (userId) return getEffectiveEnvironmentVariableNames(userId, workspaceId)
+  if (userId) {
+    return getWorkspaceEnvironmentVariableNames(userId, workspaceId, { workspaceAccess: access })
+  }
   const rows = await db
     .select({ envKey: credential.envKey })
     .from(credential)
