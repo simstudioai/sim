@@ -7,6 +7,7 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { createUserKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
 import {
+  connectorsGrantingSubject,
   hasConnectorPermissionGrant,
   readConnectorPermissionGrants,
   readConnectorPermissionMetadata,
@@ -72,15 +73,51 @@ async function sources(owner: ResourceOwner, connectorId?: string) {
     )
 }
 
-export async function listAdminGitLabAccounts(owner: ResourceOwner): Promise<LiveAccount[]> {
-  return (await sources(owner)).map((source) => ({
-    id: `${PREFIX}${source.id}`,
-    provider: 'gitlab',
-    providerId: 'gitlab',
-    displayName: 'GitLab',
-    type: 'admin_source',
-    scopes: [],
-  }))
+/** The viewer's own identity token, the subject every GitLab grant is checked against. */
+async function viewerToken(owner: ResourceOwner, userId: string): Promise<string | undefined> {
+  const access = await createUserKnowledgeAccessProvider(userId, {
+    workspaceId: owner.workspaceId ?? undefined,
+    organizationId: owner.organizationId ?? undefined,
+  }).get()
+  return access.kind === 'user' ? access.tokens.find((value) => value.startsWith('u:')) : undefined
+}
+
+function hasCsvPermissions(metadata: unknown): boolean {
+  try {
+    return readGitLabPermissionMetadata(metadata).mode === 'csv'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A source whose uploaded permissions grant the viewer nothing could never return a result, so it
+ * is left out rather than reported unavailable on every search. Sources that check permissions
+ * with GitLab, and any whose stored permissions cannot be read, stay listed: their session decides.
+ */
+export async function listAdminGitLabAccounts(
+  owner: ResourceOwner,
+  userId: string
+): Promise<LiveAccount[]> {
+  const rows = await sources(owner)
+  if (!rows.length) return []
+  const metadata = await readConnectorPermissionMetadata(rows.map((source) => source.id))
+  const csv = new Set(
+    metadata.filter((row) => hasCsvPermissions(row.metadata)).map((row) => row.connectorId)
+  )
+  // Listing is only a filter: a failed identity lookup lists every source for its session to refuse.
+  const own = csv.size ? await viewerToken(owner, userId).catch(() => null) : null
+  const granted = own ? await connectorsGrantingSubject([...csv], own) : null
+  return rows
+    .filter((source) => !granted || !csv.has(source.id) || granted.has(source.id))
+    .map((source) => ({
+      id: `${PREFIX}${source.id}`,
+      provider: 'gitlab',
+      providerId: 'gitlab',
+      displayName: 'GitLab',
+      type: 'admin_source',
+      scopes: [],
+    }))
 }
 
 export async function resolveAdminGitLabAccount(owner: ResourceOwner, account: LiveAccount) {
@@ -129,17 +166,7 @@ interface GitLabSessionInput {
 }
 
 export async function createAdminGitLabSession(input: GitLabSessionInput) {
-  const { owner, userId } = input
-  const access = await createUserKnowledgeAccessProvider(userId, {
-    workspaceId: owner.workspaceId ?? undefined,
-    organizationId: owner.organizationId ?? undefined,
-  }).get()
-  if (access.kind !== 'user')
-    throw new NativeSearchError(
-      'unavailable',
-      'GitLab search requires a verified organization identity.'
-    )
-  const own = access.tokens.find((value) => value.startsWith('u:'))
+  const own = await viewerToken(input.owner, input.userId)
   if (!own)
     throw new NativeSearchError(
       'unavailable',

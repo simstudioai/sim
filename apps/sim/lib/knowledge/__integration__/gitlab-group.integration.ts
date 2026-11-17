@@ -259,7 +259,7 @@ describe('GitLab group Search permission boundary', () => {
             boundary:
               'Application use cases, real PostgreSQL and HTTP GitLab API fixture; TLS/SSRF transport substituted',
             checks,
-            passed: checks.length === 10,
+            passed: checks.length === 11,
           },
           null,
           2
@@ -459,6 +459,29 @@ describe('GitLab group Search permission boundary', () => {
       })
     ).toEqual({ revision: 2 })
     checks.push('Atomic group refresh, revocation and existing source preservation')
+  })
+
+  it('leaves a source out of the searches of a reader its uploaded permissions no longer grant', async () => {
+    const accounts = async (userId: string) =>
+      (
+        await searchLiveKnowledge.execute({
+          principal: principal(userId),
+          input: {
+            organizationId: ids.organizationId,
+            query: 'Atlas',
+            topK: 20,
+            filters: { source: 'gitlab' },
+            resultSecretRegistry: new ResolvedSecretTraceRegistry(),
+          },
+        })
+      ).live?.accounts ?? []
+    const alice = await accounts(ids.aliceId)
+    expect(alice.map((account) => account.accountId)).toEqual([`gitlab-source:${sourceId}`])
+    expect(alice.every((account) => account.status === 'ok')).toBe(true)
+    expect(new Set((await accounts(ids.bobId)).map((account) => account.accountId))).toEqual(
+      new Set([`gitlab-source:${sourceId}`, `gitlab-source:${legacyId}`])
+    )
+    checks.push('Sources granting the reader nothing are left out of their searches')
   })
 
   it('preserves all grants on discovery failure and admits only one concurrent revision', async () => {

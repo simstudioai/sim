@@ -114,7 +114,7 @@ export async function listLiveAccounts(
   const [visible, mcp, admin] = await Promise.all([
     workspaceContext ? filterWorkspaceAccountCredentials(workspaceContext, candidates) : candidates,
     listManagedMcpSearchAccounts(owner, userId, denied),
-    denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner),
+    denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner, userId),
   ])
   if (visible.length === 0) return [...mcp, ...admin]
   // Metadata is fetched in one batch; a fresh binding check still precedes token resolution.

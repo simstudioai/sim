@@ -27,6 +27,9 @@ import type {
   NativePage,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
+import { formatFileSize } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import { fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
 
 /** Slack's own label for an account whose name is unavailable. */
 const SLACK_MEMBER = 'Slack member'
@@ -324,7 +327,7 @@ async function searchSlackPage(
       kind: 'file',
       title: string(file.title),
       url: string(file.permalink),
-      content: slackPlainText(string(file.content), users),
+      content: slackFileHitContent(file, users),
       author: string(file.author_name),
       ...(Number.isFinite(updated) && updated > 0
         ? { modifiedAt: new Date(updated).toISOString() }
@@ -352,7 +355,7 @@ type SlackFileFormat = 'html' | 'plain' | 'pdf' | 'docx'
 
 /** How a file's full text can be read, or undefined when Slack offers only its preview. */
 function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undefined {
-  const mimetype = string(file.mimetype).split(';')[0].trim().toLowerCase()
+  const mimetype = normalizeMimeType(string(file.mimetype))
   if (
     string(file.filetype) === 'quip' ||
     mimetype === 'application/vnd.slack-docs' ||
@@ -361,6 +364,33 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
     return 'html'
   if (mimetype.startsWith('text/') || mimetype === 'application/json') return 'plain'
   return documentExtension(mimetype)
+}
+
+const SLACK_FILE_LABELS: Readonly<Record<string, string>> = {
+  'application/vnd.slack-docs': 'Canvas',
+  'application/vnd.slack-list': 'List',
+}
+
+/**
+ * Slack search returns only a file's title, repeated as its content. A hit says what the file is
+ * and whether reading it returns its text, so a reader can tell which files to open.
+ */
+function slackFileHitContent(file: Record<string, unknown>, users: Map<string, string>): string {
+  const mimetype = normalizeMimeType(string(file.file_type))
+  const size = Number(file.size)
+  const summary = [
+    SLACK_FILE_LABELS[mimetype] ?? (fileBrowserTypeLabel(mimetype, string(file.title)) || 'File'),
+    size > 0 ? formatFileSize(size, { includeBytes: true }) : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+  const reading = slackFileFormat({ mimetype })
+    ? 'Reading it returns its full text.'
+    : 'Its contents cannot be read here; open the source.'
+  const text = slackPlainText(string(file.content), users)
+  return [`${summary}. ${reading}`, text === string(file.title) ? '' : text]
+    .filter(Boolean)
+    .join('\n')
 }
 
 const BYTE_ORDER_MARKS = [
