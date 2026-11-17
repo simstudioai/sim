@@ -24,6 +24,7 @@ import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { BUILTIN_SKILLS } from '@/lib/workflows/skills/builtin-skills'
 import { resolveKeys } from '@/lib/workspaces/resource-keys'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -316,5 +317,30 @@ check(
       id: toolId,
       name: 'listed_lookup',
     })
+  }
+)
+
+check(
+  'a built-in skill stays verbatim with no unresolved-id warning, and a re-apply keeps it',
+  async () => {
+    const [builtin] = BUILTIN_SKILLS
+    const toneId = await seedSkill('Tone 4')
+    const stored = [
+      { skillId: builtin.id, name: builtin.name },
+      { skillId: toneId, name: 'Tone 4' },
+    ]
+    const { workflowId, writerId } = await seedWorkflow(stored)
+
+    const source = await getSource(workflowId)
+
+    const text = source.files['workflow.ts']
+    expect(text).toContain(`raw({ name: '${builtin.name}', skillId: '${builtin.id}' })`)
+    expect(text).toContain("skill('tone-4')")
+    expect(source.diagnostics.filter((d) => d.code === 'W_CANON_UNRESOLVED_ID')).toEqual([])
+    const noop = await apply(source, source.files)
+    expect(noop.applied).toBe(false)
+    const written = await apply(source, edit(source.files, "skill('tone-4'),", ''))
+    expect(written.applied).toBe(true)
+    expect(await storedSkills(workflowId, writerId)).toEqual([stored[0]])
   }
 )

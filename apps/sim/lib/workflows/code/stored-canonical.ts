@@ -113,6 +113,7 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
           referenced.keys.push({ kind, key })
           return current.toId(kind, key)
         },
+        isBuiltin: current.isBuiltin,
       },
     })
     const loadedIds = new Set(loaded.ids.map((ref) => idRefKey(ref.kind, ref.id)))

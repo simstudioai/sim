@@ -170,7 +170,8 @@ export function storedSkillEntry(item: unknown): { skillId: string; name: string
 /**
  * Agent skills (`skill-input`): each `{ skillId, name }` entry whose skill resolves becomes its
  * `skill` resource node (the skills encoding of `ResourceNode`). Any other entry stays a verbatim
- * value; a skill id the resolver misses is reported by `liftResourceId`.
+ * value; a skill id the resolver misses is reported by `liftResourceId`, but a built-in skill's
+ * is not looked up at all, since it never has a key.
  */
 function liftSkills(
   list: unknown[],
@@ -179,7 +180,7 @@ function liftSkills(
 ): Value {
   return list.map((item) => {
     const entry = storedSkillEntry(item)
-    if (entry) {
+    if (entry && !context.resources?.isBuiltin?.('skill', entry.skillId)) {
       const node = liftResourceId('skill', entry.skillId, context, location)
       if (node.$sim === 'resource') return node
     }
