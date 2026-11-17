@@ -56,6 +56,10 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     let result = operation(element)
     if ![.illegalArgument, .attributeUnsupported, .actionUnsupported, .notImplemented, .apiDisabled].contains(result) { inputDispatched = true }
     if result == .success || result == .cannotComplete && press { return }
+    // Some elements advertise an action they then refuse (Finder and file-panel cells with AXOpen); nothing reached the app.
+    if result == .actionUnsupported {
+        throw ComputerError("unsupported_action", "The element advertises this action but refused it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+    }
     try axCheck(result)
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
