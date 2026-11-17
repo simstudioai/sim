@@ -2,6 +2,7 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { isBranchExtraField } from '../canonicalize/branches'
 import {
   DEFAULT_LOOP_ITERATIONS,
   effectiveBatchSize,
@@ -523,6 +524,19 @@ function applyBranchMeta(
         property.value,
         'Branch meta is { title?, extra? }.',
         "Write { title: 'Label' } or { extra: { key: value } }.",
+        site.decl.key
+      )
+      continue
+    }
+    const reserved = isRecordLike(json.extra)
+      ? Object.keys(json.extra).filter((field) => !isBranchExtraField(field))
+      : []
+    if (reserved.length > 0) {
+      unsupported(
+        ctx,
+        property.value,
+        `Branch extra cannot hold ${reserved.join(', ')}: the branch's id, title, condition and key are set by the source.`,
+        'Remove those fields from extra; write the title with title.',
         site.decl.key
       )
       continue

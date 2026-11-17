@@ -1305,6 +1305,20 @@ describe('a condition branch refused where it is declared', () => {
     expect(codes).not.toContain('E_UNKNOWN_BRANCH')
   })
 
+  it('refuses branch extra that would overwrite the id, title, condition or key', () => {
+    for (const field of ['id', 'title', 'value', 'key']) {
+      const codes = codesOf(
+        `const pick = condition('Pick', { yes: js\`1 > 0\` }, { branches: { yes: { extra: { ${field}: 'x', color: 'red' } } } })`
+      )
+      expect(codes, field).toContain('E_UNSUPPORTED_SYNTAX')
+    }
+    expect(
+      codesOf(
+        "const pick = condition('Pick', { yes: js`1 > 0` }, { branches: { yes: { extra: { color: 'red' } } } })"
+      )
+    ).not.toContain('E_UNSUPPORTED_SYNTAX')
+  })
+
   it('still reports a branch that was never declared', () => {
     const codes = codesOf(
       [
