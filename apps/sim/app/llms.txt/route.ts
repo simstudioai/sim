@@ -46,7 +46,7 @@ export async function GET() {
   return markdownResponse(
     [
       LLMS_HEADER,
-      'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the API and SDKs. The workspace includes knowledge bases, tables, files, and logs for every run. Sim is open source (Apache 2.0) and runs in the cloud or self-hosted.',
+      'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the REST API and the Sim CLI. The workspace includes knowledge bases, tables, files, and logs for every run. Sim is open source (Apache 2.0) and runs in the cloud or self-hosted.',
       `The full text of the library, customer stories, and comparison facts is in [llms-full.txt](${toSiteUrl('/llms-full.txt')}).`,
       section('Platform', [
         linkLine('Home', '/', 'Product overview and primary entry point'),
