@@ -19,8 +19,10 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
@@ -105,6 +107,23 @@ export default workflow('Support', {}, () => {
   start.to(answer)
 })
 `
+
+const SUPPORT_WITH_SKILL = SUPPORT.replace(
+  "import { agent, customTool, t, trigger, workflow } from '@sim/workflow-sdk'",
+  "import { agent, customTool, skill, t, trigger, workflow } from '@sim/workflow-sdk'"
+).replace(
+  "tools: [customTool('lookup')],",
+  "tools: [customTool('lookup')],\n    skills: [skill('tone')],"
+)
+
+/**
+ * A schema an older write path stored: it meets the storage shape but not today's write rule (a
+ * function name with a space), so only a declaration that changes it may be held to that rule.
+ */
+const LEGACY_SCHEMA = {
+  type: 'function',
+  function: { name: 'has spaces', parameters: { type: 'object', properties: {} } },
+}
 
 const TOOLS: Record<string, string> = { 'tools/lookup.ts': LOOKUP, 'tools/lookup.js': LOOKUP_CODE }
 const SKILLS: Record<string, string> = { 'skills/tone.md': TONE }
@@ -541,5 +560,188 @@ describe('workspace source: custom tools and skills', () => {
       { action: 'adopt', kind: 'custom-tool', key: 'orders', id: tool.id },
       { action: 'adopt', kind: 'skill', key: 'style', id: unbound.id },
     ])
+  })
+
+  check('a workflow uses a tool and a skill the same apply adopts', async () => {
+    const workspaceId = await newWorkspace()
+    const { tool } = await createWorkspaceCustomToolUseCase.execute({
+      principal: owner,
+      input: {
+        workspaceId,
+        title: 'Lookup order',
+        schema: {
+          type: 'function',
+          function: { name: 'old', parameters: { type: 'object', properties: {} } },
+        },
+        code: 'return 1',
+      },
+    })
+    await createSkillUseCase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'tone', description: 'Old', content: 'Old' },
+    })
+    const files = { ...TOOLS, ...SKILLS, 'workflows/support/workflow.ts': SUPPORT }
+    const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'skill', 'workflow']
+
+    const withSkill = await apply(
+      workspaceId,
+      { ...files, 'workflows/support/workflow.ts': SUPPORT_WITH_SKILL },
+      { kinds, dryRun: true }
+    )
+    expect(codes(withSkill.diagnostics)).not.toContain('E_MAT_UNKNOWN_RESOURCE')
+    const dryRun = await apply(workspaceId, files, { kinds, dryRun: true })
+    expect(codes(dryRun.diagnostics)).toEqual([])
+
+    const result = await apply(workspaceId, files, { kinds })
+    expect(result.failed).toBeUndefined()
+    expect(actions(result.applied)).toEqual([
+      'adopt custom-tool:lookup',
+      'adopt skill:tone',
+      'create workflow:support',
+    ])
+    const state = await loadWorkflowFromNormalizedTables(
+      result.base.resources['workflow:support']?.id ?? ''
+    )
+    const agentTools = Object.values(state?.blocks ?? {}).flatMap((block) => {
+      const value = block.subBlocks?.tools?.value
+      return Array.isArray(value) ? value : []
+    })
+    expect(agentTools).toContainEqual(expect.objectContaining({ customToolId: tool.id }))
+  })
+
+  check(
+    'leaves a legacy tool schema alone: a re-apply is a no-op and a title edit applies',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await db.insert(customTools).values({
+        id: generateId(),
+        workspaceId,
+        userId: ownerId,
+        title: 'Legacy',
+        schema: LEGACY_SCHEMA,
+        code: 'return 1',
+      })
+      const read = await get(workspaceId)
+      expect(read.skipped).toEqual([])
+      const before = await snapshot(workspaceId)
+
+      const again = await apply(workspaceId, read.files, { base: read.base })
+      expect(again.plan.map(({ action }) => action)).toEqual(['noop'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      const declaration = Object.keys(read.files).find((path) => path.endsWith('.ts')) ?? ''
+      const renamed = await apply(
+        workspaceId,
+        { ...read.files, [declaration]: read.files[declaration].replace('Legacy', 'Renamed') },
+        { base: read.base }
+      )
+      expect(renamed.failed).toBeUndefined()
+      expect(renamed.applied.map(({ action, fields }) => [action, fields])).toEqual([
+        ['update', ['title']],
+      ])
+      expect((await snapshot(workspaceId)).tools[0]).toMatchObject({
+        title: 'Renamed',
+        schema: LEGACY_SCHEMA,
+      })
+    }
+  )
+
+  check(
+    'leaves a legacy skill name alone: a re-apply is a no-op and a content edit applies',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await db.insert(skill).values({
+        id: generateId(),
+        workspaceId,
+        userId: ownerId,
+        name: 'Legacy Skill',
+        description: 'Old',
+        content: 'Old',
+      })
+      const read = await get(workspaceId)
+      expect(read.skipped).toEqual([])
+      const before = await snapshot(workspaceId)
+
+      const again = await apply(workspaceId, read.files, { base: read.base })
+      expect(again.plan.map(({ action }) => action)).toEqual(['noop'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      const [path] = Object.keys(read.files)
+      const edited = await apply(
+        workspaceId,
+        { [path]: read.files[path].replace(/Old$/, 'New\n') },
+        { base: read.base }
+      )
+      expect(edited.failed).toBeUndefined()
+      expect(edited.applied.map(({ action, fields }) => [action, fields])).toEqual([
+        ['update', ['content']],
+      ])
+      expect((await snapshot(workspaceId)).skills[0]).toMatchObject({
+        name: 'Legacy Skill',
+        content: 'New\n',
+      })
+    }
+  )
+
+  check('refuses an apply when the workspace holds more tools than one load reads', async () => {
+    const workspaceId = await newWorkspace()
+    const extra = WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind + 101
+    await db.insert(customTools).values(
+      Array.from({ length: extra }, (_, index) => ({
+        id: generateId(),
+        workspaceId,
+        userId: ownerId,
+        title: `Bulk ${index}`,
+        schema: LEGACY_SCHEMA,
+        code: 'return 1',
+      }))
+    )
+
+    const refused = await refusal(apply(workspaceId, TOOLS, { kinds: ['custom-tool'] }))
+
+    expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toMatchObject([
+      { code: 'E_APPLY_REFUSED', kind: 'custom-tool' },
+    ])
+    expect((await snapshot(workspaceId)).tools).toHaveLength(extra)
+  })
+
+  check('binds an adopted key only once its write succeeds', async () => {
+    const workspaceId = await newWorkspace()
+    await createWorkspaceCustomToolUseCase.execute({
+      principal: owner,
+      input: {
+        workspaceId,
+        title: 'Lookup order',
+        schema: {
+          type: 'function',
+          function: { name: 'old', parameters: { type: 'object', properties: {} } },
+        },
+        code: 'return 1',
+      },
+    })
+    await createSkillUseCase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'tone', description: 'Old', content: 'Old' },
+    })
+    const raced = new OrchestrationError('conflict', 'Another write took this name.')
+    const toolWrite = vi
+      .spyOn(updateWorkspaceCustomToolUseCase, 'execute')
+      .mockRejectedValueOnce(raced)
+    const skillWrite = vi.spyOn(updateSkillUseCase, 'execute').mockRejectedValueOnce(raced)
+
+    try {
+      for (const files of [TOOLS, SKILLS]) {
+        const failed = await apply(workspaceId, files)
+        expect(failed.failed).toBeDefined()
+        expect(failed.applied).toEqual([])
+
+        const retried = await apply(workspaceId, files)
+        expect(retried.failed).toBeUndefined()
+        expect(retried.applied.map(({ action }) => action)).toEqual(['adopt'])
+      }
+    } finally {
+      toolWrite.mockRestore()
+      skillWrite.mockRestore()
+    }
   })
 })

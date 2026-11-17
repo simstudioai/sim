@@ -15,6 +15,8 @@ import {
   type KindCodec,
   type ResourceFingerprint,
   resourceAddress,
+  severityOf,
+  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -34,7 +36,7 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
+import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** How one named kind reads its stored records as declarations. */
 export interface NamedKind<D, S> {
@@ -92,13 +94,13 @@ export function declaredFinding(
   kind: WorkspaceKind,
   key: string,
   file: string,
-  code: string,
+  code: WorkspaceDiagnosticCode,
   message: string,
   hint?: string
 ): WorkspaceSourceDiagnostic {
   return {
     code,
-    severity: code.startsWith('E_') ? 'error' : code.startsWith('W_') ? 'warning' : 'info',
+    severity: severityOf(code),
     message,
     ...(hint ? { hint } : {}),
     file,
@@ -181,6 +183,7 @@ export function planNamed<D, S>(
     case 'adopt':
     case 'update': {
       const { id, state } = resolution.stored
+      if (resolution.action === 'adopt') ctx.pending.push({ kind, key, id })
       const changed = changedFields(
         named.codec.canonical(named.declOf(state)),
         named.codec.canonical(decl)
@@ -201,8 +204,93 @@ function baseOf<D, S>(named: NamedKind<D, S>, record: StoredResource<S>): BaseRe
   return { id: record.id, fingerprint: storedFingerprint(named, record.state) }
 }
 
+/**
+ * The declaration fields a planned change writes: every field of a create, only the changed ones
+ * of an update or adopt. A kind checks its write rules on these alone, so a stored value an older
+ * rule admitted stays as it is until a declaration changes it.
+ */
+export function writtenFields<D extends object>(change: PlannedChange<D, NamedPlan>): string[] {
+  if (change.action === 'create') return change.decl ? Object.keys(change.decl) : []
+  return change.detail?.changed ?? []
+}
+
+/** The use case checks of one named kind, by the change they authorize. */
+interface NamedChecks<D> {
+  create(decl: D): Promise<unknown>
+  update(id: string): Promise<unknown>
+  remove(id: string): Promise<unknown>
+}
+
+/** Authorizes a planned change through the kind's use case checks, before anything is written. */
+export async function authorizeNamed<D>(
+  change: PlannedChange<D, NamedPlan>,
+  checks: NamedChecks<D>
+): Promise<void> {
+  if (change.action === 'create') {
+    if (change.decl) await checks.create(change.decl)
+    return
+  }
+  if (!change.storedId) return
+  if (change.action === 'delete') await checks.remove(change.storedId)
+  else await checks.update(change.storedId)
+}
+
+/** The use case writes of one named kind; `update` receives only the changed fields. */
+interface NamedWrites<D, S> {
+  create(decl: D): Promise<{ id: string; state: S }>
+  get(id: string): Promise<S>
+  update(id: string, fields: Partial<D>): Promise<S>
+  remove(id: string): Promise<void>
+}
+
+/**
+ * Carries out a planned change. An update re-reads the record and refuses one that moved since
+ * the plan, then sends only the changed fields so the rest stay as that check saw them. A key is
+ * claimed only after its write succeeds, so a failed write leaves the key free for the next apply.
+ */
+export async function applyNamed<D extends object, S>(
+  named: NamedKind<D, S>,
+  change: PlannedChange<D, NamedPlan>,
+  ctx: SourceContext,
+  writes: NamedWrites<D, S>
+): Promise<AppliedResource> {
+  const claim = (resourceId: string, origin: 'created' | 'adopted') =>
+    claimResourceKey({
+      workspaceId: ctx.workspace.workspaceId,
+      kind: named.kind,
+      key: change.key,
+      resourceId,
+      origin,
+      createdBy: ctx.createdBy,
+    })
+  if (change.action === 'delete') {
+    if (!change.storedId) throw new Error(`A ${named.noun} delete needs the stored id`)
+    await writes.remove(change.storedId)
+    return { id: change.storedId, text: {} }
+  }
+  const decl = change.decl
+  if (!decl) throw new Error(`A ${named.noun} write needs its declaration`)
+  if (change.action === 'create') {
+    const created = await writes.create(decl)
+    await claim(created.id, 'created')
+    return writtenRecord(named, change.key, created)
+  }
+  const id = change.storedId
+  if (!id) throw new Error(`A ${named.noun} update needs the stored id`)
+  const current = await writes.get(id)
+  assertUnchanged(named, change, current)
+  const changed = writtenFields(change)
+  const fields: Partial<D> = {}
+  for (const field of Object.keys(decl) as Array<keyof D & string>) {
+    if (changed.includes(field)) fields[field] = decl[field]
+  }
+  const state = changed.length === 0 ? current : await writes.update(id, fields)
+  if (change.action === 'adopt') await claim(id, 'adopted')
+  return writtenRecord(named, change.key, { id, state })
+}
+
 /** Refuses a write to a record that changed since the plan read it. */
-export function assertUnchanged<D, S>(
+function assertUnchanged<D, S>(
   named: NamedKind<D, S>,
   change: PlannedChange<D, NamedPlan>,
   current: S
@@ -213,7 +301,7 @@ export function assertUnchanged<D, S>(
 }
 
 /** The base entry and reprinted files of a record as stored after a write. */
-export function writtenRecord<D, S>(
+function writtenRecord<D, S>(
   named: NamedKind<D, S>,
   key: string,
   record: { id: string; state: S }
