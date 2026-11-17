@@ -9,7 +9,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { getOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -134,7 +134,9 @@ function expandOutputRecord(
   record: Record<string, CatalogOutputEntry>
 ): Record<string, CatalogOutput> {
   const expanded: Record<string, CatalogOutput> = {}
-  for (const [name, entry] of Object.entries(record)) expanded[name] = expandOutput(catalog, entry)
+  for (const [name, entry] of Object.entries(record)) {
+    setOwn(expanded, name, expandOutput(catalog, entry))
+  }
   return expanded
 }
 
@@ -241,11 +243,11 @@ export function expandBlockCatalog(catalog: BlockCatalog): ExpandedBlockCatalog 
   const { blocks, triggers, subBlocks, lists, outputs, ...rest } = catalog
   const expandedBlocks: Record<string, CatalogBlock> = {}
   for (const type of Object.keys(blocks)) {
-    expandedBlocks[type] = catalogBlock(catalog, type) ?? expandBlock(catalog, type)
+    setOwn(expandedBlocks, type, catalogBlock(catalog, type) ?? expandBlock(catalog, type))
   }
   const expandedTriggers: Record<string, CatalogTrigger> = {}
   for (const id of Object.keys(triggers)) {
-    expandedTriggers[id] = catalogTrigger(catalog, id) ?? expandTrigger(catalog, id)
+    setOwn(expandedTriggers, id, catalogTrigger(catalog, id) ?? expandTrigger(catalog, id))
   }
   return { ...rest, blocks: expandedBlocks, triggers: expandedTriggers }
 }
