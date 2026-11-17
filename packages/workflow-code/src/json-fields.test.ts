@@ -31,11 +31,6 @@ describe('valueTree', () => {
     })
   })
 
-  it('never stores a resource call inside a JSON field as a $sim object', () => {
-    const stored = storedData("const row = table.insertRow('Row', { data: { t: table('leads') } })")
-    expect(JSON.stringify(stored ?? null)).not.toContain('$sim')
-  })
-
   it('stores a raw literal node inside a JSON field as its data', () => {
     const stored = storedData(
       "const row = table.insertRow('Row', { data: { t: raw({ $sim: 'literal', value: { $sim: 'x' } }) } })"

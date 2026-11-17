@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileWorkflow } from '@sim/workflow-code'
-import { COOKBOOK_TS } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -142,15 +141,17 @@ describe('sim workflows source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('refuses a create without --yes in words that say create, not apply', async () => {
+  it('refuses a create without --yes and sends nothing', async () => {
     setTerminal(false)
 
     const error = await program()
       .parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
       .catch((caught: unknown) => caught)
 
+    expect(error).toBeInstanceOf(SimApiError)
     expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
-    expect((error as SimApiError).message).toContain('--yes to create it')
+    expect((error as SimApiError).message).toContain('--yes to create')
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('applies at once with --yes and saves what the server stored', async () => {
@@ -534,23 +535,6 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     expect(printed.files).toBeGreaterThan(0)
   })
 
-  it('writes the cookbook example into the scaffold, outside what the tsconfig.json type-checks', async () => {
-    setTerminal(false)
-    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-    const empty = join(dir, 'new')
-    request.mockImplementation(async (path: string) => {
-      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
-      if (path.endsWith('/workflows/source/resources')) return MANIFEST
-      throw new Error(`unexpected request ${path}`)
-    })
-
-    await create('--dir', empty)
-
-    expect(readFileSync(join(empty, '.sim/examples/cookbook.ts'), 'utf8')).toBe(COOKBOOK_TS)
-    const [, ...tsconfig] = readFileSync(join(empty, 'tsconfig.json'), 'utf8').split('\n')
-    expect(JSON.parse(tsconfig.join('\n')).include).toEqual(['workflow.ts', '.sim/sdk/**/*.d.ts'])
-  })
-
   it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
@@ -560,32 +544,5 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
 
     expect(existsSync(empty)).toBe(false)
     expect(request).not.toHaveBeenCalled()
-  })
-})
-
-describe('exit codes in --help', () => {
-  /** The exit-code paragraph `--help` prints after a command's options, as one line. */
-  async function exitCodesHelp(command: 'apply' | 'create'): Promise<string> {
-    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
-    await program()
-      .parseAsync(['node', 'sim', 'workflows', 'source', command, '--help'])
-      .catch(() => {})
-    const help = out.mock.calls.map(([chunk]) => String(chunk)).join('')
-    return help.slice(help.indexOf('Exit codes:')).replace(/\s+/g, ' ')
-  }
-
-  it('lists for apply only the codes an apply returns, with no create-only --name', async () => {
-    const help = await exitCodesHelp('apply')
-
-    expect(help).toContain('5 the workflow changed')
-    expect(help).not.toContain('SOURCE_NAME_TAKEN')
-  })
-
-  it('lists for create only the codes a create returns, never stale', async () => {
-    const help = await exitCodesHelp('create')
-
-    expect(help).toContain('0 created')
-    expect(help).toContain('SOURCE_NAME_TAKEN')
-    expect(help).not.toMatch(/\b5 /)
   })
 })

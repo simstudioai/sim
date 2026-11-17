@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
@@ -230,21 +230,15 @@ describe('hostile sources produce diagnostics only', () => {
         (_, i) => `  const f${i} = fn('F${i}', { code: codeFile('${path(i)}') })`
       ).join('\n')}\n})\n`
 
-    it('parses a code file referenced by many blocks once', () => {
-      const addFile = vi.spyOn(Reporter.prototype, 'addFile')
-      try {
-        const result = run(
-          fnFile(200, () => './a.js'),
-          undefined,
-          {
-            'workflows/a.js': 'return 1\n',
-          }
-        )
-        expect(codes(result)).toEqual([])
-        expect(addFile.mock.calls.filter(([path]) => path === 'workflows/a.js')).toHaveLength(1)
-      } finally {
-        addFile.mockRestore()
-      }
+    it('reports an unstorable code file shared by many blocks once', () => {
+      const result = run(
+        fnFile(5, () => './a.js'),
+        undefined,
+        {
+          'workflows/a.js': 'return "x\u0000"\n',
+        }
+      )
+      expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
     })
 
     it('caps the total bytes of distinct code files', () => {
