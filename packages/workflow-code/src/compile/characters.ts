@@ -11,6 +11,7 @@
 
 import type { File, Node, NumericLiteral } from '@babel/types'
 import { containsNulCharacter, sanitizeForJsonb } from '@sim/utils/string'
+import { childNodes } from '../babel'
 import type { BlockKey } from '../model'
 import type { Reporter } from './report'
 
@@ -51,10 +52,6 @@ export function checkStorableText(
     }
   )
   return false
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === 'object' && value !== null && 'type' in value && !Array.isArray(value)
 }
 
 /** The value a literal node reads as: a string literal's, a template quasi's cooked text. */
@@ -120,15 +117,8 @@ export function checkStorableLiterals(
   ast: File,
   reporter: Reporter
 ): void {
-  const stack: unknown[] = [ast.program]
-  while (stack.length > 0) {
-    const current = stack.pop()
-    if (Array.isArray(current)) {
-      stack.push(...current)
-      continue
-    }
-    if (!isNode(current)) continue
-    const node = current
+  const stack: Node[] = [ast.program]
+  for (let node = stack.pop(); node !== undefined; node = stack.pop()) {
     if (node.type === 'NumericLiteral') {
       checkNumber(file, node, reporter)
       continue
@@ -148,10 +138,6 @@ export function checkStorableLiterals(
       }
       continue
     }
-    for (const [key, child] of Object.entries(node)) {
-      if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue
-      if (key === 'innerComments' || key === 'extra') continue
-      if (typeof child === 'object' && child !== null) stack.push(child)
-    }
+    stack.push(...childNodes(node))
   }
 }
