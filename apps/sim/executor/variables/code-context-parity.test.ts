@@ -14,7 +14,7 @@ const CASES = [
   `return <start.input>`,
   `const a = '<start.x>'; const b = "<start.y>"; return a + b`,
   `const t = \`hi \${<start.name>} and \${'<start.q>'}\`; return t`,
-  'const nested = `a ${`b ${<start.c>}`} d`',
+  `const nested = \`a \${\`b \${<start.c>}\`} d\``,
   `if (x) /<start.re>/.test(y)`,
   `const half = (a + b) / 2 / <start.n>`,
   `return typeof /<start.re>/ === 'object'`,
@@ -26,17 +26,20 @@ const CASES = [
   `const s = 'unterminated\nreturn <start.next>'`,
   `const e = 'esc \\' <start.in>' + <start.out>`,
   `while (ok) /x/.exec(<start.s>)`,
-  'return `${a / <start.b> / c}` + `${/<start.re>/}`',
+  `return \`\${a / <start.b> / c}\` + \`\${/<start.re>/}\``,
   `const x = a\n/<start.re>/g.test(b)`,
   `return await /<start.re>/.exec(s)`,
 ]
+
+/** The resolver's private scanner, reached by name since only the resolver itself calls it. */
+const RUNTIME_SCANNER = 'getCodeStringQuoteContext'
 
 /** The runtime's classification: `null` for code, the quote kind inside a string, template or regex. */
 function runtimeContexts(resolver: VariableResolver, code: string): unknown[] {
   const scan = { template: code }
   const contexts: unknown[] = []
   for (let index = 0; index <= code.length; index++) {
-    contexts.push(resolver['getCodeStringQuoteContext'](scan, index, 'javascript'))
+    contexts.push(resolver[RUNTIME_SCANNER](scan, index, 'javascript'))
   }
   return contexts
 }
