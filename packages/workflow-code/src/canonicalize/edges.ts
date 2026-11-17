@@ -7,9 +7,9 @@ import {
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { portKey } from '../anchors'
+import { edgeTupleKey, portKey } from '../anchors'
 import type { BranchKey, CanonicalEdge, Port } from '../model'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 
 /** Sorts edges by `(from, portKey, to)` with `compareStrings`. */
 export function compareEdges(left: CanonicalEdge, right: CanonicalEdge): number {
@@ -64,7 +64,7 @@ export function canonicalEdges(
     const from = context.keyById.get(edge.source)
     const to = context.keyById.get(edge.target)
     if (!source || !target || from === undefined || to === undefined) {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_DANGLING_EDGE',
         severity: 'warning',
         message: `Edge ${edge.source} -> ${edge.target} references a missing block; dropped`,
@@ -77,7 +77,7 @@ export function canonicalEdges(
     const port = sourcePort(handle, source, edge.source, inputs)
     if (port.kind === 'error') errorSourceIds.add(edge.source)
     if (port.kind === 'raw') {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_RAW_HANDLE',
         severity: 'warning',
         message: `Edge from "${from}" leaves unknown handle "${port.handle}"; kept as a raw port`,
@@ -86,7 +86,7 @@ export function canonicalEdges(
     }
     const scopeProblem = getWorkflowEdgeScopeDropReason(edge, inputs.blocks)
     if (scopeProblem) {
-      report(context, {
+      context.diagnostics.push({
         code: 'E_CANON_EDGE_SCOPE',
         severity: 'error',
         message: `Edge ${from} -> ${to}: ${scopeProblem}`,
@@ -95,7 +95,7 @@ export function canonicalEdges(
     }
 
     const canonical: CanonicalEdge = { from, port, to }
-    const identity = `${from}\u0000${portKey(port)}\u0000${to}`
+    const identity = edgeTupleKey(from, portKey(port), to)
     if (seen.has(identity)) continue
     seen.add(identity)
     result.push(canonical)

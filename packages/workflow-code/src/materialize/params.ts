@@ -5,7 +5,7 @@ import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
-import { deepEqual, getOwn, parseJsonContainer, setOwn } from '../records'
+import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
 import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
 
@@ -22,13 +22,6 @@ interface ParamSite {
   itemIds: LockItem[]
   /** Branch lists are always stored as text: the canvas reads them with `toString()`. */
   forceText: boolean
-}
-
-/** A stored list, native or as JSON text; anything else is empty. */
-export function parseStoredList(raw: unknown): unknown[] {
-  if (Array.isArray(raw)) return raw
-  const parsed = typeof raw === 'string' ? parseJsonContainer(raw) : undefined
-  return Array.isArray(parsed) ? parsed : []
 }
 
 /**
@@ -57,7 +50,7 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
   const unique = uniqueFieldNames(list)
   const prevById = new Map<string, Record<string, unknown>>()
-  for (const item of parseStoredList(site.prevRaw)) {
+  for (const item of parseStoredList(site.prevRaw) ?? []) {
     if (isRecordLike(item) && typeof item.id === 'string') prevById.set(item.id, item)
   }
   const used = new Set<string>()
@@ -80,7 +73,7 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
  * takes the id of the first unused prev row with the same cells, else a new one.
  */
 function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
-  const prevRows = parseStoredList(site.prevRaw).filter(
+  const prevRows = (parseStoredList(site.prevRaw) ?? []).filter(
     (row): row is Record<string, unknown> & { id: string } =>
       isRecordLike(row) && typeof row.id === 'string' && isRecordLike(row.cells)
   )
@@ -185,7 +178,7 @@ export function matchPrevTools(
  * catalog says `json-string`).
  */
 function encodeTools(tools: CanonicalTool[], site: ParamSite, context: MaterializeContext) {
-  const prevList = parseStoredList(site.prevRaw)
+  const prevList = parseStoredList(site.prevRaw) ?? []
   const prevTools = site.prevParam?.kind === 'tools' ? site.prevParam.tools : []
   const matches = matchPrevTools(tools, prevTools)
   const list = tools.map((tool, index) => {

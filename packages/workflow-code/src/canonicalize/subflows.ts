@@ -1,6 +1,6 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import type { BlockKey, Json, LoopSpec, ParallelSpec } from '../model'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 import { toValue } from './values'
 
 const LOOP_TYPES = new Set(['for', 'forEach', 'while', 'doWhile'])
@@ -54,7 +54,12 @@ function jsonField(value: unknown, context: CanonContext): Json | undefined {
 }
 
 function repaired(context: CanonContext, blockKey: BlockKey, message: string) {
-  report(context, { code: 'W_CANON_SUBFLOW_REPAIRED', severity: 'warning', message, blockKey })
+  context.diagnostics.push({
+    code: 'W_CANON_SUBFLOW_REPAIRED',
+    severity: 'warning',
+    message,
+    blockKey,
+  })
 }
 
 /**

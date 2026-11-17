@@ -105,9 +105,9 @@ materialize.
   `out`, `error`, `branch:<key>`, `subflowStart`, `subflowEnd`, `raw:<handle>`. `portKey` and
   `parsePortKey` (`anchors.ts`) are the only string forms. Edge ids are not in the CWM or the lock.
 - `variables[key]`: `{ key, name, type, value }`.
-- `annotations`: `inactive` (per block, the stored params that never run; only canonicalize fills
-  it) and `comments` (by `AnchorKey`). Annotations never take part in equality, hashing, diffing or
-  the fingerprint.
+- `annotations`: `comments` (by `AnchorKey`). Annotations never take part in equality, hashing,
+  diffing or the fingerprint. Which stored params never run is not recorded: print, compile and
+  apply all ask `executableInactiveParams`.
 
 `canonicalEquals` ignores annotations, key order and edge order. `canonicalHash` is
 `sha256Hex(stableStringify(cwm minus annotations))` (`hash.ts`: `stableStringify` sorts keys with
@@ -270,7 +270,7 @@ branch keys by row id; it never changes block keys. It assigns block keys, decod
 values (tools, table rows, inputFormat, tag filters), lifts ids to `SimNode`s, records each pair's
 effective mode as the serializer resolves it (explicit override, then `advancedMode`, then which
 member holds a value; only on the surfaces the block serializes), lifts branches and subflow
-config, and fills `annotations.inactive`. An MCP tool's `serverId` lifts to an `mcp-server` key, and
+config. An MCP tool's `serverId` lifts to an `mcp-server` key, and
 its `toolId` is dropped when the binding derives it (`createMcpToolId`); materialize derives it
 again, so a re-encoded MCP tool that lacked one gains the picker's. The server canonicalizes a stored draft once per request
 (`stored-canonical.ts`).
@@ -310,8 +310,8 @@ code `frame`; Babel's 0-based columns become 1-based, and lines split the way Ba
 
 ## Materialize
 
-`materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness,
-inferRenames? })` → `{ state, identity, entries, needsLayout, diagnostics }`. It resolves identity,
+`materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness })` →
+`{ state, identity, entries, needsLayout, diagnostics }`. It resolves identity,
 then writes the stored graph so that a no-op is byte-identical (O1):
 
 - a param canonical-equal to prev's keeps prev's raw value;
@@ -493,8 +493,8 @@ everything. Every property must hold for every case.
 
 Beside it:
 
-- **Inactive** (`inactive.corpus.test.ts`): sentinel substitution proves no param canonicalize or
-  the executable view treats as inactive reaches the serializer or deploy.
+- **Inactive** (`inactive.corpus.test.ts`): sentinel substitution proves no param the executable
+  view (`executableInactiveParams`) treats as inactive reaches the serializer or deploy.
 - **Outputs** (`outputs.corpus.test.ts`): with stored outputs seeded stale, editing one param that
   does not drive outputs leaves the block equal but for that value.
 - **Secrets** (`secrets.corpus.test.ts`): a unique secret in every password field never appears in

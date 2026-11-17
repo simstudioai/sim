@@ -20,9 +20,9 @@ import type {
   ResourceKeyResolver,
   VarKey,
 } from '../model'
-import { deepEqual, setOwn } from '../records'
+import { deepEqual, getOwn, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
-import { type MaterializeContext, type MaterializeHooks, report } from './context'
+import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
@@ -54,10 +54,10 @@ function writeVariables(
   const variables: Record<string, Variable> = {}
   const idByKey = new Map<VarKey, string>()
   for (const [key, variable] of Object.entries(workflow.variables)) {
-    const fromLock = lockIds[key]
+    const fromLock = getOwn(lockIds, key)
     const candidates = [
       fromLock !== undefined && lockIdCounts.get(fromLock) === 1 ? fromLock : undefined,
-      prevCanonical?.identity.variables[key],
+      prevCanonical ? getOwn(prevCanonical.identity.variables, key) : undefined,
     ]
     const id =
       candidates.find(
@@ -68,9 +68,12 @@ function writeVariables(
       ) ?? hooks.newId()
     used.add(id)
     idByKey.set(key, id)
-    const stored = Object.hasOwn(prevVariables, id) ? prevVariables[id] : undefined
+    const stored = getOwn(prevVariables, id)
     const prevKey = prevKeyById.get(id)
-    const before = prevKey !== undefined ? prevCanonical?.workflow.variables[prevKey] : undefined
+    const before =
+      prevKey !== undefined && prevCanonical
+        ? getOwn(prevCanonical.workflow.variables, prevKey)
+        : undefined
     const unchanged =
       stored !== undefined &&
       before !== undefined &&
@@ -113,8 +116,6 @@ export interface MaterializeOptions {
   /** The stored graph being replaced. Absent for a new workflow. */
   prev?: WorkflowState
   resources?: ResourceKeyResolver
-  /** Disables identity rule 4 (inferred renames); no surface sets it, tests and tools only. */
-  inferRenames?: boolean
   /**
    * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
    * rule 2 matches a lock entry whose key is gone by its ident, so a human who edits only the
@@ -177,7 +178,6 @@ export function materialize(
     hooks,
     freshness: options.lockFreshness,
     compiledIdents: options.compiledIdents,
-    inferRenames: options.inferRenames !== false,
     diagnostics,
   })
   // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas
@@ -250,7 +250,7 @@ export function materialize(
     built.set(key, result)
     if (result.needsLayout) {
       needsLayout.push(key)
-      report(context, {
+      context.diagnostics.push({
         code: 'I_MAT_NEEDS_LAYOUT',
         severity: 'info',
         message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,

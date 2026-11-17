@@ -4,7 +4,8 @@
  * workflow, so a value marked inactive that the serializer does send would silently drop out of
  * the authoring surface while still changing what runs.
  *
- * For every corpus workflow and every param canonicalize marks inactive, this replaces the stored
+ * For every corpus workflow and every param `executableInactiveParams` marks inactive (the one rule
+ * print and compile use), this replaces the stored
  * value with a unique sentinel and asks the real serializer (`extractBlockParams`, which applies
  * the load-time migrations, `shouldSerializeSubBlock`, standalone-advanced and custom-block rules
  * and the canonical-pair collapse) for the block's params. The sentinel must not appear. A
@@ -102,7 +103,7 @@ function withValue(block: BlockState, id: string, value: unknown): BlockState {
 
 describe(`inactive params are never serialized (${subjects.length} workflows)`, () => {
   it(
-    'no param canonicalize or the executable view treats as inactive reaches the serializer or deploy',
+    'no param the executable view treats as inactive reaches the serializer or deploy',
     () => {
       const leaks: string[] = []
       let checked = 0
@@ -117,13 +118,7 @@ describe(`inactive params are never serialized (${subjects.length} workflows)`, 
           const blockId = Object.hasOwn(identity.blocks, key) ? identity.blocks[key].id : undefined
           const stored = blockId !== undefined ? subject.state.blocks[blockId] : undefined
           if (!stored || block.subflow) continue
-          const ids = new Set([
-            ...(Object.hasOwn(workflow.annotations.inactive, key)
-              ? workflow.annotations.inactive[key]
-              : []),
-            ...executableInactiveParams(block, catalog),
-          ])
-          for (const param of [...ids].sort(compareStrings)) {
+          for (const param of executableInactiveParams(block, catalog).sort(compareStrings)) {
             const original = stored.subBlocks[param]?.value
             if (original === null || original === undefined) continue
             serial += 1

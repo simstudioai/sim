@@ -5,10 +5,18 @@ import { encodeAnchor } from '../anchors'
 import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
+import {
+  buildFieldIndex,
+  type CatalogField,
+  type FieldIndex,
+  isModalPair,
+  memberFor,
+} from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
-import { ELSE_KEY, isElseTrue } from '../forms/condition'
+import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
+import { inputFormatItems } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
@@ -39,17 +47,7 @@ import { didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
-import {
-  buildFieldIndex,
-  type CatalogField,
-  type FieldIndex,
-  fieldFor,
-  isModalPair,
-  isVisible,
-  memberFor,
-  missingRequiredFields,
-  valueKindMatches,
-} from './validate-catalog'
+import { fieldFor, isVisible, missingRequiredFields, valueKindMatches } from './validate-catalog'
 import {
   type CompiledValue,
   compileJsonField,
@@ -388,21 +386,6 @@ function parseCodeFile(
     ctx.codeFiles.chains.push({ path, blockKey: decl.key, refs: back.refs })
   }
   return back.code
-}
-
-/** input-format sugar: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list. */
-function inputFormatItems(value: Value): Value {
-  if (!isPlainRecord(value)) return value
-  return Object.entries(value).map(([name, entry]) => {
-    if (typeof entry === 'string') return { name, type: entry, value: '' }
-    const item: Record<string, Value> = { name }
-    if (isPlainRecord(entry)) {
-      for (const [key, field] of Object.entries(entry)) setOwn(item, key, field)
-    } else {
-      setOwn(item, 'value', entry)
-    }
-    return item
-  })
 }
 
 interface WrittenParam {
@@ -760,7 +743,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   }
   const index = catalogBlock ? buildFieldIndex(catalogBlock, triggerMode, pinned) : null
   const branchField = catalogBlock?.graph.branches
-  const conditionForm = builder.kind === 'catalog' && branchField?.kind === 'condition'
+  const conditionForm = branchesAtTopLevel(branchField?.kind, builder.kind === 'catalog')
 
   if (paramsNode && paramsNode.type !== 'ObjectExpression') {
     unsupported(

@@ -4,7 +4,7 @@ import {
   parseWorkflowSourceHandle,
   type WorkflowEdgeScopeBlock,
 } from '@sim/workflow-types/workflow'
-import { portKey } from '../anchors'
+import { edgeTupleKey, portKey } from '../anchors'
 import { catalogBlock } from '../catalog/view'
 import type { AnchorKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
 import { setOwn } from '../records'
@@ -123,7 +123,7 @@ export class EdgeCollector {
       )
       return false
     }
-    const tuple = `${from.key}\u0000${portKey(port)}\u0000${to.key}`
+    const tuple = edgeTupleKey(from.key, portKey(port), to.key)
     if (this.seen.has(tuple)) {
       this.error(
         'E_DUPLICATE_EDGE',

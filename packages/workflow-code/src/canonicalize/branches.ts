@@ -1,8 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import { isIdentifierName } from '../code-files/ref-path'
 import type { BlockKey, BranchKey, CanonicalBranches, CanonicalBranchRow, Json } from '../model'
-import { parseJsonContainer, setOwn } from '../records'
-import { type CanonContext, report } from './context'
+import { parseStoredList, setOwn } from '../records'
+import type { CanonContext } from './context'
 import { toJson, toValue } from './values'
 
 /** Editor state the condition/router input writes into each row (condition-input.tsx). */
@@ -34,12 +34,6 @@ function isStoredRow(item: unknown): item is StoredRow {
     (item.id === undefined || typeof item.id === 'string') &&
     (item.title === undefined || typeof item.title === 'string')
   )
-}
-
-function parseRows(value: unknown): { rows: unknown[] | null; parsed: boolean } {
-  if (Array.isArray(value)) return { rows: value, parsed: true }
-  const decoded = typeof value === 'string' ? parseJsonContainer(value) : undefined
-  return Array.isArray(decoded) ? { rows: decoded, parsed: true } : { rows: null, parsed: false }
 }
 
 /** Positional default keys mirror the copilot handles (`validateConditionHandle`). */
@@ -112,7 +106,7 @@ export function unliftedBranchIds(
   blockId: string,
   stored: unknown
 ): Record<BranchKey, string> {
-  return parseRows(stored).parsed ? {} : implicitIds(kind, blockId)
+  return parseStoredList(stored) ? {} : implicitIds(kind, blockId)
 }
 
 function unlifted(
@@ -149,10 +143,10 @@ export function liftBranches(
 ): LiftedBranches {
   if (stored === null || stored === undefined) return withImplicit(kind, blockId, null)
 
-  const { rows: storedRows, parsed } = parseRows(stored)
-  if (!parsed) {
+  const storedRows = parseStoredList(stored)
+  if (!storedRows) {
     if (typeof stored !== 'string' || stored.trim() !== '') {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_UNDECODABLE_JSON',
         severity: 'warning',
         message: `Stored ${kind} branches are not a JSON list; kept verbatim`,
@@ -162,8 +156,8 @@ export function liftBranches(
     }
     return unlifted(kind, blockId, stored)
   }
-  if (!storedRows || !storedRows.every(isStoredRow)) {
-    report(context, {
+  if (!storedRows.every(isStoredRow)) {
+    context.diagnostics.push({
       code: 'W_CANON_UNDECODABLE_JSON',
       severity: 'warning',
       message: `Stored ${kind} branches are not a list of { id, title, value } rows; kept verbatim`,
@@ -214,7 +208,7 @@ export function liftBranches(
     } else if (stored.title !== positional) {
       row.titleOverride = stored.title
       if (kind === 'condition') {
-        report(context, {
+        context.diagnostics.push({
           code: 'W_CANON_TITLE_OVERRIDE',
           severity: 'warning',
           message: `Branch ${index + 1} is titled "${stored.title}" but shows as "${positional}"; the executor matches else by stored title`,

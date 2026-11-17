@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalEquals } from '../equivalence'
 import type { WorkflowLockV1 } from '../lock'
 import type { CanonicalWorkflow } from '../model'
+import { getOwn, setOwn } from '../records'
 import type { MaterializeOptions } from '.'
 import { materialize } from '.'
 import {
@@ -18,6 +19,7 @@ import {
   workflowState,
 } from './fixtures.test-helpers'
 import { QUIRK_STATES } from './quirks.test-helpers'
+import { rewriteRenamedReferences } from './values'
 
 function run(
   workflow: CanonicalWorkflow,
@@ -507,7 +509,7 @@ describe('materialize: identity', () => {
     expect(codes(result)).toEqual(['W_MAT_INFERRED_RENAME'])
   })
 
-  it('does not infer a rename when neighbours disagree, or when turned off', () => {
+  it('does not infer a rename when neighbours disagree', () => {
     const prev = base()
     const moved = edit(renameFetch(canonical(prev).workflow), (draft) => {
       draft.edges = draft.edges.filter((e) => e.from !== 'start')
@@ -520,8 +522,6 @@ describe('materialize: identity', () => {
       idSource: 'minted',
     })
     expect(disagreeing.entries).toContainEqual({ status: 'deleted', key: 'fetch', id: 'a1' })
-    const off = run(renameFetch(canonical(prev).workflow), null, { prev, inferRenames: false })
-    expect(off.entries).toContainEqual(expect.objectContaining({ status: 'created', key: 'load' }))
   })
 
   it('treats two renames of one type and parent as ambiguous: delete plus create', () => {
@@ -676,6 +676,24 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.report.id).toBe('a2')
   })
 
+  it('gives a new variable keyed like an Object.prototype member a fresh id', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const target = edit(canonical(prev, lock).workflow, (draft) => {
+      setOwn(draft.variables, 'constructor', {
+        key: 'constructor',
+        name: 'constructor',
+        type: 'plain',
+        value: 'x',
+      })
+    })
+    const result = run(target, lock, { prev, lockFreshness: 'fresh' })
+    const ids = Object.keys(result.state.variables ?? {})
+    expect(ids).toHaveLength(2)
+    expect(ids.every((id) => typeof id === 'string' && !id.startsWith('function'))).toBe(true)
+    expect(typeof getOwn(result.identity.variables, 'constructor')).toBe('string')
+  })
+
   it('keeps variable ids by lock key and inputFormat item ids by lock items', () => {
     const pulled = base()
     const lock = lockFor(pulled)
@@ -769,7 +787,7 @@ describe('materialize: positions and server-owned fields', () => {
         },
       },
     }
-    const result = run(target, lock, { prev, lockFreshness: 'stale', inferRenames: false })
+    const result = run(target, lock, { prev, lockFreshness: 'stale' })
     expect(result.state.blocks.f1.position).toEqual({ x: 5, y: 6 })
     const two = result.state.blocks[result.identity.blocks.two.id]
     expect(two.position).toEqual({ x: 1, y: 2 })
@@ -919,5 +937,30 @@ describe('materialize: preserved UI state comes from prev', () => {
       draft.blocks.count.subflow = { kind: 'loop', loopType: 'for', iterations: 5 }
     })
     expect(run(target, null, { prev: state }).state.blocks.l1).toBe(state.blocks.l1)
+  })
+})
+
+describe('rewriteRenamedReferences', () => {
+  it('keeps __proto__-keyed params, tool params and record members while rewriting them', () => {
+    const { workflow } = canonical(
+      workflowState([blockState('a2', 'function', 'Report', { code: 'return <fetch.x>' })])
+    )
+    const params = workflow.blocks.report.params
+    setOwn(params, '__proto__', { kind: 'value', value: JSON.parse('{"__proto__":"<fetch.y>"}') })
+    setOwn(params, 'tools', {
+      kind: 'tools',
+      tools: [{ type: 'http', params: JSON.parse('{"__proto__":"<fetch.z>"}'), modes: {} }],
+    })
+    const rewritten = rewriteRenamedReferences(workflow, [{ from: 'fetch', to: 'load' }])
+    const out = rewritten.blocks.report.params
+    expect(Object.hasOwn(out, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype)
+    expect(getOwn(out, '__proto__')).toEqual({
+      kind: 'value',
+      value: JSON.parse('{"__proto__":"<load.y>"}'),
+    })
+    const tools = getOwn(out, 'tools')
+    expect(tools?.kind === 'tools' && Object.hasOwn(tools.tools[0].params, '__proto__')).toBe(true)
+    expect(tools?.kind === 'tools' && getOwn(tools.tools[0].params, '__proto__')).toBe('<load.z>')
   })
 })

@@ -2,7 +2,8 @@
  * The Babel AST walk and error reading shared by the compiler and the code-file reader.
  */
 
-import type { Node } from '@babel/types'
+import type { MemberExpression, Node } from '@babel/types'
+import { isIndexSegment, isNameSegment, type RefSegment } from './code-files/ref-path'
 
 /** The fields a thrown or recovered Babel error may carry. */
 export interface BabelErrorShape {
@@ -44,4 +45,24 @@ export function childNodes(node: Node): Node[] {
     }
   }
   return children
+}
+
+/**
+ * The reference path segment a member access writes: `.name`, `['name']` or `[0]`; `null` for any
+ * other property, which no stored reference path can spell.
+ */
+export function memberSegment(member: MemberExpression): RefSegment | null {
+  const property = member.property
+  if (!member.computed) {
+    return property.type === 'Identifier' && isNameSegment(property.name)
+      ? { kind: 'name', name: property.name }
+      : null
+  }
+  if (property.type === 'StringLiteral' && isNameSegment(property.value)) {
+    return { kind: 'name', name: property.value }
+  }
+  if (property.type === 'NumericLiteral' && isIndexSegment(property.value)) {
+    return { kind: 'index', index: property.value }
+  }
+  return null
 }

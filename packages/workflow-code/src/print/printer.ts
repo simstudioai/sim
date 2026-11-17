@@ -21,17 +21,14 @@ import { portKey } from '../anchors'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
-import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
+import { buildFieldIndex, memberFor, paramAliases } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
-import {
-  catalogBlock as catalogBlockOf,
-  catalogBuilderPaths,
-  catalogBuildersOfType,
-} from '../catalog/view'
+import { catalogBlock, catalogBuilderPaths, catalogBuildersOfType } from '../catalog/view'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import { printsAsElseTrue } from '../forms/condition'
+import { branchesAtTopLevel, printsAsElseTrue } from '../forms/condition'
+import { inputFormatSugar } from '../forms/input-format'
 import { type ResponseForm, readResponseForm } from '../forms/response'
 import {
   JsonRef,
@@ -141,7 +138,7 @@ function findBuilder(
   triggerMode: boolean,
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
-  const triggerBlock = catalogBlockOf(catalog, type)?.category === 'triggers'
+  const triggerBlock = catalogBlock(catalog, type)?.category === 'triggers'
   const candidates = catalogBuildersOfType(catalog, type)
     .filter(([, builder]) => {
       if (!triggerBlock && (builder.triggerMode === true) !== triggerMode) return false
@@ -178,33 +175,6 @@ function kebab(ident: string): string {
 }
 
 const NULL_EXPR: Expr = { doc: 'null', shape: 'literal', depth: 1 }
-const INTEGER_LIKE = /^(0|[1-9][0-9]*)$/
-const INPUT_FIELD_KEYS = new Set(['name', 'type', 'value', 'description', 'required'])
-
-/**
- * The `inputFormat` record sugar: `{ subject: 'string' }` for `{ name, type, value: '' }`
- * items, `{ name: { type, value?, description?, required? } }` otherwise. `null` when any item
- * would not compile back to the same list (unknown keys, duplicate or integer-like names).
- */
-function inputFormatSugar(
-  value: Value
-): Array<{ name: string; item: Record<string, Value> }> | null {
-  if (!Array.isArray(value) || value.length === 0) return null
-  const seen = new Set<string>()
-  const items: Array<{ name: string; item: Record<string, Value> }> = []
-  for (const entry of value) {
-    if (!isPlainRecord(entry)) return null
-    const record = entry
-    const name = record.name
-    if (typeof name !== 'string' || typeof record.type !== 'string') return null
-    if (seen.has(name) || INTEGER_LIKE.test(name) || name === '__proto__') return null
-    if (Object.keys(record).some((key) => !INPUT_FIELD_KEYS.has(key))) return null
-    seen.add(name)
-    items.push({ name, item: record })
-  }
-  return items
-}
-
 /**
  * A value in a password field that holds literal text: anything but `null`, `''` or text made
  * only of reference and `{{ENV}}` tokens. It prints as `stored()`, never as the secret.
@@ -368,7 +338,7 @@ class WorkflowPrinter {
   }
 
   private isTrigger(block: CanonicalBlock): boolean {
-    return block.triggerMode || catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
+    return block.triggerMode || catalogBlock(this.catalog, block.type)?.category === 'triggers'
   }
 
   private layout(): void {
@@ -455,10 +425,6 @@ class WorkflowPrinter {
     for (const row of block.branches?.rows ?? []) walk(row.value)
     if (block.subflow) walk(block.subflow)
     return heads
-  }
-
-  private surfaceSubBlocks(block: CanonicalBlock, catalogBlock: CatalogBlock): CatalogSubBlock[] {
-    return catalogBlock.subBlocks.filter((sb) => onSurface(catalogBlock, sb, block.triggerMode))
   }
 
   private tagFor(
@@ -737,24 +703,24 @@ class WorkflowPrinter {
       if (childWorkflow) return this.workflowToolCall(block, childWorkflow)
       const custom = this.customToolCall(block, tool)
       if (custom) return custom
-      const catalogBlock = catalogBlockOf(this.catalog, tool.type)
+      const toolBlock = catalogBlock(this.catalog, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
         const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
-      const aliases = catalogBlock ? paramAliases(catalogBlock, false) : new Map<string, string>()
+      const aliases = toolBlock ? paramAliases(toolBlock, false) : new Map<string, string>()
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
       if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
-        return this.rawToolCall(tool, catalogBlock, aliases)
+        return this.rawToolCall(tool, toolBlock, aliases)
       }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
       const params: Property[] = Object.entries(tool.params)
         .filter(([id]) => !pinned.has(id))
         .map(([id, value]) => {
-          const sb = catalogBlock?.subBlocks.find((candidate) => candidate.id === id)
+          const sb = toolBlock?.subBlocks.find((candidate) => candidate.id === id)
           return {
             key: printKey(aliases.get(id) ?? id),
             value:
@@ -896,57 +862,47 @@ class WorkflowPrinter {
     const push = (list: ParamEntry[], key: string, value: Expr) => {
       list.push({ key: printKey(key), anchor: anchors.param(block.key, key), value })
     }
-    const aliases = catalogBlock ? paramAliases(catalogBlock, block.triggerMode) : new Map()
-    const named = (param: string): string => aliases.get(param) ?? param
     const isDefault = (id: string) => {
       const param = getOwn(block.params, id)
       return param?.kind === 'value' && defaults.has(id) && defaults.get(id) === param.value
     }
 
     if (catalogBlock) {
-      const subBlocks = this.surfaceSubBlocks(block, catalogBlock)
-      const seenCids = new Set<string>()
-      for (const sb of subBlocks) {
-        if (handled.has(sb.id)) continue
-        const cid = sb.canonicalParamId
-        if (cid !== undefined) {
-          if (seenCids.has(cid)) continue
-          seenCids.add(cid)
-          const members = subBlocks.filter((m) => m.canonicalParamId === cid && !pinned.has(m.id))
-          for (const member of members) handled.add(member.id)
-          const mode: ParamMode = getOwn(block.modes, cid) ?? 'basic'
-          const basic = members.find((m) => !isAdvancedMember(m))
-          const advanced = members.find(isAdvancedMember)
-          const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
+      const index = buildFieldIndex(catalogBlock, block.triggerMode, pinned)
+      for (const id of index.subBlocks.keys()) handled.add(id)
+      for (const field of index.fields.values()) {
+        if (field.kind === 'pair') {
+          const mode: ParamMode = getOwn(block.modes, field.param) ?? 'basic'
+          const effective = memberFor(field, mode)
           if (!effective) continue
           if (hasValue(block, effective.id)) {
             if (inactiveIds.has(effective.id)) continue
-            if (mode === 'basic' && effective === basic && isDefault(effective.id)) continue
+            if (mode === 'basic' && effective === field.basic && isDefault(effective.id)) continue
             const printed = this.printParamValue(block, catalogBlock, effective.id, effective)
-            if (printed) push(params, named(cid), printed)
+            if (printed) push(params, field.name, printed)
           } else if (
-            members.some((member) => defaults.has(member.id)) &&
+            field.members.some((member) => defaults.has(member.id)) &&
             this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
           ) {
-            push(params, named(cid), NULL_EXPR)
+            push(params, field.name, NULL_EXPR)
           }
           continue
         }
-        handled.add(sb.id)
+        const sb = field.sub
         if (!hasValue(block, sb.id)) {
           if (this.needsTodo(block, sb)) {
-            push(params, named(sb.id), this.values.call('todo', []))
+            push(params, field.name, this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
             if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
-              push(params, named(sb.id), NULL_EXPR)
+              push(params, field.name, NULL_EXPR)
             }
           }
           continue
         }
         if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
         const printed = this.printParamValue(block, catalogBlock, sb.id, sb, true)
-        if (printed) push(params, named(sb.id), printed)
+        if (printed) push(params, field.name, printed)
       }
     }
 
@@ -998,7 +954,7 @@ class WorkflowPrinter {
       return false
     if (block.triggerMode) return sb.mode === 'trigger'
     if (sb.mode === 'trigger')
-      return catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
+      return catalogBlock(this.catalog, block.type)?.category === 'triggers'
     return sb.mode === undefined || sb.mode === 'basic' || sb.mode === 'both'
   }
 
@@ -1086,12 +1042,12 @@ class WorkflowPrinter {
 
   private blockCall(block: CanonicalBlock): Expr {
     if (block.subflow) return this.containerCall(block)
-    const catalogBlock = catalogBlockOf(this.catalog, block.type)
+    const blockSpec = catalogBlock(this.catalog, block.type)
     const found = findBuilder(this.catalog, block.type, block.triggerMode, (id) =>
       stringParam(block, id)
     )
     const pinned = pinnedIds(found?.builder)
-    const collected = this.collectParams(block, catalogBlock, pinned)
+    const collected = this.collectParams(block, blockSpec, pinned)
     const { extra } = collected
     const form =
       found?.builder.type === RESPONSE_BLOCK_TYPE
@@ -1104,7 +1060,7 @@ class WorkflowPrinter {
     const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
-    const branchSpec = catalogBlock?.graph.branches
+    const branchSpec = blockSpec?.graph.branches
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
 
     let generic = found === null
@@ -1113,10 +1069,11 @@ class WorkflowPrinter {
       const collides = paramProps.some((prop) =>
         branchProps.some((branch) => branch.key === prop.key)
       )
-      if (branchSpec.kind === 'condition' && !generic && !collides) {
+      const atTopLevel = branchesAtTopLevel(branchSpec.kind, !generic)
+      if (atTopLevel && !collides) {
         topLevel = [...branchProps, ...paramProps]
       } else {
-        if (branchSpec.kind === 'condition' && collides) generic = true
+        if (atTopLevel) generic = true
         topLevel = [
           ...paramProps,
           { key: printKey(branchSpec.subBlockId), value: objectExpr(branchProps) },
@@ -1146,7 +1103,7 @@ class WorkflowPrinter {
                   {
                     key: printKey(id),
                     anchor: anchors.param(block.key, id),
-                    value: this.values.value(value.value, this.context(block, catalogBlock)),
+                    value: this.values.value(value.value, this.context(block, blockSpec)),
                   },
                 ]
               : []
@@ -1192,7 +1149,7 @@ class WorkflowPrinter {
     }
     const { params, extra } = this.collectParams(
       block,
-      catalogBlockOf(this.catalog, block.type),
+      catalogBlock(this.catalog, block.type),
       new Set()
     )
     const subflowData: Record<string, Json> = {}
@@ -1294,7 +1251,7 @@ class WorkflowPrinter {
       const isContainer = block.subflow !== undefined
       const hasBranches =
         block.branches !== undefined ||
-        catalogBlockOf(this.catalog, block.type)?.graph.branches !== undefined
+        catalogBlock(this.catalog, block.type)?.graph.branches !== undefined
       const groups = new Map<PortKey, CanonicalEdge[]>()
       for (const edge of edges) {
         const key = portKey(edge.port)

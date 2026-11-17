@@ -4,7 +4,7 @@ import {
   isCanonicalPair,
   resolveCanonicalMode,
 } from '../catalog/canonical-index'
-import { buildCanonicalIndexForSurface } from '../catalog/surface'
+import { serializedCanonicalIndex } from '../catalog/surface'
 import type { CatalogBlock } from '../catalog/types'
 import type { CanonicalParamId, ParamMode } from '../model'
 import { setOwn } from '../records'
@@ -45,7 +45,7 @@ export function effectiveModes(
   overrides: CanonicalModeOverrides | undefined,
   legacyAdvancedMode: boolean
 ): Record<CanonicalParamId, ParamMode> {
-  const index = buildCanonicalIndexForSurface(block, triggerMode)
+  const index = serializedCanonicalIndex(block, triggerMode)
   const modes: Record<CanonicalParamId, ParamMode> = {}
   for (const group of Object.values(index.groupsById)) {
     if (!isCanonicalPair(group)) continue

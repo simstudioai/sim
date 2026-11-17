@@ -4,7 +4,7 @@ import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
-import { type CanonContext, report } from './context'
+import type { CanonContext } from './context'
 import { liftTools } from './tools'
 import { liftResourceValue, toValue } from './values'
 
@@ -73,7 +73,7 @@ function decodeStructured(
   if (typeof raw !== 'string' || raw.trim() === '') return raw
   const parsed = parseJsonContainer(raw)
   if (parsed) return parsed
-  report(context, {
+  context.diagnostics.push({
     code: 'W_CANON_UNDECODABLE_JSON',
     severity: 'warning',
     message: `Stored ${param} is not a JSON list or object; kept as text`,
@@ -164,7 +164,7 @@ function liftVariableAssignments(
       if (variableKey !== undefined) {
         setOwn(result, key, { $sim: 'var', key: variableKey })
       } else {
-        report(context, {
+        context.diagnostics.push({
           code: 'W_CANON_UNRESOLVED_ID',
           severity: 'warning',
           message: `Variable assignment names unknown variable id "${member}"; kept verbatim`,
@@ -201,7 +201,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
 
     const declaration = declarationFor(catalog, id, triggerMode)
     if (typeof subBlock.id === 'string' && subBlock.id !== id) {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',
         severity: 'warning',
         message: `Stored subBlock "${id}" carries id "${subBlock.id}"; the map key wins`,
@@ -217,7 +217,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       ) &&
       catalog.subBlocks.some((candidate) => candidate.id === id)
     ) {
-      report(context, {
+      context.diagnostics.push({
         code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',
         severity: 'warning',
         message: `Stored subBlock "${id}" has type "${subBlock.type}"; the catalog type "${declaration?.type}" wins`,

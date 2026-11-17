@@ -1,6 +1,7 @@
 import type { Comment } from '@babel/types'
 import { encodeAnchor } from '../anchors'
 import type { AnchorKey, CodeComment } from '../model'
+import { getOwn, setOwn } from '../records'
 import type { Reporter } from './report'
 
 /** One anchorable node in a sibling list: a statement, a param property, a variable. */
@@ -87,15 +88,9 @@ export class CommentCollector {
       kind: comment.type === 'CommentLine' ? 'line' : 'block',
       placement,
     }
-    const existing = this.comments[anchor]
+    const existing = getOwn(this.comments, anchor)
     if (existing) existing.push(entry)
-    else
-      Object.defineProperty(this.comments, anchor, {
-        value: [entry],
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      })
+    else setOwn<CodeComment[] | undefined>(this.comments, anchor, [entry])
   }
 
   /** Assigns `comments` (in source order) once every list is registered. */

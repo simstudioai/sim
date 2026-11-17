@@ -1,5 +1,5 @@
 import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
-import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
+import type { CatalogField, FieldIndex } from '../catalog/surface'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -8,105 +8,11 @@ import type {
   CatalogSubBlock,
 } from '../catalog/types'
 import { catalogTrigger } from '../catalog/view'
-import { type CanonicalParamId, isPlainRecord, type SubBlockId, type Value } from '../model'
-
-/**
- * One source param: a single subBlock, or every subBlock sharing a `canonicalParamId`, written
- * once under that id. A group may lack either member. `param` is the
- * subBlock id or canonical id (what `modes` is keyed by); `name` is what source writes, the
- * param's alias when the catalog gives one (`paramAliases`), else `param`.
- */
-export type CatalogField =
-  | { kind: 'single'; param: string; name: string; sub: CatalogSubBlock }
-  | {
-      kind: 'pair'
-      param: CanonicalParamId
-      name: string
-      basic: CatalogSubBlock | undefined
-      advanced: CatalogSubBlock | undefined
-      members: CatalogSubBlock[]
-    }
-
-export interface FieldIndex {
-  /** By written name: the alias, else the subBlock id for singles or canonical id for groups. */
-  fields: Map<string, CatalogField>
-  /** Params written under an alias, by their own name: compile accepts both spellings. */
-  aliased: Map<string, CatalogField>
-  /** Group member ids whose own id is not the written name, mapped to that name. */
-  memberAliases: Map<SubBlockId, string>
-  /** Every subBlock on this surface by id (first declaration wins). */
-  subBlocks: Map<SubBlockId, CatalogSubBlock>
-}
+import { isPlainRecord, type SubBlockId, type Value } from '../model'
 
 /** The field a written param name targets: its written name or, when aliased, its own name. */
 export function fieldFor(index: FieldIndex, key: string): CatalogField | undefined {
   return index.fields.get(key) ?? index.aliased.get(key)
-}
-
-/**
- * The params a builder accepts: subBlock ids, with every `canonicalParamId` group written once
- * under its canonical id, each under its alias when the catalog gives one. The surface (action or
- * trigger copy of a duplicated id) follows the block's trigger mode, the first declaration of an
- * id wins, the branches subBlock and the builder's pinned ids are excluded. This is exactly the
- * set the printer emits as params.
- */
-export function buildFieldIndex(
-  block: CatalogBlock,
-  triggerMode: boolean,
-  pinned: ReadonlySet<string>
-): FieldIndex {
-  const subBlocks = new Map<SubBlockId, CatalogSubBlock>()
-  for (const sub of block.subBlocks) {
-    if (onSurface(block, sub, triggerMode) && !subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
-  }
-  const aliases = paramAliases(block, triggerMode)
-  const fields = new Map<string, CatalogField>()
-  const aliased = new Map<string, CatalogField>()
-  const memberAliases = new Map<SubBlockId, string>()
-  const add = (field: CatalogField) => {
-    fields.set(field.name, field)
-    if (field.name !== field.param) aliased.set(field.param, field)
-  }
-  const branchId = block.graph.branches?.subBlockId
-  for (const sub of subBlocks.values()) {
-    if (sub.id === branchId || pinned.has(sub.id)) continue
-    const cid = sub.canonicalParamId
-    if (cid === undefined) {
-      add({ kind: 'single', param: sub.id, name: aliases.get(sub.id) ?? sub.id, sub })
-      continue
-    }
-    const name = aliases.get(cid) ?? cid
-    if (sub.id !== name) memberAliases.set(sub.id, name)
-    if (fields.has(name)) continue
-    const members = [...subBlocks.values()].filter(
-      (member) => member.canonicalParamId === cid && !pinned.has(member.id)
-    )
-    add({
-      kind: 'pair',
-      param: cid,
-      name,
-      basic: members.find((member) => !isAdvancedMember(member)),
-      advanced: members.find(isAdvancedMember),
-      members,
-    })
-  }
-  return { fields, aliased, memberAliases, subBlocks }
-}
-
-/**
- * A group with both a basic and an advanced member: the only kind whose mode the CWM records
- * (`isCanonicalPair`), so `modes` holds exactly these on the block's surface.
- */
-export function isModalPair(field: CatalogField): boolean {
-  return field.kind === 'pair' && field.basic !== undefined && field.advanced !== undefined
-}
-
-/** The member a group's value lands in for a mode (the printer's effective member). */
-export function memberFor(
-  field: Extract<CatalogField, { kind: 'pair' }>,
-  mode: 'basic' | 'advanced'
-): CatalogSubBlock | undefined {
-  return (mode === 'advanced' ? field.advanced : field.basic) ?? field.members[0]
 }
 
 /** A lookup over a block's compiled params, every one of them known. */

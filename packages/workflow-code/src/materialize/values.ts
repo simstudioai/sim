@@ -13,7 +13,7 @@ import {
   type Value,
 } from '../model'
 import { setOwn } from '../records'
-import { type MaterializeContext, report } from './context'
+import type { MaterializeContext } from './context'
 
 /** Where a value sits, for diagnostics. */
 interface ValueLocation {
@@ -54,7 +54,7 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'var': {
       const id = context.variableIdByKey.get(node.key)
       if (id !== undefined) return id
-      report(context, {
+      context.diagnostics.push({
         code: 'E_MAT_UNKNOWN_RESOURCE',
         severity: 'error',
         message: `Variable "${node.key}" does not exist in this workflow`,
@@ -65,7 +65,7 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'resource': {
       const id = context.resources?.toId(node.kind, node.key) ?? null
       if (id !== null) return id
-      report(context, {
+      context.diagnostics.push({
         code: 'E_MAT_UNKNOWN_RESOURCE',
         severity: 'error',
         message: `No ${node.kind} "${node.key}" in this workspace`,
@@ -82,7 +82,8 @@ function mapStrings(value: Value, rewrite: (text: string) => string): Value {
   if (Array.isArray(value)) return value.map((item) => mapStrings(item, rewrite))
   if (!isRecordLike(value) || isSimNode(value)) return value
   const result: Record<string, Value> = {}
-  for (const [key, member] of Object.entries(value)) result[key] = mapStrings(member, rewrite)
+  for (const [key, member] of Object.entries(value))
+    setOwn(result, key, mapStrings(member, rewrite))
   return result
 }
 
@@ -93,7 +94,7 @@ function rewriteParam(param: CanonicalParam, rewrite: (text: string) => string):
     tools: param.tools.map((tool) => {
       const params: Record<string, Value> = {}
       for (const [key, member] of Object.entries(tool.params)) {
-        params[key] = mapStrings(member, rewrite)
+        setOwn(params, key, mapStrings(member, rewrite))
       }
       return { ...tool, params }
     }),
@@ -120,7 +121,8 @@ function rewriteSubflow(
 
 function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string): CanonicalBlock {
   const params: CanonicalBlock['params'] = {}
-  for (const [id, param] of Object.entries(block.params)) params[id] = rewriteParam(param, rewrite)
+  for (const [id, param] of Object.entries(block.params))
+    setOwn(params, id, rewriteParam(param, rewrite))
   const result: CanonicalBlock = { ...block, params }
   if (block.branches?.rows) {
     result.branches = {

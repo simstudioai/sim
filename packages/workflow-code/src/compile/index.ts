@@ -584,7 +584,7 @@ function compileEntry(
           blocks: Object.fromEntries(compiled),
           edges: sortedEdges,
           variables: Object.fromEntries(ctx.variables),
-          annotations: { inactive: {}, comments: ctx.comments.comments },
+          annotations: { comments: ctx.comments.comments },
         }
   return { workflow, diagnostics: reporter.diagnostics, spans, hints, sdkMajor: parsed.sdkMajor }
 }

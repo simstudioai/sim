@@ -156,7 +156,6 @@ interface WorkflowInit {
   blocks: CanonicalBlock[]
   edges?: CanonicalEdge[]
   variables?: CanonicalVariable[]
-  inactive?: Record<string, string[]>
   comments?: Array<[AnchorKey, CodeComment[]]>
 }
 
@@ -170,7 +169,6 @@ function wf(init: WorkflowInit): CanonicalWorkflow {
       (init.variables ?? []).map((variable) => [variable.key, variable])
     ),
     annotations: {
-      inactive: init.inactive ?? {},
       comments: Object.fromEntries(init.comments ?? []),
     },
   }
@@ -652,7 +650,6 @@ export const cases: PrintCase[] = [
           },
         }),
       ],
-      inactive: { remember: ['conversationId'] },
       edges: [edge('start', 'remember')],
     }),
   },

@@ -6,7 +6,7 @@ import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
-import { type MaterializeHooks, report } from './context'
+import type { MaterializeHooks } from './context'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
 type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
@@ -69,7 +69,6 @@ interface IdentityInputs {
   hooks: MaterializeHooks
   freshness: LockFreshness
   compiledIdents: Record<BlockKey, string> | undefined
-  inferRenames: boolean
   diagnostics: Diagnostic<MaterializeDiagnosticCode>[]
 }
 
@@ -96,15 +95,12 @@ function duplicateLockKeys(
   for (const [id, keys] of keysById) {
     if (keys.length < 2) continue
     for (const key of keys) duplicates.add(key)
-    report(
-      { diagnostics },
-      {
-        code: 'E_MAT_DUPLICATE_LOCK_ID',
-        severity: 'error',
-        message: `Lock keys ${keys.map((key) => `"${key}"`).join(', ')} all claim block id "${id}"`,
-        path: `/blocks/${keys[1]}/id`,
-      }
-    )
+    diagnostics.push({
+      code: 'E_MAT_DUPLICATE_LOCK_ID',
+      severity: 'error',
+      message: `Lock keys ${keys.map((key) => `"${key}"`).join(', ')} all claim block id "${id}"`,
+      path: `/blocks/${keys[1]}/id`,
+    })
   }
   return duplicates
 }
@@ -146,15 +142,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (!stored || prevKey === undefined || claimed.has(prevId)) return false
     const relation = typeRelation(catalog, stored.type, target.type)
     if (relation === 'different') {
-      report(
-        { diagnostics },
-        {
-          code: 'W_MAT_RETYPE_RECREATED',
-          severity: 'warning',
-          message: `Block "${key}" changed type from "${stored.type}" to "${target.type}"; it is deleted and re-created, so its webhook URL and schedules are lost`,
-          blockKey: key,
-        }
-      )
+      diagnostics.push({
+        code: 'W_MAT_RETYPE_RECREATED',
+        severity: 'warning',
+        message: `Block "${key}" changed type from "${stored.type}" to "${target.type}"; it is deleted and re-created, so its webhook URL and schedules are lost`,
+        blockKey: key,
+      })
       settled.set(key, {})
       return true
     }
@@ -196,15 +189,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (Object.hasOwn(prevBlocks, entry.id)) {
       match(key, entry.id, 'lock-key')
     } else if (prev && inputs.freshness === 'stale') {
-      report(
-        { diagnostics },
-        {
-          code: 'W_MAT_DELETED_SINCE_PULL',
-          severity: 'warning',
-          message: `Block "${key}" (${entry.id}) was deleted after the lock was pulled; it is re-created`,
-          blockKey: key,
-        }
-      )
+      diagnostics.push({
+        code: 'W_MAT_DELETED_SINCE_PULL',
+        severity: 'warning',
+        message: `Block "${key}" (${entry.id}) was deleted after the lock was pulled; it is re-created`,
+        blockKey: key,
+      })
     } else {
       settled.set(key, { lockId: entry.id })
     }
@@ -230,7 +220,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (prevId !== undefined) match(key, prevId, 'db-name')
   }
 
-  if (prev && inputs.inferRenames) {
+  if (prev) {
     inferRenames({
       workflow,
       prev,
@@ -251,15 +241,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       !Object.hasOwn(prevBlocks, lockId) &&
       ![...resolved.values()].some((block) => block.id === lockId)
     if (lockId !== undefined && !reusable) {
-      report(
-        { diagnostics },
-        {
-          code: 'W_MAT_LOCK_ID_CLAIMED',
-          severity: 'warning',
-          message: `Lock id "${lockId}" for block "${key}" already belongs to another block; a new id was minted`,
-          blockKey: key,
-        }
-      )
+      diagnostics.push({
+        code: 'W_MAT_LOCK_ID_CLAIMED',
+        severity: 'warning',
+        message: `Lock id "${lockId}" for block "${key}" already belongs to another block; a new id was minted`,
+        blockKey: key,
+      })
     }
     const id = reusable ? lockId : hooks.newId()
     resolved.set(key, {
@@ -386,15 +373,12 @@ function inferRenames(state: InferenceState): void {
       const prevId = prevIdentity[prevKey].id
       if (!state.match(key, prevId, 'inferred')) continue
       progressed = true
-      report(
-        { diagnostics: state.diagnostics },
-        {
-          code: 'W_MAT_INFERRED_RENAME',
-          severity: 'warning',
-          message: `Block "${key}" is taken as a rename of "${prevKey}" (same type, parent and connections), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
-          blockKey: key,
-        }
-      )
+      state.diagnostics.push({
+        code: 'W_MAT_INFERRED_RENAME',
+        severity: 'warning',
+        message: `Block "${key}" is taken as a rename of "${prevKey}" (same type, parent and connections), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
+        blockKey: key,
+      })
     }
   }
 }

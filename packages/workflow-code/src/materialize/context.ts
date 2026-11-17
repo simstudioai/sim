@@ -23,10 +23,3 @@ export interface MaterializeContext {
   /** Variable key → the id it is written as. */
   variableIdByKey: Map<VarKey, string>
 }
-
-export function report(
-  context: Pick<MaterializeContext, 'diagnostics'>,
-  diagnostic: Diagnostic<MaterializeDiagnosticCode>
-): void {
-  context.diagnostics.push(diagnostic)
-}

@@ -13,12 +13,12 @@ import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
-import { deepEqual } from '../records'
+import { deepEqual, parseStoredList } from '../records'
 import { writeBranches } from './branches'
 import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
 import { writeBlockModes, writeToolModes } from './modes'
-import { encodeParam, matchPrevTools, parseStoredList } from './params'
+import { encodeParam, matchPrevTools } from './params'
 import { writeSubflowData } from './subflows'
 
 /** `block.data` keys the model or the layout owns on any block; everything else is `extra`. */
@@ -74,7 +74,7 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
  * field shares (canonicalize/params.ts `liftInputFormat`).
  */
 function storedItems(raw: unknown): LockItem[] {
-  const list = parseStoredList(raw).filter(isRecordLike)
+  const list = (parseStoredList(raw) ?? []).filter(isRecordLike)
   const unique = uniqueFieldNames(list)
   const items: LockItem[] = []
   for (const { name, id } of list) {
@@ -255,7 +255,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       modes = writeToolModes(
         modes,
         param.tools,
-        parseStoredList(subBlocks[paramId]?.value),
+        parseStoredList(subBlocks[paramId]?.value) ?? [],
         matchPrevTools(param.tools, previous?.kind === 'tools' ? previous.tools : []),
         context.catalog
       )

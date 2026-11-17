@@ -58,7 +58,7 @@ function canonicalOf(
       blocks,
       edges: [],
       variables: {},
-      annotations: { inactive: {}, comments: {} },
+      annotations: { comments: {} },
     },
   }
 }

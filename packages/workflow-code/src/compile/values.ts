@@ -15,13 +15,12 @@ import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
+import { memberSegment } from '../babel'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
   formatMemberPath,
   formatStoredPath,
-  isIndexSegment,
-  isNameSegment,
   LOOP_PROPERTIES,
   PARALLEL_PROPERTIES,
   parseStoredPath,
@@ -38,7 +37,7 @@ import type {
   Value,
   VarNode,
 } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import { SDK_RESOURCE_CALLS } from '../sdk'
 import {
   type BlockDecl,
@@ -425,20 +424,17 @@ function flattenMembers(node: MemberExpression): { root: Expression; members: Me
   return { root: object, members }
 }
 
-function memberSegment(
+/** {@link memberSegment}, reporting why a member access is not a reference path segment. */
+function compileMemberSegment(
   ctx: CompileContext,
   member: MemberExpression,
   site: ValueSite
 ): RefSegment | null {
+  const segment = memberSegment(member)
+  if (segment) return segment
   const property = member.property
-  if (!member.computed) {
-    if (property.type === 'Identifier' && isNameSegment(property.name)) {
-      return { kind: 'name', name: property.name }
-    }
-    return rejectNode(ctx, member, site)
-  }
+  if (!member.computed) return rejectNode(ctx, member, site)
   if (property.type === 'StringLiteral') {
-    if (isNameSegment(property.value)) return { kind: 'name', name: property.value }
     return unsupported(
       ctx,
       property,
@@ -446,9 +442,6 @@ function memberSegment(
       "Use ref('block.path') for this spelling.",
       site.decl.key
     )
-  }
-  if (property.type === 'NumericLiteral' && isIndexSegment(property.value)) {
-    return { kind: 'index', index: property.value }
   }
   return unsupported(
     ctx,
@@ -471,9 +464,7 @@ function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegmen
   for (const segment of segments) {
     if (!level) return true
     if (segment.kind === 'index') return true
-    const output: CatalogOutput | undefined = Object.hasOwn(level, segment.name)
-      ? level[segment.name]
-      : undefined
+    const output: CatalogOutput | undefined = getOwn(level, segment.name)
     if (!output) return false
     if (!output.properties) return true
     level = output.properties
@@ -644,7 +635,7 @@ function segmentsOf(
 ): RefSegment[] | null {
   const segments: RefSegment[] = []
   for (const member of members) {
-    const segment = memberSegment(ctx, member, site)
+    const segment = compileMemberSegment(ctx, member, site)
     if (!segment) return null
     segments.push(segment)
   }

@@ -18,6 +18,14 @@ export function portKey(port: Port): PortKey {
   }
 }
 
+/**
+ * The identity of an edge, `from`, port key and `to` joined by NUL, which no block key or port key
+ * contains. Every engine dedupes and matches edges by this key.
+ */
+export function edgeTupleKey(from: string, port: string, to: string): string {
+  return `${from}\u0000${port}\u0000${to}`
+}
+
 /** Inverse of {@link portKey}; `null` for a string it cannot produce. */
 function parsePortKey(text: string): Port | null {
   switch (text) {
