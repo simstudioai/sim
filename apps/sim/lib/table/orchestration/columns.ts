@@ -19,15 +19,10 @@ import {
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
+import type { TableWriteTx } from '@/lib/table/tx'
 import type { ColumnType, SelectOption, TableDefinition, TableLockKind } from '@/lib/table/types'
 
 const logger = createLogger('TableColumnOrchestration')
-
-function workspaceMutationOptions(
-  expectedWorkspaceId: string | undefined
-): [] | [ColumnMutationOptions] {
-  return expectedWorkspaceId ? [{ expectedWorkspaceId }] : []
-}
 
 export interface PerformUpdateTableColumnParams {
   table: TableDefinition
@@ -45,9 +40,22 @@ export interface PerformUpdateTableColumnParams {
   }
   requestId?: string
   expectedWorkspaceId?: string
+  /** Joins this transaction, so the update commits with the caller's other writes. */
+  tx?: TableWriteTx
   recordAudit?: boolean
   /** Forwarded to the audit record for IP / user-agent capture. */
   request?: OrchestrationRequestContext
+}
+
+/** The scoping and transaction the column writes take, when the caller sets either. */
+function columnMutationOptions({
+  expectedWorkspaceId,
+  tx,
+}: Pick<PerformUpdateTableColumnParams, 'expectedWorkspaceId' | 'tx'>):
+  | []
+  | [ColumnMutationOptions] {
+  if (!expectedWorkspaceId && !tx) return []
+  return [{ ...(expectedWorkspaceId ? { expectedWorkspaceId } : {}), ...(tx ? { tx } : {}) }]
 }
 
 export interface PerformUpdateTableColumnResult {
@@ -165,6 +173,7 @@ export async function performUpdateTableColumn(
     return fail(`Cannot set a ${resultingType} column as unique`, 'validation')
   }
 
+  const mutationOptions = columnMutationOptions(params)
   let updated: TableDefinition | undefined
 
   try {
@@ -184,7 +193,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     } else if (updates.currencyCode !== undefined) {
       // Re-denominating an existing currency column: schema-only, no cell
@@ -200,7 +209,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     } else if (options !== undefined || updates.multiple !== undefined) {
       updated = await updateColumnOptions(
@@ -214,7 +223,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
 
@@ -230,7 +239,7 @@ export async function performUpdateTableColumn(
           ...(updates.name ? { newName: updates.name } : {}),
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
 
@@ -243,7 +252,7 @@ export async function performUpdateTableColumn(
       updated = await renameColumn(
         { tableId, oldName: columnRef, newName: updates.name },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
   } catch (error) {

@@ -1,8 +1,9 @@
 /**
  * Tables as workspace source: `tables/<key>.ts` declares a table's name, description, folder and
  * columns. Every write goes through the table use cases (`createTableUseCase`,
- * `updateTableUseCase`, the column use cases, `deleteTableUseCase`), so their authorization,
- * locks, audit and schema-change signals apply. Rows are never read or written.
+ * `reshapeTableUseCase`, `deleteTableUseCase`), so their authorization, locks, audit and
+ * schema-change signals apply; an update or adopt is one reshape, so it commits whole or not at
+ * all. Rows are never read or written.
  */
 import { setOwn } from '@sim/workflow-code'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
@@ -10,20 +11,14 @@ import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kind
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import {
-  addTableColumnUseCase,
-  deleteTableColumnUseCase,
-  updateTableColumnUseCase,
-} from '@/lib/table/application/columns'
 import { tableFolderPathForId } from '@/lib/table/application/folder-paths'
+import { type ReshapeTableInput, reshapeTableUseCase } from '@/lib/table/application/reshape'
 import {
   createTableUseCase,
   deleteTableUseCase,
   listTableDefinitionsUseCase,
-  updateTableUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import { PartiallyAppliedError } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
   missingFolderFinding,
@@ -212,22 +207,12 @@ function lockFinding(
   })
 }
 
-/**
- * The column bindings of `state` for `decl`: the planned ones (by column id, so they survive a
- * rename), and by name for every other declared column the table now holds.
- */
-function bindingsAfter(
-  state: StoredTableState,
-  decl: TableDecl,
-  planned: Readonly<Record<string, BaseColumn>> = {}
-): Record<string, BaseColumn> {
-  const ids = new Set(state.table.schema.columns.map((column) => column.id))
+/** The column bindings of `state` for `decl` after a write: each declared column by its name. */
+function bindingsAfter(state: StoredTableState, decl: TableDecl): Record<string, BaseColumn> {
   const byName = new Map(state.table.schema.columns.map((column) => [column.name, column]))
   const bindings: Record<string, BaseColumn> = {}
   for (const [columnKey, column] of Object.entries(decl.columns)) {
-    const plannedId = Object.hasOwn(planned, columnKey) ? planned[columnKey].id : undefined
-    const id =
-      plannedId && ids.has(plannedId) ? plannedId : byName.get(columnName(columnKey, column))?.id
+    const id = byName.get(columnName(columnKey, column))?.id
     if (id) setOwn(bindings, columnKey, { id })
   }
   return bindings
@@ -245,64 +230,22 @@ async function written(
   return { id: tableId, base, text: printed.text }
 }
 
-/**
- * Applies an update's changes; when one fails after others committed, rethrows it with the
- * table's base entry as it now stands, so the next run plans only what is left.
- */
-async function applyUpdate(
-  ctx: SourceContext,
-  change: TableChange,
-  tableId: string,
-  changes: TableChanges,
-  bindings: TablePlan['bindings'],
-  decl: TableDecl
-): Promise<void> {
-  try {
-    await applyChanges(ctx, tableId, changes)
-  } catch (error) {
-    const state = await reload(ctx, tableId).catch(() => null)
-    if (!state) throw error
-    const after = bindingsAfter(state, decl, bindings)
-    throw new PartiallyAppliedError(error, printStoredTable(state, change.key, after).base)
-  }
-}
-
-/** Carries out a planned table update: fields, then drops, renames and type changes, then adds. */
-async function applyChanges(
+/** The reshape that carries out a planned update: fields, then drops, column updates, then adds. */
+function reshapeInput(
   ctx: SourceContext,
   tableId: string,
   changes: TableChanges
-): Promise<void> {
-  const { principal } = ctx
-  const workspaceId = ctx.workspace.workspaceId
+): ReshapeTableInput {
   const { table, columns } = changes
-  if (Object.keys(table).length > 0) {
-    const result = await updateTableUseCase.execute({
-      principal,
-      input: { tableId, workspaceId, ...table },
-    })
-    if (result.failure) throw result.failure
-  }
-  for (const change of columns) {
-    if (change.op !== 'drop') continue
-    await deleteTableColumnUseCase.execute({
-      principal,
-      input: { tableId, workspaceId, columnName: change.columnId },
-    })
-  }
-  for (const change of columns) {
-    if (change.op !== 'update') continue
-    await updateTableColumnUseCase.execute({
-      principal,
-      input: { tableId, workspaceId, columnName: change.columnId, updates: change.updates },
-    })
-  }
-  for (const change of columns) {
-    if (change.op !== 'add') continue
-    await addTableColumnUseCase.execute({
-      principal,
-      input: { tableId, workspaceId, column: change.column },
-    })
+  return {
+    tableId,
+    workspaceId: ctx.workspace.workspaceId,
+    ...(Object.keys(table).length > 0 ? { table } : {}),
+    drop: columns.filter(isColumnOp('drop')).map((change) => change.columnId),
+    update: columns
+      .filter(isColumnOp('update'))
+      .map((change) => ({ columnName: change.columnId, updates: change.updates })),
+    add: columns.filter(isColumnOp('add')).map((change) => change.column),
   }
 }
 
@@ -367,29 +310,11 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       await deleteTableUseCase.authorize({ principal, input: { tableId, workspaceId } })
       return
     }
-    await updateTableUseCase.authorize({ principal, input: { tableId, workspaceId } })
-    const columns = change.detail?.changes?.columns ?? []
-    const add = columns.find(isColumnOp('add'))
-    const update = columns.find(isColumnOp('update'))
-    const drop = columns.find(isColumnOp('drop'))
-    if (add) {
-      await addTableColumnUseCase.authorize({
-        principal,
-        input: { tableId, workspaceId, column: add.column },
-      })
-    }
-    if (update) {
-      await updateTableColumnUseCase.authorize({
-        principal,
-        input: { tableId, workspaceId, columnName: update.columnId, updates: update.updates },
-      })
-    }
-    if (drop) {
-      await deleteTableColumnUseCase.authorize({
-        principal,
-        input: { tableId, workspaceId, columnName: drop.columnId },
-      })
-    }
+    const changes = change.detail?.changes
+    await reshapeTableUseCase.authorize({
+      principal,
+      input: changes ? reshapeInput(ctx, tableId, changes) : { tableId, workspaceId },
+    })
   },
 
   async fingerprintNow(change, ctx) {
@@ -428,11 +353,10 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     const tableId = change.storedId
     const plan = change.detail
     if (!tableId || !plan?.changes) throw new Error('A table update needs its plan')
-    if (change.action === 'adopt') {
-      await applyChanges(ctx, tableId, plan.changes)
-      return written(ctx, change.key, tableId, decl)
-    }
-    await applyUpdate(ctx, change, tableId, plan.changes, plan.bindings, decl)
+    await reshapeTableUseCase.execute({
+      principal,
+      input: reshapeInput(ctx, tableId, plan.changes),
+    })
     return written(ctx, change.key, tableId, decl)
   },
 

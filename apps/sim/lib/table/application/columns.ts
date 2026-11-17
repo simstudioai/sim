@@ -29,6 +29,55 @@ interface TableColumnInput {
   workspaceId: string
 }
 
+/** The audit entry of a column added to `before`, which became `after`. */
+export function columnAddedAudit(
+  before: TableDefinition,
+  after: TableDefinition,
+  column: AddTableColumnInput['column']
+) {
+  return {
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: after.id,
+    resourceName: after.name,
+    description: `Added column "${column.name}" to table "${before.name}"`,
+    metadata: { column },
+  }
+}
+
+/** The audit entry of a column update on `before`, which became `after`. */
+export function columnUpdatedAudit(
+  before: TableDefinition,
+  after: TableDefinition,
+  columnName: string,
+  updates: UpdateTableColumnInput['updates']
+) {
+  return {
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: after.id,
+    resourceName: after.name,
+    description: `Updated column "${columnName}" in table "${before.name}"`,
+    metadata: { columnName, updates },
+  }
+}
+
+/** The audit entry of a column deleted from `before`, which became `after`. */
+export function columnDeletedAudit(
+  before: TableDefinition,
+  after: TableDefinition,
+  columnName: string
+) {
+  return {
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: after.id,
+    resourceName: after.name,
+    description: `Deleted column "${columnName}" from table "${before.name}"`,
+    metadata: { columnName },
+  }
+}
+
 export interface AddTableColumnInput extends TableColumnInput {
   column: {
     id?: string
@@ -57,14 +106,7 @@ export const addTableColumnUseCase = defineAuthorizedTableUseCase({
     return { table }
   },
   projectAudit({ input, context, result }) {
-    return {
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: result.table.id,
-      resourceName: result.table.name,
-      description: `Added column "${input.column.name}" to table "${context.table.name}"`,
-      metadata: { column: input.column },
-    }
+    return columnAddedAudit(context.table, result.table, input.column)
   },
   afterSuccess({ context }) {
     signalTableSchemaChanged(context.table.id)
@@ -117,14 +159,7 @@ export const updateTableColumnUseCase = defineAuthorizedTableUseCase({
   },
   projectAudit({ input, context, result }) {
     if (!result.changed) return []
-    return {
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: result.table.id,
-      resourceName: result.table.name,
-      description: `Updated column "${input.columnName}" in table "${context.table.name}"`,
-      metadata: { columnName: input.columnName, updates: input.updates },
-    }
+    return columnUpdatedAudit(context.table, result.table, input.columnName, input.updates)
   },
   afterSuccess({ context, result }) {
     if (result.changed) signalTableSchemaChanged(context.table.id)
@@ -184,14 +219,7 @@ export const deleteTableColumnUseCase = defineAuthorizedTableUseCase({
     return { table }
   },
   projectAudit({ input, context, result }) {
-    return {
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: result.table.id,
-      resourceName: result.table.name,
-      description: `Deleted column "${input.columnName}" from table "${context.table.name}"`,
-      metadata: { columnName: input.columnName },
-    }
+    return columnDeletedAudit(context.table, result.table, input.columnName)
   },
   afterSuccess({ context }) {
     signalTableSchemaChanged(context.table.id)
