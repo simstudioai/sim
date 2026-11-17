@@ -724,6 +724,33 @@ describe('materialize: identity', () => {
     })
   })
 
+  it('leaves an inputFormat id two fields share out of the identity items', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f1', name: 'email', type: 'string' },
+          { id: 'f1', name: 'phone', type: 'string' },
+        ],
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const inputFormat = draft.blocks.start.params.inputFormat
+      if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+        inputFormat.value.push({ name: 'age', type: 'number' })
+      }
+    })
+    const result = run(target, null, { prev })
+    expect(subBlockValue(result.state, 'start', 'inputFormat')).toEqual([
+      { id: 'f1', name: 'email', type: 'string' },
+      { id: 'f1', name: 'phone', type: 'string' },
+      { id: 'new-1', name: 'age', type: 'number' },
+    ])
+    expect(result.identity).toStrictEqual(canonical(result.state).identity)
+    expect(result.identity.blocks.start.items).toEqual({
+      inputFormat: [{ name: 'age', id: 'new-1' }],
+    })
+  })
+
   it('keeps every block-id foreign key stable across an edit elsewhere', () => {
     const prev = workflowState(
       [

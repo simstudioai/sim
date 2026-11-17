@@ -2,6 +2,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
+import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
@@ -98,26 +99,43 @@ export function uniqueFieldNames(list: readonly unknown[]): Set<string> {
 }
 
 /**
- * inputFormat fields: the editor's `collapsed` flag is dropped and each field's
- * `id` moves to the lock's `items`, keyed by field name. A field whose name is missing or shared
- * keeps its id inline, so nothing is lost.
+ * The inputFormat fields whose id moves to the lock's `items`, by list index: a string id and a
+ * string name that no other field shares. The lock holds one id per name and each id once.
+ */
+export function liftedFieldIds(list: readonly unknown[]): Map<number, LockItem> {
+  const names = uniqueFieldNames(list)
+  const idCounts = new Map<string, number>()
+  for (const item of list) {
+    if (isRecordLike(item) && typeof item.id === 'string') {
+      idCounts.set(item.id, (idCounts.get(item.id) ?? 0) + 1)
+    }
+  }
+  const lifted = new Map<number, LockItem>()
+  list.forEach((item, index) => {
+    if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return
+    const { id, name } = item
+    if (typeof id !== 'string' || typeof name !== 'string') return
+    if (names.has(name) && idCounts.get(id) === 1) lifted.set(index, { name, id })
+  })
+  return lifted
+}
+
+/**
+ * inputFormat fields: the editor's `collapsed` flag is dropped and the id of each field
+ * {@link liftedFieldIds} picks moves to the lock's `items`. Any other field keeps its id inline,
+ * so nothing is lost.
  */
 function liftInputFormat(
   list: unknown[],
   context: CanonContext
-): { value: Value; items: Array<{ name: string; id: string }> } {
-  const unique = uniqueFieldNames(list)
-  const items: Array<{ name: string; id: string }> = []
-  const value = list.map((item) => {
+): { value: Value; items: LockItem[] } {
+  const lifted = liftedFieldIds(list)
+  const value = list.map((item, index) => {
     if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return toValue(item, context)
     const rest = omit(item, ['collapsed'])
-    if (typeof rest.id === 'string' && typeof rest.name === 'string' && unique.has(rest.name)) {
-      items.push({ name: rest.name, id: rest.id })
-      return toValue(omit(rest, ['id']), context)
-    }
-    return toValue(rest, context)
+    return toValue(lifted.has(index) ? omit(rest, ['id']) : rest, context)
   })
-  return { value, items }
+  return { value, items: [...lifted.values()] }
 }
 
 /**

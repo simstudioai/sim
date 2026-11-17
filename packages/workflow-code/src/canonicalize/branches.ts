@@ -129,8 +129,9 @@ function unlifted(
  * already taken gets a `_n` suffix. UI state is stripped, a stored title that differs from the
  * positional one becomes `titleOverride` (condition titles are semantic: the executor finds
  * `else` by title, `isElseConditionTitle`). A never-persisted value is `rows: null` and answers
- * to the implicit ids. A value that is not a list of `{ id?, title?, value }` rows is returned
- * as `unliftedValue` for the caller to keep verbatim.
+ * to the implicit ids. A value that is not a list of `{ id?, title?, value }` rows with distinct
+ * ids (stored or derived) is returned as `unliftedValue` for the caller to keep verbatim, since
+ * the lock holds one key per row id.
  */
 export function liftBranches(
   kind: CanonicalBranches['kind'],
@@ -170,6 +171,17 @@ export function liftBranches(
 
   const count = storedRows.length
   const rowIds = storedRows.map((row, index) => row.id ?? derivedRowId(kind, blockId, index))
+  const sharedId = rowIds.find((rowId, index) => rowIds.indexOf(rowId) !== index)
+  if (sharedId !== undefined) {
+    context.diagnostics.push({
+      code: 'W_CANON_UNDECODABLE_JSON',
+      severity: 'warning',
+      message: `Stored ${kind} branches use row id "${sharedId}" twice; kept verbatim`,
+      blockKey,
+      param,
+    })
+    return unlifted(kind, blockId, stored)
+  }
   const keys: Array<BranchKey | undefined> = new Array(count)
   const taken = new Set<BranchKey>()
 

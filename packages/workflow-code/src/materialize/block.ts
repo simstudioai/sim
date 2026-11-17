@@ -1,4 +1,4 @@
-import { isRecordLike, omit } from '@sim/utils/object'
+import { omit } from '@sim/utils/object'
 import {
   type BlockData,
   type BlockState,
@@ -7,7 +7,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
 import { parseModeMap } from '../canonicalize/modes'
-import { declarationFor, isExcludedSubBlockId, uniqueFieldNames } from '../canonicalize/params'
+import { declarationFor, isExcludedSubBlockId, liftedFieldIds } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
@@ -69,20 +69,9 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
   return deepEqual(omit(left, ['key', 'parent']), omit(right, ['key', 'parent']))
 }
 
-/**
- * inputFormat ids as canonicalize lifts them into the lock: fields with an id and a name no other
- * field shares (canonicalize/params.ts `liftInputFormat`).
- */
+/** inputFormat ids as canonicalize lifts them into the lock (`liftedFieldIds`). */
 function storedItems(raw: unknown): LockItem[] {
-  const list = (parseStoredList(raw) ?? []).filter(isRecordLike)
-  const unique = uniqueFieldNames(list)
-  const items: LockItem[] = []
-  for (const { name, id } of list) {
-    if (typeof name === 'string' && typeof id === 'string' && unique.has(name)) {
-      items.push({ name, id })
-    }
-  }
-  return items
+  return [...liftedFieldIds(parseStoredList(raw) ?? []).values()]
 }
 
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {

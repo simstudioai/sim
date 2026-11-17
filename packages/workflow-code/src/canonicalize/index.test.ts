@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { executableInactiveParams } from '../catalog/activity'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { canonicalEquals, canonicalHash } from '../equivalence'
+import { parseWorkflowLock } from '../lock'
 import type {
   CanonicalBlock,
   CanonicalParam,
@@ -356,6 +357,17 @@ function codes(result: ReturnType<typeof run>): string[] {
   return result.diagnostics.map((d) => d.code)
 }
 
+/** The diagnostics `parseWorkflowLock` gives a lock built from `result`'s identity. */
+function lockDiagnostics(result: ReturnType<typeof run>) {
+  const blocks = Object.fromEntries(
+    Object.entries(result.identity.blocks).map(([key, entry], order) => [
+      key,
+      { ...entry, ident: `block${order}`, order },
+    ])
+  )
+  return parseWorkflowLock({ version: 1, blocks, variables: result.identity.variables }).diagnostics
+}
+
 describe('canonicalize: keys and names', () => {
   it('keys a block by its normalized name', () => {
     const result = run(workflow([blockState('b1', 'function', 'My Code.v2')]))
@@ -532,6 +544,29 @@ describe('canonicalize: params', () => {
     expect(result.identity.blocks.start.items).toEqual({
       inputFormat: [{ name: 'email', id: 'f1' }],
     })
+  })
+
+  it('keeps an inputFormat id inline when another field shares it, so the lock parses', () => {
+    const result = run(
+      workflow([
+        blockState('b1', 'start_trigger', 'Start', {
+          inputFormat: [
+            { id: 'f1', name: 'email', type: 'string' },
+            { id: 'f1', name: 'phone', type: 'string' },
+            { id: 'f2', name: 'age', type: 'number' },
+          ],
+        }),
+      ])
+    )
+    expect(value(onlyBlock(result, 'start').params.inputFormat)).toEqual([
+      { id: 'f1', name: 'email', type: 'string' },
+      { id: 'f1', name: 'phone', type: 'string' },
+      { name: 'age', type: 'number' },
+    ])
+    expect(result.identity.blocks.start.items).toEqual({
+      inputFormat: [{ name: 'age', id: 'f2' }],
+    })
+    expect(lockDiagnostics(result)).toBeUndefined()
   })
 
   it('wraps a stored object that already has a $sim key as a literal', () => {
@@ -1056,6 +1091,26 @@ describe('canonicalize: branches', () => {
     expect(cond.params.conditions).toEqual({ kind: 'value', value: '{not json' })
     expect(cond.branches?.rows).toBeNull()
     expect(result.diagnostics.filter((d) => d.code === 'W_CANON_UNDECODABLE_JSON')).toHaveLength(1)
+  })
+
+  it('keeps a list whose rows share an id verbatim, so its lock parses', () => {
+    const shared = [
+      { id: 'r1', title: 'if', value: 'a' },
+      { id: 'r1', title: 'else', value: '' },
+    ]
+    const derivedClash = [
+      { id: 'c1-cond-1', title: 'if', value: 'a' },
+      { title: 'else', value: '' },
+    ]
+    for (const rows of [shared, derivedClash]) {
+      const stored = JSON.stringify(rows)
+      const result = run(workflow([blockState('c1', 'condition', 'Cond', { conditions: stored })]))
+      const cond = onlyBlock(result, 'cond')
+      expect(cond.params.conditions).toEqual({ kind: 'value', value: stored })
+      expect(cond.branches?.rows).toBeNull()
+      expect(codes(result)).toContain('W_CANON_UNDECODABLE_JSON')
+      expect(lockDiagnostics(result)).toBeUndefined()
+    }
   })
 })
 
