@@ -10,6 +10,7 @@ import {
   generateSdkTypes,
   generateWorkspaceTypes,
   SDK_MAJOR,
+  SOURCE_COMPILER_OPTIONS,
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
@@ -219,14 +220,7 @@ const TSCONFIG_MARKER = `// Written by \`sim workflows source get\`; remove this
 const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
   {
     compilerOptions: {
-      target: 'ES2022',
-      lib: ['ES2022'],
-      module: 'ESNext',
-      moduleResolution: 'bundler',
-      moduleDetection: 'force',
-      types: [],
-      strict: true,
-      noEmit: true,
+      ...SOURCE_COMPILER_OPTIONS,
       skipLibCheck: true,
       paths: { '@sim/workflow-sdk': [`./${SDK_DIR}/core.d.ts`] },
     },
