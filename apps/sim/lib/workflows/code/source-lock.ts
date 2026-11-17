@@ -52,6 +52,7 @@ function rekeyComments(
   return result
 }
 
+/** Source meta projected onto canonical keys, ready to pass to a print. */
 export interface SourceMetaPrintInputs {
   /** `ident` and `order` per block key, for `PrintInput.hints`. */
   hints: SourceHints

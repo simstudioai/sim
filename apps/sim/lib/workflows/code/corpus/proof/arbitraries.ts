@@ -35,8 +35,8 @@ const ADVERSARIAL_STRING_FRAGMENTS = [
   "'<start.input>'",
   '\r\n',
   '\n',
-  ' ',
-  ' ',
+  '\u2028',
+  '\u2029',
   '\uFFFD',
   '`',
   '${',
@@ -186,8 +186,8 @@ const PARALLEL_TYPES = ['count', 'collection'] as const
 /**
  * A random workflow: a `start_trigger` at the root, then function, note, loop and parallel blocks,
  * about one in seven disabled (a disabled container's children keep their own flag, as after the
- * editor re-enables one), containers nested up to `maxDepth`, forward `source`/`error` edges within a scope, and a
- * `*-start-source` edge from every non-empty container into its first child.
+ * editor re-enables one), containers nested up to `maxDepth`, forward `source`/`error` edges
+ * within a scope, and a `*-start-source` edge from every non-empty container into its first child.
  */
 export function workflowStateArbitrary(
   options: WorkflowArbitraryOptions = {}

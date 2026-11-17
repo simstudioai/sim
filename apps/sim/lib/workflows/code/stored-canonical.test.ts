@@ -9,7 +9,6 @@
  * - a warm workflow still pays a second canonicalize pass.
  */
 import {
-  type BlockCatalog,
   type CatalogBlock,
   canonicalize,
   canonicalizeUnderLock,
@@ -31,17 +30,9 @@ vi.mock('@/lib/workflows/code/resources', () => ({
 }))
 vi.unmock('@/blocks/registry')
 
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
 const meta = { name: 'Reuse', description: null }
 
 function block(
@@ -225,7 +216,7 @@ function resourceField(kind: ResourceKind): { type: string; subBlockId: string }
   throw new Error(`no block with a ${kind} field`)
 }
 
-/** Resolves `<kind>-id` to `<kind>-key` for every loaded kind, like the real loader. */
+/** The references a fake resolver was loaded with. */
 interface References {
   ids?: { kind: ResourceKind; id: string }[]
   keys?: { kind: ResourceKind; key: string }[]
@@ -261,7 +252,7 @@ describe('canonicalizeStored', () => {
       prefetched: await prefetchStoredResources({ workflowId, workspaceId: 'ws', createdBy: null }),
       state: graph,
       meta,
-      catalog: catalog as BlockCatalog,
+      catalog,
     })
 
   beforeEach(() => {

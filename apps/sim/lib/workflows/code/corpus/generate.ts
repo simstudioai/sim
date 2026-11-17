@@ -87,7 +87,8 @@ interface CorpusOptions {
   blocks?: BlockConfig[]
 }
 
-const DEFAULT_CORPUS_SEED = 20261115
+/** The seed every generated corpus and fuzz sample uses unless a caller passes its own. */
+export const DEFAULT_CORPUS_SEED = 20261115
 
 function hashString(text: string): number {
   let hash = 0x811c9dc5

@@ -21,31 +21,11 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import {
-  corpusBudgetMs,
-  roundTripSubjects,
-} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
+import { corpusBudgetMs, corpusSubjects } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const CASES_PER_BLOCK_TYPE = 3
-const FUZZ_RUNS = 50
-const BUDGET_MS = 60_000
-
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
-
-const subjects = roundTripSubjects({
-  casesPerBlockType: CASES_PER_BLOCK_TYPE,
-  full: process.env.ROUNDTRIP_CORPUS_FULL === '1',
-  fuzzRuns: FUZZ_RUNS,
-})
+const subjects = corpusSubjects()
 
 /** The state with a unique secret in every password subBlock it stores, and those secrets. */
 function withSecrets(state: WorkflowState): { state: WorkflowState; secrets: string[] } {
@@ -122,6 +102,6 @@ describe(`secrets never print (${subjects.length} workflows)`, () => {
       expect(leaks.sort(compareStrings)).toEqual([])
       expect(lost.sort(compareStrings)).toEqual([])
     },
-    corpusBudgetMs(subjects.length, BUDGET_MS)
+    corpusBudgetMs(subjects.length)
   )
 })

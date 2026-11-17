@@ -12,37 +12,16 @@ import { findDifferences } from '@/lib/workflows/code/corpus/proof'
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { sampleCorpus } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
 const hooks = createMaterializeHooks()
 
 /** Every structural case, plus the first case of each per-block kind for every block type. */
-function sample(corpus: CorpusCase[]): CorpusCase[] {
-  const seen = new Set<string>()
-  return corpus.filter((corpusCase) => {
-    if (!['operation', 'trigger', 'standalone-advanced', 'error-edge'].includes(corpusCase.kind)) {
-      return true
-    }
-    const [, type = ''] = corpusCase.id.split(':')
-    const slot = `${corpusCase.kind}:${type}`
-    if (seen.has(slot)) return false
-    seen.add(slot)
-    return true
-  })
-}
-
-const cases = sample(generateRegistryCorpus())
+const cases = sampleCorpus(generateRegistryCorpus(), { perType: 1, byKind: true })
 
 function canonical(state: WorkflowState, id: string) {
   return canonicalize(state, { catalog, meta: { name: id, description: null } }).workflow

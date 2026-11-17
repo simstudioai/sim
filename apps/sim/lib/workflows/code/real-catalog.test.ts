@@ -4,7 +4,6 @@
  * workflows against the types generated from the whole registry with the workspace's TypeScript 7
  * compiler.
  */
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -18,7 +17,6 @@ import {
 } from '@sim/workflow-code'
 import {
   COOKBOOK_TS,
-  generateSdkTypes,
   generateWorkspaceTypes,
   SPECIAL_BUILDER_KEYS,
   type WorkspaceManifest,
@@ -28,21 +26,20 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import {
+  SDK_ROOT,
+  typeCheckAgainstSdk,
+  writeSdkTypes,
+} from '@/lib/workflows/code/sdk-typecheck.test-helpers'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
 const registryBlocks = Object.values(getBlockRegistry())
-const catalog = buildBlockCatalog({
-  blocks: registryBlocks,
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
 
-const REPO_ROOT = path.resolve(process.cwd(), '../..')
-const SDK_ROOT = path.join(REPO_ROOT, 'packages/workflow-sdk')
 const workDir = mkdtempSync(path.join(tmpdir(), 'workflow-sdk-real-catalog-'))
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }))
@@ -170,14 +167,16 @@ describe('canonicalize and codegen over the real block catalog', () => {
   })
 
   it('generates SDK types the example workflows type-check against', () => {
-    const files = writeSdkTypes()
-    const diagnostics = typeCheck('examples', [path.join(SDK_ROOT, 'test/examples/**/*.ts')])
+    const files = sdkTypesOnce()
+    const diagnostics = typeCheckAgainstSdk(workDir, 'examples', [
+      path.join(SDK_ROOT, 'test/examples/**/*.ts'),
+    ])
     expect(files.some((file) => file.path === 'blocks/slack_v2.d.ts')).toBe(true)
     expect(diagnostics).toBe('')
   }, 120_000)
 
   it("types the table blocks' rows and written cells by the workspace table's columns", () => {
-    writeSdkTypes()
+    sdkTypesOnce()
     const dir = path.join(workDir, 'table-rows')
     mkdirSync(dir, { recursive: true })
     const workspaceTypes = generateWorkspaceTypes({
@@ -200,17 +199,17 @@ describe('canonicalize and codegen over the real block catalog', () => {
         '})',
       ].join('\n')
     )
-    expect(typeCheck('table-rows', [path.join(dir, '*.ts')])).toBe('')
+    expect(typeCheckAgainstSdk(workDir, 'table-rows', [path.join(dir, '*.ts')])).toBe('')
   }, 120_000)
 
   it('type-checks and compiles the cookbook the CLI writes, with no error or warning', () => {
-    writeSdkTypes()
+    sdkTypesOnce()
     const dir = path.join(workDir, 'cookbook')
     mkdirSync(dir, { recursive: true })
     const workspaceTypes = generateWorkspaceTypes(COOKBOOK_WORKSPACE)
     writeFileSync(path.join(dir, workspaceTypes.path), workspaceTypes.text)
     writeFileSync(path.join(dir, 'cookbook.ts'), COOKBOOK_TS)
-    expect(typeCheck('cookbook', [path.join(dir, '*.ts')])).toBe('')
+    expect(typeCheckAgainstSdk(workDir, 'cookbook', [path.join(dir, '*.ts')])).toBe('')
 
     const compiled = compileWorkflow({
       entry: { path: 'workflow.ts', text: COOKBOOK_TS },
@@ -232,7 +231,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
   }, 120_000)
 
   it('prints a numeric short or long text value as source that type-checks and compiles clean', () => {
-    writeSdkTypes()
+    sdkTypesOnce()
     const printsDir = path.join(workDir, 'numeric')
     mkdirSync(printsDir, { recursive: true })
     const cases = generateRegistryCorpus().filter((corpusCase) =>
@@ -273,7 +272,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
     })
     expect(printed.reduce((total, count) => total + count, 0)).toBeGreaterThan(100)
 
-    const diagnostics = typeCheck('numeric', [path.join(printsDir, '*.ts')])
+    const diagnostics = typeCheckAgainstSdk(workDir, 'numeric', [path.join(printsDir, '*.ts')])
     /**
      * TS error codes by file, with a sample message. The number print can only lose errors (a
      * replaced reference no longer misses a path, a multi-line template collapses), so a code
@@ -321,52 +320,10 @@ function withNumericTextValues(state: WorkflowState): {
   return { state: next, params }
 }
 
-let sdkTypes: ReturnType<typeof generateSdkTypes> | undefined
+let sdkTypes: ReturnType<typeof writeSdkTypes> | undefined
 
 /** Writes the declarations generated from the real catalog under `workDir/types`, once. */
-function writeSdkTypes() {
-  if (sdkTypes) return sdkTypes
-  sdkTypes = generateSdkTypes(catalog)
-  for (const file of sdkTypes) {
-    const target = path.join(workDir, 'types', file.path)
-    mkdirSync(path.dirname(target), { recursive: true })
-    writeFileSync(target, file.text)
-  }
+function sdkTypesOnce() {
+  sdkTypes ??= writeSdkTypes(workDir, catalog)
   return sdkTypes
-}
-
-/** Type-checks `include` against the generated declarations with the workspace compiler. */
-function typeCheck(name: string, include: string[]): string {
-  {
-    const tsconfig = path.join(workDir, `tsconfig.${name}.json`)
-    writeFileSync(
-      tsconfig,
-      JSON.stringify({
-        compilerOptions: {
-          target: 'ES2022',
-          lib: ['ES2022'],
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          moduleDetection: 'force',
-          types: [],
-          strict: true,
-          noEmit: true,
-          skipLibCheck: false,
-          paths: { '@sim/workflow-sdk': [path.join(SDK_ROOT, 'src/core.d.ts')] },
-        },
-        include: [path.join(workDir, 'types/**/*.d.ts'), ...include],
-      })
-    )
-    try {
-      execFileSync(path.join(REPO_ROOT, 'node_modules/.bin/tsc'), ['--noEmit', '-p', tsconfig], {
-        encoding: 'utf8',
-        stdio: 'pipe',
-        maxBuffer: 64 * 1024 * 1024,
-      })
-      return ''
-    } catch (error) {
-      const failure = error as { stdout?: string; stderr?: string }
-      return `${failure.stdout ?? ''}${failure.stderr ?? ''}`
-    }
-  }
 }

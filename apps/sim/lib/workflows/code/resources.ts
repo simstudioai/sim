@@ -2,9 +2,10 @@ import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import type { ResourceKeyResolver, ResourceKind } from '@sim/workflow-code'
-import { and, asc, eq, inArray, notInArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
+import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   type ResourceIdRef,
@@ -31,7 +32,7 @@ import {
  * from its name, and naming its key is an unknown resource, as for one that does not exist.
  */
 
-/** Credential types a `credential(...)` can name: every saved account, never an env secret. */
+/** Env-secret credential types, which a `credential(...)` never names. */
 const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
 interface VisibleCredentialQuery {
@@ -178,18 +179,22 @@ async function withoutHiddenCredentials(
   return result
 }
 
-/** Env names the caller's runs resolve: the workspace's, plus the caller's personal ones. */
+/**
+ * Env names the caller's runs resolve in this workspace, by runtime's own ACL-aware lookup: a
+ * workspace secret only when the caller is an admin or an active member of its credential, plus
+ * their personal variables and the personal ones shared with them here. With no human subject,
+ * the workspace's secrets only, as a run with no caller resolves them for the workspace's billing
+ * account.
+ */
 export async function loadEnvNames(
   workspaceId: string,
   userId: string | undefined
 ): Promise<string[]> {
-  const scope = userId
-    ? or(
-        and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')),
-        and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
-      )
-    : and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace'))
-  const rows = await db.select({ envKey: credential.envKey }).from(credential).where(scope)
+  if (userId) return getEffectiveEnvironmentVariableNames(userId, workspaceId)
+  const rows = await db
+    .select({ envKey: credential.envKey })
+    .from(credential)
+    .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')))
   const names = new Set(rows.flatMap((row) => (row.envKey ? [row.envKey] : [])))
   return [...names].sort(compareStrings)
 }

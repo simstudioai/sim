@@ -89,10 +89,10 @@ const TYPE_RULES: Record<SubBlockType, TypeRule> = {
 }
 
 /**
- * Derives a subBlock's value shape from its type plus the few config flags that change it:
- * a JSON-language code field holds JSON, a multi-select dropdown holds an array, a `readOnly`
- * field is display-only (`isDisplayOnlySubBlock` in triggers/index.ts), and a folder
- * selector bound to workspace files (`resourceType: 'file'`) points at a Sim file folder rather than a provider id.
+ * Derives a subBlock's value shape from its type plus the few config flags that change it: a
+ * JSON-language code field holds JSON, a multi-select dropdown holds an array, a `readOnly` field
+ * is display-only (`isDisplayOnlySubBlock` in triggers/index.ts), and a folder selector bound to
+ * workspace files (`resourceType: 'file'`) points at a Sim file folder rather than a provider id.
  */
 export function deriveValueShape(subBlock: SubBlockConfig): SubBlockValueShape {
   const rule = TYPE_RULES[subBlock.type] ?? { valueKind: 'json' }
