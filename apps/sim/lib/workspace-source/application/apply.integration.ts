@@ -15,6 +15,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -624,6 +625,31 @@ describe('workspace source apply', () => {
 
       expect(applied.failed).toBeUndefined()
       expect(await optionId(workspaceId, 'status', 'closed')).not.toBe('')
+    }
+  )
+
+  check(
+    'counts only the workflows an apply evaluates toward its workflow limit, not unchanged folders',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const unchanged = Object.fromEntries(
+        Array.from({ length: WORKSPACE_SOURCE_LIMITS.maxWorkflows + 1 }, (_, index) => [
+          `workflows/copy-${index}/.sim/base.json`,
+          read.files['workflows/ingest/.sim/base.json'],
+        ])
+      )
+
+      const result = await apply(
+        workspaceId,
+        { 'tables/leads.ts': read.files['tables/leads.ts'], ...unchanged },
+        { base: read.base, dryRun: true }
+      )
+
+      expect(codes(result.diagnostics)).toEqual([])
+      expect(
+        result.plan.filter((change) => change.kind === 'workflow' && change.action === 'noop')
+      ).toHaveLength(WORKSPACE_SOURCE_LIMITS.maxWorkflows + 1)
     }
   )
 

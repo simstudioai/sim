@@ -203,7 +203,9 @@ function checkLimits(
     if (!kind) continue
     if (kind === 'workflow') {
       workflowBytes += utf8Bytes(text)
-      workflows.add(path.split('/')[1] ?? '')
+      // A folder sent with only its `.sim/` sidecars is unchanged and never evaluated.
+      const [, folder = '', ...rest] = path.split('/')
+      if (rest[0] !== '.sim') workflows.add(folder)
     } else declarationBytes += utf8Bytes(text)
   }
   const { maxDeclarationBytes, maxWorkflowBytes, maxWorkflows } = WORKSPACE_SOURCE_LIMITS
