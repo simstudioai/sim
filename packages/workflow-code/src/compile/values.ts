@@ -28,14 +28,15 @@ import {
 } from '../code-files/ref-path'
 import { REF_ROOT } from '../code-files/to-file'
 import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
-import type {
-  BlockKey,
-  CanonicalParam,
-  Json,
-  ResourceKind,
-  SubBlockId,
-  Value,
-  VarNode,
+import {
+  type BlockKey,
+  type CanonicalParam,
+  isSimNode,
+  type Json,
+  type ResourceKind,
+  type SubBlockId,
+  type Value,
+  type VarNode,
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { SDK_RESOURCE_CALLS } from '../sdk'
@@ -48,11 +49,11 @@ import {
   type JsonFieldEntry,
   lookup,
   rangeOf,
+  reportUnresolvedIdentifier,
   type Scope,
   unsupported,
-  visibleNames,
 } from './context'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import type { Range } from './report'
 import { outputSchemasFor } from './validate-catalog'
 
@@ -126,7 +127,7 @@ function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
   return unsupported(
     ctx,
     node,
-    `${node.type} is not supported in a workflow file.`,
+    `${nodeLabel(node)} is not supported in a workflow file.`,
     hintForNode(node),
     site?.decl.key
   )
@@ -146,7 +147,8 @@ function propertyKey(ctx: CompileContext, property: ObjectProperty): string | nu
 
 /**
  * The properties of an object literal as `[key, property]`, rejecting methods, getters, spreads,
- * computed keys and duplicate keys. `null` means the object itself was rejected.
+ * computed keys and duplicate keys. A rejected property is reported and left out, so fewer
+ * entries than `node.properties` means something was rejected.
  */
 export function objectEntries(
   ctx: CompileContext,
@@ -276,8 +278,16 @@ function isCanonicalNode(value: Record<string, unknown>): boolean {
   }
 }
 
-/** A literal-only tree (strings, numbers, booleans, null, arrays, objects) as plain JSON. */
-function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | undefined {
+/**
+ * A literal-only JSON value (variables, a container's `extra` data, retry, tool policy): strings,
+ * numbers, booleans, null, arrays and objects as plain data, so a `$sim` key is just a key. No refs,
+ * no SDK calls. `undefined` after reporting an error.
+ */
+export function compileJsonLiteral(
+  ctx: CompileContext,
+  node: Node,
+  site?: ValueSite
+): Json | undefined {
   switch (node.type) {
     case 'StringLiteral':
     case 'BooleanLiteral':
@@ -312,7 +322,7 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
           )
           return undefined
         }
-        const item = literalTree(ctx, element, site)
+        const item = compileJsonLiteral(ctx, element, site)
         if (item === undefined) return undefined
         items.push(item)
       }
@@ -323,7 +333,7 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
       const entries = objectEntries(ctx, node)
       if (entries.length !== node.properties.length) return undefined
       for (const [key, property] of entries) {
-        const item = literalTree(ctx, property.value, site)
+        const item = compileJsonLiteral(ctx, property.value, site)
         if (item === undefined) return undefined
         setOwn(result, key, item)
       }
@@ -358,7 +368,7 @@ function canonicalNodesValid(value: Json): boolean {
  * literals are allowed inside.
  */
 function rawLiteral(ctx: CompileContext, node: Node, site?: ValueSite): Value | undefined {
-  const value = literalTree(ctx, node, site)
+  const value = compileJsonLiteral(ctx, node, site)
   if (value === undefined) return undefined
   if (!canonicalNodesValid(value)) {
     unsupported(
@@ -483,31 +493,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
   if (root.type !== 'Identifier') return rejectNode(ctx, node, site)
 
   const binding = lookup(site.scope, root.name)
-  if (!binding) {
-    const elsewhere = ctx.declsByIdent.get(root.name)
-    if (elsewhere && elsewhere.length > 0) {
-      ctx.reporter.report(
-        'E_OUT_OF_SCOPE',
-        `${root.name} is declared inside another loop or parallel and is not visible here.`,
-        rangeOf(ctx, node),
-        {
-          hint: 'Wire the subflow and reference its results, or move the block into this scope.',
-          blockKey: site.decl.key,
-        }
-      )
-      return null
-    }
-    ctx.reporter.report(
-      'E_UNKNOWN_IDENTIFIER',
-      `${root.name} is not defined.`,
-      rangeOf(ctx, root),
-      {
-        hint: didYouMean(root.name, visibleNames(site.scope)),
-        blockKey: site.decl.key,
-      }
-    )
-    return null
-  }
+  if (!binding) return reportUnresolvedIdentifier(ctx, site.scope, root, site.decl.key, node)
 
   switch (binding.kind) {
     case 'vars': {
@@ -522,13 +508,15 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           site.decl.key
         )
       }
-      if (!ctx.variables.has(name)) {
+      // Variables are keyed by their normalized name, while the SDK types `vars` by the key as declared.
+      const key = normalizeWorkflowBlockName(name)
+      if (!ctx.variables.has(key)) {
         ctx.reporter.report(
           'E_UNKNOWN_VARIABLE',
           `No workflow variable is keyed ${name}.`,
           rangeOf(ctx, first),
           {
-            hint: didYouMean(name, ctx.variables.keys(), (key) => `vars.${key}`),
+            hint: didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
             blockKey: site.decl.key,
           }
         )
@@ -536,8 +524,8 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       }
       const rest = segmentsOf(ctx, members.slice(1), site)
       if (!rest) return null
-      if (site.varNodes && rest.length === 0) return { $sim: 'var', key: name }
-      return `<${formatStoredPath([{ kind: 'name', name: 'variable' }, { kind: 'name', name }, ...rest])}>`
+      if (site.varNodes && rest.length === 0) return { $sim: 'var', key }
+      return `<${formatStoredPath([{ kind: 'name', name: 'variable' }, { kind: 'name', name: key }, ...rest])}>`
     }
     case 'sdk': {
       if (binding.name !== 'env') {
@@ -889,8 +877,16 @@ function compileCall(
       return value === undefined ? null : { kind: 'value', value, form: 'raw' }
     }
     default:
-      return unsupported(ctx, call, `${path}() is not a value.`, HINTS.bindInline, site.decl.key)
+      return unsupported(ctx, call, `${path}() is not a value.`, valueCallHint(path), site.decl.key)
   }
+}
+
+/** The hint for an SDK call written where a value goes that is not a value call. */
+function valueCallHint(path: string): string {
+  if (TEMPLATE_TAGS.has(path)) return `Use ${path}\`...\` as a tagged template.`
+  if (path === 'edge') return 'edge(...) is wiring; write it as its own statement.'
+  if (path === 'env') return 'Write env.NAME.'
+  return HINTS.bindInline
 }
 
 function compileArray(
@@ -1128,17 +1124,23 @@ function compileJsonTree(
     return new JsonRef(ref, false)
   }
   const value = compileNested(ctx, node, site)
-  return value === undefined ? undefined : valueTree(value)
+  if (value === undefined) return undefined
+  const tree = holdsSimNode(value) ? undefined : valueTree(value)
+  if (tree === undefined) {
+    unsupported(
+      ctx,
+      node,
+      'A JSON field literal holds data; a resource or canonical node is not data.',
+      'Write a string, number, boolean, null, array or object here.',
+      site.decl.key
+    )
+  }
+  return tree
 }
 
-/**
- * A literal-only JSON value (variables, a container's `extra` data, retry, tool policy): plain data, so a `$sim`
- * key is just a key. No refs, no SDK calls.
- */
-export function compileJsonLiteral(
-  ctx: CompileContext,
-  node: Node,
-  site?: ValueSite
-): Json | undefined {
-  return literalTree(ctx, node, site)
+/** Whether a value is or holds a canonical `$sim` node (a resource, a variable, `raw(node)`). */
+function holdsSimNode(value: Value): boolean {
+  if (isSimNode(value)) return true
+  if (Array.isArray(value)) return value.some(holdsSimNode)
+  return isRecordLike(value) && Object.values(value).some((item) => holdsSimNode(item as Value))
 }

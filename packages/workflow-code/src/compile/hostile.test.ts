@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
@@ -114,6 +114,11 @@ describe('hostile sources produce diagnostics only', () => {
     expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
   })
 
+  it('refuses an oversize input before scanning its characters', () => {
+    const text = wrap(`const a = api('A', { url: '\u0000${'x'.repeat(2_000)}' })`)
+    expect(codes(run(text, { maxTotalBytes: 1_000 }))).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
   it.each([
     ['nested arrays', `const a = api('A', { url: ${'['.repeat(100_000)}${']'.repeat(100_000)} })`],
     [
@@ -226,16 +231,20 @@ describe('hostile sources produce diagnostics only', () => {
       ).join('\n')}\n})\n`
 
     it('parses a code file referenced by many blocks once', () => {
-      const body = `const x = [${Array.from({ length: 60_000 }, (_, i) => i).join(',')}]\n`
-      const started = Date.now()
-      const result = run(
-        fnFile(200, () => './a.js'),
-        undefined,
-        { 'workflows/a.js': body }
-      )
-      const elapsed = Date.now() - started
-      expect(codes(result)).toEqual([])
-      expect(elapsed).toBeLessThan(2_000)
+      const addFile = vi.spyOn(Reporter.prototype, 'addFile')
+      try {
+        const result = run(
+          fnFile(200, () => './a.js'),
+          undefined,
+          {
+            'workflows/a.js': 'return 1\n',
+          }
+        )
+        expect(codes(result)).toEqual([])
+        expect(addFile.mock.calls.filter(([path]) => path === 'workflows/a.js')).toHaveLength(1)
+      } finally {
+        addFile.mockRestore()
+      }
     })
 
     it('caps the total bytes of distinct code files', () => {

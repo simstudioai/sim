@@ -2,7 +2,11 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
-import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import {
+  DEFAULT_LOOP_ITERATIONS,
+  PARALLEL_BATCH_MAX,
+  SUBFLOW_DATA_KEYS,
+} from '../canonicalize/subflows'
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import {
@@ -54,6 +58,7 @@ import {
   compileJsonLiteral,
   compileValue,
   isSelectorForm,
+  nestedValue,
   objectEntries,
   type ValueSite,
 } from './values'
@@ -98,8 +103,8 @@ function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: Blo
   unsupported(
     ctx,
     property.value,
-    'Write true or false.',
     'This meta field is a boolean literal.',
+    'Write true or false.',
     decl.key
   )
   return false
@@ -658,8 +663,8 @@ function compileField(
   const compiled = compileValue(ctx, property.value, site)
   if (!compiled) return
   if (compiled.kind === 'absent' || compiled.kind === 'todo') {
-    const member = field.kind === 'pair' ? memberFor(field, 'basic') : field.sub
-    if (member) state.unset.add(member.id)
+    for (const member of field.kind === 'pair' ? field.members : [field.sub])
+      state.unset.add(member.id)
     if (compiled.kind === 'todo') state.todos.set(field.name, property)
     return
   }
@@ -1021,6 +1026,8 @@ function compileExtraParams(
     recordSpan(ctx, { kind: 'param', block: decl.key, param: id }, property)
     const compiled = compileValue(ctx, property.value, site)
     if (compiled?.kind === 'value') setOwn(params, id, { kind: 'value', value: compiled.value })
+    else if (compiled && compiled.kind !== 'absent')
+      nestedValue(ctx, property.value, compiled, site)
   }
 }
 
@@ -1141,6 +1148,36 @@ function numberLiteral(node: Node): number | null {
 }
 
 /**
+ * `W_SUBFLOW_COUNT` for a count the runtime does not run as written (it runs 5 for `0`, and none
+ * or a rounded-up number for a negative or fractional count) and for a batch size outside the
+ * 1–20 the runtime clamps to. A warning, because canonicalize keeps such stored values raw.
+ */
+function checkSubflowCount(
+  ctx: CompileContext,
+  decl: BlockDecl,
+  key: string,
+  value: number,
+  node: Node
+): void {
+  const max = key === 'batchSize' ? PARALLEL_BATCH_MAX : Number.POSITIVE_INFINITY
+  if (Number.isInteger(value) && value >= 1 && value <= max) return
+  ctx.reporter.report(
+    'W_SUBFLOW_COUNT',
+    key === 'batchSize'
+      ? `A batch size of ${value} is clamped to 1–${PARALLEL_BATCH_MAX} at run time.`
+      : `A count of ${value} does not run as written.`,
+    rangeOf(ctx, node),
+    {
+      hint:
+        key === 'batchSize'
+          ? `Write a whole number from 1 to ${PARALLEL_BATCH_MAX}.`
+          : `Write a whole number of at least 1, e.g. ${key}: 3.`,
+      blockKey: decl.key,
+    }
+  )
+}
+
+/**
  * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
  * the type uses; apply keeps the other types' fields from the stored workflow. `meta.extra` holds
  * the container's stored params, and `meta.subflowData` the subflow keys of `block.data`
@@ -1160,12 +1197,15 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
   const configKeys = CONTAINER_CONFIG[builderKey] ?? {}
   const fields = new Map<string, Value>()
 
-  const setField = (field: string, node: Node): void => {
+  const setField = (key: string, field: string, node: Node): void => {
     if (NUMBER_FIELDS.has(field)) {
       const value = numberLiteral(node)
-      if (value === null)
+      if (value === null) {
         unsupported(ctx, node, `${field} is a number.`, `Write ${field}: 3.`, decl.key)
-      else fields.set(field, value)
+        return
+      }
+      checkSubflowCount(ctx, decl, key, value, node)
+      fields.set(field, value)
       return
     }
     const compiled = compileValue(ctx, node, site)
@@ -1197,7 +1237,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
         )
         continue
       }
-      setField(field, property.value)
+      setField(key, field, property.value)
     }
   }
 

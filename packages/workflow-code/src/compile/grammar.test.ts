@@ -468,6 +468,17 @@ describe('accepted grammar', () => {
     })
   })
 
+  it('resolves vars.<key as declared> to the normalized variable key the SDK types it by', () => {
+    const wf = ok(
+      source(
+        `${START}\nconst a = api('A', { url: vars.MyVar, body: t\`\${vars['My Var']}\` })`,
+        "{ variables: { MyVar: { type: 'string', value: '' } } }"
+      )
+    )
+    expect(paramValue(wf, 'a', 'url')).toBe('<variable.myvar>')
+    expect(paramValue(wf, 'a', 'body')).toBe('<variable.myvar>')
+  })
+
   it('collects comments at anchors and reports spans by anchor', () => {
     const text = [
       '// @sim-sdk 1',
@@ -560,6 +571,24 @@ describe('warnings that never block a compile', () => {
       'url: todo()',
     ],
     ['a required field left out', "const a = api('A', {})", 'W_REQUIRED_MISSING', "api('A'"],
+    [
+      'a loop count of 0',
+      "const l = loop.for('L', { count: 0 }, (p) => {})",
+      'W_SUBFLOW_COUNT',
+      '0 }',
+    ],
+    [
+      'a fractional negative loop count',
+      "const l = loop.doWhile('L', { count: -3.5 }, (p) => {})",
+      'W_SUBFLOW_COUNT',
+      '-3.5',
+    ],
+    [
+      'a parallel batch size past the runtime limit',
+      "const p = parallel.count('P', { count: 3, batchSize: 500 }, (b) => {})",
+      'W_SUBFLOW_COUNT',
+      '500',
+    ],
   ] as const)('warns on %s', (_label, body, code, needle) => {
     const text = source(body)
     const result = run(text)
@@ -714,6 +743,120 @@ describe('errors, each with its code, location and hint', () => {
       undefined,
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
+    [
+      'a resource inside a JSON field literal',
+      "table.insertRow('Row', { data: { id: table('orders') } })",
+      'E_UNSUPPORTED_SYNTAX',
+      "table('orders')",
+      'Write a string, number, boolean, null, array or object here.',
+    ],
+    [
+      'a canonical node inside a JSON field literal',
+      "table.insertRow('Row', { data: [raw({ $sim: 'var', key: 'retries' })] })",
+      'E_UNSUPPORTED_SYNTAX',
+      'raw({',
+      'Write a string, number, boolean, null, array or object here.',
+    ],
+    [
+      'a malformed tool in raw([...])',
+      "const a = agent('A', { model: 'm', tools: raw([{ type: 'x', params: {}, modes: {} }, { type: 'y' }]) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "{ type: 'y' }",
+      'Write raw({ type, params: {}, modes: {} }).',
+    ],
+    [
+      'a template tag called as a function',
+      "const a = api('A', { url: t('x') })",
+      'E_UNSUPPORTED_SYNTAX',
+      "t('x')",
+      'Use t`...` as a tagged template.',
+    ],
+    [
+      'edge() written as a value',
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: edge(a, 'source', a) })",
+      'E_UNSUPPORTED_SYNTAX',
+      'edge(a',
+      'edge(...) is wiring; write it as its own statement.',
+    ],
+    [
+      'a block builder written as a value',
+      "const a = api('A', { url: api('B', { url: 'x' }) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "api('B'",
+      'Declare the block with const and pass its name.',
+    ],
+    [
+      'a boolean meta field that is not a boolean literal',
+      "const a = api('A', { url: 'x' }, { disabled: 1 })",
+      'E_UNSUPPORTED_SYNTAX',
+      '1 })',
+      'Write true or false.',
+    ],
+    [
+      'codeFile() in an extra field',
+      "const a = api('A', { url: 'x' }, { extra: { script: codeFile('./fns/a.js') } })",
+      'E_UNSUPPORTED_SYNTAX',
+      "codeFile('./fns/a.js') }",
+      "Write code: codeFile('./functions/x.js').",
+    ],
+    [
+      'todo() in an extra field',
+      "const a = api('A', { url: 'x' }, { extra: { later: todo() } })",
+      'E_UNSUPPORTED_SYNTAX',
+      'todo() }',
+      'Write todo() as the param value.',
+    ],
+    [
+      'a wiring target nothing declares',
+      `${START}\nconst fetchUser = api('Fetch', { url: 'x' })\nstart.to(fetchUsr)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'fetchUsr)',
+      'Did you mean fetchUser?',
+    ],
+    [
+      'a wiring source nothing declares',
+      `${START}\nconst a = api('A', { url: 'x' })\nstrt.to(a)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'strt.to',
+      'Did you mean start?',
+    ],
+    [
+      'an edge() end nothing declares',
+      `${START}\nconst fetchUser = api('Fetch', { url: 'x' })\nedge(start, 'source', fetchUsr)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'fetchUsr)',
+      'Did you mean fetchUser?',
+    ],
+    [
+      'a wiring target inside a loop',
+      `${START}\nconst l = loop.for('L', { count: 1 }, (p) => {\n  const inside = api('Inside', { url: 'x' })\n  p.to(inside)\n})\nstart.to(inside)`,
+      'E_OUT_OF_SCOPE',
+      'inside)\n}',
+      undefined,
+    ],
+    [
+      'a generic block whose type is not a literal',
+      "const a = block(kind, 'Thing', {})",
+      'E_UNSUPPORTED_SYNTAX',
+      'kind,',
+      "Write block('custom_type', 'Name', { ... }).",
+    ],
+    [
+      'a variable without a type',
+      START,
+      'E_UNSUPPORTED_SYNTAX',
+      "{ value: '' }",
+      "Write type: 'string'.",
+      "{ variables: { a: { value: '' } } }",
+    ],
+    [
+      'a variable with neither a type nor a value',
+      START,
+      'E_UNSUPPORTED_SYNTAX',
+      '{} }',
+      "Write type: 'string'.",
+      '{ variables: { a: {} } }',
+    ],
   ] as const)('reports %s', (_label, body, code, needle, hint, options?: string) => {
     const text = source(body, options)
     expectDiagnostic(run(text), code, locate(text, needle), hint)
@@ -817,6 +960,14 @@ describe('errors, each with its code, location and hint', () => {
       code,
       locate(text, needle, code === 'E_DUPLICATE_EDGE' ? 2 : 1)
     )
+  })
+
+  it('attributes a wiring error to the source block', () => {
+    const text = source(
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: 'x' })\na.to(b)\na.to(b)"
+    )
+    const duplicate = run(text).diagnostics.find((d) => d.code === 'E_DUPLICATE_EDGE')
+    expect(duplicate?.blockKey).toBe('a')
   })
 
   it('points a duplicate name at the first declaration', () => {
@@ -993,6 +1144,27 @@ describe('rejected constructs', () => {
     const extra = `// @sim-sdk 1\n${IMPORTS}\nconst x = 1\nexport default workflow('X', {}, () => {})\n`
     expectDiagnostic(run(extra), 'E_UNSUPPORTED_SYNTAX', { line: 3, column: 1 }, EXTRA)
   })
+
+  it('names a rejected construct in words, not by its parser type', () => {
+    const messages = (body: string) => run(source(body)).diagnostics.map((d) => d.message)
+    expect(messages("const a = api('A', { url: `x${1}` })")).toContain(
+      'An untagged template is not supported in a workflow file.'
+    )
+    expect(messages("if (true) { api('A', { url: 'x' }) }")).toContain(
+      'An if statement is not supported in a workflow body.'
+    )
+    expect(messages("fetch('x')")).toContain('A call is not supported here.')
+  })
+
+  it('rejects a string statement at the top level, in the workflow body and in a loop body', () => {
+    const topLevel = `// @sim-sdk 1\n'use strict'\n${IMPORTS}\nexport default workflow('X', {}, () => {})\n`
+    expectDiagnostic(run(topLevel), 'E_UNSUPPORTED_SYNTAX', { line: 2, column: 1 }, EXTRA)
+    const BODY = 'Delete it; a body holds block declarations and wiring.'
+    const body = source(`'hello'\n${START}`)
+    expectDiagnostic(run(body), 'E_UNSUPPORTED_SYNTAX', locate(body, "'hello'"), BODY)
+    const loopBody = source("const l = loop.for('L', { count: 1 }, (p) => {\n  'hello'\n})")
+    expectDiagnostic(run(loopBody), 'E_UNSUPPORTED_SYNTAX', locate(loopBody, "'hello'"), BODY)
+  })
 })
 
 describe('meta.key: legacy keys the display name cannot carry', () => {
@@ -1072,6 +1244,32 @@ describe('defaults rule: an omitted param is the editor default', () => {
   it('keeps a param written as todo() stored-absent', () => {
     const wf = ok(source("const call = api('Call', { url: 'https://x', method: todo() })"))
     expect(blockOf(wf, 'call').params).not.toHaveProperty('method')
+  })
+
+  it('keeps both members of a basic/advanced pair written as null stored-absent', () => {
+    const table = TEST_CATALOG.blocks.table
+    const catalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        table: {
+          ...table,
+          subBlocks: table.subBlocks.map((sub) =>
+            'id' in sub && sub.id === 'filter' ? { ...sub, valueDefault: { constant: '{}' } } : sub
+          ),
+        },
+      },
+    }
+    for (const written of ['null', 'todo()']) {
+      const result = compileWorkflow({
+        entry: { path: ENTRY, text: source(`table.insertRow('T', { filterInput: ${written} })`) },
+        files: new Map(),
+        catalog,
+        sdkMajor: 1,
+      })
+      expect(errorsOf(result)).toEqual([])
+      expect(result.workflow?.blocks.t?.params).not.toHaveProperty('filter')
+    }
   })
 
   it("compiles a doWhile loop's count, which runs when it has no condition", () => {

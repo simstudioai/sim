@@ -2,6 +2,7 @@ import type {
   ArrowFunctionExpression,
   CallExpression,
   ExpressionStatement,
+  Identifier,
   Node,
 } from '@babel/types'
 import { encodeAnchor } from '../anchors'
@@ -20,6 +21,7 @@ import type {
   VarKey,
 } from '../model'
 import type { AddCommentItem, CommentCollector } from './comments'
+import { didYouMean } from './hints'
 import type { CompileLimits } from './parse'
 import type { Range, Reporter } from './report'
 
@@ -39,9 +41,10 @@ export type ResolvedBuilder =
       /** `null` for the bare `parallel(...)` form, which leaves `parallelType` unset. */
       method: string | null
     }
-  /** `E_UNKNOWN_BUILDER` was reported; the name still claims its key. */
+  /** `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims its key. */
   | { kind: 'unknown' }
 
+/** One block declaration collected in pass 1, before its values are compiled. */
 export interface BlockDecl {
   key: BlockKey
   name: string
@@ -72,6 +75,7 @@ type Binding =
   | { kind: 'sdk'; name: string }
   | { kind: 'vars' }
 
+/** A lexical body scope: the workflow body, a loop/parallel body, or the module (imports). */
 export interface Scope {
   parent: Scope | null
   bindings: Map<string, Binding>
@@ -110,6 +114,7 @@ interface CodeFileBudget {
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
 }
 
+/** The state one compile threads through every pass: inputs, the reporter and what has been collected. */
 export interface CompileContext {
   file: string
   reporter: Reporter
@@ -158,6 +163,7 @@ interface Located {
   end?: number | null
 }
 
+/** The range a node covers in the entry file. */
 export function rangeOf(ctx: CompileContext, node: Located): Range {
   const start = node.start ?? 0
   return { file: ctx.file, start, end: node.end ?? start }
@@ -185,6 +191,7 @@ export function recordSpan(ctx: CompileContext, anchor: Anchor, node: Located): 
   return key
 }
 
+/** The binding `name` resolves to from `scope`, innermost scope first, or `null`. */
 export function lookup(scope: Scope, name: string): Binding | null {
   for (let current: Scope | null = scope; current; current = current.parent) {
     const binding = current.bindings.get(name)
@@ -194,12 +201,45 @@ export function lookup(scope: Scope, name: string): Binding | null {
 }
 
 /** Every identifier visible from `scope`, innermost first, for did-you-mean. */
-export function visibleNames(scope: Scope): string[] {
+function visibleNames(scope: Scope): string[] {
   const names: string[] = []
   for (let current: Scope | null = scope; current; current = current.parent) {
     names.push(...current.bindings.keys())
   }
   return names
+}
+
+/**
+ * Reports an identifier `scope` does not bind: `E_OUT_OF_SCOPE` when a block inside another loop or
+ * parallel holds the name, else `E_UNKNOWN_IDENTIFIER` with a did-you-mean over the visible names.
+ * `at` is what the out-of-scope error covers (a whole member chain for a reference). Returns `null`.
+ */
+export function reportUnresolvedIdentifier(
+  ctx: CompileContext,
+  scope: Scope,
+  identifier: Identifier,
+  blockKey?: BlockKey,
+  at: Located = identifier
+): null {
+  if (ctx.declsByIdent.get(identifier.name)?.length) {
+    ctx.reporter.report(
+      'E_OUT_OF_SCOPE',
+      `${identifier.name} is declared inside another loop or parallel and is not visible here.`,
+      rangeOf(ctx, at),
+      {
+        hint: 'Wire or reference the loop or parallel that holds it, or move the block into this scope.',
+        blockKey,
+      }
+    )
+    return null
+  }
+  ctx.reporter.report(
+    'E_UNKNOWN_IDENTIFIER',
+    `${identifier.name} is not defined.`,
+    rangeOf(ctx, identifier),
+    { hint: didYouMean(identifier.name, visibleNames(scope)), blockKey }
+  )
+  return null
 }
 
 /** The enclosing containers of a declaration, innermost first (not the declaration itself). */
@@ -209,6 +249,7 @@ export function enclosingContainers(decl: BlockDecl): BlockDecl[] {
   return chain
 }
 
+/** The catalog block a declaration builds; `undefined` for a container or an unknown builder. */
 export function catalogBlockOf(decl: BlockDecl): CatalogBlock | undefined {
   switch (decl.builder.kind) {
     case 'catalog':
@@ -219,6 +260,7 @@ export function catalogBlockOf(decl: BlockDecl): CatalogBlock | undefined {
   }
 }
 
+/** Whether a declaration is a loop or a parallel, or `null` for any other block. */
 export function containerKindOf(decl: BlockDecl): 'loop' | 'parallel' | null {
   return decl.builder.kind === 'container' ? decl.builder.container : null
 }
