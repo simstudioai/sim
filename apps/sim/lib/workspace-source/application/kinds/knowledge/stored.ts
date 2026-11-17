@@ -17,6 +17,7 @@ import {
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
+import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import type { SourceContext, StoredResource } from '@/lib/workspace-source/application/types'
 
@@ -46,25 +47,6 @@ function docRevision(doc: StoredDoc): number {
 }
 
 const DOC_PAGE = 100
-const TAG_FIELDS = [
-  'tag1',
-  'tag2',
-  'tag3',
-  'tag4',
-  'tag5',
-  'tag6',
-  'tag7',
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'date1',
-  'date2',
-  'boolean1',
-  'boolean2',
-  'boolean3',
-] as const
 
 /** Every document of a knowledge base the caller can read, through the document list use case. */
 export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Promise<StoredDoc[]> {
@@ -88,7 +70,7 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         fileUrl: doc.fileUrl,
         uploadedAt: doc.uploadedAt,
         connectorId: doc.connectorId,
-        tagged: TAG_FIELDS.some((field) => doc[field] !== null && doc[field] !== ''),
+        tagged: ALL_TAG_SLOTS.some((field) => doc[field] !== null && doc[field] !== ''),
       })
     }
     if (!page.pagination.hasMore || page.documents.length === 0) break
@@ -103,12 +85,11 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
  */
 export function sourceDocs(docs: readonly StoredDoc[]): {
   byName: Map<string, StoredDoc>
-  ambiguous: Set<string>
+  ambiguous: Map<string, StoredDoc[]>
   /** Documents source leaves alone (connector-synced, too large, an odd name, ambiguous). */
   unmanaged: number
 } {
-  const byName = new Map<string, StoredDoc>()
-  const ambiguous = new Set<string>()
+  const named = new Map<string, StoredDoc[]>()
   let unmanaged = 0
   for (const doc of docs) {
     if (
@@ -117,15 +98,52 @@ export function sourceDocs(docs: readonly StoredDoc[]): {
       !isKnowledgeDocName(doc.filename)
     ) {
       unmanaged += 1
-    } else if (byName.has(doc.filename) || ambiguous.has(doc.filename)) {
-      ambiguous.add(doc.filename)
-      byName.delete(doc.filename)
+      continue
+    }
+    const holders = named.get(doc.filename)
+    if (holders) holders.push(doc)
+    else named.set(doc.filename, [doc])
+  }
+  const byName = new Map<string, StoredDoc>()
+  const ambiguous = new Map<string, StoredDoc[]>()
+  for (const [name, holders] of named) {
+    if (holders.length === 1) {
+      byName.set(name, holders[0])
     } else {
-      byName.set(doc.filename, doc)
+      ambiguous.set(name, holders)
+      unmanaged += holders.length
     }
   }
-  for (const doc of docs) if (ambiguous.has(doc.filename)) unmanaged += 1
   return { byName, ambiguous, unmanaged }
+}
+
+/**
+ * The documents a plan may hash: every managed one, and both documents of a name held twice,
+ * which a replace interrupted between its upload and its delete leaves behind.
+ */
+export function hashableDocs(docs: readonly StoredDoc[]): StoredDoc[] {
+  const { byName, ambiguous } = sourceDocs(docs)
+  return [
+    ...byName.values(),
+    ...[...ambiguous.values()].filter((holders) => holders.length === 2).flat(),
+  ]
+}
+
+/**
+ * The stale half of a replace interrupted between its upload and its delete: of two documents
+ * under one name, the one the base records, when the other hashes to the declared content.
+ */
+export function supersededDuplicate(
+  holders: readonly StoredDoc[],
+  hashes: ReadonlyMap<string, string>,
+  base: BaseResource | undefined,
+  sha256: string
+): StoredDoc | undefined {
+  if (holders.length !== 2) return undefined
+  const recorded = baseHashes(holders, base)
+  const old = holders.find((doc) => recorded.has(doc.id))
+  const replacement = holders.find((doc) => !recorded.has(doc.id))
+  return old && replacement && hashes.get(replacement.id) === sha256 ? old : undefined
 }
 
 /** The stored chunking settings as a declaration, or `undefined` when they are the defaults. */
@@ -172,7 +190,6 @@ export function knowledgeView(
   docs: readonly StoredDoc[],
   hashes: ReadonlyMap<string, string>
 ): KnowledgeView {
-  const { knowledgeBase, folderPath } = stored.state
   const managed = [...sourceDocs(docs).byName.values()].sort((a, b) =>
     compareStrings(a.filename, b.filename)
   )
@@ -186,14 +203,7 @@ export function knowledgeView(
     printed.push([doc.filename, { sha256, size: doc.fileSize }])
     blobs.push([doc.filename, { id: doc.id, rev: docRevision(doc), sha256 }])
   }
-  const chunking = storedChunking(stored.state)
-  const settings = {
-    name: knowledgeBase.name,
-    ...(knowledgeBase.description ? { description: knowledgeBase.description } : {}),
-    ...(folderPath !== '/' ? { folder: folderPath } : {}),
-    ...(chunking ? { chunking } : {}),
-    embeddingModel: knowledgeBase.embeddingModel,
-  }
+  const settings = storedSettings(stored)
   const fingerprint = fingerprintOf(
     knowledgeCodec.canonical({ ...settings, docs: Object.fromEntries(fingerprinted) })
   )
@@ -206,6 +216,77 @@ export function knowledgeView(
       ...(blobs.length > 0 ? { blobs: Object.fromEntries(blobs) } : {}),
     },
   }
+}
+
+/** A stored knowledge base's settings as a declaration, without its documents. */
+function storedSettings(stored: StoredKnowledgeBase): Omit<KnowledgeBaseDecl, 'docs'> {
+  const { knowledgeBase, folderPath } = stored.state
+  const chunking = storedChunking(stored.state)
+  return {
+    name: knowledgeBase.name,
+    ...(knowledgeBase.description ? { description: knowledgeBase.description } : {}),
+    ...(folderPath !== '/' ? { folder: folderPath } : {}),
+    ...(chunking ? { chunking } : {}),
+    embeddingModel: knowledgeBase.embeddingModel,
+  }
+}
+
+/** The fingerprint of a declaration's settings beside the documents given by name → hash. */
+function settingsFingerprint(
+  settings: Omit<KnowledgeBaseDecl, 'docs'>,
+  docs: ReadonlyMap<string, string>
+): ResourceFingerprint {
+  return fingerprintOf(
+    knowledgeCodec.canonical({
+      ...settings,
+      docs: Object.fromEntries([...docs].map(([name, sha256]) => [name, { sha256, size: 0 }])),
+    })
+  )
+}
+
+/**
+ * Whether every change the server took since `base` is one `decl` declares, as an apply that
+ * stopped partway leaves it: settings that now equal the declared ones, documents that now hash
+ * to the declared bytes or are gone where the declaration drops them, and a replaced document
+ * still stored beside its replacement. Such a server is planned from the base, so the next apply
+ * finishes the rest instead of refusing it as stale. A document of unknown hash never matches.
+ */
+export function movedTowardDecl(input: {
+  decl: KnowledgeBaseDecl
+  stored: StoredKnowledgeBase
+  docs: readonly StoredDoc[]
+  hashes: ReadonlyMap<string, string>
+  base: BaseResource
+}): boolean {
+  const { decl, stored, docs, hashes, base } = input
+  const settings = storedSettings(stored)
+  const baseDocs = new Map(
+    Object.entries(base.blobs ?? {}).map(([name, entry]) => [name, entry.sha256])
+  )
+  const none = new Map<string, string>()
+  if (
+    settingsFingerprint(settings, none) !== settingsFingerprint(decl, none) &&
+    settingsFingerprint(settings, baseDocs) !== base.fingerprint
+  ) {
+    return false
+  }
+  const declared = (name: string) =>
+    Object.hasOwn(decl.docs, name) ? decl.docs[name].sha256 : undefined
+  const { byName, ambiguous } = sourceDocs(docs)
+  /** Name → its hash on the server now; `null` when that is unknown. */
+  const server = new Map<string, string | null>()
+  for (const [name, doc] of byName) server.set(name, hashes.get(doc.id) ?? null)
+  for (const [name, holders] of ambiguous) {
+    const sha256 = declared(name)
+    const settled = sha256 !== undefined && supersededDuplicate(holders, hashes, base, sha256)
+    server.set(name, settled ? sha256 : null)
+  }
+  for (const name of new Set([...baseDocs.keys(), ...server.keys()])) {
+    const now = server.get(name)
+    if (now === null) return false
+    if (now !== baseDocs.get(name) && now !== declared(name)) return false
+  }
+  return true
 }
 
 /** The hashes the base vouches for: a document it records under the same id and upload time. */

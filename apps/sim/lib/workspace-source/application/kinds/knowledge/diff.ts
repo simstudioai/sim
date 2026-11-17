@@ -6,6 +6,7 @@
  * replacement therefore has a new id and none of the old one's tag values.
  */
 import { sha256Hex } from '@sim/security/hash'
+import type { BaseResource, WorkspaceDiagnosticCode } from '@sim/workspace-code'
 import type {
   KnowledgeBaseDecl,
   KnowledgeChunkingDecl,
@@ -16,14 +17,15 @@ import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
-import { getFileExtension } from '@/lib/uploads/utils/file'
-import { isSupportedExtension } from '@/lib/uploads/utils/validation'
+import { validateFileType } from '@/lib/uploads/utils/validation'
+import { kindFinding } from '@/lib/workspace-source/application/findings'
 import {
   type StoredDoc,
   type StoredKnowledgeBase,
   sameChunking,
   sourceDocs,
   storedChunking,
+  supersededDuplicate,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
 import type {
   PlanContext,
@@ -48,25 +50,22 @@ export interface KnowledgeChanges {
     chunkingConfig?: ChunkingConfig
   }
   uploads: DocUpload[]
+  /** Undeclared documents the base records, deleted with `--allow-delete`. */
   deletes: StoredDoc[]
+  /** Replaced documents still stored beside their replacement, deleted to finish the replace. */
+  superseded: StoredDoc[]
   fields: string[]
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
+/** A finding about one knowledge base. */
 export function finding(
   key: string,
-  code: string,
+  code: WorkspaceDiagnosticCode,
   message: string,
   hint?: string
 ): WorkspaceSourceDiagnostic {
-  return {
-    code,
-    severity: code.startsWith('E_') ? 'error' : code.startsWith('W_') ? 'warning' : 'info',
-    message,
-    ...(hint ? { hint } : {}),
-    kind: 'knowledge-base',
-    key,
-  }
+  return kindFinding('knowledge-base', key, code, message, hint)
 }
 
 /** The full chunking settings a declaration resolves to. */
@@ -82,14 +81,18 @@ export function chunkingConfig(chunking: KnowledgeChunkingDecl | undefined): Chu
   }
 }
 
-/** The checks a declaration fails whether it creates or updates: chunking bounds, document types. */
-export function checkDeclaration(
+/**
+ * Checks only what a change writes: the chunking settings it sets and the documents it uploads.
+ * Stored values the change leaves as they are (legacy chunking, an older document type) are never
+ * checked, so an unchanged directory always applies.
+ */
+export function checkWrites(
   key: string,
-  decl: KnowledgeBaseDecl
+  writes: { chunking?: ChunkingConfig; uploads: readonly DocUpload[] }
 ): WorkspaceSourceDiagnostic[] {
   const diagnostics: WorkspaceSourceDiagnostic[] = []
-  const chunking = chunkingConfigSchema.safeParse(chunkingConfig(decl.chunking))
-  if (!chunking.success) {
+  const chunking = writes.chunking && chunkingConfigSchema.safeParse(writes.chunking)
+  if (chunking && !chunking.success) {
     diagnostics.push(
       finding(
         key,
@@ -98,56 +101,61 @@ export function checkDeclaration(
       )
     )
   }
-  for (const [name, doc] of Object.entries(decl.docs)) {
-    if (!isSupportedExtension(getFileExtension(name))) {
-      diagnostics.push(
-        finding(
-          key,
-          'E_KB_DOC_NAME',
-          `docs/${name} is not a document type a knowledge base indexes.`,
-          'Use a supported extension such as .md, .txt, .pdf, .docx or .csv.'
-        )
-      )
+  for (const { name, doc } of writes.uploads) {
+    const typeError = validateFileType(name, '')
+    if (typeError) {
+      diagnostics.push(finding(key, 'E_KB_DOC_NAME', `docs/${name}: ${typeError.message}`))
     } else if (doc.size === 0) {
-      diagnostics.push(finding(key, 'E_KB_DOC_NAME', `docs/${name} is empty.`))
+      diagnostics.push(finding(key, 'E_KB_DOC_EMPTY', `docs/${name} is empty.`))
     }
   }
   return diagnostics
 }
 
-/**
- * The SHA-256 of a stored document's bytes, read through the original-document use case, or
- * `undefined` when its bytes are unavailable.
- */
-async function hashStoredDoc(
-  ctx: SourceContext,
-  knowledgeBaseId: string,
-  documentId: string
-): Promise<string | undefined> {
-  const original = await readOriginalKnowledgeDocument.execute({
-    principal: ctx.principal,
-    input: {
-      knowledgeBaseId,
-      documentId,
-      assertedWorkspaceId: ctx.workspace.workspaceId,
-      maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
-    },
-  })
-  return original.sourceAvailable ? sha256Hex(original.buffer) : undefined
+/** What one request may download to hash stored documents; past it, documents stay unhashed. */
+const HASH_BUDGET = { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, docs: 200 }
+
+/** The hashing each request (a get, or one apply round's plan) has spent so far. */
+const hashSpend = new WeakMap<SourceContext, { bytes: number; docs: number }>()
+
+/** Charges one document's download to the request's budget; `false` once it would overrun. */
+function chargeHash(ctx: SourceContext, bytes: number): boolean {
+  const spent = hashSpend.get(ctx) ?? { bytes: 0, docs: 0 }
+  if (spent.docs >= HASH_BUDGET.docs || spent.bytes + bytes > HASH_BUDGET.bytes) return false
+  hashSpend.set(ctx, { bytes: spent.bytes + bytes, docs: spent.docs + 1 })
+  return true
 }
 
-/** The hashes of every document source manages, downloaded one at a time. */
+/**
+ * Downloads and hashes each of `docs` whose hash `hashes` lacks, through the original-document
+ * use case, adding it to `hashes`. A document whose bytes are gone stays unhashed. Returns the
+ * documents left unhashed because the request's download budget ran out.
+ */
 export async function hashDocs(
   ctx: SourceContext,
   knowledgeBaseId: string,
-  docs: readonly StoredDoc[]
-): Promise<Map<string, string>> {
-  const hashes = new Map<string, string>()
-  for (const doc of sourceDocs(docs).byName.values()) {
-    const sha256 = await hashStoredDoc(ctx, knowledgeBaseId, doc.id)
-    if (sha256 !== undefined) hashes.set(doc.id, sha256)
+  docs: Iterable<StoredDoc>,
+  hashes: Map<string, string>
+): Promise<StoredDoc[]> {
+  const unbudgeted: StoredDoc[] = []
+  for (const doc of docs) {
+    if (hashes.has(doc.id)) continue
+    if (!chargeHash(ctx, doc.fileSize)) {
+      unbudgeted.push(doc)
+      continue
+    }
+    const original = await readOriginalKnowledgeDocument.execute({
+      principal: ctx.principal,
+      input: {
+        knowledgeBaseId,
+        documentId: doc.id,
+        assertedWorkspaceId: ctx.workspace.workspaceId,
+        maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
+      },
+    })
+    if (original.sourceAvailable) hashes.set(doc.id, sha256Hex(original.buffer))
   }
-  return hashes
+  return unbudgeted
 }
 
 /** The info line a change gets for the documents it indexes, and for chunking it changes. */
@@ -172,7 +180,7 @@ export function indexingFindings(
     findings.push(
       finding(
         key,
-        'I_KB_REEMBED',
+        'I_KB_CHUNKING',
         `New chunking applies to documents indexed from now on; ${storedDocs} stored document(s) keep their chunks.`,
         'Replace a document to index it again.'
       )
@@ -185,7 +193,9 @@ export function indexingFindings(
  * Diffs a declaration against a stored knowledge base and its documents. `hashes` holds the
  * document hashes known so far (from the base); a declared document whose stored hash is unknown
  * is downloaded and hashed, so an unchanged document is never re-embedded, and the hash is added.
- * Only a document the base records (`managed`) is deleted when undeclared; any other is kept.
+ * One the request's download budget leaves unhashed is neither uploaded nor deleted, only named.
+ * Only a document the base records (`managed`) is deleted when undeclared; any other is kept. A
+ * name held twice is settled when `base` shows a replace that stopped before its delete.
  */
 export async function diffKnowledgeBase(input: {
   key: string
@@ -194,14 +204,16 @@ export async function diffKnowledgeBase(input: {
   docs: readonly StoredDoc[]
   hashes: Map<string, string>
   managed: ReadonlySet<string>
+  base?: BaseResource
   ctx: PlanContext
 }): Promise<KnowledgeChanges> {
-  const { key, decl, stored, docs, hashes, ctx } = input
+  const { key, decl, stored, docs, hashes, base, ctx } = input
   const { knowledgeBase, folderPath } = stored.state
   const changes: KnowledgeChanges = {
     settings: {},
     uploads: [],
     deletes: [],
+    superseded: [],
     fields: [],
     diagnostics: [],
   }
@@ -225,7 +237,15 @@ export async function diffKnowledgeBase(input: {
 
   const { byName, ambiguous } = sourceDocs(docs)
   for (const [name, doc] of Object.entries(decl.docs)) {
-    if (ambiguous.has(name)) {
+    const holders = ambiguous.get(name)
+    if (holders) {
+      if (base && holders.length === 2) await hashDocs(ctx, stored.id, holders, hashes)
+      const superseded = supersededDuplicate(holders, hashes, base, doc.sha256)
+      if (superseded) {
+        changes.superseded.push(superseded)
+        changes.fields.push(`docs/${name} (replace)`)
+        continue
+      }
       changes.diagnostics.push(
         finding(
           key,
@@ -242,12 +262,19 @@ export async function diffKnowledgeBase(input: {
       changes.fields.push(`docs/${name} (add)`)
       continue
     }
-    let sha256 = hashes.get(current.id)
-    if (sha256 === undefined) {
-      sha256 = await hashStoredDoc(ctx, stored.id, current.id)
-      if (sha256 !== undefined) hashes.set(current.id, sha256)
+    const [unchecked] = await hashDocs(ctx, stored.id, [current], hashes)
+    if (unchecked) {
+      changes.diagnostics.push(
+        finding(
+          key,
+          'W_KB_DOC_UNCHECKED',
+          `docs/${name} was not compared with the stored document: this request reached its download budget, so it is left as it is.`,
+          'Apply again to compare it.'
+        )
+      )
+      continue
     }
-    if (sha256 === doc.sha256) continue
+    if (hashes.get(current.id) === doc.sha256) continue
     changes.uploads.push({ name, doc, replaces: current })
     changes.fields.push(`docs/${name} (replace)`)
     if (current.tagged) {

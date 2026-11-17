@@ -39,6 +39,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+const embedding = vi.hoisted(() => ({ failure: null as Error | null }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixtureStorage.root
@@ -47,8 +48,28 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/knowledge/embeddings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/knowledge/embeddings')>()
+  return {
+    ...actual,
+    getConfiguredKbEmbedding: async () => {
+      if (embedding.failure) throw embedding.failure
+      return actual.getConfiguredKbEmbedding()
+    },
+  }
+})
 
-import { updateKnowledgeBaseOperation } from '@/lib/knowledge/application/knowledge-bases'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  deleteKnowledgeDocument,
+  uploadKnowledgeDocument,
+} from '@/lib/knowledge/application/documents'
+import { createKnowledgeFolder } from '@/lib/knowledge/application/folders'
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBaseOperation,
+  updateKnowledgeBaseOperation,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
   type ApplyWorkspaceSourceInput,
@@ -217,6 +238,34 @@ async function docs(knowledgeBaseId: string) {
     .from(document)
     .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), isNull(document.deletedAt)))
   return rows.sort((a, b) => compareStrings(a.filename, b.filename))
+}
+
+/** `dir` with one file's text edited. */
+function editText(dir: Directory, path: string, from: string, to: string): Directory {
+  return { ...dir, files: { ...dir.files, [path]: dir.files[path].replace(from, to) } }
+}
+
+/** `dir` with one document's bytes replaced or added. */
+function withDoc(dir: Directory, path: string, text: string): Directory {
+  return { ...dir, docs: { ...dir.docs, [path]: Buffer.from(text) } }
+}
+
+const POLICIES_FILE = 'knowledge/policies/knowledge.ts'
+const REFUNDS = 'knowledge/policies/docs/refunds.md'
+
+/** Makes the `failOn`-th call of `uploadKnowledgeDocument` fail, as storage might. */
+function failUpload(failOn: number) {
+  const upload = uploadKnowledgeDocument.execute
+  let calls = 0
+  return vi.spyOn(uploadKnowledgeDocument, 'execute').mockImplementation(async (args) => {
+    calls += 1
+    if (calls === failOn) throw new Error('storage unavailable')
+    return upload.call(uploadKnowledgeDocument, args)
+  })
+}
+
+async function filenames(knowledgeBaseId: string) {
+  return (await docs(knowledgeBaseId)).map((doc) => doc.filename)
 }
 
 async function snapshot(workspaceId: string) {
@@ -737,6 +786,402 @@ describe('knowledge bases as workspace source', () => {
         carry: 'none',
       })
       expect(settled.plan.every((change) => change.action === 'noop')).toBe(true)
+    }
+  )
+  check(
+    'a replace whose old document cannot be deleted removes its replacement, and the next apply finishes it',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [refunds] = await docs(stored.id)
+      const edited = withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n')
+      const failing = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+
+      const first = await apply(workspaceId, edited, { base: read.base })
+      failing.mockRestore()
+
+      expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
+      expect((await docs(stored.id)).map((doc) => [doc.filename, doc.id])).toEqual([
+        ['refunds.md', refunds.id],
+        ['shipping.txt', expect.any(String)],
+      ])
+
+      const second = await apply(workspaceId, edited, { base: first.base })
+
+      expect(second.failed).toBeUndefined()
+      const after = await docs(stored.id)
+      expect(after.map((doc) => doc.filename)).toEqual(['refunds.md', 'shipping.txt'])
+      expect(after[0].id).not.toBe(refunds.id)
+    }
+  )
+
+  check(
+    'a replace stopped between its upload and its delete is finished by the next apply',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [refunds] = await docs(stored.id)
+      const edited = withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n')
+      /** The old document's delete fails, and so does removing the replacement again. */
+      const failing = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+
+      const first = await apply(workspaceId, edited, { base: read.base })
+      failing.mockRestore()
+
+      expect(first.failed).toMatchObject({ key: 'policies' })
+      expect(await filenames(stored.id)).toEqual(['refunds.md', 'refunds.md', 'shipping.txt'])
+
+      const plan = await apply(workspaceId, edited, {
+        base: first.base,
+        dryRun: true,
+        carry: 'none',
+      })
+      expect(codes(plan.diagnostics)).toEqual([])
+      expect(plan.plan).toMatchObject([
+        { action: 'update', key: 'policies', fields: ['docs/refunds.md (replace)'] },
+      ])
+      expect(plan.needBlobs).toEqual([])
+
+      const second = await apply(workspaceId, edited, { base: first.base, carry: 'none' })
+
+      expect(second.failed).toBeUndefined()
+      const after = await docs(stored.id)
+      expect(after.map((doc) => doc.filename)).toEqual(['refunds.md', 'shipping.txt'])
+      expect(after[0].id).not.toBe(refunds.id)
+      const settled = await apply(workspaceId, reprinted(edited, second), {
+        base: second.base,
+        carry: 'none',
+      })
+      expect(actions(settled)).toEqual(['noop knowledge-base:policies'])
+    }
+  )
+
+  check('a create that fails partway is adopted and finished by the next apply', async () => {
+    const workspaceId = await newWorkspace()
+    const failing = failUpload(2)
+
+    const first = await apply(workspaceId, POLICIES)
+    failing.mockRestore()
+
+    expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
+    const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+    expect(await filenames(stored.id)).toEqual(['refunds.md'])
+
+    const second = await apply(workspaceId, POLICIES, { base: first.base })
+
+    expect(second.failed).toBeUndefined()
+    expect(actions(second, 'applied')).toEqual(['adopt knowledge-base:policies'])
+    expect((await knowledgeBases(workspaceId)).map((row) => row.id)).toEqual([stored.id])
+    expect(await filenames(stored.id)).toEqual(['refunds.md', 'shipping.txt'])
+    expect(second.base.resources['knowledge-base:policies']?.id).toBe(stored.id)
+  })
+
+  check('an update that fails partway converges on the next apply', async () => {
+    const { workspaceId, read, dir } = await setUp()
+    const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+    const edited = withDoc(
+      withDoc(
+        editText(
+          dir,
+          POLICIES_FILE,
+          "name: 'Policies',",
+          "name: 'Policies',\n  description: 'Rules',"
+        ),
+        REFUNDS,
+        '# Refunds\nWithin 60 days.\n'
+      ),
+      'knowledge/policies/docs/faq.md',
+      '# FAQ\n'
+    )
+    const failing = failUpload(2)
+
+    const first = await apply(workspaceId, edited, { base: read.base })
+    failing.mockRestore()
+
+    expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
+    expect(await filenames(stored.id)).toEqual(['faq.md', 'refunds.md', 'shipping.txt'])
+
+    const second = await apply(workspaceId, edited, { base: first.base })
+
+    expect(second.failed).toBeUndefined()
+    expect(second.plan).toMatchObject([
+      { action: 'update', key: 'policies', fields: ['docs/refunds.md (replace)'] },
+    ])
+    expect(await filenames(stored.id)).toEqual(['faq.md', 'refunds.md', 'shipping.txt'])
+    expect((await knowledgeBaseNamed(workspaceId, 'Policies')).description).toBe('Rules')
+    const settled = await apply(workspaceId, reprinted(edited, second), {
+      base: second.base,
+      carry: 'none',
+    })
+    expect(actions(settled)).toEqual(['noop knowledge-base:policies'])
+    expect(settled.diagnostics).toEqual([])
+  })
+
+  check(
+    'a get lists documents past its download budget without a hash, and a plan never writes one it could not compare',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const big: Directory = {
+        files: { 'knowledge/big/knowledge.ts': declaration('Big') },
+        docs: Object.fromEntries(
+          ['a', 'b', 'c'].map((fill) => [
+            `knowledge/big/docs/${fill}.txt`,
+            Buffer.alloc(9_000_000, fill),
+          ])
+        ),
+      }
+      const { knowledgeBase: created } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Big' },
+      })
+      for (const [path, buffer] of Object.entries(big.docs)) {
+        await uploadKnowledgeDocument.execute({
+          principal: owner,
+          input: {
+            knowledgeBaseId: created.id,
+            file: {
+              buffer,
+              filename: path.slice('knowledge/big/docs/'.length),
+              fileSize: buffer.byteLength,
+              mimeType: 'text/plain',
+            },
+          },
+        })
+      }
+      const before = await snapshot(workspaceId)
+
+      const adopted = await apply(workspaceId, big, { carry: 'none' })
+
+      expect(actions(adopted, 'applied')).toEqual(['adopt knowledge-base:big'])
+      expect(codes(adopted.diagnostics, 'warning')).toEqual(['W_KB_DOC_UNCHECKED'])
+      expect(adopted.needBlobs).toEqual([])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      const read = await get(workspaceId)
+
+      expect(read.blobs.filter((blob) => blob.sha256 === undefined)).toHaveLength(1)
+      expect(read.blobs.map((blob) => blob.path).sort()).toEqual(Object.keys(big.docs).sort())
+      expect(codes(read.diagnostics, 'info')).toEqual(['I_KB_DOCS_UNHASHED'])
+
+      const compared = await apply(workspaceId, big, { base: read.base, carry: 'none' })
+
+      expect(compared.applied).toEqual([])
+      expect(
+        Object.keys(compared.base.resources['knowledge-base:big']?.blobs ?? {}).sort()
+      ).toEqual(['a.txt', 'b.txt', 'c.txt'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'an unchanged directory applies over stored values a write would refuse: legacy chunking, an older document type',
+    async () => {
+      const { workspaceId } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [refunds] = await docs(stored.id)
+      await db
+        .update(knowledgeBase)
+        .set({
+          chunkingConfig: {
+            maxSize: 1024,
+            minSize: 100,
+            overlap: 200,
+            strategy: 'recursive',
+            strategyOptions: { separators: Array.from({ length: 300 }, (_, i) => `|${i}|`) },
+          },
+        })
+        .where(eq(knowledgeBase.id, stored.id))
+      await db
+        .update(document)
+        .set({ filename: 'refunds.legacy' })
+        .where(eq(document.id, refunds.id))
+      const read = await get(workspaceId)
+      expect(read.blobs.map((blob) => blob.path)).toContain(
+        'knowledge/policies/docs/refunds.legacy'
+      )
+      const dir: Directory = {
+        files: read.files,
+        docs: {
+          'knowledge/policies/docs/refunds.legacy': POLICIES.docs[REFUNDS],
+          'knowledge/policies/docs/shipping.txt':
+            POLICIES.docs['knowledge/policies/docs/shipping.txt'],
+        },
+      }
+
+      const again = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
+
+      expect(codes(again.diagnostics)).toEqual([])
+      expect(actions(again)).toEqual(['noop knowledge-base:policies'])
+    }
+  )
+
+  check('refuses at plan time a rename to a name another knowledge base holds', async () => {
+    const { workspaceId, read, dir } = await setUp({
+      files: { ...POLICIES.files, 'knowledge/faq/knowledge.ts': declaration('FAQ') },
+      docs: POLICIES.docs,
+    })
+    const before = await snapshot(workspaceId)
+
+    const refused = await refusal(
+      apply(workspaceId, editText(dir, POLICIES_FILE, "name: 'Policies'", "name: 'FAQ'"), {
+        base: read.base,
+        carry: 'none',
+      })
+    )
+
+    expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+    expect(refused.diagnostics[0]).toMatchObject({ key: 'policies' })
+    expect(await snapshot(workspaceId)).toEqual(before)
+  })
+
+  check(
+    'refuses at plan time a create when the server cannot resolve its embedding model',
+    async () => {
+      const workspaceId = await newWorkspace()
+      try {
+        embedding.failure = new Error('connect ECONNREFUSED 127.0.0.1:11434')
+        const unreachable = await refusal(apply(workspaceId, POLICIES, { carry: 'none' }))
+        expect(codes(unreachable.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+        expect(unreachable.diagnostics[0].message).not.toContain('ECONNREFUSED')
+
+        embedding.failure = new OrchestrationError('validation', 'Set EMBEDDING_OUTPUT_DIMS.')
+        const unsized = await refusal(apply(workspaceId, POLICIES, { carry: 'none' }))
+        expect(unsized.diagnostics.filter((finding) => finding.severity === 'error')).toMatchObject(
+          [{ code: 'E_APPLY_REFUSED', message: 'Set EMBEDDING_OUTPUT_DIMS.', key: 'policies' }]
+        )
+      } finally {
+        embedding.failure = null
+      }
+      expect(await knowledgeBases(workspaceId)).toEqual([])
+    }
+  )
+
+  check(
+    'a knowledge base deleted on the server stays deleted, and an edit to it is stale',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      await deleteKnowledgeBaseOperation.execute({
+        principal: owner,
+        input: { knowledgeBaseId: stored.id },
+      })
+
+      const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
+
+      expect(unchanged.applied).toEqual([])
+      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(await knowledgeBases(workspaceId)).toEqual([])
+
+      const stale = await refusal(
+        apply(workspaceId, withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n'), {
+          base: read.base,
+          carry: 'none',
+        })
+      )
+
+      expect(stale.stale).toBe(true)
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect(await knowledgeBases(workspaceId)).toEqual([])
+    }
+  )
+
+  check(
+    'a document deleted on the server stays deleted, and an edit beside it is stale',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [refunds] = await docs(stored.id)
+      await deleteKnowledgeDocument.execute({
+        principal: owner,
+        input: { knowledgeBaseId: stored.id, documentId: refunds.id },
+      })
+      const before = await snapshot(workspaceId)
+
+      const unchanged = await apply(workspaceId, dir, { base: read.base, carry: 'none' })
+
+      expect(unchanged.applied).toEqual([])
+      expect(codes(unchanged.diagnostics, 'info')).toEqual(['I_SERVER_CHANGED'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      const stale = await refusal(
+        apply(
+          workspaceId,
+          withDoc(dir, 'knowledge/policies/docs/shipping.txt', 'Ships in a day.\n'),
+          { base: read.base, carry: 'none' }
+        )
+      )
+
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'a knowledge base lives in a folder that exists, and refuses one that does not',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const inFolder: Directory = {
+        files: { [POLICIES_FILE]: declaration('Policies', "\n  folder: '/support',") },
+        docs: POLICIES.docs,
+      }
+
+      const missing = await refusal(apply(workspaceId, inFolder, { carry: 'none' }))
+
+      expect(codes(missing.diagnostics)).toEqual(['E_KB_FOLDER'])
+      expect(await knowledgeBases(workspaceId)).toEqual([])
+
+      await createKnowledgeFolder.execute({
+        principal: owner,
+        input: { workspaceId, path: '/support' },
+      })
+      const created = await apply(workspaceId, inFolder)
+
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      expect(read.files[POLICIES_FILE]).toContain("folder: '/support'")
+      const again = await apply(
+        workspaceId,
+        { ...inFolder, files: read.files },
+        {
+          base: read.base,
+          carry: 'none',
+        }
+      )
+      expect(actions(again)).toEqual(['noop knowledge-base:policies'])
+    }
+  )
+
+  check(
+    'never reads, adopts or deletes the workspace search index, which only holds its name',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { knowledgeBase: index } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Policies', isSearchIndex: true },
+      })
+
+      const read = await get(workspaceId)
+
+      expect(read.files).toEqual({})
+      expect(read.base.resources).toEqual({})
+
+      const refused = await refusal(apply(workspaceId, POLICIES, { carry: 'none' }))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+
+      const emptied = await apply(
+        workspaceId,
+        { files: {}, docs: {} },
+        { base: read.base, allowDelete: true, carry: 'none' }
+      )
+
+      expect(emptied.plan).toEqual([])
+      expect((await knowledgeBases(workspaceId)).map((row) => row.id)).toEqual([index.id])
     }
   )
 })
