@@ -586,6 +586,78 @@ describe('workspace source apply', () => {
     }
   )
 
+  check(
+    'deletes a table whose id a declared workflow mentions only in its prompt text',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, { 'tables/leads.ts': LEADS }, { kinds: ['table'], only: ['table'] })
+      const [leads] = await tables(workspaceId)
+      const created = await apply(
+        workspaceId,
+        {
+          'tables/leads.ts': LEADS,
+          'workflows/notes/workflow.ts': `// @sim-sdk 1
+import { agent, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Notes', {}, () => {
+  const start = trigger.start('Start', {})
+  const writer = agent('Writer', {
+    messages: [{ role: 'user', content: 'Rows once lived in table ${leads.id}, now archived.' }],
+    model: 'gpt-5.5',
+  })
+
+  start.to(writer)
+})
+`,
+        },
+        { base: (await get(workspaceId)).base }
+      )
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      expect(read.files['workflows/notes/workflow.ts']).toContain(leads.id)
+      // The CLI sends an unchanged workflow folder as its `.sim/` files alone.
+      const files = Object.fromEntries(
+        Object.entries(read.files).filter(
+          ([path]) =>
+            path !== 'tables/leads.ts' &&
+            (!path.startsWith('workflows/notes/') || path.startsWith('workflows/notes/.sim/'))
+        )
+      )
+
+      const deleted = await apply(workspaceId, files, { base: read.base, allowDelete: true })
+
+      expect(codes(deleted.diagnostics, 'error')).toEqual([])
+      expect(deleted.applied.map(({ kind, key, action }) => `${action} ${kind}:${key}`)).toEqual([
+        'delete table:leads',
+      ])
+      expect(await tables(workspaceId)).toEqual([])
+    }
+  )
+
+  check(
+    'keeps a workflow’s comment-only edit, which changes no block, through the next get',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const path = 'workflows/ingest/workflow.ts'
+      const files = {
+        ...read.files,
+        [path]: read.files[path].replace(
+          /(\n\s*)const save = /,
+          '$1// leads land here$1const save = '
+        ),
+      }
+      expect(files[path]).toContain('// leads land here')
+
+      const dryRun = await apply(workspaceId, files, { base: read.base, dryRun: true })
+      expect(dryRun.plan.find((change) => change.key === 'ingest')?.action).toBe('update')
+      const applied = await apply(workspaceId, files, { base: read.base })
+
+      expect(applied.failed).toBeUndefined()
+      expect((await get(workspaceId)).files[path]).toContain('// leads land here')
+    }
+  )
+
   check('deletes a workflow the directory no longer declares, with --allow-delete', async () => {
     const workspaceId = await newWorkspace()
     await apply(workspaceId, {
@@ -764,6 +836,76 @@ describe('workspace source apply', () => {
 
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
       expect(refused.diagnostics[0].message).toContain('losing 1 cell(s)')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'renames an option’s letter case on a delete-locked table, since it keeps the option',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await taggedLeads(workspaceId)
+      const a = await optionId(workspaceId, 'tags', 'a')
+      await insertRow(workspaceId, { email: 'a@b.c', tags: [a] })
+      const { id } = await storedTable(workspaceId)
+      await db
+        .update(userTableDefinitions)
+        .set({ deleteLocked: true })
+        .where(eq(userTableDefinitions.id, id))
+      const files = {
+        'tables/leads.ts': read.files['tables/leads.ts'].replace("'a', 'b'", "'A', 'b'"),
+      }
+
+      const renamed = await apply(workspaceId, files, { base: read.base, only: ['table'] })
+
+      expect(renamed.failed).toBeUndefined()
+      expect(codes(renamed.diagnostics, 'error')).toEqual([])
+      expect(await optionId(workspaceId, 'tags', 'A')).toBe(a)
+    }
+  )
+
+  check(
+    'refuses as stale a change to a table whose column the server replaced with a same-named one',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await taggedLeads(workspaceId)
+      const { id: tableId } = await storedTable(workspaceId)
+      await columnUseCases.deleteTableColumnUseCase.execute({
+        principal: owner,
+        input: { tableId, workspaceId, columnName: 'rank' },
+      })
+      await columnUseCases.addTableColumnUseCase.execute({
+        principal: owner,
+        input: {
+          tableId,
+          workspaceId,
+          column: {
+            name: 'rank',
+            type: 'select',
+            options: [
+              { id: generateId(), name: '1' },
+              { id: generateId(), name: '2' },
+            ],
+          },
+        },
+      })
+      await insertRow(workspaceId, {
+        email: 'a@b.c',
+        rank: await optionId(workspaceId, 'rank', '1'),
+      })
+      const files = {
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(
+          "name: 'leads',",
+          "name: 'leads',\n  description: 'Inbound leads',"
+        ),
+      }
+      const before = await tableSnapshot(workspaceId)
+
+      const refused = await refusal(
+        apply(workspaceId, files, { base: read.base, only: ['table'], allowDelete: true })
+      )
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_STALE'])
       expect(await tableSnapshot(workspaceId)).toEqual(before)
     }
   )
