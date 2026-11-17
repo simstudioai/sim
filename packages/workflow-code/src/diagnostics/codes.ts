@@ -128,6 +128,8 @@ type CompileCatalogCode =
   | 'W_VALUE_KIND'
   /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
   | 'W_TABLE_FILTER_SHAPE'
+  /** A loop/parallel count or batch size the runtime replaces or clamps; kept so stored values round-trip. */
+  | 'W_SUBFLOW_COUNT'
   /** Skipped when the block's outputs are dynamic. */
   | 'W_UNKNOWN_OUTPUT_PATH'
   /**

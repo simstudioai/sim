@@ -571,6 +571,24 @@ describe('warnings that never block a compile', () => {
       'url: todo()',
     ],
     ['a required field left out', "const a = api('A', {})", 'W_REQUIRED_MISSING', "api('A'"],
+    [
+      'a loop count of 0',
+      "const l = loop.for('L', { count: 0 }, (p) => {})",
+      'W_SUBFLOW_COUNT',
+      '0 }',
+    ],
+    [
+      'a fractional negative loop count',
+      "const l = loop.doWhile('L', { count: -3.5 }, (p) => {})",
+      'W_SUBFLOW_COUNT',
+      '-3.5',
+    ],
+    [
+      'a parallel batch size past the runtime limit',
+      "const p = parallel.count('P', { count: 3, batchSize: 500 }, (b) => {})",
+      'W_SUBFLOW_COUNT',
+      '500',
+    ],
   ] as const)('warns on %s', (_label, body, code, needle) => {
     const text = source(body)
     const result = run(text)
