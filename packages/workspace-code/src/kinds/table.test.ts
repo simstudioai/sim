@@ -171,6 +171,22 @@ describe('tableCodec', () => {
     ])
   })
 
+  it('reads a currency code in any letter case as the upper-case code the server stores', () => {
+    const file = [
+      '// @sim-sdk 1',
+      "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+      '',
+      'export default defineTable({',
+      "  name: 'leads',",
+      "  columns: { price: column.currency({ currencyCode: 'eur' }) },",
+      '})',
+      '',
+    ].join('\n')
+    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    expect(parsed.diagnostics).toEqual([])
+    expect(parsed.decl?.columns.price).toEqual({ type: 'currency', currencyCode: 'EUR' })
+  })
+
   it('groups one file per key and refuses anything else in tables/', () => {
     const grouped = tableCodec.group(['tables/leads.ts', 'tables/Bad.ts', 'tables/x/y.ts'])
     expect([...grouped.groups.keys()]).toEqual(['leads'])

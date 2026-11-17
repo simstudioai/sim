@@ -80,18 +80,19 @@ const TABLE_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const MAX_TABLE_NAME_LENGTH = 128
 const MAX_COLUMN_NAME_LENGTH = 50
 const MAX_DESCRIPTION_LENGTH = 500
-const CURRENCY_CODE = /^[A-Z]{3}$/
+const CURRENCY_CODE = /^[A-Za-z]{3}$/
 /** The most options one select column holds (`MAX_SELECT_OPTIONS` in apps/sim/lib/table/constants). */
 const MAX_SELECT_OPTIONS = 100
 
 /**
- * Whether `code` is an ISO 4217 code this runtime knows, as the server's currency column checks
- * it (`isSupportedCurrencyCode`); a runtime that cannot list currencies checks the shape alone.
+ * Whether `code` is an ISO 4217 code this runtime knows, in any letter case, as the server's
+ * currency column checks it (`isSupportedCurrencyCode`); a runtime that cannot list currencies
+ * checks the shape alone.
  */
 function isSupportedCurrencyCode(code: string): boolean {
   if (!CURRENCY_CODE.test(code)) return false
   try {
-    return Intl.supportedValuesOf('currency').includes(code)
+    return Intl.supportedValuesOf('currency').includes(code.toUpperCase())
   } catch {
     return true
   }
@@ -209,7 +210,8 @@ function readColumn(
   if (type === 'currency') {
     const code = readStringField(options, 'currencyCode', optionsPointer, report)
     if (code !== undefined) {
-      if (isSupportedCurrencyCode(code)) column.currencyCode = code
+      // Upper-cased as the server stores it, so `usd` reads as the `USD` a get prints.
+      if (isSupportedCurrencyCode(code)) column.currencyCode = code.toUpperCase()
       else
         report(
           'E_DECL_SHAPE',
