@@ -113,7 +113,7 @@ export interface MaterializeOptions {
   /** The stored graph being replaced. Absent for a new workflow. */
   prev?: WorkflowState
   resources?: ResourceKeyResolver
-  /** Disables identity rule 4 (`--no-infer-renames`). */
+  /** Disables identity rule 4 (inferred renames); no surface sets it, tests and tools only. */
   inferRenames?: boolean
   /**
    * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
@@ -123,9 +123,10 @@ export interface MaterializeOptions {
   compiledIdents?: Record<BlockKey, string>
   /**
    * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
-   * `stale` when it does not, `none` when there is no lock. Rule 4 (inferred renames) runs only
-   * for `stale` and `none`; a `stale` lock entry whose id left prev is re-created with
-   * `W_MAT_DELETED_SINCE_PULL`.
+   * `stale` when it does not, `none` when there is no lock. A `stale` lock entry whose id left
+   * prev is re-created with `W_MAT_DELETED_SINCE_PULL`. Rule 4 (inferred renames) runs for every
+   * freshness: under a fresh lock it pairs only blocks whose key and ident both changed, since a
+   * rename that kept either is matched by rules 1-2.
    */
   lockFreshness: LockFreshness
 }
@@ -179,13 +180,18 @@ export function materialize(
     inferRenames: options.inferRenames !== false,
     diagnostics,
   })
-  const workflow = withPreservedState(
-    rewriteRenamedReferences(input, resolution.renames),
-    (key) => {
-      const prevKey = resolution.blocks.get(key)?.prevKey ?? null
-      return prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
-    },
-    catalog
+  // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas
+  // rename rewrites every subBlock.
+  const workflow = rewriteRenamedReferences(
+    withPreservedState(
+      input,
+      (key) => {
+        const prevKey = resolution.blocks.get(key)?.prevKey ?? null
+        return prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
+      },
+      catalog
+    ),
+    resolution.renames
   )
   const idByKey = new Map([...resolution.blocks].map(([key, block]) => [key, block.id]))
 

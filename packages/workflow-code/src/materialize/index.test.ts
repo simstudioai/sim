@@ -474,6 +474,30 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.load.id).toBe('a1')
   })
 
+  it('keeps each id across a chain rename where one block takes the name another leaves', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const moves: Record<string, string> = { fetch: 'report', report: 'summary' }
+    const target = edit(canonical(prev, lock).workflow, (draft) => {
+      const blocks = { ...draft.blocks }
+      draft.blocks = omit(draft.blocks, ['fetch', 'report'])
+      draft.blocks.report = { ...blocks.fetch, key: 'report', name: 'Report' }
+      draft.blocks.summary = { ...blocks.report, key: 'summary', name: 'Summary' }
+      draft.edges = draft.edges.map((e) => ({
+        ...e,
+        from: moves[e.from] ?? e.from,
+        to: moves[e.to] ?? e.to,
+      }))
+    })
+    const result = run(target, lock, {
+      prev,
+      compiledIdents: { report: lock.blocks.fetch.ident, summary: lock.blocks.report.ident },
+    })
+    expect(result.identity.blocks.report.id).toBe('a1')
+    expect(result.identity.blocks.summary.id).toBe('a2')
+    expect(result.entries.filter((entry) => entry.status !== 'matched')).toEqual([])
+  })
+
   it('infers a lockless rename from type, parent and agreeing neighbours, flagged', () => {
     const prev = base()
     const result = run(renameFetch(canonical(prev).workflow), null, { prev })
@@ -825,6 +849,29 @@ describe('materialize: preserved UI state comes from prev', () => {
     const result = run(target, null, { prev: state })
     expect(subBlockValue(result.state, 's1', 'notify')).toBe(false)
     expect(subBlockValue(result.state, 's1', 'text')).toBe('stale message')
+  })
+
+  it('rewrites a renamed block reference inside a restored inactive value, as a canvas rename does', () => {
+    const state = workflowState([
+      blockState('a1', 'function', 'Fetch', { code: 'return 1' }),
+      blockState('s1', 'slack', 'Post', {
+        operation: 'read',
+        channel: 'C1',
+        text: 'saw <fetch.result>',
+      }),
+    ])
+    const lock = lockFor(state)
+    const target = edit(canonical(state, lock).workflow, (draft) => {
+      draft.blocks.load = { ...draft.blocks.fetch, key: 'load', name: 'Load' }
+      draft.blocks = omit(draft.blocks, ['fetch'])
+      draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
+    })
+    const result = run(target, lock, {
+      prev: state,
+      compiledIdents: { load: lock.blocks.fetch.ident },
+    })
+    expect(result.identity.blocks.load.id).toBe('a1')
+    expect(subBlockValue(result.state, 's1', 'text')).toBe('saw <load.result>')
   })
 
   it('clears a standalone advanced field that source emptied instead of restoring it', () => {

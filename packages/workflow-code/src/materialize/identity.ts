@@ -174,9 +174,25 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   const keys = Object.keys(workflow.blocks)
   const open = () => keys.filter((key) => !resolved.has(key) && !settled.has(key))
 
+  /**
+   * A key whose ident in the file now belongs to another lock entry: in a chain rename (A takes
+   * B's name while B takes a new one) the key is B's, but the block is A's, so rule 2 binds it.
+   */
+  const identOwner = new Map<string, BlockKey>()
+  for (const [key, entry] of Object.entries(lock?.blocks ?? {})) {
+    if (!duplicates.has(key)) identOwner.set(entry.ident, key)
+  }
+  const identMoved = (key: BlockKey): boolean => {
+    const ident = inputs.compiledIdents?.[key]
+    const entry = lockEntry(key)
+    if (ident === undefined || !entry || entry.ident === ident) return false
+    const owner = identOwner.get(ident)
+    return owner !== undefined && owner !== key
+  }
+
   for (const key of keys) {
     const entry = lockEntry(key)
-    if (!entry) continue
+    if (!entry || identMoved(key)) continue
     if (Object.hasOwn(prevBlocks, entry.id)) {
       match(key, entry.id, 'lock-key')
     } else if (prev && inputs.freshness === 'stale') {
@@ -195,10 +211,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   }
 
   const identEntries = Object.entries(lock?.blocks ?? {}).filter(
-    ([key]) => !duplicates.has(key) && !Object.hasOwn(workflow.blocks, key)
+    ([key, entry]) =>
+      !duplicates.has(key) &&
+      (!Object.hasOwn(workflow.blocks, key) || inputs.compiledIdents?.[key] !== entry.ident)
   )
   for (const key of open()) {
-    if (lockEntry(key)) continue
+    if (lockEntry(key) && !identMoved(key)) continue
     const ident = inputs.compiledIdents?.[key]
     if (ident === undefined) continue
     const found = identEntries.find(
@@ -373,7 +391,7 @@ function inferRenames(state: InferenceState): void {
         {
           code: 'W_MAT_INFERRED_RENAME',
           severity: 'warning',
-          message: `Block "${key}" is taken as a rename of "${prevKey}" (same type, parent and connections); pass inferRenames: false to create it instead`,
+          message: `Block "${key}" is taken as a rename of "${prevKey}" (same type, parent and connections), so it keeps that block's id and run history. To make it a new block instead, delete "${prevKey}" in one apply and add "${key}" in the next`,
           blockKey: key,
         }
       )
