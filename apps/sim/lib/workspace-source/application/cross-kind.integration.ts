@@ -6,38 +6,32 @@
  * `WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH`.
  */
 import { mkdtempSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { db } from '@sim/db'
 import {
-  auditLog,
   customTools,
   document,
   knowledgeBase,
-  permissions,
   skill,
   user,
   userStats,
   userTableDefinitions,
   workflow,
-  workspace,
   workspaceFiles,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -70,31 +64,21 @@ import {
   type ApplyWorkspaceSourceResult,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import {
+  blobManifest,
+  refusal,
+  sourceChecks,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 const ownerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
-const workspaceIds: string[] = []
-const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
-
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  })
-}
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH',
+  'workspace-source-cross-kind.json'
+)
+const workspaces = sourceWorkspaces()
 
 const KINDS: WorkspaceKind[] = [
   'table',
@@ -183,15 +167,6 @@ interface Directory {
   blobs: Record<string, Buffer>
 }
 
-function manifest(blobs: Record<string, Buffer>, carry: boolean) {
-  return Object.entries(blobs).map(([path, bytes]) => ({
-    path,
-    sha256: sha256Hex(bytes),
-    size: bytes.byteLength,
-    ...(carry ? { content: bytes.toString('base64') } : {}),
-  }))
-}
-
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files' | 'blobs'>> & {
   carry?: boolean
 }
@@ -204,7 +179,7 @@ function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) 
       input: {
         workspaceId,
         files: dir.files,
-        blobs: manifest(dir.blobs, carry),
+        blobs: blobManifest(dir.blobs, () => carry),
         kinds: KINDS,
         ...input,
       },
@@ -216,15 +191,6 @@ function get(workspaceId: string) {
   return withPermissionGroupScope(() =>
     readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: KINDS } })
   )
-}
-
-async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
-  const error = await promise.then(
-    () => null,
-    (caught: unknown) => caught
-  )
-  expect(error).toBeInstanceOf(WorkspaceSourceRejectedError)
-  return error as WorkspaceSourceRejectedError
 }
 
 function findings(
@@ -293,22 +259,7 @@ async function snapshot(workspaceId: string) {
 }
 
 async function newWorkspace(): Promise<string> {
-  const workspaceId = generateId()
-  workspaceIds.push(workspaceId)
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
-    name: 'Workspace source across kinds',
-    ownerId,
-    billedAccountUserId: ownerId,
-  })
-  await db.insert(permissions).values({
-    id: generateId(),
-    userId: ownerId,
-    entityType: 'workspace',
-    entityId: workspaceId,
-    permissionType: 'admin',
-  })
-  return workspaceId
+  return workspaces.create({ name: 'Workspace source across kinds', ownerId })
 }
 
 /**
@@ -377,15 +328,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const reportPath =
-    process.env.WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH ??
-    resolve('test-results/workspace-source-cross-kind.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (workspaceIds.length > 0) {
-    await db.delete(auditLog).where(inArray(auditLog.workspaceId, workspaceIds))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
-  }
+  await writeReport()
+  await workspaces.cleanup()
   await db.delete(user).where(eq(user.id, ownerId))
   if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })
 })
@@ -519,7 +463,7 @@ export default workflow('Answer', {}, () => {
             input: {
               workspaceId,
               files: dir.files,
-              blobs: manifest(BLOBS, false).map((blob) =>
+              blobs: blobManifest(BLOBS, () => false).map((blob) =>
                 carried.includes(blob.path)
                   ? { ...blob, content: BLOBS[blob.path].toString('base64') }
                   : blob
@@ -633,7 +577,7 @@ export default workflow('Answer', {}, () => {
     async () => {
       const workspaceId = await newWorkspace()
       const empty = await snapshot(workspaceId)
-      const forged = manifest(BLOBS, true).map((blob) =>
+      const forged = blobManifest(BLOBS, () => true).map((blob) =>
         blob.path === 'knowledge/policies/docs/refunds.md'
           ? { ...blob, content: Buffer.from('not the declared bytes').toString('base64') }
           : blob
@@ -662,7 +606,7 @@ export default workflow('Answer', {}, () => {
 
   check('a blob listed twice, or at a path no binary file lives at, is refused', async () => {
     const workspaceId = await newWorkspace()
-    const [notes] = manifest({ 'files/notes.txt': BLOBS['files/notes.txt'] }, false)
+    const [notes] = blobManifest({ 'files/notes.txt': BLOBS['files/notes.txt'] }, () => false)
 
     const refused = await refusal(
       withPermissionGroupScope(() =>
