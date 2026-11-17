@@ -266,7 +266,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       avoid:
         'expecting date filters or sorting on code or wiki results, and relying on advanced-search operators (quotes, |, -) on instances that may only have basic search.',
     },
-    search: searchGitLab,
+    search: (client, input) => searchGitLab(client, input),
     read: (client, reference) =>
       readGitLab(client, reference.id, reference.container, reference.kind, reference.revision),
   },

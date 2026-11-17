@@ -37,7 +37,7 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
     reject('Use a filename of 1–255 characters without path separators.')
   }
   if (new TextEncoder().encode(upload.content).byteLength > GITLAB_CSV_MAX_BYTES) {
-    reject('The file must be 4 MiB or smaller.')
+    reject('The file must be 8 MiB or smaller.')
   }
   const rows: [string, string][] = []
   const seen = new Set<string>()
@@ -60,7 +60,7 @@ export function parseGitLabCsv(upload: GitLabCsvUpload, kind: GitLabCsvKind): [s
           if (record[0] === HEADERS[kind][0] && record[1] === HEADERS[kind][1]) return null
         }
         recordCount++
-        if (recordCount > GITLAB_CSV_MAX_ROWS) reject('The file must contain at most 100,000 rows.')
+        if (recordCount > GITLAB_CSV_MAX_ROWS) reject('The file must contain at most 500,000 rows.')
         const id = kind === 'userMapping' ? record[0] : record[1]
         if (!USER_ID.test(id) || !Number.isSafeInteger(Number(id))) {
           reject(`Row ending at line ${line} has an invalid user_id; use a positive integer.`)

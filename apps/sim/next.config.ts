@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: !isTruthy(env.NEXT_BUILD_SKIP_SOURCE_MAPS),
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
   },
@@ -182,15 +182,8 @@ const nextConfig: NextConfig = {
      * 5.4x faster restarts and ~1.9x less memory. Cold compile with an empty
      * cache is unchanged (~32s either way) — the cache only pays back on restart.
      *
-     * This is deliberately NOT the same decision as `turbopackFileSystemCacheForBuild`
-     * below. That one is measured-harmful for `next build`; this one is
-     * measured-beneficial for `next dev`. It was previously `false`, but that was
-     * incidental — it was introduced by a landing-page redesign (#5408) whose
-     * description never mentions Turbopack, caching, or dev performance, and it
-     * is not covered by the #6078 build A/B cited below.
-     *
      * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
-     * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
+     * `scripts/prune-turbopack-cache.mts` is chained into every `dev` script to cap it.
      * A *corrupted* cache can abort Turbopack outright ("Cache corruption
      * detected: checksum mismatch") rather than falling back — it depends whether
      * the damaged region is read. `bun run dev:clean` and restart is the fix.
@@ -203,18 +196,11 @@ const nextConfig: NextConfig = {
      */
     turbopackFileSystemCacheForDev: true,
     /**
-     * Turbopack's persistent build cache (beta) stays off — it is a net loss at
-     * this app's size. A controlled A/B on a byte-identical module graph (PR
-     * #6078) measured compile at 113s with it off, 162s cold with it on, and 360s
-     * warm: the cache made the same build 3.2x slower. It also grew 5.1 GB ->
-     * 12 GB across two runs of an unchanged tree, so a cache degrades the longer
-     * it lives. Restoring across commits is separately undocumented-as-supported
-     * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
-     *
-     * The explicit pin is load-bearing: 16.3.0 flipped this default to true for
-     * stable (vercel/next.js#94616), so dropping it re-enables the slower cache.
+     * Only qualified CI builds opt into persistent compiler state. Other builds
+     * remain cache-off until their own memory, invalidation and restore costs are
+     * qualified. CI keeps this state separate from complete build-output caches.
      */
-    turbopackFileSystemCacheForBuild: false,
+    turbopackFileSystemCacheForBuild: isTruthy(env.NEXT_BUILD_PERSISTENT_CACHE),
     /**
      * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
      * checker cannot load it — this shells out to the project-local `tsc` instead.

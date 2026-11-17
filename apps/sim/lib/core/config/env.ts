@@ -347,6 +347,8 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_PERSISTENT_CACHE:           z.boolean().optional(),                 // Enables incremental compiler state for qualified CI builds
+    NEXT_BUILD_SKIP_SOURCE_MAPS:           z.boolean().optional(),                 // Omits unused browser source maps in acceptance builds
     NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling

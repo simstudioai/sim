@@ -45,13 +45,17 @@ Sim checks returned content against these restrictions independently of the quer
 
 ## Add a group
 
-Choose **Group** in the source's **Scope** field and enter the numeric group ID or full group path. Enable **Include subgroups** only if descendant projects should be included. Sim supports groups with at most 1,000 projects visible to the source token; larger groups need narrower sources. Projects shared from outside the group are excluded.
+Choose **Group** in the source's **Scope** field and enter the numeric group ID or full group path. Enable **Include subgroups** only if descendant projects should be included. Sim supports up to **50,000 projects** visible to the source token, subject to the CSV limits below and a 16 MiB limit for saved project IDs and paths. Projects shared from outside the group are excluded.
+
+Discovery reads 100 projects per page and must finish within five minutes. GitLab's configured offset and rate limits still apply; choose narrower groups if the instance cannot return the complete listing within these limits. Sim also handles listings without total-count headers, which GitLab can omit above 10,000 results.
 
 The same permission strategies apply. Group membership alone never grants access to every project: administrator mode checks each project's current permissions, and non-admin mode requires a CSV grant for each project and reader. The source token must be able to read every project you want to search.
 
 In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Updating and saving source settings also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants. If a group configured by path is renamed, save the new path and an updated project-permissions CSV together in source settings. Numeric group IDs remain valid across renames.
 
-Search visits project pages within a bounded request budget. Continuation cursors cover remaining projects and results; targeting a project narrows the request. Renamed or moved projects are blocked until a successful refresh; projects outside the configured group remain excluded. Group setup uses the existing project search APIs, so it does not require group-wide advanced search.
+In CSV mode, search uses GitLab's group search API and checks each result against the saved projects and reader grants. Group code search requires Advanced Search or Exact Code Search; group wiki search requires Advanced Search. Unsupported scopes fall back to project search. A configured branch/tag, date filters, or administrator-token mode also use project search where needed. Each request visits a bounded number of pages; continuation cursors cover the remainder. Targeting a project narrows the request.
+
+Group search stops at 10,000 candidates per content type to respect GitLab's Advanced Search window. Sim marks this as partial and asks you to narrow the query or target a project. This candidate limit applies before permission filtering. Renamed or moved projects are blocked until a successful refresh; projects outside the configured group remain excluded. See GitLab's [search capabilities and pagination limits](https://docs.gitlab.com/api/search/).
 
 To expand an existing deployment, create a **separate group source** after the application deployment finishes. Keep the working project source and its CI variables unchanged while validating the group. Give the group job its new `SIM_SOURCE_ID`, then pause the old source after confirming the wider setup. Regular knowledge-base ingestion remains project-scoped.
 
@@ -78,7 +82,7 @@ engineering/platform,456
 Use the full namespace path even if **Project** contains a numeric ID. Include inherited members explicitly. A grant without an email mapping grants nothing; rows for other projects cannot expand this source.
 
 - Each file has exactly two columns in the shown order and at least one data row. Template headers or headerless data are accepted.
-- Use UTF-8 CSV, at most 4 MiB and 100,000 data rows per file. The full request must fit 10 MiB.
+- Use UTF-8 CSV, at most **8 MiB and 500,000 data rows per file**. The complete JSON upload, including escaped CSV content, must fit **10 MiB**. These are independent limits; split large deployments into narrower sources when either is reached.
 - Identical rows are deduplicated. Conflicting user-ID/email mappings and malformed rows are rejected.
 
 In this example, Alice can search `engineering/platform` because the files link GitLab user `123` to both that project and `alice@example.com`. Sim checks that Alice is a current organization member and that her verified Sim email uniquely matches the grant. It checks again when she opens a result. GitLab receives the request under the source's read-only service account; Alice does not sign in to GitLab or authorize Sim individually.
@@ -119,6 +123,8 @@ This creates `gitlab-permissions/users.csv` and `gitlab-permissions/project-perm
 The export includes active, unlocked human members with Reporter access or higher. It excludes Guests, Planners, bots, and memberships expiring today or earlier in UTC. It does not infer access from public/internal visibility, administrator or Auditor privileges, or custom permissions below Reporter. GitLab policies such as SSO or external authorization are not represented by these CSVs. Review the grants against your organization's access requirements before uploading them.
 
 Requests run serially, paced at 60 per minute by default. Set `--requests-per-minute` to change this export-job ceiling; it does not configure live Search traffic. Each run reads each project's identity and membership pages, plus one profile request per distinct candidate reader. Group exports also read the group identity and project listing. The request ceiling applies across the entire export. API errors, hidden emails, identity conflicts, inconsistent pagination totals (when GitLab provides them), and oversized exports stop the job without publishing either file. Run exports after bulk membership updates finish; paginated API reads are not a point-in-time snapshot.
+
+Large exports can take hours. For example, 50,000 projects require at least 100,000 project and membership requests, before listing and profile requests: over 27 hours at the default ceiling. Set the CI job timeout and schedule accordingly, or use smaller groups. Agree any higher request rate with your GitLab administrator. CSV files are written incrementally and published only when the complete export succeeds.
 
 ## Access checks
 
@@ -169,6 +175,10 @@ sync_gitlab_permissions:
         '{expectedRevision: $rev, permissions: {provider: "gitlab",
           userMapping: {filename: "users.csv", content: $users},
           projectPermissions: {filename: "project-permissions.csv", content: $grants}}}' > "$export_root/update.json"
+      if [ "$(wc -c < "$export_root/update.json")" -gt 10485760 ]; then
+        echo "Permission upload exceeds 10 MiB; use a narrower source." >&2
+        exit 1
+      fi
       curl --fail --silent --show-error --request PUT -H "$auth" \
         -H 'Content-Type: application/json' --data-binary "@$export_root/update.json" "$url"
 ```
