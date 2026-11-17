@@ -13,6 +13,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
@@ -88,6 +89,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       principal,
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      hashBudget: newHashBudget(),
     }
     const requested = new Set(input.kinds ?? APPLY_ORDER)
     const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))

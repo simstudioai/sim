@@ -35,6 +35,7 @@ import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -52,6 +53,7 @@ import {
   createWorkspaceCustomToolUseCase,
   deleteWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
+import { uploadKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import {
   createKnowledgeBase,
   deleteKnowledgeBaseOperation,
@@ -59,6 +61,7 @@ import {
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
@@ -803,4 +806,38 @@ export default workflow('Answer', {}, () => {
       expect(findings(again.diagnostics, 'error')).toEqual([])
     }
   )
+
+  check('workspace files and knowledge documents hash within one per-request budget', async () => {
+    const workspaceId = await newWorkspace()
+    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+    for (const name of ['a.txt', 'b.txt']) {
+      await uploadWorkspaceFile(
+        workspaceId,
+        ownerId,
+        Buffer.alloc(size, name),
+        name,
+        'text/plain',
+        {
+          notifyWorkspaceChange: false,
+        }
+      )
+    }
+    const { knowledgeBase: created } = await createKnowledgeBase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'Policies' },
+    })
+    const buffer = Buffer.alloc(size, 'c')
+    await uploadKnowledgeDocument.execute({
+      principal: owner,
+      input: {
+        knowledgeBaseId: created.id,
+        file: { buffer, filename: 'c.txt', fileSize: size, mimeType: 'text/plain' },
+      },
+    })
+
+    const read = await get(workspaceId)
+
+    expect(read.blobs).toHaveLength(3)
+    expect(read.blobs.filter((blob) => blob.sha256 === undefined)).toHaveLength(1)
+  })
 })

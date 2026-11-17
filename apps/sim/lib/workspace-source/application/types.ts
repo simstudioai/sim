@@ -8,6 +8,7 @@ import type {
   WorkspaceKind,
 } from '@sim/workspace-code'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
+import type { HashBudget } from '@/lib/workspace-source/application/hash-budget'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** One finding of a workspace source read or apply, as the wire carries it. */
@@ -19,6 +20,8 @@ export interface SourceContext {
   workspace: ActiveWorkspaceApplicationContext
   /** The human a created resource or allocated key is attributed to; `null` for a workspace key. */
   createdBy: string | null
+  /** What the request may still download to hash; spread copies of the context share it. */
+  hashBudget: HashBudget
 }
 
 export interface PlanContext extends SourceContext {

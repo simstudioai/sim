@@ -19,6 +19,7 @@ import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
+import { spendHash } from '@/lib/workspace-source/application/hash-budget'
 import {
   type StoredDoc,
   type StoredKnowledgeBase,
@@ -112,20 +113,6 @@ export function checkWrites(
   return diagnostics
 }
 
-/** What one request may download to hash stored documents; past it, documents stay unhashed. */
-const HASH_BUDGET = { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, docs: 200 }
-
-/** The hashing each request (a get, or one apply round's plan) has spent so far. */
-const hashSpend = new WeakMap<SourceContext, { bytes: number; docs: number }>()
-
-/** Charges one document's download to the request's budget; `false` once it would overrun. */
-function chargeHash(ctx: SourceContext, bytes: number): boolean {
-  const spent = hashSpend.get(ctx) ?? { bytes: 0, docs: 0 }
-  if (spent.docs >= HASH_BUDGET.docs || spent.bytes + bytes > HASH_BUDGET.bytes) return false
-  hashSpend.set(ctx, { bytes: spent.bytes + bytes, docs: spent.docs + 1 })
-  return true
-}
-
 /**
  * Downloads and hashes each of `docs` whose hash `hashes` lacks, through the original-document
  * use case, adding it to `hashes`. A document whose bytes are gone stays unhashed. Returns the
@@ -140,7 +127,7 @@ export async function hashDocs(
   const unbudgeted: StoredDoc[] = []
   for (const doc of docs) {
     if (hashes.has(doc.id)) continue
-    if (!chargeHash(ctx, doc.fileSize)) {
+    if (!spendHash(ctx, doc.fileSize)) {
       unbudgeted.push(doc)
       continue
     }

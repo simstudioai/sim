@@ -47,13 +47,12 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
   finding,
-  noBaseFinding,
   planUndeclared,
-  serverChangedFinding,
   serverGoneFinding,
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
-import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { spendHash } from '@/lib/workspace-source/application/hash-budget'
+import { resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   ApplyContext,
@@ -142,6 +141,15 @@ function serverSha(file: StoredFile, base?: BaseResource): string | null {
     : null
 }
 
+/**
+ * The fingerprint the server holds for a file: of its hash (its own, or the base's), or of its
+ * revision when no hash is known, which matches nothing a directory declares.
+ */
+function serverFingerprint(file: StoredFile, base?: BaseResource): string {
+  const sha = serverSha(file, base)
+  return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
+}
+
 /** Reads a stored file's bytes, under the content read's own authorization. */
 async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> {
   const { content } = await readWorkspaceFileContent.execute({
@@ -154,22 +162,6 @@ async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> 
     },
   })
   return content
-}
-
-/** Stored bytes each request may still read to hash files whose hash nothing records. */
-const hashBudgets = new WeakMap<SourceContext, { bytes: number }>()
-
-/**
- * Takes `size` bytes from the request's hashing budget (`maxBlobBytesPerRequest`), or returns
- * `false` when they do not fit. Uploads record no hash, so without a bound one get or plan would
- * read and hash every stored byte of the workspace.
- */
-function spendHashBudget(ctx: SourceContext, size: number): boolean {
-  const budget = hashBudgets.get(ctx) ?? { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest }
-  hashBudgets.set(ctx, budget)
-  if (size > budget.bytes) return false
-  budget.bytes -= size
-  return true
 }
 
 /**
@@ -188,7 +180,7 @@ async function hashUnrecorded(
     const file = stored.bound.get(key)
     if (!file || file.state.unmanaged || file.state.size !== decl.size) continue
     if (serverSha(file, ctx.base?.resources[resourceAddress('file', key)]) !== null) continue
-    if (!spendHashBudget(ctx, file.state.size)) continue
+    if (!spendHash(ctx, file.state.size)) continue
     try {
       file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
     } catch (error) {
@@ -277,31 +269,14 @@ function planFile(
     local: fingerprint(decl.sha256),
     stored: existing,
     base,
-    fingerprint: (file, base) => {
-      const sha = serverSha(file, base)
-      return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
-    },
+    fingerprint: serverFingerprint,
     holds: (id) => byId.has(id),
   })
+  const settled = settle(resolution, change, (file) =>
+    fileBase(key, file.id, file.state.rev, decl.sha256)
+  )
+  if (settled) return settled
   switch (resolution.action) {
-    case 'deleted':
-      change.diagnostics.push(serverGoneFinding('file', key, resolution.stale))
-      return change
-    case 'stale':
-      change.diagnostics.push(staleFinding('file', key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'no-base':
-      change.diagnostics.push(noBaseFinding('file', key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'noop': {
-      const { state, id } = resolution.stored
-      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding('file', key))
-      return {
-        ...change,
-        storedId: id,
-        ...(resolution.refreshed ? { base: fileBase(key, id, state.rev, decl.sha256) } : {}),
-      }
-    }
     case 'update':
       return {
         ...change,
@@ -331,6 +306,8 @@ function planFile(
         needsBlobs: [fileBlobPath(key)],
       }
     }
+    default:
+      return change
   }
 }
 
@@ -356,10 +333,7 @@ function planDeletes(
     (file) => ({ what: 'file', counts: { files: 1, bytes: file.state.size } }),
     {
       declared,
-      fingerprint: (file, entry) => {
-        const sha = serverSha(file, entry)
-        return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
-      },
+      fingerprint: serverFingerprint,
     }
   )
   return undeclared.map((change) => {
@@ -574,7 +548,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     }
     const workspaceId = ctx.workspace.workspaceId
     let { sha256, size } = state
-    if (sha256 === null && spendHashBudget(ctx, size)) {
+    if (sha256 === null && spendHash(ctx, size)) {
       const content = await storedBytes(ctx, id)
       sha256 = sha256Hex(content)
       size = content.length

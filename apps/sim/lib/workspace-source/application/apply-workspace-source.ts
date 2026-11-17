@@ -17,6 +17,7 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
+import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
   planWorkspaceSource,
@@ -141,6 +142,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       principal,
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      hashBudget: newHashBudget(),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true
