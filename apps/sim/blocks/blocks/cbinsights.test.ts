@@ -101,4 +101,12 @@ describe('CbInsightsBlock', () => {
     expect(maturity.startDate).toBe('2025-01-01')
     expect(maturity.endDate).toBe('2025-06-01')
   })
+
+  it('keeps model filters on a firmographics tool call, which carries no operation in params', () => {
+    const merged = { clientId: 'id', clientSecret: 'secret', keyword: 'fintech', orgIds: [1, 2] }
+    const params = { ...merged, ...buildParams(merged, { operation: 'search_firmographics' }) }
+
+    expect(params.keyword).toBe('fintech')
+    expect(params.orgIds).toEqual([1, 2])
+  })
 })

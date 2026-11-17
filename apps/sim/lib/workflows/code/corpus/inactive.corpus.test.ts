@@ -21,35 +21,14 @@ vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
 import { buildProviderConfig } from '@/lib/webhooks/deploy'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import {
-  corpusBudgetMs,
-  roundTripSubjects,
-} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
+import { corpusBudgetMs, corpusSubjects } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
-const CASES_PER_BLOCK_TYPE = 3
-const FUZZ_RUNS = 50
-const BUDGET_MS = 60_000
-
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
-
-const subjects = roundTripSubjects({
-  casesPerBlockType: CASES_PER_BLOCK_TYPE,
-  full: process.env.ROUNDTRIP_CORPUS_FULL === '1',
-  fuzzRuns: FUZZ_RUNS,
-  extraDir: process.env.ROUNDTRIP_CORPUS_EXTRA_DIR,
-})
+const subjects = corpusSubjects()
 
 type Sentinel = { kind: 'text'; text: string } | { kind: 'identity'; value: unknown[] }
 
@@ -146,6 +125,6 @@ describe(`inactive params are never serialized (${subjects.length} workflows)`, 
       expect(checked).toBeGreaterThan(0)
       expect(leaks).toEqual([])
     },
-    corpusBudgetMs(subjects.length, BUDGET_MS)
+    corpusBudgetMs(subjects.length)
   )
 })

@@ -154,4 +154,14 @@ describe('catalog view', () => {
   it('answers no block for an inherited property name', () => {
     expect(catalogBlock(TEST_CATALOG, 'constructor')).toBeUndefined()
   })
+
+  it('keeps an output named __proto__ as an own output through expansion and compaction', () => {
+    const { hash, ...rest } = sharingCatalog()
+    const outputs = JSON.parse('{"__proto__":{"type":"string"},"x":{"type":"number"}}')
+    const chat = { ...rest.blocks.chat, outputs }
+    const compacted = compactBlockCatalog({ ...rest, blocks: { chat } })
+    const expanded = catalogBlock({ ...compacted, hash }, 'chat')
+    expect(Object.keys(expanded?.outputs ?? {})).toEqual(['__proto__', 'x'])
+    expect(Object.getPrototypeOf(expanded?.outputs)).toBe(Object.prototype)
+  })
 })

@@ -6,7 +6,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { edgeTupleKey, portKey } from '../anchors'
 import { catalogBlock } from '../catalog/view'
-import type { AnchorKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
+import type { AnchorKey, BlockKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
 import { setOwn } from '../records'
 import {
   type BlockDecl,
@@ -16,10 +16,11 @@ import {
   lookup,
   rangeOf,
   recordSpan,
+  reportUnresolvedIdentifier,
   type Scope,
   type WiringStatement,
 } from './context'
-import { HINTS, hintForNode } from './hints'
+import { HINTS, hintForNode, nodeLabel } from './hints'
 import { literalText } from './values'
 
 /** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p`). */
@@ -43,6 +44,7 @@ function portForHandle(handle: string, from: BlockDecl): Port {
 /** Implicit branch keys of a never-persisted branch list. */
 const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as const
 
+/** Pass 2 of wiring: validates each edge a wiring statement denotes and collects accepted ones. */
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
   /** Set once wiring would exceed `limits.maxEdges`; every later edge is dropped unchecked. */
@@ -67,14 +69,9 @@ export class EdgeCollector {
     code: Parameters<CompileContext['reporter']['report']>[0],
     message: string,
     node: Node,
-    hint?: string
+    { hint, blockKey }: { hint?: string; blockKey?: BlockKey } = {}
   ) {
-    this.ctx.reporter.report(
-      code,
-      message,
-      rangeOf(this.ctx, node),
-      hint === undefined ? {} : { hint }
-    )
+    this.ctx.reporter.report(code, message, rangeOf(this.ctx, node), { hint, blockKey })
   }
 
   /** Validates and records one edge; `false` when it was rejected. */
@@ -93,15 +90,25 @@ export class EdgeCollector {
     const sourceCatalog = catalogBlockOf(from) ?? catalogBlock(this.ctx.catalog, source.type)
     const targetCatalog = catalogBlockOf(to) ?? catalogBlock(this.ctx.catalog, target.type)
     if (sourceCatalog?.graph.annotationOnly || targetCatalog?.graph.annotationOnly) {
-      this.error('E_EDGE_NOTE', 'Notes cannot be wired.', node, 'Remove this edge.')
+      this.error('E_EDGE_NOTE', 'Notes cannot be wired.', node, {
+        hint: 'Remove this edge.',
+        blockKey: from.key,
+      })
       return false
     }
     if (target.triggerMode || targetCatalog?.graph.canBeTarget === false) {
-      this.error('E_TARGET_TRIGGER', `${to.name} is a trigger; nothing can connect into it.`, node)
+      this.error(
+        'E_TARGET_TRIGGER',
+        `${to.name} is a trigger; nothing can connect into it.`,
+        node,
+        { blockKey: from.key }
+      )
       return false
     }
     if (port.kind === 'error' && sourceCatalog && !sourceCatalog.graph.errorPort) {
-      this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node)
+      this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
+        blockKey: from.key,
+      })
       return false
     }
     const scopeReason = getWorkflowEdgeScopeDropReason(
@@ -119,7 +126,10 @@ export class EdgeCollector {
             ? `${to.name} is not inside ${from.name}.`
             : `${to.name} is inside ${from.name}; start it with the loop parameter.`),
         node,
-        'Wire blocks within one scope; start a subflow body with p.to(block).'
+        {
+          hint: 'Wire blocks within one scope; start a subflow body with p.to(block).',
+          blockKey: from.key,
+        }
       )
       return false
     }
@@ -129,7 +139,7 @@ export class EdgeCollector {
         'E_DUPLICATE_EDGE',
         `${from.name} is already wired to ${to.name} from this port.`,
         node,
-        'Remove the repeated edge.'
+        { hint: 'Remove the repeated edge.', blockKey: from.key }
       )
       return false
     }
@@ -139,7 +149,7 @@ export class EdgeCollector {
         'E_LIMIT_EXCEEDED',
         `The wiring adds more than ${this.ctx.limits.maxEdges} edges, the limit.`,
         node,
-        'Split the workflow, moving parts into child workflows.'
+        { hint: 'Split the workflow, moving parts into child workflows.', blockKey: from.key }
       )
       return false
     }
@@ -150,22 +160,28 @@ export class EdgeCollector {
     return true
   }
 
-  private blockFor(scope: Scope, node: Node): BlockDecl | null {
+  /**
+   * The block an argument names. `'reported'` when it is an identifier nothing in scope binds
+   * (`reportUnresolvedIdentifier`); `null` for anything else that is not a block binding.
+   */
+  private blockFor(scope: Scope, node: Node, blockKey?: BlockKey): BlockDecl | 'reported' | null {
     if (node.type !== 'Identifier') return null
     const binding = lookup(scope, node.name)
-    return binding?.kind === 'block' ? binding.decl : null
+    if (!binding) {
+      reportUnresolvedIdentifier(this.ctx, scope, node, blockKey)
+      return 'reported'
+    }
+    return binding.kind === 'block' ? binding.decl : null
   }
 
   private branchPort(decl: BlockDecl, key: string, node: Node): Port | null {
     const block = this.blocks.get(decl.key)
     const branches = block?.branches
     if (!block || !branches) {
-      this.error(
-        'E_UNKNOWN_BRANCH',
-        `${decl.name} has no branches.`,
-        node,
-        'Only condition and router blocks have branches.'
-      )
+      this.error('E_UNKNOWN_BRANCH', `${decl.name} has no branches.`, node, {
+        hint: 'Only condition and router blocks have branches.',
+        blockKey: decl.key,
+      })
       return null
     }
     const keys: readonly string[] = branches.rows
@@ -174,12 +190,10 @@ export class EdgeCollector {
     if (!keys.includes(key)) {
       // The branch was refused where it was declared; that error already covers this wiring.
       if (this.ctx.refusedBranches.get(decl.key)?.has(key)) return null
-      this.error(
-        'E_UNKNOWN_BRANCH',
-        `${decl.name} has no branch ${key}.`,
-        node,
-        `Branches: ${keys.join(', ')}.`
-      )
+      this.error('E_UNKNOWN_BRANCH', `${decl.name} has no branch ${key}.`, node, {
+        hint: `Branches: ${keys.join(', ')}.`,
+        blockKey: decl.key,
+      })
       return null
     }
     return { kind: 'branch', key }
@@ -197,14 +211,18 @@ export class EdgeCollector {
       if (binding?.kind === 'block') return [{ decl: binding.decl, port: null }]
       if (binding?.kind === 'subflowScope')
         return [{ decl: binding.container, port: { kind: 'subflowStart' } }]
-      this.error('E_UNKNOWN_IDENTIFIER', `${node.name} is not a block.`, node)
+      if (!binding) return reportUnresolvedIdentifier(this.ctx, scope, node)
+      this.error('E_UNSUPPORTED_SYNTAX', `${node.name} is not a block.`, node, {
+        hint: 'Wire a block declared with const.',
+      })
       return null
     }
     if (node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier') {
       const object = node.object
       if (object.type === 'Identifier') {
         const binding = lookup(scope, object.name)
-        if (binding?.kind === 'block') {
+        if (!binding) return reportUnresolvedIdentifier(this.ctx, scope, object)
+        if (binding.kind === 'block') {
           const port = this.branchPort(binding.decl, node.property.name, node)
           return port ? [{ decl: binding.decl, port }] : null
         }
@@ -213,42 +231,38 @@ export class EdgeCollector {
     if (node.type === 'CallExpression') {
       const result = this.call(scope, node, anchors, statement)
       if (result === 'void') {
-        this.error(
-          'E_UNSUPPORTED_SYNTAX',
-          'onError(...) cannot be chained.',
-          node,
-          'Start a new statement.'
-        )
+        this.error('E_UNSUPPORTED_SYNTAX', 'onError(...) cannot be chained.', node, {
+          hint: 'Start a new statement.',
+        })
         return null
       }
       return result
     }
-    this.error(
-      'E_UNSUPPORTED_SYNTAX',
-      `${node.type} is not a wiring source.`,
-      node,
-      hintForNode(node)
-    )
+    this.error('E_UNSUPPORTED_SYNTAX', `${nodeLabel(node)} is not a wiring source.`, node, {
+      hint: hintForNode(node),
+    })
     return null
   }
 
-  private targets(scope: Scope, call: CallExpression): BlockDecl[] | null {
+  private targets(scope: Scope, call: CallExpression, blockKey: BlockKey): BlockDecl[] | null {
     const targets: BlockDecl[] = []
     for (const argument of call.arguments) {
-      const decl = this.blockFor(scope, argument)
+      const decl = this.blockFor(scope, argument, blockKey)
+      if (decl === 'reported') return null
       if (!decl) {
-        this.error(
-          'E_UNSUPPORTED_SYNTAX',
-          'Wire blocks by their binding.',
-          argument,
-          HINTS.bindInline
-        )
+        this.error('E_UNSUPPORTED_SYNTAX', 'Wire blocks by their binding.', argument, {
+          hint: HINTS.bindInline,
+          blockKey,
+        })
         return null
       }
       targets.push(decl)
     }
     if (targets.length === 0) {
-      this.error('E_UNSUPPORTED_SYNTAX', 'Pass at least one block.', call, 'Write a.to(b).')
+      this.error('E_UNSUPPORTED_SYNTAX', 'Pass at least one block.', call, {
+        hint: 'Write a.to(b).',
+        blockKey,
+      })
       return null
     }
     return targets
@@ -262,7 +276,10 @@ export class EdgeCollector {
         'E_NO_DEFAULT_OUTPUT',
         `${endpoint.decl.name} routes through named branches.`,
         statement,
-        `Wire a branch: ${endpoint.decl.ident ?? 'block'}.<branch>.to(...).`
+        {
+          hint: `Wire a branch: ${endpoint.decl.ident ?? 'block'}.<branch>.to(...).`,
+          blockKey: endpoint.decl.key,
+        }
       )
       return null
     }
@@ -283,28 +300,29 @@ export class EdgeCollector {
       callee.computed ||
       callee.property.type !== 'Identifier'
     ) {
-      this.error('E_UNSUPPORTED_SYNTAX', 'Not a wiring call.', call, HINTS.calls)
+      this.error('E_UNSUPPORTED_SYNTAX', 'Not a wiring call.', call, { hint: HINTS.calls })
       return null
     }
     const method = callee.property.name
     if (callee.object.type === 'Super') {
-      this.error('E_UNSUPPORTED_SYNTAX', 'super is not a block.', callee.object, HINTS.calls)
+      this.error('E_UNSUPPORTED_SYNTAX', 'super is not a block.', callee.object, {
+        hint: HINTS.calls,
+      })
       return null
     }
     const sources = this.endpoints(scope, callee.object, anchors, statement)
-    const targets = sources ? this.targets(scope, call) : null
+    const [first] = sources ?? []
+    const targets = first ? this.targets(scope, call, first.decl.key) : null
     if (!sources || !targets) return null
     for (const source of sources) {
       let port: Port | null
       if (method === 'onError') {
         port = source.port ? null : { kind: 'error' }
         if (!port) {
-          this.error(
-            'E_UNSUPPORTED_SYNTAX',
-            'onError(...) applies to a block.',
-            call,
-            'Write block.onError(handler).'
-          )
+          this.error('E_UNSUPPORTED_SYNTAX', 'onError(...) applies to a block.', call, {
+            hint: 'Write block.onError(handler).',
+            blockKey: source.decl.key,
+          })
           return null
         }
       } else {
@@ -327,15 +345,15 @@ export class EdgeCollector {
   ): 'void' | null {
     const [fromNode, handleNode, toNode, ...extra] = call.arguments
     const from = fromNode ? this.blockFor(scope, fromNode) : null
-    const to = toNode ? this.blockFor(scope, toNode) : null
+    const fromKey = from && from !== 'reported' ? from.key : undefined
+    const to = toNode ? this.blockFor(scope, toNode, fromKey) : null
+    if (from === 'reported' || to === 'reported') return null
     const handle = handleNode ? literalText(handleNode) : null
     if (!from || !to || handle === null || handle === '' || extra.length > 0) {
-      this.error(
-        'E_UNSUPPORTED_SYNTAX',
-        'edge() takes (from, handle, to).',
-        call,
-        "Write edge(a, 'handle', b)."
-      )
+      this.error('E_UNSUPPORTED_SYNTAX', 'edge() takes (from, handle, to).', call, {
+        hint: "Write edge(a, 'handle', b).",
+        blockKey: fromKey,
+      })
       return null
     }
     if (this.add(from, portForHandle(handle, from), to, statement, anchors, true)) {
@@ -362,6 +380,7 @@ export class EdgeCollector {
     if (entry.firstWiring) recordSpan(this.ctx, { kind: 'wiring' }, entry.statement)
   }
 
+  /** The edge an arrow-expression body implies: `(p) => block(...)` is `p.to(block)`. */
   implied(container: BlockDecl, child: BlockDecl, node: Node): void {
     this.add(container, { kind: 'subflowStart' }, child, node, [])
   }

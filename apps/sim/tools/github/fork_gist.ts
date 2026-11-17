@@ -1,3 +1,4 @@
+import { githubPathSegment } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -46,7 +47,8 @@ export const forkGistTool: ToolConfig<ForkGistParams, ForkGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/forks`,
+    url: (params) =>
+      `https://api.github.com/gists/${githubPathSegment(params.gist_id, 'gist_id')}/forks`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

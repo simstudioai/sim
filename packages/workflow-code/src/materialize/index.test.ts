@@ -652,6 +652,21 @@ describe('materialize: identity', () => {
     )
   })
 
+  it('does not call a stale lock entry re-created when a block re-added under its key matches', () => {
+    const pulled = base()
+    const lock = lockFor(pulled)
+    const readded = blockState('a9', 'function', 'Fetch', { code: 'return 1' })
+    const prev = workflowState([pulled.blocks.start, readded, pulled.blocks.a2], {
+      edges: [edge('e1', 'start', 'a9'), edge('e2', 'a9', 'a2')],
+      variables: pulled.variables,
+    })
+    const result = run(canonical(pulled, lock).workflow, lock, { prev, lockFreshness: 'stale' })
+    expect(result.entries).toContainEqual(
+      expect.objectContaining({ status: 'matched', key: 'fetch', id: 'a9', via: 'db-name' })
+    )
+    expect(codes(result)).not.toContain('W_MAT_DELETED_SINCE_PULL')
+  })
+
   it('reuses an unclaimed lock id for a new workflow and reports duplicate lock ids', () => {
     const pulled = base()
     const lock = lockFor(pulled)
@@ -674,6 +689,22 @@ describe('materialize: identity', () => {
     expect(codes(result)).toContain('E_MAT_DUPLICATE_LOCK_ID')
     expect(result.identity.blocks.fetch.id).toBe('a1')
     expect(result.identity.blocks.report.id).toBe('a2')
+  })
+
+  it('escapes the lock key in a duplicate lock id pointer', () => {
+    const pulled = workflowState([blockState('b1', 'function', 'fn', { code: 'return 1' })])
+    const lock: WorkflowLockV1 = {
+      version: 1,
+      blocks: {
+        'a/b': { id: 'shared', parent: null, ident: 'ab', order: 0 },
+        'x~y': { id: 'shared', parent: null, ident: 'xy', order: 1 },
+      },
+      variables: {},
+    }
+    const result = run(canonical(pulled).workflow, lock)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'E_MAT_DUPLICATE_LOCK_ID', path: '/blocks/x~0y/id' })
+    )
   })
 
   it('gives a new variable keyed like an Object.prototype member a fresh id', () => {
@@ -705,6 +736,33 @@ describe('materialize: identity', () => {
     ])
     expect(result.identity.blocks.start.items).toEqual({
       inputFormat: [{ name: 'question', id: 'f-q' }],
+    })
+  })
+
+  it('leaves an inputFormat id two fields share out of the identity items', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f1', name: 'email', type: 'string' },
+          { id: 'f1', name: 'phone', type: 'string' },
+        ],
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const inputFormat = draft.blocks.start.params.inputFormat
+      if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+        inputFormat.value.push({ name: 'age', type: 'number' })
+      }
+    })
+    const result = run(target, null, { prev })
+    expect(subBlockValue(result.state, 'start', 'inputFormat')).toEqual([
+      { id: 'f1', name: 'email', type: 'string' },
+      { id: 'f1', name: 'phone', type: 'string' },
+      { id: 'new-1', name: 'age', type: 'number' },
+    ])
+    expect(result.identity).toStrictEqual(canonical(result.state).identity)
+    expect(result.identity.blocks.start.items).toEqual({
+      inputFormat: [{ name: 'age', id: 'new-1' }],
     })
   })
 

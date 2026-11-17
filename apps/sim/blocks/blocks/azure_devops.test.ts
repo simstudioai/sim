@@ -11,11 +11,12 @@ const buildParams = (
 /**
  * On an agent call the model supplies `continuationToken`/`top`/`iterationPath`/`format` under the
  * tool's own names; the per-operation fields (`pipelinesContinuationToken`, `queryTop`, …) are never
- * rendered in the agent tool input. The handler forwards `{ ...inputs, ...mapped }`.
+ * rendered in the agent tool input. A tool call carries the operation only in `context`, and the
+ * handler forwards `{ ...inputs, ...mapped }`.
  */
 describe('AzureDevOpsBlock agent tool calls', () => {
   const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
-    const inputs = { ...args, operation, organization: 'org', project: 'proj' }
+    const inputs = { ...args, organization: 'org', project: 'proj' }
     return { ...inputs, ...buildParams(inputs, { operation }) }
   }
 
@@ -25,6 +26,21 @@ describe('AzureDevOpsBlock agent tool calls', () => {
       expect(
         agentCall(operation, { workItemId: 1, continuationToken: 'ct' }).continuationToken
       ).toBe('ct')
+    }
+  )
+
+  it.each(['azure_devops_create_work_item', 'azure_devops_update_work_item'])(
+    'keeps a model zero for remainingWork, completedWork and effort on %s',
+    (operation) => {
+      const mapped = agentCall(operation, {
+        workItemId: 5,
+        workItemType: 'Task',
+        title: 't',
+        remainingWork: 0,
+        completedWork: 0,
+        effort: 0,
+      })
+      expect([mapped.remainingWork, mapped.completedWork, mapped.effort]).toEqual([0, 0, 0])
     }
   )
 
@@ -43,6 +59,23 @@ describe('AzureDevOpsBlock agent tool calls', () => {
   it('keeps the model format on azure_devops_add_comment', () => {
     const mapped = agentCall('azure_devops_add_comment', { workItemId: 1, format: 'markdown' })
     expect(mapped.format).toBe('markdown')
+  })
+
+  it('keeps the model ids on azure_devops_get_work_items_batch', () => {
+    expect(agentCall('azure_devops_get_work_items_batch', { ids: '1,2' }).ids).toBe('1,2')
+  })
+
+  it('keeps the model text on azure_devops_add_comment', () => {
+    expect(agentCall('azure_devops_add_comment', { workItemId: 1, text: 'hi' }).text).toBe('hi')
+  })
+
+  it('expands a bare model start date on azure_devops_create_work_item', () => {
+    const mapped = agentCall('azure_devops_create_work_item', {
+      workItemType: 'Epic',
+      title: 't',
+      startDate: '2026-01-15',
+    })
+    expect(mapped.startDate).toBe('2026-01-15T00:00:00Z')
   })
 
   it('drops a List Builds token left over on the canvas under list pipelines', () => {

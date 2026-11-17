@@ -204,7 +204,7 @@ const catalogSubBlockSchema = z
     resourceKind: z.string().optional().describe('Workspace resource kind, for `resource` fields.'),
     storage: z.enum(['native', 'json-string']).describe('Encoding a new value is stored with.'),
     structured: z
-      .enum(['tools', 'branches', 'tableRows', 'inputFormat', 'variables'])
+      .enum(['tools', 'branches', 'tableRows', 'inputFormat', 'variables', 'skills'])
       .optional()
       .describe('Structured value the canonical model decodes.'),
     acceptsNumber: z

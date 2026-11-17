@@ -638,6 +638,16 @@
               "type": "string",
               "example": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13"
             }
+          },
+          {
+            "name": "includeSnapshot",
+            "in": "query",
+            "required": false,
+            "description": "Whether to include `executionSnapshot`, which carries every block's output and can be large. Defaults to `true`.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
           }
         ],
         "responses": {
@@ -1792,6 +1802,10 @@
             "type": "string",
             "description": "The block ID where execution paused."
           },
+          "blockName": {
+            "type": "string",
+            "description": "Name of the paused block as the run executed it. Absent for a point paused before names were recorded whose run had no deployment version."
+          },
           "response": {
             "description": "Data returned by the block before pausing, including display data and form fields."
           },
@@ -1949,7 +1963,7 @@
             "properties": {
               "executionSnapshot": {
                 "type": "object",
-                "description": "Serialized execution state for resumption.",
+                "description": "Serialized execution state for resumption. Omitted when the resume path is read with `includeSnapshot=false`.",
                 "properties": {
                   "snapshot": {
                     "type": "string",

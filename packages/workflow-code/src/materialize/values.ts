@@ -155,7 +155,7 @@ export function rewriteRenamedReferences(
       : text
   const blocks: CanonicalWorkflow['blocks'] = {}
   for (const [key, block] of Object.entries(workflow.blocks)) {
-    blocks[key] = rewriteBlock(block, rewrite)
+    setOwn(blocks, key, rewriteBlock(block, rewrite))
   }
   return { ...workflow, blocks }
 }

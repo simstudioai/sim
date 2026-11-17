@@ -1381,7 +1381,7 @@ describe('VariableResolver JSON text inputs', () => {
     })
   })
 
-  it('splices bare references outside strings as JSON values, as before', async () => {
+  it('splices bare references outside strings as JSON values', async () => {
     await expect(
       resolveResponseBody(
         '{"record": <producer.record>, "count": <producer.count>, "flag": <producer.flag>, "text": "<producer.plain>"}'

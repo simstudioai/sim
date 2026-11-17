@@ -1,10 +1,17 @@
 import { isRecordLike } from '@sim/utils/object'
 import { mcpBinding, mcpToolId } from '../agent-tools'
-import { shouldDecode, uniqueFieldNames } from '../canonicalize/params'
+import { shouldDecode, storedSkillEntry, uniqueFieldNames } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
-import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
+import {
+  type BlockKey,
+  type CanonicalParam,
+  type CanonicalTool,
+  isSimNode,
+  type SubBlockId,
+  type Value,
+} from '../model'
 import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
 import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
@@ -24,27 +31,30 @@ interface ParamSite {
   forceText: boolean
 }
 
+/** Whether prev stored text, or, with no prev value, the catalog `storage` is `json-string`. */
+function storesAsText(site: ParamSite): boolean {
+  return site.prevRaw !== undefined && site.prevRaw !== null
+    ? typeof site.prevRaw === 'string'
+    : site.declaration?.storage === 'json-string'
+}
+
 /**
- * The encoding a decoded value is written in: JSON text when the field is
- * one canonicalize decodes and prev stored text (or, with no prev value, the catalog `storage` is
- * `json-string`); native otherwise. Scalars are always native, and a field canonicalize never
- * decodes keeps a structured value native so it reads back unchanged.
+ * The encoding a decoded value is written in: JSON text when the site forces text, or when the
+ * field is one canonicalize decodes and {@link storesAsText}; native otherwise. Scalars are always
+ * native, and a field canonicalize never decodes keeps a structured value native so it reads back
+ * unchanged.
  */
 function encodeStorage(json: unknown, site: ParamSite): unknown {
   if (typeof json !== 'object' || json === null) return json
   if (site.forceText) return JSON.stringify(json)
   if (!shouldDecode(site.declaration)) return json
-  const asText =
-    site.prevRaw !== undefined && site.prevRaw !== null
-      ? typeof site.prevRaw === 'string'
-      : site.declaration?.storage === 'json-string'
-  return asText ? JSON.stringify(json) : json
+  return storesAsText(site) ? JSON.stringify(json) : json
 }
 
 /**
- * Puts inputFormat field ids back: canonicalize moved the id of every
- * field with a unique name to the lock, so each such field takes the lock's id for its name, then
- * prev's, else a new one. Fields that kept their id inline are untouched. The editor's `collapsed`
+ * Puts inputFormat field ids back: canonicalize moved the id of every field whose name and id are
+ * both unique to the lock, so each such field takes the lock's id for its name, then prev's, else a
+ * new one. Fields that kept their id inline are untouched. The editor's `collapsed`
  * flag is carried over from the prev field with the same id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
@@ -85,6 +95,27 @@ function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeCon
     const id = match?.id ?? context.hooks.newId()
     used.add(id)
     return { id, ...row }
+  })
+}
+
+/**
+ * Agent skills: each `skill` node is written as `{ skillId, name }`. The name is prev's for the
+ * same skill (so an unchanged entry keeps its bytes), else the skill's current name from the
+ * resolver, else its key. Every other entry is written as itself.
+ */
+function encodeSkills(list: Value[], site: ParamSite, context: MaterializeContext): unknown[] {
+  const location = { blockKey: site.blockKey, param: site.param }
+  const prevNames = new Map<string, string>()
+  for (const item of parseStoredList(site.prevRaw) ?? []) {
+    const entry = storedSkillEntry(item)
+    if (entry && !prevNames.has(entry.skillId)) prevNames.set(entry.skillId, entry.name)
+  }
+  return list.map((item) => {
+    const skillId = unliftValue(item, context, location)
+    const isSkill = isSimNode(item) && item.$sim === 'resource' && item.kind === 'skill'
+    if (!isSkill || typeof skillId !== 'string') return skillId
+    const name = prevNames.get(skillId) ?? context.resources?.nameOf?.('skill', skillId) ?? item.key
+    return { skillId, name }
   })
 }
 
@@ -172,10 +203,9 @@ export function matchPrevTools(
 }
 
 /**
- * A tool-input list. A tool canonical-equal to the prev tool it continues
- * keeps prev's stored object; others are re-encoded, keeping prev's raw text for each param whose
- * decoded value is unchanged. The list is text when prev stored text (or, with no prev, when the
- * catalog says `json-string`).
+ * A tool-input list. A tool canonical-equal to the prev tool it continues keeps prev's stored
+ * object; others are re-encoded, keeping prev's raw text for each param whose decoded value is
+ * unchanged. The list is text when {@link storesAsText}.
  */
 function encodeTools(tools: CanonicalTool[], site: ParamSite, context: MaterializeContext) {
   const prevList = parseStoredList(site.prevRaw) ?? []
@@ -189,11 +219,7 @@ function encodeTools(tools: CanonicalTool[], site: ParamSite, context: Materiali
     if (deepEqual(tool, canonical)) return raw
     return encodeTool(tool, { raw, canonical }, site, context)
   })
-  const asText =
-    site.prevRaw !== undefined && site.prevRaw !== null
-      ? typeof site.prevRaw === 'string'
-      : site.declaration?.storage === 'json-string'
-  return asText ? JSON.stringify(list) : list
+  return storesAsText(site) ? JSON.stringify(list) : list
 }
 
 /** The stored value of one changed param. */
@@ -203,7 +229,10 @@ export function encodeParam(
   context: MaterializeContext
 ): unknown {
   if (param.kind === 'tools') return encodeTools(param.tools, site, context)
-  let json = unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
+  let json =
+    site.declaration?.structured === 'skills' && Array.isArray(param.value)
+      ? encodeSkills(param.value, site, context)
+      : unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
   if (Array.isArray(json) && site.declaration?.structured === 'inputFormat') {
     json = restoreInputFormatIds(json, site, context)
   } else if (Array.isArray(json) && site.declaration?.structured === 'tableRows') {

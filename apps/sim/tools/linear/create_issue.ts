@@ -165,6 +165,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
           query: `
         mutation CreateIssue($input: IssueCreateInput!) {
           issueCreate(input: $input) {
+            success
             issue {
               id
               title
@@ -173,6 +174,11 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
               estimate
               url
               dueDate
+              createdAt
+              updatedAt
+              completedAt
+              canceledAt
+              archivedAt
               state {
                 id
                 name
@@ -228,7 +234,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       }
 
       const result = data.data?.issueCreate
-      if (!result) {
+      if (!result?.success || !result.issue) {
         return {
           success: false,
           error: 'Issue creation was not successful',
@@ -248,6 +254,11 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
             estimate: issue.estimate,
             url: issue.url,
             dueDate: issue.dueDate,
+            createdAt: issue.createdAt,
+            updatedAt: issue.updatedAt,
+            completedAt: issue.completedAt,
+            canceledAt: issue.canceledAt,
+            archivedAt: issue.archivedAt,
             state: issue.state,
             assignee: issue.assignee,
             teamId: issue.team?.id,

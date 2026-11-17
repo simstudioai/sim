@@ -1,6 +1,7 @@
 import { DowndetectorIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const COMPANY_ID_OPERATIONS = [
   'downdetector_get_company',
@@ -348,7 +349,7 @@ export const DowndetectorBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         if (params.categoryId) result.categoryId = Number(params.categoryId)
         if (params.pageSize) result.pageSize = Number(params.pageSize)
@@ -359,8 +360,8 @@ export const DowndetectorBlock: BlockConfig = {
         // operation uses an integer page number. Always overwrite `page` (with the
         // token, a number, or undefined) so a stale value from a now-hidden field
         // can never leak into the wrong endpoint via the merged inputs.
-        if (params.operation === 'downdetector_get_site_companies') {
-          result.page = params.pageToken || undefined
+        if (mapperOperation(params, context) === 'downdetector_get_site_companies') {
+          result.page = params.pageToken || toolCallArg(context, params.page) || undefined
         } else {
           result.page = params.page ? Number(params.page) : undefined
         }

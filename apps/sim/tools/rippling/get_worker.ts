@@ -1,6 +1,9 @@
 import type { RipplingGetWorkerParams } from '@/tools/rippling/types'
+import { WORKER_DETAIL_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { pickOutputFields } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   id: 'rippling_get_worker',
@@ -25,7 +28,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/workers/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/workers/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },
@@ -73,6 +76,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
         termination_details: data.termination_details ?? null,
         custom_fields: data.custom_fields ?? null,
         country_fields: data.country_fields ?? null,
+        ...pickOutputFields(data, WORKER_DETAIL_OUTPUT_PROPERTIES),
         __meta: data.__meta ?? null,
       },
     }
@@ -110,6 +114,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
     termination_details: { type: 'json', description: 'Termination details', optional: true },
     custom_fields: { type: 'json', description: 'Custom fields', optional: true },
     country_fields: { type: 'json', description: 'Country-specific fields', optional: true },
+    ...WORKER_DETAIL_OUTPUT_PROPERTIES,
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

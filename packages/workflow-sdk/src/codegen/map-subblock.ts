@@ -1,11 +1,10 @@
 /**
- * SubBlock type → TS param type. Every one of the 48
- * `SubBlockType`s has an arm; the `never` check makes a new type a compile error here.
+ * SubBlock type → TS param type. Every `SubBlockType` has an arm; the `never` check makes a new
+ * type a compile error here.
  *
- * Types reference names exported by `core.d.ts` (`Value`, `CredentialRef`, `TableRef`, ...). A basic/advanced
- * pair is the union of its members' types, so the mode follows from the kind of value written
- *: a selector-kind constructor is basic, a plain value or reference is
- * advanced.
+ * Types reference names exported by `core.d.ts` (`Value`, `CredentialRef`, `TableRef`, ...). A
+ * basic/advanced pair is the union of its members' types, so the mode follows from the kind of
+ * value written: a selector-kind constructor is basic, a plain value or reference is advanced.
  */
 
 import type { CatalogSubBlock } from '@sim/workflow-code'
@@ -19,15 +18,6 @@ interface MappedType {
   /** Extra JSDoc lines (bounds, selector keys, hints). */
   doc: string[]
 }
-
-/** SubBlock types that are display-only or server-managed and never written in source. */
-const EXCLUDED_SUBBLOCK_TYPES: ReadonlySet<SubBlockType> = new Set<SubBlockType>([
-  'text',
-  'schedule-info',
-  'webhook-config',
-  'workflow-output-selector',
-  'modal',
-])
 
 function staticOptions(subBlock: CatalogSubBlock): string[] | null {
   if (!Array.isArray(subBlock.options) || subBlock.options.length === 0) return null
@@ -74,7 +64,7 @@ function dropdownType(subBlock: CatalogSubBlock): string {
 /** Maps one subBlock to its param type, or `null` when it is never written in source. */
 export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
   const type: SubBlockType = subBlock.type
-  if (EXCLUDED_SUBBLOCK_TYPES.has(type) || subBlock.valueKind === 'none') return null
+  if (subBlock.valueKind === 'none') return null
   const doc: string[] = []
   if (subBlock.password) doc.push('Secret: prefer `env.NAME`.')
   switch (type) {
@@ -165,6 +155,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
       return { type: 'EvalMetric[]', doc }
     case 'model-fallback-list':
       return { type: 'ModelFallback[]', doc }
+    // Display-only or server-managed: never written in source.
     case 'text':
     case 'schedule-info':
     case 'webhook-config':

@@ -1,4 +1,4 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { compareStrings } from '@sim/utils/string'
 import {
@@ -144,9 +144,11 @@ export async function loadStoredSource(
  */
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
-  async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
+  resolveContext: async (args: { principal: Principal; input: GetWorkflowSourceInput }) => {
     await requireWorkflowCodeEnabled()
+    return resolvePrincipalWorkflowContext(args)
+  },
+  async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     const [{ state, meta }, gate, sourceMeta, prefetched] = await Promise.all([
       loadStoredSource(context),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),

@@ -9,6 +9,7 @@ export function isWorkflowCodeEnabled(): Promise<boolean> {
   return isFeatureEnabled('workflow-code')
 }
 
+/** Throws `forbidden` unless workflows as code is enabled on this deployment. */
 export async function requireWorkflowCodeEnabled(): Promise<void> {
   if (!(await isWorkflowCodeEnabled())) {
     throw new OrchestrationError(

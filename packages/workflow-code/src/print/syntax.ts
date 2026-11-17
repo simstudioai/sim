@@ -33,6 +33,7 @@ type ExprShape =
   | 'call'
   | 'arrow'
 
+/** A printed expression: its doc, plus the facts Biome's layout of its parent depends on. */
 export interface Expr {
   doc: Doc
   shape: ExprShape
@@ -51,6 +52,7 @@ export interface Expr {
   concise?: boolean
 }
 
+/** One object property, with the comments that print before and after it. */
 export interface Property {
   key: string
   value: Expr
@@ -88,6 +90,7 @@ function printProperty(property: Property): Doc {
   return [...leading.map((comment) => [comment, hardline]), body]
 }
 
+/** An object literal laid out as Biome does: flat when it fits, else one property per line. */
 export function objectExpr(properties: Property[]): Expr {
   if (properties.length === 0) return { doc: '{}', shape: 'object', depth: 1 }
   const parts: Doc[] = []
@@ -110,6 +113,7 @@ export function objectExpr(properties: Property[]): Expr {
   }
 }
 
+/** An array literal laid out as Biome does; a number-only array fills like text. */
 export function arrayExpr(elements: Expr[]): Expr {
   if (elements.length === 0) return { doc: '[]', shape: 'array', depth: 1 }
   const depth = 1 + maxDepth(elements)

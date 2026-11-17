@@ -667,7 +667,7 @@ export type SlackAgentSessionStatus = 'active' | 'processing' | 'suspended' | 'c
 
 export interface SlackSetAgentSessionStatusV2Params extends SlackBaseParams {
   channel: string
-  threadTs: string
+  threadTs?: string
   status: SlackAgentSessionStatus
   title?: string
   initiatorUserId?: string
@@ -678,7 +678,7 @@ export interface SlackSetAgentSessionStatusV2Params extends SlackBaseParams {
 
 export interface SlackRenameAgentSessionV2Params extends SlackBaseParams {
   channel: string
-  threadTs: string
+  threadTs?: string
   title: string
 }
 
@@ -896,7 +896,7 @@ export interface SlackDeleteCanvasParams extends SlackBaseParams {
 }
 
 export interface SlackOpenViewParams extends SlackBaseParams {
-  triggerId: string
+  triggerId?: string
   interactivityPointer?: string
   view: object | string
 }
@@ -909,7 +909,7 @@ export interface SlackUpdateViewParams extends SlackBaseParams {
 }
 
 export interface SlackPushViewParams extends SlackBaseParams {
-  triggerId: string
+  triggerId?: string
   interactivityPointer?: string
   view: object | string
 }

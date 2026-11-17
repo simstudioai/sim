@@ -1,3 +1,4 @@
+import { githubPathSegment } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -63,7 +64,7 @@ export const updateGistTool: ToolConfig<UpdateGistParams, UpdateGistResponse> = 
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}`,
+    url: (params) => `https://api.github.com/gists/${githubPathSegment(params.gist_id, 'gist_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

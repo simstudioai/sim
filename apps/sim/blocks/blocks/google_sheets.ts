@@ -2,7 +2,13 @@ import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  isToolCall,
+  mapperOperation,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -927,7 +933,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         suffix: '_v2',
         fallbackToolId: 'google_sheets_read_v2',
       }),
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           values,
@@ -951,12 +957,19 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...rest
         } = params
 
-        const operation = params.operation as string
+        const operation = mapperOperation(params, context)
+
+        /** A model sends JSON-typed tool params already parsed; the canvas sends JSON text. */
+        const parseJsonInput = (value: unknown) =>
+          typeof value !== 'string' && isToolCall(context) ? value : JSON.parse(value as string)
 
         if (operation === 'create') {
-          const sheetTitlesArray = sheetTitles
-            ? (sheetTitles as string).split(',').map((s: string) => s.trim())
-            : undefined
+          const sheetTitlesArray =
+            Array.isArray(sheetTitles) && isToolCall(context)
+              ? sheetTitles
+              : sheetTitles
+                ? (sheetTitles as string).split(',').map((s: string) => s.trim())
+                : undefined
           return {
             title: (title as string)?.trim(),
             sheetTitles: sheetTitlesArray,
@@ -964,7 +977,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           }
         }
 
-        const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
+        const rawSpreadsheetId =
+          spreadsheetId ||
+          (operation === 'copy_sheet' ? toolCallArg(context, rest.sourceSpreadsheetId) : undefined)
+        const effectiveSpreadsheetId = rawSpreadsheetId ? String(rawSpreadsheetId).trim() : ''
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
@@ -978,7 +994,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'batch_get') {
-          const parsedRanges = ranges ? JSON.parse(ranges as string) : []
+          const parsedRanges = ranges ? parseJsonInput(ranges) : []
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
@@ -992,7 +1008,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'batch_update') {
-          const parsedData = batchData ? JSON.parse(batchData as string) : []
+          const parsedData = batchData
+            ? JSON.parse(batchData as string)
+            : (toolCallArg(context, rest.data) ?? [])
           return {
             ...rest,
             spreadsheetId: effectiveSpreadsheetId,
@@ -1002,7 +1020,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'batch_clear') {
-          const parsedRanges = ranges ? JSON.parse(ranges as string) : []
+          const parsedRanges = ranges ? parseJsonInput(ranges) : []
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
@@ -1027,7 +1045,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'delete_sheet') {
-          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedSheetId = Number.parseInt(
+            (deleteSheetId ?? toolCallArg(context, sheetId)) as string,
+            10
+          )
           if (Number.isNaN(parsedSheetId)) {
             throw new Error('Sheet ID must be a valid number')
           }
@@ -1039,7 +1060,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'delete_rows') {
-          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedSheetId = Number.parseInt(
+            (deleteSheetId ?? toolCallArg(context, sheetId)) as string,
+            10
+          )
           const parsedStartIndex = Number.parseInt(startIndex as string, 10)
           const parsedEndIndex = Number.parseInt(endIndex as string, 10)
           if (
@@ -1064,7 +1088,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           throw new Error('Sheet name is required. Please select or enter a sheet name.')
         }
 
-        const parsedValues = values ? JSON.parse(values as string) : undefined
+        const parsedValues = values ? parseJsonInput(values) : undefined
 
         return {
           ...rest,
@@ -1079,9 +1103,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             : {}),
           ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
           ...(operation === 'append'
-            ? { valueInputOption: appendValueInputOption || undefined }
+            ? {
+                valueInputOption:
+                  appendValueInputOption ||
+                  toolCallArg(context, rest.valueInputOption) ||
+                  undefined,
+              }
             : {}),
-          majorDimension: undefined,
+          majorDimension: operation === 'read' ? toolCallArg(context, majorDimension) : undefined,
         }
       },
     },

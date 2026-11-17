@@ -2,7 +2,7 @@ import { toError } from '@sim/utils/errors'
 import { AgentPhoneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 const CONVERSATION_OPS = [
   'get_conversation',
@@ -588,9 +588,9 @@ export const AgentPhoneBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `agentphone_${params.operation || 'create_number'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           attachAgentId,
           callAgentId,
           toNumberCall,
@@ -633,7 +633,7 @@ export const AgentPhoneBlock: BlockConfig = {
           if (messageBody !== undefined) rest.body = messageBody
         }
 
-        if (['create_contact', 'update_contact'].includes(operation as string)) {
+        if (['create_contact', 'update_contact'].includes(operation)) {
           if (contactPhoneNumber) rest.phoneNumber = contactPhoneNumber
           if (contactName) rest.name = contactName
           if (contactEmail) rest.email = contactEmail

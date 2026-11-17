@@ -37,6 +37,7 @@ List incidents from PagerDuty with optional filters.
 | `sortBy` | string | No | Sort field \(e.g., created_at:desc\) |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -254,6 +255,7 @@ List the individual alerts attached to a PagerDuty incident.
 | `statuses` | string | No | Comma-separated statuses to filter \(triggered, resolved\) |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -288,6 +290,7 @@ List services from PagerDuty with optional name filter.
 | `query` | string | No | Filter services by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -354,6 +357,7 @@ List current on-call entries from PagerDuty.
 | `until` | string | No | End time filter \(ISO 8601 format\) |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -388,6 +392,7 @@ List escalation policies from PagerDuty with an optional name filter.
 | `query` | string | No | Filter escalation policies by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -419,6 +424,7 @@ List on-call schedules from PagerDuty with an optional name filter.
 | `query` | string | No | Filter schedules by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -449,6 +455,7 @@ List users from PagerDuty with an optional name/email filter.
 | `query` | string | No | Filter users by name or email |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
+| `includeTotal` | boolean | No | Populate the total result count in the response \(PagerDuty returns null for total unless requested; slower\) |
 
 #### Output
 
@@ -487,6 +494,8 @@ Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a
 | `component` | string | No | Component of the source machine responsible for the event |
 | `group` | string | No | Logical grouping of components of a service |
 | `class` | string | No | The class/type of the event |
+| `timestamp` | string | No | ISO 8601 time at which the monitoring tool detected or generated the event \(trigger only\) |
+| `customDetails` | json | No | JSON object of additional details about the event and affected system \(trigger only\) |
 
 #### Output
 

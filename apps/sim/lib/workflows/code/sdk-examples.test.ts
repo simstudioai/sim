@@ -17,8 +17,8 @@ import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-
 import { paramAliases } from '@sim/workflow-code/catalog/surface'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
-import { corpusBudgetMs } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
+import { generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { corpusBudgetMs, sampleCorpus } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock, getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
@@ -27,6 +27,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 setEnvFlags({ isHosted: true })
 afterAll(resetEnvFlagsMock)
 
+/** Built after the hosted flag is set, which decides whether hosted models require an API key. */
 const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
@@ -57,18 +58,6 @@ function withoutFreeText(state: WorkflowState): WorkflowState {
   return { ...state, blocks }
 }
 
-/** One per-block case per kind for each block type, plus every structural case. */
-function sampledCorpus(corpus: CorpusCase[]): CorpusCase[] {
-  const seen = new Map<string, number>()
-  return corpus.filter((corpusCase) => {
-    if (corpusCase.unknownTypes) return false
-    const [, type = ''] = corpusCase.id.split(':')
-    const count = seen.get(type) ?? 0
-    seen.set(type, count + 1)
-    return count < CASES_PER_BLOCK_TYPE
-  })
-}
-
 describe('catalog field checks on the SDK examples and the registry corpus', () => {
   it.each(readdirSync(EXAMPLES_DIR).filter((name) => name.endsWith('.ts')))(
     '%s compiles with no diagnostics',
@@ -88,7 +77,9 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
     }
   )
 
-  const sampled = sampledCorpus(generateRegistryCorpus())
+  const sampled = sampleCorpus(generateRegistryCorpus(), { perType: CASES_PER_BLOCK_TYPE }).filter(
+    (corpusCase) => !corpusCase.unknownTypes
+  )
 
   /**
    * A corpus pass, so it takes the corpus budget like its siblings: 5.3 s alone, 16.5 s beside the
@@ -138,6 +129,6 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
       expect(reported).toBeGreaterThan(0)
       expect(violations).toEqual([])
     },
-    corpusBudgetMs(sampled.length, 60_000)
+    corpusBudgetMs(sampled.length)
   )
 })

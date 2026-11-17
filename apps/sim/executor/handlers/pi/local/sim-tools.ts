@@ -23,6 +23,7 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ProviderToolConfig } from '@/providers/types'
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -129,8 +130,9 @@ function buildSimToolSpec(
        * declares. Skipping it here left Pi local tools receiving a raw selector id
        * where the tool expected a resolved one, and `'false'` where it expected `false`.
        *
-       * A failure keeps the raw params, matching `prepareToolExecution`. The projected
-       * copy is only transformed when the raw one was, so the two stay comparable.
+       * A failure keeps the raw params, matching `prepareToolExecution`, except a
+       * `ToolCallParamsError`, which fails the call. The projected copy is only
+       * transformed when the raw one was, so the two stay comparable.
        */
       let transformApplied = false
       const applyParamsTransform = (input: Record<string, unknown>): Record<string, unknown> => {
@@ -140,6 +142,7 @@ function buildSimToolSpec(
           transformApplied = true
           return transformed
         } catch (error) {
+          if (error instanceof ToolCallParamsError) throw error
           logger.warn('paramsTransform failed for Pi local tool, using raw params', { error })
           return input
         }
@@ -167,8 +170,15 @@ function buildSimToolSpec(
         if (!inputProjection.complete || !projectedTool) {
           return unavailableToolResult()
         }
+        // Only the stored keys the transform kept: a value the selected operation hides was
+        // dropped from `preseededParams`, so its projected copy must be dropped too.
+        const projectedPreseededParams = Object.fromEntries(
+          Object.entries(projectedTool.params || {}).filter(([key]) =>
+            Object.hasOwn(preseededParams, key)
+          )
+        )
         const mergedProjectedParams = mergeToolParameters(
-          projectedTool.params || {},
+          projectedPreseededParams,
           args as Record<string, unknown>
         )
 

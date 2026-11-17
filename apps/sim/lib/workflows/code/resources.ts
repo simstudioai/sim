@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
-import { credential, credentialMember } from '@sim/db/schema'
+import { credential, credentialMember, skill } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import type { ResourceKeyResolver, ResourceKind } from '@sim/workflow-code'
-import { and, asc, eq, inArray, notInArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceEnvironmentVariableNames } from '@/lib/environment/utils'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   type ResourceIdRef,
   type ResourceKeyMap,
@@ -31,7 +33,7 @@ import {
  * from its name, and naming its key is an unknown resource, as for one that does not exist.
  */
 
-/** Credential types a `credential(...)` can name: every saved account, never an env secret. */
+/** Env-secret credential types, which a `credential(...)` never names. */
 const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
 interface VisibleCredentialQuery {
@@ -39,6 +41,8 @@ interface VisibleCredentialQuery {
   limit: number
   /** Only these ids, when given. */
   ids?: string[]
+  /** The caller's workspace access, when already resolved. */
+  access?: WorkspaceAccess
 }
 
 /**
@@ -72,7 +76,7 @@ export async function loadVisibleCredentials(
       .orderBy(...order)
       .limit(query.limit)
   }
-  const access = await checkWorkspaceAccess(workspaceId, userId)
+  const access = query.access ?? (await checkWorkspaceAccess(workspaceId, userId))
   return db
     .select(columns)
     .from(credential)
@@ -106,6 +110,19 @@ async function hiddenCredentialIds(
   return new Set(saved.flatMap((row) => (visibleIds.has(row.id) ? [] : [row.id])))
 }
 
+/**
+ * Current names of the skills among `ids` in the workspace: a stored skill entry carries the
+ * skill's name beside its id (`{ skillId, name }`), which materialize fills for a newly named skill.
+ */
+async function loadSkillNames(workspaceId: string, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map()
+  const rows = await db
+    .select({ id: skill.id, name: skill.name })
+    .from(skill)
+    .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, ids)))
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
 const credentialIdsOf = (refs: ResourceIdRef[]) =>
   refs.flatMap((ref) => (ref.kind === 'credential' ? [ref.id] : []))
 
@@ -128,7 +145,8 @@ interface LoadResourceKeyResolverOptions {
  * Resolves `references` in one workspace through its resource keys and returns a resolver over the
  * result: each referenced live resource's key (allocated on first reference, see `resolveKeys`)
  * and each referenced key's live resource, in both directions (so a fingerprint taken after
- * writing a key's id prints that key). Nothing outside `references` resolves.
+ * writing a key's id prints that key). Nothing outside `references` resolves. `nameOf` answers
+ * for each resolved skill, and `isBuiltin` for the built-in skills, which have no row to key.
  */
 export async function loadResourceKeyResolver(
   workspaceId: string,
@@ -153,11 +171,18 @@ export async function loadResourceKeyResolver(
     new Map([...map].map(([kind, pairs]) => [kind, new Map([...pairs].map(([a, b]) => [b, a]))]))
   const keysByIdFromKeys = invert(idsByKey)
   const idsByKeyFromIds = invert(keysById)
+  const skillIds = new Set([
+    ...(keysById.get('skill')?.keys() ?? []),
+    ...(idsByKey.get('skill')?.values() ?? []),
+  ])
+  const skillNames = await loadSkillNames(workspaceId, [...skillIds])
   const lookup = (map: ResourceKeyMap, kind: ResourceKind, value: string) =>
     map.get(kind)?.get(value) ?? null
   return {
     toKey: (kind, id) => lookup(keysById, kind, id) ?? lookup(keysByIdFromKeys, kind, id),
     toId: (kind, key) => lookup(idsByKey, kind, key) ?? lookup(idsByKeyFromIds, kind, key),
+    nameOf: (kind, id) => (kind === 'skill' ? (skillNames.get(id) ?? null) : null),
+    isBuiltin: (kind, id) => kind === 'skill' && isBuiltinSkillId(id),
   }
 }
 
@@ -178,18 +203,26 @@ async function withoutHiddenCredentials(
   return result
 }
 
-/** Env names the caller's runs resolve: the workspace's, plus the caller's personal ones. */
+/**
+ * Env names the caller's runs resolve in this workspace, by runtime's own ACL-aware lookup: a
+ * workspace secret only when the caller is an admin or an active member of its credential, plus
+ * their personal variables and the personal ones shared with them here. With no human subject,
+ * the workspace's secrets only, as a run with no caller resolves them for the workspace's billing
+ * account. Names only: no secret value is read. `access` is the caller's workspace access, when
+ * already resolved.
+ */
 export async function loadEnvNames(
   workspaceId: string,
-  userId: string | undefined
+  userId: string | undefined,
+  access?: WorkspaceAccess
 ): Promise<string[]> {
-  const scope = userId
-    ? or(
-        and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')),
-        and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
-      )
-    : and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace'))
-  const rows = await db.select({ envKey: credential.envKey }).from(credential).where(scope)
+  if (userId) {
+    return getWorkspaceEnvironmentVariableNames(userId, workspaceId, { workspaceAccess: access })
+  }
+  const rows = await db
+    .select({ envKey: credential.envKey })
+    .from(credential)
+    .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')))
   const names = new Set(rows.flatMap((row) => (row.envKey ? [row.envKey] : [])))
   return [...names].sort(compareStrings)
 }

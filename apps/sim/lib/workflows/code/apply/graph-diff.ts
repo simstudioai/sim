@@ -41,6 +41,7 @@ export interface GraphDiff {
   edgesRemoved: GraphEdge[]
 }
 
+/** The container a block sits in, or `undefined` at the top level. */
 export function parentIdOf(block: BlockState | undefined): string | undefined {
   const parentId = block?.data?.parentId
   return typeof parentId === 'string' && parentId.length > 0 ? parentId : undefined

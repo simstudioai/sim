@@ -1,6 +1,6 @@
 import { PagerDutyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const PagerDutyBlock: BlockConfig = {
@@ -744,6 +744,55 @@ export const PagerDutyBlock: BlockConfig = {
       },
       mode: 'advanced',
     },
+    {
+      id: 'eventTimestamp',
+      title: 'Timestamp',
+      type: 'short-input',
+      placeholder: 'When the event was detected (ISO 8601, e.g., 2024-01-01T00:00:00Z)',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp. Return ONLY the timestamp string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'eventCustomDetails',
+      title: 'Custom Details',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "region": "us-east-1",\n  "error_rate": 0.42\n}',
+      condition: {
+        field: 'operation',
+        value: 'send_event',
+        and: { field: 'eventAction', value: 'trigger' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeTotal',
+      title: 'Include Total Count',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_incidents',
+          'list_incident_alerts',
+          'list_services',
+          'list_oncalls',
+          'list_escalation_policies',
+          'list_schedules',
+          'list_users',
+        ],
+      },
+      mode: 'advanced',
+    },
     ...getTrigger('pagerduty_incident_triggered').subBlocks,
     ...getTrigger('pagerduty_incident_acknowledged').subBlocks,
     ...getTrigger('pagerduty_incident_resolved').subBlocks,
@@ -772,10 +821,10 @@ export const PagerDutyBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `pagerduty_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_incidents':
             if (params.statuses) result.statuses = params.statuses
             if (params.listUrgencies) result.urgencies = params.listUrgencies
@@ -875,6 +924,8 @@ export const PagerDutyBlock: BlockConfig = {
             if (params.eventComponent) result.component = params.eventComponent
             if (params.eventGroup) result.group = params.eventGroup
             if (params.eventClass) result.class = params.eventClass
+            if (params.eventTimestamp) result.timestamp = params.eventTimestamp
+            if (params.eventCustomDetails) result.customDetails = params.eventCustomDetails
             break
         }
 
@@ -950,6 +1001,9 @@ export const PagerDutyBlock: BlockConfig = {
     eventComponent: { type: 'string', description: 'Event component' },
     eventGroup: { type: 'string', description: 'Event group' },
     eventClass: { type: 'string', description: 'Event class' },
+    eventTimestamp: { type: 'string', description: 'Event detection time (ISO 8601)' },
+    eventCustomDetails: { type: 'json', description: 'Additional event details object' },
+    includeTotal: { type: 'boolean', description: 'Populate the total count on list operations' },
   },
 
   outputs: {

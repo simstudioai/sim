@@ -85,7 +85,7 @@ export const slackGetChannelHistoryTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of pages to fetch before stopping (default: 10)',
+      description: 'Maximum number of pages to fetch before stopping (default: 10, max: 50)',
     },
   },
 

@@ -1,8 +1,8 @@
 import type {
   ArrowFunctionExpression,
+  BlockStatement,
   CallExpression,
   Node,
-  Statement,
   VariableDeclaration,
 } from '@babel/types'
 import {
@@ -25,7 +25,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { calleePath, literalText, SDK_VALUE_FUNCTIONS } from './values'
 
 const LOOP_METHODS = new Set(['for', 'forEach', 'while', 'doWhile'])
@@ -83,7 +83,15 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   if (root === GENERIC_BUILDER && path.rest.length === 0) {
     const typeArgument = call.arguments[0]
     const type = typeArgument ? literalText(typeArgument) : null
-    if (type === null) return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+    if (type === null) {
+      unsupported(
+        ctx,
+        typeArgument ?? call,
+        'block() takes the type as a string literal.',
+        "Write block('custom_type', 'Name', { ... })."
+      )
+      return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+    }
     return {
       kind: 'builder',
       path: dotted,
@@ -289,7 +297,7 @@ function collectContainerBody(ctx: CompileContext, decl: BlockDecl): void {
     }
   }
   if (body.body.type === 'BlockStatement') {
-    collectBody(ctx, body.body.body, scope, body.body, {
+    collectBody(ctx, body.body, scope, {
       owner: encodeAnchor({ kind: 'block', block: decl.key }),
       tail: { anchor: encodeAnchor({ kind: 'block', block: decl.key }), placement: 'trailing' },
     })
@@ -389,14 +397,21 @@ function collectDeclaration(
  */
 export function collectBody(
   ctx: CompileContext,
-  statements: Statement[],
+  body: BlockStatement,
   scope: Scope,
-  container: Node,
   listOptions: ListOptions
 ): void {
-  const addItem = ctx.comments.list(container.start ?? 0, container.end ?? 0, listOptions)
+  for (const directive of body.directives) {
+    unsupported(
+      ctx,
+      directive,
+      'A string statement is not supported in a workflow body.',
+      'Delete it; a body holds block declarations and wiring.'
+    )
+  }
+  const addItem = ctx.comments.list(body.start ?? 0, body.end ?? 0, listOptions)
   let firstWiringSeen = scope.container !== null
-  for (const statement of statements) {
+  for (const statement of body.body) {
     if (statement.type === 'EmptyStatement') continue
     if (statement.type === 'VariableDeclaration') {
       const before = ctx.decls.length
@@ -430,14 +445,19 @@ export function collectBody(
       unsupported(
         ctx,
         statement.expression,
-        `${statement.expression.type} is not supported here.`,
+        `${nodeLabel(statement.expression)} is not supported here.`,
         classified.kind === 'value' ? HINTS.bindInline : hintForNode(statement.expression)
       )
       addItem(statement, null)
       continue
     }
     const node = statement.type === 'ExpressionStatement' ? statement.expression : statement
-    unsupported(ctx, node, `${node.type} is not supported in a workflow body.`, hintForNode(node))
+    unsupported(
+      ctx,
+      node,
+      `${nodeLabel(node)} is not supported in a workflow body.`,
+      hintForNode(node)
+    )
     addItem(statement, null)
   }
 }

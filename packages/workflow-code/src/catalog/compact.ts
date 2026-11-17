@@ -12,6 +12,7 @@
  */
 
 import { stableStringify } from '../hash'
+import { setOwn } from '../records'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -316,7 +317,9 @@ class OutputInterner {
 
   encodeRecord(record: Record<string, CatalogOutput>): Record<string, CatalogOutputEntry> {
     const encoded: Record<string, CatalogOutputEntry> = {}
-    for (const [name, output] of Object.entries(record)) encoded[name] = this.encodeOutput(output)
+    for (const [name, output] of Object.entries(record)) {
+      setOwn(encoded, name, this.encodeOutput(output))
+    }
     return encoded
   }
 

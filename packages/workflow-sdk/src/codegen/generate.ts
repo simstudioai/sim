@@ -17,6 +17,7 @@ import { printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import { onSurface, paramAliases } from '@sim/workflow-code/catalog/surface'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { indentLines, jsdoc, literal, pascal, union } from './emit'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
@@ -81,15 +82,11 @@ const CORE_TYPE_NAMES = [
 ] as const
 
 /**
- * Trigger subBlocks the SDK never writes (`SYSTEM_SUBBLOCK_IDS` in apps/sim/triggers/constants.ts,
- * minus the credential, plus the server-owned `triggerPath`).
+ * SubBlocks the SDK never writes: the shared trigger system set minus the credential, which source
+ * states, plus the server-owned trigger path and the trigger and operation selectors.
  */
-const SYSTEM_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
-  'triggerInstructions',
-  'webhookUrlDisplay',
-  'samplePayload',
-  'setupScript',
-  'scheduleInfo',
+const SDK_UNWRITTEN_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
+  ...SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials'),
   'triggerPath',
   'selectedTriggerId',
   'operation',
@@ -119,7 +116,7 @@ function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSu
   return block.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.context === 'tool-input') return false
     if (!onSurface(block, subBlock, triggerMode)) return false
-    if (SYSTEM_SUBBLOCK_IDS.has(subBlock.id) || subBlock.id.startsWith('samplePayload')) {
+    if (SDK_UNWRITTEN_SUBBLOCK_IDS.has(subBlock.id) || subBlock.id.startsWith('samplePayload')) {
       return false
     }
     if (subBlock.id in fixed) return false
@@ -238,8 +235,13 @@ function defaultGateValue(
   const subBlock = candidates.find((candidate) => candidate.id === field)
   if (!subBlock) return undefined
   const { defaultValue } = subBlock
-  if (typeof defaultValue === 'string' || typeof defaultValue === 'number') return defaultValue
-  if (typeof defaultValue === 'boolean') return defaultValue
+  if (
+    typeof defaultValue === 'string' ||
+    typeof defaultValue === 'number' ||
+    typeof defaultValue === 'boolean'
+  ) {
+    return defaultValue
+  }
   return Array.isArray(subBlock.options) ? subBlock.options[0]?.id : undefined
 }
 
@@ -363,7 +365,9 @@ function buildParams(
 function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes {
   const block = catalogBlock(catalog, entry.builder.type)
   if (!block) {
-    throw new Error(`sdk codegen: builder \`${entry.key}\` names unknown block type`)
+    throw new Error(
+      `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
+    )
   }
   const outputs = outputSource(catalog, block, entry)
   const spec = block.dynamicOutputs ?? null

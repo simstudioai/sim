@@ -2,7 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { ExpandedBlockCatalog } from '@sim/workflow-code'
-import { generateSdkTypes, generateWorkspaceTypes, type SdkTypeFile } from '../src/codegen'
+import {
+  generateSdkTypes,
+  generateWorkspaceTypes,
+  type SdkTypeFile,
+  SOURCE_COMPILER_OPTIONS,
+} from '../src/codegen'
 import { FIXTURE_WORKSPACE } from './fixtures/workspace'
 
 const testRoot = import.meta.dirname
@@ -41,14 +46,7 @@ export function writeTypecheckProject(
     JSON.stringify(
       {
         compilerOptions: {
-          target: 'ES2022',
-          lib: ['ES2022'],
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          moduleDetection: 'force',
-          types: [],
-          strict: true,
-          noEmit: true,
+          ...SOURCE_COMPILER_OPTIONS,
           skipLibCheck: false,
           paths: { '@sim/workflow-sdk': [path.join(packageRoot, 'src', 'core.d.ts')] },
         },

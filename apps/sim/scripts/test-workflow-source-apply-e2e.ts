@@ -16,9 +16,10 @@ import postgres from 'postgres'
  * run, the stale-fingerprint 409 and the line-pinned 400. Then reads the resource manifest
  * (`GET /api/v2/workspaces/{id}/workflows/source/resources`), creates a workflow from source
  * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict on a create and
- * on its dry run, refusal) and applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
- * flag on. The script seeds its own owner, workspace and personal API key (graph writes refuse
- * workspace keys) in the app's disposable database and removes them when it finishes.
+ * on its dry run, refusal) and applies to the new workflow with the lock the create returned. The
+ * app must have the `workflow-code` flag on. The script seeds its own owner, workspace and
+ * personal API key (graph writes refuse workspace keys) in the app's disposable database and
+ * removes them when it finishes.
  *
  * The refusals are driven against the same app with fixtures seeded in its disposable database: a
  * locked workflow (423), an oversized body (413 in the v2 envelope), a personal key of a user
@@ -118,12 +119,12 @@ async function check(name: string, run: () => Promise<void>) {
   const started = performance.now()
   try {
     await run()
-    checks.push({ name, status: 'passed', durationMs: performance.now() - started })
+    checks.push({ name, status: 'passed', durationMs: Math.round(performance.now() - started) })
   } catch (error) {
     checks.push({
       name,
       status: 'failed',
-      durationMs: performance.now() - started,
+      durationMs: Math.round(performance.now() - started),
       error: getErrorMessage(error),
     })
     logger.error('Check failed', { name, error: getErrorMessage(error) })
@@ -436,7 +437,7 @@ async function main() {
 
     const applyPath = `/api/v2/workflows/${workflowId}/source`
 
-    await check('LK-06: an apply to a locked workflow answers 423 and writes nothing', async () => {
+    await check('an apply to a locked workflow answers 423 and writes nothing', async () => {
       const source = await readSource(workflowId)
       const before = await storedBlocks(workflowId)
       await sql`update workflow set locked = true where id = ${workflowId}`
@@ -454,22 +455,19 @@ async function main() {
       assert.deepEqual(await storedBlocks(workflowId), before)
     })
 
-    await check(
-      'LM-02: a body over the source route cap answers 413 in the v2 envelope',
-      async () => {
-        const source = await readSource(workflowId)
-        const oversized = `${source.files['workflow.ts']}\n// ${'x'.repeat(10 * 1024 * 1024)}\n`
-        const body = await request(
-          'POST',
-          applyPath,
-          applyBody(source, { ...source.files, 'workflow.ts': oversized }),
-          413
-        )
-        assert.equal(errorCode(body), 'PAYLOAD_TOO_LARGE')
-      }
-    )
+    await check('a body over the source route cap answers 413 in the v2 envelope', async () => {
+      const source = await readSource(workflowId)
+      const oversized = `${source.files['workflow.ts']}\n// ${'x'.repeat(10 * 1024 * 1024)}\n`
+      const body = await request(
+        'POST',
+        applyPath,
+        applyBody(source, { ...source.files, 'workflow.ts': oversized }),
+        413
+      )
+      assert.equal(errorCode(body), 'PAYLOAD_TOO_LARGE')
+    })
 
-    await check('LK-11: an apply with a key outside the workspace is answered 404', async () => {
+    await check('an apply with a key outside the workspace is answered 404', async () => {
       const source = await readSource(workflowId)
       const before = await storedBlocks(workflowId)
       const body = await requestAs(
@@ -483,60 +481,51 @@ async function main() {
       assert.deepEqual(await storedBlocks(workflowId), before)
     })
 
-    await check(
-      'CR-02: a create into a missing folder answers 404 and creates no folder',
-      async () => {
-        const source = await readSource(workflowId)
-        const folderName = `Missing source e2e ${generateId().slice(0, 8)}`
-        const name = `${copyName} missing folder`
-        const body = await request(
-          'POST',
-          createPath,
-          { files: source.files, name, folderPath: `/${encodeURIComponent(folderName)}` },
-          404
-        )
-        assert.equal(errorCode(body), 'NOT_FOUND')
-        assert.match(String(record(body.error).message), /Folder not found/)
-        const [folders] = await sql<{ count: number }[]>`
+    await check('a create into a missing folder answers 404 and creates no folder', async () => {
+      const source = await readSource(workflowId)
+      const folderName = `Missing source e2e ${generateId().slice(0, 8)}`
+      const name = `${copyName} missing folder`
+      const body = await request(
+        'POST',
+        createPath,
+        { files: source.files, name, folderPath: `/${encodeURIComponent(folderName)}` },
+        404
+      )
+      assert.equal(errorCode(body), 'NOT_FOUND')
+      assert.match(String(record(body.error).message), /Folder not found/)
+      const [folders] = await sql<{ count: number }[]>`
         select count(*)::int as count from folder
         where workspace_id = ${workspaceId} and name = ${folderName}`
-        assert.equal(folders.count, 0)
-        assert.equal(await workflowCountNamed(name), 0)
-      }
-    )
+      assert.equal(folders.count, 0)
+      assert.equal(await workflowCountNamed(name), 0)
+    })
 
-    await check(
-      'CR-03: a create into a locked folder answers 423 and creates nothing',
-      async () => {
-        const source = await readSource(workflowId)
-        const name = `${copyName} locked folder`
-        const body = await request(
-          'POST',
-          createPath,
-          {
-            files: source.files,
-            name,
-            folderPath: `/${encodeURIComponent(fixtures.lockedFolderName)}`,
-          },
-          423
-        )
-        assert.equal(errorCode(body), 'LOCKED')
-        assert.equal(await workflowCountNamed(name), 0)
-      }
-    )
+    await check('a create into a locked folder answers 423 and creates nothing', async () => {
+      const source = await readSource(workflowId)
+      const name = `${copyName} locked folder`
+      const body = await request(
+        'POST',
+        createPath,
+        {
+          files: source.files,
+          name,
+          folderPath: `/${encodeURIComponent(fixtures.lockedFolderName)}`,
+        },
+        423
+      )
+      assert.equal(errorCode(body), 'LOCKED')
+      assert.equal(await workflowCountNamed(name), 0)
+    })
 
-    await check(
-      'CR-07: a create with a workspace key or a read-only member key answers 403',
-      async () => {
-        const source = await readSource(workflowId)
-        const name = `${copyName} denied`
-        for (const key of [fixtures.workspaceKey, fixtures.readerKey]) {
-          const body = await requestAs(key, 'POST', createPath, { files: source.files, name }, 403)
-          assert.equal(errorCode(body), 'FORBIDDEN')
-        }
-        assert.equal(await workflowCountNamed(name), 0)
+    await check('a create with a workspace key or a read-only member key answers 403', async () => {
+      const source = await readSource(workflowId)
+      const name = `${copyName} denied`
+      for (const key of [fixtures.workspaceKey, fixtures.readerKey]) {
+        const body = await requestAs(key, 'POST', createPath, { files: source.files, name }, 403)
+        assert.equal(errorCode(body), 'FORBIDDEN')
       }
-    )
+      assert.equal(await workflowCountNamed(name), 0)
+    })
   } finally {
     await check('remove disposable fixtures', removeFixtures)
   }

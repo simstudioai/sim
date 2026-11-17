@@ -8024,7 +8024,13 @@ export type GetSourceCatalogResponse = {
                 | 'none'
               resourceKind?: string
               storage: 'native' | 'json-string'
-              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
               acceptsNumber?: boolean
               neverDecoded?: boolean
               tableFilter?: boolean
@@ -8247,7 +8253,13 @@ export type GetSourceCatalogResponse = {
                 | 'none'
               resourceKind?: string
               storage: 'native' | 'json-string'
-              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
               acceptsNumber?: boolean
               neverDecoded?: boolean
               tableFilter?: boolean
@@ -8430,7 +8442,7 @@ export type GetSourceCatalogResponse = {
         | 'none'
       resourceKind?: string
       storage: 'native' | 'json-string'
-      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables' | 'skills'
       acceptsNumber?: boolean
       neverDecoded?: boolean
       tableFilter?: boolean
@@ -8496,6 +8508,16 @@ export type GetSourceResourcesResponse = {
         name: string
         type: string
       }>
+    }>
+    skills: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    customTools: Array<{
+      key: string
+      id: string
+      name: string
     }>
     env: Array<string>
     truncated: boolean

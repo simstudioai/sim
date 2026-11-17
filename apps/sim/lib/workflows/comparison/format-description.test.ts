@@ -7,7 +7,6 @@ const { mockLoadAllSelectorOptions } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/triggers/constants', () => ({
-  SYSTEM_SUBBLOCK_IDS: [],
   TRIGGER_RUNTIME_SUBBLOCK_IDS: [],
 }))
 

@@ -2,9 +2,7 @@
 
 import { useEffect } from 'react'
 import { BLOCK_OPERATIONS, BLOCKS_OPERATIONS } from '@sim/realtime-protocol/constants'
-import { BLOCK_LAYOUT_DATA_FIELDS, BLOCK_LAYOUT_FIELDS } from '@sim/workflow-code/layout'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import type { BlockState } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   MonacoEditor,
@@ -12,65 +10,29 @@ import {
   useMonacoTheme,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/monaco-editor'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
+import { subscribeToDraftChanges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
 import { useWorkflowSource, workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
-import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Quiet period after the last edit before the source is re-read. */
 const REFRESH_DEBOUNCE_MS = 750
 
 const CODE_VIEW_OPTIONS = { ...TEXT_EDITOR_OPTIONS, readOnly: true, domReadOnly: true }
 
-/**
- * Canvas geometry: block fields and operations the printed source never shows. `data` is
- * compared field by field instead, since a resize writes its width and height.
- */
-const GEOMETRY_FIELDS: ReadonlySet<string> = new Set([...BLOCK_LAYOUT_FIELDS, 'data'])
-const GEOMETRY_DATA_FIELDS: ReadonlySet<string> = new Set(BLOCK_LAYOUT_DATA_FIELDS)
+/** Canvas geometry operations, which the printed source never shows. */
 const GEOMETRY_OPERATIONS: ReadonlySet<string> = new Set([
   BLOCK_OPERATIONS.UPDATE_POSITION,
   BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS,
 ])
 
-/** Whether two block maps differ in anything but geometry; a drag replaces only moved blocks. */
-function blocksChangedBeyondGeometry(
-  next: Record<string, BlockState>,
-  previous: Record<string, BlockState>
-): boolean {
-  const ids = Object.keys(next)
-  if (ids.length !== Object.keys(previous).length) return true
-  return ids.some((id) => {
-    const block = next[id]
-    const before = previous[id]
-    if (block === before) return false
-    if (!before) return true
-    return (
-      differsBeyond(block, before, GEOMETRY_FIELDS) ||
-      differsBeyond(block.data ?? {}, before.data ?? {}, GEOMETRY_DATA_FIELDS)
-    )
-  })
-}
-
-/** Whether two records differ by identity in any field outside `ignored`. */
-function differsBeyond(next: object, previous: object, ignored: ReadonlySet<string>): boolean {
-  const fields = (value: object) => Object.entries(value).filter(([field]) => !ignored.has(field))
-  const kept = new Map(fields(previous))
-  const changed = fields(next)
-  return (
-    changed.length !== kept.size ||
-    changed.some(([field, value]) => !kept.has(field) || kept.get(field) !== value)
-  )
-}
-
 /**
- * Re-reads the source once the draft settles: after the graph, variables or a queued operation
- * changed something the source prints, and no local operation is still waiting to persist. Canvas
- * geometry (drags, measured heights) never prints, so it never schedules a read. A remote
- * `workflow-updated` reloads the workflow store (the socket provider holds one handler per event,
- * owned by the collaborative workflow hook), so subscribing to the store covers both remote and
- * local edits. It keeps running while the tab is hidden: invalidating a disabled query only marks
- * it stale, so the next open refetches.
+ * Re-reads the source once the draft settles: after the graph, a field value, variables or a
+ * queued operation changed something the source prints, and no local operation is still waiting
+ * to persist. Canvas geometry (drags, measured heights) never prints, so it never schedules a read.
+ * Remote edits arrive as store writes, not operations: a `workflow-updated` reloads the workflow
+ * store, and a collaborator's field edit writes only the subblock store, so each store is watched.
+ * It keeps running while the tab is hidden: invalidating a disabled query only marks it stale, so
+ * the next open refetches.
  */
 function useRefreshWhenDraftSettles(workflowId: string | null) {
   const queryClient = useQueryClient()
@@ -92,20 +54,7 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       dirty = true
       schedule()
     }
-    const unsubscribeGraph = useWorkflowStore.subscribe((state, previous) => {
-      if (
-        state.edges !== previous.edges ||
-        state.loops !== previous.loops ||
-        state.parallels !== previous.parallels ||
-        (state.blocks !== previous.blocks &&
-          blocksChangedBeyondGeometry(state.blocks, previous.blocks))
-      ) {
-        markDirty()
-      }
-    })
-    const unsubscribeVariables = useVariablesStore.subscribe((state, previous) => {
-      if (state.variables !== previous.variables) markDirty()
-    })
+    const unsubscribeDraft = subscribeToDraftChanges(workflowId, markDirty)
     const unsubscribeQueue = useOperationQueueStore.subscribe((state, previous) => {
       if (state.operations === previous.operations) return
       const queued = new Set(previous.operations.map((operation) => operation.id))
@@ -122,8 +71,7 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
       clearTimeout(timer)
       // Leaving inside the debounce would keep a fresh-looking pre-edit copy in the cache.
       if (dirty) queryClient.invalidateQueries({ queryKey: workflowSourceKeys.detail(workflowId) })
-      unsubscribeGraph()
-      unsubscribeVariables()
+      unsubscribeDraft()
       unsubscribeQueue()
     }
   }, [workflowId, queryClient])

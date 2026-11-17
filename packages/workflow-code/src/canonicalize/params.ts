@@ -2,11 +2,12 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
+import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
 import { liftTools } from './tools'
-import { liftResourceValue, toValue } from './values'
+import { liftResourceId, liftResourceValue, toValue } from './values'
 
 /**
  * Server-owned trigger runtime ids (triggers/constants.ts
@@ -98,26 +99,43 @@ export function uniqueFieldNames(list: readonly unknown[]): Set<string> {
 }
 
 /**
- * inputFormat fields: the editor's `collapsed` flag is dropped and each field's
- * `id` moves to the lock's `items`, keyed by field name. A field whose name is missing or shared
- * keeps its id inline, so nothing is lost.
+ * The inputFormat fields whose id moves to the lock's `items`, by list index: a string id and a
+ * string name that no other field shares. The lock holds one id per name and each id once.
+ */
+export function liftedFieldIds(list: readonly unknown[]): Map<number, LockItem> {
+  const names = uniqueFieldNames(list)
+  const idCounts = new Map<string, number>()
+  for (const item of list) {
+    if (isRecordLike(item) && typeof item.id === 'string') {
+      idCounts.set(item.id, (idCounts.get(item.id) ?? 0) + 1)
+    }
+  }
+  const lifted = new Map<number, LockItem>()
+  list.forEach((item, index) => {
+    if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return
+    const { id, name } = item
+    if (typeof id !== 'string' || typeof name !== 'string') return
+    if (names.has(name) && idCounts.get(id) === 1) lifted.set(index, { name, id })
+  })
+  return lifted
+}
+
+/**
+ * inputFormat fields: the editor's `collapsed` flag is dropped and the id of each field
+ * {@link liftedFieldIds} picks moves to the lock's `items`. Any other field keeps its id inline,
+ * so nothing is lost.
  */
 function liftInputFormat(
   list: unknown[],
   context: CanonContext
-): { value: Value; items: Array<{ name: string; id: string }> } {
-  const unique = uniqueFieldNames(list)
-  const items: Array<{ name: string; id: string }> = []
-  const value = list.map((item) => {
+): { value: Value; items: LockItem[] } {
+  const lifted = liftedFieldIds(list)
+  const value = list.map((item, index) => {
     if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return toValue(item, context)
     const rest = omit(item, ['collapsed'])
-    if (typeof rest.id === 'string' && typeof rest.name === 'string' && unique.has(rest.name)) {
-      items.push({ name: rest.name, id: rest.id })
-      return toValue(omit(rest, ['id']), context)
-    }
-    return toValue(rest, context)
+    return toValue(lifted.has(index) ? omit(rest, ['id']) : rest, context)
   })
-  return { value, items }
+  return { value, items: [...lifted.values()] }
 }
 
 /**
@@ -139,6 +157,35 @@ function liftTableRows(list: unknown[], context: CanonContext): Value {
     rows.push(toValue(omit(row, ['id']), context))
   }
   return rows
+}
+
+/** A stored agent skill entry in the exact shape the skill picker writes: `{ skillId, name }`. */
+export function storedSkillEntry(item: unknown): { skillId: string; name: string } | null {
+  if (!isRecordLike(item) || Object.keys(item).length !== 2) return null
+  const { skillId, name } = item
+  if (typeof skillId !== 'string' || skillId.trim() === '' || typeof name !== 'string') return null
+  return { skillId, name }
+}
+
+/**
+ * Agent skills (`skill-input`): each `{ skillId, name }` entry whose skill resolves becomes its
+ * `skill` resource node (the skills encoding of `ResourceNode`). Any other entry stays a verbatim
+ * value; a skill id the resolver misses is reported by `liftResourceId`, but a built-in skill's
+ * is not looked up at all, since it never has a key.
+ */
+function liftSkills(
+  list: unknown[],
+  context: CanonContext,
+  location: { blockKey: BlockKey; param: string }
+): Value {
+  return list.map((item) => {
+    const entry = storedSkillEntry(item)
+    if (entry && !context.resources?.isBuiltin?.('skill', entry.skillId)) {
+      const node = liftResourceId('skill', entry.skillId, context, location)
+      if (node.$sim === 'resource') return node
+    }
+    return toValue(item, context)
+  })
 }
 
 /**
@@ -243,6 +290,8 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       if (lifted.items.length > 0) setOwn(items, id, lifted.items)
     } else if (declaration?.structured === 'tableRows' && Array.isArray(decoded)) {
       value = liftTableRows(decoded, context)
+    } else if (declaration?.structured === 'skills' && Array.isArray(decoded)) {
+      value = liftSkills(decoded, context, location)
     } else if (declaration?.structured === 'variables') {
       value = liftVariableAssignments(decoded, blockKey, id, context)
     } else if (declaration?.valueKind === 'resource' && declaration.resourceKind) {

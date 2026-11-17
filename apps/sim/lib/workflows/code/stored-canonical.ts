@@ -69,6 +69,7 @@ interface StoredCanonicalInput {
   catalog: BlockCatalog
 }
 
+/** A stored graph canonicalized against its workspace's resource keys. */
 export interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult
@@ -112,6 +113,7 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
           referenced.keys.push({ kind, key })
           return current.toId(kind, key)
         },
+        isBuiltin: current.isBuiltin,
       },
     })
     const loadedIds = new Set(loaded.ids.map((ref) => idRefKey(ref.kind, ref.id)))

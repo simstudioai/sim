@@ -22,7 +22,7 @@ import {
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
-import type { SourceDiffSummary } from '@/lib/workflows/application/source-locate'
+import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   finding,

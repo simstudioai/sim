@@ -412,6 +412,7 @@ export interface GitLabMergeMergeRequestParams extends GitLabBaseParams {
   squash?: boolean
   shouldRemoveSourceBranch?: boolean
   mergeWhenPipelineSucceeds?: boolean
+  sha?: string
 }
 
 export interface GitLabListPipelinesParams extends GitLabBaseParams {

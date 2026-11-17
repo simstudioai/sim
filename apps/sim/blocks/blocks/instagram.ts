@@ -2,7 +2,7 @@ import { InstagramIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const IG_USER_ID_OPS = [
   'instagram_list_media',
@@ -780,8 +780,8 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
         }
         return operation
       },
-      params: (params) => {
-        const operation = typeof params.operation === 'string' ? params.operation : ''
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {
           credential: params.oauthCredential,
         }
@@ -805,12 +805,17 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
           const resolved = normalizeFileInput(params.media, { single: true })
           if (resolved) result.media = resolved
         } else if (operation === 'instagram_publish_carousel') {
-          const resolved = normalizeFileInput(params.carouselMedia)
+          const resolved =
+            normalizeFileInput(params.carouselMedia) ??
+            normalizeFileInput(toolCallArg(context, params.media))
           if (resolved) result.media = resolved
         }
 
         for (const key of OPERATION_PARAM_KEYS[operation] ?? []) {
-          const value = params[key]
+          const value =
+            key === 'insightMetrics'
+              ? params.insightMetrics || toolCallArg(context, params.metrics)
+              : params[key]
           if (value === undefined || value === null || value === '') continue
 
           if (key === 'insightMetrics') {

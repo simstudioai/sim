@@ -10,6 +10,7 @@ import {
   generateSdkTypes,
   generateWorkspaceTypes,
   SDK_MAJOR,
+  SOURCE_COMPILER_OPTIONS,
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
@@ -30,6 +31,7 @@ import {
   locallyEditedFiles,
   mergedGitattributes,
   readPreviousLock,
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
@@ -144,12 +146,17 @@ export async function loadCatalog(
   )
 }
 
-/** The resource manifest as `generateWorkspaceTypes` reads it. */
+/**
+ * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills and
+ * custom tools sections omits them, which leaves those keys plain strings.
+ */
 function workspaceManifestFrom({
   tables,
   knowledgeBases,
   credentials,
   workflows,
+  skills = [],
+  customTools = [],
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -169,6 +176,8 @@ function workspaceManifestFrom({
         { inputs: Object.fromEntries(workflow.inputs.map((input) => [input.name, input.type])) },
       ])
     ),
+    skills: skills.map((entry) => entry.key),
+    customTools: customTools.map((entry) => entry.key),
     env,
   }
 }
@@ -223,14 +232,7 @@ export const TSCONFIG_MARKER = `// Written by \`sim workflows source get\`; remo
 const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
   {
     compilerOptions: {
-      target: 'ES2022',
-      lib: ['ES2022'],
-      module: 'ESNext',
-      moduleResolution: 'bundler',
-      moduleDetection: 'force',
-      types: [],
-      strict: true,
-      noEmit: true,
+      ...SOURCE_COMPILER_OPTIONS,
       skipLibCheck: true,
       paths: { '@sim/workflow-sdk': [`./${SDK_DIR}/core.d.ts`] },
     },
@@ -321,12 +323,14 @@ function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
 /** The printed source a tree write saves: a get's answer, or an applied create's. */
 type PrintedSource = Pick<WorkflowSource, 'workflowId' | 'workspaceId' | 'files' | 'lock' | 'base'>
 
+/** What a tree write reports: the same fields after a get and a create scaffold. */
 export interface SourceTree {
-  written: number
+  /** How many files were written. */
+  files: number
   /** Whether `workspace.d.ts` was written. */
   workspaceTypes: boolean
-  /** Whether `tsconfig.json` is the CLI's; `false` when the directory's own was left alone. */
-  tsconfig: boolean
+  /** The agent guide to read before editing. */
+  guide: typeof SOURCE_AGENTS_FILE
 }
 
 /**
@@ -362,7 +366,7 @@ export function finishTree(
       `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
     )
   }
-  return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
+  return { files: written, workspaceTypes: workspaceTypes !== null, guide: SOURCE_AGENTS_FILE }
 }
 
 /** What a directory's editable tree holds beside the printed source. */
@@ -476,14 +480,8 @@ export async function writeSourceDirectory(
 
 /** The workflow `.sim/base.json` says the directory holds, or `null` when it names none. */
 async function heldWorkflowId(dir: string): Promise<string | null> {
-  const text = await readSourceText(dir, SOURCE_BASE_FILE)
-  if (text === null) return null
-  try {
-    const held = toRecord(JSON.parse(text)).workflowId
-    return typeof held === 'string' ? held : null
-  } catch {
-    return null
-  }
+  const held = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).workflowId
+  return typeof held === 'string' ? held : null
 }
 
 /**
@@ -538,9 +536,9 @@ function withSourceExitCode(error: unknown): unknown {
  * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
  * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
  * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them, a
- * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines that keep the source LF. Without `--dir`
- * the generated handler runs unchanged. Commander offers no way to read the action it holds, so
- * it is captured and delegated to, as `runs get` does.
+ * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines
+ * that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
+ * no way to read the action it holds, so it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')
@@ -601,8 +599,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     printProtocolResult(profile.output, {
       workflowId: workflowSource.workflowId,
       dir,
-      files: tree.written,
-      workspaceTypes: tree.workspaceTypes,
+      ...tree,
       fingerprint: workflowSource.base.fingerprint,
     })
   })

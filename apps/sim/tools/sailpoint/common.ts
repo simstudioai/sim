@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, toArray } from '@sim/utils/object'
 import { STANDARD_LIMIT_MAX } from '@/lib/internal/sailpoint/schema'
 import type { SailPointCredentials } from '@/tools/sailpoint/types'
 import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
@@ -119,33 +119,38 @@ export function parseJsonValue<T>(value: T | string | undefined, label: string):
   }
 }
 
-/** Normalizes an array, JSON array, or comma-separated string to non-empty strings. */
+/**
+ * Normalizes an array, JSON array, comma-separated string, or lone number or boolean (what a
+ * JSON-parsed field or a model sends for a one-entry list) to non-empty strings.
+ */
 export function normalizeStringList(
-  value: string[] | string | undefined,
+  value: unknown,
   label: string,
   options: { required?: boolean; maxItems?: number } = {}
 ): string[] | undefined {
-  if (value === undefined) {
+  if (value === undefined || value === null) {
     if (options.required) throw new Error(`${label} is required`)
     return undefined
   }
 
-  let values: unknown
+  let values: unknown[]
   if (Array.isArray(value)) {
     values = value
-  } else {
+  } else if (typeof value === 'string') {
     const trimmed = value.trim()
     if (!trimmed) values = []
-    else if (trimmed.startsWith('[')) values = parseJsonValue<unknown[]>(trimmed, label)
+    else if (trimmed.startsWith('[')) values = toArray(parseJsonValue<unknown>(trimmed, label))
     else values = trimmed.split(',')
+  } else {
+    values = [value]
   }
 
-  if (!Array.isArray(values)) throw new Error(`${label} must be an array of strings`)
   const normalized = values.map((entry) => {
-    if (typeof entry !== 'string' || !entry.trim()) {
+    const text = typeof entry === 'number' || typeof entry === 'boolean' ? String(entry) : entry
+    if (typeof text !== 'string' || !text.trim()) {
       throw new Error(`${label} must contain only non-empty strings`)
     }
-    return entry.trim()
+    return text.trim()
   })
   if (options.required && normalized.length === 0) throw new Error(`${label} is required`)
   if (options.maxItems !== undefined && normalized.length > options.maxItems) {

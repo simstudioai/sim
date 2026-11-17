@@ -363,6 +363,7 @@ export async function performCreateKnowledgeConnector(
   if (accessToken !== null) {
     const validationContext = {
       ...tokenContext,
+      isSearchIndex: kb.isSearchIndex === true,
       mirrorsSourceAcls: accessMode === 'admin',
       ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
     }

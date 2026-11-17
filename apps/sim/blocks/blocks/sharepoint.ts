@@ -4,7 +4,7 @@ import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { isToolCall, mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const logger = createLogger('SharepointBlock')
 
@@ -653,7 +653,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Sharepoint operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const { oauthCredential, siteId, mimeType, ...rest } = params
 
         // siteId is the canonical param from siteSelector (basic) or manualSiteId (advanced)
@@ -696,7 +697,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           return undefined
         }
 
-        if (others.operation === 'update_list' || others.operation === 'add_list_items') {
+        if (operation === 'update_list' || operation === 'add_list_items') {
           logger.info('SharepointBlock list item param check', {
             siteId: effectiveSiteId || undefined,
             listId: listId,
@@ -729,7 +730,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           baseParams.files = normalizedFiles
         }
 
-        if (columnDefinitions && others.operation === 'create_list') {
+        if (columnDefinitions && operation === 'create_list') {
           baseParams.pageContent = columnDefinitions
         }
 
@@ -1427,7 +1428,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     access: [...SHAREPOINT_V2_TOOL_IDS],
     config: {
       tool: (params) => params.operation || 'sharepoint_create_page',
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           siteId,
@@ -1481,17 +1483,24 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           top: cleanString(top) ? Number(cleanString(top)) : undefined,
         }
 
-        if (result.includeColumns === true && rest.operation === 'sharepoint_get_list') {
+        // Canvas only: a model's own filter/top/selectFields reach the tool, which rejects the mix clearly.
+        if (
+          result.includeColumns === true &&
+          operation === 'sharepoint_get_list' &&
+          !isToolCall(context)
+        ) {
           result.filter = undefined
           result.top = undefined
           result.selectFields = undefined
         }
-        if (rest.operation === 'sharepoint_get_list_item') {
-          result.selectFields = cleanString(result.itemSelectFields)
+        if (operation === 'sharepoint_get_list_item') {
+          result.selectFields =
+            cleanString(result.itemSelectFields) ??
+            toolCallArg(context, cleanString(result.selectFields))
         }
         result.itemSelectFields = undefined
 
-        if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
+        if (columnDefinitions && operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
         }
         if (normalizedFiles) {

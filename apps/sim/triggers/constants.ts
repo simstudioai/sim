@@ -1,5 +1,3 @@
-export { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
-
 /**
  * Trigger-related subblock IDs that represent runtime metadata. They should remain
  * in the workflow state but must not be modified or cleared by diff operations.

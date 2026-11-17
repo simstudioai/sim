@@ -114,6 +114,11 @@ describe('hostile sources produce diagnostics only', () => {
     expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
   })
 
+  it('refuses an oversize input before scanning its characters', () => {
+    const text = wrap(`const a = api('A', { url: '\u0000${'x'.repeat(2_000)}' })`)
+    expect(codes(run(text, { maxTotalBytes: 1_000 }))).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
   it.each([
     ['nested arrays', `const a = api('A', { url: ${'['.repeat(100_000)}${']'.repeat(100_000)} })`],
     [
@@ -225,17 +230,15 @@ describe('hostile sources produce diagnostics only', () => {
         (_, i) => `  const f${i} = fn('F${i}', { code: codeFile('${path(i)}') })`
       ).join('\n')}\n})\n`
 
-    it('parses a code file referenced by many blocks once', () => {
-      const body = `const x = [${Array.from({ length: 60_000 }, (_, i) => i).join(',')}]\n`
-      const started = Date.now()
+    it('reports an unstorable code file shared by many blocks once', () => {
       const result = run(
-        fnFile(200, () => './a.js'),
+        fnFile(5, () => './a.js'),
         undefined,
-        { 'workflows/a.js': body }
+        {
+          'workflows/a.js': 'return "x\u0000"\n',
+        }
       )
-      const elapsed = Date.now() - started
-      expect(codes(result)).toEqual([])
-      expect(elapsed).toBeLessThan(2_000)
+      expect(errorCodes(result)).toEqual(['E_INVALID_CHARACTER'])
     })
 
     it('caps the total bytes of distinct code files', () => {

@@ -10,6 +10,12 @@ export const PARALLEL_BATCH_MAX = 20
 /** `count || 5` in `convertLoopBlockToLoop` and the loop orchestrator. */
 export const DEFAULT_LOOP_ITERATIONS = 5
 
+/** `clampParallelBatchSize`: a missing or non-numeric size is 20, anything else 1–20. */
+export function effectiveBatchSize(batchSize: number | undefined): number {
+  if (batchSize === undefined || Number.isNaN(batchSize)) return PARALLEL_BATCH_MAX
+  return Math.max(PARALLEL_BATCH_MIN, Math.min(PARALLEL_BATCH_MAX, Math.trunc(batchSize)))
+}
+
 /** `block.data` keys a container's subflow config owns. */
 export const SUBFLOW_DATA_KEYS: ReadonlySet<string> = new Set([
   'count',
@@ -88,11 +94,13 @@ export function loopSpec(
   if (typeof loopType === 'string' && LOOP_TYPES.has(loopType)) {
     spec.loopType = loopType as LoopSpec['loopType']
   } else if (loopType !== undefined) {
+    // The serializer runs `data.loopType || 'for'` and never reads the map's type, so a falsy
+    // stored type runs `for` and any other unknown one fails in the loop orchestrator.
     rejectIfFromData(rejected, data, 'loopType')
-    if (typeof loop?.loopType === 'string' && LOOP_TYPES.has(loop.loopType)) {
-      spec.loopType = loop.loopType
-    }
-    repaired(context, blockKey, `Unknown loop type "${String(loopType)}"; the runtime runs "for"`)
+    const outcome = data.loopType
+      ? 'the runtime fails with "Unknown loop type"'
+      : 'the runtime runs "for"'
+    repaired(context, blockKey, `Unknown loop type "${String(loopType)}"; ${outcome}`)
   }
 
   // The count that runs is `block.data.count || 5` (`convertLoopBlockToLoop`): the serializer

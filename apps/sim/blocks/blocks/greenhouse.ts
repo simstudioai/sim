@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GreenhouseBlock: BlockConfig = {
@@ -362,16 +363,17 @@ Return ONLY the ISO 8601 timestamp - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
+        const operation = mapperOperation(params, context)
 
         if (params.per_page) result.per_page = Number(params.per_page)
         if (params.page) result.page = Number(params.page)
 
-        if (params.operation === 'greenhouse_list_applications' && params.applicationStatus) {
+        if (operation === 'greenhouse_list_applications' && params.applicationStatus) {
           result.status = params.applicationStatus
         }
-        if (params.operation === 'greenhouse_list_jobs' && params.status === '') {
+        if (operation === 'greenhouse_list_jobs' && params.status === '') {
           result.status = undefined
         }
 

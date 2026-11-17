@@ -3,10 +3,20 @@ import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const AUDIO_FILE_FIELD = ['audioFile', 'audioFileReference'] as const
+
+/** A bite boundary the caller never set; `0` is a valid start time. */
+function isBlankTime(value: unknown): boolean {
+  return value === undefined || value === null || value === ''
+}
 
 export const FirefliesBlock: BlockConfig = {
   type: 'fireflies',
@@ -523,12 +533,12 @@ Return ONLY the summary text - no quotes, no labels.`,
       tool: (params) => {
         return params.operation || 'fireflies_list_transcripts'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'fireflies_list_transcripts':
             return {
               ...baseParams,
@@ -605,7 +615,7 @@ Return ONLY the summary text - no quotes, no labels.`,
             if (!params.transcriptId?.trim()) {
               throw new Error('Transcript ID is required.')
             }
-            if (!params.startTime || !params.endTime) {
+            if (isBlankTime(params.startTime) || isBlankTime(params.endTime)) {
               throw new Error('Start time and end time are required.')
             }
             return {
@@ -613,16 +623,17 @@ Return ONLY the summary text - no quotes, no labels.`,
               transcriptId: params.transcriptId.trim(),
               startTime: Number(params.startTime),
               endTime: Number(params.endTime),
-              name: params.biteName?.trim() || undefined,
+              name: params.biteName?.trim() || toolCallArg(context, params.name) || undefined,
               mediaType: params.mediaType?.trim() || undefined,
-              summary: params.biteSummary?.trim() || undefined,
+              summary:
+                params.biteSummary?.trim() || toolCallArg(context, params.summary) || undefined,
             }
 
           case 'fireflies_list_bites':
             return {
               ...baseParams,
               transcriptId: params.transcriptId?.trim() || undefined,
-              mine: true,
+              mine: toolCallArg(context, params.mine) ?? true,
               limit: params.limit ? Number(params.limit) : undefined,
               skip: params.skip ? Number(params.skip) : undefined,
             }
@@ -717,16 +728,18 @@ export const FirefliesV2Block: BlockConfig = {
         FirefliesBlock.tools?.config?.tool
           ? FirefliesBlock.tools.config.tool(params)
           : params.operation || 'fireflies_list_transcripts',
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = FirefliesBlock.tools?.config?.params
         if (!baseParams) {
           return params
         }
 
-        if (params.operation === 'fireflies_upload_audio') {
-          // Use canonical 'audioFile' param directly
+        if (mapperOperation(params, context) === 'fireflies_upload_audio') {
           const audioFile = normalizeFileInput(params.audioFile, { single: true })
           if (!audioFile) {
+            if (toolCallArg(context, params.audioUrl?.trim())) {
+              return baseParams(params, context)
+            }
             throw new Error('Audio file is required.')
           }
           const audioUrl = resolveHttpsUrlFromFileInput(audioFile)
@@ -734,14 +747,17 @@ export const FirefliesV2Block: BlockConfig = {
             throw new Error('Audio file must include a https URL.')
           }
 
-          return baseParams({
-            ...params,
-            audioUrl,
-            audioFile: undefined,
-          })
+          return baseParams(
+            {
+              ...params,
+              audioUrl,
+              audioFile: undefined,
+            },
+            context
+          )
         }
 
-        return baseParams(params)
+        return baseParams(params, context)
       },
     },
   },

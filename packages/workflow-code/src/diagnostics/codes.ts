@@ -46,7 +46,9 @@ type CompileSyntaxCode =
 
 /** Names, identifiers and scope. */
 type CompileScopeCode =
+  /** Two block names normalize to the same key. */
   | 'E_DUPLICATE_NAME'
+  /** A block name normalizes to a reserved reference prefix (`loop`, `parallel`, `variable`). */
   | 'E_RESERVED_NAME'
   /**
    * A `meta.key` override that is not a legacy key already bound to an id: it must be a key in
@@ -54,9 +56,11 @@ type CompileScopeCode =
    * plain key declared too) or the block's reserved name. It never introduces a new key.
    */
   | 'E_KEY_OVERRIDE'
+  /** A block's display name is the empty string. */
   | 'E_EMPTY_NAME'
   /** A block name holds a bidi control or zero-width character (`isSuspiciousCharacter`). */
   | 'W_SUSPICIOUS_CHARACTER'
+  /** A block or workflow name that is not a string literal. */
   | 'E_NAME_NOT_LITERAL'
   /** Includes a Levenshtein "did you mean" in `hint`. */
   | 'E_UNKNOWN_IDENTIFIER'
@@ -64,6 +68,7 @@ type CompileScopeCode =
   | 'E_OUT_OF_SCOPE'
   /** `vars.x` names no declared variable. */
   | 'E_UNKNOWN_VARIABLE'
+  /** Two workflow variable names normalize to the same key. */
   | 'E_DUPLICATE_VARIABLE'
   /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME`. */
   | 'E_INVALID_ENV_NAME'
@@ -90,13 +95,17 @@ type CompileEdgeCode =
   | 'E_EDGE_SCOPE'
   /** An edge to or from a note block. */
   | 'E_EDGE_NOTE'
+  /** An edge into a trigger block, which takes no incoming edges. */
   | 'E_TARGET_TRIGGER'
   /** `.to()` called directly on a condition or router. */
   | 'E_NO_DEFAULT_OUTPUT'
+  /** The same source port wired to the same target twice. */
   | 'E_DUPLICATE_EDGE'
+  /** `.onError()` on a block whose catalog entry has no error port. */
   | 'E_ERROR_PORT_UNSUPPORTED'
   /** `x.key.to()` where `key` is not a branch of `x`. */
   | 'E_UNKNOWN_BRANCH'
+  /** A condition or router branch key written twice. */
   | 'E_DUPLICATE_BRANCH_KEY'
   /** A branch key equal to an output name, `to` or `onError`. */
   | 'E_BRANCH_KEY_COLLIDES'
@@ -107,6 +116,7 @@ type CompileEdgeCode =
 
 /** Checks against the block catalog. */
 type CompileCatalogCode =
+  /** A block call or agent tool that names no catalog builder; `hint` has a did-you-mean. */
   | 'E_UNKNOWN_BUILDER'
   /** `hint` carries a did-you-mean over the params visible for the chosen operation. */
   | 'E_UNKNOWN_PARAM'
@@ -128,6 +138,11 @@ type CompileCatalogCode =
   | 'W_VALUE_KIND'
   /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
   | 'W_TABLE_FILTER_SHAPE'
+  /**
+   * A loop/parallel count or batch size the runtime replaces or clamps; kept so stored values
+   * round-trip.
+   */
+  | 'W_SUBFLOW_COUNT'
   /** Skipped when the block's outputs are dynamic. */
   | 'W_UNKNOWN_OUTPUT_PATH'
   /**
@@ -171,7 +186,7 @@ export type CompileDiagnosticCode =
 export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
 
 /** `parseWorkflowLock` (lock.ts). */
-type LockDiagnosticCode =
+export type LockDiagnosticCode =
   /** The lock text is not valid JSON. */
   | 'E_LOCK_JSON'
   /** `version` is missing or not `1`. */
@@ -184,6 +199,7 @@ type LockDiagnosticCode =
   | 'E_LOCK_KEY'
   /** A `ident` that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
   | 'E_LOCK_IDENT'
+  /** Two lock blocks claim the same `ident`. */
   | 'E_LOCK_DUPLICATE_IDENT'
   /** The same block, variable or branch id under two keys. */
   | 'E_LOCK_DUPLICATE_ID'
@@ -206,6 +222,7 @@ export type SourceMetaDiagnosticCode =
   | 'E_SOURCE_META_UNKNOWN_FIELD'
   /** An ident that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
   | 'E_SOURCE_META_IDENT'
+  /** Two blocks claim the same ident. */
   | 'E_SOURCE_META_DUPLICATE_IDENT'
   /** A `comments` key that `decodeAnchor` does not accept. */
   | 'E_SOURCE_META_ANCHOR'
@@ -237,7 +254,10 @@ export type CanonicalizeDiagnosticCode =
   | 'W_CANON_SUBFLOW_REPAIRED'
   /** Stored `subBlock.type` differs from the catalog's, or map key ≠ `subBlock.id`. */
   | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
-  /** A stored JSON-string field that does not parse; kept as a native string. */
+  /**
+   * A stored JSON-string field that does not parse, kept as a native string; or a branch list
+   * that is not rows with distinct ids, kept verbatim as a param.
+   */
   | 'W_CANON_UNDECODABLE_JSON'
 
 /** materialize and identity resolution. */
@@ -261,7 +281,8 @@ export type MaterializeDiagnosticCode =
  * The server apply pipeline. Gate codes mirror the editing engine's `SkippedItemType`
  * (apps/sim/lib/workflows/editing/types.ts `WORKFLOW_SKIPPED_ITEM_TYPES`) minus
  * `invalid_edge_target`, as `E_APPLY_<UPPER_SNAKE>` (`block_locked` shares `E_APPLY_LOCKED_BLOCK`);
- * the rest are apply-only checks. The engine skips such an item silently, while source apply refuses the whole write.
+ * the rest are apply-only checks. The engine skips such an item silently, while source apply
+ * refuses the whole write.
  */
 export type ApplyDiagnosticCode =
   /** The base fingerprint no longer matches the stored graph (HTTP 409). */
@@ -274,20 +295,35 @@ export type ApplyDiagnosticCode =
   | 'E_APPLY_TYPE_NOT_ADDABLE'
   /** `validateWorkflowState` rejected the materialized graph. */
   | 'E_APPLY_INVALID_STATE'
+  /** An edit or delete names a block the stored workflow does not hold. */
   | 'E_APPLY_BLOCK_NOT_FOUND'
+  /** A block type the registry does not define. */
   | 'E_APPLY_INVALID_BLOCK_TYPE'
+  /** A block type unavailable in this deployment, sunset, or blocked by access control. */
   | 'E_APPLY_BLOCK_NOT_ALLOWED'
+  /** A model blocked by access control. */
   | 'E_APPLY_MODEL_NOT_ALLOWED'
+  /** An agent tool unavailable in this deployment or not allowed by the permission group. */
   | 'E_APPLY_TOOL_NOT_ALLOWED'
+  /** An edge whose source block does not exist or has no type. */
   | 'E_APPLY_INVALID_EDGE_SOURCE'
+  /** An edge that crosses subflow scopes. */
   | 'E_APPLY_INVALID_EDGE_SCOPE'
+  /** An edge from a handle its source block does not have. */
   | 'E_APPLY_INVALID_SOURCE_HANDLE'
+  /** An edge into a handle its target block does not have. */
   | 'E_APPLY_INVALID_TARGET_HANDLE'
+  /** A changed field whose value fails its subBlock type's validation. */
   | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+  /** An operation the engine cannot run because a required argument is missing or empty. */
   | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+  /** Retry config on a trigger, human-in-the-loop or container block, which always runs once. */
   | 'E_APPLY_RETRY_NOT_SUPPORTED'
+  /** A second trigger of a type a workflow can hold only once. */
   | 'E_APPLY_DUPLICATE_TRIGGER'
+  /** A second block of a type a workflow can hold only once. */
   | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+  /** Enabling a block whose enclosing container stays disabled. */
   | 'E_APPLY_DISABLED_ANCESTOR'
   /** A credential the acting user cannot reach. */
   | 'E_APPLY_CREDENTIAL_UNREACHABLE'

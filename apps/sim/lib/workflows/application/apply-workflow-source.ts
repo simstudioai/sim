@@ -39,13 +39,13 @@ import {
   commitSourceReplace,
   previewSourceCommit,
 } from '@/lib/workflows/application/source-commit'
+import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
 import { evaluateSource, type PendingResource } from '@/lib/workflows/application/source-evaluate'
-import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
@@ -344,7 +344,7 @@ async function runSourceApply(
 
     /** The one response shape: what is (or would be) stored, printed, and the outcome. */
     const result = async (
-      printed: Pick<PrintedSource, 'files' | 'lock' | 'fingerprint'>,
+      printed: Pick<PrintedSource, 'files' | 'lock'> & Pick<SourceBase, 'fingerprint'>,
       outcome: Pick<ApplyWorkflowSourceResult, 'applied' | 'diff' | 'diagnostics'> &
         Partial<
           Pick<
@@ -373,11 +373,16 @@ async function runSourceApply(
         !isNew && (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId))),
       sdkMajor: catalog.sdkMajor,
     })
-    /** Refuses a commit; a dry run reports the same findings with a 200 instead. */
+    /**
+     * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
+     * echoes the caller's own base fingerprint, so applying its response after a stale or
+     * mismatched read still fails the freshness check rather than overwriting the newer draft.
+     */
     const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
       if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
+      const fingerprint = target.kind === 'existing' ? target.base.fingerprint : baseFingerprint
       return result(
-        { files: input.files, lock: input.lock, fingerprint: baseFingerprint },
+        { files: input.files, lock: input.lock, fingerprint },
         { applied: false, diff: emptyDiffSummary(), diagnostics }
       )
     }

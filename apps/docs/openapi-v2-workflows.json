@@ -6405,7 +6405,7 @@
       "get": {
         "operationId": "getSourceResources",
         "summary": "Get source resources",
-        "description": "List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.resources.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -6500,6 +6500,20 @@
                                 "type": "array"
                               }
                             ]
+                          }
+                        ],
+                        "skills": [
+                          {
+                            "key": "triage",
+                            "id": "skl_7e2a4c19",
+                            "name": "Triage"
+                          }
+                        ],
+                        "customTools": [
+                          {
+                            "key": "lookup-order",
+                            "id": "ctl_2b8d6f03",
+                            "name": "lookup_order"
                           }
                         ],
                         "env": ["CRM_KEY"],
@@ -17080,7 +17094,7 @@
                 "type": "null"
               }
             ],
-            "description": "Name of the block in the deployment version the run executed, or null for a manual run or when the version no longer exists."
+            "description": "Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists."
           },
           "kind": {
             "type": "string",
@@ -20063,6 +20077,54 @@
                 },
                 "description": "Workflows, oldest first."
               },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    }
+                  },
+                  "required": ["key", "id", "name"],
+                  "additionalProperties": false,
+                  "description": "A workspace skill: `skill(key)`."
+                },
+                "description": "Workspace skills, oldest first. Built-in skills have no key and are not listed."
+              },
+              "customTools": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    }
+                  },
+                  "required": ["key", "id", "name"],
+                  "additionalProperties": false,
+                  "description": "A workspace custom tool, by its title: `customTool(key)`."
+                },
+                "description": "Workspace custom tools, oldest first."
+              },
               "env": {
                 "type": "array",
                 "items": {
@@ -20081,6 +20143,8 @@
               "knowledgeBases",
               "credentials",
               "workflows",
+              "skills",
+              "customTools",
               "env",
               "truncated"
             ],
@@ -20140,6 +20204,20 @@
                       "type": "array"
                     }
                   ]
+                }
+              ],
+              "skills": [
+                {
+                  "key": "triage",
+                  "id": "skl_7e2a4c19",
+                  "name": "Triage"
+                }
+              ],
+              "customTools": [
+                {
+                  "key": "lookup-order",
+                  "id": "ctl_2b8d6f03",
+                  "name": "lookup_order"
                 }
               ],
               "env": ["CRM_KEY"],

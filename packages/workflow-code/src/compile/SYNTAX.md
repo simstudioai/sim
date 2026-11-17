@@ -39,7 +39,8 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   exports `vars`, the same variables untyped; the printer always writes the body parameter.
 - Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable key;
   `name` is written only when it differs. `type` is `string | number | boolean | object | array |
-  plain`; `value` is plain JSON.
+  plain`; `value` is plain JSON. Both are required. The stored key is the property key normalized
+  (lowercased, spaces and dots removed), and `vars.<key as written>` resolves through it.
 - The body holds block declarations and wiring statements. No other statements, no helpers, no
   loops, no conditionals, no imports of your own.
 
@@ -58,7 +59,7 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 - Names: a non-empty string literal (`E_NAME_NOT_LITERAL`, `E_EMPTY_NAME`), unique by key
   (`E_DUPLICATE_NAME`), not a reserved key (`loop`, `parallel`, `variable`: `E_RESERVED_NAME`). A
   name with a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER`; the printer escapes
-  such characters (`‮`) in every string.
+  such characters (U+202E prints as `\u202E`) in every string.
 - `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
   `body` in `data` (a literal or text), `status` as text (a number literal prints for a canonical
   integer), `headers` as header-table rows. Any other key is `E_UNKNOWN_PARAM`. The printer uses it
@@ -106,7 +107,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
 | `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. |
-| `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name is `E_UNSUPPORTED_SYNTAX`. |
+| `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name, or a value of `todo()`, `stored()` or `codeFile()`, is `E_UNSUPPORTED_SYNTAX`. |
 | `subflowData: { <key>: json }` | Loop or parallel only: `block.data` subflow keys (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`, `parallelType`, `batchSize`) canonicalize could not read as config. Any other key, or on another block, is `E_UNSUPPORTED_SYNTAX`. |
 
 `meta.key` must be a string literal. The printer writes it only for a block whose key the name
@@ -183,7 +184,7 @@ reordered tool never takes another tool's secret.
   has is `W_UNKNOWN_OUTPUT_PATH` (skipped for dynamic outputs).
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
-  did-you-mean.
+  did-you-mean. Wiring resolves its identifiers the same way.
 - `env.X` / `env['X']` → `{{X}}`; the name must match `[A-Za-z_][A-Za-z0-9_]*`
   (`E_INVALID_ENV_NAME`).
 - `vars.x` is decided by field, and printer and compiler share the rule. Inside a variables-input
@@ -195,7 +196,8 @@ reordered tool never takes another tool's secret.
 - Hand-written `<Name.path>` text whose head is not a normalized block key, or names no block, is
   `W_REF_NOT_NORMALIZED`, with the ident form as the hint. Such text is kept verbatim, so a rename
   never rewrites it.
-- A `<x.y>` token in a string that resolves to nothing is kept as literal text (`W_UNRESOLVED_REF`).
+- The printer keeps a stored `<x.y>` token that resolves to nothing as literal text
+  (`W_UNRESOLVED_REF`).
 
 ### JSON fields
 
@@ -204,7 +206,8 @@ written as an object or array literal compiles to `JSON.stringify(value, null, 2
 reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
 `string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
 JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`. A template is a JSON
-string, which is how a value becomes text on purpose. The printer writes a field's text back as the
+string, which is how a value becomes text on purpose. A resource (`table('x')`, `credential()`,
+`file()`) or `raw(node)` is not data, so inside the literal it is `E_UNSUPPORTED_SYNTAX`. The printer writes a field's text back as the
 literal only when serializing that literal gives the same bytes; otherwise the text prints as a
 template.
 
@@ -283,6 +286,9 @@ cannot round-trip through a file, the printer writes it inline as `` js`…` `` 
   argument.
 - A loop with no `count` gets 5, the count that runs. The other types' stored fields have no
   syntax; apply keeps them.
+- A `count` that is not a whole number of at least 1, or a `batchSize` outside 1–20, is
+  `W_SUBFLOW_COUNT`: the runtime replaces or clamps it. It compiles as written, so a stored value
+  round-trips.
 - `p.index`, `p.currentItem`, `p.items` (`E_UNKNOWN_SUBFLOW_PROPERTY` for anything else) are
   `<loop.x>` / `<parallel.x>` when `p`'s container is the innermost of its kind around the block,
   else `<containerkey.x>`. `container.results` and `container.index` are named refs.
@@ -359,10 +365,11 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_NAME_NOT_LITERAL` | A block or workflow name that is not a string literal. |
 | `W_SUSPICIOUS_CHARACTER` | A name holds a bidi control or zero-width character. |
 | `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean. |
-| `E_OUT_OF_SCOPE` | A ref into a sibling subflow's child. |
+| `E_OUT_OF_SCOPE` | A ref or wiring into a sibling subflow's child. |
 | `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
+| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
@@ -385,12 +392,14 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_REQUIRED_MISSING` | A required field left empty, including `todo()`. |
 | `E_STORED_VALUE_MISSING` | `stored()` where the stored workflow holds no value. |
 | `W_VALUE_KIND` | A value whose JSON type differs from the field's. |
+| `W_TABLE_FILTER_SHAPE` | A literal table filter the runtime refuses: the legacy `$` operator grammar, or predicate and builder rows mixed. |
+| `W_SUBFLOW_COUNT` | A loop or parallel count, or a parallel batch size, the runtime replaces or clamps. |
 | `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
 | `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
-| `W_UNRESOLVED_REF` | A `<x.y>` token, or a code file `$ref` chain, that resolves to nothing; kept as text. |
+| `W_UNRESOLVED_REF` | Print: a stored `<x.y>` token that resolves to nothing. Compile: a code file `$ref` chain that does. Either is kept as text. |
 | `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
 | `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |
 | `W_COMMENT_DROPPED` | A comment whose block no longer exists. |
@@ -428,7 +437,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_CANON_TITLE_OVERRIDE` | A branch title that differs from its positional title. |
 | `W_CANON_SUBFLOW_REPAIRED` | A loop or parallel config the loader would repair. |
 | `W_CANON_SUBBLOCK_TYPE_DRIFT` | A stored subBlock type differs from the catalog's. |
-| `W_CANON_UNDECODABLE_JSON` | A stored JSON-text field that does not parse; kept as text. |
+| `W_CANON_UNDECODABLE_JSON` | A stored JSON-text field that does not parse, kept as text; or a branch list that is not rows with distinct ids, kept verbatim. |
 
 **Materialize** (binding the compiled workflow to stored ids)
 

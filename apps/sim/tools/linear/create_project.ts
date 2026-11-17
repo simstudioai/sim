@@ -106,6 +106,11 @@ export const linearCreateProjectTool: ToolConfig<
                 name
                 description
                 state
+                status {
+                  id
+                  name
+                  type
+                }
                 priority
                 startDate
                 targetDate
@@ -160,6 +165,7 @@ export const linearCreateProjectTool: ToolConfig<
           name: project.name,
           description: project.description,
           state: project.state,
+          status: project.status,
           priority: project.priority,
           startDate: project.startDate,
           targetDate: project.targetDate,

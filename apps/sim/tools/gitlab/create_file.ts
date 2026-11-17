@@ -1,5 +1,5 @@
 import type { GitLabCreateFileParams, GitLabCreateFileResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -82,7 +82,7 @@ export const gitlabCreateFileTool: ToolConfig<GitLabCreateFileParams, GitLabCrea
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       const encodedPath = encodeURIComponent(String(params.filePath))
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/files/${encodedPath}`
     },

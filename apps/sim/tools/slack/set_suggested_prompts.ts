@@ -40,7 +40,7 @@ export const slackSetSuggestedPromptsTool: ToolConfig<
   id: 'slack_set_suggested_prompts',
   name: 'Slack Set Suggested Prompts',
   description:
-    'Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).',
+    'Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app). For apps on the legacy assistant experience (assistant_view) only. Slack silently fails this call for agent apps (agent_view); use Set Agent Suggested Prompts instead.',
   version: '1.0.0',
 
   oauth: {

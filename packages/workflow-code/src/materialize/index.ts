@@ -12,7 +12,7 @@ import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
+import type { LockIdentity, LockIdentityBlock, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
 import type {
   BlockKey,
   CanonicalBlock,
@@ -76,9 +76,13 @@ function writeVariables(
       before.name === variable.name &&
       before.type === variable.type &&
       deepEqual(before.value, variable.value)
-    variables[id] = unchanged
-      ? stored
-      : { ...stored, id, name: variable.name, type: variable.type, value: variable.value }
+    setOwn(
+      variables,
+      id,
+      unchanged
+        ? stored
+        : { ...stored, id, name: variable.name, type: variable.type, value: variable.value }
+    )
   }
   return { variables, idByKey }
 }
@@ -126,9 +130,9 @@ export interface MaterializeOptions {
   /**
    * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
    * `stale` when it does not, `none` when there is no lock. A `stale` lock entry whose id left
-   * prev is re-created with `W_MAT_DELETED_SINCE_PULL`. Rule 4 (inferred renames) runs for every
-   * freshness: under a fresh lock it pairs only blocks whose key and ident both changed, since a
-   * rename that kept either is matched by rules 1-2.
+   * prev is re-created with `W_MAT_DELETED_SINCE_PULL` unless a later rule matches its key.
+   * Rule 4 (inferred renames) runs for every freshness: under a fresh lock it pairs only blocks
+   * whose key and ident both changed, since a rename that kept either is matched by rules 1-2.
    */
   lockFreshness: LockFreshness
 }
@@ -182,15 +186,14 @@ export function materialize(
     compiledIdents: options.compiledIdents,
     diagnostics,
   })
+  const prevBlock = (prevKey: BlockKey | null) =>
+    prevKey !== null && prevCanonical ? getOwn(prevCanonical.workflow.blocks, prevKey) : undefined
   // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas
   // rename rewrites every subBlock.
   const workflow = rewriteRenamedReferences(
     withPreservedState(
       input,
-      (key) => {
-        const prevKey = resolution.blocks.get(key)?.prevKey ?? null
-        return prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
-      },
+      (key) => prevBlock(resolution.blocks.get(key)?.prevKey ?? null),
       catalog
     ),
     resolution.renames
@@ -225,8 +228,9 @@ export function materialize(
     const resolved = resolution.blocks.get(key)
     if (!resolved) continue
     const prevKey = resolved.prevKey
-    const canonicalPrev = prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
-    const storedPrev = prev?.blocks[resolved.id]
+    const canonicalPrev = prevBlock(prevKey)
+    const prevIdentityEntry = prevKey !== null ? getOwn(prevIdentity, prevKey) : undefined
+    const storedPrev = prev ? getOwn(prev.blocks, resolved.id) : undefined
     const result = buildBlock(
       {
         key,
@@ -238,17 +242,20 @@ export function materialize(
             ? {
                 block: storedPrev,
                 canonical: canonicalPrev,
-                parentId: parentIdOf(canonicalPrev.parent, (parent) => prevIdentity[parent]?.id),
-                branchIds: prevIdentity[prevKey]?.branches,
-                items: prevIdentity[prevKey]?.items,
+                parentId: parentIdOf(
+                  canonicalPrev.parent,
+                  (parent) => getOwn(prevIdentity, parent)?.id
+                ),
+                branchIds: prevIdentityEntry?.branches,
+                items: prevIdentityEntry?.items,
               }
             : undefined,
         lockBlock: lockById.get(resolved.id),
-        layout: lock?.blocks[key]?.layout,
+        layout: lock ? getOwn(lock.blocks, key)?.layout : undefined,
       },
       context
     )
-    blocks[resolved.id] = result.block
+    setOwn(blocks, resolved.id, result.block)
     built.set(key, result)
     if (result.needsLayout) {
       needsLayout.push(key)
@@ -270,7 +277,7 @@ export function materialize(
   }
   const prevBranchHandles = new Map<string, BranchHandles>()
   for (const [key, identity] of Object.entries(prevIdentity)) {
-    const prevType = prevCanonical?.workflow.blocks[key]?.type
+    const prevType = prevBlock(key)?.type
     const kind = prevType && catalogBlock(catalog, prevType)?.graph.branches?.kind
     if (!kind || !identity.branches) continue
     prevBranchHandles.set(identity.id, { kind, ids: identity.branches })
@@ -299,34 +306,38 @@ export function materialize(
   for (const [key, target] of Object.entries(workflow.blocks)) {
     const id = idByKey.get(key)
     if (id === undefined) continue
-    const block = blocks[id]
+    const block = getOwn(blocks, id)
+    if (!block) continue
     const effective = Boolean(block.errorEnabled) || errorSources.has(id)
-    if (effective !== target.errorPort) blocks[id] = { ...block, errorEnabled: target.errorPort }
+    if (effective !== target.errorPort) {
+      setOwn(blocks, id, { ...block, errorEnabled: target.errorPort })
+    }
   }
 
   const loops: Record<string, Loop> = {}
   const parallels: Record<string, Parallel> = {}
   for (const [id, entry] of Object.entries(prev?.loops ?? {})) {
-    if (!Object.hasOwn(prev?.blocks ?? {}, id)) loops[id] = entry
+    if (!Object.hasOwn(prev?.blocks ?? {}, id)) setOwn(loops, id, entry)
   }
   for (const [id, entry] of Object.entries(prev?.parallels ?? {})) {
-    if (!Object.hasOwn(prev?.blocks ?? {}, id)) parallels[id] = entry
+    if (!Object.hasOwn(prev?.blocks ?? {}, id)) setOwn(parallels, id, entry)
   }
   for (const [key, target] of Object.entries(workflow.blocks)) {
     const id = idByKey.get(key)
     const resolved = resolution.blocks.get(key)
-    if (id === undefined || !resolved || !target.subflow) continue
-    const before =
-      resolved.prevKey !== null ? prevCanonical?.workflow.blocks[resolved.prevKey] : undefined
+    const block = id !== undefined ? getOwn(blocks, id) : undefined
+    if (id === undefined || !block || !resolved || !target.subflow) continue
+    const before = prevBlock(resolved.prevKey)
     const prevEntry =
       before && prev
-        ? target.subflow.kind === 'loop'
-          ? prev.loops?.[id]
-          : prev.parallels?.[id]
+        ? getOwn<Loop | Parallel>(
+            (target.subflow.kind === 'loop' ? prev.loops : prev.parallels) ?? {},
+            id
+          )
         : undefined
     const entry = subflowEntry({
       id,
-      block: blocks[id],
+      block,
       spec: target.subflow,
       nodes: childIds(blocks, id),
       prevEntry,
@@ -337,8 +348,8 @@ export function materialize(
       prevNodes: before && prev ? childIds(prev.blocks, id) : [],
     })
     if (!entry) continue
-    if (target.subflow.kind === 'loop') loops[id] = entry as Loop
-    else parallels[id] = entry as Parallel
+    if (target.subflow.kind === 'loop') setOwn(loops, id, entry as Loop)
+    else setOwn(parallels, id, entry as Parallel)
   }
 
   const state: WorkflowState = { ...prev, blocks, edges, loops, parallels }
@@ -351,11 +362,12 @@ export function materialize(
     const result = built.get(key)
     const id = idByKey.get(key)
     if (!result || id === undefined) continue
-    identity.blocks[key] = { id, parent: target.parent }
+    const entry: LockIdentityBlock = { id, parent: target.parent }
     if (result.branchIds && Object.keys(result.branchIds).length > 0) {
-      identity.blocks[key].branches = result.branchIds
+      entry.branches = result.branchIds
     }
-    if (Object.keys(result.items).length > 0) identity.blocks[key].items = result.items
+    if (Object.keys(result.items).length > 0) entry.items = result.items
+    setOwn(identity.blocks, key, entry)
   }
 
   return {

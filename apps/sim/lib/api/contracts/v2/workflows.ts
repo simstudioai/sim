@@ -2173,7 +2173,7 @@ const v2WorkflowRunPausePointSchema = z
       .string()
       .nullable()
       .describe(
-        'Name of the block in the deployment version the run executed, or null for a manual run or when the version no longer exists.'
+        'Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists.'
       ),
     kind: z
       .enum(['human', 'time'])

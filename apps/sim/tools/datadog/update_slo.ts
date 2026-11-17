@@ -29,7 +29,7 @@ export const updateSloTool: InternalToolConfig<UpdateSloParams, UpdateSloRespons
       required: false,
       visibility: 'user-or-llm',
       description:
-        'SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds.',
+        'SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds. Converting to a "time_slice" SLO is not supported.',
     },
     thresholds: {
       type: 'string',

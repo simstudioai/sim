@@ -13,12 +13,15 @@
  * Redaction keeps what the round trip is about and nothing else:
  * - kept: object keys, ids (UUIDs and `id`/`*Id`/`*_id` fields), credential references, block and
  *   subBlock `type`, edge handles, dropdown/operation option ids, numbers, booleans, `null`, and
- *   URLs (scheme, host and path; query and fragment are redacted);
+ *   URL scheme and host (each path segment is redacted like text, keeping its `/` shape; query
+ *   and fragment become `redacted`);
  * - rewritten consistently: block and variable names become `<type> <n>` / `var<n>`, and every
  *   `<name.path>` / `<variable.name>` reference follows;
  * - redacted: every other string. Letters become `x`, digits `0`; whitespace, newlines,
  *   punctuation, backticks, `${`, `<...>` references and `{{ENV}}` tokens survive, so escaping
- *   quirks stay in the corpus. JSON-text values are redacted inside and re-encoded. Fields whose
+ *   quirks stay in the corpus. A `<...>` run survives only when its root is a block name, a
+ *   variable reference or a reserved prefix (`<loop.index>`); anything else (`<jane@acme.com>`)
+ *   is redacted as text. JSON-text values are redacted inside and re-encoded. Fields whose
  *   key looks like a secret (`apiKey`, `token`, `password`, ...) become `REDACTED`.
  *
  * The states are exported raw (pre-migration), as stored rows; the harness applies no migration.
@@ -38,7 +41,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  normalizeWorkflowBlockName,
+  RESERVED_WORKFLOW_BLOCK_NAMES,
+} from '@sim/workflow-types/workflow'
 import postgres from 'postgres'
 
 const logger = createLogger('ExportRedactedWorkflows', { enabled: true, logLevel: 'INFO' })
@@ -89,8 +95,10 @@ const ID_VALUED_SUBBLOCK_TYPES = new Set([
   'column-selector',
 ])
 
-/** References and env tokens survive redaction verbatim; the text between them does not. */
+/** Reference candidates and env tokens are split out of text before redaction. */
 const PROTECTED_TOKEN = /(<[^<>\s]+>|\{\{[^{}]+\}\}|\$\{)/g
+/** Splits an http(s) URL into origin, path, query and fragment without re-encoding the path. */
+const URL_PARTS = /^(https?:\/\/[^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/i
 
 interface Args {
   out: string
@@ -124,30 +132,20 @@ export function assertOutsideRepo(directory: string): void {
   }
 }
 
-function redactText(text: string): string {
-  return text
-    .split(PROTECTED_TOKEN)
-    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\p{L}/gu, 'x').replace(/\p{N}/gu, '0')))
-    .join('')
-}
-
-function redactUrl(text: string): string | null {
-  try {
-    const url = new URL(text)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    const query = url.search ? '?redacted' : ''
-    const hash = url.hash ? '#redacted' : ''
-    return `${url.protocol}//${url.host}${url.pathname}${query}${hash}`
-  } catch {
-    return null
-  }
+function maskCharacters(text: string): string {
+  return text.replace(/\p{L}/gu, 'x').replace(/\p{N}/gu, '0')
 }
 
 export class Redactor {
   private readonly renames = new Map<string, string>()
   private renamePattern: RegExp | null = null
+  private readonly referenceRoots: ReadonlySet<string>
 
   constructor(blockNames: Map<string, string>, variableNames: Map<string, string>) {
+    this.referenceRoots = new Set<string>([
+      ...blockNames.values(),
+      ...RESERVED_WORKFLOW_BLOCK_NAMES,
+    ])
     for (const [from, to] of blockNames) this.renames.set(`<${from}.`, `<${to}.`)
     for (const [from, to] of blockNames) this.renames.set(`<${from}>`, `<${to}>`)
     for (const [from, to] of variableNames)
@@ -166,12 +164,33 @@ export class Redactor {
     })
   }
 
+  private isReference(token: string): boolean {
+    if (!token.startsWith('<')) return true
+    const root = token.slice(1, -1).split('.')[0] ?? ''
+    return this.referenceRoots.has(normalizeWorkflowBlockName(root))
+  }
+
+  private redactText(text: string): string {
+    return text
+      .split(PROTECTED_TOKEN)
+      .map((part, i) => (i % 2 === 1 && this.isReference(part) ? part : maskCharacters(part)))
+      .join('')
+  }
+
+  private redactUrl(text: string): string | null {
+    const parts = URL_PARTS.exec(text)
+    if (!parts || !URL.canParse(text)) return null
+    const [, origin, pathname = '', query, hash] = parts
+    const path = this.redactText(this.rewriteRefs(pathname))
+    return `${origin}${path}${query ? '?redacted' : ''}${hash ? '#redacted' : ''}`
+  }
+
   string(text: string, key: string | null): string {
     if (key && SECRET_KEY.test(key) && !CREDENTIAL_KEY.test(key)) return text ? 'REDACTED' : text
     if (UUID.test(text) || STRUCTURAL_VALUE.test(text)) return text
     if (key && (ID_KEY.test(key) || CREDENTIAL_KEY.test(key) || STRUCTURAL_KEYS.has(key)))
       return text
-    const url = redactUrl(text.trim())
+    const url = this.redactUrl(text.trim())
     if (url !== null) return url
     const trimmed = text.trim()
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -183,7 +202,7 @@ export class Redactor {
         // Not JSON: fall through to text redaction.
       }
     }
-    return redactText(this.rewriteRefs(text))
+    return this.redactText(this.rewriteRefs(text))
   }
 
   value(node: unknown, key: string | null): unknown {

@@ -102,4 +102,15 @@ describe('Slack Agent Sessions tools', () => {
       title: 'Try one',
     })
   })
+
+  it('omits thread_ts for session channels, which Slack rejects it for', () => {
+    const base = { accessToken: 'xoxb-token', authMethod: 'bot_token', botToken: '', channel: 'C1' }
+    expect(
+      requestOf(slackSetAgentSessionStatusV2Tool).body?.({ ...base, status: 'processing' })
+    ).toEqual({ channel_id: 'C1', status: 'processing' })
+    expect(requestOf(slackRenameAgentSessionV2Tool).body?.({ ...base, title: 'Trip' })).toEqual({
+      channel_id: 'C1',
+      title: 'Trip',
+    })
+  })
 })

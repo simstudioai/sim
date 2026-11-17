@@ -144,11 +144,9 @@ export function normalizeDynamics365SearchEntities(value: unknown): string {
     throw new Error('entities must contain between 1 and 5 CRM table definitions')
   }
   for (const entity of parsed) {
-    if (
-      !isDataverseObject(entity) ||
-      typeof entity.name !== 'string' ||
-      !DYNAMICS_365_SEARCH_LOGICAL_NAMES.has(entity.name)
-    ) {
+    // Dataverse accepts PascalCase SearchEntity keys too, as Microsoft's own query example sends.
+    const name = isDataverseObject(entity) ? (entity.name ?? entity.Name) : undefined
+    if (typeof name !== 'string' || !DYNAMICS_365_SEARCH_LOGICAL_NAMES.has(name)) {
       throw new Error('entities contains an unsupported Dynamics 365 CRM table')
     }
   }

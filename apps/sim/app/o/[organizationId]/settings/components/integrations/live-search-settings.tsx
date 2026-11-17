@@ -203,7 +203,7 @@ export function LiveSearchSettings() {
                       )))
               const scope = serviceAccount
                 ? type === 'gitlab'
-                  ? 'Projects and permissions'
+                  ? 'Connections and permissions'
                   : type === 'github'
                     ? 'GitHub App repositories'
                     : integration.policy?.sourceId
@@ -227,11 +227,7 @@ export function LiveSearchSettings() {
                     <div className='flex gap-2'>
                       {serviceAccount && (
                         <ChipLink href={routes.searchProvider(type)}>
-                          {type === 'gitlab'
-                            ? 'Projects'
-                            : type === 'github'
-                              ? 'Repositories'
-                              : 'Connections'}
+                          {type === 'github' ? 'Repositories' : 'Connections'}
                         </ChipLink>
                       )}
                       {type === 'slack' && (
@@ -339,7 +335,7 @@ export function LiveSearchSettings() {
                 : type === 'github'
                   ? 'GitHub App repositories'
                   : type === 'gitlab'
-                    ? 'Projects and permissions'
+                    ? 'Connections and permissions'
                     : access.admin
                       ? 'Service account or member accounts'
                       : 'Member accounts',

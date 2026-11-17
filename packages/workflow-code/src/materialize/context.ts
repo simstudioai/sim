@@ -4,7 +4,6 @@ import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { ResourceKeyResolver, VarKey } from '../model'
 
-/** State shared by the materialize steps of one call. */
 /** Server callbacks materialize needs; implemented in `apps/sim/lib/workflows/code/`. */
 export interface MaterializeHooks {
   /** A fresh block with editor defaults, wrapping editing/builders. */
@@ -15,6 +14,7 @@ export interface MaterializeHooks {
   newId(): string
 }
 
+/** State shared by the materialize steps of one call. */
 export interface MaterializeContext {
   catalog: BlockCatalog
   hooks: MaterializeHooks

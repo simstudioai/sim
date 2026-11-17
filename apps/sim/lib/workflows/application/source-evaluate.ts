@@ -28,14 +28,13 @@ import { and, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
+import { type SourceDiffSummary, summarizeDiff } from '@/lib/workflows/application/source-diff'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import {
   createLocator,
   hasErrors,
   lintDiagnostics,
   normalizeChangedValues,
-  type SourceDiffSummary,
-  summarizeDiff,
 } from '@/lib/workflows/application/source-locate'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
@@ -267,6 +266,8 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     resources = {
       toKey: (kind, id) => storedResources.toKey(kind, id) ?? extra.toKey(kind, id),
       toId: (kind, key) => storedResources.toId(kind, key) ?? extra.toId(kind, key),
+      nameOf: (kind, id) => storedResources.nameOf?.(kind, id) ?? extra.nameOf?.(kind, id) ?? null,
+      isBuiltin: storedResources.isBuiltin,
     }
   }
 

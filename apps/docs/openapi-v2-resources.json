@@ -30479,7 +30479,8 @@
                                   "branches",
                                   "tableRows",
                                   "inputFormat",
-                                  "variables"
+                                  "variables",
+                                  "skills"
                                 ]
                               },
                               "acceptsNumber": {
@@ -31518,7 +31519,8 @@
                                   "branches",
                                   "tableRows",
                                   "inputFormat",
-                                  "variables"
+                                  "variables",
+                                  "skills"
                                 ]
                               },
                               "acceptsNumber": {
@@ -32353,7 +32355,14 @@
                     "structured": {
                       "description": "Structured value the canonical model decodes.",
                       "type": "string",
-                      "enum": ["tools", "branches", "tableRows", "inputFormat", "variables"]
+                      "enum": [
+                        "tools",
+                        "branches",
+                        "tableRows",
+                        "inputFormat",
+                        "variables",
+                        "skills"
+                      ]
                     },
                     "acceptsNumber": {
                       "description": "Free text that also takes a number, which the runtime coerces.",

@@ -1,3 +1,5 @@
+import { encodeContentPath } from '@/tools/github/content-path'
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteFileParams, DeleteFileResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -57,7 +59,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/contents/${encodeContentPath(params.path)}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

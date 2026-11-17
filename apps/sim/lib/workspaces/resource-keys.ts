@@ -380,8 +380,8 @@ export async function resolveKeys(
 
 /**
  * The resource each key is bound to in `workspaceId`, when that resource is still live. A key
- * with no key, or keyed to a deleted or archived resource, is left out: it is never re-pointed
- * at another resource. Never allocates.
+ * bound to no resource, or to a deleted or archived one, is left out: it is never re-pointed at
+ * another resource. Never allocates.
  */
 export async function resolveIds(
   workspaceId: string,

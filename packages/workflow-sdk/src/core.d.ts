@@ -155,6 +155,10 @@ export interface WorkspaceKnowledgeBases {}
 export interface WorkspaceCredentials {}
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface WorkspaceWorkflows {}
+// biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
+export interface WorkspaceSkills {}
+// biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
+export interface WorkspaceCustomTools {}
 
 type KeyOf<M> = keyof M extends never ? string : Extract<keyof M, string>
 
@@ -162,6 +166,8 @@ export type TableKey = KeyOf<WorkspaceTables>
 export type KnowledgeBaseKey = KeyOf<WorkspaceKnowledgeBases>
 export type CredentialKey = KeyOf<WorkspaceCredentials>
 export type WorkflowKey = KeyOf<WorkspaceWorkflows>
+export type SkillKey = KeyOf<WorkspaceSkills>
+export type CustomToolKey = KeyOf<WorkspaceCustomTools>
 
 /** A workspace resource by stable key, compiled to the resource's internal id. */
 export interface ResourceRef<Kind extends string, Key extends string = string> {
@@ -202,8 +208,8 @@ export type KnowledgeBaseRef<Key extends string = string> = ResourceRef<'knowled
 export declare function knowledgeBase<K extends KnowledgeBaseKey>(key: K): KnowledgeBaseRef<K>
 
 /** A workspace skill: `skill('triage')`. */
-export type SkillRef = ResourceRef<'skill'>
-export declare function skill(key: string): SkillRef
+export type SkillRef<Key extends string = string> = ResourceRef<'skill', Key>
+export declare function skill<K extends SkillKey>(key: K): SkillRef<K>
 
 /** A sandbox image: `sandbox('node-ml')`. */
 export type SandboxRef = ResourceRef<'sandbox'>
@@ -255,7 +261,7 @@ export interface ToolOpts {
  * whose definition was copied into the workflow (and may have drifted from the workspace tool)
  * prints as `raw(tool)` instead.
  */
-export declare function customTool(key: string, options?: ToolUsage): Tool
+export declare function customTool<K extends CustomToolKey>(key: K, options?: ToolUsage): Tool
 
 /** How the model may use a tool the SDK writes by name (`customTool`, `mcp().tool`, `asTool`). */
 export type ToolUsage = Pick<ToolOpts, 'usageControl' | 'usageControlExpression'>

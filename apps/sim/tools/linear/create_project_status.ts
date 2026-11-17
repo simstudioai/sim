@@ -31,8 +31,7 @@ export const linearCreateProjectStatusTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Status type: "backlog", "planned", "started", "paused", "completed", or "canceled"',
+      description: 'Status type: "backlog", "planned", "started", "completed", or "canceled"',
     },
     color: {
       type: 'string',

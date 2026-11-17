@@ -164,7 +164,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .description('Apply a workspace source directory of tables and workflows')
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: ApplyOptions) => {
-      requireConsent(options, 'writes the workspace')
+      requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()

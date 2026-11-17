@@ -1,5 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
+import { encodeContentPath } from '@/tools/github/content-path'
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -47,8 +49,8 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`
-      return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
+      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/contents/${encodeContentPath(params.path)}`
+      return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',
     headers: (params) => ({

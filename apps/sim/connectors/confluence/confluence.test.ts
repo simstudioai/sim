@@ -653,3 +653,203 @@ describe('confluence mirrored permissions', () => {
     })
   })
 })
+
+describe('Confluence Caelor Optics HTML macros', () => {
+  const config = { domain: 'example.atlassian.net', spaceKey: 'DOCS' }
+  const escapeXml = (value: string) =>
+    value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const opticsHtml =
+    '<style>.card{color:red}</style><h2>Find your app</h2>' +
+    '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg"><div id="apps"></div>' +
+    "<script>const apps = [{name: 'Zoom', wave: 3, date: '2026-12-04'}, " +
+    '{"name": "Slack", "wave": 1}];' +
+    " const logo = {src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg'};" +
+    " function render() { document.getElementById('apps').innerHTML = apps.map((a) => a.name).join(', ') }" +
+    '</script>'
+  const opticsMacro = (contentByMode: string, macro = 'html') =>
+    '<ac:structured-macro ac:name="caelor-optics-entry" ac:schema-version="1">' +
+    `<ac:parameter ac:name="macro">${macro}</ac:parameter>` +
+    `<ac:parameter ac:name="contentByMode">${escapeXml(contentByMode)}</ac:parameter>` +
+    '</ac:structured-macro>'
+  const opticsView =
+    '<div class="conf-macro output-block" data-macro-name="caelor-optics-entry">' +
+    '<div class="ap-container" id="ap-optics"><div class="ap-content"></div>' +
+    '<script class="ap-iframe-body-script">(function(){ var data = {"addon_key":"optics"}; }());</script>' +
+    '</div></div>'
+
+  function stubPage(bodies: { view: string; storage: string }) {
+    const requestedFormats: string[] = []
+    stubFetchWithoutAttachments(
+      vi.fn(async (input: string | URL | Request) => {
+        const format = new URL(String(input)).searchParams.get('body-format') ?? 'view'
+        requestedFormats.push(format)
+        return Response.json({
+          id: 'optics-page',
+          title: 'Find your app',
+          status: 'current',
+          spaceId: 'space-1',
+          version: { number: 4 },
+          body: { [format]: { value: format === 'storage' ? bodies.storage : bodies.view } },
+        })
+      })
+    )
+    return requestedFormats
+  }
+
+  function expectOpticsText(content: string | undefined) {
+    expect(content).toContain('Find your app')
+    expect(content).toContain('name: Zoom, wave: 3, date: 2026-12-04')
+    expect(content).toContain('name: Slack, wave: 1')
+    expect(content).not.toContain('color:red')
+    expect(content).not.toContain('base64')
+    expect(content).not.toContain('getElementById')
+  }
+
+  it('indexes the authored HTML and script data of an Optics-only rendered page', async () => {
+    stubPage({ view: opticsView, storage: opticsMacro(JSON.stringify({ html: opticsHtml })) })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.skippedReason).toBeUndefined()
+    expectOpticsText(document?.content)
+  })
+
+  it('keeps rendered prose alongside the Optics macro text', async () => {
+    stubPage({
+      view: `<p>Read this first</p>${opticsView}`,
+      storage: `<p>Read this first</p>${opticsMacro(JSON.stringify({ html: opticsHtml }))}`,
+    })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.content).toContain('Read this first')
+    expectOpticsText(document?.content)
+  })
+
+  it('keeps script data around regex literals and long names, without comments or base64', async () => {
+    const markup =
+      '<h2>Find your app</h2><script>' +
+      "// const retired = {name: 'Retired app'};\n" +
+      "/* {name: 'Draft app'} */ const re = /https?:\\/\\//; const apps = [{name: 'Zoom', url: 'https://zoom.example/a'}," +
+      " {name: 'MicrosoftAuthenticationLibrary', id: '100200300400500600700'}];" +
+      " const icon = {png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'};</script>"
+    stubPage({ view: opticsView, storage: opticsMacro(JSON.stringify({ html: markup })) })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.content).toContain('name: Zoom, url: https://zoom.example/a')
+    expect(document?.content).toContain(
+      'name: MicrosoftAuthenticationLibrary, id: 100200300400500600700'
+    )
+    expect(document?.content).not.toContain('Retired app')
+    expect(document?.content).not.toContain('Draft app')
+    expect(document?.content).not.toContain('iVBORw0KGgo')
+  })
+
+  it('fails hydration when the storage response omits its body so the page retries', async () => {
+    stubFetchWithoutAttachments(
+      vi.fn(async (input: string | URL | Request) => {
+        const format = new URL(String(input)).searchParams.get('body-format')
+        return Response.json({
+          id: 'optics-page',
+          status: 'current',
+          version: { number: 4 },
+          body: format === 'storage' ? {} : { view: { value: `<p>Prose</p>${opticsView}` } },
+        })
+      })
+    )
+
+    await expect(
+      confluenceConnector.getDocument('token', config, 'optics-page', { cloudId: 'cloud-1' })
+    ).rejects.toThrow('missing its storage body')
+  })
+
+  it('reads a contentByMode that holds raw HTML instead of JSON', async () => {
+    stubPage({ view: opticsView, storage: opticsMacro(opticsHtml) })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expectOpticsText(document?.content)
+  })
+
+  it('does not fetch the storage body for a rendered page without app macros', async () => {
+    const requestedFormats = stubPage({ view: '<p>Plain page</p>', storage: '<p>Plain page</p>' })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.content).toBe('Plain page')
+    expect(requestedFormats).toEqual(['view'])
+  })
+
+  it('skips the storage request for another app macro on a page with prose', async () => {
+    const requestedFormats = stubPage({
+      view:
+        '<p>Diagram notes</p><div class="ap-container" id="ap-drawio">' +
+        '<script class="ap-iframe-body-script">(function(){ var data = {"addon_key":"drawio"}; }());</script></div>',
+      storage: '<p>Diagram notes</p>',
+    })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.content).toBe('Diagram notes')
+    expect(requestedFormats).toEqual(['view'])
+  })
+
+  it('reads storage for an app-only page whose rendering omits the macro name', async () => {
+    stubPage({
+      view: opticsView.replace(' data-macro-name="caelor-optics-entry"', ''),
+      storage: opticsMacro(JSON.stringify({ html: opticsHtml })),
+    })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expectOpticsText(document?.content)
+  })
+
+  it('indexes an Optics HTML macro nested in a layout on the permission-scoped path', async () => {
+    stubPage({
+      view: opticsView,
+      storage:
+        '<ac:structured-macro ac:name="section"><ac:rich-text-body>' +
+        '<ac:structured-macro ac:name="column"><ac:rich-text-body>' +
+        opticsMacro(JSON.stringify({ html: opticsHtml })) +
+        '</ac:rich-text-body></ac:structured-macro></ac:rich-text-body></ac:structured-macro>',
+    })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+      mirrorsSourceAcls: true,
+    })
+
+    expect(document?.skippedReason).toBeUndefined()
+    expectOpticsText(document?.content)
+  })
+
+  it('still treats other Optics modules as dynamic content on the permission-scoped path', async () => {
+    stubPage({
+      view: opticsView,
+      storage: opticsMacro(JSON.stringify({ html: opticsHtml }), 'cards'),
+    })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+      mirrorsSourceAcls: true,
+    })
+
+    expect(document?.skippedReason).toBe(DYNAMIC_CONTENT_SKIP_REASON)
+  })
+})

@@ -92,10 +92,12 @@ type GateErrorCode =
   | 'E_APPLY_CREDENTIAL_UNREACHABLE'
   | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
 
+/** A refusal (`E_APPLY_*`) or warning (`W_APPLY_*`) the source gates report for one block. */
 export type SourceGateDiagnostic = Diagnostic<
   GateErrorCode | 'W_APPLY_HOSTED_KEY_DROPPED' | 'W_APPLY_TYPE_CHANGED'
 >
 
+/** What `gateSourceDiff` judges: the diff, the catalog, and who applies it where. */
 export interface GateSourceDiffArgs {
   base: SourceGraph
   target: SourceGraph
@@ -307,16 +309,12 @@ function gateTriggerUniqueness(
  */
 function gateFieldValues(
   entry: GatedBlock,
+  toolInputFields: ReadonlySet<string>,
   permissionConfig: PermissionGroupConfig | null,
   record: (skipped: SkippedItem[], param: string) => void
 ): void {
   const { block, baseBlock } = entry
   const operationType = entry.added ? 'add' : 'edit'
-  const toolInputFields = new Set(
-    getBlock(block.type)
-      ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
-      .map((subBlock) => subBlock.id) ?? []
-  )
   for (const field of entry.changedFields) {
     const skipped: SkippedItem[] = []
     const isInputAllowed = createSubBlockInputGate({
@@ -378,11 +376,6 @@ function isCredentialField(blockType: string, field: string): boolean {
   return Boolean(
     getBlock(blockType)?.subBlocks.some((sb) => sb.id === field && sb.type === 'oauth-input')
   )
-}
-
-function sandboxChanged(entry: GatedBlock): boolean {
-  if (!entry.changedFields.includes(SANDBOX_SUBBLOCK_ID)) return false
-  return entry.added ? isNonEmptyValue(subBlockValue(entry.block, SANDBOX_SUBBLOCK_ID)) : true
 }
 
 /**
@@ -448,16 +441,20 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     gateRetry(entry, retrySkipped)
     record(retrySkipped)
 
-    gateFieldValues(entry, permissionConfig, record)
+    const toolInputFields = new Set(
+      getBlock(block.type)
+        ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
+        .map((subBlock) => subBlock.id) ?? []
+    )
+    gateFieldValues(entry, toolInputFields, permissionConfig, record)
 
     if (args.isCopilot) {
-      const toolInputs = getBlock(block.type)?.subBlocks.filter((sb) => sb.type === 'tool-input')
-      for (const subBlock of toolInputs ?? []) {
-        if (!entry.changedFields.includes(subBlock.id)) continue
+      for (const field of toolInputFields) {
+        if (!entry.changedFields.includes(field)) continue
         const error = validateToolBindingAuthoring(
           block.type,
-          subBlockValue(block, subBlock.id),
-          subBlockValue(entry.baseBlock, subBlock.id)
+          subBlockValue(block, field),
+          subBlockValue(entry.baseBlock, field)
         )
         if (error) {
           diagnostics.push({
@@ -465,7 +462,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
             severity: 'error',
             message: error,
             ...located(block.id),
-            param: subBlock.id,
+            param: field,
           })
         }
       }
@@ -485,7 +482,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     }
   }
 
-  const sandboxBlocks = gated.filter(sandboxChanged)
+  const sandboxBlocks = gated.filter((entry) => entry.changedFields.includes(SANDBOX_SUBBLOCK_ID))
   const [credentialErrors, hasSandboxAccess] = await Promise.all([
     gateCredentialInputs(gated, base, { userId: subjectUserId, workspaceId }),
     sandboxBlocks.length > 0 ? hasWorkspaceSandboxAccess(workspaceId) : true,

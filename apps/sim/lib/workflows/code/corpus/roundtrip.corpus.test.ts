@@ -7,7 +7,7 @@
  * It imports every engine (catalog, canonicalize, print, compile, equivalence, materialize and the
  * server's materialize hooks) statically and builds the real catalog from the live registry.
  *
- * CI budget (under 60 s): by default every block type keeps up to `CASES_PER_BLOCK_TYPE` cases
+ * CI budget (under 60 s): by default every block type keeps a few cases (`corpusSubjects`)
  * plus every structural case; `ROUNDTRIP_CORPUS_FULL=1` runs the whole corpus. Set
  * `ROUNDTRIP_CORPUS_REPORT_PATH` to write the JSON report (per-block-type parity).
  */
@@ -21,7 +21,6 @@ vi.unmock('@/tools/registry')
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import {
-  type BlockCatalog,
   type CanonicalWorkflow,
   type CompileResult,
   canonicalEquals,
@@ -32,13 +31,13 @@ import {
   materialize,
   printWorkflow,
 } from '@sim/workflow-code'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { generateRejectedCorpus } from '@/lib/workflows/code/corpus'
 import {
+  CORPUS_RESOURCES,
   corpusBudgetMs,
+  corpusSubjects,
   type ProofSubject,
-  roundTripSubjects,
   withoutLockHeldState,
 } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import {
@@ -54,14 +53,10 @@ import {
 } from '@/lib/workflows/code/corpus/proof'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison/compare'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import { Serializer } from '@/serializer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const SUITE = 'roundtrip-corpus'
-const CASES_PER_BLOCK_TYPE = 3
-const FUZZ_RUNS = 50
 /**
  * One property over the reduced default corpus. The first property to run pays for the shared
  * source run (canonicalize, print, compile per workflow); the whole file stays inside the 60 s CI
@@ -72,30 +67,12 @@ const PROPERTY_BUDGET_MS = 30_000
 
 const hooks = createMaterializeHooks()
 
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
-
 /** Properties that serialize the original, which an unknown block type makes throw. */
 const SERIALIZING_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['P2', 'O2'])
 
-const subjects: ProofSubject[] = roundTripSubjects({
-  casesPerBlockType: CASES_PER_BLOCK_TYPE,
-  full: process.env.ROUNDTRIP_CORPUS_FULL === '1',
-  fuzzRuns: FUZZ_RUNS,
-  extraDir: process.env.ROUNDTRIP_CORPUS_EXTRA_DIR,
-})
+const subjects: ProofSubject[] = corpusSubjects()
 
 const report = createProofReport(SUITE)
-
-/** What every property runs against. */
-interface ResolvedEngines {
-  catalog: BlockCatalog
-}
-
-const engines: ResolvedEngines = { catalog }
 
 const serializer = new Serializer()
 const serialize = (state: WorkflowState) =>
@@ -110,25 +87,26 @@ interface SourceRun {
 
 const sourceRuns = new WeakMap<ProofSubject, SourceRun>()
 
-function sourceRun(e: ResolvedEngines, subject: ProofSubject): SourceRun {
+function sourceRun(subject: ProofSubject): SourceRun {
   const cached = sourceRuns.get(subject)
   if (cached) return cached
   const workflow = canonicalize(subject.state, {
-    catalog: e.catalog,
+    catalog,
     meta: { name: subject.id, description: null },
+    resources: CORPUS_RESOURCES,
   }).workflow
-  const printed = printText(e, workflow, 'inline')
+  const printed = printText(workflow, 'inline')
   const run = {
     canonical: workflow,
     printed,
-    compiled: compileFiles(e, printed, workflow),
+    compiled: compileFiles(printed, workflow),
   }
   sourceRuns.set(subject, run)
   return run
 }
 
-function canonical(e: ResolvedEngines, subject: ProofSubject): CanonicalWorkflow {
-  return sourceRun(e, subject).canonical
+function canonical(subject: ProofSubject): CanonicalWorkflow {
+  return sourceRun(subject).canonical
 }
 
 function compiledOrThrow(compiled: CompileResult): CanonicalWorkflow {
@@ -138,169 +116,138 @@ function compiledOrThrow(compiled: CompileResult): CanonicalWorkflow {
   return compiled.workflow
 }
 
-function printText(e: ResolvedEngines, workflow: CanonicalWorkflow, mode: 'inline' | 'files') {
+function printText(workflow: CanonicalWorkflow, mode: 'inline' | 'files') {
   return printWorkflow({
     workflow,
-    catalog: e.catalog,
+    catalog,
     options: { functionCode: mode },
   })
 }
 
 /**
- * The keys the stored workflow binds to ids, as the lock (or the lock assembled from
- * source meta) carries them. They let a printed `meta.key` keep a legacy collision key or a
- * reserved name through compile.
+ * Compiles a print of `stored` as apply does: against the stored keys and values it continues.
+ * The stored keys are the ones the lock (or the lock assembled from source meta) binds to ids;
+ * they let a printed `meta.key` keep a legacy collision key or a reserved name through compile.
  */
-function storedKeys(workflow: CanonicalWorkflow): ReadonlySet<string> {
-  return new Set(Object.keys(workflow.blocks))
-}
-
-/** Compiles a print of `stored` as apply does: against the stored keys and values it continues. */
-function compileFiles(
-  e: ResolvedEngines,
-  printed: ReturnType<typeof printWorkflow>,
-  stored: CanonicalWorkflow
-) {
+function compileFiles(printed: ReturnType<typeof printWorkflow>, stored: CanonicalWorkflow) {
   const [entry, ...codeFiles] = printed.files
   return compileWorkflow({
     entry,
     files: new Map(codeFiles.map((file) => [file.path, file.text])),
-    catalog: e.catalog,
-    sdkMajor: e.catalog.sdkMajor,
-    knownKeys: storedKeys(stored),
+    catalog,
+    sdkMajor: catalog.sdkMajor,
+    knownKeys: new Set(Object.keys(stored.blocks)),
     stored,
   })
 }
 
-function compiledWorkflow(
-  e: ResolvedEngines,
-  workflow: CanonicalWorkflow,
-  mode: 'inline' | 'files' = 'inline'
-) {
-  return compiledOrThrow(compileFiles(e, printText(e, workflow, mode), workflow))
+function compiledWorkflow(workflow: CanonicalWorkflow, mode: 'inline' | 'files' = 'inline') {
+  return compiledOrThrow(compileFiles(printText(workflow, mode), workflow))
 }
 
-function materialized(e: ResolvedEngines, workflow: CanonicalWorkflow, prev?: WorkflowState) {
+function materialized(workflow: CanonicalWorkflow, prev?: WorkflowState) {
   return materialize(workflow, null, {
-    catalog: e.catalog,
+    catalog,
     hooks,
     prev,
+    resources: CORPUS_RESOURCES,
     lockFreshness: 'none',
   }).state
 }
 
-const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) => OracleResult> = {
-  P0: (e, s) =>
+const properties: Record<ProofProperty, (s: ProofSubject) => OracleResult> = {
+  P0: (s) =>
     idempotence({
       oracle: 'P0',
-      value: executableView(canonical(e, s), e.catalog),
-      step: () => executableView(compiledOrThrow(sourceRun(e, s).compiled), e.catalog),
+      value: executableView(canonical(s), catalog),
+      step: () => executableView(compiledOrThrow(sourceRun(s).compiled), catalog),
     }),
-  P1: (e, s) => {
-    const original = canonical(e, s)
+  P1: (s) => {
+    const original = canonical(s)
     return idempotence({
       oracle: 'P1',
-      value: executableView(original, e.catalog),
+      value: executableView(original, catalog),
       step: () =>
         executableView(
-          canonicalize(materialized(e, compiledWorkflow(e, original), s.state), {
-            catalog: e.catalog,
+          canonicalize(materialized(compiledWorkflow(original), s.state), {
+            catalog,
             meta: original.meta,
+            resources: CORPUS_RESOURCES,
           }).workflow,
-          e.catalog
+          catalog
         ),
     })
   },
-  P2: (e, s) =>
+  P2: (s) =>
     executionParity({
       original: s.state,
-      candidate: materialized(e, compiledWorkflow(e, canonical(e, s)), s.state),
+      candidate: materialized(compiledWorkflow(canonical(s)), s.state),
       serialize,
       hasWorkflowChanged,
       oracle: 'P2',
     }),
-  P3: (e, s) => {
-    const run = sourceRun(e, s)
+  P3: (s) => {
+    const run = sourceRun(s)
     return idempotence({
       oracle: 'P3',
       value: run.printed.files[0].text,
       step: () =>
-        run.compiled.workflow ? printText(e, run.compiled.workflow, 'inline').files[0].text : '',
+        run.compiled.workflow ? printText(run.compiled.workflow, 'inline').files[0].text : '',
     })
   },
-  P4: (e, s) => assertNoErrors(sourceRun(e, s).compiled.diagnostics),
-  P5: (e, s) => {
-    const run = sourceRun(e, s)
+  P4: (s) => assertNoErrors(sourceRun(s).compiled.diagnostics),
+  P5: (s) => {
+    const run = sourceRun(s)
     return idempotence({
       oracle: 'P5',
       value: compiledOrThrow(run.compiled),
-      step: () => compiledWorkflow(e, run.canonical, 'files'),
+      step: () => compiledWorkflow(run.canonical, 'files'),
       equals: canonicalEquals,
     })
   },
-  P6: (e, s) =>
+  P6: (s) =>
     assertNoopIdentity({
       oracle: 'P6',
       original: s.state,
-      materialized: materialized(e, compiledOrThrow(sourceRun(e, s).compiled), s.state),
+      materialized: materialized(compiledOrThrow(sourceRun(s).compiled), s.state),
     }),
-  P7: (e, s) => {
-    const run = sourceRun(e, s)
+  P7: (s) => {
+    const run = sourceRun(s)
     const written = materialize(compiledOrThrow(run.compiled), null, {
-      catalog: e.catalog,
+      catalog,
       hooks,
       prev: s.state,
+      resources: CORPUS_RESOURCES,
       lockFreshness: 'none',
     }).workflow
     return assertNoopDiff(
       diffCanonical(run.canonical, { ...written, meta: run.canonical.meta }, new Map())
     )
   },
-  O1: (e, s) =>
+  O1: (s) =>
     assertNoopIdentity({
       original: s.state,
-      materialized: materialized(e, canonical(e, s), s.state),
+      materialized: materialized(canonical(s), s.state),
     }),
-  O2: (e, s) =>
+  O2: (s) =>
     executionParity({
-      original: withoutLockHeldState(s.state, e.catalog),
-      candidate: withoutLockHeldState(materialized(e, canonical(e, s)), e.catalog),
+      original: withoutLockHeldState(s.state, catalog),
+      candidate: withoutLockHeldState(materialized(canonical(s)), catalog),
       serialize,
       hasWorkflowChanged,
     }),
-  O3: (e, s) =>
+  O3: (s) =>
     idempotence({
       oracle: 'O3',
-      value: canonical(e, s),
+      value: canonical(s),
       step: (c) =>
-        canonicalize(materialized(e, c, s.state), { catalog: e.catalog, meta: c.meta }).workflow,
+        canonicalize(materialized(c, s.state), {
+          catalog,
+          meta: c.meta,
+          resources: CORPUS_RESOURCES,
+        }).workflow,
       equals: canonicalEquals,
     }),
-}
-
-/**
- * Stored shapes no source form expresses yet. Every property that goes through print and compile
- * must fail on exactly these and pass everywhere else: a new failure or a newly passing case fails
- * the run. The report still records each as failed. Empty since legacy name collisions and
- * reserved names print as `meta.key`, which compiles against the stored keys. The O
- * oracles never print, so they must pass on these too.
- */
-const KNOWN_FAILURES: Record<string, string> = {}
-const KNOWN_FAILURE_IDS = Object.keys(KNOWN_FAILURES).sort(compareStrings)
-const SOURCE_FREE_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['O1', 'O2', 'O3'])
-
-/**
- * Stored shapes a lockless write with no prev cannot reproduce for O2, because the CWM holds no
- * node for them. O2 must fail on exactly these, besides `KNOWN_FAILURES` for source properties.
- * Empty since canonicalize reads the loop count that runs (`block.data.count || 5`, never a count
- * only the loops map holds) and the subjects take the stored shape, where every loops-map entry
- * has its container block.
- */
-const KNOWN_O2_FAILURES: Record<string, string> = {}
-
-function expectedFailures(property: ProofProperty): string[] {
-  if (property === 'O2') return Object.keys(KNOWN_O2_FAILURES).sort(compareStrings)
-  return SOURCE_FREE_PROPERTIES.has(property) ? [] : KNOWN_FAILURE_IDS
 }
 
 const PROPERTY_TITLES: Record<ProofProperty, string> = {
@@ -322,7 +269,6 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
     it(
       PROPERTY_TITLES[property],
       () => {
-        const e = engines
         const failed: string[] = []
         for (const subject of subjects) {
           const started = performance.now()
@@ -337,7 +283,7 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
             continue
           }
           try {
-            const result = properties[property](e, subject)
+            const result = properties[property](subject)
             if (!result.ok) failed.push(subject.id)
             report.record({
               caseId: subject.id,
@@ -359,7 +305,7 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
             })
           }
         }
-        expect(failed.sort(compareStrings)).toEqual(expectedFailures(property))
+        expect(failed.sort(compareStrings)).toEqual([])
       },
       corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
     )
@@ -367,7 +313,7 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
 
   it.each(generateRejectedCorpus())('rejects $id with $code instead of round-tripping', (c) => {
     const subject: ProofSubject = { id: c.id, blockTypes: [], state: c.state }
-    const codes = sourceRun(engines, subject).compiled.diagnostics.map((d) => d.code)
+    const codes = sourceRun(subject).compiled.diagnostics.map((d) => d.code)
     expect(codes).toContain(c.code)
   })
 

@@ -82,6 +82,7 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
           type: data.data?.type,
           attributes: data.data?.attributes ?? {},
         },
+        included: Array.isArray(data.included) ? data.included : [],
       },
     }
   },
@@ -113,6 +114,11 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
           },
         },
       },
+    },
+    included: {
+      type: 'array',
+      description: 'Related resources requested through include (users, attachments)',
+      optional: true,
     },
   },
 }

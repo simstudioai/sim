@@ -124,14 +124,14 @@ export async function readDrive(
   } else if (document.kind === 'application/vnd.google-apps.spreadsheet') {
     const metadata = object(
       await client.json(`/v4/spreadsheets/${segment(id)}`, {
-        googleService: 'sheets',
+        service: 'sheets',
         query: { fields: 'sheets.properties.title' },
       })
     )
     const titles = array(metadata.sheets).map((sheet) => string(object(sheet.properties).title))
     const values = object(
       await client.json(`/v4/spreadsheets/${segment(id)}/values:batchGet`, {
-        googleService: 'sheets',
+        service: 'sheets',
         query: {
           ranges: titles.slice(0, 20).map((title) => `'${title.replace(/'/g, "''")}'!A1:AZ1000`),
           valueRenderOption: 'FORMATTED_VALUE',

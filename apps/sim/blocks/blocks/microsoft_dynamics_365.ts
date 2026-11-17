@@ -1,11 +1,14 @@
 import { MicrosoftDataverseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  isToolCall,
+  mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
 } from '@/blocks/utils'
 
 const DATAVERSE_GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -86,8 +89,20 @@ function optionalBoundedString(
   return normalized
 }
 
-function getListPaginationParams(params: Record<string, unknown>) {
-  const pageSize = parseOptionalNumberInput(params.maxResults, 'Max results', {
+function isUnset(value: unknown): boolean {
+  return value === undefined || value === null || value === ''
+}
+
+function firstSet(primary: unknown, fallback: unknown): unknown {
+  return isUnset(primary) ? fallback : primary
+}
+
+function getListPaginationParams(
+  params: Record<string, unknown>,
+  context: BlockToolParamsContext | undefined
+) {
+  const pageSizeInput = firstSet(params.maxResults, toolCallArg(context, params.pageSize))
+  const pageSize = parseOptionalNumberInput(pageSizeInput, 'Max results', {
     integer: true,
     min: 1,
     max: 100,
@@ -151,6 +166,37 @@ function getOwnerType(value: unknown) {
     throw new Error(`Unsupported Dynamics 365 owner type: ${ownerType}`)
   }
   return OWNER_TYPES[ownerType as OwnerType]
+}
+
+/**
+ * The entity set a record operation targets. On a tool call the model's required `entitySetName`
+ * wins (the tool validates it): `recordType` is not a tool param, so a tool row never shows it
+ * and any stored value is not the model's choice. The canvas reads only `recordType`.
+ */
+function getRecordEntitySetName(
+  params: Record<string, unknown>,
+  context: BlockToolParamsContext | undefined
+): string {
+  return (
+    optionalString(toolCallArg(context, params.entitySetName)) ??
+    getRecordType(params.recordType).entitySetName
+  )
+}
+
+/**
+ * The tables a search covers. The canvas searches its selected `recordType`. A tool call sends the
+ * model's `entities` (a JSON string, or an array it typed directly), else leaves it unset so the
+ * tool searches every supported CRM table, matching the tool's documented default.
+ */
+function getSearchEntities(
+  params: Record<string, unknown>,
+  context: BlockToolParamsContext | undefined
+): string | undefined {
+  if (!isToolCall(context)) {
+    return JSON.stringify([{ name: getRecordType(params.recordType).logicalName }])
+  }
+  if (Array.isArray(params.entities)) return JSON.stringify(params.entities)
+  return optionalString(params.entities)
 }
 
 function getCommonParams(params: Record<string, unknown>) {
@@ -501,6 +547,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
         { label: 'Team', id: 'team' },
       ],
       value: () => 'user',
+      paramVisibility: 'user-only',
       condition: { field: 'operation', value: ['list_owners', 'assign_record'] },
       required: { field: 'operation', value: ['list_owners', 'assign_record'] },
     },
@@ -509,6 +556,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
       title: 'Owner ID',
       type: 'short-input',
       placeholder: 'User or team GUID',
+      paramVisibility: 'user-only',
       condition: { field: 'operation', value: 'assign_record' },
       required: { field: 'operation', value: 'assign_record' },
     },
@@ -748,69 +796,72 @@ export const MicrosoftDynamics365Block: BlockConfig = {
             throw new Error(`Unsupported Dynamics 365 CRM operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const common = getCommonParams(params)
+        const operation = mapperOperation(params, context)
 
-        switch (params.operation) {
+        switch (operation) {
           case 'list_records': {
-            const recordType = getRecordType(params.recordType)
             const includeCount = parseBooleanWithDefault(
-              params.includeCount,
+              firstSet(toolCallArg(context, params.count), params.includeCount),
               'Include total count',
               false
             )
+            const select = optionalString(
+              firstSet(params.listSelect, toolCallArg(context, params.select))
+            )
+            const filter = optionalString(
+              firstSet(params.listFilter, toolCallArg(context, params.filter))
+            )
+            const orderBy = optionalString(
+              firstSet(params.listOrderBy, toolCallArg(context, params.orderBy))
+            )
+            const expand = optionalString(
+              firstSet(params.recordExpand, toolCallArg(context, params.expand))
+            )
             return {
               ...common,
-              entitySetName: recordType.entitySetName,
-              ...(optionalString(params.listSelect) && {
-                select: optionalString(params.listSelect),
-              }),
-              ...(optionalString(params.listFilter) && {
-                filter: optionalString(params.listFilter),
-              }),
-              ...(optionalString(params.listOrderBy) && {
-                orderBy: optionalString(params.listOrderBy),
-              }),
-              ...(optionalString(params.recordExpand) && {
-                expand: optionalString(params.recordExpand),
-              }),
-              ...getListPaginationParams(params),
+              entitySetName: getRecordEntitySetName(params, context),
+              ...(select && { select }),
+              ...(filter && { filter }),
+              ...(orderBy && { orderBy }),
+              ...(expand && { expand }),
+              ...getListPaginationParams(params, context),
               count: includeCount ? 'true' : 'false',
             }
           }
 
           case 'get_record': {
-            const recordType = getRecordType(params.recordType)
+            const select = optionalString(
+              firstSet(params.listSelect, toolCallArg(context, params.select))
+            )
+            const expand = optionalString(
+              firstSet(params.recordExpand, toolCallArg(context, params.expand))
+            )
             return {
               ...common,
-              entitySetName: recordType.entitySetName,
+              entitySetName: getRecordEntitySetName(params, context),
               recordId: normalizeDataverseGuid(
                 requiredString(params.recordId, 'Record ID'),
                 'Record ID'
               ),
-              ...(optionalString(params.listSelect) && {
-                select: optionalString(params.listSelect),
-              }),
-              ...(optionalString(params.recordExpand) && {
-                expand: optionalString(params.recordExpand),
-              }),
+              ...(select && { select }),
+              ...(expand && { expand }),
             }
           }
 
           case 'create_record': {
-            const recordType = getRecordType(params.recordType)
             return {
               ...common,
-              entitySetName: recordType.entitySetName,
+              entitySetName: getRecordEntitySetName(params, context),
               data: parseRequiredRecord(params.data),
             }
           }
 
           case 'update_record': {
-            const recordType = getRecordType(params.recordType)
             return {
               ...common,
-              entitySetName: recordType.entitySetName,
+              entitySetName: getRecordEntitySetName(params, context),
               recordId: normalizeDataverseGuid(
                 requiredString(params.recordId, 'Record ID'),
                 'Record ID'
@@ -820,35 +871,38 @@ export const MicrosoftDynamics365Block: BlockConfig = {
           }
 
           case 'search_records': {
-            const recordType = getRecordType(params.recordType)
+            const entities = getSearchEntities(params, context)
             const top =
-              parseOptionalNumberInput(params.maxResults, 'Max results', {
-                integer: true,
-                min: 1,
-                max: 100,
-              }) ?? 100
-            const skip = parseOptionalNumberInput(params.searchSkip, 'Search offset', {
-              integer: true,
-              min: 0,
-              max: 2_147_483_647,
-            })
+              parseOptionalNumberInput(
+                firstSet(params.maxResults, toolCallArg(context, params.top)),
+                'Max results',
+                { integer: true, min: 1, max: 100 }
+              ) ?? 100
+            const skip = parseOptionalNumberInput(
+              firstSet(params.searchSkip, toolCallArg(context, params.skip)),
+              'Search offset',
+              { integer: true, min: 0, max: 2_147_483_647 }
+            )
+            const filter = optionalString(
+              firstSet(params.searchFilter, toolCallArg(context, params.filter))
+            )
+            const facets = optionalString(
+              firstSet(params.searchFacets, toolCallArg(context, params.facets))
+            )
+            const orderBy = optionalString(
+              firstSet(params.searchOrderBy, toolCallArg(context, params.orderBy))
+            )
             return {
               ...common,
               searchTerm: requiredString(params.searchTerm, 'Search term', 100),
-              entities: JSON.stringify([{ name: recordType.logicalName }]),
+              ...(entities && { entities }),
               top,
               ...(skip !== undefined && { skip }),
-              ...(optionalString(params.searchFilter) && {
-                filter: optionalString(params.searchFilter),
-              }),
-              ...(optionalString(params.searchFacets) && {
-                facets: optionalString(params.searchFacets),
-              }),
-              ...(optionalString(params.searchOrderBy) && {
-                orderBy: optionalString(params.searchOrderBy),
-              }),
-              searchMode: requiredString(params.searchMode ?? 'any', 'Search mode'),
-              searchType: requiredString(params.searchType ?? 'simple', 'Query type'),
+              ...(filter && { filter }),
+              ...(facets && { facets }),
+              ...(orderBy && { orderBy }),
+              searchMode: requiredString(params.searchMode || 'any', 'Search mode'),
+              searchType: requiredString(params.searchType || 'simple', 'Query type'),
             }
           }
 
@@ -859,12 +913,11 @@ export const MicrosoftDynamics365Block: BlockConfig = {
               entitySetName: ownerType.entitySetName,
               select: ownerType.select,
               filter: ownerType.filter,
-              ...getListPaginationParams(params),
+              ...getListPaginationParams(params, context),
             }
           }
 
           case 'assign_record': {
-            const recordType = getRecordType(params.recordType)
             const ownerType = getOwnerType(params.ownerType)
             const ownerId = normalizeDataverseGuid(
               requiredString(params.ownerId, 'Owner ID'),
@@ -872,7 +925,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
             )
             return {
               ...common,
-              entitySetName: recordType.entitySetName,
+              entitySetName: getRecordEntitySetName(params, context),
               recordId: normalizeDataverseGuid(
                 requiredString(params.recordId, 'Record ID'),
                 'Record ID'
@@ -884,45 +937,68 @@ export const MicrosoftDynamics365Block: BlockConfig = {
           }
 
           case 'qualify_lead': {
-            const createOpportunity = parseBooleanWithDefault(
+            const qualifySwitch = (value: unknown, label: string, defaultValue: boolean) =>
+              isToolCall(context) && isUnset(value)
+                ? undefined
+                : parseBooleanWithDefault(value, label, defaultValue)
+            const createAccount = qualifySwitch(params.createAccount, 'Create account', true)
+            const createContact = qualifySwitch(params.createContact, 'Create contact', true)
+            const createOpportunity = qualifySwitch(
               params.createOpportunity,
               'Create opportunity',
               false
             )
             const statusReason = parseOptionalNumberInput(
-              params.qualifyStatusReason,
+              firstSet(params.qualifyStatusReason, toolCallArg(context, params.statusReason)),
               'Qualified status reason',
               { integer: true, min: -2_147_483_648, max: 2_147_483_647 }
             )
-            const opportunityCurrencyId = createOpportunity
-              ? optionalString(params.qualifyOpportunityCurrencyId)
-              : undefined
-            const opportunityCustomerId = createOpportunity
-              ? optionalString(params.qualifyOpportunityCustomerId)
-              : undefined
-            const sourceCampaignId = createOpportunity
-              ? optionalString(params.qualifySourceCampaignId)
-              : undefined
-            const processInstanceId = createOpportunity
-              ? optionalString(params.qualifyProcessInstanceId)
-              : undefined
-            const processInstanceEntityType = createOpportunity
-              ? optionalString(params.qualifyProcessInstanceEntityType)
-              : undefined
+            const opportunityField = (dedicated: unknown, toolParam: unknown) =>
+              createOpportunity
+                ? optionalString(firstSet(dedicated, toolCallArg(context, toolParam)))
+                : undefined
+            const opportunityCurrencyId = opportunityField(
+              params.qualifyOpportunityCurrencyId,
+              params.opportunityCurrencyId
+            )
+            const opportunityCustomerId = opportunityField(
+              params.qualifyOpportunityCustomerId,
+              params.opportunityCustomerId
+            )
+            const sourceCampaignId = opportunityField(
+              params.qualifySourceCampaignId,
+              params.sourceCampaignId
+            )
+            const processInstanceId = opportunityField(
+              params.qualifyProcessInstanceId,
+              params.processInstanceId
+            )
+            const processInstanceEntityType = opportunityField(
+              params.qualifyProcessInstanceEntityType,
+              params.processInstanceEntityType
+            )
             if (Boolean(processInstanceId) !== Boolean(processInstanceEntityType)) {
               throw new Error(
                 'Process instance ID and process instance table must be provided together'
               )
             }
             const opportunityCustomerType = opportunityCustomerId
-              ? requiredString(params.qualifyOpportunityCustomerType, 'Opportunity customer type')
+              ? requiredString(
+                  optionalString(params.qualifyOpportunityCustomerId)
+                    ? params.qualifyOpportunityCustomerType
+                    : firstSet(
+                        toolCallArg(context, params.opportunityCustomerType),
+                        params.qualifyOpportunityCustomerType
+                      ),
+                  'Opportunity customer type'
+                )
               : undefined
             return {
               ...common,
               leadId: requiredString(params.leadId, 'Lead ID'),
-              createAccount: parseBooleanWithDefault(params.createAccount, 'Create account', true),
-              createContact: parseBooleanWithDefault(params.createContact, 'Create contact', true),
-              createOpportunity,
+              ...(createAccount !== undefined && { createAccount }),
+              ...(createContact !== undefined && { createContact }),
+              ...(createOpportunity !== undefined && { createOpportunity }),
               ...(statusReason !== undefined && { statusReason }),
               ...(opportunityCurrencyId && { opportunityCurrencyId }),
               ...(opportunityCustomerId && {
@@ -939,20 +1015,30 @@ export const MicrosoftDynamics365Block: BlockConfig = {
 
           case 'close_opportunity': {
             const statusReason = parseOptionalNumberInput(
-              params.opportunityStatusReason,
+              firstSet(params.opportunityStatusReason, toolCallArg(context, params.statusReason)),
               'Opportunity status reason',
               { integer: true, min: -2_147_483_648, max: 2_147_483_647 }
             )
-            const subject = optionalBoundedString(params.opportunitySubject, 'Close subject', 200)
+            const subject = optionalBoundedString(
+              firstSet(params.opportunitySubject, toolCallArg(context, params.subject)),
+              'Close subject',
+              200
+            )
             const description = optionalBoundedString(
-              params.opportunityDescription,
+              firstSet(params.opportunityDescription, toolCallArg(context, params.description)),
               'Close notes',
               2_000
             )
             return {
               ...common,
-              opportunityId: requiredString(params.closeOpportunityId, 'Opportunity ID'),
-              outcome: requiredString(params.opportunityOutcome ?? 'won', 'Outcome'),
+              opportunityId: requiredString(
+                firstSet(params.closeOpportunityId, toolCallArg(context, params.opportunityId)),
+                'Opportunity ID'
+              ),
+              outcome: requiredString(
+                isToolCall(context) ? params.outcome : (params.opportunityOutcome ?? 'won'),
+                'Outcome'
+              ),
               ...(subject && { subject }),
               ...(description && { description }),
               ...(statusReason !== undefined && { statusReason }),
@@ -960,25 +1046,29 @@ export const MicrosoftDynamics365Block: BlockConfig = {
           }
 
           case 'close_case': {
-            const timeSpent = parseOptionalNumberInput(params.caseTimeSpent, 'Time spent', {
-              integer: true,
-              min: 0,
-              max: 2_147_483_647,
-            })
+            const timeSpent = parseOptionalNumberInput(
+              firstSet(params.caseTimeSpent, toolCallArg(context, params.timeSpent)),
+              'Time spent',
+              { integer: true, min: 0, max: 2_147_483_647 }
+            )
             const statusReason = parseOptionalNumberInput(
-              params.caseStatusReason,
+              firstSet(params.caseStatusReason, toolCallArg(context, params.statusReason)),
               'Case status reason',
               { integer: true, min: -2_147_483_648, max: 2_147_483_647 }
             )
             const description = optionalBoundedString(
-              params.caseDescription,
+              firstSet(params.caseDescription, toolCallArg(context, params.description)),
               'Resolution notes',
               100_000
             )
             return {
               ...common,
               caseId: requiredString(params.caseId, 'Case ID'),
-              subject: requiredString(params.caseSubject, 'Resolution subject', 200),
+              subject: requiredString(
+                firstSet(params.caseSubject, toolCallArg(context, params.subject)),
+                'Resolution subject',
+                200
+              ),
               ...(description && { description }),
               ...(timeSpent !== undefined && { timeSpent }),
               ...(statusReason !== undefined && { statusReason }),
@@ -986,7 +1076,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
           }
 
           default:
-            throw new Error(`Unsupported Dynamics 365 CRM operation: ${params.operation}`)
+            throw new Error(`Unsupported Dynamics 365 CRM operation: ${operation}`)
         }
       },
     },

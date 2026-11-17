@@ -1,10 +1,11 @@
 /**
  * Stored values for corpus fixtures, one generator per subBlock type, in the shapes the editor
- * persists (the sub-block components' `useSubBlockValue` types and
- * `validateValueForSubBlockType`). Free text always carries the adversarial payload: a reference in code
- * position, a reference inside quotes, `{{API_KEY}}`, a newline, a backtick and `${`. Values that must be ids (dropdown options, selector picks, credentials) are
- * ids instead, because a payload there is a value the editor could never have stored; the
- * advanced member of a selector pair is free text and carries the payload.
+ * persists (the sub-block components' `useSubBlockValue` types and `validateValueForSubBlockType`).
+ * Free text always carries the adversarial payload: a reference in code position, a reference
+ * inside quotes, `{{API_KEY}}`, a newline, a backtick and `${`. Values that must be ids (dropdown
+ * options, selector picks, credentials) are ids instead, because a payload there is a value the
+ * editor could never have stored; the advanced member of a selector pair is free text and carries
+ * the payload.
  */
 
 import type { SeededRandom } from '@/lib/workflows/code/corpus/random'
@@ -15,6 +16,12 @@ export const CORPUS_START_NAME = 'Start'
 
 /** The workflow variable every case declares, referenced as `<variable.corpusnote>`. */
 export const CORPUS_VARIABLE_NAME = 'corpusNote'
+
+/**
+ * The workspace skill corpus agents pick. The round-trip harness resolves it, so it takes the
+ * lifted `skill('key')` path; the other picked skill resolves nowhere and stays verbatim.
+ */
+export const CORPUS_SKILL = { id: 'corpus-skill', key: 'corpus-skill', name: 'Corpus skill' }
 
 /** The six markers every free-text corpus string carries. */
 export const CORPUS_TEXT_MARKERS = [
@@ -91,7 +98,7 @@ export interface FillContext {
 
 type OptionList = Array<{ id: string; hidden?: boolean }>
 
-/** A subBlock's options for these values, or `null` when it has none or they cannot be evaluated. */
+/** A subBlock's options for these values, or `null` when it has none or they can't be evaluated. */
 export function resolveOptions(
   subBlock: SubBlockConfig,
   values: Record<string, unknown>
@@ -202,7 +209,10 @@ export function fillSubBlockValue(subBlock: SubBlockConfig, ctx: FillContext): u
     case 'tool-input':
       return toolEntries(ctx)
     case 'skill-input':
-      return [{ skillId: 'corpus-skill', name: 'Corpus skill' }]
+      return [
+        { skillId: CORPUS_SKILL.id, name: CORPUS_SKILL.name },
+        { skillId: 'corpus-skill-deleted', name: 'Deleted skill' },
+      ]
     case 'condition-input':
       return JSON.stringify([
         { id: newId(), title: 'if', value: '<start.input> === "a"' },

@@ -239,6 +239,8 @@ type SearchProviderSignal =
   | 'slack.channel_filter_unresolved'
   /** The channel lookup failed; the search kept its results without a note. */
   | 'slack.channel_lookup_failed'
+  /** A Slack file read returned the preview instead of the file's text. */
+  | 'slack.file_preview'
 
 const FAILURE_REASONS = [
   'provider_validation',

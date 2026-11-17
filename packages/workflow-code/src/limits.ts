@@ -61,6 +61,10 @@ export interface SourceLimitExcess {
   max: number
 }
 
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff
+}
+
 /** UTF-8 length of `text`, counting at most `cap + 1` bytes when a cap is given. */
 export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number {
   let bytes = 0
@@ -68,7 +72,7 @@ export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number 
     const code = text.charCodeAt(i)
     if (code < 0x80) bytes += 1
     else if (code < 0x800) bytes += 2
-    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+    else if (code >= 0xd800 && code <= 0xdbff && isLowSurrogate(text.charCodeAt(i + 1))) {
       bytes += 4
       i++
     } else bytes += 3

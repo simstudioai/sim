@@ -53,6 +53,8 @@ from presidio_analyzer.predefined_recognizers import (
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 from pydantic import BaseModel, model_validator
+from spacy.tokenizer import Tokenizer
+from spacy.tokens import Doc
 
 # Languages served. Each needs its spaCy model installed in the image; the
 # es/it/pl/fi predefined recognizers (ES_NIF, IT_FISCAL_CODE, PL_PESEL, ...)
@@ -153,12 +155,61 @@ def _register_common_recognizers(analyzer: AnalyzerEngine) -> None:
         analyzer.registry.add_recognizer(recognizer_cls())
 
 
+# spaCy's tokenizer peels a whitespace-free run one prefix or suffix at a time and
+# searches the whole run again for each, so a long run such as minified JSON costs
+# time quadratic in its length (about 4.5s for a 100,000-character array of small
+# objects). That work holds the GIL throughout, so the worker misses uvicorn's 5s
+# health ping and is killed with every request it is serving. A run at least this
+# long is instead split in linear time into single symbols and words, keeping
+# word characters joined by `.`, `,` or `:` together as spaCy does (`1,2,3`,
+# `example.com`) so NER does not read each piece of a number as its own entity.
+# Shorter runs tokenize as before.
+TOKENIZER_RUN_CHARS = 100
+_LONG_RUN = regex_module.compile(rf"(?<!\S)\S{{{TOKENIZER_RUN_CHARS},}}")
+_RUN_PIECE = regex_module.compile(r"\w+(?:[.,:]\w+)*|\W")
+
+
+class LongRunTokenizer:
+    """spaCy tokenizer that splits runs of TOKENIZER_RUN_CHARS or more non-space
+    characters in linear time and leaves the rest to spaCy's own tokenizer. The
+    Doc's text is the input unchanged, because Presidio runs its pattern
+    recognizers on `doc.text`."""
+
+    def __init__(self, tokenizer: Tokenizer) -> None:
+        self.tokenizer = tokenizer
+
+    def __call__(self, text: str) -> Doc:
+        if not _LONG_RUN.search(text):
+            return self.tokenizer(text)
+        words: list[str] = []
+        spaces: list[bool] = []
+        start = 0
+        for run in _LONG_RUN.finditer(text):
+            self._tokenize_into(text[start : run.start()], words, spaces)
+            pieces = _RUN_PIECE.findall(run.group())
+            words.extend(pieces)
+            spaces.extend([False] * len(pieces))
+            start = run.end()
+            # spaCy attaches one following space to the token before it.
+            if text.startswith(" ", start):
+                spaces[-1] = True
+                start += 1
+        self._tokenize_into(text[start:], words, spaces)
+        return Doc(self.tokenizer.vocab, words=words, spaces=spaces)
+
+    def _tokenize_into(self, text: str, words: list[str], spaces: list[bool]) -> None:
+        for token in self.tokenizer(text):
+            words.append(token.text)
+            spaces.append(bool(token.whitespace_))
+
+
 def build_analyzer() -> AnalyzerEngine:
     nlp_engine = NlpEngineProvider(nlp_configuration=NLP_CONFIGURATION).create_engine()
     for nlp in getattr(nlp_engine, "nlp", {}).values():
         for pipe in NER_ONLY_DISABLE:
             if pipe in nlp.pipe_names:
                 nlp.disable_pipe(pipe)
+        nlp.tokenizer = LongRunTokenizer(nlp.tokenizer)
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES)
     _register_common_recognizers(analyzer)
     return analyzer
@@ -364,9 +415,10 @@ def _analyze_many(
     score_threshold: float | None,
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
-    """Analyze many texts, skipping the spaCy pass for regex-only requests and
-    analyzing any text longer than NER_WINDOW_CHARS on its own (see
-    `_analyze_long`)."""
+    """Analyze many texts, skipping the spaCy pass for regex-only requests. A text
+    longer than NER_WINDOW_CHARS is analyzed on its own (see `_analyze_long`); the
+    rest share NER passes of at most NER_WINDOW_CHARS in total, since a batched pass
+    costs memory for every character in it, like one long text."""
     if _regex_only(entities, score_threshold):
         blank = _BLANK_ARTIFACTS.get(language)
         return [
@@ -380,21 +432,32 @@ def _analyze_many(
             )
             for text in texts
         ]
-    long_indices = {i for i, text in enumerate(texts) if len(text) > NER_WINDOW_CHARS}
-    short_indices = [i for i in range(len(texts)) if i not in long_indices]
+    long_indices: list[int] = []
+    batches: list[list[int]] = []
+    batch_chars = 0
+    for i, text in enumerate(texts):
+        if len(text) > NER_WINDOW_CHARS:
+            long_indices.append(i)
+            continue
+        if not batches or batch_chars + len(text) > NER_WINDOW_CHARS:
+            batches.append([])
+            batch_chars = 0
+        batches[-1].append(i)
+        batch_chars += len(text)
     results: list[list[RecognizerResult]] = [[] for _ in texts]
-    with _NER_SLOT:
-        short_results = batch_analyzer.analyze_iterator(
-            texts=[texts[i] for i in short_indices],
-            language=language,
-            batch_size=NLP_BATCH_SIZE,
-            entities=entities or None,
-            score_threshold=score_threshold,
-            ad_hoc_recognizers=ad_hoc_recognizers or None,
-        )
-        for i, per_text in zip(short_indices, short_results):
-            results[i] = list(per_text)
-    for i in sorted(long_indices):
+    for batch in batches:
+        with _NER_SLOT:
+            batch_results = batch_analyzer.analyze_iterator(
+                texts=[texts[i] for i in batch],
+                language=language,
+                batch_size=NLP_BATCH_SIZE,
+                entities=entities or None,
+                score_threshold=score_threshold,
+                ad_hoc_recognizers=ad_hoc_recognizers or None,
+            )
+            for i, per_text in zip(batch, batch_results):
+                results[i] = list(per_text)
+    for i in long_indices:
         results[i] = _analyze_long(
             texts[i], language, entities, score_threshold, ad_hoc_recognizers=ad_hoc_recognizers
         )

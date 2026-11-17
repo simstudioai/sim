@@ -97,7 +97,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
         ? 'Unavailable in this deployment'
         : provider
           ? connectorType === 'gitlab'
-            ? 'Projects and permissions'
+            ? 'Connections and permissions'
             : connectorType === 'github'
               ? 'GitHub App repositories'
               : 'Service account connections'

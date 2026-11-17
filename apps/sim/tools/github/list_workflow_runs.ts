@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { ListWorkflowRunsParams, ListWorkflowRunsResponse } from '@/tools/github/types'
 import {
   HEAD_COMMIT_OUTPUT,
@@ -8,6 +9,7 @@ import {
 } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkflowRunsResponse> = {
   id: 'github_list_workflow_runs',
@@ -59,7 +61,8 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status (queued, in_progress, completed, waiting, requested, pending)',
+      description:
+        'Filter by check run status or conclusion: queued, in_progress, completed, waiting, requested, pending, success, failure, cancelled, skipped, timed_out, action_required, neutral, or stale. Omit (or pass "all") for every run.',
     },
     per_page: {
       type: 'number',
@@ -94,11 +97,11 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
         params.workflow_id === undefined || params.workflow_id === null
           ? ''
           : String(params.workflow_id).trim()
-      const basePath = `https://api.github.com/repos/${params.owner}/${params.repo}/actions`
+      const basePath = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions`
       const url = new URL(
         workflowId === ''
           ? `${basePath}/runs`
-          : `${basePath}/workflows/${encodeURIComponent(workflowId)}/runs`
+          : `${basePath}/workflows/${safeUrlPathSegment(workflowId, 'workflow_id', { allowSeparators: true })}/runs`
       )
       if (params.actor) {
         url.searchParams.append('actor', params.actor)
@@ -109,7 +112,8 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       if (params.event) {
         url.searchParams.append('event', params.event)
       }
-      if (params.status) {
+      /** `all` is the block's "no filter" option; GitHub has no such status and returns no runs for it. */
+      if (params.status && params.status !== 'all') {
         url.searchParams.append('status', params.status)
       }
       if (params.per_page) {

@@ -68,6 +68,53 @@ describe('Okta block params transform', () => {
   })
 })
 
+/**
+ * Mirrors `providers/utils.ts` on an Agent tool call: the model's args arrive
+ * keyed by the tool's param names, the operation only in the context, and the
+ * mapper's result is spread over the merged params.
+ */
+function agentCall(operation: string, modelArgs: Record<string, unknown>): Record<string, unknown> {
+  const transform = OktaBlock.tools.config?.params
+  if (!transform) throw new Error('Okta block has no params transform')
+  const args = { apiKey: 'token', domain: 'dev-1.okta.com', ...modelArgs }
+  return { ...args, ...transform(args, { operation }) }
+}
+
+describe('Okta params transform on an agent tool call', () => {
+  it('keeps the cursor the model sends for the next page', () => {
+    expect(agentCall('okta_get_logs', { after: 'cursor-2' }).after).toBe('cursor-2')
+    expect(agentCall('okta_list_groups', { after: 'cursor-3' }).after).toBe('cursor-3')
+  })
+
+  it('keeps sendEmail false on a password reset so the link comes back instead of an email', () => {
+    expect(agentCall('okta_reset_password', { userId: '00u1', sendEmail: false }).sendEmail).toBe(
+      false
+    )
+  })
+
+  it('keeps sendEmail on a deactivation, which the canvas reads from its own switch', () => {
+    expect(agentCall('okta_deactivate_user', { userId: '00u1', sendEmail: true }).sendEmail).toBe(
+      true
+    )
+  })
+
+  it('keeps the activate flag on a factor enrollment', () => {
+    expect(
+      agentCall('okta_enroll_factor', {
+        userId: '00u1',
+        factorType: 'sms',
+        provider: 'OKTA',
+        phoneNumber: '+14155550123',
+        activate: true,
+      }).activate
+    ).toBe(true)
+  })
+
+  it('keeps the keyword on a group rule listing', () => {
+    expect(agentCall('okta_list_group_rules', { search: 'Engineering' }).search).toBe('Engineering')
+  })
+})
+
 /** Block state for a block created after the split: every current id present. */
 function modernBlockState(overrides: Record<string, unknown>): BlockState {
   const subBlocks: Record<string, unknown> = {}

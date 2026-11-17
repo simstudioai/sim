@@ -2,6 +2,7 @@ import type { RipplingGetDepartmentParams } from '@/tools/rippling/types'
 import { DEPARTMENT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> = {
   id: 'rippling_get_department',
@@ -26,7 +27,7 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/departments/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/departments/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },

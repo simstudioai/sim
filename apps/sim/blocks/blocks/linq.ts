@@ -1,7 +1,7 @@
 import { LinqIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CHAT_ID_OPS = [
@@ -781,9 +781,9 @@ export const LinqBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `linq_${params.operation || 'send_message'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           senderFrom,
           recipients,
           messageText,
@@ -881,7 +881,6 @@ export const LinqBlock: BlockConfig = {
         }
 
         if (operation === 'react_to_message') {
-          if (reactionOperation) rest.operation = reactionOperation
           if (reactionType) rest.type = reactionType
           if (reactionCustomEmoji) rest.customEmoji = reactionCustomEmoji
           if (reactionPartIndex !== undefined && reactionPartIndex !== '') {
@@ -938,6 +937,11 @@ export const LinqBlock: BlockConfig = {
           limit !== ''
         ) {
           rest.limit = toFiniteNumber(limit, 'Limit')
+        }
+
+        // The react tool declares its own `operation` param: add or remove.
+        if (operation === 'react_to_message' && reactionOperation) {
+          return { ...rest, operation: reactionOperation }
         }
 
         return rest

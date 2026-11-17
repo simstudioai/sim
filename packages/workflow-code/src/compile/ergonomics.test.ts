@@ -226,7 +226,7 @@ describe('header, names and hand-written references', () => {
   it('warns on an invisible bidi or zero-width character in a block name, and prints it escaped', () => {
     const result = run(source("  api('Pay\\u202Eout', { url: 'x' })"))
     expect(codes(result)).toEqual(['W_SUSPICIOUS_CHARACTER'])
-    expect(quoteString('Pay‮out​')).toBe("'Pay\\u202Eout\\u200B'")
+    expect(quoteString('Pay\u202Eout\u200B')).toBe("'Pay\\u202Eout\\u200B'")
   })
 
   it.each([

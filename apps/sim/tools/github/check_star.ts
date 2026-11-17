@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +19,31 @@ interface CheckStarResponse {
       repo: string
     }
   }
+}
+
+/**
+ * Asks GraphQL rather than REST: `GET /user/starred/{owner}/{repo}` answers "not
+ * starred" with a 404, and the executor fails every non-2xx response before a
+ * transform runs, so the REST form could only ever report `starred: true`.
+ */
+const VIEWER_HAS_STARRED_QUERY = `
+  query($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) {
+      viewerHasStarred
+    }
+  }
+`
+
+async function readViewerHasStarred(response: Response): Promise<boolean> {
+  const data = await readGraphQlData(response, 'GitHub check star')
+  const repository = data.repository
+  if (!isRecordLike(repository)) {
+    throw new Error('GitHub check star: repository not found')
+  }
+  if (typeof repository.viewerHasStarred !== 'boolean') {
+    throw new Error('GitHub check star: viewerHasStarred must be a boolean')
+  }
+  return repository.viewerHasStarred
 }
 
 export const checkStarTool: ToolConfig<CheckStarParams, CheckStarResponse> = {
@@ -48,17 +75,17 @@ export const checkStarTool: ToolConfig<CheckStarParams, CheckStarResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/user/starred/${params.owner}/${params.repo}`,
-    method: 'GET',
-    headers: (params) => ({
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${params.apiKey}`,
-      'X-GitHub-Api-Version': '2022-11-28',
+    url: GITHUB_GRAPHQL_URL,
+    method: 'POST',
+    headers: (params) => githubGraphQlHeaders(params.apiKey),
+    body: (params) => ({
+      query: VIEWER_HAS_STARRED_QUERY,
+      variables: { owner: params.owner, name: params.repo },
     }),
   },
 
   transformResponse: async (response, params) => {
-    const starred = response.status === 204
+    const starred = await readViewerHasStarred(response)
 
     return {
       success: true,
@@ -99,7 +126,7 @@ export const checkStarV2Tool: ToolConfig<CheckStarParams, any> = {
   request: checkStarTool.request,
 
   transformResponse: async (response: Response, params) => {
-    const starred = response.status === 204
+    const starred = await readViewerHasStarred(response)
     return {
       success: true,
       output: {

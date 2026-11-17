@@ -31,6 +31,43 @@ export const HINTS = {
   bindInline: 'Declare the block with const and pass its name.',
 } as const
 
+/** Names for node types a generic label reads badly for. */
+const NODE_LABELS: Partial<Record<Node['type'], string>> = {
+  CallExpression: 'A call',
+  NewExpression: 'A constructor call',
+  TemplateLiteral: 'An untagged template',
+  TaggedTemplateExpression: 'This template tag',
+  ArrowFunctionExpression: 'A function',
+  FunctionExpression: 'A function',
+  FunctionDeclaration: 'A function',
+  ObjectMethod: 'A method',
+  SpreadElement: 'A spread',
+  RegExpLiteral: 'A regex literal',
+  BigIntLiteral: 'A BigInt literal',
+  ExpressionStatement: 'An expression',
+  ExportNamedDeclaration: 'A named export',
+  OptionalMemberExpression: 'An optional chain',
+  OptionalCallExpression: 'An optional call',
+  TSAsExpression: 'A type assertion',
+  TSSatisfiesExpression: 'A type assertion',
+  TSTypeAssertion: 'A type assertion',
+  TSNonNullExpression: 'A non-null assertion',
+}
+
+/**
+ * A reader's name for a node, capitalized to start a message ("A call", "An if statement"),
+ * instead of its Babel type name.
+ */
+export function nodeLabel(node: Node): string {
+  const label = NODE_LABELS[node.type]
+  if (label) return label
+  const words = node.type
+    .replace(/^TS/, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+  return `${/^[aeiou]/.test(words) ? 'An' : 'A'} ${words}`
+}
+
 /** The hint for an expression or statement outside the accepted grammar. */
 export function hintForNode(node: Node): string {
   switch (node.type) {
@@ -142,6 +179,7 @@ function closest(word: string, candidates: Iterable<string>): string | null {
   return best
 }
 
+/** `Did you mean <closest>?` for the closest candidate (see `closest`), or `undefined`. */
 export function didYouMean(word: string, candidates: Iterable<string>, format = (s: string) => s) {
   const match = closest(word, candidates)
   return match === null ? undefined : `Did you mean ${format(match)}?`

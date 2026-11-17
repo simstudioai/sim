@@ -23,12 +23,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { buildProviderConfig } from '@/lib/webhooks/deploy'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import { getAllBlocks } from '@/blocks'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { TriggerConfig } from '@/triggers/types'
 
 const BLOCK_ID = 'trigger-block'

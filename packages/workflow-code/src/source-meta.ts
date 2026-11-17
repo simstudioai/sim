@@ -30,7 +30,7 @@ import {
   readIdent,
 } from './lock'
 import type { Anchor, AnchorKey, CodeComment, Json } from './model'
-import { deepEqual } from './records'
+import { deepEqual, setOwn } from './records'
 
 export interface WorkflowSourceMetaV1 {
   [extension: LockExtensionKey]: Json
@@ -267,13 +267,13 @@ function mapSourceMetaIds(
   for (const [id, ident] of Object.entries(meta.idents)) {
     const next = block(id)
     if (next === null || Object.hasOwn(idents, next) || taken.has(ident)) continue
-    idents[next] = ident
+    setOwn(idents, next, ident)
     taken.add(ident)
   }
   const order: Record<string, number> = {}
   for (const [id, value] of Object.entries(meta.order)) {
     const next = block(id)
-    if (next !== null && !Object.hasOwn(order, next)) order[next] = value
+    if (next !== null && !Object.hasOwn(order, next)) setOwn(order, next, value)
   }
   const comments: Partial<Record<AnchorKey, CodeComment[]>> = {}
   for (const [key, list] of Object.entries(meta.comments)) {

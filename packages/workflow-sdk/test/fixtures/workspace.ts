@@ -21,5 +21,7 @@ export const FIXTURE_WORKSPACE: WorkspaceManifest = {
     'finance-google': { provider: 'google-sheets' },
   },
   workflows: { 'assign-owner': { inputs: { leads: 'array' } } },
+  skills: ['triage', 'tone'],
+  customTools: ['lookup-order'],
   env: ['TICKETS_WEBHOOK_TOKEN', 'CRM_KEY'],
 }

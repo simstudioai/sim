@@ -392,6 +392,7 @@ export async function validateConnectorSourceConfig(input: {
   actingUserId: string
   requestId: string
   permissionChange?: PreparedConnectorPermissions
+  isSearchIndex: boolean
 }): Promise<SourceConfigRejection | null> {
   const accessMode = input.connector.accessMode
   if (!isConnectorAccessMode(accessMode)) {
@@ -485,6 +486,7 @@ export async function validateConnectorSourceConfig(input: {
 
   const validationContext = {
     ...syncContextForToken(resolved),
+    isSearchIndex: input.isSearchIndex === true,
     mirrorsSourceAcls: mirrorsSourceAcls(input.connector.accessMode),
     ...(input.connector.accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
   }
@@ -829,6 +831,7 @@ async function executeCreateKnowledgeConnector({
   const apiKey = await resolveConnectorApiKey(input.apiKey, principal, workspaceId)
   const permissionChange = input.permissionConfig
     ? await prepareConnectorPermissions(input.connectorType, {
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
         accessMode: input.accessMode ?? 'workspace',
         sourceConfig,
         permissionConfig: input.permissionConfig,
@@ -965,6 +968,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
       expectedUpdatedAt = connector.updatedAt
       permissionChange = await prepareConnectorPermissions(connector.connectorType, {
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
         accessMode: connector.accessMode,
         sourceConfig: updates.sourceConfig ?? (connector.sourceConfig as Record<string, unknown>),
         permissionConfig,
@@ -1018,6 +1022,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       validateSourceConfig: (connector, sourceConfig) => {
         const owner = resourceScopeFields(resourceScopeFromOwner(context))
         return validateConnectorSourceConfig({
+          isSearchIndex: context.knowledgeBase.isSearchIndex === true,
           principal,
           connector: permissionChange?.encryptedApiKey
             ? { ...connector, encryptedApiKey: permissionChange.encryptedApiKey }

@@ -64,6 +64,7 @@ export function mcpBinding(
 
 type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
 
+/** An MCP tool as `mcp(server).tool(name, options)` writes it. */
 export interface McpToolForm extends ToolUsage {
   server: ResourceNode
   name: string
@@ -73,6 +74,7 @@ export interface McpToolForm extends ToolUsage {
   snapshot: { serverName?: string; serverUrl?: string; schema?: Json }
 }
 
+/** A child-workflow tool as `childWorkflow(key).asTool(options)` writes it. */
 export interface WorkflowToolForm extends ToolUsage {
   workflow: ResourceNode
 }

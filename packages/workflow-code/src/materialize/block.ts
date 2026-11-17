@@ -1,4 +1,4 @@
-import { isRecordLike, omit } from '@sim/utils/object'
+import { omit } from '@sim/utils/object'
 import {
   type BlockData,
   type BlockState,
@@ -7,13 +7,13 @@ import {
 } from '@sim/workflow-types/workflow'
 import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
 import { parseModeMap } from '../canonicalize/modes'
-import { declarationFor, isExcludedSubBlockId, uniqueFieldNames } from '../canonicalize/params'
+import { declarationFor, isExcludedSubBlockId, liftedFieldIds } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
-import { deepEqual, parseStoredList } from '../records'
+import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
 import { writeBranches } from './branches'
 import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
@@ -69,25 +69,9 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
   return deepEqual(omit(left, ['key', 'parent']), omit(right, ['key', 'parent']))
 }
 
-/**
- * inputFormat ids as canonicalize lifts them into the lock: fields with an id and a name no other
- * field shares (canonicalize/params.ts `liftInputFormat`).
- */
-function storedItems(raw: unknown): LockItem[] {
-  const list = (parseStoredList(raw) ?? []).filter(isRecordLike)
-  const unique = uniqueFieldNames(list)
-  const items: LockItem[] = []
-  for (const { name, id } of list) {
-    if (typeof name === 'string' && typeof id === 'string' && unique.has(name)) {
-      items.push({ name, id })
-    }
-  }
-  return items
-}
-
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {
   const values: Record<string, unknown> = {}
-  for (const [id, subBlock] of Object.entries(subBlocks)) values[id] = subBlock?.value
+  for (const [id, subBlock] of Object.entries(subBlocks)) setOwn(values, id, subBlock?.value)
   return values
 }
 
@@ -155,19 +139,19 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   const branchSpec = catalog?.graph.branches
   const branchSubBlockId = branchSpec?.subBlockId
   const itemSources = (subBlockId: SubBlockId): LockItem[] => [
-    ...(inputs.lockBlock?.items?.[subBlockId] ?? []),
-    ...(prev?.items?.[subBlockId] ?? []),
+    ...((inputs.lockBlock?.items && getOwn(inputs.lockBlock.items, subBlockId)) ?? []),
+    ...((prev?.items && getOwn(prev.items, subBlockId)) ?? []),
   ]
 
   const paramIds = new Set([...Object.keys(target.params), ...Object.keys(before?.params ?? {})])
   for (const paramId of paramIds) {
-    const next = target.params[paramId]
-    const previous = before?.params[paramId]
+    const next = getOwn(target.params, paramId)
+    const previous = before ? getOwn(before.params, paramId) : undefined
     if (next && previous && deepEqual(next, previous)) continue
     outputsDirty = true
-    const existing = subBlocks[paramId]
+    const existing = getOwn(subBlocks, paramId)
     if (!next) {
-      if (existing) subBlocks[paramId] = { ...existing, value: null }
+      if (existing) setOwn(subBlocks, paramId, { ...existing, value: null })
       continue
     }
     const declaration = declarationFor(catalog, paramId, target.triggerMode)
@@ -184,10 +168,10 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       },
       context
     )
-    subBlocks[paramId] = {
+    setOwn(subBlocks, paramId, {
       ...(existing ?? { id: paramId, type: declaration?.type ?? 'short-input' }),
       value: value as SubBlockState['value'],
-    }
+    })
   }
   if (isNew) {
     for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
@@ -202,7 +186,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       }
       const declaration = declarationFor(catalog, subBlockId, target.triggerMode)
       if (declaration && mintsFreshValue(declaration)) continue
-      subBlocks[subBlockId] = { ...subBlock, value: null }
+      setOwn(subBlocks, subBlockId, { ...subBlock, value: null })
     }
   }
 
@@ -210,7 +194,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   if (branchSpec && target.branches) {
     const subBlockId = branchSpec.subBlockId
     if (Object.hasOwn(target.params, subBlockId)) {
-      branchIds = unliftedBranchIds(branchSpec.kind, id, subBlocks[subBlockId]?.value)
+      branchIds = unliftedBranchIds(branchSpec.kind, id, getOwn(subBlocks, subBlockId)?.value)
     } else if (before?.branches && deepEqual(before.branches, target.branches)) {
       branchIds = prev?.branchIds
     } else {
@@ -221,17 +205,17 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
         [resolved.lockOwned ? inputs.lockBlock?.branches : undefined, prev?.branchIds],
         context
       )
-      const existing = subBlocks[subBlockId]
+      const existing = getOwn(subBlocks, subBlockId)
       if (write.value !== null) {
-        subBlocks[subBlockId] = {
+        setOwn(subBlocks, subBlockId, {
           ...(existing ?? {
             id: subBlockId,
             type: declarationFor(catalog, subBlockId, target.triggerMode)?.type ?? 'short-input',
           }),
           value: write.value,
-        }
+        })
       } else if (existing && existing.value !== null && existing.value !== undefined) {
-        subBlocks[subBlockId] = { ...existing, value: null }
+        setOwn(subBlocks, subBlockId, { ...existing, value: null })
       }
       branchIds = target.branches.rows === null ? implicitIds(branchSpec.kind, id) : write.ids
     }
@@ -250,12 +234,12 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     )
     for (const [paramId, param] of Object.entries(target.params)) {
       if (param.kind !== 'tools') continue
-      const previous = before?.params[paramId]
+      const previous = before ? getOwn(before.params, paramId) : undefined
       if (previous && deepEqual(param, previous)) continue
       modes = writeToolModes(
         modes,
         param.tools,
-        parseStoredList(subBlocks[paramId]?.value) ?? [],
+        parseStoredList(getOwn(subBlocks, paramId)?.value) ?? [],
         matchPrevTools(param.tools, previous?.kind === 'tools' ? previous.tools : []),
         context.catalog
       )
@@ -276,7 +260,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       if (!Object.hasOwn(nextExtra, dataKey)) delete data[dataKey]
     }
     for (const [dataKey, value] of Object.entries(nextExtra)) {
-      if (!deepEqual(data[dataKey], value)) data[dataKey] = value
+      if (!deepEqual(getOwn(data, dataKey), value)) setOwn(data, dataKey, value)
     }
   }
   if (isNew) {
@@ -327,8 +311,10 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     if (param.kind !== 'value') continue
     const declaration = declarationFor(catalog, paramId, target.triggerMode)
     if (declaration?.structured !== 'inputFormat') continue
-    const found = storedItems(subBlocks[paramId]?.value)
-    if (found.length > 0) items[paramId] = found
+    const found = [
+      ...liftedFieldIds(parseStoredList(getOwn(subBlocks, paramId)?.value) ?? []).values(),
+    ]
+    if (found.length > 0) setOwn(items, paramId, found)
   }
   return { block: built, branchIds, items, needsLayout }
 }

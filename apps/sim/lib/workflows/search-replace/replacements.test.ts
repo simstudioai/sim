@@ -6,6 +6,7 @@ import {
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 
 /**
  * Asserts real tool params and outputs, which the global `@/tools/metadata`
@@ -412,6 +413,127 @@ describe('buildWorkflowSearchReplacePlan', () => {
       expect.objectContaining({
         params: expect.objectContaining({
           attachmentFiles: JSON.stringify(replacementFile),
+        }),
+      }),
+    ])
+  })
+
+  it('replaces a value inside filter builder rules stored as a serialized tool input param', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    const rule = { id: 'r1', logicalOperator: 'and', column: 'status', operator: 'eq' }
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'table_v2',
+              toolId: 'table_query_rows_v2',
+              operation: 'query_rows',
+              title: 'Table',
+              params: {
+                tableId: 'tbl_1',
+                filterBuilder: JSON.stringify([{ ...rule, value: 'pending' }]),
+              },
+            },
+          ],
+        },
+      },
+    }
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'pending',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: { subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }] },
+        table_v2: TableV2Block,
+      },
+    }).filter((match) => match.blockId === 'tool-input-1' && match.editable)
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'approved',
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].nextValue).toEqual([
+      expect.objectContaining({
+        params: expect.objectContaining({
+          filterBuilder: JSON.stringify([{ ...rule, value: 'approved' }]),
+        }),
+      }),
+    ])
+  })
+
+  it('edits only rule values, never rule keys, in a tool input filter builder', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    const rule = { id: 'r1', logicalOperator: 'and', column: 'status', operator: 'eq' }
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'table_v2',
+              toolId: 'table_query_rows_v2',
+              operation: 'query_rows',
+              title: 'Table',
+              params: {
+                tableId: 'tbl_1',
+                filterBuilder: JSON.stringify([{ ...rule, value: 'operator and status' }]),
+              },
+            },
+          ],
+        },
+      },
+    }
+    const findEditable = (query: string) =>
+      indexWorkflowSearchMatches({
+        workflow,
+        query,
+        mode: 'text',
+        blockConfigs: {
+          ...SEARCH_REPLACE_BLOCK_CONFIGS,
+          custom: { subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }] },
+          table_v2: TableV2Block,
+        },
+      }).filter((match) => match.blockId === 'tool-input-1' && match.editable)
+
+    expect(findEditable('logicalOperator')).toEqual([])
+    expect(findEditable('eq')).toEqual([])
+
+    const matches = findEditable('operator')
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'owner',
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].nextValue).toEqual([
+      expect.objectContaining({
+        params: expect.objectContaining({
+          filterBuilder: JSON.stringify([{ ...rule, value: 'owner and status' }]),
         }),
       }),
     ])

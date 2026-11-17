@@ -43,8 +43,32 @@ describe('Redactor', () => {
 
   it('strips URL queries and fragments, which can carry tokens', () => {
     expect(redactor.string('https://hooks.example.com/a/b?token=s3cret#frag', 'url')).toBe(
-      'https://hooks.example.com/a/b?redacted#redacted'
+      'https://hooks.example.com/x/x?redacted#redacted'
     )
+  })
+
+  it('redacts URL path segments, which can carry secrets, but keeps their shape', () => {
+    const slack = redactor.string(
+      'https://hooks.slack.com/services/T0AB12CD/B0XY98ZW/abcDEFsecret123',
+      'webhookUrl'
+    )
+    expect(slack).toBe('https://hooks.slack.com/xxxxxxxx/x0xx00xx/x0xx00xx/xxxxxxxxxxxx000')
+    const telegram = redactor.string(
+      'https://api.telegram.org/bot123456:AAHsecretTOKEN/send',
+      'url'
+    )
+    expect(telegram).toBe('https://api.telegram.org/xxx000000:xxxxxxxxxxxxxx/xxxx')
+  })
+
+  it('keeps and renames references in a URL path', () => {
+    expect(redactor.string('https://api.example.com/users/<customerlookup.id>', 'url')).toBe(
+      'https://api.example.com/xxxxx/<agent1.id>'
+    )
+  })
+
+  it('redacts angle-bracketed text that is not a reference', () => {
+    const out = redactor.string('Hi, reach Jane Doe <jane.doe@acme.com> or <loop.index>', 'body')
+    expect(out).toBe('xx, xxxxx xxxx xxx <xxxx.xxx@xxxx.xxx> xx <loop.index>')
   })
 
   it('redacts inside JSON text and keeps its keys and shape', () => {

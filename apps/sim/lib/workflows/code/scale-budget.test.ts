@@ -17,7 +17,6 @@ vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
 import {
-  type BlockCatalog,
   type CanonicalWorkflow,
   canonicalize,
   compileWorkflow,
@@ -29,11 +28,8 @@ import {
   MAX_WORKFLOW_GRAPH_BLOCKS,
   MAX_WORKFLOW_GRAPH_EDGES,
 } from '@/lib/api/contracts/v2/workflows'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { getBlockRegistry } from '@/blocks/registry'
-import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
 const ROUND_TRIP_BUDGET_MS = 3_000
 const LOOP_MEMBERS = 8
@@ -43,11 +39,6 @@ const PROMPT = Array.from(
   (_, line) => `Rule ${line + 1}: answer from the ticket history, cite the source, and stay brief.`
 ).join(' ')
 
-const catalog = buildBlockCatalog({
-  blocks: Object.values(getBlockRegistry()),
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
 const hooks = createMaterializeHooks()
 const meta = { name: 'Scale', description: null }
 
@@ -163,7 +154,7 @@ function compileText(files: Array<{ path: string; text: string }>, stored?: Cano
   return compileWorkflow({
     entry,
     files: new Map(codeFiles.map((file) => [file.path, file.text])),
-    catalog: catalog as BlockCatalog,
+    catalog,
     sdkMajor: catalog.sdkMajor,
     ...(stored && { knownKeys: new Set(Object.keys(stored.blocks)), stored }),
   })

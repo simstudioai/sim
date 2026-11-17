@@ -1,7 +1,7 @@
 import { AzureIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { toolCallArg, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import type { AzureDevOpsBasicWorkItemType } from '@/tools/azure_devops/types'
 import { AZURE_DEVOPS_BASIC_WORK_ITEM_STATES } from '@/tools/azure_devops/utils'
 import { getTrigger } from '@/triggers'
@@ -20,6 +20,11 @@ function normalizeDate(input: unknown): string | undefined {
 function resolveTop(dedicated: unknown, shared: unknown): number | undefined {
   const value = dedicated || shared
   return value ? Number(value) : undefined
+}
+
+/** Coerces an optional numeric field, keeping `0` (a model may send it to clear remaining work). */
+function optionalNumber(value: unknown): number | undefined {
+  return value === undefined || value === null || value === '' ? undefined : Number(value)
 }
 
 export const AzureDevOpsBlock: BlockConfig = {
@@ -724,7 +729,7 @@ export const AzureDevOpsBlock: BlockConfig = {
           organization: params.organization as string,
           project: params.project as string,
         }
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'azure_devops_list_pipelines':
             return {
               ...base,
@@ -782,7 +787,10 @@ export const AzureDevOpsBlock: BlockConfig = {
           case 'azure_devops_get_work_item':
             return { ...base, workItemId: Number(params.workItemId) }
           case 'azure_devops_get_work_items_batch':
-            return { ...base, ids: params.workItemIds as string }
+            return {
+              ...base,
+              ids: (params.workItemIds as string) || toolCallArg(context, params.ids as string),
+            }
           case 'azure_devops_create_work_item':
             return {
               ...base,
@@ -791,12 +799,12 @@ export const AzureDevOpsBlock: BlockConfig = {
               description: (params.description as string) || undefined,
               assignedTo: (params.assignedTo as string) || undefined,
               priority: params.priority ? Number(params.priority) : undefined,
-              effort: params.effort ? Number(params.effort) : undefined,
+              effort: optionalNumber(params.effort),
               startDate: normalizeDate(params.startDate),
               targetDate: normalizeDate(params.targetDate),
               activity: (params.activity as string) || undefined,
-              remainingWork: params.remainingWork ? Number(params.remainingWork) : undefined,
-              completedWork: params.completedWork ? Number(params.completedWork) : undefined,
+              remainingWork: optionalNumber(params.remainingWork),
+              completedWork: optionalNumber(params.completedWork),
               areaPath: (params.areaPath as string) || undefined,
               iterationPath: (params.iterationPath as string) || undefined,
               tags: (params.tags as string) || undefined,
@@ -809,12 +817,12 @@ export const AzureDevOpsBlock: BlockConfig = {
               state: (params.state as string) || undefined,
               assignedTo: (params.assignedTo as string) || undefined,
               priority: params.priority ? Number(params.priority) : undefined,
-              effort: params.effort ? Number(params.effort) : undefined,
+              effort: optionalNumber(params.effort),
               startDate: normalizeDate(params.startDate),
               targetDate: normalizeDate(params.targetDate),
               activity: (params.activity as string) || undefined,
-              remainingWork: params.remainingWork ? Number(params.remainingWork) : undefined,
-              completedWork: params.completedWork ? Number(params.completedWork) : undefined,
+              remainingWork: optionalNumber(params.remainingWork),
+              completedWork: optionalNumber(params.completedWork),
               description: (params.description as string) || undefined,
               areaPath: (params.areaPath as string) || undefined,
               iterationPath:
@@ -827,7 +835,7 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               workItemId: Number(params.workItemId),
-              text: params.commentText as string,
+              text: (params.commentText as string) || toolCallArg(context, params.text as string),
               format:
                 (params.commentFormat as string) ||
                 toolCallArg(context, params.format) ||

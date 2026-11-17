@@ -1,7 +1,7 @@
 import { LaunchDarklyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const LaunchDarklyBlock: BlockConfig = {
   type: 'launchdarkly',
@@ -329,23 +329,24 @@ Return ONLY the resource specifier string - no explanations, no extra text.`,
         const operation = params.operation || 'list_flags'
         return `launchdarkly_${operation}`
       },
-      params: (params) => {
-        const { operation, flagName, newFlagKey, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { flagName, newFlagKey, ...rest } = params
 
         if (operation === 'create_flag') {
-          rest.name = flagName
-          rest.key = newFlagKey
+          rest.name = flagName ?? toolCallArg(context, params.name)
+          rest.key = newFlagKey ?? toolCallArg(context, params.key)
         }
 
         if (operation === 'toggle_flag') {
-          rest.enabled = rest.enabled === 'true'
+          rest.enabled = rest.enabled === true || rest.enabled === 'true'
         }
 
         if (rest.temporary !== undefined) {
-          rest.temporary = rest.temporary === 'true'
+          rest.temporary = rest.temporary === true || rest.temporary === 'true'
         }
 
-        if (rest.archive !== undefined) {
+        if (rest.archive !== undefined && typeof rest.archive !== 'boolean') {
           if (rest.archive === 'true') rest.archive = true
           else if (rest.archive === 'false') rest.archive = false
           else rest.archive = undefined

@@ -24,4 +24,11 @@ describe('TikTokBlock', () => {
     expect(finalInputs.file).toEqual(file)
     expect(finalInputs.videoIds).toBeUndefined()
   })
+
+  it('queries the video ids an agent passes as an array', () => {
+    const args = { videoIds: ['v1', ' v2 '] }
+    const finalInputs = { ...args, ...buildParams(args, { operation: 'tiktok_query_videos' }) }
+
+    expect(finalInputs.videoIds).toEqual(['v1', 'v2'])
+  })
 })

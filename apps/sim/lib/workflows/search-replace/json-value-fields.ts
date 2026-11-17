@@ -23,6 +23,9 @@ const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<st
   'variables-input': {
     value: 'Value',
   },
+  'filter-builder': {
+    value: 'Value',
+  },
 }
 
 const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>> = {
@@ -99,6 +102,7 @@ export function isSearchableJsonValueSubBlock(
   | 'knowledge-tag-filters'
   | 'document-tag-entry'
   | 'variables-input'
+  | 'filter-builder'
   | 'input-mapping'
   | 'workflow-input-mapper'
   | 'table' {
@@ -110,11 +114,18 @@ export function isSearchableJsonValueSubBlock(
   )
 }
 
+/**
+ * Rule builders stay as their stored JSON text in a tool row so a replacement writes the param
+ * back as text. A filter rule's `value` is still reached through the JSON leaf replacer above.
+ */
+const RAW_TEXT_TOOL_PARAM_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'sort-builder'])
+
 export function shouldParseSerializedSubBlockValue(
   subBlockType: SubBlockType | undefined
 ): subBlockType is SubBlockType {
   return Boolean(
     subBlockType &&
+      !RAW_TEXT_TOOL_PARAM_SUBBLOCK_TYPES.has(subBlockType) &&
       (isSearchableJsonValueSubBlock(subBlockType) || holdsObjectValue({ type: subBlockType }))
   )
 }

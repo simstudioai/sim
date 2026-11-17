@@ -3,13 +3,14 @@ import { getBlockRegistry } from '@/blocks/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import type { TriggerConfig } from '@/triggers/types'
 
-/**
- * `getTrigger()` builds a fresh namespaced config on every call. The registry is static for the
- * life of the process, so each id is resolved once and its identity stays stable, which is what
- * lets the catalog builder memoize the projection.
- */
 const resolvedTriggers = new Map<string, TriggerConfig | null>()
 
+/**
+ * The registry's trigger config for an id, or `undefined` when there is none. `getTrigger()`
+ * builds a fresh namespaced config on every call; the registry is static for the life of the
+ * process, so each id is resolved once and its identity stays stable, which is what lets the
+ * catalog builder memoize the projection.
+ */
 export function registryTrigger(triggerId: string): TriggerConfig | undefined {
   let resolved = resolvedTriggers.get(triggerId)
   if (resolved === undefined) {

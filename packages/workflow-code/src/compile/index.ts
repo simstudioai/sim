@@ -23,12 +23,13 @@ import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
-import { didYouMean, HINTS, hintForNode } from './hints'
+import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
 import { collectBody } from './scope'
 import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
 
+/** One compile: the entry file, the code files it may read, and what the server knows. */
 export interface CompileInput {
   entry: { path: string; text: string }
   /** Function-code files by repo-relative path; the caller does the I/O. */
@@ -57,6 +58,7 @@ export interface CompileInput {
   envNames?: ReadonlySet<string>
 }
 
+/** The compiled workflow (or `null` after an error) with its diagnostics, spans and lock hints. */
 export interface CompileResult {
   /** `null` iff any diagnostic is an error. Name-keyed, like every CWM: ids bind in materialize. */
   workflow: CanonicalWorkflow | null
@@ -165,9 +167,12 @@ function compileVariables(ctx: CompileContext, node: Node): void {
       continue
     }
     let type: string | null = null
+    let typeWritten = false
     let value: CanonicalVariable['value'] | undefined
+    let valueWritten = false
     for (const [field, fieldProperty] of objectEntries(ctx, declaration)) {
       if (field === 'type') {
+        typeWritten = true
         type = literalText(fieldProperty.value)
         if (type === null || !VARIABLE_TYPES.has(type)) {
           unsupported(
@@ -191,6 +196,7 @@ function compileVariables(ctx: CompileContext, node: Node): void {
           name = text
         }
       } else if (field === 'value') {
+        valueWritten = true
         value = compileJsonLiteral(ctx, fieldProperty.value)
       } else {
         unsupported(
@@ -201,11 +207,11 @@ function compileVariables(ctx: CompileContext, node: Node): void {
         )
       }
     }
-    if (type === null || value === undefined) {
-      if (type !== null)
-        unsupported(ctx, declaration, 'A variable needs a value.', "Write value: ''.")
-      continue
-    }
+    if (!typeWritten)
+      unsupported(ctx, declaration, 'A variable needs a type.', "Write type: 'string'.")
+    if (!valueWritten)
+      unsupported(ctx, declaration, 'A variable needs a value.', "Write value: ''.")
+    if (type === null || value === undefined) continue
     ctx.variables.set(key, { key, name, type: type as CanonicalVariable['type'], value })
   }
 }
@@ -260,14 +266,11 @@ function compileWorkflowCall(
         } else if (key === 'variables') {
           compileVariables(ctx, property.value)
         } else {
-          const hint = didYouMean(key, WORKFLOW_OPTIONS)
           ctx.reporter.report(
             'E_UNKNOWN_PARAM',
             `${key} is not a workflow option.`,
             rangeOf(ctx, property),
-            {
-              ...(hint !== undefined && { hint }),
-            }
+            { hint: didYouMean(key, WORKFLOW_OPTIONS) }
           )
         }
       }
@@ -290,7 +293,7 @@ function compileWorkflowCall(
   }
   const scope: Scope = { parent: moduleScope, bindings: new Map(), container: null }
   bindBodyParams(ctx, bodyNode, scope)
-  collectBody(ctx, bodyNode.body.body, scope, bodyNode.body, {
+  collectBody(ctx, bodyNode.body, scope, {
     owner: encodeAnchor({ kind: 'footer' }),
     tail: { anchor: encodeAnchor({ kind: 'footer' }), placement: 'leading' },
   })
@@ -375,7 +378,8 @@ function compileEntry(
   reporter: Reporter
 ): CompileResult {
   const limits = { ...DEFAULT_LIMITS, ...input.limits }
-  checkStorableText(file, text, reporter)
+  if (utf8Bytes(text, limits.maxTotalBytes) <= limits.maxTotalBytes)
+    checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {
     reporter.report(
@@ -439,6 +443,13 @@ function compileEntry(
     recordSpan(ctx, { kind: 'header' }, { start: 0, end: parsed.headerEnd })
 
   for (const statement of ast.program.body) collectImports(ctx, statement, moduleScope)
+  for (const directive of ast.program.directives)
+    unsupported(
+      ctx,
+      directive,
+      'A string statement is not allowed at the top level.',
+      HINTS.extraStatement
+    )
 
   let workflowHeader: WorkflowHeader | null = null
   let exportCount = 0
@@ -478,7 +489,7 @@ function compileEntry(
       statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportAllDeclaration'
         ? hintForNode(statement)
         : HINTS.extraStatement
-    unsupported(ctx, statement, `${statement.type} is not allowed at the top level.`, hint)
+    unsupported(ctx, statement, `${nodeLabel(statement)} is not allowed at the top level.`, hint)
   }
   if (exportCount === 0) {
     reporter.report(

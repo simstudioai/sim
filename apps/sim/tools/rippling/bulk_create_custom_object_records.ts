@@ -1,6 +1,7 @@
 import type { RipplingBulkCreateCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkCreateCustomObjectRecordsParams> =
   {
@@ -26,7 +27,7 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Array of records to create [{external_id?, data}]',
+        description: 'Array of flat records [{external_id?, <field_api_name>: value}] (max 200)',
       },
       allOrNothing: {
         type: 'boolean',
@@ -37,7 +38,7 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/bulk/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/bulk/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

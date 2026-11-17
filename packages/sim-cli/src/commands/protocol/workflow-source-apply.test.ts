@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileWorkflow } from '@sim/workflow-code'
-import { COOKBOOK_TS } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -139,6 +138,19 @@ describe('sim workflows source apply', () => {
     expect(error).toBeInstanceOf(SimApiError)
     expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
     expect((error as SimApiError).message).toContain('--yes')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses a create without --yes and sends nothing', async () => {
+    setTerminal(false)
+
+    const error = await program()
+      .parseAsync(['node', 'sim', 'workflows', 'source', 'create', '--dir', dir])
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(SimApiError)
+    expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
+    expect((error as SimApiError).message).toContain('--yes to create')
     expect(request).not.toHaveBeenCalled()
   })
 
@@ -313,6 +325,16 @@ describe('sim workflows source apply', () => {
     expect(stderrLines()).toContain(`note: ${note}`)
   })
 
+  it('counts notes apart from warnings in the result', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true, notes: ['a kept name'] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({ warnings: 0, notes: 1 })
+  })
+
   it('at a terminal, prints the notes of the preview and of the applied write', async () => {
     setTerminal(true)
     request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
@@ -328,6 +350,32 @@ describe('sim workflows source apply', () => {
     expect(stderrLines()).toEqual(
       expect.arrayContaining(['note: previewed note', 'note: applied note'])
     )
+  })
+
+  it('at a terminal, prints a warning and a note the preview showed once, not again on the write', async () => {
+    setTerminal(true)
+    const warning = {
+      code: 'W_REQUIRED_MISSING',
+      severity: 'warning',
+      message: 'apiKey is required.',
+      file: 'workflow.ts',
+      line: 9,
+      column: 5,
+    }
+    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+      outcome({
+        dryRun: options.query?.dryRun === true,
+        diagnostics: [warning],
+        notes: ['kept note'],
+      })
+    )
+    prompt.question.mockResolvedValue('y')
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    const lines = stderrLines()
+    expect(lines.filter((line) => line.includes('W_REQUIRED_MISSING'))).toHaveLength(1)
+    expect(lines.filter((line) => line === 'note: kept note')).toHaveLength(1)
   })
 
   const STALE = {
@@ -478,23 +526,13 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
     })
     expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
     expect(stderrLines().join('\n')).toContain('Edit')
-  })
-
-  it('writes the cookbook example into the scaffold, outside what the tsconfig.json type-checks', async () => {
-    setTerminal(false)
-    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-    const empty = join(dir, 'new')
-    request.mockImplementation(async (path: string) => {
-      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
-      if (path.endsWith('/workflows/source/resources')) return MANIFEST
-      throw new Error(`unexpected request ${path}`)
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    expect(printed).toMatchObject({
+      scaffolded: true,
+      workspaceTypes: true,
+      guide: '.sim/AGENTS.md',
     })
-
-    await create('--dir', empty)
-
-    expect(readFileSync(join(empty, '.sim/examples/cookbook.ts'), 'utf8')).toBe(COOKBOOK_TS)
-    const [, ...tsconfig] = readFileSync(join(empty, 'tsconfig.json'), 'utf8').split('\n')
-    expect(JSON.parse(tsconfig.join('\n')).include).toEqual(['workflow.ts', '.sim/sdk/**/*.d.ts'])
+    expect(printed.files).toBeGreaterThan(0)
   })
 
   it.each(['--dry-run', '--yes'])('refuses %s instead of scaffolding', async (flag) => {

@@ -15,6 +15,9 @@ import { getErrorMessage } from '@sim/utils/errors'
  * Checks, each recorded in the report:
  * - Presidio masks a text over spaCy's limit: a name straddling an NER window edge,
  *   a name at the very end, and a custom pattern that spans whitespace.
+ * - Presidio masks names and an email on both sides of a long unbroken run of
+ *   brackets in place, within seconds; spaCy's own tokenizer needs time quadratic
+ *   in such a run's length.
  * - A persisted log holding a 5M-character base64 PDF and a 3M-character text that
  *   names a person at the end: the PDF becomes the binary marker without reaching
  *   Presidio, the name is masked by real NER, and no request fails.
@@ -174,6 +177,36 @@ async function main(): Promise<void> {
     assert(masked.endsWith('to <PERSON> before Friday.'), 'The name at the end survived')
     assert(!masked.includes('EMP 123456'), 'The custom pattern spanning whitespace survived')
     assert(masked.includes('<EMPLOYEE_ID>'), 'Expected the custom replacement')
+    return { textChars: text.length }
+  })
+
+  await check('Presidio masks PII around a long unbroken run within seconds', async () => {
+    const run = `${'['.repeat(20_000)}${']'.repeat(20_000)}`
+    const after = '   　Write to ada@example.com today.\n'
+    const text = `${NAME_SENTENCE} ${run}${after}${NAME_SENTENCE}`
+    const response = await realFetch(new URL('/redact_batch', presidioUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        texts: [text],
+        language: 'en',
+        entities: ['PERSON', 'EMAIL_ADDRESS'],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body = await response.text()
+    assert.equal(
+      response.status,
+      200,
+      `Presidio answered ${response.status}: ${body.slice(0, 200)}`
+    )
+    const [masked] = (JSON.parse(body) as { texts: string[] }).texts
+    const maskedSentence = 'Please send questions to <PERSON> before Friday.'
+    assert.equal(
+      masked,
+      `${maskedSentence} ${run}${after.replace('ada@example.com', '<EMAIL_ADDRESS>')}${maskedSentence}`,
+      'PII around the run was not masked in place'
+    )
     return { textChars: text.length }
   })
 

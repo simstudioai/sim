@@ -8,6 +8,7 @@ export {
 } from './generate'
 export { SDK_MAJOR } from './major'
 export { SPECIAL_BUILDER_KEYS } from './names'
+export { SOURCE_COMPILER_OPTIONS } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,
   generateWorkspaceTypes,

@@ -164,7 +164,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Can I migrate from ${name} to Sim?`,
-      answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.`,
+      answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.${competitor.migrationSteps ? ` ${competitor.migrationSteps}` : ''}`,
     },
   ]
 

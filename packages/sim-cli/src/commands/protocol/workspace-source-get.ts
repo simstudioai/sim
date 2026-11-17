@@ -116,7 +116,7 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; tsconfig: boolean }> {
+): Promise<{ written: number; removed: number; guide: string }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
@@ -213,7 +213,7 @@ async function writeWorkspaceSource(
     })
     const downloaded = stale.filter((blob) => blob !== null).length
     const summary = finishTree(dir, write.length + downloaded, workspaceTypes, tree.ownsTsconfig)
-    return { written: summary.written, removed: gone.length, tsconfig: summary.tsconfig }
+    return { written: summary.files, removed: gone.length, guide: summary.guide }
   } finally {
     await rm(scratch, { recursive: true, force: true })
   }
@@ -256,6 +256,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
         files: result.written,
         removed: result.removed,
         skipped: data.skipped.length,
+        guide: result.guide,
       })
     })
 }

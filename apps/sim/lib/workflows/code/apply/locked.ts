@@ -59,6 +59,7 @@ export function findLockedBlockRefusals(
   keyOf: (id: string) => string | undefined
 ): LockedBlockDiagnostic[] {
   const isLockedInBase = (id: string) => isWorkflowBlockProtected(id, base.blocks)
+  const nameOf = (id: string) => base.blocks[id]?.name ?? id
   const refusals = new Map<string, LockedBlockDiagnostic>()
   const refuse = (block: BlockState, message: string) => {
     if (refusals.has(block.id)) return
@@ -97,7 +98,10 @@ export function findLockedBlockRefusals(
     }
     const parentId = parentIdOf(target.blocks[change.id])
     if (change.parentChanged && parentId && isLockedInBase(parentId)) {
-      refuse(block, `Block "${block.name}" cannot be moved into locked container "${parentId}"`)
+      refuse(
+        block,
+        `Block "${block.name}" cannot be moved into locked container "${nameOf(parentId)}"`
+      )
     }
   }
 
@@ -109,7 +113,10 @@ export function findLockedBlockRefusals(
     }
     const parentId = parentIdOf(block)
     if (parentId && isLockedInBase(parentId)) {
-      refuse(block, `Block "${block.name}" cannot be added to locked container "${parentId}"`)
+      refuse(
+        block,
+        `Block "${block.name}" cannot be added to locked container "${nameOf(parentId)}"`
+      )
     }
   }
 
