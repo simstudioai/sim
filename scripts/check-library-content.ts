@@ -154,15 +154,17 @@ const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|ver
 const OPENING_CONTRAST = String.raw`(?:While|Whereas|But|Unlike|Like|Compared (?:with|to)|Versus|Vs\.?)`
 /** Sentence punctuation, with any closing quote or bracket, before whitespace. */
 const SENTENCE_END = /(?<=[.!?;]['"”’)\]]*)\s+/
-/** ", and" before a capitalized word, which starts a clause with its own subject. */
-const NEW_SUBJECT = /,\s+and\s+(?=[A-Z])/
+/** The start of a new subject: a capitalized word, or a lowercase product name with a digit (n8n). */
+const SUBJECT = String.raw`(?:[A-Z]|[a-z]+\d)`
+/** ", and" before a new subject, which starts a clause of its own ("..., and Zapier has ..."). */
+const NEW_SUBJECT = new RegExp(String.raw`,\s+and\s+(?=${SUBJECT})`)
 /**
  * Where a comparison clause starts: a sentence-opening contrast ("Unlike Sim, ..."), or a contrast
- * followed by a capitalized word, the new subject ("..., while Zapier", "Zapier, like Sim, ...").
- * A contrast that keeps the subject ("open source but has ...") does not start one.
+ * followed by a new subject ("..., while Zapier", "Zapier, like Sim, ..."). A contrast that keeps
+ * the subject ("open source but has ...", "while working") does not start one.
  */
 const COMPARISON_START = new RegExp(
-  String.raw`^(?=${OPENING_CONTRAST}\b)|,\s*(?=(?:like|${CONTRAST})\s+[A-Z])|\s+(?=${CONTRAST}\s+[A-Z])`
+  String.raw`^(?=${OPENING_CONTRAST}\b)|,\s*(?=(?:like|${CONTRAST})\s+${SUBJECT})|\s+(?=${CONTRAST}\s+${SUBJECT})`
 )
 /** A count continuing a list ("..., 9,000+ actions, and 530+ triggers, ..."), not a new clause. */
 const COUNT_LIST_ITEM = String.raw`(?:and\s+)?\d[\d,]*\+?\s+(?:integrations|actions|triggers)\b\s*(?:,|and\b|$)`
@@ -175,18 +177,21 @@ const COMPARISON_END = new RegExp(
   String.raw`,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*${COUNT_LIST_ITEM})`
 )
 /** A contrast with a new subject inside a comparison clause ("..., but Zapier has ..."). */
-const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\s+[A-Z])`)
+const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\s+${SUBJECT})`)
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
 const SIM_COUNT_FLOOR = 0.9
 
-/** Every count in a table row whose label (first non-empty cell) names Sim. */
+/**
+ * The Sim counts in a table row: every count when its label (first non-empty cell) names Sim, and
+ * otherwise each cell's own Sim claims, read like prose ("| Catalog | Sim has 280+ integrations |").
+ */
 function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
   const label = cells.map((cell) => cell.trim()).find((cell) => cell !== '') ?? ''
   return SIM_NAME.test(label.split(/\s/)[0])
     ? cells.flatMap((cell) => [...cell.matchAll(COUNT_CLAIM)])
-    : []
+    : cells.flatMap(simProseCounts)
 }
 
 /**

@@ -357,6 +357,12 @@ describe('check-library-content', () => {
     ['Sim, unlike Make.com, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
     ['Sim connects tools like Slack to 1,000+ integrations.', '1,000+ integrations', 'overstates'],
     ['Sim is open source but has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['| Catalog | Sim has 1,000+ integrations |', '1,000+ integrations', 'overstates'],
+    [
+      'Sim has 280+ integrations while working across 9,000+ actions.',
+      '9,000+ actions',
+      'overstates',
+    ],
     ['Sim is open source, but has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
     [
       'While Sim is open source but has 1,000+ integrations, Zapier is proprietary.',
@@ -436,6 +442,8 @@ describe('check-library-content', () => {
         '"Sim is open source." Zapier has 9,000+ integrations.',
         'While Sim has 280+ integrations, 9,000+ integrations are available in Zapier.',
         'Sim has 280+ integrations, and Zapier has 9,000+ integrations.',
+        'Sim has 280+ integrations, while n8n lists 2,000+ integrations.',
+        '| Catalog | Sim has 280+ integrations | n8n lists 2,000+ integrations |',
         'While Sim has 280+ integrations, Zapier lists 9,000+ integrations.',
         'Zapier, like Sim, has 9,000+ integrations.',
         'Sim, unlike Zapier, which has 9,000+ integrations, is open source.',
