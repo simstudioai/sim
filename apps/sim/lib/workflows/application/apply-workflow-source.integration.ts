@@ -385,6 +385,49 @@ export default workflow('Env', {}, () => {
   expect(unknown[0]).toMatchObject({ severity: 'warning', file: 'workflow.ts', line: 6 })
 })
 
+check(
+  'a literal secret in a password field warns on create, get and a dry run, never printed',
+  async () => {
+    const agentSource = (apiKey: string) => `// @sim-sdk 1
+import { agent, env, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Secret', {}, () => {
+  const start = trigger.start('Start', {})
+  const answer = agent('Answer', { model: 'gpt-4o', messages: [], apiKey: ${apiKey} })
+  start.to(answer)
+})
+`
+    const secrets = (diagnostics: ReadonlyArray<{ code: string; param?: string }>) =>
+      diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET').map((d) => d.param)
+    const created = await withPermissionGroupScope(() =>
+      createWorkflowFromSource.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: `Source create ${generateId()}`,
+          files: { 'workflow.ts': agentSource("'placeholder-not-a-real-key'") },
+        },
+      })
+    )
+    expect(created.applied).toBe(true)
+    expect(secrets(created.diagnostics)).toEqual(['apiKey'])
+
+    const source = await getSource(created.workflowId)
+    expect(source.files['workflow.ts']).toContain('apiKey: stored()')
+    expect(Object.values(source.files).join('\n')).not.toContain('placeholder-not-a-real-key')
+    expect(secrets(source.diagnostics)).toEqual(['apiKey'])
+    const dryRun = await apply(source, source.files, { dryRun: true })
+    expect(secrets(dryRun.diagnostics)).toEqual(['apiKey'])
+
+    const fixed = await apply(
+      source,
+      edit(source.files, 'apiKey: stored()', 'apiKey: env.OPENAI_API_KEY'),
+      { dryRun: true }
+    )
+    expect(secrets(fixed.diagnostics)).toEqual([])
+  }
+)
+
 check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {
   const workflowId = generateId()
   const now = new Date()

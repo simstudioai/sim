@@ -96,6 +96,34 @@ describe('stored()', () => {
     )
   })
 
+  it('warns W_LITERAL_SECRET where a password field holds literal text, in compile and print', () => {
+    const secrets = (diagnostics: ReadonlyArray<{ code: string; param?: string }>) =>
+      diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET').map((d) => d.param)
+    const written = run(storedText)
+    expect(secrets(written.diagnostics)).toEqual(['apiKey'])
+    expect(written.diagnostics.find((d) => d.code === 'W_LITERAL_SECRET')?.message).toBe(
+      'apiKey holds a literal secret; use env.NAME.'
+    )
+    expect(
+      secrets(run(source("  mail('M', { apiKey: stored() })"), storedWorkflow).diagnostics)
+    ).toEqual(['apiKey'])
+    const print = printWorkflow({
+      workflow: storedWorkflow,
+      catalog: TEST_CATALOG,
+      options: { functionCode: 'inline' },
+    })
+    expect(secrets(print.diagnostics)).toEqual(['apiKey'])
+
+    const env = run(source("  mail('M', { apiKey: '{{MAIL_KEY}}' })"))
+    expect(secrets(env.diagnostics)).toEqual([])
+    const envPrint = printWorkflow({
+      workflow: compiled(source("  mail('M', { apiKey: '{{MAIL_KEY}}' })")),
+      catalog: TEST_CATALOG,
+      options: { functionCode: 'inline' },
+    })
+    expect(secrets(envPrint.diagnostics)).toEqual([])
+  })
+
   it('refuses stored() inside a value', () => {
     expect(codes(run(source("  mail('M', { to: [stored()] })"), storedWorkflow))).toContain(
       'E_UNSUPPORTED_SYNTAX'
@@ -114,6 +142,15 @@ describe('tool params', () => {
     const text = printed(storedWorkflow)
     expect(text).toContain("mail.tool({ credential: credential('ops'), apiKey: stored() })")
     expect(text).not.toContain('sk-tool-1')
+    expect(
+      printWorkflow({
+        workflow: storedWorkflow,
+        catalog: TEST_CATALOG,
+        options: { functionCode: 'inline' },
+      })
+        .diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET')
+        .map((d) => d.param)
+    ).toEqual(['apiKey'])
     const next = compiled(
       tools("{ credential: credential('ops'), apiKey: stored() }"),
       storedWorkflow

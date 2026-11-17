@@ -27,6 +27,7 @@ import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
   type AnchorKey,
+  type BlockKey,
   type CanonicalBlock,
   type CanonicalBranches,
   type CanonicalBranchRow,
@@ -40,6 +41,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
+import { isLiteralSecret, literalSecretFinding } from '../secrets'
 import { checkStorableText } from './characters'
 import {
   type BlockDecl,
@@ -405,6 +407,20 @@ interface WrittenParam {
   value: Value
 }
 
+/** `W_LITERAL_SECRET` on a password field whose value is literal text, written or kept stored. */
+function reportLiteralSecret(
+  ctx: CompileContext,
+  blockKey: BlockKey,
+  entry: Pick<WrittenParam, 'property' | 'param'>
+): void {
+  const { message, hint } = literalSecretFinding(entry.param)
+  ctx.reporter.report('W_LITERAL_SECRET', message, rangeOf(ctx, entry.property), {
+    hint,
+    blockKey,
+    param: entry.param,
+  })
+}
+
 /** The site for one field: variables-input fields read bare `vars.k` as the variable itself. */
 function fieldSite(site: ValueSite, sub: CatalogSubBlock | undefined): ValueSite {
   return sub?.structured === 'variables' ? { ...site, varNodes: true } : site
@@ -603,7 +619,7 @@ function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: Compile
 function keepStored(
   ctx: CompileContext,
   state: BlockState,
-  members: ReadonlyArray<{ id: SubBlockId }>,
+  members: ReadonlyArray<{ id: SubBlockId; password?: boolean }>,
   property: ObjectProperty,
   field: CatalogField | null
 ): void {
@@ -623,10 +639,13 @@ function keepStored(
     )
     return
   }
-  for (const { id } of members) {
-    const param = getOwn(stored.params, id)
-    if (param) setOwn(params, id, param)
-    else state.unset.add(id)
+  for (const member of members) {
+    const param = getOwn(stored.params, member.id)
+    if (param) setOwn(params, member.id, param)
+    else state.unset.add(member.id)
+    if (param?.kind === 'value' && member.password && isLiteralSecret(param.value)) {
+      reportLiteralSecret(ctx, decl.key, { property, param: name })
+    }
   }
   const mode = field && isModalPair(field) ? getOwn(stored.modes, field.param) : undefined
   if (field && mode) setOwn(modes, field.param, mode)
@@ -1131,6 +1150,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         param: entry.param,
       })
     }
+    if (sub.password && isLiteralSecret(entry.value)) reportLiteralSecret(ctx, decl.key, entry)
     if (entry.checked && !valueKindMatches(sub, entry.value)) {
       ctx.reporter.report(
         'W_VALUE_KIND',

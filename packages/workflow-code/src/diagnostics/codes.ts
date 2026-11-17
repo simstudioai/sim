@@ -140,6 +140,8 @@ type CompileCatalogCode =
   | 'W_VALUE_KIND'
   /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
   | 'W_TABLE_FILTER_SHAPE'
+  /** A password field holding literal text instead of an env reference (printed as `stored()`). */
+  | 'W_LITERAL_SECRET'
   /**
    * A loop/parallel count or batch size the runtime replaces or clamps; kept so stored values
    * round-trip.
@@ -184,8 +186,15 @@ export type CompileDiagnosticCode =
   | CodeFileCode
   | ReferenceCode
 
-/** Print emits only reference, comment and code-file fallbacks; every print compiles. */
-export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
+/**
+ * Print emits only reference, comment and code-file fallbacks and literal secrets; every print
+ * compiles.
+ */
+export type PrintDiagnosticCode =
+  | ReferenceCode
+  | 'W_CODE_FILE_INLINED'
+  | 'W_RAW_HANDLE'
+  | 'W_LITERAL_SECRET'
 
 /** `parseWorkflowLock` (lock.ts). */
 export type LockDiagnosticCode =

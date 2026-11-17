@@ -6,7 +6,6 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
@@ -56,6 +55,7 @@ import {
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
+import { isLiteralSecret, literalSecretFinding } from '../secrets'
 import { type AttachedComments, anchors, CommentPlacer, withComments } from './comments'
 import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from './doc'
 import { assignIdentifiers } from './idents'
@@ -175,19 +175,6 @@ function kebab(ident: string): string {
 }
 
 const NULL_EXPR: Expr = { doc: 'null', shape: 'literal', depth: 1 }
-/**
- * A value in a password field that holds literal text: anything but `null`, `''` or text made
- * only of reference and `{{ENV}}` tokens. It prints as `stored()`, never as the secret.
- */
-function isLiteralSecret(value: Value): boolean {
-  if (value === null || value === '') return false
-  if (typeof value !== 'string') return true
-  let rest = value
-  for (const token of findWorkflowReferenceTokens(value).reverse()) {
-    rest = rest.slice(0, token.start) + rest.slice(token.end)
-  }
-  return rest.trim() !== ''
-}
 
 /** One resolved param ready to print. */
 interface ParamEntry {
@@ -457,7 +444,7 @@ class WorkflowPrinter {
     const param = getOwn(block.params, id)
     if (!param) return null
     if (param.kind === 'tools') return this.printTools(block, param.tools)
-    if (sb?.password && isLiteralSecret(param.value)) return this.values.call('stored', [])
+    if (sb?.password && isLiteralSecret(param.value)) return this.storedSecret(block, sb.id)
     if (
       single &&
       sb?.type === 'code' &&
@@ -716,7 +703,7 @@ class WorkflowPrinter {
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
       if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
-        return this.rawToolCall(tool, declared, aliases)
+        return this.rawToolCall(block, tool, declared, aliases)
       }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
@@ -728,7 +715,7 @@ class WorkflowPrinter {
             key: printKey(aliases.get(id) ?? id),
             value:
               sb?.password && isLiteralSecret(value)
-                ? this.values.call('stored', [])
+                ? this.storedSecret(block, aliases.get(id) ?? id)
                 : sb
                   ? this.values.field(value, { ...nested, subBlock: sb })
                   : this.values.value(value, nested),
@@ -770,11 +757,27 @@ class WorkflowPrinter {
   }
 
   /**
+   * `stored()` for a password field holding literal text (`isLiteralSecret`), which keeps the
+   * secret out of source, with the `W_LITERAL_SECRET` warning that it is stored as text.
+   */
+  private storedSecret(block: CanonicalBlock, name: string): Expr {
+    this.diagnostics.push({
+      code: 'W_LITERAL_SECRET',
+      severity: 'warning',
+      ...literalSecretFinding(name),
+      blockKey: block.key,
+      param: name,
+    })
+    return this.values.call('stored', [])
+  }
+
+  /**
    * `raw(tool)`: the tool verbatim, except that a password param holding literal text prints as
    * `stored()`, as it does through a builder. A param spelled like an alias is a password when the
    * param the alias names is one.
    */
   private rawToolCall(
+    block: CanonicalBlock,
     tool: CanonicalTool,
     declared: CatalogBlock | undefined,
     aliases: ReadonlyMap<string, string>
@@ -795,7 +798,7 @@ class WorkflowPrinter {
       Object.entries(tool.params).map(([id, value]) => ({
         key: printKey(id),
         value: secret(id, value)
-          ? this.values.call('stored', [])
+          ? this.storedSecret(block, id)
           : this.values.json(asToolJson(tool, value)),
       }))
     )
