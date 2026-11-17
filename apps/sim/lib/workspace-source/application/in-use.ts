@@ -7,7 +7,7 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { KIND_DIRS } from '@sim/workspace-code'
 import { type WorkflowDecl, workflowSourceBase } from '@sim/workspace-code/kinds/workflow'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { finding } from '@/lib/workspace-source/application/findings'
 import type { PlannedChange } from '@/lib/workspace-source/application/types'
 
@@ -23,7 +23,7 @@ interface UsingWorkflow {
  * The live workflows of the workspace whose blocks name any of `ids`, by resource id. A block
  * names a resource by its id in a sub-block value (alone, in a list, or comma-joined), so a match
  * anywhere in the sub-block values counts; ids are opaque and unique, so it never matches by
- * accident.
+ * accident. Each block's sub-blocks are cast to text once (a materialized CTE), not once per id.
  */
 async function workflowsUsing(
   workspaceId: string,
@@ -31,20 +31,20 @@ async function workflowsUsing(
 ): Promise<Map<string, UsingWorkflow[]>> {
   const using = new Map<string, UsingWorkflow[]>()
   if (ids.length === 0) return using
-  const referenced = sql`unnest(ARRAY[${sql.join(
-    ids.map((id) => sql`${id}`),
-    sql`, `
-  )}]::text[]) AS referenced(id)`
-  const rows = await db
-    .selectDistinct({
-      resourceId: sql<string>`referenced.id`,
-      id: workflow.id,
-      name: workflow.name,
-    })
-    .from(workflowBlocks)
-    .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
-    .innerJoin(referenced, sql`strpos(${workflowBlocks.subBlocks}::text, referenced.id) > 0`)
-    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+  const rows = await db.execute<{ resourceId: string; id: string; name: string }>(sql`
+    WITH blocks AS MATERIALIZED (
+      SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks}::text AS text
+      FROM ${workflowBlocks}
+      INNER JOIN ${workflow} ON ${workflow.id} = ${workflowBlocks.workflowId}
+      WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
+    )
+    SELECT DISTINCT referenced.id AS "resourceId", blocks.id, blocks.name
+    FROM blocks
+    INNER JOIN unnest(ARRAY[${sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `
+    )}]::text[]) AS referenced(id) ON strpos(blocks.text, referenced.id) > 0
+  `)
   for (const row of rows) {
     const list = using.get(row.resourceId) ?? []
     list.push({ id: row.id, name: row.name })
