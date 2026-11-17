@@ -571,7 +571,7 @@ describe('workspace source: custom tools and skills', () => {
     }
   )
 
-  check('a workflow uses a tool and a skill the same apply adopts', async () => {
+  check('applies a workflow using a tool and a skill the same apply adopts', async () => {
     const workspaceId = await newWorkspace()
     const { tool } = await createWorkspaceCustomToolUseCase.execute({
       principal: owner,
@@ -585,19 +585,13 @@ describe('workspace source: custom tools and skills', () => {
         code: 'return 1',
       },
     })
-    await createSkillUseCase.execute({
+    const { skill: adoptedSkill } = await createSkillUseCase.execute({
       principal: owner,
       input: { workspaceId, name: 'tone', description: 'Old', content: 'Old' },
     })
-    const files = { ...TOOLS, ...SKILLS, 'workflows/support/workflow.ts': SUPPORT }
+    const files = { ...TOOLS, ...SKILLS, 'workflows/support/workflow.ts': SUPPORT_WITH_SKILL }
     const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'skill', 'workflow']
 
-    const withSkill = await apply(
-      workspaceId,
-      { ...files, 'workflows/support/workflow.ts': SUPPORT_WITH_SKILL },
-      { kinds, dryRun: true }
-    )
-    expect(codes(withSkill.diagnostics)).not.toContain('E_MAT_UNKNOWN_RESOURCE')
     const dryRun = await apply(workspaceId, files, { kinds, dryRun: true })
     expect(codes(dryRun.diagnostics)).toEqual([])
 
@@ -616,6 +610,11 @@ describe('workspace source: custom tools and skills', () => {
       return Array.isArray(value) ? value : []
     })
     expect(agentTools).toContainEqual(expect.objectContaining({ customToolId: tool.id }))
+    const agentSkills = Object.values(state?.blocks ?? {}).flatMap((block) => {
+      const value = block.subBlocks?.skills?.value
+      return Array.isArray(value) ? value : []
+    })
+    expect(agentSkills).toEqual([{ skillId: adoptedSkill.id, name: 'tone' }])
   })
 
   check(
