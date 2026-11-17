@@ -22,6 +22,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/knowledge/search/integration-policy', () => knowledgeSearchIntegrationPolicyMock)
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({
+  isAdminGitLabAccountId: (accountId: string) => accountId.startsWith('gitlab-source:'),
   listAdminGitLabAccounts: hoisted.admin,
   resolveAdminGitLabAccount: hoisted.resolveAdmin,
 }))
