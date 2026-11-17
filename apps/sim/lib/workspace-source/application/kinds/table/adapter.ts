@@ -7,7 +7,7 @@
 import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
-import { type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
+import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
@@ -24,7 +24,10 @@ import {
   updateTableUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
+import {
+  PartiallyAppliedError,
+  ResourceChangedError,
+} from '@/lib/workspace-source/application/errors'
 import {
   noBaseFinding,
   planUndeclared,
@@ -217,6 +220,27 @@ async function planTable(
   }
 }
 
+/**
+ * The column bindings of `state` for `decl`: the planned ones (by column id, so they survive a
+ * rename), and by name for every other declared column the table now holds.
+ */
+function bindingsAfter(
+  state: StoredTableState,
+  decl: TableDecl,
+  planned: Readonly<Record<string, BaseColumn>> = {}
+): Record<string, BaseColumn> {
+  const ids = new Set(state.table.schema.columns.map((column) => column.id))
+  const byName = new Map(state.table.schema.columns.map((column) => [column.name, column]))
+  const bindings: Record<string, BaseColumn> = {}
+  for (const [columnKey, column] of Object.entries(decl.columns)) {
+    const plannedId = Object.hasOwn(planned, columnKey) ? planned[columnKey].id : undefined
+    const id =
+      plannedId && ids.has(plannedId) ? plannedId : byName.get(columnName(columnKey, column))?.id
+    if (id) bindings[columnKey] = { id }
+  }
+  return bindings
+}
+
 /** The stored table, its base entry and reprinted file after a write, keyed by the declaration. */
 async function written(
   ctx: SourceContext,
@@ -225,14 +249,36 @@ async function written(
   decl: TableDecl
 ): Promise<AppliedResource> {
   const state = await reload(ctx, tableId)
-  const byName = new Map(state.table.schema.columns.map((column) => [column.name, column]))
-  const bindings: Record<string, BaseColumn> = {}
-  for (const [columnKey, column] of Object.entries(decl.columns)) {
-    const stored = byName.get(column.name ?? columnKey)
-    if (stored?.id) bindings[columnKey] = { id: stored.id }
-  }
-  const { base, printed } = printStoredTable(storedTable(key, state), key, bindings)
+  const { base, printed } = printStoredTable(
+    storedTable(key, state),
+    key,
+    bindingsAfter(state, decl)
+  )
   return { id: tableId, base, text: printed.text }
+}
+
+/**
+ * Applies an update's changes; when one fails after others committed, rethrows it with the
+ * table's base entry as it now stands, so the next run plans only what is left.
+ */
+async function applyUpdate(
+  ctx: SourceContext,
+  change: TableChange,
+  tableId: string,
+  plan: TablePlan & { changes: TableChanges },
+  decl: TableDecl
+): Promise<void> {
+  try {
+    await applyChanges(ctx, tableId, plan.changes)
+  } catch (error) {
+    const state = await reload(ctx, tableId).catch(() => null)
+    if (!state) throw error
+    const bindings = bindingsAfter(state, decl, plan.bindings)
+    throw new PartiallyAppliedError(
+      error,
+      printStoredTable(storedTable(change.key, state), change.key, bindings).base
+    )
+  }
 }
 
 /** Carries out a planned table update: fields, then drops, renames and type changes, then adds. */
@@ -429,6 +475,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       throw new ResourceChangedError(change)
     }
     if (change.action === 'adopt') {
+      await applyChanges(ctx, tableId, plan.changes)
       await claimResourceKey({
         workspaceId,
         kind: 'table',
@@ -437,8 +484,9 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
         origin: 'adopted',
         createdBy: ctx.createdBy,
       })
+    } else {
+      await applyUpdate(ctx, change, tableId, { ...plan, changes: plan.changes }, decl)
     }
-    await applyChanges(ctx, tableId, plan.changes)
     return written(ctx, change.key, tableId, decl)
   },
 

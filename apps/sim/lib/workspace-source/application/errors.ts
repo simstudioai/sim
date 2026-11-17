@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { WorkspaceKind } from '@sim/workspace-code'
+import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
 import { GET_HINT } from '@/lib/workspace-source/application/findings'
@@ -40,6 +40,21 @@ export class ResourceChangedError extends OrchestrationError {
       `${resource.kind} ${resource.key} changed on the server while this apply ran.`
     )
     this.name = 'ResourceChangedError'
+  }
+}
+
+/**
+ * A write that failed after part of it committed (a table update runs one use case per column
+ * change). `base` is the resource's base entry as it now stands, so the apply records it and the
+ * next run plans only the remainder instead of finding the resource changed since its base.
+ */
+export class PartiallyAppliedError extends Error {
+  constructor(
+    cause: unknown,
+    readonly base: BaseResource
+  ) {
+    super(getErrorMessage(cause), { cause })
+    this.name = 'PartiallyAppliedError'
   }
 }
 

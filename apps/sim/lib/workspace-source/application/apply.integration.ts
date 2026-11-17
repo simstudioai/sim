@@ -32,6 +32,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import * as columnUseCases from '@/lib/table/application/columns'
 import * as tableUseCases from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -659,4 +660,82 @@ describe('workspace source apply', () => {
     expect(result.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_STALE' })
     expect(await tables(workspaceId)).toHaveLength(1)
   })
+
+  check(
+    'a table update that fails after a column drop records what committed, and a re-run converges',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const files = {
+        ...read.files,
+        'tables/leads.ts': read.files['tables/leads.ts']
+          .replace(/\n {4}status: .*\n/, '\n')
+          .replace('columns: {', 'columns: {\n    score: column.number(),'),
+      }
+      const failing = vi
+        .spyOn(columnUseCases.addTableColumnUseCase, 'execute')
+        .mockRejectedValue(new Error('connection reset'))
+
+      const partial = await apply(workspaceId, files, {
+        base: read.base,
+        allowDelete: true,
+      }).finally(() => failing.mockRestore())
+
+      expect(partial.failed).toMatchObject({ kind: 'table', key: 'leads', code: 'E_APPLY_FAILED' })
+      expect((await storedTable(workspaceId)).schema.columns.map((column) => column.name)).toEqual([
+        'email',
+      ])
+
+      const rerun = await apply(workspaceId, files, { base: partial.base, allowDelete: true })
+
+      expect(rerun.failed).toBeUndefined()
+      expect(rerun.plan.find((change) => change.key === 'leads')).toMatchObject({
+        action: 'update',
+        fields: ['columns.score (add)'],
+      })
+      expect((await storedTable(workspaceId)).schema.columns.map((column) => column.name)).toEqual([
+        'email',
+        'score',
+      ])
+    }
+  )
+
+  check(
+    'an adopt whose changes fail leaves the table unbound, and a re-run adopts it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await tableUseCases.createTableUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'leads',
+          schema: { columns: [{ name: 'email', type: 'string', required: true }] },
+        },
+      })
+      const files = { 'tables/leads.ts': LEADS }
+      const failing = vi
+        .spyOn(columnUseCases.addTableColumnUseCase, 'execute')
+        .mockRejectedValue(new Error('connection reset'))
+
+      const partial = await apply(workspaceId, files, {
+        kinds: ['table'],
+        only: ['table'],
+      }).finally(() => failing.mockRestore())
+
+      expect(partial.failed).toMatchObject({ kind: 'table', key: 'leads' })
+
+      const rerun = await apply(workspaceId, files, {
+        base: partial.base,
+        kinds: ['table'],
+        only: ['table'],
+      })
+
+      expect(rerun.failed).toBeUndefined()
+      expect(rerun.applied).toMatchObject([{ action: 'adopt', key: 'leads' }])
+      expect((await storedTable(workspaceId)).schema.columns.map((column) => column.name)).toEqual([
+        'email',
+        'status',
+      ])
+    }
+  )
 })

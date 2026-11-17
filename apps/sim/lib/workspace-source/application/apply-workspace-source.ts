@@ -13,6 +13,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
+  PartiallyAppliedError,
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
@@ -181,7 +182,13 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         result.diagnostics.push(...(written.diagnostics ?? []))
         result.applied.push(summarize(change, written.id))
       } catch (error) {
-        const failure = failureOf(error, change)
+        if (error instanceof PartiallyAppliedError) {
+          base.resources[resourceAddress(change.kind, change.key)] = error.base
+        }
+        const failure = failureOf(
+          error instanceof PartiallyAppliedError ? error.cause : error,
+          change
+        )
         result.failed = failure.failed
         result.diagnostics.push(...failure.diagnostics)
         break
