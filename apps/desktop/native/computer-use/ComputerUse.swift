@@ -220,12 +220,12 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
         let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = false
         let app = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         guard app.bundleIdentifier == bundle, !app.isTerminated else { throw ComputerError("app_identity_mismatch", "Launched app identity does not match the requested bundle ID.") }
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(root, 0.1)
+        // Apps built on Electron or Catalyst take several seconds to show their first window; wait for
+        // one an observation can target rather than failing the read the agent will only repeat.
         var windowReady = false
-        for _ in 0..<20 {
+        for _ in 0..<80 {
             try checkCancellation()
-            if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement], !windows.isEmpty { windowReady = true; break }
+            if hasObservableWindow(app.processIdentifier) { windowReady = true; break }
             guard !app.isTerminated else { throw ComputerError("app_unavailable", "App exited while opening its window.") }
             try await Task.sleep(for: .milliseconds(100))
         }
@@ -244,6 +244,23 @@ func requireAccessibility() throws {
 func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
     return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+}
+/// Whether the app has a window an observation can list: an Accessibility window whose frame matches
+/// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it
+/// is listed and `activate_app` can bring it forward.
+func hasObservableWindow(_ pid: pid_t) -> Bool {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else { return false }
+    let frames = windows.compactMap { window -> CGRect? in
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        return elementRect(window)
+    }
+    return windowsFor(pid).contains { entry in
+        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0 else { return false }
+        return frames.contains(rect)
+    }
 }
 func windowRect(_ id: String?, pid: pid_t) throws -> CGRect {
     let id = try required(id, "windowId")
