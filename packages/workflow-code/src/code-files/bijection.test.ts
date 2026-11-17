@@ -206,6 +206,7 @@ describe('code with carriage returns', () => {
       catalog: CATALOG,
       options: { functionCode: 'files' },
     })
+    for (const file of printed.files) expect(file.text).not.toContain('\r')
     const [entry, ...codeFiles] = printed.files
     if (!entry) throw new Error('expected an entry file')
     const compiled = compileWorkflow({

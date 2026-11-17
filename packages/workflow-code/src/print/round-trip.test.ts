@@ -27,8 +27,15 @@ function compiled(body: string): CanonicalWorkflow {
   return result.workflow
 }
 
+/** Prints inline; no emitted file holds a raw carriage return, which checkouts rewrite. */
 function printed(workflow: CanonicalWorkflow) {
-  return printWorkflow({ workflow, catalog: TEST_CATALOG, options: { functionCode: 'inline' } })
+  const output = printWorkflow({
+    workflow,
+    catalog: TEST_CATALOG,
+    options: { functionCode: 'inline' },
+  })
+  for (const file of output.files) expect(file.text).not.toContain('\r')
+  return output
 }
 
 describe('printWorkflow round trip', () => {
@@ -38,6 +45,15 @@ describe('printWorkflow round trip', () => {
     expect(entry?.text).not.toContain('vars.constructor')
     const again = compile(entry?.text ?? '')
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  })
+
+  it('escapes carriage returns in text values and compiles them back unchanged', () => {
+    const workflow = compiled("  const a = api('A', { url: 'x\\r\\ny\\rz' })")
+    expect(JSON.stringify(workflow.blocks.a?.params.url)).toContain('\\r')
+    const output = printed(workflow)
+    const again = compile(output.files[0]?.text ?? '')
+    expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(again.workflow?.blocks.a?.params.url).toEqual(workflow.blocks.a?.params.url)
   })
 
   it('declares a block referenced only from a custom tool policy before its referrer', () => {
