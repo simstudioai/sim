@@ -7,7 +7,7 @@
 import { compareStrings } from '@sim/utils/string'
 import { stableStringify } from '@sim/workflow-code'
 import { type BaseResource, fingerprintOf, type ResourceFingerprint } from '@sim/workspace-code'
-import { fileKeyConflicts } from '@sim/workspace-code/kinds/files'
+import { foldedFileKey } from '@sim/workspace-code/kinds/files'
 import {
   canonicalChunking,
   isKnowledgeDocName,
@@ -95,6 +95,7 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
  * neither printed nor written until only one holds it. A name a case-insensitive or
  * normalizing disk would merge with another managed one (`Report.pdf` beside `report.pdf`) is
  * left out too, after the first in name order, so a get never writes two documents to one file.
+ * The rule and order are `foldedFileKey` over sorted names, as the knowledge codec reads them.
  */
 export function sourceDocs(docs: readonly StoredDoc[]): {
   byName: Map<string, StoredDoc>
@@ -119,11 +120,15 @@ export function sourceDocs(docs: readonly StoredDoc[]): {
   }
   const byName = new Map<string, StoredDoc>()
   const ambiguous = new Map<string, StoredDoc[]>()
-  const colliding = fileKeyConflicts([...named.keys()].sort(compareStrings))
-  for (const [name, holders] of named) {
-    if (colliding.has(name)) {
+  const folded = new Set<string>()
+  for (const name of [...named.keys()].sort(compareStrings)) {
+    const holders = named.get(name) ?? []
+    if (folded.has(foldedFileKey(name))) {
       unmanaged += holders.length
-    } else if (holders.length === 1) {
+      continue
+    }
+    folded.add(foldedFileKey(name))
+    if (holders.length === 1) {
       byName.set(name, holders[0])
     } else {
       ambiguous.set(name, holders)
