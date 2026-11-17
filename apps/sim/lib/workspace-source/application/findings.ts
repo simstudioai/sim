@@ -1,7 +1,14 @@
 /**
  * The findings every kind reports the same way, so the plan reads alike across kinds.
  */
-import { KIND_DIRS, resourceAddress, type WorkspaceKind } from '@sim/workspace-code'
+import {
+  diagnostic,
+  flattenDiagnostic,
+  KIND_DIRS,
+  resourceAddress,
+  type WorkspaceDiagnosticCode,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import type {
   PlanContext,
   PlannedChange,
@@ -17,6 +24,17 @@ export const GET_HINT =
 /** `tables/leads`: how a finding names a resource. */
 function where(kind: WorkspaceKind, key: string): string {
   return `${KIND_DIRS[kind]}/${key}`
+}
+
+/** A finding about one resource, its severity fixed by the code's prefix. */
+export function kindFinding(
+  kind: WorkspaceKind,
+  key: string,
+  code: WorkspaceDiagnosticCode,
+  message: string,
+  hint?: string
+): WorkspaceSourceDiagnostic {
+  return flattenDiagnostic(diagnostic(code, message, { kind, key, ...(hint ? { hint } : {}) }))
 }
 
 export function staleFinding(kind: WorkspaceKind, key: string): WorkspaceSourceDiagnostic {

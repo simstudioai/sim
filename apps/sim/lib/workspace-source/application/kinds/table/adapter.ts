@@ -26,6 +26,7 @@ import {
 import { getTableById } from '@/lib/table/service'
 import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
+  kindFinding,
   noBaseFinding,
   planUndeclared,
   serverChangedFinding,
@@ -83,17 +84,6 @@ async function reload(ctx: SourceContext, tableId: string): Promise<StoredTableS
   return { table, folderPath: tableFolderPathForId(folders, table.folderId) }
 }
 
-function finding(key: string, code: string, message: string, hint?: string) {
-  return {
-    code,
-    severity: code.startsWith('E_') ? ('error' as const) : ('warning' as const),
-    message,
-    ...(hint ? { hint } : {}),
-    kind: 'table',
-    key,
-  }
-}
-
 async function planTable(
   key: string,
   decl: TableDecl,
@@ -104,7 +94,8 @@ async function planTable(
   const change: TableChange = { kind: 'table', key, action: 'noop', decl, diagnostics: [] }
   if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
     change.diagnostics.push(
-      finding(
+      kindFinding(
+        'table',
         key,
         'E_TABLE_FOLDER',
         `The folder ${decl.folder} does not exist in this workspace.`,
@@ -141,7 +132,8 @@ async function planTable(
       )
       if (holder) {
         change.diagnostics.push(
-          finding(
+          kindFinding(
+            'table',
             key,
             'E_NAME_TAKEN',
             `The table name "${decl.name}" belongs to the table under key "${holder.key}".`,
@@ -165,7 +157,8 @@ async function planTable(
       const changed = changes.columns.length > 0 || changes.fields.length > 0
       if (changed && state.table.locks.schemaLocked) {
         change.diagnostics.push(
-          finding(
+          kindFinding(
+            'table',
             key,
             'E_APPLY_LOCKED',
             `Table "${state.table.name}" is schema-locked.`,
@@ -175,7 +168,8 @@ async function planTable(
       }
       if (changes.dropped > 0 && !ctx.allowDelete) {
         change.diagnostics.push(
-          finding(
+          kindFinding(
+            'table',
             key,
             'E_APPLY_DELETE_NOT_ALLOWED',
             `This drops ${changes.dropped} column(s) of "${state.table.name}", losing ${changes.lostCells} cell(s).`,
