@@ -41,14 +41,14 @@ export interface DeclarationCall {
   args: Json[]
 }
 
-export interface ReadDeclarationOptions {
+interface ReadDeclarationOptions {
   /** The function the file default-exports a call of: `defineTable`. */
   callee: string
   /** Helper calls a value may be (`column.string`, `codeFile`), by their dotted name. */
   calls?: ReadonlySet<string>
 }
 
-export interface ReadDeclaration {
+interface ReadDeclaration {
   /** The default export's argument, when the file reads. */
   value?: Json
   /** JSON Pointer → span of the value at it (`''` is the whole argument). */

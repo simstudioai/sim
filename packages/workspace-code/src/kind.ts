@@ -51,7 +51,7 @@ export interface GroupedPaths {
 }
 
 /** What a resource's files read as: its declaration, or the findings that refuse it. */
-export interface ParsedDeclaration<D> {
+interface ParsedDeclaration<D> {
   decl?: D
   diagnostics: WorkspaceDiagnostic[]
 }

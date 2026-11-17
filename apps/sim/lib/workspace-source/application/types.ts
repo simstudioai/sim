@@ -90,7 +90,7 @@ export interface ReadBlob extends BlobEntry {
 }
 
 /** One stored resource as source. */
-export interface ReadResource {
+interface ReadResource {
   text: Record<string, string>
   blobs: ReadBlob[]
   base: BaseResource

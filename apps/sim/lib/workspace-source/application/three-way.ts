@@ -12,12 +12,12 @@ import type { StoredResource } from '@/lib/workspace-source/application/types'
  * | differs | equal | `apply` |
  * | differs | differs | `noop` when local equals server, else `stale` |
  */
-export type ThreeWayOutcome =
+type ThreeWayOutcome =
   | { action: 'noop'; serverChanged: boolean }
   | { action: 'apply' }
   | { action: 'stale' }
 
-export function decide(local: string, base: string, server: string): ThreeWayOutcome {
+function decide(local: string, base: string, server: string): ThreeWayOutcome {
   if (local === base) return { action: 'noop', serverChanged: server !== base }
   if (server === base) return { action: 'apply' }
   return local === server ? { action: 'noop', serverChanged: true } : { action: 'stale' }

@@ -37,7 +37,7 @@ export interface ColumnInput {
   currencyCode?: string
 }
 
-export type ColumnChange =
+type ColumnChange =
   | { op: 'add'; key: string; column: ColumnInput }
   | { op: 'update'; key: string; columnId: string; updates: Partial<ColumnInput>; fields: string[] }
   | { op: 'drop'; key: string; columnId: string; name: string; cells: number }

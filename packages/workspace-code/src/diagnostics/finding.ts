@@ -58,11 +58,6 @@ export function spanAt(file: string, text: string, start: number, end: number): 
   }
 }
 
-/** Whether any finding is an error. */
-export function hasErrors(diagnostics: readonly { severity: DiagnosticSeverity }[]): boolean {
-  return diagnostics.some((finding) => finding.severity === 'error')
-}
-
 /**
  * A finding flattened for the wire: the span becomes `file`/`line`/`column`, as workflow source
  * diagnostics travel.

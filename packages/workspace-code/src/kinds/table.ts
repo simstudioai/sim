@@ -33,7 +33,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { groupByFile } from './group'
 
 /** Column types, as `apps/sim/lib/table/column-types` defines them. */
-export const TABLE_COLUMN_TYPES = [
+const TABLE_COLUMN_TYPES = [
   'string',
   'number',
   'currency',
@@ -44,7 +44,7 @@ export const TABLE_COLUMN_TYPES = [
   'select',
 ] as const
 
-export type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number]
+type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number]
 
 export interface TableColumnDecl {
   type: TableColumnType
@@ -69,7 +69,7 @@ export interface TableDecl {
 }
 
 /** Table and column names (`NAME_PATTERN` in apps/sim/lib/table/constants). */
-export const TABLE_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const TABLE_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const MAX_TABLE_NAME_LENGTH = 128
 const MAX_COLUMN_NAME_LENGTH = 50
 const MAX_DESCRIPTION_LENGTH = 500

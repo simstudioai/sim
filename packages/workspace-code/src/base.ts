@@ -18,7 +18,7 @@ import { isResourceKey } from './layout'
 export type ResourceFingerprint = `rf1:${string}`
 
 /** `kind:key`, the base's resource address. */
-export type ResourceAddress = `${WorkspaceKind}:${string}`
+type ResourceAddress = `${WorkspaceKind}:${string}`
 
 export type BaseColumn = {
   [extension: LockExtensionKey]: Json
@@ -27,7 +27,7 @@ export type BaseColumn = {
   options?: Record<string, string>
 }
 
-export type BaseBlob = {
+type BaseBlob = {
   [extension: LockExtensionKey]: Json
   id: string
   rev: number | string
@@ -50,7 +50,7 @@ export type WorkspaceBaseV1 = {
   resources: Record<ResourceAddress, BaseResource>
 }
 
-export type BaseDiagnostic = WorkspaceDiagnostic<
+type BaseDiagnostic = WorkspaceDiagnostic<
   'E_BASE_JSON' | 'E_BASE_VERSION' | 'E_BASE_SHAPE' | 'E_BASE_UNKNOWN_FIELD'
 >
 
@@ -67,7 +67,7 @@ export function resourceAddress(kind: WorkspaceKind, key: string): ResourceAddre
 }
 
 /** The kind and key of an address, or `null` when it is not one. */
-export function parseResourceAddress(address: string): { kind: WorkspaceKind; key: string } | null {
+function parseResourceAddress(address: string): { kind: WorkspaceKind; key: string } | null {
   const colon = address.indexOf(':')
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)

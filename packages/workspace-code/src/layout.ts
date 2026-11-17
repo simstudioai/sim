@@ -18,7 +18,7 @@ export const WORKFLOW_BASE_FILE = '.sim/base.json'
 export const DECLARATION_EXTENSION = '.ts'
 
 /** The stored resource key format (`workspace_resource_key.key`). */
-export const RESOURCE_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/
+const RESOURCE_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,63}$/
 
 export function isResourceKey(value: string): boolean {
   return RESOURCE_KEY_PATTERN.test(value)

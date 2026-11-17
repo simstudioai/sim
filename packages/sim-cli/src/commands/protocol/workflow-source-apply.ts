@@ -184,7 +184,7 @@ function diffSummary(data: SourceApplyData): string {
 }
 
 /** Whether a person is at a terminal to answer a prompt: never for an embedded run. */
-export function canPrompt(): boolean {
+function canPrompt(): boolean {
   return !embedStore.getStore() && process.stdin.isTTY === true && process.stderr.isTTY === true
 }
 
