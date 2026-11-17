@@ -26,8 +26,8 @@ import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
 import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
-import { isWorkspaceSourcePath } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
+import { filePathProblem, foldedFileKey } from './files'
 import { groupByFolder } from './group'
 
 /** Chunking strategies (`ChunkingStrategy` in apps/sim/lib/chunkers/types). */
@@ -76,7 +76,6 @@ const DEFAULT_CHUNKING = { maxSize: 1024, minSize: 100, overlap: 200 } as const
 
 /** Mirrors `KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH` (apps/sim/lib/knowledge/constants). */
 const MAX_DESCRIPTION_LENGTH = 10_000
-const MAX_DOC_NAME_LENGTH = 255
 const SHA256 = /^[0-9a-f]{64}$/
 
 const CALLEE = 'defineKnowledgeBase'
@@ -97,16 +96,11 @@ export function knowledgeDocPath(key: string, name: string): string {
 }
 
 /**
- * Whether a document file name can be a file of the directory: one plain path segment (no `/`,
- * no leading dot, no control or reserved character), at most 255 characters.
+ * Whether a document file name can be a file of the directory: one path segment that any disk
+ * can hold, by the rules workspace files follow ({@link filePathProblem}).
  */
 export function isKnowledgeDocName(name: string): boolean {
-  return (
-    name.length > 0 &&
-    name.length <= MAX_DOC_NAME_LENGTH &&
-    !name.includes('/') &&
-    isWorkspaceSourcePath(knowledgeDocPath('k', name))
-  )
+  return !name.includes('/') && filePathProblem(name) === null
 }
 
 function oneOf<T extends string>(values: readonly T[], value: string): value is T {
@@ -221,11 +215,23 @@ function readDocs(
 ): Record<string, KnowledgeDocDecl> {
   const prefix = knowledgeDocPath(key, '')
   const docs: Array<[string, KnowledgeDocDecl]> = []
+  const folded = new Map<string, string>()
   for (const blob of [...blobs].sort((a, b) => compareStrings(a.path, b.path))) {
     const name = blob.path.slice(prefix.length)
+    const earlier = folded.get(foldedFileKey(name))
     if (!blob.path.startsWith(prefix) || !isKnowledgeDocName(name)) {
       diagnostics.push(
         fileFinding('E_KB_DOC_NAME', key, blob.path, `${blob.path} is not a document file name.`)
+      )
+    } else if (earlier !== undefined) {
+      diagnostics.push(
+        fileFinding(
+          'E_KB_DOC_NAME',
+          key,
+          blob.path,
+          `${blob.path} and ${knowledgeDocPath(key, earlier)} differ only in letter case.`,
+          'Keep one of them: a case-insensitive disk holds them as one.'
+        )
       )
     } else if (!SHA256.test(blob.sha256) || !Number.isSafeInteger(blob.size) || blob.size < 0) {
       diagnostics.push(
@@ -241,6 +247,7 @@ function readDocs(
         )
       )
     } else {
+      folded.set(foldedFileKey(name), name)
       docs.push([name, { sha256: blob.sha256, size: blob.size }])
     }
   }

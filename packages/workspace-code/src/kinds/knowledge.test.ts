@@ -9,7 +9,11 @@ type Recipe = NonNullable<NonNullable<KnowledgeChunkingDecl['strategyOptions']>[
 const text = fc.string({ maxLength: 40 }).filter((value) => !/[\u0000\ud800-\udfff]/.test(value))
 const sha256 = fc.stringMatching(/^[0-9a-f]{64}$/)
 const docName = fc.oneof(
-  fc.stringMatching(/^[A-Za-z0-9_][A-Za-z0-9 _.()-]{0,30}$/),
+  fc
+    .stringMatching(/^[A-Za-z0-9_][A-Za-z0-9 _.()-]{0,30}$/)
+    .filter(
+      (value) => !/[ .]$/.test(value) && !/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(value)
+    ),
   fc.constantFrom('__proto__', 'constructor', 'notes.md', 'Ünïcödé.txt')
 )
 
@@ -47,7 +51,7 @@ const knowledgeBase: fc.Arbitrary<KnowledgeBaseDecl> = fc.record(
     docs: fc
       .uniqueArray(fc.tuple(docName, fc.record({ sha256, size: fc.nat(1_000_000) })), {
         maxLength: 5,
-        selector: ([name]) => name,
+        selector: ([name]) => name.normalize('NFC').toLowerCase(),
       })
       .map((entries) => Object.fromEntries(entries)),
   },
@@ -173,6 +177,37 @@ describe('knowledgeCodec', () => {
       ['E_KB_DOC_NAME', 'knowledge/policies/docs/a\\b.md'],
       ['E_LIMIT_EXCEEDED', 'knowledge/policies/docs/huge.pdf'],
       ['E_DECL_SHAPE', 'knowledge/policies/docs/short.md'],
+    ])
+  })
+
+  it('refuses document names no disk can hold', () => {
+    const long = `${'日'.repeat(100)}.md`
+    const parsed = knowledgeCodec.parse('policies', declaration("{ name: 'Policies' }"), [
+      { path: 'knowledge/policies/docs/CON.txt', sha256: HASH, size: 1 },
+      { path: 'knowledge/policies/docs/notes.', sha256: HASH, size: 1 },
+      { path: 'knowledge/policies/docs/trail ', sha256: HASH, size: 1 },
+      { path: `knowledge/policies/docs/${long}`, sha256: HASH, size: 1 },
+    ])
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => finding.code)).toEqual([
+      'E_KB_DOC_NAME',
+      'E_KB_DOC_NAME',
+      'E_KB_DOC_NAME',
+      'E_KB_DOC_NAME',
+    ])
+  })
+
+  it('refuses documents whose names differ only in letter case or normalization', () => {
+    const parsed = knowledgeCodec.parse('policies', declaration("{ name: 'Policies' }"), [
+      { path: 'knowledge/policies/docs/Report.pdf', sha256: HASH, size: 1 },
+      { path: 'knowledge/policies/docs/report.pdf', sha256: HASH, size: 2 },
+      { path: 'knowledge/policies/docs/caf\u00e9.md', sha256: HASH, size: 1 },
+      { path: 'knowledge/policies/docs/cafe\u0301.md', sha256: HASH, size: 1 },
+    ])
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.file])).toEqual([
+      ['E_KB_DOC_NAME', 'knowledge/policies/docs/caf\u00e9.md'],
+      ['E_KB_DOC_NAME', 'knowledge/policies/docs/report.pdf'],
     ])
   })
 

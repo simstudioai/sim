@@ -57,7 +57,7 @@ export function filePathProblem(key: string): string | null {
 }
 
 /** The spelling two paths share when a case-insensitive disk would store them as one. */
-function foldedFileKey(key: string): string {
+export function foldedFileKey(key: string): string {
   return key.normalize('NFC').toLowerCase()
 }
 
