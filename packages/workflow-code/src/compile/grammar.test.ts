@@ -1137,6 +1137,16 @@ describe('rejected constructs', () => {
     const extra = `// @sim-sdk 1\n${IMPORTS}\nconst x = 1\nexport default workflow('X', {}, () => {})\n`
     expectDiagnostic(run(extra), 'E_UNSUPPORTED_SYNTAX', { line: 3, column: 1 }, EXTRA)
   })
+
+  it('rejects a string statement at the top level, in the workflow body and in a loop body', () => {
+    const topLevel = `// @sim-sdk 1\n'use strict'\n${IMPORTS}\nexport default workflow('X', {}, () => {})\n`
+    expectDiagnostic(run(topLevel), 'E_UNSUPPORTED_SYNTAX', { line: 2, column: 1 }, EXTRA)
+    const BODY = 'Delete it; a body holds block declarations and wiring.'
+    const body = source(`'hello'\n${START}`)
+    expectDiagnostic(run(body), 'E_UNSUPPORTED_SYNTAX', locate(body, "'hello'"), BODY)
+    const loopBody = source("const l = loop.for('L', { count: 1 }, (p) => {\n  'hello'\n})")
+    expectDiagnostic(run(loopBody), 'E_UNSUPPORTED_SYNTAX', locate(loopBody, "'hello'"), BODY)
+  })
 })
 
 describe('meta.key: legacy keys the display name cannot carry', () => {

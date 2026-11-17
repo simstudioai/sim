@@ -294,7 +294,7 @@ function compileWorkflowCall(
   }
   const scope: Scope = { parent: moduleScope, bindings: new Map(), container: null }
   bindBodyParams(ctx, bodyNode, scope)
-  collectBody(ctx, bodyNode.body.body, scope, bodyNode.body, {
+  collectBody(ctx, bodyNode.body, scope, {
     owner: encodeAnchor({ kind: 'footer' }),
     tail: { anchor: encodeAnchor({ kind: 'footer' }), placement: 'leading' },
   })
@@ -443,6 +443,13 @@ function compileEntry(
     recordSpan(ctx, { kind: 'header' }, { start: 0, end: parsed.headerEnd })
 
   for (const statement of ast.program.body) collectImports(ctx, statement, moduleScope)
+  for (const directive of ast.program.directives)
+    unsupported(
+      ctx,
+      directive,
+      'A string statement is not allowed at the top level.',
+      HINTS.extraStatement
+    )
 
   let workflowHeader: WorkflowHeader | null = null
   let exportCount = 0

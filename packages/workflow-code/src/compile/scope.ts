@@ -1,8 +1,8 @@
 import type {
   ArrowFunctionExpression,
+  BlockStatement,
   CallExpression,
   Node,
-  Statement,
   VariableDeclaration,
 } from '@babel/types'
 import {
@@ -297,7 +297,7 @@ function collectContainerBody(ctx: CompileContext, decl: BlockDecl): void {
     }
   }
   if (body.body.type === 'BlockStatement') {
-    collectBody(ctx, body.body.body, scope, body.body, {
+    collectBody(ctx, body.body, scope, {
       owner: encodeAnchor({ kind: 'block', block: decl.key }),
       tail: { anchor: encodeAnchor({ kind: 'block', block: decl.key }), placement: 'trailing' },
     })
@@ -397,14 +397,21 @@ function collectDeclaration(
  */
 export function collectBody(
   ctx: CompileContext,
-  statements: Statement[],
+  body: BlockStatement,
   scope: Scope,
-  container: Node,
   listOptions: ListOptions
 ): void {
-  const addItem = ctx.comments.list(container.start ?? 0, container.end ?? 0, listOptions)
+  for (const directive of body.directives) {
+    unsupported(
+      ctx,
+      directive,
+      'A string statement is not supported in a workflow body.',
+      'Delete it; a body holds block declarations and wiring.'
+    )
+  }
+  const addItem = ctx.comments.list(body.start ?? 0, body.end ?? 0, listOptions)
   let firstWiringSeen = scope.container !== null
-  for (const statement of statements) {
+  for (const statement of body.body) {
     if (statement.type === 'EmptyStatement') continue
     if (statement.type === 'VariableDeclaration') {
       const before = ctx.decls.length
