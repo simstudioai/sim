@@ -726,6 +726,34 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a wiring target nothing declares',
+      `${START}\nconst fetchUser = api('Fetch', { url: 'x' })\nstart.to(fetchUsr)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'fetchUsr)',
+      'Did you mean fetchUser?',
+    ],
+    [
+      'a wiring source nothing declares',
+      `${START}\nconst a = api('A', { url: 'x' })\nstrt.to(a)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'strt.to',
+      'Did you mean start?',
+    ],
+    [
+      'an edge() end nothing declares',
+      `${START}\nconst fetchUser = api('Fetch', { url: 'x' })\nedge(start, 'source', fetchUsr)`,
+      'E_UNKNOWN_IDENTIFIER',
+      'fetchUsr)',
+      'Did you mean fetchUser?',
+    ],
+    [
+      'a wiring target inside a loop',
+      `${START}\nconst l = loop.for('L', { count: 1 }, (p) => {\n  const inside = api('Inside', { url: 'x' })\n  p.to(inside)\n})\nstart.to(inside)`,
+      'E_OUT_OF_SCOPE',
+      'inside)\n}',
+      undefined,
+    ],
+    [
       'a generic block whose type is not a literal',
       "const a = block(kind, 'Thing', {})",
       'E_UNSUPPORTED_SYNTAX',
@@ -851,6 +879,14 @@ describe('errors, each with its code, location and hint', () => {
       code,
       locate(text, needle, code === 'E_DUPLICATE_EDGE' ? 2 : 1)
     )
+  })
+
+  it('attributes a wiring error to the source block', () => {
+    const text = source(
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: 'x' })\na.to(b)\na.to(b)"
+    )
+    const duplicate = run(text).diagnostics.find((d) => d.code === 'E_DUPLICATE_EDGE')
+    expect(duplicate?.blockKey).toBe('a')
   })
 
   it('points a duplicate name at the first declaration', () => {

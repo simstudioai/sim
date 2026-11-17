@@ -48,9 +48,9 @@ import {
   type JsonFieldEntry,
   lookup,
   rangeOf,
+  reportUnresolvedIdentifier,
   type Scope,
   unsupported,
-  visibleNames,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
 import type { Range } from './report'
@@ -483,31 +483,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
   if (root.type !== 'Identifier') return rejectNode(ctx, node, site)
 
   const binding = lookup(site.scope, root.name)
-  if (!binding) {
-    const elsewhere = ctx.declsByIdent.get(root.name)
-    if (elsewhere && elsewhere.length > 0) {
-      ctx.reporter.report(
-        'E_OUT_OF_SCOPE',
-        `${root.name} is declared inside another loop or parallel and is not visible here.`,
-        rangeOf(ctx, node),
-        {
-          hint: 'Wire the subflow and reference its results, or move the block into this scope.',
-          blockKey: site.decl.key,
-        }
-      )
-      return null
-    }
-    ctx.reporter.report(
-      'E_UNKNOWN_IDENTIFIER',
-      `${root.name} is not defined.`,
-      rangeOf(ctx, root),
-      {
-        hint: didYouMean(root.name, visibleNames(site.scope)),
-        blockKey: site.decl.key,
-      }
-    )
-    return null
-  }
+  if (!binding) return reportUnresolvedIdentifier(ctx, site.scope, root, site.decl.key, node)
 
   switch (binding.kind) {
     case 'vars': {

@@ -2,6 +2,7 @@ import type {
   ArrowFunctionExpression,
   CallExpression,
   ExpressionStatement,
+  Identifier,
   Node,
 } from '@babel/types'
 import { encodeAnchor } from '../anchors'
@@ -20,6 +21,7 @@ import type {
   VarKey,
 } from '../model'
 import type { AddCommentItem, CommentCollector } from './comments'
+import { didYouMean } from './hints'
 import type { CompileLimits } from './parse'
 import type { Range, Reporter } from './report'
 
@@ -200,6 +202,39 @@ export function visibleNames(scope: Scope): string[] {
     names.push(...current.bindings.keys())
   }
   return names
+}
+
+/**
+ * Reports an identifier `scope` does not bind: `E_OUT_OF_SCOPE` when a block inside another loop or
+ * parallel holds the name, else `E_UNKNOWN_IDENTIFIER` with a did-you-mean over the visible names.
+ * `at` is what the out-of-scope error covers (a whole member chain for a reference). Returns `null`.
+ */
+export function reportUnresolvedIdentifier(
+  ctx: CompileContext,
+  scope: Scope,
+  identifier: Identifier,
+  blockKey?: BlockKey,
+  at: Located = identifier
+): null {
+  if (ctx.declsByIdent.get(identifier.name)?.length) {
+    ctx.reporter.report(
+      'E_OUT_OF_SCOPE',
+      `${identifier.name} is declared inside another loop or parallel and is not visible here.`,
+      rangeOf(ctx, at),
+      {
+        hint: 'Wire or reference the loop or parallel that holds it, or move the block into this scope.',
+        blockKey,
+      }
+    )
+    return null
+  }
+  ctx.reporter.report(
+    'E_UNKNOWN_IDENTIFIER',
+    `${identifier.name} is not defined.`,
+    rangeOf(ctx, identifier),
+    { hint: didYouMean(identifier.name, visibleNames(scope)), blockKey }
+  )
+  return null
 }
 
 /** The enclosing containers of a declaration, innermost first (not the declaration itself). */
