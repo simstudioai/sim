@@ -15,6 +15,7 @@ vi.mock('@/app/workspace/[workspaceId]/files/components/file-viewer/monaco-edito
 import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/code/code'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -93,6 +94,23 @@ describe('Code tab refresh', () => {
     })
   }
 
+  function setVariable(workflowId: string, value: string) {
+    act(() => {
+      useVariablesStore.setState((state) => ({
+        variables: {
+          ...state.variables,
+          [`${workflowId}-var`]: {
+            id: `${workflowId}-var`,
+            workflowId,
+            name: 'limit',
+            type: 'plain',
+            value,
+          },
+        },
+      }))
+    })
+  }
+
   async function settle() {
     await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS))
   }
@@ -107,6 +125,20 @@ describe('Code tab refresh', () => {
   it("ignores a field edit in another workflow's values", async () => {
     await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
     applyRemoteFieldEdit('wf-other', 'return 1')
+    await settle()
+    expect(sourceReads).toHaveLength(1)
+  })
+
+  it("re-reads the source after this workflow's variable changes", async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    setVariable(WORKFLOW_ID, '3')
+    await settle()
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(2))
+  })
+
+  it('ignores a variable change in another workflow', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    setVariable('wf-other', '3')
     await settle()
     expect(sourceReads).toHaveLength(1)
   })
