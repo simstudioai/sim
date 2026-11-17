@@ -4,7 +4,7 @@ import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { WorkflowLockV1 } from '../lock'
+import { pointer, type WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
 import { getOwn } from '../records'
 import type { MaterializeHooks } from './context'
@@ -100,7 +100,7 @@ function duplicateLockKeys(
       code: 'E_MAT_DUPLICATE_LOCK_ID',
       severity: 'error',
       message: `Lock keys ${keys.map((key) => `"${key}"`).join(', ')} all claim block id "${id}"`,
-      path: `/blocks/${keys[1]}/id`,
+      path: pointer(['blocks', keys[1], 'id']),
     })
   }
   return duplicates

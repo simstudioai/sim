@@ -676,6 +676,22 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.report.id).toBe('a2')
   })
 
+  it('escapes the lock key in a duplicate lock id pointer', () => {
+    const pulled = workflowState([blockState('b1', 'function', 'fn', { code: 'return 1' })])
+    const lock: WorkflowLockV1 = {
+      version: 1,
+      blocks: {
+        'a/b': { id: 'shared', parent: null, ident: 'ab', order: 0 },
+        'x~y': { id: 'shared', parent: null, ident: 'xy', order: 1 },
+      },
+      variables: {},
+    }
+    const result = run(canonical(pulled).workflow, lock)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'E_MAT_DUPLICATE_LOCK_ID', path: '/blocks/x~0y/id' })
+    )
+  })
+
   it('gives a new variable keyed like an Object.prototype member a fresh id', () => {
     const prev = base()
     const lock = lockFor(prev)
