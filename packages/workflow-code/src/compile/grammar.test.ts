@@ -744,6 +744,14 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a variable name that does not normalize to its key',
+      START,
+      'E_VARIABLE_NAME_MISMATCH',
+      "'Total'",
+      undefined,
+      "{ variables: { count: { name: 'Total', type: 'number', value: 1 } } }",
+    ],
+    [
       'a resource inside a JSON field literal',
       "table.insertRow('Row', { data: { id: table('orders') } })",
       'E_UNSUPPORTED_SYNTAX',

@@ -135,8 +135,8 @@ function nameArgumentIndex(builder: ResolvedBuilder, path: string): number {
   return builder.kind === 'generic' || path === GENERIC_BUILDER ? 1 : 0
 }
 
-/** `name~n` with n ≥ 2, the form canonicalize gives the losing block of a legacy collision. */
-function collisionSuffix(key: string, base: string): boolean {
+/** `name~n` with n ≥ 2, the form canonicalize gives the loser of a legacy name collision. */
+export function collisionSuffix(key: string, base: string): boolean {
   return key.startsWith(`${base}~`) && /^(?:[2-9]|[1-9]\d+)$/.test(key.slice(base.length + 1))
 }
 

@@ -70,6 +70,8 @@ type CompileScopeCode =
   | 'E_UNKNOWN_VARIABLE'
   /** Two workflow variable names normalize to the same key. */
   | 'E_DUPLICATE_VARIABLE'
+  /** A variable's written `name` does not normalize to its key, so its references would not resolve. */
+  | 'E_VARIABLE_NAME_MISMATCH'
   /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME`. */
   | 'E_INVALID_ENV_NAME'
   /** `env.X` where X is none of the env names the caller's runs resolve, when those are known. */

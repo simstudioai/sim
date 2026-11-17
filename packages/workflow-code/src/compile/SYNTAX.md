@@ -38,8 +38,9 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   `{ description?, variables? }`; `body` is `() => { … }` or `({ vars }) => { … }`. The SDK also
   exports `vars`, the same variables untyped; the printer always writes the body parameter.
 - Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable key;
-  `name` is written only when it differs. `type` is `string | number | boolean | object | array |
-  plain`; `value` is plain JSON. Both are required. The stored key is the property key normalized
+  `name` is written only when it differs, and must normalize to the key
+  (`E_VARIABLE_NAME_MISMATCH`). `type` is `string | number | boolean | object | array | plain`;
+  `value` is plain JSON. Both are required. The stored key is the property key normalized
   (lowercased, spaces and dots removed), and `vars.<key as written>` resolves through it.
 - The body holds block declarations and wiring statements. No other statements, no helpers, no
   loops, no conditionals, no imports of your own.
@@ -368,6 +369,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_OUT_OF_SCOPE` | A ref or wiring into a sibling subflow's child. |
 | `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
+| `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
 | `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known). |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
