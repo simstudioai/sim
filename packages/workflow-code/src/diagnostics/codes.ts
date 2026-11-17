@@ -357,6 +357,8 @@ export type ApplyDiagnosticCode =
   | 'E_APPLY_LINT'
   /** A non-blocking workflow lint finding, mapped to a source line. */
   | 'W_APPLY_LINT'
+  /** A table row write (insert, upsert, update) with a key that is not a column of its table. */
+  | 'W_TABLE_UNKNOWN_COLUMN'
 
 export type DiagnosticCode =
   | CompileDiagnosticCode

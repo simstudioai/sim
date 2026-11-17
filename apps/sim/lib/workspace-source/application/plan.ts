@@ -244,16 +244,19 @@ function checkLimits(
 /**
  * Registers every resource a kind's plan creates or adopts under its key, so a later kind's dry
  * run (a workflow naming a table or knowledge base) resolves it: an adopted one by its stored id,
- * a created one by a placeholder id.
+ * a created one by a placeholder id. A table the plan changes in place is registered too, with
+ * its declared columns, so that dry run lints row writes against the schema the apply writes.
  */
 function registerPending(changes: readonly PlannedChange[], ctx: PlanContext): void {
   for (const change of changes) {
-    if (change.action !== 'create' && change.action !== 'adopt') continue
+    const reshaped = change.action === 'update' && change.columns !== undefined
+    if (change.action !== 'create' && change.action !== 'adopt' && !reshaped) continue
     ctx.pending.push({
       kind: change.kind,
       key: change.key,
-      id: change.action === 'adopt' && change.storedId ? change.storedId : generateId(),
+      id: change.action !== 'create' && change.storedId ? change.storedId : generateId(),
       ...(change.name !== undefined ? { name: change.name } : {}),
+      ...(change.columns !== undefined ? { columns: change.columns } : {}),
     })
   }
 }

@@ -19,11 +19,14 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
 import * as tableUseCases from '@/lib/table/application/tables'
 import { getColumnRetypeScanBatchSize } from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
+import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
@@ -985,6 +988,152 @@ describe('workspace source apply', () => {
         'email',
         'status',
       ])
+    }
+  )
+
+  check(
+    'a workflow source apply warns on a row write naming a column its table no longer has',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await setUp(workspaceId)
+      const [leads] = await tables(workspaceId)
+      await columnUseCases.updateTableColumnUseCase.execute({
+        principal: owner,
+        input: {
+          tableId: leads.id,
+          workspaceId,
+          columnName: 'email',
+          updates: { name: 'contact' },
+        },
+      })
+      const [ingest] = await workflows(workspaceId)
+      const source = await withPermissionGroupScope(() =>
+        readWorkflowSource.execute({ principal: owner, input: { workflowId: ingest.id } })
+      )
+      const applySource = (files: Record<string, string>, dryRun: boolean) =>
+        withPermissionGroupScope(() =>
+          applyWorkflowSource.execute({
+            principal: owner,
+            input: {
+              workflowId: ingest.id,
+              files,
+              lock: source.lock,
+              base: source.base,
+              dryRun,
+            },
+          })
+        )
+      const unknownColumns = (diagnostics: ReadonlyArray<{ code: string }>) =>
+        diagnostics.filter((finding) => finding.code === 'W_TABLE_UNKNOWN_COLUMN')
+      const stale = {
+        ...source.files,
+        'workflow.ts': source.files['workflow.ts'].replace(
+          'data: { email: start.email }',
+          "data: { email: start.email, status: 'new' }"
+        ),
+      }
+
+      const dryRun = await applySource(stale, true)
+
+      expect(unknownColumns(dryRun.diagnostics)).toEqual([
+        expect.objectContaining({
+          severity: 'warning',
+          message: 'data writes email, which is not a column of table "leads"; the run drops it.',
+          hint: "The table's columns are contact, status.",
+          file: 'workflow.ts',
+        }),
+      ])
+      const fixed = await applySource(
+        {
+          ...source.files,
+          'workflow.ts': source.files['workflow.ts'].replace(
+            'data: { email: start.email }',
+            'data: { contct: start.email }'
+          ),
+        },
+        true
+      )
+      expect(unknownColumns(fixed.diagnostics).map((finding) => finding.hint)).toEqual([
+        'Did you mean contact?',
+      ])
+      const correct = await applySource(
+        {
+          ...source.files,
+          'workflow.ts': source.files['workflow.ts'].replace(
+            'data: { email: start.email }',
+            'data: { contact: start.email }'
+          ),
+        },
+        true
+      )
+      expect(unknownColumns(correct.diagnostics)).toEqual([])
+
+      // Applied, the write keeps the warning: it names the key the run drops.
+      const applied = await applySource(stale, false)
+      expect(applied.applied).toBe(true)
+      expect(unknownColumns(applied.diagnostics).map((finding) => finding.message)).toEqual([
+        'data writes email, which is not a column of table "leads"; the run drops it.',
+      ])
+    }
+  )
+
+  check(
+    'a workspace source dry run checks row writes against the columns the directory declares',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const unknownColumns = (diagnostics: ReadonlyArray<{ code: string; key?: string }>) =>
+        diagnostics
+          .filter((finding) => finding.code === 'W_TABLE_UNKNOWN_COLUMN')
+          .map((finding) => `${finding.key}: ${finding.message}`)
+      const renamedLeads = (files: Record<string, string>) =>
+        files['tables/leads.ts'].replace(
+          'email: column.string({ required: true })',
+          "email: column.string({ name: 'contact', required: true })"
+        )
+
+      // A table the same apply creates: its declared columns stand in for a schema not yet stored.
+      const created = await apply(
+        workspaceId,
+        { ...STARTER, 'tables/leads.ts': renamedLeads(STARTER) },
+        { dryRun: true }
+      )
+      expect(unknownColumns(created.diagnostics)).toEqual([
+        'ingest: data writes email, which is not a column of table "leads"; the run drops it.',
+      ])
+
+      // A column the same apply renames: the workflow is checked against the renamed column, not
+      // the stored one it is about to replace.
+      const read = await setUp(workspaceId)
+      const ingest = 'workflows/ingest/workflow.ts'
+      const stale = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          'tables/leads.ts': renamedLeads(read.files),
+          [ingest]: read.files[ingest].replace(
+            'data: { email: start.email }',
+            "data: { email: start.email, status: 'new' }"
+          ),
+        },
+        { base: read.base, dryRun: true }
+      )
+      expect(unknownColumns(stale.diagnostics)).toEqual([
+        'ingest: data writes email, which is not a column of table "leads"; the run drops it.',
+      ])
+      const followed = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          'tables/leads.ts': renamedLeads(read.files),
+          [ingest]: read.files[ingest].replace(
+            'data: { email: start.email }',
+            'data: { contact: start.email }'
+          ),
+        },
+        { base: read.base, dryRun: true }
+      )
+      expect(codes(followed.diagnostics)).toEqual([])
+      expect(unknownColumns(followed.diagnostics)).toEqual([])
     }
   )
 

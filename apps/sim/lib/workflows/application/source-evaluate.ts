@@ -48,6 +48,7 @@ import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
 import type {
   WorkflowLintReport,
+  WorkflowLintTableSchema,
   WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -96,6 +97,23 @@ export interface PendingResource {
   id: string
   /** The name the apply writes it under, which a workflow's stored reference repeats (a skill). */
   name?: string
+  /**
+   * A table's declared column names, which the lint checks a row write against instead of the
+   * stored schema the apply has yet to change.
+   */
+  columns?: readonly string[]
+}
+
+/** The schemas `pending` declares for its tables, by id, for the lint's table checks. */
+function declaredTableSchemas(
+  pending: readonly PendingResource[]
+): Map<string, WorkflowLintTableSchema> {
+  const schemas = new Map<string, WorkflowLintTableSchema>()
+  for (const entry of pending) {
+    if (entry.kind !== 'table' || !entry.columns) continue
+    schemas.set(entry.id, { name: entry.name ?? entry.key, columnNames: entry.columns })
+  }
+  return schemas
 }
 
 /** `resources`, falling back to `pending` for a key, id or name it does not resolve. */
@@ -468,7 +486,8 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       workflowId: scope.workflowId,
       workspaceId: scope.workspaceId,
       subjectUserId: scope.subjectUserId,
-    }
+    },
+    { declaredTables: declaredTableSchemas(input.pendingResources ?? []) }
   )
   const changedIds = new Set([...graphDiff.added, ...graphDiff.modified.map((m) => m.id)])
   const diagnostics = [

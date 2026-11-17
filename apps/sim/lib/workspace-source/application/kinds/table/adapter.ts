@@ -84,6 +84,11 @@ async function reload(ctx: SourceContext, tableId: string): Promise<StoredTableS
   return { table, folderPath: tableFolderPathForId(folders, table.folderId) }
 }
 
+/** The column names `decl` declares, as the table stores them. */
+function declaredColumnNames(decl: TableDecl): string[] {
+  return Object.entries(decl.columns).map(([key, column]) => columnName(key, column))
+}
+
 async function planTable(
   key: string,
   decl: TableDecl,
@@ -121,6 +126,7 @@ async function planTable(
         ...change,
         action: 'create',
         fields: Object.keys(decl.columns).map((column) => `columns.${column} (add)`),
+        columns: declaredColumnNames(decl),
       }
     }
     case 'adopt':
@@ -156,6 +162,7 @@ async function planTable(
         ...change,
         action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
         storedId: planned.stored.id,
+        columns: declaredColumnNames(decl),
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
         ...(dropped > 0 || changes.lostCells > 0
           ? {

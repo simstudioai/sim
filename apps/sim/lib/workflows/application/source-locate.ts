@@ -251,6 +251,19 @@ export function lintDiagnostics(
     }
   }
   for (const issue of lint.tableFieldIssues) {
+    if (issue.rowWrite) {
+      const blockKey = keyOf(issue.blockId)
+      diagnostics.push({
+        code: 'W_TABLE_UNKNOWN_COLUMN',
+        severity: 'warning',
+        message: `${issue.rowWrite} writes ${issue.field}, which is not a column of table "${issue.tableName}"; the run drops it.`,
+        ...(issue.hint !== undefined ? { hint: issue.hint } : {}),
+        blockId: issue.blockId,
+        ...(blockKey !== undefined ? { blockKey } : {}),
+        param: issue.rowWrite,
+      })
+      continue
+    }
     push(
       false,
       issue.blockId,

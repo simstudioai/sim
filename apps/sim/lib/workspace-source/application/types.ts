@@ -78,6 +78,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
   /** The name a create or adopt writes, when a workflow's stored reference repeats it (a skill). */
   name?: string
   /**
+   * The column names a table change declares, which a later workflow's dry run checks its row
+   * writes against before the table is written.
+   */
+  columns?: string[]
+  /**
    * The resource's fingerprint when planned (an update, adopt or delete): the apply re-reads it
    * with the adapter's `fingerprintNow` just before the write and refuses one that moved since.
    */

@@ -96,21 +96,32 @@ export type WorkflowLintTableDiagnostics = Pick<
 interface WorkflowLintReportOptions extends AgentToolReferenceValidationOptions {
   /** Standalone callers supply table findings from authorized reads and active block inputs. */
   tables?: WorkflowLintTableDiagnostics
+  /**
+   * Schemas an enclosing write declares for tables it has yet to create or change, by table id
+   * (a workspace source apply's dry run): they stand in for the stored schema.
+   */
+  declaredTables?: ReadonlyMap<string, WorkflowLintTableSchema>
 }
 
 /**
  * The live schema of every table the graph's Table blocks are bound to, keyed
- * by table id. A table outside the workspace is left out rather than reported
+ * by table id, or the schema the enclosing write declares for it. A table outside the workspace is left out rather than reported
  * on: the finding names the table, and a block bound to a table this workspace
  * cannot read is a reference problem, not a field problem.
  */
 async function loadTableSchemasForLint(
   blocks: Pick<WorkflowState, 'blocks'>['blocks'],
-  workspaceId: string
+  workspaceId: string,
+  declared: ReadonlyMap<string, WorkflowLintTableSchema> | undefined
 ): Promise<Map<string, WorkflowLintTableSchema>> {
   const tables = new Map<string, WorkflowLintTableSchema>()
   await Promise.all(
     collectWorkflowTableIds(blocks).map(async (tableId) => {
+      const schema = declared?.get(tableId)
+      if (schema) {
+        tables.set(tableId, schema)
+        return
+      }
       const table = await getTableById(tableId)
       if (!table || table.workspaceId !== workspaceId) return
       tables.set(tableId, {
@@ -195,7 +206,7 @@ export async function buildWorkflowLintReport(
     try {
       tableFieldIssues = collectTableBlockFieldIssues(
         graph.blocks,
-        await loadTableSchemasForLint(graph.blocks, scope.workspaceId)
+        await loadTableSchemasForLint(graph.blocks, scope.workspaceId, options.declaredTables)
       )
     } catch (error) {
       logger.warn('Table field lint failed', {
