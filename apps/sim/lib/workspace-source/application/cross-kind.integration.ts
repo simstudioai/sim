@@ -6,37 +6,32 @@
  * `WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH`.
  */
 import { mkdtempSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { db } from '@sim/db'
 import {
-  auditLog,
   customTools,
   document,
   knowledgeBase,
-  permissions,
   skill,
   user,
   userStats,
   userTableDefinitions,
   workflow,
-  workspace,
   workspaceFiles,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -52,6 +47,7 @@ import {
   createWorkspaceCustomToolUseCase,
   deleteWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
+import { uploadKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import {
   createKnowledgeBase,
   deleteKnowledgeBaseOperation,
@@ -59,6 +55,7 @@ import {
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
@@ -67,31 +64,21 @@ import {
   type ApplyWorkspaceSourceResult,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import {
+  blobManifest,
+  refusal,
+  sourceChecks,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 const ownerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
-const workspaceIds: string[] = []
-const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
-
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  })
-}
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH',
+  'workspace-source-cross-kind.json'
+)
+const workspaces = sourceWorkspaces()
 
 const KINDS: WorkspaceKind[] = [
   'table',
@@ -180,15 +167,6 @@ interface Directory {
   blobs: Record<string, Buffer>
 }
 
-function manifest(blobs: Record<string, Buffer>, carry: boolean) {
-  return Object.entries(blobs).map(([path, bytes]) => ({
-    path,
-    sha256: sha256Hex(bytes),
-    size: bytes.byteLength,
-    ...(carry ? { content: bytes.toString('base64') } : {}),
-  }))
-}
-
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files' | 'blobs'>> & {
   carry?: boolean
 }
@@ -201,7 +179,7 @@ function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) 
       input: {
         workspaceId,
         files: dir.files,
-        blobs: manifest(dir.blobs, carry),
+        blobs: blobManifest(dir.blobs, () => carry),
         kinds: KINDS,
         ...input,
       },
@@ -213,15 +191,6 @@ function get(workspaceId: string) {
   return withPermissionGroupScope(() =>
     readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: KINDS } })
   )
-}
-
-async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
-  const error = await promise.then(
-    () => null,
-    (caught: unknown) => caught
-  )
-  expect(error).toBeInstanceOf(WorkspaceSourceRejectedError)
-  return error as WorkspaceSourceRejectedError
 }
 
 function findings(
@@ -290,22 +259,7 @@ async function snapshot(workspaceId: string) {
 }
 
 async function newWorkspace(): Promise<string> {
-  const workspaceId = generateId()
-  workspaceIds.push(workspaceId)
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
-    name: 'Workspace source across kinds',
-    ownerId,
-    billedAccountUserId: ownerId,
-  })
-  await db.insert(permissions).values({
-    id: generateId(),
-    userId: ownerId,
-    entityType: 'workspace',
-    entityId: workspaceId,
-    permissionType: 'admin',
-  })
-  return workspaceId
+  return workspaces.create({ name: 'Workspace source across kinds', ownerId })
 }
 
 /**
@@ -374,15 +328,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const reportPath =
-    process.env.WORKSPACE_SOURCE_CROSS_KIND_REPORT_PATH ??
-    resolve('test-results/workspace-source-cross-kind.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (workspaceIds.length > 0) {
-    await db.delete(auditLog).where(inArray(auditLog.workspaceId, workspaceIds))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
-  }
+  await writeReport()
+  await workspaces.cleanup()
   await db.delete(user).where(eq(user.id, ownerId))
   if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })
 })
@@ -486,6 +433,103 @@ describe('workspace source across kinds', () => {
   )
 
   check(
+    'a round that leaves a knowledge base document for the next defers the workflow using it, and two rounds converge',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const dir: Directory = {
+        files: {
+          'knowledge/policies/knowledge.ts': TEXT['knowledge/policies/knowledge.ts'],
+          'workflows/answer/workflow.ts': `// @sim-sdk 1
+import { knowledge, knowledgeBase, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Answer', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { question: 'string' } })
+  const search = knowledge.search('Policy Search', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.question,
+    topK: 3,
+  })
+
+  start.to(search)
+})
+`,
+        },
+        blobs: BLOBS,
+      }
+      const send = (carried: readonly string[], base?: WorkspaceBaseV1) =>
+        withPermissionGroupScope(() =>
+          applyWorkspaceSource.execute({
+            principal: owner,
+            input: {
+              workspaceId,
+              files: dir.files,
+              blobs: blobManifest(BLOBS, () => false).map((blob) =>
+                carried.includes(blob.path)
+                  ? { ...blob, content: BLOBS[blob.path].toString('base64') }
+                  : blob
+              ),
+              kinds: KINDS,
+              ...(base ? { base } : {}),
+            },
+          })
+        )
+
+      const first = await send(['files/notes.txt'])
+
+      expect(first.failed).toBeUndefined()
+      expect(first.remainingBlobs).toEqual(['knowledge/policies/docs/refunds.md'])
+      const second = await send(first.remainingBlobs, first.base)
+      expect(second.failed).toBeUndefined()
+      expect(second.remainingBlobs).toEqual([])
+      const stored = await snapshot(workspaceId)
+      expect(stored.bases.map((base) => base.name)).toEqual(['Policies'])
+      expect(stored.documents.map((doc) => doc.filename)).toEqual(['refunds.md'])
+      expect(stored.workflows.map((row) => row.name)).toContain('Answer')
+    }
+  )
+
+  check(
+    'refuses deleting a table an unchanged declared workflow uses, as the CLI sends that folder (base only)',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const before = await snapshot(workspaceId)
+      const files = Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      )
+      expect(files['workflows/ingest/workflow.ts']).toBeUndefined()
+
+      const refused = await refusal(
+        apply(workspaceId, { ...dir, files }, { base, allowDelete: true })
+      )
+
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:ingest'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'deleting a table a workflow outside the directory uses warns, naming that workflow',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const files = Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      )
+
+      const deleted = await apply(
+        workspaceId,
+        { ...dir, files },
+        { base, allowDelete: true, only: ['table'] }
+      )
+
+      expect(deleted.applied).toMatchObject([{ action: 'delete', kind: 'table', key: 'leads' }])
+      const warning = deleted.diagnostics.find(
+        (finding) => finding.severity === 'warning' && finding.kind === 'table'
+      )
+      expect(warning?.message).toContain('"Ingest"')
+    }
+  )
+
+  check(
     'a delete of a tool, skill or knowledge base changed on the server since the base is stale',
     async () => {
       const { workspaceId, dir, base } = await setUp()
@@ -533,7 +577,7 @@ describe('workspace source across kinds', () => {
     async () => {
       const workspaceId = await newWorkspace()
       const empty = await snapshot(workspaceId)
-      const forged = manifest(BLOBS, true).map((blob) =>
+      const forged = blobManifest(BLOBS, () => true).map((blob) =>
         blob.path === 'knowledge/policies/docs/refunds.md'
           ? { ...blob, content: Buffer.from('not the declared bytes').toString('base64') }
           : blob
@@ -562,7 +606,7 @@ describe('workspace source across kinds', () => {
 
   check('a blob listed twice, or at a path no binary file lives at, is refused', async () => {
     const workspaceId = await newWorkspace()
-    const [notes] = manifest({ 'files/notes.txt': BLOBS['files/notes.txt'] }, false)
+    const [notes] = blobManifest({ 'files/notes.txt': BLOBS['files/notes.txt'] }, () => false)
 
     const refused = await refusal(
       withPermissionGroupScope(() =>
@@ -706,4 +750,94 @@ describe('workspace source across kinds', () => {
       expect(findings(again.diagnostics, 'error')).toEqual([])
     }
   )
+
+  check('workspace files and knowledge documents hash within one per-request budget', async () => {
+    const workspaceId = await newWorkspace()
+    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+    for (const name of ['a.txt', 'b.txt']) {
+      await uploadWorkspaceFile(
+        workspaceId,
+        ownerId,
+        Buffer.alloc(size, name),
+        name,
+        'text/plain',
+        {
+          notifyWorkspaceChange: false,
+        }
+      )
+    }
+    const { knowledgeBase: created } = await createKnowledgeBase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'Policies' },
+    })
+    const buffer = Buffer.alloc(size, 'c')
+    await uploadKnowledgeDocument.execute({
+      principal: owner,
+      input: {
+        knowledgeBaseId: created.id,
+        file: { buffer, filename: 'c.txt', fileSize: size, mimeType: 'text/plain' },
+      },
+    })
+
+    const read = await get(workspaceId)
+
+    expect(read.blobs).toHaveLength(3)
+    expect(read.blobs.filter((blob) => blob.sha256 === undefined)).toHaveLength(1)
+  })
+
+  check('refuses a round carrying more binary bytes than one request may', async () => {
+    const workspaceId = await newWorkspace()
+    const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
+    const blobs = Object.fromEntries(
+      ['a', 'b', 'c'].map((name) => [`files/${name}.bin`, Buffer.alloc(size, name)])
+    )
+
+    const refused = await refusal(apply(workspaceId, { files: {}, blobs }, { kinds: ['file'] }))
+
+    expect(findings(refused.diagnostics, 'error')).toEqual(['E_LIMIT_EXCEEDED undefined:undefined'])
+    expect((await snapshot(workspaceId)).files).toEqual([])
+  })
+
+  check('a plan already refused authorizes no change', async () => {
+    const { workspaceId, dir, base } = await setUp()
+    const files = {
+      ...Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      ),
+      'workflows/ingest/workflow.ts': TEXT['workflows/ingest/workflow.ts'].replace(
+        "'Ingest'",
+        "'Ingest v2'"
+      ),
+    }
+    const authorize = vi.spyOn(deleteTableUseCase, 'authorize')
+
+    const refused = await refusal(
+      apply(workspaceId, { ...dir, files }, { base, allowDelete: true })
+    )
+    const calls = authorize.mock.calls.length
+    authorize.mockRestore()
+
+    expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:ingest'])
+    expect(calls).toBe(0)
+  })
+
+  check('a plan reports at most 1000 findings, and one more that counts the rest', async () => {
+    const workspaceId = await newWorkspace()
+    const files = Object.fromEntries(
+      Array.from({ length: 1_500 }, (_, index) => [`misc/${index}.ts`, ''])
+    )
+
+    const planned = await withPermissionGroupScope(() =>
+      applyWorkspaceSource.execute({
+        principal: owner,
+        input: { workspaceId, files, kinds: KINDS, dryRun: true },
+      })
+    )
+
+    expect(planned.diagnostics).toHaveLength(1_001)
+    expect(planned.diagnostics.at(-1)).toMatchObject({
+      code: 'E_LIMIT_EXCEEDED',
+      message: expect.stringContaining('500 more'),
+    })
+  })
 })

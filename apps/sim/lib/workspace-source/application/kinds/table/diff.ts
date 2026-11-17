@@ -181,8 +181,8 @@ export async function diffTable(
     changes.table.name = decl.name
     changes.fields.push('name')
   }
-  if ((decl.description ?? null) !== (table.description || null)) {
-    changes.table.description = decl.description ?? null
+  if ((decl.description || null) !== (table.description || null)) {
+    changes.table.description = decl.description || null
     changes.fields.push('description')
   }
   const folder = decl.folder ?? '/'
@@ -295,7 +295,7 @@ export async function diffTable(
       (target.currencyCode ?? DEFAULT_CURRENCY_CODE) !==
         (current.currencyCode ?? DEFAULT_CURRENCY_CODE)
     ) {
-      if (target.currencyCode) updates.currencyCode = target.currencyCode
+      updates.currencyCode = target.currencyCode ?? DEFAULT_CURRENCY_CODE
       fields.push('currencyCode')
     }
     if (fields.length === 0) continue

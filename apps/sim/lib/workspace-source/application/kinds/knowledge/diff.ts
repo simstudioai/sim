@@ -19,6 +19,7 @@ import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { kindFinding } from '@/lib/workspace-source/application/findings'
+import { spendHash } from '@/lib/workspace-source/application/hash-budget'
 import {
   type StoredDoc,
   type StoredKnowledgeBase,
@@ -59,7 +60,7 @@ export interface KnowledgeChanges {
 }
 
 /** A finding about one knowledge base. */
-export function finding(
+export function kbFinding(
   key: string,
   code: WorkspaceDiagnosticCode,
   message: string,
@@ -94,7 +95,7 @@ export function checkWrites(
   const chunking = writes.chunking && chunkingConfigSchema.safeParse(writes.chunking)
   if (chunking && !chunking.success) {
     diagnostics.push(
-      finding(
+      kbFinding(
         key,
         'E_KB_CHUNKING',
         `The chunking settings are invalid: ${chunking.error.issues.map((issue) => issue.message).join('; ')}.`
@@ -104,26 +105,12 @@ export function checkWrites(
   for (const { name, doc } of writes.uploads) {
     const typeError = validateFileType(name, '')
     if (typeError) {
-      diagnostics.push(finding(key, 'E_KB_DOC_NAME', `docs/${name}: ${typeError.message}`))
+      diagnostics.push(kbFinding(key, 'E_KB_DOC_NAME', `docs/${name}: ${typeError.message}`))
     } else if (doc.size === 0) {
-      diagnostics.push(finding(key, 'E_KB_DOC_EMPTY', `docs/${name} is empty.`))
+      diagnostics.push(kbFinding(key, 'E_KB_DOC_EMPTY', `docs/${name} is empty.`))
     }
   }
   return diagnostics
-}
-
-/** What one request may download to hash stored documents; past it, documents stay unhashed. */
-const HASH_BUDGET = { bytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest, docs: 200 }
-
-/** The hashing each request (a get, or one apply round's plan) has spent so far. */
-const hashSpend = new WeakMap<SourceContext, { bytes: number; docs: number }>()
-
-/** Charges one document's download to the request's budget; `false` once it would overrun. */
-function chargeHash(ctx: SourceContext, bytes: number): boolean {
-  const spent = hashSpend.get(ctx) ?? { bytes: 0, docs: 0 }
-  if (spent.docs >= HASH_BUDGET.docs || spent.bytes + bytes > HASH_BUDGET.bytes) return false
-  hashSpend.set(ctx, { bytes: spent.bytes + bytes, docs: spent.docs + 1 })
-  return true
 }
 
 /**
@@ -140,7 +127,7 @@ export async function hashDocs(
   const unbudgeted: StoredDoc[] = []
   for (const doc of docs) {
     if (hashes.has(doc.id)) continue
-    if (!chargeHash(ctx, doc.fileSize)) {
+    if (!spendHash(ctx, doc.fileSize)) {
       unbudgeted.push(doc)
       continue
     }
@@ -169,7 +156,7 @@ export function indexingFindings(
   if (uploads.length > 0) {
     const replaced = uploads.filter((upload) => upload.replaces).length
     findings.push(
-      finding(
+      kbFinding(
         key,
         'I_KB_REEMBED',
         `Indexes ${uploads.length} document(s) (${uploads.length - replaced} new, ${replaced} replaced); embedding runs in the background after the apply.`
@@ -178,7 +165,7 @@ export function indexingFindings(
   }
   if (chunkingChanged && storedDocs > 0) {
     findings.push(
-      finding(
+      kbFinding(
         key,
         'I_KB_CHUNKING',
         `New chunking applies to documents indexed from now on; ${storedDocs} stored document(s) keep their chunks.`,
@@ -247,7 +234,7 @@ export async function diffKnowledgeBase(input: {
         continue
       }
       changes.diagnostics.push(
-        finding(
+        kbFinding(
           key,
           'E_KB_DOC_AMBIGUOUS',
           `Several stored documents are named "${name}", so docs/${name} cannot tell which one it is.`,
@@ -265,7 +252,7 @@ export async function diffKnowledgeBase(input: {
     const [unchecked] = await hashDocs(ctx, stored.id, [current], hashes)
     if (unchecked) {
       changes.diagnostics.push(
-        finding(
+        kbFinding(
           key,
           'W_KB_DOC_UNCHECKED',
           `docs/${name} was not compared with the stored document: this request reached its download budget, so it is left as it is.`,
@@ -279,7 +266,7 @@ export async function diffKnowledgeBase(input: {
     changes.fields.push(`docs/${name} (replace)`)
     if (current.tagged) {
       changes.diagnostics.push(
-        finding(
+        kbFinding(
           key,
           'W_KB_DOC_TAGS',
           `Replacing docs/${name} uploads a new document; the stored one's tag values are not carried over.`,
@@ -292,7 +279,7 @@ export async function diffKnowledgeBase(input: {
     if (Object.hasOwn(decl.docs, name)) continue
     if (!input.managed.has(current.id)) {
       changes.diagnostics.push(
-        finding(
+        kbFinding(
           key,
           'W_UNDECLARED',
           `Document "${name}" is in the knowledge base but not in docs/; it is kept.`
@@ -303,7 +290,7 @@ export async function diffKnowledgeBase(input: {
       changes.fields.push(`docs/${name} (delete)`)
     } else {
       changes.diagnostics.push(
-        finding(
+        kbFinding(
           key,
           'E_APPLY_DELETE_NOT_ALLOWED',
           `docs/${name} is no longer declared; deleting the stored document needs --allow-delete.`,

@@ -17,6 +17,8 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
+import { finding } from '@/lib/workspace-source/application/findings'
+import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
   planWorkspaceSource,
@@ -109,17 +111,17 @@ function failureOf(
     }
   }
   if (error instanceof OrchestrationError && error.code !== 'internal') {
-    const finding = refusalDiagnostic(error, resource)
+    const refusal = refusalDiagnostic(error, resource)
     return {
-      failed: { ...resource, code: finding.code, message: finding.message },
-      diagnostics: [finding],
+      failed: { ...resource, code: refusal.code, message: refusal.message },
+      diagnostics: [refusal],
     }
   }
   logger.error('Workspace source write failed', { ...resource, error: getErrorMessage(error) })
   const message = `Writing ${change.kind} ${change.key} failed; the changes before it were applied.`
   return {
     failed: { ...resource, code: 'E_APPLY_FAILED', message },
-    diagnostics: [{ code: 'E_APPLY_FAILED', severity: 'error', message, ...resource }],
+    diagnostics: [finding('E_APPLY_FAILED', message, resource)],
   }
 }
 
@@ -141,6 +143,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       principal,
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      hashBudget: newHashBudget(),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true
@@ -175,9 +178,14 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
       const carried = waiting.length < (change.needsBlobs ?? []).length
       result.remainingBlobs.push(...waiting)
+      /**
+       * Deletes and workflow writes wait for the round that carries every blob: a workflow may
+       * name a resource whose blobs this round left out, which is not written yet.
+       */
+      const waitsForAll = change.action === 'delete' || change.kind === 'workflow'
       if (
         (waiting.length > 0 && !(change.partialBlobs && carried)) ||
-        (change.action === 'delete' && missing.size > 0)
+        (waitsForAll && missing.size > 0)
       ) {
         continue
       }

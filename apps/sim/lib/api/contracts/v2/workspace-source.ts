@@ -189,7 +189,9 @@ const readDataSchema = z
           reason: z.string().describe('Why it was left out.'),
         })
       )
-      .describe('Resources left out, such as a workflow too large to read as source.'),
+      .describe(
+        "Resources left out, with why: too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget."
+      ),
     diagnostics: z.array(diagnosticSchema).describe('Findings from reading.'),
   })
   .describe('A workspace as source.')

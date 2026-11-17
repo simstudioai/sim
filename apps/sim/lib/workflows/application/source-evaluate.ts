@@ -46,7 +46,10 @@ import type { StoredSource } from '@/lib/workflows/code/print-stored'
 import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
-import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
+import type {
+  WorkflowLintReport,
+  WorkflowLintUnresolvedReference,
+} from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
@@ -114,12 +117,17 @@ function withPendingResources(
   }
 }
 
+/** Unresolved reference kinds whose ids an enclosing apply may create. */
+const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> = new Set([
+  'resource',
+  'custom-tool',
+  'skill',
+])
+
 /**
  * `lint` without the unresolved resource references that name only ids an enclosing apply has yet
  * to create: a dry run of a directory that adds a skill and the workflow using it is not a warning.
  */
-const PENDABLE_REFERENCES = new Set(['resource', 'custom-tool', 'skill'])
-
 function withoutPendingReferences(
   lint: WorkflowLintReport,
   pending: readonly PendingResource[]

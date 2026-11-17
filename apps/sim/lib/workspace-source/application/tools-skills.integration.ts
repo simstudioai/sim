@@ -1,15 +1,6 @@
-/**
- * Real PostgreSQL coverage for custom tools and skills as workspace source: each check applies a
- * directory through `applyWorkspaceSource` in its own workspace and reads the stored rows
- * directly, so "nothing was written" means the rows are unchanged. Writes a report to
- * `WORKSPACE_SOURCE_TOOLS_REPORT_PATH`.
- */
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { auditLog, customTools, permissions, skill, user, workspace } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { customTools, skill, user } from '@sim/db/schema'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -17,14 +8,14 @@ import {
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceCustomToolUseCase,
+  deleteWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -34,8 +25,13 @@ import {
   type ApplyWorkspaceSourceInput,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import {
+  codes,
+  refusal,
+  sourceChecks,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -45,26 +41,11 @@ const ownerId = generateId()
 const writerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const writer = createSessionPrincipal({ userId: writerId, sessionId: generateId() })
-const workspaceIds: string[] = []
-const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
-
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  })
-}
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_TOOLS_REPORT_PATH',
+  'workspace-source-tools.json'
+)
+const workspaces = sourceWorkspaces()
 
 const LOOKUP = `// @sim-sdk 1
 import { codeFile, defineTool } from '@sim/workflow-sdk/workspace'
@@ -129,31 +110,11 @@ const TOOLS: Record<string, string> = { 'tools/lookup.ts': LOOKUP, 'tools/lookup
 const SKILLS: Record<string, string> = { 'skills/tone.md': TONE }
 
 async function newWorkspace(): Promise<string> {
-  const workspaceId = generateId()
-  workspaceIds.push(workspaceId)
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
+  return workspaces.create({
     name: 'Workspace source tools',
     ownerId,
-    billedAccountUserId: ownerId,
+    members: [{ userId: writerId, permission: 'write' }],
   })
-  await db.insert(permissions).values([
-    {
-      id: generateId(),
-      userId: ownerId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'admin',
-    },
-    {
-      id: generateId(),
-      userId: writerId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'write',
-    },
-  ])
-  return workspaceId
 }
 
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files'>> & {
@@ -177,21 +138,6 @@ function get(workspaceId: string, principal: Principal = owner) {
       input: { workspaceId, kinds: ['custom-tool', 'skill'] },
     })
   )
-}
-
-async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
-  const error = await promise.then(
-    () => null,
-    (caught: unknown) => caught
-  )
-  expect(error).toBeInstanceOf(WorkspaceSourceRejectedError)
-  return error as WorkspaceSourceRejectedError
-}
-
-function codes(diagnostics: ReadonlyArray<{ code: string; severity: string }>, severity = 'error') {
-  return diagnostics
-    .filter((finding) => finding.severity === severity)
-    .map((finding) => finding.code)
 }
 
 function actions(plan: ReadonlyArray<{ kind: string; key: string; action: string }>) {
@@ -247,15 +193,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const reportPath =
-    process.env.WORKSPACE_SOURCE_TOOLS_REPORT_PATH ??
-    resolve('test-results/workspace-source-tools.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (workspaceIds.length > 0) {
-    await db.delete(auditLog).where(inArray(auditLog.workspaceId, workspaceIds))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
-  }
+  await writeReport()
+  await workspaces.cleanup()
   await db.delete(user).where(inArray(user.id, [ownerId, writerId]))
 })
 
@@ -740,7 +679,7 @@ describe('workspace source: custom tools and skills', () => {
     const refused = await refusal(apply(workspaceId, TOOLS, { kinds: ['custom-tool'] }))
 
     expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toMatchObject([
-      { code: 'E_APPLY_REFUSED', kind: 'custom-tool' },
+      { code: 'E_LIMIT_EXCEEDED', kind: 'custom-tool' },
     ])
     expect((await snapshot(workspaceId)).tools).toHaveLength(extra)
   })
@@ -784,4 +723,94 @@ describe('workspace source: custom tools and skills', () => {
       skillWrite.mockRestore()
     }
   })
+
+  check('re-creating a deleted tool under its old key reports the key rebound', async () => {
+    const workspaceId = await newWorkspace()
+    const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+    const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
+    await deleteWorkspaceCustomToolUseCase.execute({
+      principal: owner,
+      input: { workspaceId, toolId },
+    })
+
+    const recreated = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+
+    expect(actions(recreated.applied)).toEqual(['create custom-tool:lookup'])
+    expect(codes(recreated.diagnostics, 'info')).toEqual(['I_KEY_REBOUND'])
+  })
+
+  check('a tool delete refuses a tool edited after the plan read it', async () => {
+    const workspaceId = await newWorkspace()
+    const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+    const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
+    const authorize = deleteWorkspaceCustomToolUseCase.authorize
+    const racing = vi
+      .spyOn(deleteWorkspaceCustomToolUseCase, 'authorize')
+      .mockImplementation(async (args) => {
+        await db
+          .update(customTools)
+          .set({ code: 'return "edited in the UI"' })
+          .where(eq(customTools.id, toolId))
+        return authorize.call(deleteWorkspaceCustomToolUseCase, args)
+      })
+
+    const result = await apply(
+      workspaceId,
+      {},
+      { kinds: ['custom-tool'], base: created.base, allowDelete: true }
+    ).finally(() => racing.mockRestore())
+
+    expect(result.failed).toMatchObject({ key: 'lookup', code: 'E_APPLY_STALE' })
+    expect((await snapshot(workspaceId)).tools.map((tool) => tool.id)).toEqual([toolId])
+  })
+
+  check(
+    'a get of a workspace holding more tools than one directory may leaves out only that kind',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await db.insert(customTools).values(
+        Array.from({ length: WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind + 1 }, (_, index) => ({
+          id: generateId(),
+          workspaceId,
+          userId: ownerId,
+          title: `Tool ${index}`,
+          schema: { type: 'function', function: { name: `tool_${index}`, parameters: {} } },
+          code: 'return 1',
+        }))
+      )
+      await apply(workspaceId, SKILLS, { kinds: ['skill'] })
+
+      const read = await get(workspaceId)
+
+      expect(read.kinds).toEqual(['skill'])
+      expect(codes(read.diagnostics)).toEqual(['E_LIMIT_EXCEEDED'])
+      expect(Object.keys(read.files)).toEqual(['skills/tone.md'])
+    }
+  )
+
+  check(
+    'a get leaves out a tool whose schema holds a key no declaration may, and applies back unchanged',
+    async () => {
+      const workspaceId = await newWorkspace()
+      for (const key of ['__proto__', '$call']) {
+        await db.insert(customTools).values({
+          id: generateId(),
+          workspaceId,
+          userId: ownerId,
+          title: `Odd ${key}`,
+          schema: JSON.parse(
+            `{"type":"function","function":{"name":"odd","parameters":{"type":"object","properties":{"${key}":{"type":"string"}}}}}`
+          ),
+          code: 'return 1',
+        })
+      }
+
+      const read = await get(workspaceId)
+
+      expect(read.files).toEqual({})
+      expect(read.skipped.map((entry) => entry.kind)).toEqual(['custom-tool', 'custom-tool'])
+      const again = await apply(workspaceId, read.files, { base: read.base })
+      expect(again.plan.filter((change) => change.action !== 'noop')).toEqual([])
+    }
+  )
 })

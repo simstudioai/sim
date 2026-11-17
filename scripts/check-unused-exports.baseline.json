@@ -4572,7 +4572,6 @@
   "apps/sim/lib/knowledge/search/recency.ts#RECENCY_WEIGHT",
   "apps/sim/lib/knowledge/search/vector-leg.ts#CANDIDATE_HNSW_MAX_SCAN_TUPLES",
   "apps/sim/lib/knowledge/search/vector-leg.ts#MAX_VECTOR_CANDIDATES",
-  "apps/sim/lib/knowledge/service.ts#KnowledgeBaseConflictError",
   "apps/sim/lib/knowledge/service.ts#KnowledgeBaseNotFoundError",
   "apps/sim/lib/knowledge/transfer/bundle.ts#KnowledgeBundleTagValues",
   "apps/sim/lib/knowledge/transfer/bundle.ts#chunksEntryPath",

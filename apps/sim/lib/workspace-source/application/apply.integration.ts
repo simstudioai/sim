@@ -1,25 +1,12 @@
-/**
- * Real PostgreSQL coverage for workspace source (tables and workflows): `readWorkspaceSource`
- * prints a workspace as a directory, `applyWorkspaceSource` writes one back. Every check runs in
- * its own workspace and reads the stored rows directly, so "nothing was written" means the rows
- * are unchanged, not that the use case said so. Writes a report to
- * `WORKSPACE_SOURCE_APPLY_REPORT_PATH`.
- */
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
-  auditLog,
-  permissions,
   user,
   userTableDefinitions,
   userTableRows,
   workflow,
-  workspace,
   workspaceResourceKey,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -27,10 +14,9 @@ import {
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
@@ -43,8 +29,13 @@ import {
   type ApplyWorkspaceSourceInput,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import {
+  codes,
+  refusal,
+  sourceChecks,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -54,26 +45,11 @@ const ownerId = generateId()
 const readerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const reader = createSessionPrincipal({ userId: readerId, sessionId: generateId() })
-const workspaceIds: string[] = []
-const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
-
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  })
-}
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_APPLY_REPORT_PATH',
+  'workspace-source-apply.json'
+)
+const workspaces = sourceWorkspaces()
 
 const LEADS = `// @sim-sdk 1
 import { column, defineTable } from '@sim/workflow-sdk/workspace'
@@ -108,31 +84,11 @@ const STARTER: Record<string, string> = {
 }
 
 async function newWorkspace(): Promise<string> {
-  const workspaceId = generateId()
-  workspaceIds.push(workspaceId)
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
+  return workspaces.create({
     name: 'Workspace source',
     ownerId,
-    billedAccountUserId: ownerId,
+    members: [{ userId: readerId, permission: 'read' }],
   })
-  await db.insert(permissions).values([
-    {
-      id: generateId(),
-      userId: ownerId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'admin',
-    },
-    {
-      id: generateId(),
-      userId: readerId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'read',
-    },
-  ])
-  return workspaceId
 }
 
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files'>> & {
@@ -156,21 +112,6 @@ function get(workspaceId: string) {
       input: { workspaceId, kinds: ['table', 'workflow'] },
     })
   )
-}
-
-async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
-  const error = await promise.then(
-    () => null,
-    (caught: unknown) => caught
-  )
-  expect(error).toBeInstanceOf(WorkspaceSourceRejectedError)
-  return error as WorkspaceSourceRejectedError
-}
-
-function codes(diagnostics: ReadonlyArray<{ code: string; severity: string }>, severity = 'error') {
-  return diagnostics
-    .filter((finding) => finding.severity === severity)
-    .map((finding) => finding.code)
 }
 
 async function tables(workspaceId: string) {
@@ -259,15 +200,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const reportPath =
-    process.env.WORKSPACE_SOURCE_APPLY_REPORT_PATH ??
-    resolve('test-results/workspace-source-apply.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (workspaceIds.length > 0) {
-    await db.delete(auditLog).where(inArray(auditLog.workspaceId, workspaceIds))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
-  }
+  await writeReport()
+  await workspaces.cleanup()
   await db.delete(user).where(inArray(user.id, [ownerId, readerId]))
 })
 
@@ -809,6 +743,87 @@ describe('workspace source apply', () => {
 
     expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
   })
+
+  check(
+    'a currency column stored in EUR and declared without a code moves to the default',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const options = { kinds: ['table' as const], only: ['table' as const] }
+      const declare = (amount: string) => ({
+        'tables/deals.ts': LEADS.replace("name: 'leads'", "name: 'deals'").replace(
+          'columns: {',
+          `columns: {\n    amount: ${amount},`
+        ),
+      })
+      const created = await apply(
+        workspaceId,
+        declare("column.currency({ currencyCode: 'EUR' })"),
+        options
+      )
+      expect(created.failed).toBeUndefined()
+
+      const moved = await apply(workspaceId, declare('column.currency()'), {
+        ...options,
+        base: created.base,
+      })
+
+      expect(moved.failed).toBeUndefined()
+      expect(moved.applied).toMatchObject([
+        { action: 'update', key: 'deals', fields: ['columns.amount.currencyCode'] },
+      ])
+      const amount = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'amount'
+      )
+      expect(amount?.currencyCode ?? 'USD').toBe('USD')
+      const again = await apply(workspaceId, declare('column.currency()'), {
+        ...options,
+        base: moved.base,
+      })
+      expect(again.plan.map(({ action }) => action)).toEqual(['noop'])
+    }
+  )
+
+  check('an empty declared description is no description', async () => {
+    const workspaceId = await newWorkspace()
+    const options = { kinds: ['table' as const], only: ['table' as const] }
+    const created = await apply(workspaceId, { 'tables/leads.ts': LEADS }, options)
+
+    const renamed = await apply(
+      workspaceId,
+      { 'tables/leads.ts': LEADS.replace("name: 'leads',", "name: 'prospects', description: '',") },
+      { ...options, base: created.base }
+    )
+
+    expect(renamed.applied).toMatchObject([{ action: 'update', fields: ['name'] }])
+    expect((await storedTable(workspaceId)).description ?? null).toBeNull()
+  })
+
+  check(
+    'dropping an empty column needs --allow-delete and shows in the destructive line',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const files = {
+        ...read.files,
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(/\n\s*status: [^\n]*/, ''),
+      }
+
+      const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+      const planned = await apply(workspaceId, files, {
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+
+      expect(refused.diagnostics.find((finding) => finding.severity === 'error')?.message).toBe(
+        'This drops 1 column(s) of "leads".'
+      )
+      expect(planned.plan).toMatchObject([
+        { key: 'leads', destructive: { counts: { columns: 1, cells: 0 } } },
+        { key: 'ingest' },
+      ])
+    }
+  )
 
   check('warns that a base read from another workspace creates everything anew', async () => {
     const workspaceId = await newWorkspace()

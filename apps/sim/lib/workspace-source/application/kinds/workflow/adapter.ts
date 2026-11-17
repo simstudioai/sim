@@ -4,7 +4,6 @@
  * and archived through `deleteWorkflow`, so compile, gates, locks, the per-workflow fingerprint
  * (409) and audit are exactly a single-workflow apply's. Folder placement is not managed.
  */
-import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
 import { parseWorkflowLock, type SourceBase, type WorkflowLockV1 } from '@sim/workflow-code'
 import type { BaseResource } from '@sim/workspace-code'
@@ -15,6 +14,7 @@ import {
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
 import { WORKFLOW_LOCK_FILE } from '@sim/workspace-code/layout'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,
@@ -28,18 +28,16 @@ import {
   finding,
   noBaseFinding,
   planUndeclared,
-  reboundFinding,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
+import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
   PlanContext,
   PlannedChange,
-  StoredResource,
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** Workflows per page while listing a workspace's workflows. */
 const LIST_PAGE = 200
@@ -218,30 +216,13 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       })
       workflows.push(...page.workflows)
       cursorKeys = page.nextCursorKeys
-    } while (cursorKeys)
-    const ids = workflows.map((workflow) => workflow.id)
-    const keys = allocate
-      ? ((
-          await resolveKeys(
-            workspaceId,
-            ids.map((id) => ({ kind: 'workflow' as const, id })),
-            { createdBy: ctx.createdBy }
-          )
-        ).get('workflow') ?? new Map<string, string>())
-      : await readKeysByResource(db, workspaceId, 'workflow', ids)
-    const set: StoredSet<StoredWorkflowState> = { bound: new Map(), unbound: [] }
-    for (const workflow of workflows) {
-      const key = keys.get(workflow.id)
-      const resource: StoredResource<StoredWorkflowState> = {
-        key: key ?? '',
-        id: workflow.id,
-        name: workflow.name,
-        state: { name: workflow.name },
-      }
-      if (key === undefined) set.unbound.push(resource)
-      else set.bound.set(key, resource)
-    }
-    return set
+    } while (cursorKeys && workflows.length <= WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind)
+    const records = workflows.map((workflow) => ({
+      id: workflow.id,
+      name: workflow.name,
+      state: { name: workflow.name },
+    }))
+    return bindStored(ctx, 'workflow', records, { allocate })
   },
 
   async plan(desired, stored, ctx) {
@@ -305,14 +286,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
           principal,
           input: { workspaceId, files: decl.files, ...provenance },
         })
-    const claim = await claimResourceKey({
-      workspaceId,
-      kind: 'workflow',
-      key: change.key,
-      resourceId: result.workflowId,
-      origin: change.action === 'create' ? 'created' : 'adopted',
-      createdBy: ctx.createdBy,
-    })
+    const claimed = await claimKey(change, ctx, result.workflowId)
     const base: BaseResource = { id: result.workflowId }
     return {
       id: result.workflowId,
@@ -322,10 +296,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         lock: result.lock,
         base: result.base,
       }).text,
-      diagnostics: [
-        ...inFolder(change.key, result.diagnostics),
-        ...(claim === 'rebound' ? [reboundFinding('workflow', change.key)] : []),
-      ],
+      diagnostics: [...inFolder(change.key, result.diagnostics), ...claimed],
     }
   },
 

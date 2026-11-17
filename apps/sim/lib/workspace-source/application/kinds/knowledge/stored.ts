@@ -7,6 +7,7 @@
 import { compareStrings } from '@sim/utils/string'
 import { stableStringify } from '@sim/workflow-code'
 import { type BaseResource, fingerprintOf, type ResourceFingerprint } from '@sim/workspace-code'
+import { fileKeyConflicts } from '@sim/workspace-code/kinds/files'
 import {
   canonicalChunking,
   isKnowledgeDocName,
@@ -16,6 +17,7 @@ import {
   knowledgeCodec,
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -41,7 +43,6 @@ export interface StoredDoc {
   tagged: boolean
 }
 
-/** A document's revision in the base: when it was uploaded. */
 /** A document's revision: its upload time, which a replace (a new document) changes. */
 export function docRevision(doc: StoredDoc): number {
   return doc.uploadedAt.getTime()
@@ -49,10 +50,19 @@ export function docRevision(doc: StoredDoc): number {
 
 const DOC_PAGE = 100
 
-/** Every document of a knowledge base the caller can read, through the document list use case. */
+/**
+ * Every document of a knowledge base the caller can read, through the document list use case.
+ * Refuses one holding more documents than a directory lists (`maxBlobs`), after one page past it.
+ */
 export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Promise<StoredDoc[]> {
   const docs = new Map<string, StoredDoc>()
   for (let offset = 0; ; offset += DOC_PAGE) {
+    if (docs.size > WORKSPACE_SOURCE_LIMITS.maxBlobs) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `This knowledge base holds more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} documents, more than one directory lists.`
+      )
+    }
     const page = await listKnowledgeDocuments.execute({
       principal: ctx.principal,
       input: {
@@ -82,7 +92,9 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
 /**
  * The documents source manages, by file name: uploaded (not connector-synced), small enough to
  * be a blob, and named as a plain file. A name several such documents share is `ambiguous`:
- * neither printed nor written until only one holds it.
+ * neither printed nor written until only one holds it. A name a case-insensitive or
+ * normalizing disk would merge with another managed one (`Report.pdf` beside `report.pdf`) is
+ * left out too, after the first in name order, so a get never writes two documents to one file.
  */
 export function sourceDocs(docs: readonly StoredDoc[]): {
   byName: Map<string, StoredDoc>
@@ -107,8 +119,11 @@ export function sourceDocs(docs: readonly StoredDoc[]): {
   }
   const byName = new Map<string, StoredDoc>()
   const ambiguous = new Map<string, StoredDoc[]>()
+  const colliding = fileKeyConflicts([...named.keys()].sort(compareStrings))
   for (const [name, holders] of named) {
-    if (holders.length === 1) {
+    if (colliding.has(name)) {
+      unmanaged += holders.length
+    } else if (holders.length === 1) {
       byName.set(name, holders[0])
     } else {
       ambiguous.set(name, holders)

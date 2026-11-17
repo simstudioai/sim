@@ -6,37 +6,32 @@
  * `WORKSPACE_SOURCE_FILES_REPORT_PATH`.
  */
 import { mkdtempSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import path, { dirname, resolve } from 'node:path'
+import path from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
-  auditLog,
   organization,
   permissionGroup,
   permissionGroupMember,
   permissionGroupWorkspace,
-  permissions,
   user,
-  workspace,
   workspaceFiles,
   workspaceFileVersion,
 } from '@sim/db/schema'
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import type { WorkspaceBaseV1 } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env-flags', () => ({ ...envFlagsMock, isAccessControlEnabled: true }))
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -61,34 +56,26 @@ import {
   type ApplyWorkspaceSourceInput,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import {
+  blobManifest,
+  cliRound,
+  codes,
+  refusal,
+  sourceChecks,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 const ownerId = generateId()
 const blockedId = generateId()
 const organizationId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const blocked = createSessionPrincipal({ userId: blockedId, sessionId: generateId() })
-const workspaceIds: string[] = []
-const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
-
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  })
-}
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_FILES_REPORT_PATH',
+  'workspace-source-files.json'
+)
+const workspaces = sourceWorkspaces()
 
 /** The directory a check starts from: one file at the root, one in a folder. */
 const STARTER: Record<string, Buffer> = {
@@ -97,37 +84,19 @@ const STARTER: Record<string, Buffer> = {
 }
 
 async function newWorkspace(): Promise<string> {
-  const workspaceId = generateId()
-  workspaceIds.push(workspaceId)
-  await insertWorkspaceFixture(db, {
-    id: workspaceId,
-    organizationId,
+  return workspaces.create({
     name: 'Workspace source files',
     ownerId,
-    billedAccountUserId: ownerId,
+    organizationId,
+    members: [{ userId: blockedId, permission: 'admin' }],
   })
-  await db.insert(permissions).values(
-    [ownerId, blockedId].map((userId) => ({
-      id: generateId(),
-      userId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'admin' as const,
-    }))
-  )
-  return workspaceId
 }
 
 type Blob = NonNullable<ApplyWorkspaceSourceInput['blobs']>[number]
 
 /** The blob manifest a directory sends, carrying the content of `send` (every blob by default). */
 function blobsOf(files: Record<string, Buffer>, send?: readonly string[]): Blob[] {
-  return Object.entries(files).map(([blobPath, bytes]) => ({
-    path: blobPath,
-    sha256: sha256Hex(bytes),
-    size: bytes.length,
-    ...(!send || send.includes(blobPath) ? { content: bytes.toString('base64') } : {}),
-  }))
+  return blobManifest(files, (blobPath) => !send || send.includes(blobPath))
 }
 
 interface ApplyOptions {
@@ -158,21 +127,6 @@ function get(workspaceId: string) {
   return withPermissionGroupScope(() =>
     readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: ['file'] } })
   )
-}
-
-async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
-  const error = await promise.then(
-    () => null,
-    (caught: unknown) => caught
-  )
-  expect(error).toBeInstanceOf(WorkspaceSourceRejectedError)
-  return error as WorkspaceSourceRejectedError
-}
-
-function codes(diagnostics: ReadonlyArray<{ code: string; severity: string }>, severity = 'error') {
-  return diagnostics
-    .filter((finding) => finding.severity === severity)
-    .map((finding) => finding.code)
 }
 
 function summary(changes: ReadonlyArray<{ action: string; key: string }>) {
@@ -286,15 +240,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  const reportPath =
-    process.env.WORKSPACE_SOURCE_FILES_REPORT_PATH ??
-    resolve('test-results/workspace-source-files.json')
-  await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
-  if (workspaceIds.length > 0) {
-    await db.delete(auditLog).where(inArray(auditLog.workspaceId, workspaceIds))
-    await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
-  }
+  await writeReport()
+  await workspaces.cleanup()
   await db.delete(permissionGroup).where(eq(permissionGroup.organizationId, organizationId))
   await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(inArray(user.id, [ownerId, blockedId]))
@@ -484,17 +431,7 @@ describe('workspace source files', () => {
         counts: { files: 1, bytes: STARTER['files/docs/plan.md'].length },
       })
 
-      /** What the CLI sends per round: the wanted blobs in order, up to the per-request cap. */
-      function round(wanted: readonly string[]): string[] {
-        let bytes = 0
-        return wanted.filter((blobPath) => {
-          const size = directory[blobPath].length
-          if (bytes > 0 && bytes + size > WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest)
-            return false
-          bytes += size
-          return true
-        })
-      }
+      const round = (wanted: readonly string[]) => cliRound(blobsOf(directory, []), wanted)
       const first = round(preview.needBlobs)
       expect(first).toHaveLength(2)
 

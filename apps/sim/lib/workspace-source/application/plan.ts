@@ -16,13 +16,17 @@ import {
   parseWorkspaceBase,
   resourceAddress,
   type WorkspaceBaseV1,
-  type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
-import { finding } from '@/lib/workspace-source/application/findings'
+import {
+  finding,
+  kindLimitFinding,
+  overKindLimit,
+} from '@/lib/workspace-source/application/findings'
+import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
@@ -64,7 +68,8 @@ type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
  * The blob manifest by path, refusing a path listed twice or one that holds no binary file. With
  * `decode`, the content each blob carries is decoded once and checked against its declared hash
  * and size, so bytes that changed while they were sent refuse the apply before anything is
- * written; a dry run never decodes.
+ * written, and a round carrying more than `maxBlobBytesPerRequest` is refused; a dry run never
+ * decodes.
  */
 function readBlobs(
   blobs: readonly SubmittedBlob[],
@@ -73,10 +78,11 @@ function readBlobs(
 ): { byPath: Map<string, SubmittedBlob>; carried: Map<string, Buffer> } {
   const byPath = new Map<string, SubmittedBlob>()
   const carried = new Map<string, Buffer>()
+  let carriedBytes = 0
   for (const blob of blobs) {
     const refuse = (message: string, hint?: string) =>
       diagnostics.push(
-        error('E_BLOB_CONTENT', message, { file: blob.path, ...(hint ? { hint } : {}) })
+        finding('E_BLOB_CONTENT', message, { file: blob.path, ...(hint ? { hint } : {}) })
       )
     if (!isBlobPath(blob.path)) {
       refuse(`${blob.path} is sent as a binary file, but no binary file lives at that path.`)
@@ -97,16 +103,38 @@ function readBlobs(
       continue
     }
     carried.set(blob.path, bytes)
+    carriedBytes += bytes.byteLength
+  }
+  const { maxBlobBytesPerRequest } = WORKSPACE_SOURCE_LIMITS
+  if (carriedBytes > maxBlobBytesPerRequest) {
+    diagnostics.push(
+      finding(
+        'E_LIMIT_EXCEEDED',
+        `This round carries ${carriedBytes} bytes of binary files, over the ${maxBlobBytesPerRequest}-byte limit.`,
+        { hint: 'Send the rest of the files in the next round.' }
+      )
+    )
   }
   return { byPath, carried }
 }
 
-function error(
-  code: WorkspaceDiagnosticCode & `E_${string}`,
-  message: string,
-  extra: Partial<WorkspaceSourceDiagnostic> = {}
-) {
-  return finding(code, message, extra)
+/** Findings one plan reports; past it, one more finding counts the rest. */
+const MAX_PLAN_FINDINGS = 1_000
+
+/** `diagnostics` within {@link MAX_PLAN_FINDINGS}, errors first so a refusal always shows why. */
+function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
+  if (diagnostics.length <= MAX_PLAN_FINDINGS) return diagnostics
+  const errors = diagnostics.filter((entry) => entry.severity === 'error')
+  const rest = diagnostics.filter((entry) => entry.severity !== 'error')
+  const kept = [...errors, ...rest].slice(0, MAX_PLAN_FINDINGS)
+  return [
+    ...kept,
+    finding(
+      'E_LIMIT_EXCEEDED',
+      `The plan has ${diagnostics.length} findings; ${diagnostics.length - kept.length} more are left out.`,
+      { hint: 'Fix the findings shown, then apply again.' }
+    ),
+  ]
 }
 
 /** The kinds the submission manages: its folders and files, narrowed by `only`. */
@@ -173,7 +201,7 @@ function checkLimits(
   const { maxDeclarationBytes, maxWorkflowBytes, maxWorkflows } = WORKSPACE_SOURCE_LIMITS
   if (declarationBytes > maxDeclarationBytes) {
     diagnostics.push(
-      error(
+      finding(
         'E_LIMIT_EXCEEDED',
         `The declarations total ${declarationBytes} bytes, over the ${maxDeclarationBytes}-byte limit.`
       )
@@ -181,7 +209,7 @@ function checkLimits(
   }
   if (workflowBytes > maxWorkflowBytes) {
     diagnostics.push(
-      error(
+      finding(
         'E_LIMIT_EXCEEDED',
         `The workflow files total ${workflowBytes} bytes, over the ${maxWorkflowBytes}-byte limit.`,
         {
@@ -192,7 +220,7 @@ function checkLimits(
   }
   if (workflows.size > maxWorkflows) {
     diagnostics.push(
-      error(
+      finding(
         'E_PLAN_TOO_LARGE',
         `The apply sends ${workflows.size} workflows, over the ${maxWorkflows}-workflow limit.`,
         {
@@ -222,7 +250,7 @@ export async function planWorkspaceSource(
       const kind = kindOfPath(path)
       if (kind) return managed.has(kind)
       diagnostics.push(
-        error('E_DECL_UNKNOWN_FILE', `${path} is outside every kind's folder.`, { file: path })
+        finding('E_DECL_UNKNOWN_FILE', `${path} is outside every kind's folder.`, { file: path })
       )
       return false
     })
@@ -230,7 +258,13 @@ export async function planWorkspaceSource(
   checkLimits(files, diagnostics)
   const blobs = readBlobs(submission.blobs ?? [], options.decodeBlobs === true, diagnostics)
   if (diagnostics.some((finding) => finding.severity === 'error')) {
-    return { changes: [], diagnostics, base, needBlobs: [], carried: blobs.carried }
+    return {
+      changes: [],
+      diagnostics: capFindings(diagnostics),
+      base,
+      needBlobs: [],
+      carried: blobs.carried,
+    }
   }
 
   const planCtx: PlanContext = {
@@ -240,6 +274,7 @@ export async function planWorkspaceSource(
     pending: [],
   }
   const changes: PlannedChange[] = []
+  let declaredWorkflows: ReadonlyMap<string, unknown> = new Map()
   const references: Array<{
     kind: WorkspaceKind
     key: string
@@ -255,7 +290,7 @@ export async function planWorkspaceSource(
     const kindFindings = grouped.diagnostics.map(flattenDiagnostic)
     if (grouped.groups.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
       kindFindings.push(
-        error(
+        finding(
           'E_LIMIT_EXCEEDED',
           `${KIND_DIRS[kind]}/ declares ${grouped.groups.size} resources, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} limit.`,
           { kind }
@@ -279,16 +314,22 @@ export async function planWorkspaceSource(
       }
     }
     diagnostics.push(...kindFindings)
+    if (kind === 'workflow') declaredWorkflows = desired
     /** A resource that failed to parse would read as undeclared, so a broken kind is not planned. */
     if (kindFindings.some((finding) => finding.severity === 'error')) continue
     try {
       const stored = await adapter.load(ctx, { allocate: false })
+      if (overKindLimit(stored)) {
+        diagnostics.push(kindLimitFinding(kind))
+        continue
+      }
       changes.push(...(await adapter.plan(desired, stored, planCtx)))
     } catch (caught) {
       diagnostics.push(refusalDiagnostic(caught, { kind }))
     }
   }
 
+  await checkDeletesInUse(changes, declaredWorkflows, workspaceId)
   const deleted = new Set(
     changes
       .filter((change) => change.action === 'delete')
@@ -298,7 +339,7 @@ export async function planWorkspaceSource(
     for (const ref of refs) {
       if (!deleted.has(resourceAddress(ref.kind, ref.key))) continue
       diagnostics.push(
-        error(
+        finding(
           'E_PLAN_REF_DELETED',
           `${KIND_DIRS[kind]}/${key} uses ${ref.kind} "${ref.key}", which this apply deletes.`,
           {
@@ -314,13 +355,15 @@ export async function planWorkspaceSource(
   const writes = changes.filter((change) => change.action !== 'noop')
   if (writes.length > WORKSPACE_SOURCE_LIMITS.maxChanges) {
     diagnostics.push(
-      error(
+      finding(
         'E_PLAN_TOO_LARGE',
         `The apply makes ${writes.length} changes, over the ${WORKSPACE_SOURCE_LIMITS.maxChanges}-change limit.`
       )
     )
   }
-  for (const change of writes) {
+  /** A plan already refused authorizes nothing more: up to every change of every kind. */
+  const refused = diagnostics.some((finding) => finding.severity === 'error')
+  for (const change of refused ? [] : writes) {
     if (change.diagnostics.some((finding) => finding.severity === 'error')) continue
     try {
       await KIND_ADAPTERS[change.kind].authorize(change, ctx)
@@ -338,5 +381,5 @@ export async function planWorkspaceSource(
       writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !sent.has(path))
     ),
   ]
-  return { changes, diagnostics, base, needBlobs, carried: blobs.carried }
+  return { changes, diagnostics: capFindings(diagnostics), base, needBlobs, carried: blobs.carried }
 }

@@ -3,16 +3,16 @@ import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
   emptyBase,
-  KIND_DIRS,
   resourceAddress,
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import { kindLimitFinding, overKindLimit } from '@/lib/workspace-source/application/findings'
+import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
@@ -88,6 +88,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       principal,
       workspace: context,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+      hashBudget: newHashBudget(),
     }
     const requested = new Set(input.kinds ?? APPLY_ORDER)
     const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))
@@ -111,11 +112,10 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         result.kinds = result.kinds.filter((read) => read !== kind)
         continue
       }
-      if (stored.bound.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
-        throw new OrchestrationError(
-          'payload_too_large',
-          `This workspace has ${stored.bound.size} ${KIND_DIRS[kind]}, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} one directory can hold. Read the other kinds with --only.`
-        )
+      if (overKindLimit(stored)) {
+        result.diagnostics.push(kindLimitFinding(kind))
+        result.kinds = result.kinds.filter((read) => read !== kind)
+        continue
       }
       for (const [key, resource] of stored.bound) {
         try {

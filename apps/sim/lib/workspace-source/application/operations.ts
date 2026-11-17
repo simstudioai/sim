@@ -1,16 +1,16 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
-/**
- * Reads and applies a whole workspace as source. Each change runs through the child use case
- * that owns it (`createTableUseCase`, `applyWorkflowSource`, …), which enforces its own role,
- * capability and workspace-key policy: a workspace API key may read and apply here, and a child
- * that refuses it (workflow source denies workspace keys) is reported per resource as
- * `E_APPLY_FORBIDDEN` before anything is written. Not offered to Copilot.
- */
 const SOURCE_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
 
+/**
+ * Reads and applies a whole workspace as source. Each change runs through the child use case
+ * that owns it (`createTableUseCase`, `applyWorkflowSource`, …), which enforces its own role,
+ * capability and workspace-key policy: a workspace API key may read and apply here, and a child
+ * that refuses it (workflow and skill use cases deny workspace keys) is reported per resource as
+ * `E_APPLY_FORBIDDEN` before anything is written. Not offered to Copilot.
+ */
 export const workspaceSourceOperations = {
   // permission-group-exempt: each kind's resources are read through their own use cases, which apply that kind's capability
   read: defineWorkspaceOperation({

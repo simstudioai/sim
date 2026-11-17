@@ -1,0 +1,68 @@
+/**
+ * How every kind binds its stored resources to source keys, and claims a key for a resource an
+ * apply wrote.
+ */
+import { db } from '@sim/db'
+import type { WorkspaceKind } from '@sim/workspace-code'
+import { reboundFinding } from '@/lib/workspace-source/application/findings'
+import type {
+  PlannedChange,
+  SourceContext,
+  StoredResource,
+  StoredSet,
+  WorkspaceSourceDiagnostic,
+} from '@/lib/workspace-source/application/types'
+import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
+
+/**
+ * Binds each stored resource to its key: a get (`allocate`) allocates a key for every resource
+ * that has none, an apply never does, so an unbound resource can still be adopted by name. A
+ * resource `bindable` turns down stays unbound and never gets a key.
+ */
+export async function bindStored<S>(
+  ctx: SourceContext,
+  kind: WorkspaceKind,
+  records: ReadonlyArray<Omit<StoredResource<S>, 'key'>>,
+  options: { allocate: boolean; bindable?: (record: Omit<StoredResource<S>, 'key'>) => boolean }
+): Promise<StoredSet<S>> {
+  const { workspaceId } = ctx.workspace
+  const bindable = options.bindable ?? (() => true)
+  const ids = records.filter(bindable).map((record) => record.id)
+  const keys = options.allocate
+    ? ((
+        await resolveKeys(
+          workspaceId,
+          ids.map((id) => ({ kind, id })),
+          { createdBy: ctx.createdBy }
+        )
+      ).get(kind) ?? new Map<string, string>())
+    : await readKeysByResource(db, workspaceId, kind, ids)
+  const set: StoredSet<S> = { bound: new Map(), unbound: [] }
+  for (const record of records) {
+    const key = bindable(record) ? keys.get(record.id) : undefined
+    if (key === undefined) set.unbound.push({ ...record, key: '' })
+    else set.bound.set(key, { ...record, key })
+  }
+  return set
+}
+
+/**
+ * Binds `change.key` to the resource the change wrote. Called only once the write succeeded, so a
+ * write that fails leaves the key free and the next apply adopts the resource by name. Returns
+ * `I_KEY_REBOUND` when the key named a deleted resource.
+ */
+export async function claimKey(
+  change: Pick<PlannedChange, 'kind' | 'key' | 'action'>,
+  ctx: SourceContext,
+  resourceId: string
+): Promise<WorkspaceSourceDiagnostic[]> {
+  const claim = await claimResourceKey({
+    workspaceId: ctx.workspace.workspaceId,
+    kind: change.kind,
+    key: change.key,
+    resourceId,
+    origin: change.action === 'create' ? 'created' : 'adopted',
+    createdBy: ctx.createdBy,
+  })
+  return claim === 'rebound' ? [reboundFinding(change.kind, change.key)] : []
+}

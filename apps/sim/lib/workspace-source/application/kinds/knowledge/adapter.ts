@@ -7,7 +7,6 @@
  * apply returns once the documents are stored. Connector-synced documents are never read,
  * printed, replaced or deleted.
  */
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -35,23 +34,27 @@ import {
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/validation'
-import { ResourceChangedError, refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
-  noBaseFinding,
+  assertUnchangedBeforeDelete,
+  ResourceChangedError,
+  refusalDiagnostic,
+} from '@/lib/workspace-source/application/errors'
+import {
+  nameHolder,
+  nameTakenFinding,
   planUndeclared,
-  serverChangedFinding,
-  serverGoneFinding,
-  staleFinding,
+  refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
+import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
 import {
   checkWrites,
   chunkingConfig,
   type DocUpload,
   diffKnowledgeBase,
-  finding,
   hashDocs,
   indexingFindings,
   type KnowledgeChanges,
+  kbFinding,
 } from '@/lib/workspace-source/application/kinds/knowledge/diff'
 import {
   baseHashes,
@@ -65,7 +68,7 @@ import {
   type StoredKnowledgeState,
   sourceDocs,
 } from '@/lib/workspace-source/application/kinds/knowledge/stored'
-import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   ApplyContext,
@@ -76,7 +79,6 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** What the apply carries out for one knowledge base, decided at plan time. */
 interface KnowledgePlan {
@@ -131,7 +133,7 @@ async function embeddingFinding(
       key,
       error: getErrorMessage(error),
     })
-    return finding(
+    return kbFinding(
       key,
       'E_APPLY_REFUSED',
       'This server cannot resolve its embedding model, so it cannot create knowledge bases right now.',
@@ -139,7 +141,7 @@ async function embeddingFinding(
     )
   }
   if (decl.embeddingModel === undefined || decl.embeddingModel === model) return undefined
-  return finding(
+  return kbFinding(
     key,
     'E_KB_EMBEDDING_MODEL',
     `This server creates knowledge bases with ${model}, not ${decl.embeddingModel}.`,
@@ -148,24 +150,14 @@ async function embeddingFinding(
 }
 
 /** The finding for a name another stored knowledge base already holds. */
-function nameTakenFinding(
+function nameTaken(
   key: string,
   name: string,
   stored: StoredSet<StoredKnowledgeState>,
   self?: string
-): WorkspaceSourceDiagnostic | undefined {
-  const holder = [...stored.bound.values(), ...stored.unbound].find(
-    (candidate) => candidate.name === name && candidate.id !== self
-  )
-  if (!holder) return undefined
-  return finding(
-    key,
-    'E_NAME_TAKEN',
-    holder.key
-      ? `The knowledge base name "${name}" belongs to the knowledge base under key "${holder.key}".`
-      : `A knowledge base this directory cannot manage is already named "${name}".`,
-    'Rename one of them, or declare that knowledge base under its own key.'
-  )
+): WorkspaceSourceDiagnostic[] {
+  const holder = nameHolder(stored, name, { self })
+  return holder ? [nameTakenFinding(KIND, key, name, holder)] : []
 }
 
 async function planKnowledgeBase(
@@ -178,7 +170,7 @@ async function planKnowledgeBase(
   const change: KnowledgeChange = { kind: KIND, key, action: 'noop', decl, diagnostics: [] }
   if (decl.folder && decl.folder !== '/' && !folders.has(decl.folder)) {
     change.diagnostics.push(
-      finding(
+      kbFinding(
         key,
         'E_KB_FOLDER',
         `The folder ${decl.folder} does not exist in this workspace.`,
@@ -222,7 +214,7 @@ async function planKnowledgeBase(
     decl.embeddingModel !== target.state.knowledgeBase.embeddingModel
   ) {
     change.diagnostics.push(
-      finding(
+      kbFinding(
         key,
         'E_KB_EMBEDDING_IMMUTABLE',
         `"${target.name}" embeds with ${target.state.knowledgeBase.embeddingModel}; the model is fixed when a knowledge base is created.`,
@@ -230,29 +222,15 @@ async function planKnowledgeBase(
       )
     )
   }
+  const settled = settle(
+    resolution,
+    change,
+    (resource) => knowledgeView(resource, boundDocs, hashes).base
+  )
+  if (settled) return settled
   switch (resolution.action) {
-    case 'deleted':
-      change.diagnostics.push(serverGoneFinding(KIND, key, resolution.stale))
-      return change
-    case 'stale':
-      change.diagnostics.push(staleFinding(KIND, key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'no-base':
-      change.diagnostics.push(noBaseFinding(KIND, key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'noop': {
-      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding(KIND, key))
-      return {
-        ...change,
-        storedId: resolution.stored.id,
-        ...(resolution.refreshed
-          ? { base: knowledgeView(resolution.stored, boundDocs, hashes).base }
-          : {}),
-      }
-    }
     case 'create': {
-      const taken = nameTakenFinding(key, decl.name, stored)
-      if (taken) change.diagnostics.push(taken)
+      change.diagnostics.push(...nameTaken(key, decl.name, stored))
       const embedding = await embeddingFinding(key, decl)
       if (embedding) change.diagnostics.push(embedding)
       ctx.pending.push({ kind: KIND, key, id: generateId() })
@@ -289,10 +267,9 @@ async function planKnowledgeBase(
         ...(resolution.action === 'update' ? { base: resolution.base } : {}),
         ctx,
       })
-      const renamed =
-        changes.settings.name !== undefined &&
-        nameTakenFinding(key, changes.settings.name, stored, resource.id)
-      if (renamed) change.diagnostics.push(renamed)
+      if (changes.settings.name !== undefined) {
+        change.diagnostics.push(...nameTaken(key, changes.settings.name, stored, resource.id))
+      }
       change.diagnostics.push(
         ...changes.diagnostics,
         ...checkWrites(key, { chunking: changes.settings.chunkingConfig, uploads: changes.uploads })
@@ -320,6 +297,8 @@ async function planKnowledgeBase(
         detail: { changes, hashes, serverFingerprint: view.fingerprint },
       }
     }
+    default:
+      return change
   }
 }
 
@@ -407,13 +386,13 @@ async function uploadDocs(
   return hashes
 }
 
-/** The stored knowledge base, its base entry and reprinted declaration after a write. */
 /** Where a get's client downloads a document: the v2 document content route. */
 function documentHref(ctx: SourceContext, knowledgeBaseId: string, documentId: string): string {
   const path = `/api/v2/knowledge/${encodeURIComponent(knowledgeBaseId)}/documents/${encodeURIComponent(documentId)}/content`
   return `${path}?workspaceId=${encodeURIComponent(ctx.workspace.workspaceId)}`
 }
 
+/** The stored knowledge base, its base entry and reprinted declaration after a write. */
 async function written(
   ctx: SourceContext,
   key: string,
@@ -430,30 +409,20 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
     codec: knowledgeCodec,
 
     async load(ctx, { allocate }) {
-      const { workspaceId } = ctx.workspace
       const { knowledgeBases } = await listKnowledgeBases.execute({
         principal: ctx.principal,
-        input: { workspaceId },
+        input: { workspaceId: ctx.workspace.workspaceId },
       })
+      const records = knowledgeBases.map((state) => ({
+        id: state.knowledgeBase.id,
+        name: state.knowledgeBase.name,
+        state,
+      }))
       /** A search index is the workspace's own and never source; it only holds its name. */
-      const sourced = knowledgeBases.filter((entry) => !entry.knowledgeBase.isSearchIndex)
-      const ids = sourced.map((entry) => entry.knowledgeBase.id)
-      const keys = allocate
-        ? ((
-            await resolveKeys(
-              workspaceId,
-              ids.map((id) => ({ kind: KIND, id })),
-              { createdBy: ctx.createdBy }
-            )
-          ).get(KIND) ?? new Map<string, string>())
-        : await readKeysByResource(db, workspaceId, KIND, ids)
-      const set: StoredSet<StoredKnowledgeState> = { bound: new Map(), unbound: [] }
-      for (const state of knowledgeBases) {
-        const key = state.knowledgeBase.isSearchIndex ? undefined : keys.get(state.knowledgeBase.id)
-        if (key === undefined) set.unbound.push(storedKnowledgeBase('', state))
-        else set.bound.set(key, storedKnowledgeBase(key, state))
-      }
-      return set
+      return bindStored(ctx, KIND, records, {
+        allocate,
+        bindable: (record) => !record.state.knowledgeBase.isSearchIndex,
+      })
     },
 
     async plan(desired, stored, ctx) {
@@ -463,39 +432,52 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       })
       const folders = new Set(listed.map((folder) => folder.path))
       const changes: KnowledgeChange[] = []
+      const declaredNames = new Map<string, string>()
       for (const [key, decl] of desired) {
-        changes.push(await planKnowledgeBase(key, decl, stored, ctx, folders))
+        const change = await planKnowledgeBase(key, decl, stored, ctx, folders)
+        refuseDeclaredTwice(declaredNames, change, decl.name)
+        changes.push(change)
       }
-      /** A delete is stale when the knowledge base changed on the server since the base. */
-      const undeclared = new Map<string, string>()
+      /**
+       * A delete is stale when the knowledge base changed on the server since the base; the
+       * hashes the base vouches for are kept so the write can re-check it.
+       */
+      const undeclared = new Map<string, { fingerprint: string; hashes: Map<string, string> }>()
       if (ctx.allowDelete) {
         for (const [key, resource] of stored.bound) {
           const entry = ctx.base?.resources[resourceAddress(KIND, key)]
           if (desired.has(key) || entry?.id !== resource.id) continue
           const docs = await loadDocs(ctx, resource.id)
-          undeclared.set(
-            resource.id,
-            knowledgeView(resource, docs, baseHashes(docs, entry)).fingerprint
-          )
+          const hashes = baseHashes(docs, entry)
+          undeclared.set(resource.id, {
+            fingerprint: knowledgeView(resource, docs, hashes).fingerprint,
+            hashes,
+          })
         }
       }
-      changes.push(
-        ...planUndeclared<StoredKnowledgeState, KnowledgeBaseDecl, KnowledgePlan>(
-          KIND,
-          desired,
-          stored,
-          ctx,
-          (resource) => ({
-            what: 'knowledge base',
-            counts: { documents: resource.state.knowledgeBase.docCount },
-          }),
-          {
-            declared: changes,
-            fingerprint: (resource) => undeclared.get(resource.id) ?? '',
-          }
-        )
+      const deletes = planUndeclared<StoredKnowledgeState, KnowledgeBaseDecl, KnowledgePlan>(
+        KIND,
+        desired,
+        stored,
+        ctx,
+        (resource) => ({
+          what: 'knowledge base',
+          counts: { documents: resource.state.knowledgeBase.docCount },
+        }),
+        {
+          declared: changes,
+          fingerprint: (resource) => undeclared.get(resource.id)?.fingerprint ?? '',
+        }
       )
-      return changes
+      for (const change of deletes) {
+        const hashes = change.storedId ? undeclared.get(change.storedId)?.hashes : undefined
+        if (change.action !== 'delete' || !hashes) continue
+        change.detail = {
+          changes: { settings: {}, uploads: [], deletes: [], superseded: [] },
+          hashes,
+        }
+      }
+      return [...changes, ...deletes]
     },
 
     async authorize(change, ctx) {
@@ -546,6 +528,14 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const workspaceId = ctx.workspace.workspaceId
       if (change.action === 'delete') {
         if (!change.storedId) throw new Error('A knowledge base delete needs the stored id')
+        if (change.serverFingerprint !== undefined && change.detail) {
+          const current = await reload(ctx, change.key, change.storedId)
+          const docs = await loadDocs(ctx, change.storedId)
+          assertUnchangedBeforeDelete(
+            change,
+            knowledgeView(current, docs, change.detail.hashes).fingerprint
+          )
+        }
         await deleteKnowledgeBaseOperation.execute({
           principal,
           input: { knowledgeBaseId: change.storedId, assertedWorkspaceId: workspaceId },
@@ -568,19 +558,8 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           },
         })
         const uploaded = await uploadDocs(ctx, knowledgeBase.id, carried)
-        /**
-         * The key is claimed once the documents are stored: a create that fails before then
-         * leaves an unbound knowledge base, which the next apply adopts by name and finishes.
-         */
-        await claimResourceKey({
-          workspaceId,
-          kind: KIND,
-          key: change.key,
-          resourceId: knowledgeBase.id,
-          origin: 'created',
-          createdBy: ctx.createdBy,
-        })
-        return written(ctx, change.key, knowledgeBase.id, uploaded)
+        const diagnostics = await claimKey(change, ctx, knowledgeBase.id)
+        return { ...(await written(ctx, change.key, knowledgeBase.id, uploaded)), diagnostics }
       }
       const knowledgeBaseId = change.storedId
       if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
@@ -588,16 +567,6 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const currentDocs = await loadDocs(ctx, knowledgeBaseId)
       if (knowledgeView(current, currentDocs, plan.hashes).fingerprint !== plan.serverFingerprint) {
         throw new ResourceChangedError(change)
-      }
-      if (change.action === 'adopt') {
-        await claimResourceKey({
-          workspaceId,
-          kind: KIND,
-          key: change.key,
-          resourceId: knowledgeBaseId,
-          origin: 'adopted',
-          createdBy: ctx.createdBy,
-        })
       }
       const { settings, deletes, superseded } = plan.changes
       if (Object.keys(settings).length > 0) {
@@ -612,7 +581,17 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       if (ctx.blobs?.complete !== false) {
         for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
       }
-      return written(ctx, change.key, knowledgeBaseId, new Map([...plan.hashes, ...uploaded]))
+      const diagnostics =
+        change.action === 'adopt' ? await claimKey(change, ctx, knowledgeBaseId) : []
+      return {
+        ...(await written(
+          ctx,
+          change.key,
+          knowledgeBaseId,
+          new Map([...plan.hashes, ...uploaded])
+        )),
+        diagnostics,
+      }
     },
 
     async read(stored, ctx) {
@@ -626,7 +605,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const diagnostics: WorkspaceSourceDiagnostic[] = []
       if (unhashed.length > 0) {
         diagnostics.push(
-          finding(
+          kbFinding(
             stored.key,
             'I_KB_DOCS_UNHASHED',
             `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget.`
@@ -635,7 +614,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       }
       if (left > 0) {
         diagnostics.push(
-          finding(
+          kbFinding(
             stored.key,
             'I_KB_UNMANAGED_DOCS',
             `${left} document(s) of "${stored.name}" are not part of source (connector-synced, too large, unreadable, or sharing a file name) and are left as they are.`
