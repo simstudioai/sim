@@ -5,10 +5,10 @@
  * workflow pipeline compiles and diffs it; this codec only carries the files.
  */
 import { isRecordLike } from '@sim/utils/object'
-import type { Json } from '@sim/workflow-code'
+import type { SourceBase } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
-import { KIND_DIRS, type KindCodec } from '../kind'
+import { KIND_DIRS, type KindCodec, type WorkspaceKind } from '../kind'
 import { WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
 import { groupByFolder } from './group'
 
@@ -18,10 +18,10 @@ export interface WorkflowDecl {
    * folder was sent with only its base, meaning it is unchanged since the CLI last wrote it.
    */
   files: Record<string, string>
-  /** `.sim/lock.json`, as JSON. */
-  lock?: Json
+  /** `.sim/lock.json`, as JSON; the workflow pipeline validates it. */
+  lock?: unknown
   /** `.sim/base.json`, as JSON: where the workflow was read. */
-  base?: Json
+  base?: unknown
 }
 
 /** The folder of workflow `key`. */
@@ -29,19 +29,38 @@ export function workflowFolder(key: string): string {
   return `${KIND_DIRS.workflow}/${key}`
 }
 
-/** The ids a workflow folder's base names, when it names them. */
-export function workflowBaseIds(
-  decl: WorkflowDecl
-): { workflowId: string; workspaceId: string } | null {
+/** A workflow folder's base, when it is one (`SourceBase`: where the workflow was read). */
+export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
   const base = decl.base
   return isRecordLike(base) &&
     typeof base.workflowId === 'string' &&
-    typeof base.workspaceId === 'string'
-    ? { workflowId: base.workflowId, workspaceId: base.workspaceId }
+    typeof base.workspaceId === 'string' &&
+    typeof base.fingerprint === 'string' &&
+    typeof base.catalogHash === 'string'
+    ? {
+        workflowId: base.workflowId,
+        workspaceId: base.workspaceId,
+        fingerprint: base.fingerprint,
+        catalogHash: base.catalogHash,
+      }
     : null
 }
 
-function json(value: Json): string {
+/** The SDK functions that name another kind's resource by key, and the kind each names. */
+const REFERENCE_KINDS = {
+  table: 'table',
+  knowledgeBase: 'knowledge-base',
+  customTool: 'custom-tool',
+  skill: 'skill',
+} as const satisfies Record<string, WorkspaceKind>
+
+/** `table('leads')`, `skill("tone")`, …: a reference call with a literal key. */
+const REFERENCE_CALL = new RegExp(
+  `\\b(${Object.keys(REFERENCE_KINDS).join('|')})\\(\\s*(['"])([a-z][a-z0-9_-]{0,63})\\2`,
+  'g'
+)
+
+function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
@@ -57,7 +76,7 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
       const relative = path.slice(folder.length)
       if (relative === WORKFLOW_LOCK_FILE || relative === WORKFLOW_BASE_FILE) {
         try {
-          decl[relative === WORKFLOW_LOCK_FILE ? 'lock' : 'base'] = JSON.parse(content) as Json
+          decl[relative === WORKFLOW_LOCK_FILE ? 'lock' : 'base'] = JSON.parse(content)
         } catch {
           diagnostics.push(
             diagnostic('E_DECL_SHAPE', `${path} is not valid JSON.`, { kind: 'workflow', key })
@@ -85,5 +104,19 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
     if (decl.base !== undefined) text[`${folder}/${WORKFLOW_BASE_FILE}`] = json(decl.base)
     return { text, blobs: [] }
   },
-  canonical: (decl) => ({ files: decl.files, lock: decl.lock ?? null }),
+  /** Workflows keep their own fingerprint (`sf1:`); this only tells two submissions apart. */
+  canonical: (decl) => ({ files: decl.files }),
+  /**
+   * The resources `workflow.ts` names by literal key. A match inside a comment or string counts
+   * too, which only ever makes a delete more cautious.
+   */
+  refs(decl) {
+    const entry = decl.files[SOURCE_ENTRY_FILE] ?? ''
+    const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
+    for (const match of entry.matchAll(REFERENCE_CALL)) {
+      const kind = REFERENCE_KINDS[match[1] as keyof typeof REFERENCE_KINDS]
+      refs.set(`${kind}:${match[3]}`, { kind, key: match[3] })
+    }
+    return [...refs.values()]
+  },
 }

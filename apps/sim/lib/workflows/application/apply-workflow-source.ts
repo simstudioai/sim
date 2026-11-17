@@ -44,7 +44,7 @@ import {
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import { evaluateSource } from '@/lib/workflows/application/source-evaluate'
+import { evaluateSource, type PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
@@ -77,6 +77,8 @@ interface SourceSubmission {
   /** Run the whole pipeline and stop before the write. Never audits or notifies. */
   dryRun?: boolean
   provenance?: { client: 'cli' | 'copilot' | 'canvas' | 'api'; gitSha?: string; repo?: string }
+  /** Resources the enclosing workspace source apply creates first (`evaluateSource`). */
+  pendingResources?: readonly PendingResource[]
 }
 
 export interface ApplyWorkflowSourceInput extends SourceSubmission {
@@ -414,6 +416,7 @@ async function runSourceApply(
       createdBy,
       files: input.files,
       lock: input.lock,
+      ...(input.pendingResources ? { pendingResources: input.pendingResources } : {}),
       ...(target.kind === 'existing' ? { base: target.base } : {}),
       ...(target.kind === 'new' ? { create: target.create } : {}),
     })
