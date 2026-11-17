@@ -1025,7 +1025,7 @@ class WorkflowPrinter {
             tag: branches.kind === 'condition' ? 'js' : 't',
             from: block.key,
           })
-      entries.push({ key: printMember(row.key).slice(1), value })
+      entries.push({ key: printKey(row.key), value })
       const rowMeta: Property[] = []
       if (row.titleOverride !== undefined) {
         rowMeta.push({ key: 'title', value: this.values.string(row.titleOverride) })
