@@ -108,6 +108,8 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
     })
     return () => {
       clearTimeout(timer)
+      // Leaving inside the debounce would keep a fresh-looking pre-edit copy in the cache.
+      if (dirty) queryClient.invalidateQueries({ queryKey: workflowSourceKeys.detail(workflowId) })
       unsubscribeGraph()
       unsubscribeVariables()
       unsubscribeQueue()
