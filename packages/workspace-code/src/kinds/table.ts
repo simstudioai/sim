@@ -43,7 +43,7 @@ import { groupByFile } from './group'
  */
 export const TABLE_COLUMN_METADATA_KEYS = ['options', 'multiple', 'currencyCode'] as const
 
-export type TableColumnMetadataKey = (typeof TABLE_COLUMN_METADATA_KEYS)[number]
+type TableColumnMetadataKey = (typeof TABLE_COLUMN_METADATA_KEYS)[number]
 
 /** One column type as the server's column-type registry describes it. */
 export interface TableColumnTypeDescriptor {

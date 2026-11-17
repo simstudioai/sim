@@ -27,7 +27,7 @@ import { withTableWriteTx } from '@/lib/table/service'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
 /** One column update of a reshape, addressed by column id (or name). */
-export interface ReshapeColumnUpdate {
+interface ReshapeColumnUpdate {
   columnName: string
   updates: UpdateTableColumnInput['updates']
 }
