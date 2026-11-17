@@ -17,7 +17,7 @@
  * server checks names and lengths against the skill rules.
  */
 import { unstorableCharacter } from '../declaration/read'
-import { diagnostic, located, spanAt, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { groupByFile } from './group'
 
@@ -72,13 +72,14 @@ function parseSkill(
 ): { decl?: SkillDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = skillPath(key)
   const source = text[file] ?? ''
+  const at = sourceLocator(file, source)
   const diagnostics: WorkspaceDiagnostic[] = []
   const report = (start: number, end: number, message: string) => {
     diagnostics.push(
       diagnostic('E_SKILL_FRONTMATTER', message, {
         kind: 'skill',
         key,
-        ...located(source, spanAt(file, source, start, end)),
+        ...at.located(at.span(start, end)),
         hint: `A skill file opens with a \`${FENCE}\` line, \`name: …\`, \`description: …\` and a \`${FENCE}\` line; its content follows.`,
       })
     )

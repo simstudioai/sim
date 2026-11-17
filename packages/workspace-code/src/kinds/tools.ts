@@ -31,7 +31,7 @@ import {
 import { checkKnownFields, fieldReporter, readObject, readStringField } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
-import { diagnostic, located, spanAt, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
@@ -98,12 +98,13 @@ function readCodeFile(
     return undefined
   }
   const read = fromCodeFile(source, 'javascript')
+  const at = sourceLocator(file, source)
   if (!read.ok) {
     for (const error of read.errors) {
       diagnostics.push(
         diagnostic('E_TOOL_CODE', error.message, {
           ...resource,
-          ...located(source, spanAt(file, source, error.start, error.start + 1)),
+          ...at.located(at.span(error.start, error.start + 1)),
         })
       )
     }
@@ -117,7 +118,7 @@ function readCodeFile(
         'A custom tool runs outside any workflow, so `$ref` has nothing to name.',
         {
           ...resource,
-          ...located(source, spanAt(file, source, ref.start, ref.end)),
+          ...at.located(at.span(ref.start, ref.end)),
           hint: "Read values from the tool's parameters, or a secret with `$env.NAME`.",
         }
       )
