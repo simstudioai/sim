@@ -17,8 +17,6 @@ const RUNTIME_SUBBLOCK_IDS = new Set(['webhookId', 'triggerPath', 'triggerConfig
 const SYNTHETIC_TOOL_SUBBLOCK = /-tool-\d+-/
 /** Retired fields an earlier migration parked instead of deleting (`migrateBlockSubblockIds`). */
 const PARKED_PREFIX = '_removed_'
-/** Text types whose JSON-looking content is user text, never decoded. */
-const NEVER_DECODED_TYPES = new Set(['code', 'long-input'])
 
 /** Whether a stored subBlock id is excluded from params before any catalog lookup. */
 export function isExcludedSubBlockId(id: string): boolean {
@@ -55,7 +53,7 @@ export function declarationFor(
 
 /** Whether canonicalize decodes this subBlock's JSON text (structured or json-string storage). */
 export function shouldDecode(declaration: CatalogSubBlock | undefined): boolean {
-  if (!declaration || NEVER_DECODED_TYPES.has(declaration.type)) return false
+  if (!declaration || declaration.neverDecoded === true) return false
   return declaration.structured !== undefined || declaration.storage === 'json-string'
 }
 

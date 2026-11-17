@@ -1,6 +1,10 @@
 import { compareStrings, stripVersionSuffix } from '@sim/utils/string'
 import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
-import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code/sdk'
+import {
+  SDK_CORE_BLOCK_BUILDERS,
+  SDK_CORE_EXPORTS,
+  SDK_RESERVED_IDENTIFIERS,
+} from '@sim/workflow-code/sdk'
 import type { BlockConfig } from '@/blocks/types'
 
 /**
@@ -54,32 +58,12 @@ export interface SdkNameSource {
 const CREDENTIAL_ALIAS_SOURCES = new Set(['oauthCredential', 'triggerCredentials'])
 const CREDENTIAL_ALIAS = 'credential'
 
-/**
- * Core SDK exports that ARE block builders: the core blocks' namespaces (`condition(...)`, `fn(...)`,
- * and `table.queryRows(...)`, `file.read(...)`, `credential.listCredentials(...)` by declaration
- * merging). Every other core export is a value constructor or tree root (`block`, `trigger`,
- * `legacy`, `env`, `loop`, ...), which no block namespace may take.
- */
-const CORE_BLOCK_BUILDERS = new Set<string>([
-  'condition',
-  'credential',
-  'file',
-  'fn',
-  'human',
-  'note',
-  'response',
-  'router',
-  'runWorkflow',
-  'setVariables',
-  'table',
-])
-
 const CORE_EXPORTS: ReadonlySet<string> = new Set(SDK_CORE_EXPORTS)
 
 /** Namespace roots a block may never take; `custom` is the per-org custom block tree. */
 const SDK_OWNED_ROOTS = new Set<string>([
   'custom',
-  ...SDK_CORE_EXPORTS.filter((name) => !CORE_BLOCK_BUILDERS.has(name)),
+  ...SDK_CORE_EXPORTS.filter((name) => !SDK_CORE_BLOCK_BUILDERS.has(name)),
 ])
 
 /**

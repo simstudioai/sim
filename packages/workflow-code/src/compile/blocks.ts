@@ -6,16 +6,11 @@ import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subf
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
-import {
-  CODE_FILE_EXTENSIONS,
-  type CodeFileLanguage,
-  codeFileLanguage,
-  fromCodeFile,
-} from '../code-files'
+import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
-import { utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
   type AnchorKey,
   type CanonicalBlock,
@@ -1105,7 +1100,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
       )
     }
     const filterProblem =
-      entry.checked && sub.type === 'filter-builder' ? tableFilterProblem(entry.value) : null
+      entry.checked && sub.tableFilter === true ? tableFilterProblem(entry.value) : null
     if (filterProblem !== null) {
       ctx.reporter.report('W_TABLE_FILTER_SHAPE', filterProblem, rangeOf(ctx, entry.property), {
         hint: "Write builder rows [{ column: 'status', operator: 'eq', value: 'open' }] or a predicate { field: 'status', op: 'eq', value: 'open' } (all/any groups for several).",

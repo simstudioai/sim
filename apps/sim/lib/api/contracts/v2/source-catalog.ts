@@ -207,6 +207,15 @@ const catalogSubBlockSchema = z
       .enum(['tools', 'branches', 'tableRows', 'inputFormat', 'variables'])
       .optional()
       .describe('Structured value the canonical model decodes.'),
+    acceptsNumber: z
+      .boolean()
+      .optional()
+      .describe('Free text that also takes a number, which the runtime coerces.'),
+    neverDecoded: z
+      .boolean()
+      .optional()
+      .describe('User text whose JSON-looking content is never decoded.'),
+    tableFilter: z.boolean().optional().describe('A table filter: builder rows or a predicate.'),
     valueShape: z
       .enum(['number', 'boolean', 'json'])
       .optional()

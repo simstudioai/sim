@@ -41,6 +41,19 @@ export const SOURCE_REQUEST_MAX_BYTES = 2 * SOURCE_LIMITS.maxTotalBytes + 2_000_
 /** The entry file every source holds; function-code files sit beside it. */
 export const SOURCE_ENTRY_FILE = 'workflow.ts'
 
+/** The directory the printer writes function-code files under (`functions/<ident>.js`). */
+export const SOURCE_CODE_DIR = 'functions'
+
+/**
+ * Each function language's code file extension, which is also its template tag (`js```). The
+ * languages are `CodeLanguage` (apps/sim/lib/execution/languages.ts).
+ */
+export const CODE_FILE_EXTENSIONS = {
+  javascript: 'js',
+  python: 'py',
+  shell: 'sh',
+} as const
+
 /** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
   limit: 'maxBlocks' | 'maxEdges' | 'maxFiles' | 'maxTotalBytes'

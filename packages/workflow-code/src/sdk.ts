@@ -48,47 +48,88 @@ export const SDK_RESOURCE_CALLS = {
  */
 export const OLDEST_SDK_MAJOR = 1
 
+/** How the SDK treats one core export. An export with no traits is a value constructor or const. */
+interface SdkCoreExportTraits {
+  /**
+   * A core block's builder (`condition(...)`, `table.queryRows(...)` by declaration merging): the
+   * catalog maps a block namespace to it. Every other core export is a root no block may take.
+   */
+  readonly blockBuilder?: true
+  /**
+   * Set when `core.d.ts` declares the builder itself (named branches, function code files, a typed
+   * human form): the params its core signature owns, dropped from the generated params type.
+   */
+  readonly coreParams?: readonly string[]
+  /** A function or empty namespace a generated namespace may merge with (`table.insertRow`). */
+  readonly mergeable?: true
+}
+
+/** Every value the SDK's core module exports, and how codegen and naming treat each. */
+const SDK_CORE = {
+  [GENERIC_BUILDER]: {},
+  childWorkflow: { mergeable: true },
+  codeFile: {},
+  condition: { blockBuilder: true, coreParams: ['conditions'] },
+  credential: { blockBuilder: true, mergeable: true },
+  customTool: { mergeable: true },
+  edge: {},
+  env: {},
+  file: { blockBuilder: true, mergeable: true },
+  fn: { blockBuilder: true, coreParams: ['code'] },
+  folder: { mergeable: true },
+  human: { blockBuilder: true, coreParams: ['inputFormat'] },
+  js: {},
+  json: {},
+  knowledgeBase: { mergeable: true },
+  legacy: { mergeable: true },
+  loop: {},
+  mcp: { mergeable: true },
+  md: {},
+  note: { blockBuilder: true, coreParams: [] },
+  parallel: {},
+  py: {},
+  raw: {},
+  ref: {},
+  response: { blockBuilder: true, coreParams: [] },
+  router: { blockBuilder: true, coreParams: ['routes'] },
+  runWorkflow: { blockBuilder: true, coreParams: [] },
+  sandbox: { mergeable: true },
+  setVariables: { blockBuilder: true, coreParams: [] },
+  sh: {},
+  skill: { mergeable: true },
+  stored: {},
+  t: {},
+  table: { blockBuilder: true, mergeable: true },
+  todo: {},
+  trigger: { mergeable: true },
+  vars: {},
+  workflow: { mergeable: true },
+} as const satisfies Record<string, SdkCoreExportTraits>
+
+type SdkCoreExport = keyof typeof SDK_CORE
+
+const SDK_CORE_ENTRIES = Object.entries(SDK_CORE) as Array<[SdkCoreExport, SdkCoreExportTraits]>
+
 /** Every value the SDK's core module exports. */
-export const SDK_CORE_EXPORTS = [
-  GENERIC_BUILDER,
-  'childWorkflow',
-  'codeFile',
-  'condition',
-  'credential',
-  'customTool',
-  'edge',
-  'env',
-  'file',
-  'fn',
-  'folder',
-  'human',
-  'js',
-  'json',
-  'knowledgeBase',
-  'legacy',
-  'loop',
-  'mcp',
-  'md',
-  'note',
-  'parallel',
-  'py',
-  'raw',
-  'ref',
-  'response',
-  'router',
-  'runWorkflow',
-  'sandbox',
-  'setVariables',
-  'sh',
-  'skill',
-  'stored',
-  't',
-  'table',
-  'todo',
-  'trigger',
-  'vars',
-  'workflow',
-] as const
+export const SDK_CORE_EXPORTS: readonly SdkCoreExport[] = SDK_CORE_ENTRIES.map(([name]) => name)
+
+/** Core exports that are core blocks' builders; every other core export is an SDK-owned root. */
+export const SDK_CORE_BLOCK_BUILDERS: ReadonlySet<string> = new Set(
+  SDK_CORE_ENTRIES.filter(([, traits]) => traits.blockBuilder).map(([name]) => name)
+)
+
+/** Builders `core.d.ts` declares itself, with the params each core signature owns. */
+export const SDK_SPECIAL_BUILDERS: Readonly<Record<string, { coreParams: readonly string[] }>> =
+  Object.fromEntries(
+    SDK_CORE_ENTRIES.flatMap(([name, { coreParams }]) =>
+      coreParams ? [[name, { coreParams }]] : []
+    )
+  )
+
+/** Core exports a generated namespace may merge with; consts (`env`, `loop`, `js`) cannot. */
+export const SDK_MERGEABLE_CORE_EXPORTS: ReadonlySet<string> = new Set(
+  SDK_CORE_ENTRIES.filter(([, traits]) => traits.mergeable).map(([name]) => name)
+)
 
 /** Reserved words and strict-mode restrictions: none can name a `const`. */
 export const JS_RESERVED_WORDS: ReadonlySet<string> = new Set([

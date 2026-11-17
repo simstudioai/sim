@@ -161,6 +161,12 @@ export interface CatalogSubBlock {
   /** Encoding for a value with no prev raw value; prev's encoding wins when it exists. */
   storage: ParamStorage
   structured?: CatalogStructuredKind
+  /** Free text the runtime also takes as a number (a `200` written to a short input). */
+  acceptsNumber?: boolean
+  /** Text whose JSON-looking content is user text (code, long input): never decoded as JSON. */
+  neverDecoded?: boolean
+  /** A table filter: builder rows or a predicate, checked against what the table runtime accepts. */
+  tableFilter?: boolean
   /**
    * The shape the subBlock's value takes in a tool entry's `params` (`getSubBlockValueShape`,
    * tools/param-shape.ts), which canonicalize decodes a stored tool param by. Absent is `string`.

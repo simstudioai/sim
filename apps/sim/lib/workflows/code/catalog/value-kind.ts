@@ -15,6 +15,9 @@ interface SubBlockValueShape {
   resourceKind?: ResourceKind
   storage: ParamStorage
   structured?: CatalogStructuredKind
+  acceptsNumber?: boolean
+  neverDecoded?: boolean
+  tableFilter?: boolean
 }
 
 interface TypeRule {
@@ -22,6 +25,12 @@ interface TypeRule {
   resourceKind?: ResourceKind
   storage?: ParamStorage
   structured?: CatalogStructuredKind
+  /** Free text the runtime also takes as a number: the tools that read one coerce it. */
+  acceptsNumber?: true
+  /** User text whose JSON-looking content canonicalize never decodes. */
+  neverDecoded?: true
+  /** A table filter, whose shape compile checks against the table runtime's grammar. */
+  tableFilter?: true
 }
 
 /**
@@ -29,15 +38,15 @@ interface TypeRule {
  * here rather than a silent `string`.
  */
 const TYPE_RULES: Record<SubBlockType, TypeRule> = {
-  'short-input': { valueKind: 'string' },
-  'long-input': { valueKind: 'string' },
+  'short-input': { valueKind: 'string', acceptsNumber: true },
+  'long-input': { valueKind: 'string', acceptsNumber: true, neverDecoded: true },
   'time-input': { valueKind: 'string' },
   dropdown: { valueKind: 'string' },
   combobox: { valueKind: 'string' },
   slider: { valueKind: 'number' },
   switch: { valueKind: 'boolean' },
   table: { valueKind: 'array', structured: 'tableRows' },
-  code: { valueKind: 'code' },
+  code: { valueKind: 'code', neverDecoded: true },
   'tool-input': { valueKind: 'tools', structured: 'tools' },
   'skill-input': { valueKind: 'array' },
   'checkbox-list': { valueKind: 'array' },
@@ -66,7 +75,7 @@ const TYPE_RULES: Record<SubBlockType, TypeRule> = {
   'mcp-dynamic-args': { valueKind: 'object' },
   'input-format': { valueKind: 'array', structured: 'inputFormat' },
   'response-format': { valueKind: 'json' },
-  'filter-builder': { valueKind: 'json' },
+  'filter-builder': { valueKind: 'json', tableFilter: true },
   'sort-builder': { valueKind: 'json' },
   'file-upload': { valueKind: 'upload' },
   'input-mapping': { valueKind: 'object' },
@@ -104,5 +113,8 @@ export function deriveValueShape(subBlock: SubBlockConfig): SubBlockValueShape {
   const shape: SubBlockValueShape = { valueKind, storage: rule.storage ?? 'native' }
   if (valueKind === 'resource' && resourceKind) shape.resourceKind = resourceKind
   if (rule.structured) shape.structured = rule.structured
+  if (rule.acceptsNumber) shape.acceptsNumber = true
+  if (rule.neverDecoded) shape.neverDecoded = true
+  if (rule.tableFilter) shape.tableFilter = true
   return shape
 }

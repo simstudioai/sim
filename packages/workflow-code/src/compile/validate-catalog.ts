@@ -179,24 +179,16 @@ function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): b
 }
 
 /**
- * Free-text inputs whose stored value the runtime takes as a string or a number: a canvas or API
- * write may store `200` in a short input, and the tools that read one coerce it (`Number()`).
- */
-const NUMERIC_TEXT_TYPES: ReadonlySet<string> = new Set(['short-input', 'long-input'])
-
-/**
  * Whether a literal value has the JSON type its field expects (`valueKind`; a free-text input
  * also takes a number). Never coerced: a mismatch is `W_VALUE_KIND` and the exact value is kept.
  */
 export function valueKindMatches(
-  sub: Pick<CatalogSubBlock, 'type' | 'valueKind'>,
+  sub: Pick<CatalogSubBlock, 'acceptsNumber' | 'valueKind'>,
   value: Value
 ): boolean {
   switch (sub.valueKind) {
     case 'string':
-      return (
-        typeof value === 'string' || (NUMERIC_TEXT_TYPES.has(sub.type) && typeof value === 'number')
-      )
+      return typeof value === 'string' || (sub.acceptsNumber === true && typeof value === 'number')
     case 'code':
     case 'picked':
       return typeof value === 'string'

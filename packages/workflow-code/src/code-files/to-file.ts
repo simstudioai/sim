@@ -1,19 +1,13 @@
 import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
+import { CODE_FILE_EXTENSIONS } from '../limits'
 import { createJsContextScanner } from './lexer'
 import { ENV_VAR_NAME, formatMemberPath, parseStoredPath } from './ref-path'
 
 /** The languages a function block runs (`CodeLanguage`, apps/sim/lib/execution/languages.ts). */
-export type CodeFileLanguage = 'javascript' | 'python' | 'shell'
+export type CodeFileLanguage = keyof typeof CODE_FILE_EXTENSIONS
 
 export const REF_ROOT = '$ref'
 export const ENV_ROOT = '$env'
-
-/** Each language's code file extension, which is also its template tag (`js```). */
-export const CODE_FILE_EXTENSIONS = {
-  javascript: 'js',
-  python: 'py',
-  shell: 'sh',
-} as const satisfies Record<CodeFileLanguage, string>
 
 /** Candidate tokens: `<path>` on one line, or `{{NAME}}`. */
 const TOKEN = /<([^<>\s]+)>|\{\{([^{}\s]+)\}\}/g
