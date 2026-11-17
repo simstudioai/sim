@@ -67,6 +67,7 @@ interface JsContextScanner {
   contextAt(index: number): JsContext
 }
 
+/** A {@link JsContextScanner} over `text`, starting at offset 0. */
 export function createJsContextScanner(text: string): JsContextScanner {
   const modes: ScanMode[] = [{ type: 'normal' }]
   const openParenIsControlHead: boolean[] = []
