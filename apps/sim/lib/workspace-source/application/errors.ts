@@ -104,7 +104,8 @@ export function isRefusal(error: unknown): error is OrchestrationError {
 
 /**
  * A child use case's refusal as a finding about one resource: forbidden is `E_APPLY_FORBIDDEN`,
- * locked `E_APPLY_LOCKED`, a taken key or a name a use case reports taken `E_NAME_TAKEN`, any
+ * locked `E_APPLY_LOCKED`, over a size limit `E_LIMIT_EXCEEDED` (so the refusal stays a `413`),
+ * a taken key or a name a use case reports taken `E_NAME_TAKEN`, any
  * other expected failure (another conflict included) `E_APPLY_REFUSED` with its message.
  * Anything else (a database, network or dependency failure) is rethrown, never reported as the
  * caller's fault.
@@ -132,6 +133,8 @@ export function refusalDiagnostic(
       return finding('E_APPLY_FORBIDDEN', message, resource)
     case 'locked':
       return finding('E_APPLY_LOCKED', message, resource)
+    case 'payload_too_large':
+      return finding('E_LIMIT_EXCEEDED', message, resource)
     default:
       return finding('E_APPLY_REFUSED', message, resource)
   }

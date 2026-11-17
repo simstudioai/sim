@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableConflictError } from '@/lib/table/service'
-import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import {
+  refusalDiagnostic,
+  WorkspaceSourceRejectedError,
+} from '@/lib/workspace-source/application/errors'
 
 describe('refusalDiagnostic', () => {
   it('reports a name a child use case finds taken as E_NAME_TAKEN', () => {
@@ -16,6 +19,17 @@ describe('refusalDiagnostic', () => {
   it('rethrows an outage, so the request answers 503 rather than blaming the caller', () => {
     const outage = new OrchestrationError('unavailable', 'The egress gateway is unreachable')
     expect(() => refusalDiagnostic(outage, { kind: 'table', key: 'leads' })).toThrow(outage)
+  })
+
+  it('reports a size limit a child use case enforces as E_LIMIT_EXCEEDED, so the apply answers 413', () => {
+    const tooLarge = new OrchestrationError('payload_too_large', 'The document is over 100 MB')
+    const finding = refusalDiagnostic(tooLarge, { kind: 'knowledge-base', key: 'policies' })
+
+    expect(finding).toMatchObject({
+      code: 'E_LIMIT_EXCEEDED',
+      message: 'The document is over 100 MB',
+    })
+    expect(new WorkspaceSourceRejectedError([finding]).code).toBe('payload_too_large')
   })
 
   it('reports any other conflict as a refusal with its message, not a taken name', () => {

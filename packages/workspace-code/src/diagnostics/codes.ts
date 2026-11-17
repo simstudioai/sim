@@ -195,7 +195,11 @@ export function refusalClass(codes: Iterable<string>): RefusalClass {
   const present = new Set(codes)
   if (present.has('E_APPLY_STALE')) return 'conflict'
   if (present.has('E_APPLY_LOCKED')) return 'locked'
-  if (present.has('E_LIMIT_EXCEEDED') || present.has('E_PLAN_TOO_LARGE')) {
+  if (
+    present.has('E_LIMIT_EXCEEDED') ||
+    present.has('E_PLAN_TOO_LARGE') ||
+    present.has('E_FILE_TOO_LARGE')
+  ) {
     return 'payload_too_large'
   }
   return 'validation'

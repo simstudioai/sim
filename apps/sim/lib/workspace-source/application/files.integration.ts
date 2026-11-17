@@ -513,6 +513,7 @@ describe('workspace source files', () => {
         apply(workspaceId, { 'files/huge.bin': Buffer.from('small') }, { base: emptied.base })
       )
       expect(codes(replaced.diagnostics)).toEqual(['E_FILE_TOO_LARGE'])
+      expect(replaced.code).toBe('payload_too_large')
       expect((await storedFiles(workspaceId)).find((file) => file.id === huge.id)).toEqual(
         hugeBefore
       )
