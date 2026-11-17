@@ -93,6 +93,7 @@ vi.mock('@/lib/knowledge/embeddings', async (importOriginal) => {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteKnowledgeDocument,
+  listKnowledgeDocuments,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { createKnowledgeFolder } from '@/lib/knowledge/application/folders'
@@ -433,6 +434,39 @@ describe('knowledge bases as workspace source', () => {
     expect(again.applied).toEqual([])
     expect(await snapshot(workspaceId)).toEqual(before)
   })
+
+  check(
+    'a get reads past a page of documents the caller may not see to the readable ones after it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, POLICIES)
+      const list = listKnowledgeDocuments.execute
+      // The list admits each document after it pages, so a page of withheld documents comes back
+      // empty while later pages still hold readable ones.
+      const withheld = vi
+        .spyOn(listKnowledgeDocuments, 'execute')
+        .mockImplementation(async (args) => {
+          const offset = args.input.offset ?? 0
+          if (offset === 0) {
+            const page = await list(args)
+            return { ...page, documents: [], pagination: { ...page.pagination, hasMore: true } }
+          }
+          return list({
+            ...args,
+            input: { ...args.input, offset: offset - (args.input.limit ?? 0) },
+          })
+        })
+
+      const read = await get(workspaceId).finally(() => withheld.mockRestore())
+
+      expect(read.files).toEqual(created.files)
+      expect(read.blobs.map(({ path }) => path).sort(compareStrings)).toEqual(
+        blobs(POLICIES, 'none')
+          .map(({ path }) => path)
+          .sort(compareStrings)
+      )
+    }
+  )
 
   check(
     'replacing a document shows the re-embed count, uploads it, and keeps the others',

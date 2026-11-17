@@ -53,8 +53,8 @@ export function docRevision(doc: StoredDoc): number {
 const DOC_PAGE = 100
 
 /**
- * Every document of a knowledge base the caller can read, through the document list use case.
- * Refuses one holding more documents than a directory lists (`maxBlobs`), on the page that passes
+ * Every document of a knowledge base the caller can read, through the document list use case,
+ * walking every page while the list has more. Refuses one holding more documents than a directory lists (`maxBlobs`), on the page that passes
  * it, the last page included.
  */
 export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Promise<StoredDoc[]> {
@@ -87,7 +87,9 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         `This knowledge base holds more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} documents, more than one directory lists.`
       )
     }
-    if (!page.pagination.hasMore || page.documents.length === 0) break
+    // A page can come back empty while later ones hold readable documents: the list admits each
+    // document after it pages, so only `hasMore` ends the walk.
+    if (!page.pagination.hasMore) break
   }
   return [...docs.values()]
 }
