@@ -18,7 +18,7 @@
 import { compareEdges } from '../canonicalize/edges'
 import {
   DEFAULT_LOOP_ITERATIONS,
-  PARALLEL_BATCH_MAX,
+  effectiveBatchSize,
   SUBFLOW_DATA_KEYS,
 } from '../canonicalize/subflows'
 import { executableInactiveParams } from '../catalog/activity'
@@ -107,15 +107,9 @@ function executableLoop(spec: LoopSpec): ExecutableSubflow {
   }
 }
 
-/** `clampParallelBatchSize`: a missing or non-numeric size is 20, anything else 1–20. */
-function clampBatchSize(batchSize: number | undefined): number {
-  if (batchSize === undefined || Number.isNaN(batchSize)) return PARALLEL_BATCH_MAX
-  return Math.max(1, Math.min(PARALLEL_BATCH_MAX, Math.trunc(batchSize)))
-}
-
 function executableParallel(spec: ParallelSpec): ExecutableSubflow {
   const parallelType = spec.parallelType ?? 'count'
-  const batchSize = clampBatchSize(spec.batchSize)
+  const batchSize = effectiveBatchSize(spec.batchSize)
   return parallelType === 'count'
     ? {
         kind: 'parallel',

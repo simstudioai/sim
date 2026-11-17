@@ -4,6 +4,7 @@ import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/w
 import { encodeAnchor } from '../anchors'
 import {
   DEFAULT_LOOP_ITERATIONS,
+  effectiveBatchSize,
   PARALLEL_BATCH_MAX,
   SUBFLOW_DATA_KEYS,
 } from '../canonicalize/subflows'
@@ -1148,9 +1149,11 @@ function numberLiteral(node: Node): number | null {
 }
 
 /**
- * `W_SUBFLOW_COUNT` for a count the runtime does not run as written (it runs 5 for `0`, and none
- * or a rounded-up number for a negative or fractional count) and for a batch size outside the
- * 1–20 the runtime clamps to. A warning, because canonicalize keeps such stored values raw.
+ * `W_SUBFLOW_COUNT` for a value the runtime does not run as written: a batch size the runtime
+ * clamps (`effectiveBatchSize`, the executable model's rule), and a count that is not a whole
+ * number of at least 1 (it runs 5 for `0`, and none or a rounded-up number for a negative or
+ * fractional count, which the executable model's `count || 5` does not capture). A warning,
+ * because canonicalize keeps such stored values raw.
  */
 function checkSubflowCount(
   ctx: CompileContext,
@@ -1159,21 +1162,23 @@ function checkSubflowCount(
   value: number,
   node: Node
 ): void {
-  const max = key === 'batchSize' ? PARALLEL_BATCH_MAX : Number.POSITIVE_INFINITY
-  if (Number.isInteger(value) && value >= 1 && value <= max) return
+  if (key === 'batchSize') {
+    const effective = effectiveBatchSize(value)
+    if (effective === value) return
+    ctx.reporter.report(
+      'W_SUBFLOW_COUNT',
+      `A batch size of ${value} runs as ${effective}.`,
+      rangeOf(ctx, node),
+      { hint: `Write a whole number from 1 to ${PARALLEL_BATCH_MAX}.`, blockKey: decl.key }
+    )
+    return
+  }
+  if (Number.isInteger(value) && value >= 1) return
   ctx.reporter.report(
     'W_SUBFLOW_COUNT',
-    key === 'batchSize'
-      ? `A batch size of ${value} is clamped to 1–${PARALLEL_BATCH_MAX} at run time.`
-      : `A count of ${value} does not run as written.`,
+    `A count of ${value} does not run as written.`,
     rangeOf(ctx, node),
-    {
-      hint:
-        key === 'batchSize'
-          ? `Write a whole number from 1 to ${PARALLEL_BATCH_MAX}.`
-          : `Write a whole number of at least 1, e.g. ${key}: 3.`,
-      blockKey: decl.key,
-    }
+    { hint: `Write a whole number of at least 1, e.g. ${key}: 3.`, blockKey: decl.key }
   )
 }
 
