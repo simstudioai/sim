@@ -213,7 +213,7 @@ describe('Slack file hits', () => {
     ...fields,
   })
 
-  it('says what each file is and whether a read returns its text, instead of echoing its title', async () => {
+  it('says what each file is and whether a read can return its text, instead of echoing its title', async () => {
     expect(
       await fileHits([
         hit({ file_type: 'application/pdf', size: 245760 }),
@@ -223,9 +223,9 @@ describe('Slack file hits', () => {
         hit({ file_type: 'application/vnd.slack-list' }),
       ])
     ).toEqual([
-      'PDF, 240 KB. Reading it returns its full text.',
-      'Canvas. Reading it returns its full text.',
-      'CSV. Reading it returns its full text.',
+      'PDF, 240 KB. Reading it can return its full text.',
+      'Canvas. Reading it can return its full text.',
+      'CSV. Reading it can return its full text.',
       'Image. Its contents cannot be read here; open the source.',
       'List. Its contents cannot be read here; open the source.',
     ])
@@ -239,7 +239,7 @@ describe('Slack file hits', () => {
         hit({ file_type: 'application/x-unknown', title: 'Plan v2.1 final', content: '' }),
       ])
     ).toEqual([
-      'PDF. Reading it returns its full text.\nRevenue grew 12% in Q3',
+      'PDF. Reading it can return its full text.\nRevenue grew 12% in Q3',
       'File. Its contents cannot be read here; open the source.',
       'File. Its contents cannot be read here; open the source.',
     ])

@@ -384,7 +384,7 @@ function knownFileLabel(mimetype: string): string {
 
 /**
  * Slack search returns only a file's title, repeated as its content. A hit says what the file is
- * and whether reading it returns its text, so a reader can tell which files to open.
+ * and whether reading it can return its text, so a reader can tell which files to open.
  */
 function slackFileHitContent(file: Record<string, unknown>, users: Map<string, string>): string {
   const mimetype = normalizeMimeType(string(file.file_type))
@@ -402,7 +402,7 @@ function slackFileHitContent(file: Record<string, unknown>, users: Map<string, s
     : file.size === 0
       ? 'The file is empty.'
       : withinDownloadLimit(format, file.size)
-        ? 'Reading it returns its full text.'
+        ? 'Reading it can return its full text.'
         : 'Too large to read in full here; open the source.'
   const text = slackPlainText(string(file.content), users)
   return [`${summary}. ${reading}`, text === string(file.title) ? '' : text]
