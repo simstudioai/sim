@@ -394,6 +394,29 @@ describe('change-only observations after an action', () => {
     expect(field(result, 'changedSince')).toBeUndefined()
   })
 
+  it('reports a shown row that folded into a layout wrapper as no longer shown', () => {
+    const pane = (enabled: boolean, snapshotId: string): ComputerUseSnapshot => {
+      const state = buttons(snapshotId, [...labels.slice(0, 5), enabled ? 'Ready' : 'Busy'])
+      state.nodes.push({ elementId: 'e8', role: 'AXGroup', actions: [], enabled })
+      return state
+    }
+    computerToolResultForModel(pane(false, 'n1'))
+    const result = computerToolResultForModel(click(pane(true, 'n2')), {
+      ...stable,
+      baseSnapshotId: 'n1',
+    })
+    expect(field(result, 'changedSince')).toBe('n1')
+    expect(field(result, 'removedElementIds')).toEqual(['e8'])
+  })
+
+  it('sends a whole tree when the native read was cut short', () => {
+    computerToolResultForModel(buttons('p1', labels))
+    const partial = { ...buttons('p2', labels.slice(0, 4)), truncated: true }
+    const result = computerToolResultForModel(click(partial), { ...stable, baseSnapshotId: 'p1' })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(field(result, 'removedElementIds')).toBeUndefined()
+  })
+
   it('returns to a whole tree after a run of change lists', () => {
     computerToolResultForModel(buttons('f0', labels))
     let result: unknown

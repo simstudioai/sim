@@ -190,7 +190,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
   if (changes) {
     const changed = {
       ...model,
-      treeFormat: `${model.treeFormat} Only rows added or changed since snapshot ${base.snapshotId} are listed: every other row of that snapshot is unchanged and keeps its elementId, and removedElementIds no longer exist. Use get_app_state for the whole tree.`,
+      treeFormat: `${model.treeFormat} Only rows added or changed since snapshot ${base.snapshotId} are listed: every other row of that snapshot is unchanged and keeps its elementId, and removedElementIds are no longer shown. Use get_app_state for the whole tree.`,
       changedSince: base.snapshotId,
       accessibilityTree: changes.ids.map((id) => rows.get(id)).join('\n'),
       removedElementIds: changes.removed,
@@ -305,7 +305,15 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
       bundleId: state.bundleId,
       windowId: state.windowId,
       windowIds: allWindows.map((window) => window.windowId),
-      rows: new Map([...selected].map((id) => [id, rows.get(id) ?? ''])),
+      /** Exactly the rows sent, so a parent link left out here is sent once that parent shows. */
+      rows: new Map(
+        shown
+          .filter((node) => selected.has(node.elementId))
+          .map((node) => [
+            node.elementId,
+            nodeRow(node, shownParent.get(node.elementId), state.windowId, selected),
+          ])
+      ),
       changesSinceFull: 0,
     },
   }
@@ -313,9 +321,10 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0, base?:
 
 /**
  * The rows that differ from what the model was shown of `base`, or undefined when a whole tree is
- * clearer: another app or window, a window, sheet or popover opening or closing, a long chain of
- * change lists, most of the tree changing, or nothing visible changing at all (an empty list reads
- * as a failed action, while the whole tree shows where things stand).
+ * clearer: another app or window, a window, sheet or popover opening or closing, a partial native
+ * read (an element it missed may still exist), a long chain of change lists, most of the tree
+ * changing, or nothing visible changing at all (an empty list reads as a failed action, while the
+ * whole tree shows where things stand).
  */
 function changesSince(
   base: KnownTree,
@@ -326,14 +335,15 @@ function changesSince(
   if (
     base.bundleId !== result.bundleId ||
     base.windowId !== result.windowId ||
+    result.truncated ||
     base.changesSinceFull >= MAX_CHAINED_CHANGES ||
     base.windowIds.join() !== result.windows.map((window) => window.windowId).join()
   )
     return undefined
   const ids = shown.map((node) => node.elementId).filter((id) => rows.get(id) !== base.rows.get(id))
   if (ids.length * 2 > shown.length) return undefined
-  const present = new Set(result.nodes.map((node) => node.elementId))
-  const removed = [...base.rows.keys()].filter((id) => !present.has(id))
+  /** Gone or folded into a layout wrapper: either way the model should stop relying on its row. */
+  const removed = [...base.rows.keys()].filter((id) => !rows.has(id))
   if (ids.length === 0 && removed.length === 0) return undefined
   return { ids, removed }
 }
