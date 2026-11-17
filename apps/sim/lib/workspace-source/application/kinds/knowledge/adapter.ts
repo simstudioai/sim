@@ -276,31 +276,46 @@ async function planKnowledgeBase(
   }
 }
 
+/** The documents this round carries the bytes of, and whether it carries all of them. */
+interface CarriedDocs {
+  docs: Array<{ upload: DocUpload; buffer: Buffer }>
+  complete: boolean
+}
+
 /**
- * Uploads each document whose bytes this round carries, checking them against the declared hash,
- * and deletes the document it replaces only once its replacement is stored. Returns the new
- * documents' hashes by id and whether every upload ran.
+ * The uploads whose bytes this round carries, each checked against its declared size and hash
+ * before anything is written, so a corrupt round writes nothing.
  */
-async function uploadDocs(
-  ctx: ApplyContext,
-  key: string,
-  knowledgeBaseId: string,
-  uploads: readonly DocUpload[]
-): Promise<{ hashes: Map<string, string>; complete: boolean }> {
-  const workspaceId = ctx.workspace.workspaceId
-  const hashes = new Map<string, string>()
-  let complete = true
+function carriedDocs(ctx: ApplyContext, key: string, uploads: readonly DocUpload[]): CarriedDocs {
+  const carried: CarriedDocs = { docs: [], complete: true }
   for (const upload of uploads) {
     const path = knowledgeDocPath(key, upload.name)
     const content = ctx.blobs?.content.get(path)
     if (content === undefined) {
-      complete = false
+      carried.complete = false
       continue
     }
     const buffer = Buffer.from(content, 'base64')
     if (buffer.byteLength !== upload.doc.size || sha256Hex(buffer) !== upload.doc.sha256) {
       throw new OrchestrationError('validation', `${path} does not match its declared hash.`)
     }
+    carried.docs.push({ upload, buffer })
+  }
+  return carried
+}
+
+/**
+ * Uploads each carried document and deletes the document it replaces only once its replacement
+ * is stored. Returns the new documents' hashes by id.
+ */
+async function uploadDocs(
+  ctx: ApplyContext,
+  knowledgeBaseId: string,
+  carried: CarriedDocs
+): Promise<Map<string, string>> {
+  const workspaceId = ctx.workspace.workspaceId
+  const hashes = new Map<string, string>()
+  for (const { upload, buffer } of carried.docs) {
     const extension = getFileExtension(upload.name)
     const { document } = await uploadKnowledgeDocument.execute({
       principal: ctx.principal,
@@ -327,7 +342,7 @@ async function uploadDocs(
       })
     }
   }
-  return { hashes, complete }
+  return hashes
 }
 
 /** The stored knowledge base, its base entry and reprinted declaration after a write. */
@@ -457,6 +472,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const decl = change.decl
       const plan = change.detail
       if (!decl || !plan) throw new Error('A knowledge base write needs its plan')
+      const carried = carriedDocs(ctx, change.key, plan.changes.uploads)
       if (change.action === 'create') {
         const { knowledgeBase } = await createKnowledgeBase.execute({
           principal,
@@ -476,8 +492,8 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           origin: 'created',
           createdBy: ctx.createdBy,
         })
-        const uploaded = await uploadDocs(ctx, change.key, knowledgeBase.id, plan.changes.uploads)
-        return written(ctx, change.key, knowledgeBase.id, uploaded.hashes)
+        const uploaded = await uploadDocs(ctx, knowledgeBase.id, carried)
+        return written(ctx, change.key, knowledgeBase.id, uploaded)
       }
       const knowledgeBaseId = change.storedId
       if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
@@ -496,16 +512,16 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           createdBy: ctx.createdBy,
         })
       }
-      const { settings, uploads, deletes } = plan.changes
+      const { settings, deletes } = plan.changes
       if (Object.keys(settings).length > 0) {
         await updateKnowledgeBaseOperation.execute({
           principal,
           input: { knowledgeBaseId, assertedWorkspaceId: workspaceId, ...settings },
         })
       }
-      const uploaded = await uploadDocs(ctx, change.key, knowledgeBaseId, uploads)
+      const uploaded = await uploadDocs(ctx, knowledgeBaseId, carried)
       /** Deletes wait for the round that carries every blob, so a resumed apply loses nothing. */
-      if (uploaded.complete && ctx.blobs?.complete !== false) {
+      if (carried.complete && ctx.blobs?.complete !== false) {
         for (const doc of deletes) {
           await deleteKnowledgeDocument.execute({
             principal,
@@ -513,12 +529,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           })
         }
       }
-      return written(
-        ctx,
-        change.key,
-        knowledgeBaseId,
-        new Map([...plan.hashes, ...uploaded.hashes])
-      )
+      return written(ctx, change.key, knowledgeBaseId, new Map([...plan.hashes, ...uploaded]))
     },
 
     async read(stored, ctx) {

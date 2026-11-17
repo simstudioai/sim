@@ -417,30 +417,32 @@ describe('knowledge bases as workspace source', () => {
     }
   )
 
-  check('refuses a content mismatch: the bytes must hash to the manifest entry', async () => {
-    const workspaceId = await newWorkspace()
-    const forged = blobs(POLICIES, 'all').map((blob) =>
-      blob.path.endsWith('refunds.md')
-        ? { ...blob, content: Buffer.from('something else').toString('base64') }
-        : blob
-    )
+  check(
+    'refuses a content mismatch before writing anything: the bytes must hash to the manifest entry',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const forged = blobs(POLICIES, 'all').map((blob) =>
+        blob.path.endsWith('refunds.md')
+          ? { ...blob, content: Buffer.from('something else').toString('base64') }
+          : blob
+      )
 
-    const result = await withPermissionGroupScope(() =>
-      applyWorkspaceSource.execute({
-        principal: owner,
-        input: {
-          workspaceId,
-          files: POLICIES.files,
-          blobs: forged,
-          kinds: ['knowledge-base'],
-        },
-      })
-    )
+      const result = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: POLICIES.files,
+            blobs: forged,
+            kinds: ['knowledge-base'],
+          },
+        })
+      )
 
-    expect(result.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_REFUSED' })
-    const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
-    expect((await docs(stored.id)).map((doc) => doc.filename)).not.toContain('refunds.md')
-  })
+      expect(result.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_REFUSED' })
+      expect(await knowledgeBases(workspaceId)).toEqual([])
+    }
+  )
 
   check(
     'refuses an edit to a knowledge base changed on the server, and notes one it leaves',
