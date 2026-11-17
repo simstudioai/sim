@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-16",
+  "updatedAt": "2026-11-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -20205,8 +20205,8 @@
       "type": "perplexity",
       "slug": "perplexity",
       "name": "Perplexity",
-      "description": "Use Perplexity AI for chat and search",
-      "longDescription": "Generate completions using Perplexity AI chat models or perform web searches with advanced filtering.",
+      "description": "Use Perplexity AI for chat, search and agent runs",
+      "longDescription": "Generate completions using Perplexity AI chat models, perform web searches with advanced filtering, or run Perplexity and third-party models with built-in web search and URL fetch through the Agent API.",
       "bgColor": "#20808D",
       "iconName": "PerplexityIcon",
       "docsUrl": "https://docs.sim.ai/integrations/perplexity",
@@ -20218,16 +20218,20 @@
         {
           "name": "Search",
           "description": "Get ranked search results from Perplexity's continuously refreshed index with advanced filtering and customization options"
+        },
+        {
+          "name": "Agent",
+          "description": "Run a Perplexity or third-party model through the Perplexity Agent API with built-in web search and URL fetch, returning the answer, its sources and usage"
         }
       ],
-      "operationCount": 2,
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["llm", "web-scraping", "agentic"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-17"
     },
     {
       "type": "persona_v2",

@@ -4106,7 +4106,7 @@ import {
   pdlPersonIdentifyTool,
   pdlPersonSearchTool,
 } from '@/tools/pdl'
-import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
+import { perplexityAgentTool, perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
   personaApproveInquiryTool,
   personaCreateAccountTool,
@@ -10574,6 +10574,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   pdl_clean_location: pdlCleanLocationTool,
   pdl_clean_school: pdlCleanSchoolTool,
   pdl_autocomplete: pdlAutocompleteTool,
+  perplexity_agent: perplexityAgentTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   persona_approve_inquiry: personaApproveInquiryTool,

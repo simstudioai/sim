@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-description: Use Perplexity AI for chat and search
+description: Use Perplexity AI for chat, search and agent runs
 integration:
   type: "perplexity"
   color: "#20808D"
@@ -15,7 +15,7 @@ Use [Perplexity](https://www.perplexity.ai) to generate chat responses with web 
 
 ## Use the block [#usage-instructions]
 
-Generate completions using Perplexity AI chat models or perform web searches with advanced filtering.
+Generate completions using Perplexity AI chat models, perform web searches with advanced filtering, or run Perplexity and third-party models with built-in web search and URL fetch through the Agent API.
 
 ## Actions
 
@@ -79,6 +79,45 @@ Get ranked search results from Perplexity's continuously refreshed index with ad
 |   ↳ `snippet` | string | Brief excerpt or summary of the content |
 |   ↳ `date` | string | Date the page was crawled and added to Perplexity's index |
 |   ↳ `last_updated` | string | Date the page was last updated in Perplexity's index |
+
+</ReferenceDetails>
+
+### Perplexity Agent
+
+Run a Perplexity or third-party model through the Perplexity Agent API with built-in web search and URL fetch, returning the answer, its sources and usage
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Yes | The question or task for the agent |
+| `model` | string | Yes | Agent API model \(e.g., "anthropic/claude-opus-5-5", "openai/gpt-5.5"\) |
+| `systemPrompt` | string | No | Instructions that guide the agent behavior |
+| `web_search` | boolean | No | Let the agent search the web \(default: true\) |
+| `fetch_url` | boolean | No | Let the agent fetch the full content of URLs \(default: false\) |
+| `max_steps` | number | No | Maximum number of agent steps, including tool calls \(e.g., 3\) |
+| `max_tokens` | number | No | Maximum number of output tokens to generate \(e.g., 1024, 4096\) |
+| `apiKey` | string | Yes | Perplexity API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The answer produced by the agent |
+| `model` | string | Model used for the run |
+| `status` | string | Final status of the run \(completed, or incomplete when a limit was reached\) |
+| `sources` | array | Web search results the agent used |
+|   ↳ `title` | string | Title of the source |
+|   ↳ `url` | string | URL of the source |
+|   ↳ `snippet` | string | Excerpt of the source content |
+|   ↳ `date` | string | Publication date of the source |
+|   ↳ `last_updated` | string | Date the page was last updated in Perplexity's index |
+| `usage` | object | Token usage information |
+|   ↳ `input_tokens` | number | Number of input tokens |
+|   ↳ `output_tokens` | number | Number of output tokens |
+|   ↳ `total_tokens` | number | Total number of tokens used |
 
 </ReferenceDetails>
 
