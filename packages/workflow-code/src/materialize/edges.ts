@@ -10,6 +10,7 @@ import {
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { edgeTupleKey } from '../anchors'
 import type { BlockKey, BranchKey, CanonicalEdge } from '../model'
 import type { MaterializeContext } from './context'
 
@@ -29,7 +30,11 @@ function storedTupleKey(
   branches: ReadonlyMap<string, BranchHandles>
 ): string {
   const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
-  return `${edge.source}\u0000${storedPort(handle, blocks[edge.source], edge.source, branches)}\u0000${edge.target}`
+  return edgeTupleKey(
+    edge.source,
+    storedPort(handle, blocks[edge.source], edge.source, branches),
+    edge.target
+  )
 }
 
 function storedPort(
@@ -108,7 +113,7 @@ export function writeEdges(inputs: EdgeInputs, context: MaterializeContext): Edg
       from,
       inputs.branches
     )
-    wanted.set(`${from}\u0000${port}\u0000${to}`, edge)
+    wanted.set(edgeTupleKey(from, port, to), edge)
   }
 
   const result: Edge[] = []

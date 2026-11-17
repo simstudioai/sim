@@ -7,7 +7,7 @@ import {
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { portKey } from '../anchors'
+import { edgeTupleKey, portKey } from '../anchors'
 import type { BranchKey, CanonicalEdge, Port } from '../model'
 import { type CanonContext, report } from './context'
 
@@ -95,7 +95,7 @@ export function canonicalEdges(
     }
 
     const canonical: CanonicalEdge = { from, port, to }
-    const identity = `${from}\u0000${portKey(port)}\u0000${to}`
+    const identity = edgeTupleKey(from, portKey(port), to)
     if (seen.has(identity)) continue
     seen.add(identity)
     result.push(canonical)

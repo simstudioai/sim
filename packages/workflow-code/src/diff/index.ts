@@ -3,7 +3,7 @@
  * Like every CWM comparison it ignores `annotations`, key order and edge order.
  */
 
-import { portKey } from '../anchors'
+import { edgeTupleKey, portKey } from '../anchors'
 import type { LockIdentity } from '../lock'
 import type {
   BlockKey,
@@ -105,7 +105,7 @@ export interface CanonicalDiff {
 }
 
 function edgeKey(edge: CanonicalEdge, keyOf: (key: BlockKey) => BlockKey): string {
-  return `${keyOf(edge.from)}\u0000${portKey(edge.port)}\u0000${keyOf(edge.to)}`
+  return edgeTupleKey(keyOf(edge.from), portKey(edge.port), keyOf(edge.to))
 }
 
 /**
