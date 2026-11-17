@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { type ToolDecl, toolCodec } from './tools'
 
 const text = fc.string({ maxLength: 30 }).filter((value) => !/[\u0000\ud800-\udfff]/.test(value))
+/** A JSON key the declaration reader accepts: it refuses `__proto__` and the helper marker. */
+const jsonKey = text.filter((key) => key !== '$call' && key !== '__proto__')
 
 const json: fc.Arbitrary<Json> = fc.letrec<{ value: Json }>((tie) => ({
   value: fc.oneof(
@@ -14,11 +16,7 @@ const json: fc.Arbitrary<Json> = fc.letrec<{ value: Json }>((tie) => ({
     fc.double({ noNaN: true, noDefaultInfinity: true }).filter((n) => !Object.is(n, -0)),
     text,
     fc.array(tie('value'), { maxLength: 3 }),
-    fc.dictionary(
-      text.filter((key) => key !== '$call' && key !== '__proto__'),
-      tie('value'),
-      { maxKeys: 3 }
-    )
+    fc.dictionary(jsonKey, tie('value'), { maxKeys: 3 })
   ),
 })).value
 
@@ -40,7 +38,10 @@ const tool: fc.Arbitrary<ToolDecl> = fc.record({
     type: fc.constant('function'),
     function: fc.record({
       name: fc.stringMatching(/^[a-z_]{1,10}$/),
-      parameters: fc.record({ type: fc.constant('object'), properties: fc.dictionary(text, json) }),
+      parameters: fc.record({
+        type: fc.constant('object'),
+        properties: fc.dictionary(jsonKey, json),
+      }),
       extra: json,
     }),
   }),
@@ -132,6 +133,24 @@ describe('toolCodec', () => {
     expect(parse({ 'tools/lookup.js': 'return 1' }).diagnostics[0]).toMatchObject({
       code: 'E_DECL_UNKNOWN_FILE',
     })
+  })
+
+  it('refuses a workflow reference in a code file, pinned to it, and prints stored ones inline', () => {
+    const parsed = parse({
+      'tools/lookup.ts': DECLARATION,
+      'tools/lookup.js': 'const id = 1\nreturn $ref.start.input\n',
+    })
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics).toMatchObject([
+      { code: 'E_TOOL_CODE', span: { file: 'tools/lookup.js', line: 2, column: 8 } },
+    ])
+
+    const printed = toolCodec.print('lookup', {
+      title: 'Lookup',
+      schema: {},
+      code: 'return <start.input>',
+    })
+    expect(Object.keys(printed.text)).toEqual(['tools/lookup.ts'])
   })
 
   it('refuses a helper call inside the schema, and NUL in the code', () => {

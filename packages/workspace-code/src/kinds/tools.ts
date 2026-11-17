@@ -17,9 +17,10 @@
  * ```
  *
  * The schema is stored and printed verbatim. The code file is the stored code in the workflow
- * code-file form (`{{API_KEY}}` reads as `$env.API_KEY`, so it stays a name, never a value). Code
- * that form cannot hold exactly (it does not parse, or already names `$env`) prints inline as a
- * string, so every stored tool reads back unchanged.
+ * code-file form (`{{API_KEY}}` reads as `$env.API_KEY`, so it stays a name, never a value). A
+ * tool runs outside any workflow, so `$ref.<block>` has nothing to name and a code file holding one
+ * is refused. Code that form cannot hold exactly (it does not parse, already names `$env`, or holds
+ * a `<block.output>` token) prints inline as a string, so every stored tool reads back unchanged.
  */
 import {
   checkCodeFileBijection,
@@ -69,6 +70,14 @@ function wholeFile(file: string): SourceSpan {
   return { file, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 }
 }
 
+/** Stored code as its code file, when the file reads back as exactly that code and names no `$ref`. */
+function codeFileOf(code: string): string | undefined {
+  const file = checkCodeFileBijection(code, 'javascript')
+  if (!file.ok) return undefined
+  const read = fromCodeFile(file.file, 'javascript')
+  return read.ok && read.refs.every((ref) => ref.kind !== 'ref') ? file.file : undefined
+}
+
 /** Reads `tools/<key>.js` back into stored code, reporting where it fails. */
 function readCodeFile(
   key: string,
@@ -100,6 +109,21 @@ function readCodeFile(
     }
     return undefined
   }
+  const workflowRefs = read.refs.filter((ref) => ref.kind === 'ref')
+  for (const ref of workflowRefs) {
+    diagnostics.push(
+      diagnostic(
+        'E_TOOL_CODE',
+        'A custom tool runs outside any workflow, so `$ref` has nothing to name.',
+        {
+          ...resource,
+          ...located(source, spanAt(file, source, ref.start, ref.end)),
+          hint: "Read values from the tool's parameters, or a secret with `$env.NAME`.",
+        }
+      )
+    )
+  }
+  if (workflowRefs.length > 0) return undefined
   const problem = unstorableCharacter(read.code)
   if (problem) {
     diagnostics.push(
@@ -198,16 +222,16 @@ export const toolCodec: KindCodec<ToolDecl> = {
     groupByFile(KIND_DIRS['custom-tool'], [DECLARATION_EXTENSION, CODE_EXTENSION], paths),
   parse: (key, text) => parseTool(key, text),
   print(key, decl) {
-    const file = checkCodeFileBijection(decl.code, 'javascript')
+    const file = codeFileOf(decl.code)
     const value: Record<string, Json> = {
       title: decl.title,
       schema: decl.schema,
-      code: file.ok ? call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`) : decl.code,
+      code: file === undefined ? decl.code : call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`),
     }
     return {
       text: {
         [toolDeclarationPath(key)]: printDeclaration(CALLEE, value),
-        ...(file.ok ? { [codePath(key)]: file.file } : {}),
+        ...(file === undefined ? {} : { [codePath(key)]: file }),
       },
       blobs: [],
     }
