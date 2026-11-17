@@ -213,11 +213,16 @@ export async function planWorkspaceSource(
       )
       continue
     }
-    const grouped = adapter.codec.group(paths)
+    const blobPaths = (submission.blobs ?? [])
+      .map((blob) => blob.path)
+      .filter((path) => kindOfPath(path) === kind)
+    const grouped = adapter.codec.group([...paths, ...blobPaths])
     const kindFindings = grouped.diagnostics.map(flattenDiagnostic)
     const desired = new Map<string, unknown>()
     for (const [key, group] of grouped.groups) {
-      const text = Object.fromEntries(group.map((path) => [path, files[path]]))
+      const text = Object.fromEntries(
+        group.filter((path) => Object.hasOwn(files, path)).map((path) => [path, files[path]])
+      )
       const blobs = (submission.blobs ?? []).filter((blob) => group.includes(blob.path))
       const parsed = adapter.codec.parse(key, text, blobs)
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
