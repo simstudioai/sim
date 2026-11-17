@@ -150,11 +150,12 @@ const SIM_NAME = /\bSim\b/
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
 /**
  * A comparison set off by commas, as in "Sim, unlike Zapier, has ..." or "Zapier, like Sim, has
- * ...", removed so the sentence keeps its subject. The span ends at the first comma that is not a
- * thousands separator, and it is kept when a relative clause follows ("unlike Zapier, which has").
+ * ...", removed so the sentence keeps its subject. The span stays inside its sentence, ends at the
+ * first comma that is not a thousands separator, and is kept when a relative clause follows
+ * ("unlike Zapier, which has").
  */
 const PARENTHETICAL_COMPARISON = new RegExp(
-  String.raw`,\s+(?:like|${CONTRAST})\s+(?:[^,]|,(?=\d))*?,(?!\d)(?!\s*(?:which|that|who)\b)`,
+  String.raw`,\s+(?:like|${CONTRAST})\s+(?:[^,.!?;]|[,.](?=\d))*?,(?!\d)(?!\s*(?:which|that|who)\b)`,
   'gi'
 )
 /** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
@@ -164,7 +165,7 @@ const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+`, 
  * that states a count of its own ("While Sim has 280+ integrations, ...") is kept.
  */
 const LEADING_COMPARISON = new RegExp(
-  String.raw`^(?:like|${CONTRAST})\b(?:[^,]|,(?=\d))*?,(?!\d)\s*`,
+  String.raw`^(?:like|${CONTRAST})\b(?:[^,.!?;]|[,.](?=\d))*?,(?!\d)\s*`,
   'i'
 )
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */

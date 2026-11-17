@@ -340,6 +340,11 @@ describe('check-library-content', () => {
     ],
     ['Sim, unlike n8n, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
     [
+      'Zapier lists thousands of apps, while Make lists 3,000 apps. Sim has 1,000+ integrations, and more.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
       'While Sim has 1,000+ integrations, Zapier focuses on simple automations.',
       '1,000+ integrations',
       'overstates',
