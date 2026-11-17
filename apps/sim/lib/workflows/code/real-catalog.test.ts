@@ -22,6 +22,7 @@ import {
   COOKBOOK_TS,
   generateWorkspaceTypes,
   SPECIAL_BUILDER_KEYS,
+  WORKSPACE_COOKBOOK,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
@@ -364,6 +365,51 @@ describe('canonicalize and codegen over the real block catalog', () => {
         .map(
           (diagnostic) =>
             `${diagnostic.code} ${diagnostic.blockKey ?? ''}.${diagnostic.param ?? ''}: ${diagnostic.message}`
+        )
+    ).toEqual([])
+  }, 120_000)
+
+  it('type-checks and compiles the workspace cookbook the CLI writes, with no error or warning', () => {
+    sdkTypesOnce()
+    const dir = path.join(workDir, 'workspace-cookbook')
+    const write = (file: string, text: string) => {
+      mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
+      writeFileSync(path.join(dir, file), text)
+    }
+    for (const [file, text] of Object.entries(WORKSPACE_COOKBOOK)) write(file, text)
+    const workspaceTypes = generateWorkspaceTypes({
+      tableDeclarations: ['orders'],
+      knowledgeBases: ['policies'],
+      skills: ['tone'],
+      customTools: ['lookup-order'],
+      env: ['ANTHROPIC_API_KEY'],
+    })
+    write(`.sim/sdk/${workspaceTypes.path}`, workspaceTypes.text)
+    expect(
+      typeCheckAgainstSdk(workDir, 'workspace-cookbook', [
+        path.join(dir, '.sim/sdk/*.d.ts'),
+        path.join(dir, 'tables/*.ts'),
+        path.join(dir, 'tools/*.ts'),
+        path.join(dir, 'knowledge/*/knowledge.ts'),
+        path.join(dir, 'workflows/*/workflow.ts'),
+      ])
+    ).toBe('')
+
+    const entry = 'workflows/support/workflow.ts'
+    const compiled = compileWorkflow({
+      entry: { path: 'workflow.ts', text: WORKSPACE_COOKBOOK[entry] },
+      files: new Map(),
+      catalog,
+      sdkMajor: catalog.sdkMajor,
+      envNames: new Set(['ANTHROPIC_API_KEY']),
+    })
+    expect(
+      compiled.diagnostics
+        .filter(
+          (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning'
+        )
+        .map(
+          (diagnostic) => `${diagnostic.code} ${diagnostic.blockKey ?? ''}: ${diagnostic.message}`
         )
     ).toEqual([])
   }, 120_000)

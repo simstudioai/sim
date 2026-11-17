@@ -33,6 +33,7 @@ import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
+import { WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import type { WorkspaceBaseV1, WorkspaceKind } from '@sim/workspace-code'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -59,6 +60,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import {
   type ApplyWorkspaceSourceInput,
@@ -386,6 +388,60 @@ afterAll(async () => {
 })
 
 describe('workspace source across kinds', () => {
+  check(
+    'applies the workspace cookbook the CLI writes, and re-applying what a get reads changes nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const isBlob = (path: string) => path.startsWith('files/') || path.includes('/docs/')
+      const cookbook: Directory = {
+        files: Object.fromEntries(
+          Object.entries(WORKSPACE_COOKBOOK).filter(([path]) => !isBlob(path))
+        ),
+        blobs: Object.fromEntries(
+          Object.entries(WORKSPACE_COOKBOOK)
+            .filter(([path]) => isBlob(path))
+            .map(([path, text]) => [path, Buffer.from(text)])
+        ),
+      }
+
+      const dryRun = await apply(workspaceId, cookbook, { dryRun: true })
+      expect(findings(dryRun.diagnostics, 'error')).toEqual([])
+      expect(findings(dryRun.diagnostics, 'warning')).toEqual(['W_ENV_UNKNOWN workflow:support'])
+      const result = await apply(workspaceId, cookbook)
+
+      expect(result.failed).toBeUndefined()
+      expect(
+        result.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)
+      ).toEqual([
+        'create custom-tool:lookup-order',
+        'create skill:tone',
+        'create table:orders',
+        'create knowledge-base:policies',
+        'create file:templates/reply.md',
+        'create workflow:support',
+      ])
+      const id = (address: string) => result.base.resources[address]?.id
+      const state = await loadWorkflowFromNormalizedTables(id('workflow:support') ?? '')
+      const values = Object.values(state?.blocks ?? {}).flatMap((block) =>
+        Object.values(block.subBlocks ?? {}).map((subBlock) => subBlock.value)
+      )
+      expect(values).toContain(id('table:orders'))
+      expect(values).toContain(id('knowledge-base:policies'))
+      expect(values).toContainEqual([{ skillId: id('skill:tone'), name: 'tone' }])
+      expect(values).toContainEqual([
+        expect.objectContaining({ customToolId: id('custom-tool:lookup-order') }),
+      ])
+
+      const read = await get(workspaceId)
+      const again = await apply(
+        workspaceId,
+        { files: read.files, blobs: cookbook.blobs },
+        { base: read.base }
+      )
+      expect(writes(again)).toEqual([])
+    }
+  )
+
   check(
     'nothing deleted on the server comes back: an unchanged directory leaves every kind deleted, and an edit is stale',
     async () => {

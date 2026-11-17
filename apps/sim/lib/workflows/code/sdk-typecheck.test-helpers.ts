@@ -20,7 +20,8 @@ export function writeSdkTypes(dir: string, catalog: BlockCatalog) {
 }
 
 /**
- * Type-checks `include` against `core.d.ts` and the declarations under `<dir>/types` with the
+ * Type-checks `include` against `core.d.ts` (and the workspace declaration SDK, for workspace
+ * source declarations) and the declarations under `<dir>/types` with the
  * workspace compiler and the options every source directory gets. Returns the compiler's output:
  * empty when everything checks.
  */
@@ -32,7 +33,10 @@ export function typeCheckAgainstSdk(dir: string, name: string, include: string[]
       compilerOptions: {
         ...SOURCE_COMPILER_OPTIONS,
         skipLibCheck: false,
-        paths: { '@sim/workflow-sdk': [path.join(SDK_ROOT, 'src/core.d.ts')] },
+        paths: {
+          '@sim/workflow-sdk': [path.join(SDK_ROOT, 'src/core.d.ts')],
+          '@sim/workflow-sdk/workspace': [path.join(SDK_ROOT, 'src/workspace/index.d.ts')],
+        },
       },
       include: [path.join(dir, 'types/**/*.d.ts'), ...include],
     })
