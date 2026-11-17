@@ -49,9 +49,9 @@ Choose **Group** in the source's **Scope** field and enter the numeric group ID 
 
 The same permission strategies apply. Group membership alone never grants access to every project: administrator mode checks each project's current permissions, and non-admin mode requires a CSV grant for each project and reader. The source token must be able to read every project you want to search.
 
-In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Saving the source also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants.
+In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Updating and saving source settings also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants.
 
-Search visits project pages within a bounded request budget. Continuation cursors cover remaining projects and results; targeting a project narrows the request. A project that moves outside the saved group scope is unavailable until the source is refreshed. Group setup uses the existing project search APIs, so it does not require group-wide advanced search.
+Search visits project pages within a bounded request budget. Continuation cursors cover remaining projects and results; targeting a project narrows the request. Renamed or moved projects are blocked until a successful refresh; projects outside the configured group remain excluded. Group setup uses the existing project search APIs, so it does not require group-wide advanced search.
 
 To expand an existing deployment, create a **separate group source** after the application deployment finishes. Keep the working project source and its CI variables unchanged while validating the group. Give the group job its new `SIM_SOURCE_ID`, then pause the old source after confirming the wider setup. Regular knowledge-base ingestion remains project-scoped.
 
@@ -89,7 +89,7 @@ Saving the CSVs grants the access listed in them. Changing a membership in GitLa
 
 Download [export-permissions.py](/static/examples/gitlab/export-permissions.py) and save it as `ci/export-gitlab-permissions.py` in your repository. It uses Python 3.10 or later with no extra packages and exports a project or group per run.
 
-Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of the target project, their primary emails, and confirmation status. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
+Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of each selected project, their primary emails, and confirmation status. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
 
 The exporter makes only these GitLab API requests:
 
@@ -183,7 +183,7 @@ python3 ci/export-gitlab-permissions.py \
 
 Set `GITLAB_GROUP` to the configured group's full path or numeric ID. Add `--include-subgroups` if enabled in Sim. The existing `--project` command, CSV headers, upload endpoint, and revision checks are unchanged. Grants for projects outside the configured group are rejected; a reused path with a different project ID requires a new connection.
 
-A successful update returns the new revision. A `409 Conflict` means someone updated the source after the job read its revision. Rerun the job from the beginning so it exports current grants. An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the project should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
+A successful update returns the new revision. A `409 Conflict` means someone updated the source after the job read its revision. Rerun the job from the beginning so it exports current grants. An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the source should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
 
 ## Troubleshooting
 
