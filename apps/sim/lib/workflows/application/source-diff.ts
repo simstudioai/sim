@@ -61,10 +61,13 @@ export function summarizeDiff(
   }
 }
 
-/** The summary of an apply that refused before diffing. */
+/**
+ * The summary of an apply that refused before diffing: no change is listed, and `noop` is false
+ * because a refused source was never found to match the saved draft.
+ */
 export function emptyDiffSummary(): SourceDiffSummary {
   return {
-    noop: true,
+    noop: false,
     blocks: { added: [], removed: [], renamed: [], modified: [] },
     edges: { added: 0, removed: 0 },
     variables: { added: [], removed: [], modified: [] },

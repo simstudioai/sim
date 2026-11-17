@@ -877,6 +877,8 @@ check('a dry run with a compile error answers with line-pinned diagnostics', asy
   const error = result.diagnostics.find((d) => d.severity === 'error')
   expect(error?.file).toBe('workflow.ts')
   expect(error?.line).toBeGreaterThan(1)
+  expect(result.applied).toBe(false)
+  expect(result.diff.noop).toBe(false)
 })
 
 /** The realtime server's subblock write: one block's `sub_blocks` under the held row lock. */
