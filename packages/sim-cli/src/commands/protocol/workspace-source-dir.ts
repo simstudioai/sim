@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto'
 import { readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import { WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
+import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
 import {
   isBlobPath,
@@ -66,27 +66,51 @@ const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
   2
 )}\n`
 
+/** Where the workspace example is written: `.sim/examples/workspace/<path>`. */
+const WORKSPACE_EXAMPLES_DIR = '.sim/examples/workspace'
+
 const AGENTS_GUIDE = `# Sim workspace source
 
-This directory is a Sim workspace written as files. The server reads every file statically; nothing in it runs. The workspace id is \`workspaceId\` in \`${WORKSPACE_BASE_FILE}\`.
+This directory is a Sim workspace written as files. The server reads every file statically; nothing in it runs. The workspace id is \`workspaceId\` in \`${WORKSPACE_BASE_FILE}\`. \`${WORKSPACE_EXAMPLES_DIR}/\` holds one correct example of each kind and a workflow using them: copy from it.
 
 ## Layout
 
-- \`tables/<key>.ts\`: one table each: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows are never part of source.
-- \`workflows/<key>/\`: one workflow each, exactly a \`sim workflows source get --dir\` directory (\`workflow.ts\`, \`functions/*\`, \`.sim/lock.json\`, \`.sim/base.json\`). A workflow names a table by its key: \`table('leads')\`, typed from \`tables/leads.ts\` before any apply creates it.
-- A kind is managed only when its folder exists. Within it, every resource the server holds that the directory does not declare is reported, and deleted only with \`--allow-delete\`.
+A resource's key is its file or folder name, and a workflow names it by that key.
+
+- \`tables/<key>.ts\`: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows are never part of source. A workflow: \`table('<key>')\`.
+- \`knowledge/<key>/knowledge.ts\` (\`defineKnowledgeBase({ name, description?, chunking? })\`) and \`knowledge/<key>/docs/\`, one file per document, flat. A workflow: \`knowledgeBase('<key>')\`. Connector-synced documents are never part of source.
+- \`files/<path>\`: every file is one workspace file at that folder path; no declaration.
+- \`tools/<key>.ts\` (\`defineTool({ title, schema, code: codeFile('./<key>.js') })\`) and its code in \`tools/<key>.js\`, where each schema parameter is a variable. A workflow: \`customTool('<key>')\`.
+- \`skills/<key>.md\`: a frontmatter block of \`name\` and \`description\`, then the content. A workflow: \`skills: [skill('<key>')]\` on an agent.
+- \`workflows/<key>/\`: one workflow each, exactly a \`sim workflows source get --dir\` directory (\`workflow.ts\`, \`functions/*\`, \`.sim/lock.json\`, \`.sim/base.json\`).
+
+One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held and this directory declared at the last get, so \`tsc\` flags a key added since then until it is applied and read again (\`sim workspaces source get --dir .\`); the dry run is the authority for it.
+
+Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`.
 
 ## Edit loop (run from this directory)
 
 1. Edit the files. \`bunx tsc -p .\` type-checks them.
-2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan and every error; fix and rerun until it exits 0.
-3. \`sim workspaces source apply --dir . --yes\`: writes it, tables before the workflows that use them, and rewrites this directory from what was stored.
+2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
+3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
-A column's object key stays bound to its stored column: to rename a column keep the key and set \`name\` (\`email: column.string({ name: 'email_address' })\`). Changing the key drops the column and its cells.
+## Deletes
+
+- A kind is managed only when its folder exists: without \`skills/\`, no skill is touched.
+- A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document and a removed workspace file.
+- A resource the server holds that this directory never managed is kept, and named in a warning.
+- Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
+- Renaming a workflow folder renames the key, not a delete. A resource a workflow still uses cannot be deleted.
+
+## Good to know
+
+- A column's object key stays bound to its stored column: to rename one keep the key and set \`name\` (\`email: column.string({ name: 'email_address' })\`). Changing the key drops the column and its cells.
+- Renaming a skill (its \`name\`) does not rewrite the workflows that use it: each agent keeps the name it stored until its \`skills\` list is next edited. The key is what binds them.
+- A document or workspace file over 10 MB, or whose name no directory can hold, is left out of a get and listed in \`.sim/skipped.json\`; an apply never writes or deletes it.
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit); 6 locked; 7 too large; 8 stopped part-way (what was written is saved here; apply again to continue).
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `
@@ -98,6 +122,9 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
   gitattributes: ['*.ts text eol=lf', '*.js text eol=lf', '*.md text eol=lf', '*.json text eol=lf'],
   sdk: Object.entries(WORKSPACE_SDK_DTS).map(
     ([name, text]) => [`${WORKSPACE_SDK_DIR}/${name}`, text] as const
+  ),
+  examples: Object.entries(WORKSPACE_COOKBOOK).map(
+    ([path, text]) => [`${WORKSPACE_EXAMPLES_DIR}/${path}`, text] as const
   ),
 }
 

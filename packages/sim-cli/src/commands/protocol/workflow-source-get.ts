@@ -399,6 +399,8 @@ export interface SourceTreeProfile {
   gitattributes?: readonly string[]
   /** More declarations under the SDK directory, rewritten every time like `core.d.ts`. */
   sdk?: ReadonlyArray<readonly [string, string]>
+  /** More examples beside the cookbook, rewritten every time like it. */
+  examples?: ReadonlyArray<readonly [string, string]>
 }
 
 const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: TSCONFIG }
@@ -418,6 +420,7 @@ export async function sourceTreeChange(
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, profile.agents],
     [SOURCE_COOKBOOK_FILE, COOKBOOK_TS],
+    ...(profile.examples ?? []),
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
     ...(profile.sdk ?? []),
   ]
