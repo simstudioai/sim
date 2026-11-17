@@ -1,3 +1,7 @@
+import { constants } from 'node:fs'
+import { copyFile, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   APPLY_ORDER,
   isWorkspaceKind,
@@ -27,7 +31,13 @@ import {
   updateSourceDir,
   writtenRecord,
 } from './workflow-source-layout'
-import { assertListedBlobs, blobDigest, downloadBlob, editedBlobs } from './workspace-source-blobs'
+import {
+  assertListedBlobs,
+  blobDigest,
+  downloadBlob,
+  editedBlobs,
+  recordHashedBlobs,
+} from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
   keepFile,
@@ -116,12 +126,12 @@ async function writeWorkspaceSource(
     (path) => !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
   )
   const stale = await inBatches([...blobs.values()], async (blob) =>
-    (await blobDigest(dir, blob.path)) === blob.sha256 ? null : blob
+    blob.sha256 !== undefined && (await blobDigest(dir, blob.path)) === blob.sha256 ? null : blob
   )
   if (!force) {
     const touched = new Map<string, string | null>(Object.entries(source.files))
     const touchedBlobs = new Map<string, string | null>(
-      source.blobs.map((blob) => [blob.path, blob.sha256])
+      source.blobs.map((blob) => [blob.path, blob.sha256 ?? null])
     )
     for (const path of gone) (isBlobPath(path) ? touchedBlobs : touched).set(path, null)
     const edited = [...(await editedFiles(dir, touched)), ...(await editedBlobs(dir, touchedBlobs))]
@@ -143,34 +153,70 @@ async function writeWorkspaceSource(
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
-  const kept = {
-    ...Object.fromEntries(
-      Object.entries(written).filter(
-        ([path]) => !gone.includes(path) && !Object.hasOwn(source.files, path)
-      )
-    ),
-    ...Object.fromEntries(source.blobs.map((blob) => [blob.path, blob.sha256])),
+  /**
+   * Blobs listed without a hash are downloaded (and hashed) before anything moves into place, so
+   * the base and `.sim/written.json` can record their hashes.
+   */
+  const scratch = await mkdtemp(join(tmpdir(), 'sim-workspace-blobs-'))
+  try {
+    const hashless = stale.filter((blob) => blob !== null && blob.sha256 === undefined)
+    const digests = new Map<string, string>()
+    const scratchFile = new Map<string, string>()
+    await inBatches(
+      hashless.map((blob, index) => [blob, join(scratch, String(index))] as const),
+      async ([blob, file]) => {
+        if (!blob) return
+        digests.set(blob.path, await downloadBlob(client, blob, file))
+        scratchFile.set(blob.path, file)
+      }
+    )
+    const kept = {
+      ...Object.fromEntries(
+        Object.entries(written).filter(
+          ([path]) => !gone.includes(path) && !Object.hasOwn(source.files, path)
+        )
+      ),
+      ...Object.fromEntries(
+        source.blobs.map((blob) => [blob.path, blob.sha256 ?? digests.get(blob.path) ?? ''])
+      ),
+    }
+    const skipped = skippedFile(source.skipped)
+    const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, digests) })
+    const write: Array<readonly [string, string]> = [
+      ...Object.entries(source.files),
+      ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
+      [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
+      [SOURCE_WRITTEN_FILE, writtenRecord(source.files, kept)],
+      ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
+      ...tree.change.write,
+    ]
+    await updateSourceDir(dir, {
+      write,
+      fetch: stale.flatMap((blob) => {
+        if (!blob) return []
+        const fetched = scratchFile.get(blob.path)
+        return [
+          [
+            blob.path,
+            (file: string) =>
+              fetched
+                ? copyFile(fetched, file, constants.COPYFILE_EXCL)
+                : downloadBlob(client, blob, file).then(() => undefined),
+          ] as const,
+        ]
+      }),
+      remove: [
+        ...gone,
+        ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),
+        ...(tree.change.remove ?? []),
+      ],
+    })
+    const downloaded = stale.filter((blob) => blob !== null).length
+    const summary = finishTree(dir, write.length + downloaded, workspaceTypes, tree.ownsTsconfig)
+    return { written: summary.written, removed: gone.length, tsconfig: summary.tsconfig }
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
   }
-  const skipped = skippedFile(source.skipped)
-  const base = await mergedBase(dir, source)
-  const write: Array<readonly [string, string]> = [
-    ...Object.entries(source.files),
-    ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
-    [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-    [SOURCE_WRITTEN_FILE, writtenRecord(source.files, kept)],
-    ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
-    ...tree.change.write,
-  ]
-  await updateSourceDir(dir, {
-    write,
-    fetch: stale.flatMap((blob) =>
-      blob ? [[blob.path, (file: string) => downloadBlob(client, blob, file)] as const] : []
-    ),
-    remove: [...gone, ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]), ...(tree.change.remove ?? [])],
-  })
-  const downloaded = stale.filter((blob) => blob !== null).length
-  const summary = finishTree(dir, write.length + downloaded, workspaceTypes, tree.ownsTsconfig)
-  return { written: summary.written, removed: gone.length, tsconfig: summary.tsconfig }
 }
 
 /**
@@ -184,6 +230,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'getSourceCatalog',
     'getSourceResources',
     'downloadFile',
+    'downloadKnowledgeDocument',
   ])
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')

@@ -10,18 +10,64 @@ import { readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
-import { isBlobPath, isWorkspaceSourcePath } from '@sim/workspace-code/layout'
+import {
+  type BlobEntry,
+  fingerprintOf,
+  KIND_DIRS,
+  type KindCodec,
+  resourceAddress,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
+import { fileCodec } from '@sim/workspace-code/kinds/files'
+import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
+import { isBlobPath, isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { inBatches, readWrittenDigests } from './workflow-source-layout'
 
-type ListedBlob = GetWorkspaceSourceResponse['data']['blobs'][number]
+type WorkspaceSource = GetWorkspaceSourceResponse['data']
+type ListedBlob = WorkspaceSource['blobs'][number]
 
-/** The v2 file download route a blob's `href` must name. */
+/** The v2 routes a blob's `href` may name: a workspace file, or a knowledge base document. */
 const FILE_DOWNLOAD = /^\/api\/v2\/files\/([^/?#]+)$/
+const DOCUMENT_DOWNLOAD = /^\/api\/v2\/knowledge\/([^/?#]+)\/documents\/([^/?#]+)\/content$/
+
+/** How a listed blob is downloaded: the operation its `href` names, with its parameters. */
+type BlobDownload = { query: Record<string, string> } & (
+  | { operation: 'downloadFile'; params: { fileId: string } }
+  | {
+      operation: 'downloadKnowledgeDocument'
+      params: { knowledgeBaseId: string; documentId: string }
+    }
+)
+
+/** The download a listed blob's `href` names, or `null` for any other href. */
+function downloadOf(href: string): BlobDownload | null {
+  const url = new URL(href, 'http://source.invalid')
+  const query = Object.fromEntries(url.searchParams)
+  const file = FILE_DOWNLOAD.exec(url.pathname)
+  if (file) {
+    return {
+      operation: 'downloadFile',
+      params: { fileId: decodeURIComponent(file[1]) },
+      query,
+    }
+  }
+  const doc = DOCUMENT_DOWNLOAD.exec(url.pathname)
+  if (doc) {
+    return {
+      operation: 'downloadKnowledgeDocument',
+      params: {
+        knowledgeBaseId: decodeURIComponent(doc[1]),
+        documentId: decodeURIComponent(doc[2]),
+      },
+      query,
+    }
+  }
+  return null
+}
 
 /** SHA-256 of the file at `path` in the directory, or `null` when there is none. */
 export async function blobDigest(dir: string, path: string): Promise<string | null> {
@@ -64,39 +110,45 @@ export function assertListedBlobs(blobs: readonly ListedBlob[]): void {
         0
       )
     }
-    if (!FILE_DOWNLOAD.test(new URL(blob.href, 'http://source.invalid').pathname)) {
+    if (!blob.href.startsWith('/') || !downloadOf(blob.href)) {
       throw new SimApiError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`, 0)
     }
   }
 }
 
 /**
- * Downloads one listed blob into `file` through the v2 file route its `href` names, refusing
- * bytes past the listed size and, at the end, any size or SHA-256 other than the listing's.
+ * Downloads one listed blob into `file` through the v2 route its `href` names, refusing bytes
+ * past the listed size and, at the end, any size or SHA-256 other than the listing's. Returns the
+ * SHA-256 of the bytes, which a blob listed without one records in the base.
  */
 export async function downloadBlob(
-  client: OperationClient<'downloadFile'>,
+  client: OperationClient<'downloadFile' | 'downloadKnowledgeDocument'>,
   blob: ListedBlob,
   file: string
-): Promise<void> {
+): Promise<string> {
   if (!blob.href.startsWith('/')) {
     throw new SimApiError(`${blob.path} names a download on another origin: ${blob.href}`, 0)
   }
-  const url = new URL(blob.href, 'http://source.invalid')
-  const fileId = FILE_DOWNLOAD.exec(url.pathname)?.[1]
-  if (!fileId) {
+  const download = downloadOf(blob.href)
+  if (!download) {
     throw new SimApiError(`${blob.path} names a download this CLI cannot fetch: ${blob.href}`, 0)
   }
-  const response = await client.requestRaw('downloadFile', {
-    params: { fileId: decodeURIComponent(fileId) },
-    query: Object.fromEntries(url.searchParams),
-  })
+  const response =
+    download.operation === 'downloadFile'
+      ? await client.requestRaw('downloadFile', {
+          params: download.params,
+          query: download.query,
+        })
+      : await client.requestRaw('downloadKnowledgeDocument', {
+          params: download.params,
+          query: download.query,
+        })
   if (!response.body) throw new SimApiError(`The download of ${blob.path} had no body.`, 0)
   const hash = createHash('sha256')
   let size = 0
   const mismatch = () =>
     new SimApiError(
-      `The download of ${blob.path} does not match the workspace source (expected ${blob.size} bytes, SHA-256 ${blob.sha256}); nothing was written.`,
+      `The download of ${blob.path} does not match the workspace source (expected ${blob.size} bytes${blob.sha256 ? `, SHA-256 ${blob.sha256}` : ''}); nothing was written.`,
       0,
       'SOURCE_BLOB_MISMATCH'
     )
@@ -116,7 +168,76 @@ export async function downloadBlob(
     check,
     createWriteStream(file, { flags: 'wx' })
   )
-  if (size !== blob.size || hash.digest('hex') !== blob.sha256) throw mismatch()
+  const sha256 = hash.digest('hex')
+  if (size !== blob.size || (blob.sha256 !== undefined && sha256 !== blob.sha256)) throw mismatch()
+  return sha256
+}
+
+/** The codecs of the kinds that hold blobs, which can fingerprint a resource from its files. */
+const BLOB_CODECS: Partial<Record<WorkspaceKind, KindCodec<unknown>>> = {
+  file: fileCodec as KindCodec<unknown>,
+  'knowledge-base': knowledgeCodec as KindCodec<unknown>,
+}
+
+/** The name a resource's base entry records one of its blobs under (see `baseBlobPaths`). */
+function blobRecordName(kind: WorkspaceKind, key: string, path: string): string {
+  return kind === 'knowledge-base' ? path.slice(`${KIND_DIRS[kind]}/${key}/docs/`.length) : path
+}
+
+/**
+ * The base a get writes once it hashed the blobs the server listed without a hash (it had no
+ * budget left to): each such blob's resource records it as `{ id, rev, sha256 }`, and its
+ * fingerprint becomes that of the files the directory now holds for it, computed by the kind's
+ * codec exactly as an apply computes the directory's side. The next apply then judges the
+ * resource as one the server had hashed.
+ */
+export function recordHashedBlobs(
+  source: Pick<WorkspaceSource, 'files' | 'blobs' | 'base'>,
+  digests: ReadonlyMap<string, string>
+): WorkspaceSource['base'] {
+  const resources = { ...source.base.resources }
+  for (const [kind, codec] of Object.entries(BLOB_CODECS) as Array<
+    [WorkspaceKind, KindCodec<unknown>]
+  >) {
+    const blobs = new Map(
+      source.blobs
+        .filter((blob) => kindOfPath(blob.path) === kind)
+        .map((blob) => [blob.path, blob] as const)
+    )
+    if (![...blobs.keys()].some((path) => digests.has(path))) continue
+    const texts = Object.keys(source.files).filter((path) => kindOfPath(path) === kind)
+    for (const [key, group] of codec.group([...texts, ...blobs.keys()]).groups) {
+      const hashed = group.filter((path) => digests.has(path))
+      if (hashed.length === 0) continue
+      const entries: BlobEntry[] = group.flatMap((path) => {
+        const blob = blobs.get(path)
+        const sha256 = blob?.sha256 ?? digests.get(path)
+        return blob && sha256 ? [{ path, sha256, size: blob.size }] : []
+      })
+      const text = Object.fromEntries(
+        group
+          .filter((path) => Object.hasOwn(source.files, path))
+          .map((path) => [path, source.files[path]])
+      )
+      const { decl } = codec.parse(key, text, entries)
+      const address = resourceAddress(kind, key)
+      const entry = resources[address]
+      if (decl === undefined || !entry) continue
+      const recorded = { ...entry.blobs }
+      for (const path of hashed) {
+        const blob = blobs.get(path)
+        const sha256 = digests.get(path)
+        if (!blob || !sha256 || blob.rev === undefined) continue
+        recorded[blobRecordName(kind, key, path)] = { id: blob.id, rev: blob.rev, sha256 }
+      }
+      resources[address] = {
+        ...entry,
+        fingerprint: fingerprintOf(codec.canonical(decl)),
+        blobs: recorded,
+      }
+    }
+  }
+  return { ...source.base, resources }
 }
 
 /**

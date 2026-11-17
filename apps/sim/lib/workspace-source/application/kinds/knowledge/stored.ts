@@ -42,7 +42,8 @@ export interface StoredDoc {
 }
 
 /** A document's revision in the base: when it was uploaded. */
-function docRevision(doc: StoredDoc): number {
+/** A document's revision: its upload time, which a replace (a new document) changes. */
+export function docRevision(doc: StoredDoc): number {
   return doc.uploadedAt.getTime()
 }
 
@@ -299,7 +300,10 @@ export function baseHashes(
   for (const doc of docs) {
     if (!Object.hasOwn(base.blobs, doc.filename)) continue
     const entry = base.blobs[doc.filename]
-    if (entry.id === doc.id && entry.rev === docRevision(doc)) hashes.set(doc.id, entry.sha256)
+    /** A get's client records a revision it was listed as a string. */
+    if (entry.id === doc.id && String(entry.rev) === String(docRevision(doc))) {
+      hashes.set(doc.id, entry.sha256)
+    }
   }
   return hashes
 }

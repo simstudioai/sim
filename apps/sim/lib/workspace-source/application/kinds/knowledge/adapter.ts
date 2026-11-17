@@ -55,6 +55,7 @@ import {
 } from '@/lib/workspace-source/application/kinds/knowledge/diff'
 import {
   baseHashes,
+  docRevision,
   hashableDocs,
   knowledgeView,
   loadDocs,
@@ -407,6 +408,12 @@ async function uploadDocs(
 }
 
 /** The stored knowledge base, its base entry and reprinted declaration after a write. */
+/** Where a get's client downloads a document: the v2 document content route. */
+function documentHref(ctx: SourceContext, knowledgeBaseId: string, documentId: string): string {
+  const path = `/api/v2/knowledge/${encodeURIComponent(knowledgeBaseId)}/documents/${encodeURIComponent(documentId)}/content`
+  return `${path}?workspaceId=${encodeURIComponent(ctx.workspace.workspaceId)}`
+}
+
 async function written(
   ctx: SourceContext,
   key: string,
@@ -640,13 +647,14 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
         blobs: [
           ...printed.blobs.flatMap((blob) => {
             const doc = byName.get(blob.path.slice(knowledgeDocPath(stored.key, '').length))
-            return doc ? [{ ...blob, id: doc.id, href: doc.fileUrl }] : []
+            return doc ? [{ ...blob, id: doc.id, href: documentHref(ctx, stored.id, doc.id) }] : []
           }),
           ...unhashed.map((doc) => ({
             path: knowledgeDocPath(stored.key, doc.filename),
             size: doc.fileSize,
             id: doc.id,
-            href: doc.fileUrl,
+            href: documentHref(ctx, stored.id, doc.id),
+            rev: String(docRevision(doc)),
           })),
         ],
         base: view.base,

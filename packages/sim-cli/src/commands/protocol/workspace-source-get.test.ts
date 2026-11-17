@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fingerprintOf } from '@sim/workspace-code'
+import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -151,6 +153,63 @@ describe('workspaces source get', () => {
       requestRaw.mockClear()
       await get()
       expect(requestRaw).not.toHaveBeenCalled()
+    })
+
+    it('hashes a blob listed without a hash and records it in the base as an apply fingerprints it', async () => {
+      const sha256 = listed().sha256
+      const doc = Buffer.from('# Refunds\n')
+      const docSha = createHash('sha256').update(doc).digest('hex')
+      const knowledge =
+        "// @sim-sdk 1\nimport { defineKnowledgeBase } from '@sim/workflow-sdk/workspace'\n\nexport default defineKnowledgeBase({ name: 'Policies' })\n"
+      serve(
+        { 'knowledge/policies/knowledge.ts': knowledge },
+        {
+          kinds: ['file', 'knowledge-base'],
+          blobs: [
+            { ...listed(), sha256: undefined, rev: '7' },
+            {
+              path: 'knowledge/policies/docs/refunds.md',
+              size: doc.length,
+              id: 'doc_1',
+              href: '/api/v2/knowledge/kb_1/documents/doc_1/content?workspaceId=ws_local',
+              rev: '1700000000000',
+            },
+          ],
+          resources: {
+            'file:report.bin': { id: 'file_1' },
+            'knowledge-base:policies': { id: 'kb_1', fingerprint: 'rf1:read-without-the-document' },
+          },
+        }
+      )
+      requestRaw.mockImplementation(
+        async (path: string) => new Response(path.startsWith('/api/v2/files/') ? BYTES : doc)
+      )
+
+      await get()
+
+      expect(requestRaw).toHaveBeenCalledWith('/api/v2/knowledge/kb_1/documents/doc_1/content', {
+        query: { workspaceId: 'ws_local' },
+        method: 'GET',
+      })
+      const base = JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8'))
+      expect(base.resources['file:report.bin']).toEqual({
+        id: 'file_1',
+        fingerprint: fingerprintOf({ sha256 }),
+        blobs: { 'files/report.bin': { id: 'file_1', rev: '7', sha256 } },
+      })
+      expect(base.resources['knowledge-base:policies']).toEqual({
+        id: 'kb_1',
+        fingerprint: fingerprintOf(
+          knowledgeCodec.canonical({
+            name: 'Policies',
+            docs: { 'refunds.md': { sha256: docSha, size: doc.length } },
+          })
+        ),
+        blobs: { 'refunds.md': { id: 'doc_1', rev: '1700000000000', sha256: docSha } },
+      })
+      const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files
+      expect(written['files/report.bin']).toBe(sha256)
+      expect(written['knowledge/policies/docs/refunds.md']).toBe(docSha)
     })
 
     it('writes nothing when a download does not match its listing', async () => {
