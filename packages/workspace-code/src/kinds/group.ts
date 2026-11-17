@@ -1,18 +1,18 @@
-import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import type { GroupedPaths } from '../kind'
 import { isResourceKey } from '../layout'
 
 function keyProblem(path: string, key: string): WorkspaceDiagnostic {
   return diagnostic('E_KEY_INVALID', `"${key}" is not a valid key.`, {
     hint: 'A key is lowercase letters, digits, `-` and `_`, starting with a letter, at most 64 characters.',
-    span: { file: path, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 },
+    span: wholeFile(path),
   })
 }
 
 function unknownFile(path: string, expected: string): WorkspaceDiagnostic {
   return diagnostic('E_DECL_UNKNOWN_FILE', `${path} belongs to no resource.`, {
     hint: `This folder holds ${expected}.`,
-    span: { file: path, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 },
+    span: wholeFile(path),
   })
 }
 

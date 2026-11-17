@@ -5,4 +5,5 @@ export {
   flattenDiagnostic,
   sourceLocator,
   type WorkspaceDiagnostic,
+  wholeFile,
 } from './finding'

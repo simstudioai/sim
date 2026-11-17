@@ -6,9 +6,14 @@
  * A path is refused when no workspace file could hold it or when two paths would land on one file
  * on a case-insensitive disk, so a directory always round-trips through a get on any machine.
  */
-import type { Json, SourceSpan } from '@sim/workflow-code'
+import type { Json } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
-import { diagnostic, type WorkspaceDiagnostic, type WorkspaceDiagnosticCode } from '../diagnostics'
+import {
+  diagnostic,
+  type WorkspaceDiagnostic,
+  type WorkspaceDiagnosticCode,
+  wholeFile,
+} from '../diagnostics'
 import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
 import { isFileKey } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
@@ -110,10 +115,6 @@ function keyConflict(
   return null
 }
 
-function spanOf(path: string): SourceSpan {
-  return { file: path, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 }
-}
-
 function pathFinding(
   code: WorkspaceDiagnosticCode,
   path: string,
@@ -123,7 +124,7 @@ function pathFinding(
   return diagnostic(code, message, {
     kind: 'file',
     key: path.slice(KIND_DIRS.file.length + 1),
-    span: spanOf(path),
+    span: wholeFile(path),
     ...(hint ? { hint } : {}),
   })
 }

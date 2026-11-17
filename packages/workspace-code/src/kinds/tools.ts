@@ -22,16 +22,11 @@
  * is refused. Code that form cannot hold exactly (it does not parse, already names `$env`, or holds
  * a `<block.output>` token) prints inline as a string, so every stored tool reads back unchanged.
  */
-import {
-  checkCodeFileBijection,
-  fromCodeFile,
-  type Json,
-  type SourceSpan,
-} from '@sim/workflow-code'
+import { checkCodeFileBijection, fromCodeFile, type Json } from '@sim/workflow-code'
 import { checkKnownFields, fieldReporter, readObject, readStringField } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
-import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, sourceLocator, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
@@ -64,10 +59,6 @@ function holdsCall(value: Json): boolean {
   if (isDeclarationCall(value)) return true
   if (Array.isArray(value)) return value.some(holdsCall)
   return value !== null && typeof value === 'object' && Object.values(value).some(holdsCall)
-}
-
-function wholeFile(file: string): SourceSpan {
-  return { file, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 }
 }
 
 /** Stored code as its code file, when the file reads back as exactly that code and names no `$ref`. */

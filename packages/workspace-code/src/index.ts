@@ -8,7 +8,6 @@ export {
   type WorkspaceBaseV1,
 } from './base'
 export {
-  diagnostic,
   type FlatDiagnostic,
   flattenDiagnostic,
   severityOf,

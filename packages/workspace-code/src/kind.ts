@@ -28,7 +28,7 @@ export const KIND_DIRS = {
   workflow: 'workflows',
 } as const satisfies Record<WorkspaceKind, string>
 
-export type KindDir = (typeof KIND_DIRS)[WorkspaceKind]
+type KindDir = (typeof KIND_DIRS)[WorkspaceKind]
 
 /** Whether `value` names a kind, as `--only` and the API's `kinds` spell it. */
 export function isWorkspaceKind(value: string): value is WorkspaceKind {

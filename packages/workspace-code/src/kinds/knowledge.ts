@@ -24,7 +24,7 @@ import {
 } from '../declaration/fields'
 import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
-import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { type BlobEntry, KIND_DIRS, type KindCodec } from '../kind'
 import { isWorkspaceSourcePath } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
@@ -210,7 +210,7 @@ function fileFinding(
     kind: 'knowledge-base',
     key,
     ...(hint ? { hint } : {}),
-    span: { file: path, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 },
+    span: wholeFile(path),
   })
 }
 

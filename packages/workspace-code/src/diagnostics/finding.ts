@@ -83,6 +83,11 @@ export function sourceLocator(file: string, text: string): SourceLocator {
   }
 }
 
+/** The span of a whole file: where a finding about a file rather than a value in it points. */
+export function wholeFile(file: string): SourceSpan {
+  return { file, line: 1, column: 1, endLine: 1, endColumn: 1, start: 0, end: 0 }
+}
+
 /**
  * A finding flattened for the wire: the span becomes `file`/`line`/`column`, as workflow source
  * diagnostics travel.
