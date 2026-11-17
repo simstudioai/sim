@@ -221,6 +221,59 @@ afterAll(async () => {
 })
 
 describe('workspace source apply', () => {
+  /** Runs `run` with the workflow-code flag off, restoring it after. */
+  async function flagOff(run: () => Promise<void>) {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
+    try {
+      await run()
+    } finally {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+        async (flag: string) => flag === 'workflow-code'
+      )
+    }
+  }
+
+  check('the workflow-code flag off refuses a get, and no key is allocated', async () => {
+    const workspaceId = await newWorkspace()
+    await setUp(workspaceId)
+    const keyRows = () =>
+      db
+        .select({ key: workspaceResourceKey.key })
+        .from(workspaceResourceKey)
+        .where(eq(workspaceResourceKey.workspaceId, workspaceId))
+    await db.delete(workspaceResourceKey).where(eq(workspaceResourceKey.workspaceId, workspaceId))
+
+    await flagOff(async () => {
+      await expect(get(workspaceId)).rejects.toMatchObject({ code: 'forbidden' })
+    })
+
+    expect(await keyRows()).toEqual([])
+  })
+
+  check('the workflow-code flag off refuses an apply, and nothing is written', async () => {
+    const workspaceId = await newWorkspace()
+    const source = await setUp(workspaceId)
+    const before = {
+      tables: await tableSnapshot(workspaceId),
+      workflows: await workflows(workspaceId),
+    }
+    const files = {
+      ...source.files,
+      'tables/leads.ts': LEADS.replace("name: 'leads'", "name: 'prospects'"),
+    }
+
+    await flagOff(async () => {
+      await expect(apply(workspaceId, files, { base: source.base })).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+    })
+
+    expect({
+      tables: await tableSnapshot(workspaceId),
+      workflows: await workflows(workspaceId),
+    }).toEqual(before)
+  })
+
   check('creates a table and a workflow that writes to it in one apply', async () => {
     const workspaceId = await newWorkspace()
 

@@ -1,11 +1,11 @@
 /**
  * Stored workflows that still use a resource a plan deletes. The check reads the workflows as the
- * server stores them, by resource id, never the text the directory sent: the CLI sends an
- * unchanged workflow folder without its `workflow.ts`, so the text names nothing.
+ * server stores them, by resource id, never the text the directory sent: a workflow folder sent
+ * unchanged carries no files (its codec's `isUnchanged`), so its text names nothing.
  */
 import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
-import { type WorkflowDecl, workflowSourceBase } from '@sim/workspace-code/kinds/workflow'
+import type { WorkspaceKind } from '@sim/workspace-code'
 import { sql } from 'drizzle-orm'
 import { kindFinding, refDeletedFinding, where } from '@/lib/workspace-source/application/findings'
 import type { PlannedChange } from '@/lib/workspace-source/application/types'
@@ -65,14 +65,15 @@ async function workflowsUsing(
 
 /**
  * Checks every delete the plan makes (or refuses for want of `--allow-delete`) against the stored
- * workflows that use the resource. A workflow the directory declares unchanged keeps using it, so
- * the delete is `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning
- * and counted in the delete's destructive line. A workflow the apply deletes too is no user, and
- * an edited one is judged by the references its compiled source makes (the change's `refs`).
+ * workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
+ * the keys of each kind sent without files) keeps using it, so the delete is
+ * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
+ * the delete's destructive line. A workflow the apply deletes too is no user, and an edited one is
+ * judged by the references its compiled source makes (the change's `refs`).
  */
 export async function checkDeletesInUse(
   changes: PlannedChange[],
-  declaredWorkflows: ReadonlyMap<string, unknown>,
+  unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
   workspaceId: string
 ): Promise<void> {
   const deleting = changes.filter(
@@ -87,16 +88,16 @@ export async function checkDeletesInUse(
     workspaceId,
     deleting.flatMap((change) => change.storedId ?? [])
   )
-  const deletedWorkflows = new Set(
-    changes.flatMap((change) =>
-      change.kind === 'workflow' && change.action === 'delete' ? (change.storedId ?? []) : []
-    )
-  )
+  const deletedWorkflows = new Set<string>()
+  // The workflows the directory declares, by stored id.
   const declared = new Map<string, { key: string; edited: boolean }>()
-  for (const [key, decl] of declaredWorkflows as ReadonlyMap<string, WorkflowDecl>) {
-    const base = workflowSourceBase(decl)
-    if (base?.workspaceId !== workspaceId) continue
-    declared.set(base.workflowId, { key, edited: Object.keys(decl.files).length > 0 })
+  for (const change of changes) {
+    if (change.kind !== 'workflow' || change.storedId === undefined) continue
+    if (change.action === 'delete') deletedWorkflows.add(change.storedId)
+    else {
+      const edited = !unchanged.get('workflow')?.has(change.key)
+      declared.set(change.storedId, { key: change.key, edited })
+    }
   }
   for (const change of deleting) {
     const undeclared: UsingWorkflow[] = []

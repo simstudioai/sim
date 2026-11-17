@@ -22,6 +22,7 @@ import {
   planUndeclared,
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
+import { pendingOf } from '@/lib/workspace-source/application/keys'
 import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
@@ -113,7 +114,11 @@ export function planNamed<D, S>(
   switch (planned.action) {
     case 'create':
       holderOf()
-      return { ...change, action: 'create', name }
+      return {
+        ...change,
+        action: 'create',
+        pending: pendingOf({ ...change, action: 'create' }, { name }),
+      }
     case 'adopt':
     case 'update': {
       const { id, state } = planned.stored
@@ -126,7 +131,9 @@ export function planNamed<D, S>(
         ...change,
         action: planned.action === 'adopt' ? 'adopt' : 'update',
         storedId: id,
-        ...(planned.action === 'adopt' ? { name } : {}),
+        ...(planned.action === 'adopt'
+          ? { pending: pendingOf({ ...change, action: 'adopt', storedId: id }, { name }) }
+          : {}),
         ...(changed.length > 0 ? { fields: changed } : {}),
         serverFingerprint: storedFingerprint(named, state),
         detail: { changed },

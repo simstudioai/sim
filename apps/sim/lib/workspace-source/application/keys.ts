@@ -3,8 +3,10 @@
  * apply wrote.
  */
 import { db } from '@sim/db'
+import { generateId } from '@sim/utils/id'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
 import type {
   PlannedChange,
@@ -84,4 +86,21 @@ export async function claimKey(
     createdBy: ctx.createdBy,
   })
   return claim === 'rebound' ? [reboundFinding(change.kind, change.key)] : []
+}
+
+/**
+ * The pending entry of a planned change (see `PlannedChange.pending`): a create stands in under a
+ * fresh placeholder id, anything else under its stored id. `extra` is what the kind adds (the name
+ * a reference repeats, a table's declared columns).
+ */
+export function pendingOf(
+  change: Pick<PlannedChange, 'kind' | 'key' | 'action' | 'storedId'>,
+  extra: Pick<PendingResource, 'name' | 'columns'> = {}
+): PendingResource {
+  return {
+    kind: change.kind,
+    key: change.key,
+    id: change.action !== 'create' && change.storedId ? change.storedId : generateId(),
+    ...extra,
+  }
 }

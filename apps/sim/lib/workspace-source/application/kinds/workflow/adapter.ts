@@ -3,25 +3,37 @@
  * applied through the workflow source pipeline (`applyWorkflowSource`, `createWorkflowFromSource`)
  * and archived through `deleteWorkflow`, so compile, gates, locks, the per-workflow fingerprint
  * (409) and audit are exactly a single-workflow apply's. Folder placement is not managed.
+ *
+ * The kind's rule differs from the three-way rule the other kinds share, on purpose:
+ * - An edited folder is checked against its own `.sim/base.json` (the single-workflow apply's
+ *   409, re-checked under the workflow row lock), which keeps the folder appliable on its own with
+ *   `sim workflows source apply`. The root base's fingerprint only guards a delete.
+ * - A folder sent unchanged (only its base, `isUnchanged`) is a no-op with no drift check, so it
+ *   never reports `I_SERVER_CHANGED`. The workflow's fingerprint hashes its canonicalized stored
+ *   graph, so telling whether it drifted means reading and canonicalizing every declared workflow
+ *   on every apply, the cost the unchanged folder exists to avoid; no cheaper stored token tracks
+ *   it (the row's `updatedAt` also moves on a drag or a resize, which source never shows). The
+ *   change is never lost: the next get prints it, and an edit of the folder is refused as stale.
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { parseWorkflowLock, type SourceBase, type WorkflowLockV1 } from '@sim/workflow-code'
+import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   type BaseResource,
   fingerprintOf,
+  isWorkspaceKind,
   type ResourceFingerprint,
   resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
+import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import {
   type WorkflowDecl,
   workflowCodec,
   workflowFolder,
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
-import { WORKFLOW_LOCK_FILE } from '@sim/workspace-code/layout'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   applyWorkflowSource,
@@ -31,19 +43,23 @@ import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
+import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import {
   countLiveWorkflows,
   LAST_WORKFLOW_MESSAGE,
 } from '@/lib/workflows/orchestration/workflow-lifecycle'
-import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
+import {
+  refusalDiagnostic,
+  WorkspaceSourceRejectedError,
+} from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
   noBaseFinding,
   planUndeclared,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
+import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
   PlanContext,
@@ -94,25 +110,13 @@ interface WorkflowPlan {
 type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
 
 /**
- * The kinds whose workflow resource key is the workspace source key, so a reference the compiler
- * reads names the resource a directory declares (a workspace file's source key is its path, not
- * its resource key).
+ * The resources a compiled workflow names that a workspace directory declares by the same key: a
+ * kind whose source key is its resource key (a workspace file's source key is its path).
  */
-const SOURCE_KEYED_KINDS: ReadonlySet<string> = new Set<WorkspaceKind>([
-  'custom-tool',
-  'skill',
-  'table',
-  'knowledge-base',
-  'workflow',
-])
-
-/** The resources a compiled workflow names that a workspace directory declares by the same key. */
 function sourceRefs(references: readonly ResourceKeyRef[]): NonNullable<WorkflowChange['refs']> {
   const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
   for (const { kind, key } of references) {
-    if (SOURCE_KEYED_KINDS.has(kind)) {
-      refs.set(`${kind}:${key}`, { kind: kind as WorkspaceKind, key })
-    }
+    if (isWorkspaceKind(kind) && isResourceKeyed(kind)) refs.set(`${kind}:${key}`, { kind, key })
   }
   return [...refs.values()]
 }
@@ -158,7 +162,7 @@ function readLock(
       code: finding.code,
       severity: finding.severity,
       message: finding.message,
-      file: `${workflowFolder(key)}/${WORKFLOW_LOCK_FILE}`,
+      file: `${workflowFolder(key)}/${SOURCE_LOCK_FILE}`,
       ...(finding.path !== undefined ? { path: finding.path } : {}),
       kind: 'workflow',
       key,
@@ -168,15 +172,15 @@ function readLock(
 
 /**
  * Plans one workflow folder. `pending` holds the resources earlier kinds and folders of this apply
- * create or adopt, which the dry run resolves; a created workflow adds itself, so a later
- * folder naming it resolves too.
+ * create or adopt, which the dry run resolves; a created workflow carries its own entry, so a
+ * later folder naming it resolves too.
  */
 async function planWorkflow(
   key: string,
   decl: WorkflowDecl,
   stored: StoredSet<StoredWorkflowState>,
   ctx: PlanContext,
-  pending: PendingResource[]
+  pending: readonly PendingResource[]
 ): Promise<WorkflowChange> {
   const change: WorkflowChange = { kind: 'workflow', key, action: 'noop', decl, diagnostics: [] }
   const { principal } = ctx
@@ -257,10 +261,10 @@ async function planWorkflow(
       input: { workspaceId, files: decl.files, dryRun: true, pendingResources: pending },
     })
     change.diagnostics.push(...inFolder(key, result.diagnostics))
-    pending.push({ kind: 'workflow', key, id: generateId() })
     return {
       ...change,
       action: 'create',
+      pending: pendingOf({ ...change, action: 'create' }),
       fields: diffFields(result.diff),
       refs: sourceRefs(result.references),
     }
@@ -326,8 +330,8 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
 
   async plan(desired, stored, ctx) {
     const changes: WorkflowChange[] = []
-    const pending = [...ctx.pending]
     for (const [key, decl] of desired) {
+      const pending = [...ctx.pending, ...changes.flatMap((change) => change.pending ?? [])]
       changes.push(await planWorkflow(key, decl, stored, ctx, pending))
     }
     // A delete is stale when the workflow changed on the server since the base recorded it; one
@@ -411,16 +415,21 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     if (change.action !== 'create' && (!plan || !change.storedId)) {
       throw new Error('A workflow update needs its plan')
     }
-    const result =
+    const write = () =>
       plan && change.storedId
-        ? await applyWorkflowSource.execute({
+        ? applyWorkflowSource.execute({
             principal,
             input: { workflowId: change.storedId, ...plan, files: decl.files, ...provenance },
           })
-        : await createWorkflowFromSource.execute({
+        : createWorkflowFromSource.execute({
             principal,
             input: { workspaceId, files: decl.files, ...provenance },
           })
+    // The pipeline's own refusal is the apply's, with its findings pinned to the folder.
+    const result = await write().catch((error: unknown) => {
+      if (!(error instanceof WorkflowSourceRejectedError)) throw error
+      throw new WorkspaceSourceRejectedError(inFolder(change.key, error.diagnostics))
+    })
     const base: BaseResource = {
       id: result.workflowId,
       fingerprint: workflowFingerprint(result.base),

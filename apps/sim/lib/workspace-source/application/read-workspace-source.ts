@@ -41,7 +41,8 @@ export interface ReadWorkspaceSourceResult {
 
 /**
  * What one directory may hold across kinds, so anything a get writes applies back: declaration
- * bytes (every kind's text but workflow files) and listed blobs. A resource that would take the
+ * bytes (the text of every kind whose codec counts it against the declaration budget; a workflow
+ * is held to its own limits when read) and listed blobs. A resource that would take the
  * directory past either is left out and listed in `skipped`, in apply order, so earlier kinds
  * are kept whole.
  */
@@ -52,9 +53,9 @@ function directoryBudget() {
   return {
     spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
       const bytes =
-        kind === 'workflow'
-          ? 0
-          : Object.values(read.text).reduce((total, text) => total + utf8Bytes(text), 0)
+        (KIND_ADAPTERS[kind].codec.budget ?? 'declaration') === 'declaration'
+          ? Object.values(read.text).reduce((total, text) => total + utf8Bytes(text), 0)
+          : 0
       if (declarationBytes + bytes > maxDeclarationBytes) {
         return `its declaration would take the directory past the ${maxDeclarationBytes}-byte declaration limit`
       }
