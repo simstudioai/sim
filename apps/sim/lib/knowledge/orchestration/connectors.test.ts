@@ -251,9 +251,13 @@ describe('performCreateKnowledgeConnector', () => {
       success: true,
       connector: { connectorType: 'github', credentialId: null },
     })
-    expect(mockValidateGitHub).toHaveBeenCalledWith('personal-token', sourceConfig, {
-      mirrorsSourceAcls: false,
-    })
+    expect(mockValidateGitHub).toHaveBeenCalledWith(
+      'personal-token',
+      sourceConfig,
+      expect.objectContaining({
+        mirrorsSourceAcls: false,
+      })
+    )
     expect(mockEncryptApiKey).toHaveBeenCalledWith('personal-token')
     expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(

@@ -393,6 +393,10 @@ export function useConnectorSettingsForm({
 
     if (Object.keys(changedEntries).length > 0 || modesChanged) {
       const next: Record<string, unknown> = { ...connector.sourceConfig, ...changedEntries }
+      for (const field of connectorConfig?.configFields ?? []) {
+        const key = field.canonicalParamId ?? field.id
+        if (field.condition && !Object.hasOwn(resolved, key)) delete next[key]
+      }
       if (Object.keys(canonicalModes).length > 0) {
         next[CANONICAL_MODES_KEY] = canonicalModes
       } else {

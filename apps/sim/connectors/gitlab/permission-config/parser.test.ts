@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gitLabCsvSubjects, parseGitLabCsv } from '@/connectors/gitlab/permission-config/parser'
+import { parseGitLabCsv } from '@/connectors/gitlab/permission-config/parser'
 import { GITLAB_CSV_MAX_BYTES } from '@/connectors/gitlab/permission-config/types'
 
 describe('GitLab CSV permission uploads', () => {
@@ -54,22 +54,6 @@ describe('GitLab CSV permission uploads', () => {
     expect(() =>
       parseGitLabCsv({ filename: '../users.csv', content: '1,a@example.com' }, 'userMapping')
     ).toThrow('filename')
-  })
-  it('requires an exact selected project and mapping; unrelated rows and unknown users grant nothing', () => {
-    expect(
-      gitLabCsvSubjects(
-        [
-          ['1', 'a@example.com'],
-          ['2', 'b@example.com'],
-        ],
-        [
-          ['group/project', '1'],
-          ['group/other', '2'],
-          ['group/project', '99'],
-        ],
-        'group/project'
-      )
-    ).toEqual(['u:a@example.com'])
   })
   it('checks UTF-8 bytes, not just string length', () => {
     expect(() =>

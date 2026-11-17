@@ -199,6 +199,50 @@ describe('shared connector settings form', () => {
     expect(form.dirty).toBe(false)
   })
 
+  it.each([
+    {
+      initial: { project: 'engineering/platform' },
+      scope: 'group',
+      field: 'group',
+      removed: ['project'],
+    },
+    {
+      initial: { scope: 'group', group: 'engineering', includeSubgroups: 'true' },
+      scope: 'project',
+      field: 'project',
+      removed: ['group', 'includeSubgroups'],
+    },
+  ])(
+    'removes the old resource fields when saving $scope scope',
+    ({ initial, scope, field, removed }) => {
+      render(
+        connector({
+          connectorType: 'gitlab',
+          accessMode: 'admin',
+          sourceConfig: {
+            host: 'gitlab.example.com',
+            ...initial,
+            tagSlotMapping: { title: 'tag1' },
+          },
+        }),
+        scope
+      )
+      expect(form.dirty).toBe(false)
+      act(() => form.fieldsProps.onFieldChange('scope', scope))
+      act(() => form.fieldsProps.onFieldChange(field, '42'))
+      expect(form.canSave).toBe(true)
+      act(() => form.save())
+      const saved = mocks.update.mock.calls[0]?.[0].updates.sourceConfig
+      expect(saved).toMatchObject({
+        host: 'gitlab.example.com',
+        scope,
+        [field]: '42',
+        tagSlotMapping: { title: 'tag1' },
+      })
+      for (const key of removed) expect(saved).not.toHaveProperty(key)
+    }
+  )
+
   it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
     const sourceConfig = { repository: 'acme/platform' }
     render(
