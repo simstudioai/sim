@@ -400,7 +400,7 @@ describe('workspace source: custom tools and skills', () => {
 
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
       expect(
-        refused.diagnostics.find((finding) => finding.code === 'W_TOOL_IN_USE')?.message
+        refused.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')?.message
       ).toContain('"Support"')
       expect(await snapshot(workspaceId)).toEqual(before)
 
@@ -428,7 +428,7 @@ describe('workspace source: custom tools and skills', () => {
         }
       )
       expect(actions(deleted.applied)).toEqual(['delete custom-tool:lookup'])
-      expect(codes(deleted.diagnostics, 'warning')).toContain('W_TOOL_IN_USE')
+      expect(codes(deleted.diagnostics, 'warning')).toContain('W_RESOURCE_IN_USE')
       expect((await snapshot(workspaceId)).tools).toEqual([])
       expect(deleted.base.resources['custom-tool:lookup']).toBeUndefined()
     }

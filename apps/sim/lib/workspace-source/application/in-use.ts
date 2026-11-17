@@ -121,7 +121,7 @@ export async function checkDeletesInUse(
       undeclared.length > NAMED_WORKFLOWS ? ` and ${undeclared.length - NAMED_WORKFLOWS} more` : ''
     change.diagnostics.push(
       finding(
-        'W_TOOL_IN_USE',
+        'W_RESOURCE_IN_USE',
         `Deleting ${where} breaks ${undeclared.length} stored workflow(s) that use it: ${listed}${more}.`,
         {
           hint: 'Remove it from those workflows, or keep its declaration.',

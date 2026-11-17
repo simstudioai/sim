@@ -63,8 +63,6 @@ type ToolCode =
    * parse.
    */
   | 'E_TOOL_CODE'
-  /** A tool this apply deletes is still used by stored workflows, which lose it. */
-  | 'W_TOOL_IN_USE'
 
 /** Skills. */
 type SkillCode =
@@ -133,6 +131,8 @@ type PlanCode =
   | 'E_PLAN_TOO_LARGE'
   /** A declared resource references one this apply deletes. */
   | 'E_PLAN_REF_DELETED'
+  /** A resource this apply deletes is still used by stored workflows. */
+  | 'W_RESOURCE_IN_USE'
   /** Another resource of the kind holds this name or key. */
   | 'E_NAME_TAKEN'
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */
