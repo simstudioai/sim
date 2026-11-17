@@ -1259,11 +1259,22 @@ describe('canonicalize: subflows', () => {
     ]
     for (const { loopType, message } of cases) {
       const result = run(
-        workflow([blockState('l1', 'loop', 'Each', {}, { data: { loopType, count: 2 } })], {
-          loops: {
-            l1: { id: 'l1', nodes: [], iterations: 2, loopType: 'forEach', enabled: true },
-          },
-        })
+        workflow(
+          [
+            blockState(
+              'l1',
+              'loop',
+              'Each',
+              {},
+              { data: { loopType, count: 2 } as BlockState['data'] }
+            ),
+          ],
+          {
+            loops: {
+              l1: { id: 'l1', nodes: [], iterations: 2, loopType: 'forEach', enabled: true },
+            },
+          }
+        )
       )
       const each = onlyBlock(result, 'each')
       expect(each.subflow).toMatchObject({ kind: 'loop', loopType: 'for' })
