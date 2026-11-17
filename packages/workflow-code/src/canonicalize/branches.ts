@@ -171,7 +171,12 @@ export function liftBranches(
 
   const count = storedRows.length
   const rowIds = storedRows.map((row, index) => row.id ?? derivedRowId(kind, blockId, index))
-  const sharedId = rowIds.find((rowId, index) => rowIds.indexOf(rowId) !== index)
+  const seenRowIds = new Set<string>()
+  const sharedId = rowIds.find((rowId) => {
+    if (seenRowIds.has(rowId)) return true
+    seenRowIds.add(rowId)
+    return false
+  })
   if (sharedId !== undefined) {
     context.diagnostics.push({
       code: 'W_CANON_UNDECODABLE_JSON',
