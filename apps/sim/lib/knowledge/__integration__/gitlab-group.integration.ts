@@ -40,7 +40,10 @@ import {
   readSearchSourcePermissions,
   replaceSearchSourcePermissions,
 } from '@/lib/knowledge/application/source-permissions'
-import { readConnectorPermissionGrants } from '@/lib/knowledge/connectors/permission-store'
+import {
+  loadConnectorPermissionSnapshot,
+  readConnectorPermissionGrants,
+} from '@/lib/knowledge/connectors/permission-store'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { decodeLiveReference } from '@/lib/sim-search/live/reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -68,7 +71,7 @@ describe('GitLab group Search permission boundary', () => {
     group: 'team',
     contentTypes: 'issues',
   }
-  const permissions = (revoke = false) => ({
+  const permissions = (revoke = false, namespace = 'team') => ({
     provider: 'gitlab' as const,
     userMapping: {
       filename: 'users.csv',
@@ -76,7 +79,7 @@ describe('GitLab group Search permission boundary', () => {
     },
     projectPermissions: {
       filename: 'permissions.csv',
-      content: `project_path,user_id\nteam/a,${revoke ? 2 : 1}\nteam/b,2${added ? '\nteam/c,1' : ''}`,
+      content: `project_path,user_id\n${namespace}/a,${revoke ? 2 : 1}\n${namespace}/b,2${added ? `\n${namespace}/c,1` : ''}`,
     },
   })
   const server = createServer((request, response) => {
@@ -92,16 +95,19 @@ describe('GitLab group Search permission boundary', () => {
     )
       return reply(401, {})
     if (providerState === 'revoked') return reply(401, {})
+    const namespace = providerState === 'renamed' ? 'renamed-team' : 'team'
     if (path === '/api/v4/user') return reply(200, { id: 50, state: 'active', locked: false })
+    if (path === '/api/v4/groups/team' && providerState === 'renamed')
+      return reply(301, {}, { location: '/api/v4/groups/7' })
     if (path === '/api/v4/groups/team' || path === '/api/v4/groups/7')
-      return reply(200, { id: 7, full_path: providerState === 'renamed' ? 'renamed-team' : 'team' })
+      return reply(200, { id: 7, full_path: namespace })
     if (path === '/api/v4/groups/7/projects') {
       if (url.searchParams.get('with_shared') !== 'false') return reply(400, {})
       const projects = [
-        { id: 11, path_with_namespace: 'team/a' },
-        { id: 12, path_with_namespace: 'team/b' },
+        { id: 11, path_with_namespace: `${namespace}/a` },
+        { id: 12, path_with_namespace: `${namespace}/b` },
       ]
-      if (added) projects.push({ id: 13, path_with_namespace: 'team/c' })
+      if (added) projects.push({ id: 13, path_with_namespace: `${namespace}/c` })
       const page = url.searchParams.get('page') ?? '1'
       if (page === '1')
         return reply(200, projects.slice(0, 1), {
@@ -118,7 +124,13 @@ describe('GitLab group Search permission boundary', () => {
     if (!match) return reply(404, {})
     const id = Number(match[1])
     const projectPath =
-      id === 11 ? (moved ? 'outside/a' : 'team/a') : id === 12 ? 'team/b' : 'team/c'
+      id === 11
+        ? moved
+          ? 'outside/a'
+          : `${namespace}/a`
+        : id === 12
+          ? `${namespace}/b`
+          : `${namespace}/c`
     const issue = (iid: number) => ({
       project_id: id,
       iid,
@@ -247,7 +259,7 @@ describe('GitLab group Search permission boundary', () => {
             boundary:
               'Application use cases, real PostgreSQL and HTTP GitLab API fixture; TLS/SSRF transport substituted',
             checks,
-            passed: checks.length === 8,
+            passed: checks.length === 10,
           },
           null,
           2
@@ -538,4 +550,52 @@ describe('GitLab group Search permission boundary', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     checks.push('Organization administration boundary')
   })
+
+  it.each(['team', '7'])(
+    'refreshes renamed groups only when saved scope %s still matches',
+    async (group) => {
+      const { connector } = await createKnowledgeConnector.execute({
+        principal: principal(ids.aliceId),
+        input: {
+          knowledgeBaseId: ids.knowledgeBaseId,
+          assertedOrganizationId: ids.organizationId,
+          connectorType: 'gitlab',
+          accessMode: 'admin',
+          apiKey: token,
+          sourceConfig: { ...config, group },
+          permissionConfig: { ...permissions(), mode: 'csv' },
+          syncIntervalMinutes: 60,
+        },
+      })
+      const before = await loadConnectorPermissionSnapshot(connector.id)
+      providerState = 'renamed'
+      try {
+        const refresh = replaceSearchSourcePermissions.execute({
+          principal: principal(ids.aliceId),
+          input: {
+            organizationId: ids.organizationId,
+            sourceId: connector.id,
+            expectedRevision: 1,
+            permissions: permissions(false, 'renamed-team'),
+          },
+        })
+        if (group === 'team') {
+          await expect(refresh).rejects.toMatchObject({ code: 'validation' })
+          expect(await loadConnectorPermissionSnapshot(connector.id)).toEqual(before)
+          providerState = 'healthy'
+        } else {
+          expect(await refresh).toEqual({ revision: 2 })
+        }
+        const results = (await search(ids.aliceId, '11', undefined, 20, connector.id)).results
+        expect(results.length).toBeGreaterThan(0)
+        const first = results[0]
+        if (!first) throw new Error('Missing allowed fixture result')
+        expect((await read(ids.aliceId, first.documentId)).chunks.length).toBeGreaterThan(0)
+        expect((await search(ids.bobId, '11', undefined, 20, connector.id)).results).toEqual([])
+        checks.push(`Renamed group refresh preserves permissions for configured scope ${group}`)
+      } finally {
+        providerState = 'healthy'
+      }
+    }
+  )
 })
