@@ -171,7 +171,7 @@ export type CompileDiagnosticCode =
 export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
 
 /** `parseWorkflowLock` (lock.ts). */
-type LockDiagnosticCode =
+export type LockDiagnosticCode =
   /** The lock text is not valid JSON. */
   | 'E_LOCK_JSON'
   /** `version` is missing or not `1`. */

@@ -16,6 +16,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { isIdentifierName } from './code-files/ref-path'
+import type { LockDiagnosticCode } from './diagnostics/codes'
 import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
@@ -106,19 +107,7 @@ export interface SourceBase {
   catalogHash: string
 }
 
-type LockDiagnostic = Diagnostic<
-  | 'E_LOCK_JSON'
-  | 'E_LOCK_VERSION'
-  | 'E_LOCK_SHAPE'
-  | 'E_LOCK_UNKNOWN_FIELD'
-  | 'E_LOCK_KEY'
-  | 'E_LOCK_IDENT'
-  | 'E_LOCK_DUPLICATE_IDENT'
-  | 'E_LOCK_DUPLICATE_ID'
-  | 'E_LOCK_PARENT'
-  | 'E_LOCK_BRANCH'
-  | 'E_LOCK_CODE_FILE_PATH'
->
+type LockDiagnostic = Diagnostic<LockDiagnosticCode>
 
 type ParseWorkflowLockResult =
   | { lock: WorkflowLockV1; diagnostics?: undefined }
