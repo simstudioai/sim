@@ -32,6 +32,7 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import type { WorkspaceBaseV1 } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
@@ -204,7 +205,7 @@ async function storedFiles(workspaceId: string) {
       ...row,
       versions: versions.filter((version) => version.fileId === row.id).length,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => compareStrings(a.name, b.name))
 }
 
 async function bytesOf(workspaceId: string, fileId: string): Promise<string> {
@@ -323,7 +324,7 @@ describe('workspace source files', () => {
     expect(read.files).toEqual({})
     expect(
       read.blobs.map(({ path: blobPath, sha256, size }) => ({ path: blobPath, sha256, size }))
-    ).toEqual(blobsOf(STARTER, []).sort((a, b) => b.path.localeCompare(a.path)))
+    ).toEqual(blobsOf(STARTER, []).sort((a, b) => compareStrings(b.path, a.path)))
     expect(read.base.resources).toEqual(created.base.resources)
   })
 
