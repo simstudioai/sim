@@ -15,7 +15,6 @@ import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
@@ -24,6 +23,7 @@ import {
   SUBBLOCK_ID_MIGRATIONS,
 } from '@/lib/workflows/migrations/subblock-migrations'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isViewerDefault } from '@/blocks/viewer-defaults'
 import {
   isHumanInTheLoopBlock,
   isMetadataOnlyBlockType,
@@ -272,18 +272,10 @@ function projectOptions(subBlock: SubBlockConfig): CatalogSubBlock['options'] {
  * no values (`createBlockFromParams`), so that result is kept as `initial` when it is JSON and
  * the same twice.
  */
-/**
- * Defaults that resolve in the viewer's browser (the schedule timezone is the person's own), so
- * the value the server would see is its host's, not one every caller shares.
- */
-const VIEWER_DEFAULTS: ReadonlySet<NonNullable<SubBlockConfig['value']>> = new Set([
-  getBrowserTimezone,
-])
-
 function projectValueDefault(
   thunk: NonNullable<SubBlockConfig['value']>
 ): CatalogSubBlock['valueDefault'] {
-  if (VIEWER_DEFAULTS.has(thunk)) return { computed: true }
+  if (isViewerDefault(thunk)) return { computed: true }
   const first = probeThunk(thunk)
   if (!first.ok) return { computed: true }
   if (first.reads.size > 0) {

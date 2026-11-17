@@ -16,6 +16,7 @@ import {
   resolveBlockRetryUpdate,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { TailscaleBlock } from '@/blocks/blocks/tailscale'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
@@ -152,6 +153,20 @@ const blocksByType: Record<string, unknown> = {
 }
 
 describe('createBlockFromParams', () => {
+  it("leaves the schedule timezone unset rather than seeding the server's own", () => {
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'schedule' ? ScheduleBlock : blocksByType[type]
+    )
+    const block = createBlockFromParams('schedule-1', {
+      type: 'schedule',
+      name: 'Daily',
+      triggerMode: true,
+      inputs: { scheduleType: 'daily', dailyTime: '09:00' },
+    })
+    expect(block.subBlocks.timezone?.value ?? null).toBeNull()
+    mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+  })
+
   it.each([
     [{}, true],
     [{ authorized: false }, false],

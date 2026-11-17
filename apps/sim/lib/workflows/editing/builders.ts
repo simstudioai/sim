@@ -27,6 +27,7 @@ import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usag
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { isViewerDefault } from '@/blocks/viewer-defaults'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
@@ -117,7 +118,8 @@ export function applyBlockRetry(
  *
  * Hidden and read-only sub-blocks are left alone: a hidden thunk is computed
  * by the serializer at run time from the block's other fields, and a read-only
- * field is display-only. Hidden `defaultValue`s keep their compatibility
+ * field is display-only. A viewer default (`isViewerDefault`) is the editor's
+ * alone: the server's environment is nobody's. Hidden `defaultValue`s keep their compatibility
  * seeding. A seeded value the caller's permission group denies is withheld
  * silently, as the editor withholds it — it is a default nobody asked for, not
  * a refused operation, so it records no skip.
@@ -127,7 +129,12 @@ function resolveSeededSubBlockValue(
   writtenValues: Record<string, unknown>,
   isSeededValueAllowed: SeedValueGate
 ): unknown {
-  if (typeof subBlock.value === 'function' && !subBlock.hidden && !subBlock.readOnly) {
+  if (
+    typeof subBlock.value === 'function' &&
+    !subBlock.hidden &&
+    !subBlock.readOnly &&
+    !isViewerDefault(subBlock.value)
+  ) {
     try {
       const seeded: unknown = subBlock.value(writtenValues)
       if (
