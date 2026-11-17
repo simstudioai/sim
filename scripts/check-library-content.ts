@@ -149,7 +149,8 @@ const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
 const SIM_NAME = /\bSim\b/
 /** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
-const SENTENCE_END = /(?<=[.!?;])\s+/
+/** Sentence punctuation, with any closing quote or bracket, before whitespace. */
+const SENTENCE_END = /(?<=[.!?;]['"”’)\]]*)\s+/
 /**
  * Where a comparison clause starts: a contrast word, or "like" when it opens the sentence or
  * follows a comma ("Like Sim, ...", "Zapier, like Sim, ..."), but not "tools like Slack".
@@ -159,10 +160,13 @@ const COMPARISON_START = new RegExp(
   'i'
 )
 /**
- * Where a comparison clause ends: the first comma that is neither a thousands separator nor the
- * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations").
+ * Where a comparison clause ends: the first comma that is not a thousands separator, not the
+ * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations"), and
+ * not the next item in a list of counts ("280+ integrations, 9,000+ actions, and 530+ triggers").
  */
-const COMPARISON_END = /,(?!\d)(?!\s*(?:which|that|who)\b)/
+const COMPARISON_END = /,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*(?:and\s+)?\d)/
+/** A contrast inside a comparison clause, which starts a clause of its own ("..., but Zapier"). */
+const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\b)`, 'i')
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -188,7 +192,7 @@ function sentenceClauses(sentence: string): string[] {
     main.push(rest.slice(0, start.index))
     const comparison = rest.slice(start.index + start[0].length)
     const end = COMPARISON_END.exec(comparison)
-    comparisons.push(end ? comparison.slice(0, end.index) : comparison)
+    comparisons.push(...(end ? comparison.slice(0, end.index) : comparison).split(INNER_CONTRAST))
     rest = end ? comparison.slice(end.index + 1) : ''
   }
   return [[...main, rest].join(' '), ...comparisons]
