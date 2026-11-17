@@ -127,6 +127,7 @@ const api: SimDesktopApi = {
   ...(process.platform === 'darwin'
     ? {
         computerUse: {
+          stableElementIds: true,
           getActivity: () => ipcRenderer.invoke('computer-use:get-activity'),
           getStatus: () => ipcRenderer.invoke('computer-use:status'),
           setEnabled: (enabled: boolean) => ipcRenderer.invoke('computer-use:set-enabled', enabled),
