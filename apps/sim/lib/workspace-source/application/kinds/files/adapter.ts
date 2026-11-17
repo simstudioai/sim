@@ -50,7 +50,6 @@ import {
   kindFinding,
   planUndeclared,
   serverGoneFinding,
-  staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import {
   HASH_CONCURRENCY,
@@ -273,52 +272,48 @@ function planFile(
     fingerprint: serverFingerprint,
     holds: (id) => byId.has(id),
   })
-  const settled = settle(resolution, change, (file) =>
+  const planned = settle(resolution, change, (file) =>
     fileBase(key, file.id, file.state.rev, decl.sha256)
   )
-  if (settled) return settled
-  switch (resolution.action) {
-    case 'update':
-      return {
-        ...change,
-        action: 'update',
-        storedId: resolution.stored.id,
-        fields: [`bytes (${resolution.stored.state.size} → ${decl.size})`],
-        needsBlobs: [fileBlobPath(key)],
-        detail: { rev: resolution.stored.state.rev },
-      }
-    case 'adopt':
-    case 'create': {
-      const renamed = renamedSegment(key)
-      if (renamed !== null) {
-        change.diagnostics.push(
-          kindFinding(
-            'file',
-            key,
-            'E_FILE_NAME',
-            `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
-            {
-              hint: 'Rename it locally to the name the server would store.',
-              file: fileBlobPath(key),
-            }
-          )
-        )
-      }
-      return {
-        ...change,
-        action: 'create',
-        fields: [`bytes (${decl.size})`],
-        needsBlobs: [fileBlobPath(key)],
-      }
+  if ('settled' in planned) return planned.settled
+  if (planned.action === 'update') {
+    return {
+      ...change,
+      action: 'update',
+      storedId: planned.stored.id,
+      fields: [`bytes (${planned.stored.state.size} → ${decl.size})`],
+      needsBlobs: [fileBlobPath(key)],
+      detail: { rev: planned.stored.state.rev },
     }
-    default:
-      return change
+  }
+  /** A file is never adopted (nothing is offered for adoption), so this is a create. */
+  const renamed = renamedSegment(key)
+  if (renamed !== null) {
+    change.diagnostics.push(
+      kindFinding(
+        'file',
+        key,
+        'E_FILE_NAME',
+        `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
+        {
+          hint: 'Rename it locally to the name the server would store.',
+          file: fileBlobPath(key),
+        }
+      )
+    )
+  }
+  return {
+    ...change,
+    action: 'create',
+    fields: [`bytes (${decl.size})`],
+    needsBlobs: [fileBlobPath(key)],
   }
 }
 
 /**
  * Files the server holds that the directory no longer declares: only one the base records is
- * deleted, only with `--allow-delete`, and only while its bytes are the ones the base recorded.
+ * deleted, only with `--allow-delete`, and only while its bytes are the ones the base recorded at
+ * the revision it recorded (a file rewritten since, even with the same bytes, is stale).
  */
 function planDeletes(
   desired: ReadonlyMap<string, FileDecl>,
@@ -330,27 +325,14 @@ function planDeletes(
     bound: new Map([...stored.bound].filter(([, file]) => !file.state.unmanaged)),
     unbound: [],
   }
-  const undeclared = planUndeclared<StoredFileState, FileDecl, FilePlan>(
-    'file',
-    desired,
-    managed,
-    ctx,
-    (file) => ({ what: 'file', counts: { files: 1, bytes: file.state.size } }),
-    {
-      declared,
-      fingerprint: serverFingerprint,
-    }
-  )
-  return undeclared.map((change) => {
-    const file = managed.bound.get(change.key)
-    if (change.action !== 'delete' || !file) return change
-    if (
-      baseRev(change.key, ctx.base?.resources[resourceAddress('file', change.key)]) !==
-      file.state.rev
-    ) {
-      return { ...change, action: 'noop', diagnostics: [staleFinding('file', change.key)] }
-    }
-    return { ...change, detail: { rev: file.state.rev } }
+  return planUndeclared<StoredFileState, FileDecl, FilePlan>('file', desired, managed, ctx, {
+    declared,
+    fingerprint: (file, base) =>
+      baseRev(file.key, base) === file.state.rev
+        ? serverFingerprint(file, base)
+        : `rev:${file.state.rev}`,
+    counts: (file) => ({ bytes: file.state.size }),
+    detail: (file) => ({ rev: file.state.rev }),
   })
 }
 

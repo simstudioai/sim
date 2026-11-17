@@ -61,10 +61,9 @@ export function planNamedUndeclared<D, S>(
   desired: ReadonlyMap<string, D>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  declared: ReadonlyArray<PlannedChange<D, NamedPlan>>,
-  destructive: (record: StoredResource<S>) => { what: string; counts: Record<string, number> }
+  declared: ReadonlyArray<PlannedChange<D, NamedPlan>>
 ): PlannedChange<D, NamedPlan>[] {
-  return planUndeclared<S, D, NamedPlan>(named.kind, desired, stored, ctx, destructive, {
+  return planUndeclared<S, D, NamedPlan>(named.kind, desired, stored, ctx, {
     declared,
     fingerprint: (record) => storedFingerprint(named, record.state),
   })
@@ -109,15 +108,15 @@ export function planNamed<D, S>(
     const refused = change.diagnostics.some((finding) => finding.code === 'E_NAME_TAKEN')
     if (holder && !refused) change.diagnostics.push(nameTakenFinding(kind, key, name, holder, file))
   }
-  const settled = settle(resolution, change, (record) => baseOf(named, record))
-  if (settled) return settled
-  switch (resolution.action) {
+  const planned = settle(resolution, change, (record) => baseOf(named, record))
+  if ('settled' in planned) return planned.settled
+  switch (planned.action) {
     case 'create':
       holderOf()
       return { ...change, action: 'create', name }
     case 'adopt':
     case 'update': {
-      const { id, state } = resolution.stored
+      const { id, state } = planned.stored
       const changed = changedFields(
         named.codec.canonical(named.declOf(state)),
         named.codec.canonical(decl)
@@ -125,16 +124,14 @@ export function planNamed<D, S>(
       if (named.nameOf(named.declOf(state)) !== name) holderOf(id)
       return {
         ...change,
-        action: resolution.action === 'adopt' ? 'adopt' : 'update',
+        action: planned.action === 'adopt' ? 'adopt' : 'update',
         storedId: id,
-        ...(resolution.action === 'adopt' ? { name } : {}),
+        ...(planned.action === 'adopt' ? { name } : {}),
         ...(changed.length > 0 ? { fields: changed } : {}),
         serverFingerprint: storedFingerprint(named, state),
         detail: { changed },
       }
     }
-    default:
-      return change
   }
 }
 

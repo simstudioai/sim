@@ -428,7 +428,7 @@ describe('workspace source files', () => {
       ])
       expect(preview.plan.find((change) => change.action === 'delete')?.destructive).toEqual({
         what: 'file',
-        counts: { files: 1, bytes: STARTER['files/docs/plan.md'].length },
+        counts: { bytes: STARTER['files/docs/plan.md'].length },
       })
 
       const round = (wanted: readonly string[]) => cliRound(blobsOf(directory, []), wanted)

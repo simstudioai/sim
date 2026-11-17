@@ -78,7 +78,8 @@ import type {
 
 /** What the apply carries out for one knowledge base, decided at plan time. */
 interface KnowledgePlan {
-  changes: Pick<KnowledgeChanges, 'settings' | 'uploads' | 'deletes' | 'superseded'>
+  /** The changes a create, update or adopt makes; absent for a delete. */
+  changes?: Pick<KnowledgeChanges, 'settings' | 'uploads' | 'deletes' | 'superseded'>
   /** Document id → SHA-256 for every stored document whose bytes the plan knows. */
   hashes: Map<string, string>
 }
@@ -233,13 +234,13 @@ async function planKnowledgeBase(
       )
     )
   }
-  const settled = settle(
+  const planned = settle(
     resolution,
     change,
     (resource) => knowledgeView(resource, boundDocs, hashes).base
   )
-  if (settled) return settled
-  switch (resolution.action) {
+  if ('settled' in planned) return planned.settled
+  switch (planned.action) {
     case 'create': {
       change.diagnostics.push(...nameTaken(key, decl.name, stored))
       const embedding = await embeddingFinding(key, decl, configured)
@@ -263,7 +264,7 @@ async function planKnowledgeBase(
     }
     case 'adopt':
     case 'update': {
-      const resource = resolution.stored
+      const resource = planned.stored
       const storedDocs = resource === bound ? boundDocs : await loadDocs(ctx, resource.id)
       const changes = await diffKnowledgeBase({
         key,
@@ -272,9 +273,9 @@ async function planKnowledgeBase(
         docs: storedDocs,
         hashes,
         managed: new Set(
-          resolution.action === 'update' ? baseHashes(storedDocs, resolution.base).keys() : []
+          planned.action === 'update' ? baseHashes(storedDocs, planned.base).keys() : []
         ),
-        ...(resolution.action === 'update' ? { base: resolution.base } : {}),
+        ...(planned.action === 'update' ? { base: planned.base } : {}),
         ctx,
       })
       if (changes.settings.name !== undefined) {
@@ -289,12 +290,10 @@ async function planKnowledgeBase(
       const view = knowledgeView(resource, storedDocs, hashes)
       /** A server a partial apply already moved to the directory records its base as a no-op. */
       const refreshed =
-        resolution.action === 'update' &&
-        !changed &&
-        view.fingerprint !== resolution.base.fingerprint
+        planned.action === 'update' && !changed && view.fingerprint !== planned.base.fingerprint
       return {
         ...change,
-        action: resolution.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
+        action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
         storedId: resource.id,
         ...(refreshed ? { base: view.base } : {}),
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
@@ -308,8 +307,6 @@ async function planKnowledgeBase(
         detail: { changes, hashes },
       }
     }
-    default:
-      return change
   }
 }
 
@@ -477,23 +474,16 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
         desired,
         stored,
         ctx,
-        (resource) => ({
-          what: 'knowledge base',
-          counts: { documents: resource.state.knowledgeBase.docCount },
-        }),
         {
           declared: changes,
           fingerprint: (resource) => undeclared.get(resource.id)?.fingerprint ?? '',
+          counts: (resource) => ({ documents: resource.state.knowledgeBase.docCount }),
+          detail: (resource) => {
+            const hashes = undeclared.get(resource.id)?.hashes
+            return hashes ? { hashes } : undefined
+          },
         }
       )
-      for (const change of deletes) {
-        const hashes = change.storedId ? undeclared.get(change.storedId)?.hashes : undefined
-        if (change.action !== 'delete' || !hashes) continue
-        change.detail = {
-          changes: { settings: {}, uploads: [], deletes: [], superseded: [] },
-          hashes,
-        }
-      }
       return [...changes, ...deletes]
     },
 
@@ -559,7 +549,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       }
       const decl = change.decl
       const plan = change.detail
-      if (!decl || !plan) throw new Error('A knowledge base write needs its plan')
+      if (!decl || !plan?.changes) throw new Error('A knowledge base write needs its plan')
       const carried = carriedDocs(ctx, change.key, plan.changes.uploads)
       if (change.action === 'create') {
         const { knowledgeBase } = await createKnowledgeBase.execute({

@@ -116,14 +116,14 @@ async function planTable(
     fingerprint: (resource, entry) => tableAsDecl(resource.state, entry?.columns).fingerprint,
     holds: holdsIn(stored),
   })
-  const settled = settle(
+  const planned = settle(
     resolution,
     change,
     (resource) =>
       printStoredTable(resource, key, entry?.id === resource.id ? entry.columns : undefined).base
   )
-  if (settled) return settled
-  switch (resolution.action) {
+  if ('settled' in planned) return planned.settled
+  switch (planned.action) {
     case 'create': {
       const holder = nameHolder(stored, decl.name, { fold: true })
       if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
@@ -135,10 +135,10 @@ async function planTable(
     }
     case 'adopt':
     case 'update': {
-      const { state } = resolution.stored
-      const holder = nameHolder(stored, decl.name, { self: resolution.stored.id, fold: true })
+      const { state } = planned.stored
+      const holder = nameHolder(stored, decl.name, { self: planned.stored.id, fold: true })
       if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
-      const bindings = resolution.action === 'update' ? resolution.base.columns : undefined
+      const bindings = planned.action === 'update' ? planned.base.columns : undefined
       const changes = await diffTable(key, decl, state, bindings)
       change.diagnostics.push(...changes.diagnostics)
       const changed = changes.columns.length > 0 || changes.fields.length > 0
@@ -172,8 +172,8 @@ async function planTable(
       }
       return {
         ...change,
-        action: resolution.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
-        storedId: resolution.stored.id,
+        action: planned.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
+        storedId: planned.stored.id,
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
         ...(changes.dropped > 0 || changes.lostCells > 0
           ? {
@@ -191,8 +191,6 @@ async function planTable(
         detail: { changes, ...(bindings ? { bindings } : {}) },
       }
     }
-    default:
-      return change
   }
 }
 
@@ -331,20 +329,13 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       desired,
       stored,
       ctx,
-      (resource) => ({
-        what: 'table',
-        counts: { rows: resource.state.table.rowCount },
-      }),
       {
         declared: changes,
         fingerprint: (resource, entry) => tableAsDecl(resource.state, entry.columns).fingerprint,
+        counts: (resource) => ({ rows: resource.state.table.rowCount }),
+        detail: (_resource, entry) => (entry.columns ? { bindings: entry.columns } : undefined),
       }
     )
-    for (const change of undeclared) {
-      if (change.action !== 'delete') continue
-      const bindings = ctx.base?.resources[resourceAddress('table', change.key)]?.columns
-      if (bindings) change.detail = { bindings }
-    }
     return [...changes, ...undeclared]
   },
 

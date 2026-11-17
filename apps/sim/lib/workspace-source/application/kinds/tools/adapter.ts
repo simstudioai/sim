@@ -114,11 +114,7 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
       }
       changes.push(change)
     }
-    const undeclared = planNamedUndeclared(tools, desired, stored, ctx, changes, () => ({
-      what: 'custom tool',
-      counts: { workflows: 0 },
-    }))
-    return [...changes, ...undeclared]
+    return [...changes, ...planNamedUndeclared(tools, desired, stored, ctx, changes)]
   },
 
   async authorize(change, ctx) {

@@ -239,11 +239,18 @@ export function refuseDeclaredTwice(
 }
 
 /** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
-interface UndeclaredOptions<S> {
+interface UndeclaredOptions<S, P> {
   /** The kind's planned changes for declared resources: a resource one of them targets stays. */
   declared?: ReadonlyArray<Pick<PlannedChange, 'storedId'>>
-  /** The resource's fingerprint under its base entry; a delete of one that moved is stale. */
+  /**
+   * The resource's fingerprint under its base entry; a delete of one that moved since, or whose
+   * entry records no fingerprint to compare, is stale.
+   */
   fingerprint?: (resource: StoredResource<S>, base: BaseResource) => string
+  /** What deleting the resource loses, beyond the resource itself (`{ rows: 12 }`). */
+  counts?: (resource: StoredResource<S>) => Record<string, number>
+  /** The plan data the kind's delete carries out. */
+  detail?: (resource: StoredResource<S>, base: BaseResource) => P | undefined
 }
 
 /**
@@ -258,8 +265,7 @@ export function planUndeclared<S, D, P>(
   desired: ReadonlyMap<string, D>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  destructive: (resource: StoredResource<S>) => { what: string; counts: Record<string, number> },
-  options: UndeclaredOptions<S> = {}
+  options: UndeclaredOptions<S, P> = {}
 ): PlannedChange<D, P>[] {
   const claimed = new Set((options.declared ?? []).map((change) => change.storedId))
   const changes: PlannedChange<D, P>[] = []
@@ -268,19 +274,27 @@ export function planUndeclared<S, D, P>(
     const entry = ctx.base?.resources[resourceAddress(kind, key)]
     const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
-      const serverFingerprint =
-        entry.fingerprint !== undefined && options.fingerprint !== undefined
-          ? options.fingerprint(resource, entry)
-          : undefined
-      const moved = serverFingerprint !== undefined && serverFingerprint !== entry.fingerprint
+      const serverFingerprint = options.fingerprint?.(resource, entry)
+      if (serverFingerprint !== undefined && serverFingerprint !== entry.fingerprint) {
+        changes.push({
+          kind,
+          key,
+          action: 'noop',
+          storedId: resource.id,
+          diagnostics: [staleFinding(kind, key)],
+        })
+        continue
+      }
+      const detail = options.detail?.(resource, entry)
       changes.push({
         kind,
         key,
-        action: moved ? 'noop' : 'delete',
+        action: 'delete',
         storedId: resource.id,
-        ...(moved ? {} : { destructive: destructive(resource) }),
-        ...(serverFingerprint !== undefined && !moved ? { serverFingerprint } : {}),
-        diagnostics: moved ? [staleFinding(kind, key)] : [],
+        destructive: { what: NOUNS[kind], counts: options.counts?.(resource) ?? {} },
+        ...(serverFingerprint !== undefined ? { serverFingerprint } : {}),
+        ...(detail !== undefined ? { detail } : {}),
+        diagnostics: [],
       })
       continue
     }

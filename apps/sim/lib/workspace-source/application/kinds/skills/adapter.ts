@@ -97,13 +97,7 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
       checkFields(change, decl)
       changes.push(change)
     }
-    return [
-      ...changes,
-      ...planNamedUndeclared(skills, desired, stored, ctx, changes, () => ({
-        what: 'skill',
-        counts: {},
-      })),
-    ]
+    return [...changes, ...planNamedUndeclared(skills, desired, stored, ctx, changes)]
   },
 
   async authorize(change, ctx) {

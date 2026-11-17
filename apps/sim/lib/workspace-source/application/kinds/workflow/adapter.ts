@@ -245,7 +245,6 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         desired,
         stored,
         ctx,
-        () => ({ what: 'workflow', counts: { workflows: 1 } }),
         { declared: changes }
       )
     )

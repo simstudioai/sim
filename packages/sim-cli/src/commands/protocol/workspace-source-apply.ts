@@ -89,11 +89,11 @@ function printPlan(plan: Change[]): void {
       if (change.action === 'noop') continue
       const fields =
         change.fields && change.fields.length > 0 ? ` (${change.fields.join(', ')})` : ''
-      const loses = change.destructive
-        ? ` — deletes ${Object.entries(change.destructive.counts)
-            .map(([what, count]) => `${count} ${what}`)
-            .join(', ')}`
-        : ''
+      const counts = Object.entries(change.destructive?.counts ?? {})
+      const loses =
+        counts.length > 0
+          ? ` — deletes ${counts.map(([what, count]) => `${count} ${what}`).join(', ')}`
+          : ''
       printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}`)
     }
   }

@@ -105,35 +105,41 @@ export function resolveDeclared<S>(input: {
     : { action: 'no-base', stored }
 }
 
+/** A resolution the kind plans itself: a create, an adopt or an update. */
+type WriteResolution<S> = Extract<DeclaredResolution<S>, { action: 'create' | 'adopt' | 'update' }>
+
 /**
  * Plans every resolution that writes nothing, the same way for every kind: deleted on the server,
- * stale, without a base, or a no-op (recording `baseOf(stored)` when it must refresh the base).
- * Returns `null` for a create, adopt or update, which the kind plans itself.
+ * stale, without a base, or a no-op (recording `baseOf(stored)` when it must refresh the base),
+ * returned as `settled`. A create, adopt or update comes back as the narrowed resolution, which
+ * the kind plans itself.
  */
 export function settle<S, C extends PlannedChange>(
   resolution: DeclaredResolution<S>,
   change: C,
   baseOf: (stored: StoredResource<S>) => BaseResource
-): C | null {
+): { settled: C } | WriteResolution<S> {
   const { kind, key } = change
   switch (resolution.action) {
     case 'deleted':
       change.diagnostics.push(serverGoneFinding(kind, key, resolution.stale))
-      return change
+      return { settled: change }
     case 'stale':
       change.diagnostics.push(staleFinding(kind, key))
-      return { ...change, storedId: resolution.stored.id }
+      return { settled: { ...change, storedId: resolution.stored.id } }
     case 'no-base':
       change.diagnostics.push(noBaseFinding(kind, key))
-      return { ...change, storedId: resolution.stored.id }
+      return { settled: { ...change, storedId: resolution.stored.id } }
     case 'noop':
       if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding(kind, key))
       return {
-        ...change,
-        storedId: resolution.stored.id,
-        ...(resolution.refreshed ? { base: baseOf(resolution.stored) } : {}),
+        settled: {
+          ...change,
+          storedId: resolution.stored.id,
+          ...(resolution.refreshed ? { base: baseOf(resolution.stored) } : {}),
+        },
       }
     default:
-      return null
+      return resolution
   }
 }
