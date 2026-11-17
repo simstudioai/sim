@@ -3,7 +3,10 @@ import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
 import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
-import type { WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
+import type {
+  PlannedChange,
+  WorkspaceSourceDiagnostic,
+} from '@/lib/workspace-source/application/types'
 import { ResourceKeyTakenError } from '@/lib/workspaces/resource-keys'
 
 /**
@@ -40,6 +43,17 @@ export class ResourceChangedError extends OrchestrationError {
       `${resource.kind} ${resource.key} changed on the server while this apply ran.`
     )
     this.name = 'ResourceChangedError'
+  }
+}
+
+/**
+ * Refuses a delete of a resource whose fingerprint (`current`, read just before the delete) moved
+ * since the plan recorded it, so a document added or a tool edited in the UI between the plan and
+ * the write is never lost silently.
+ */
+export function assertUnchangedBeforeDelete(change: PlannedChange, current: string): void {
+  if (change.serverFingerprint !== undefined && current !== change.serverFingerprint) {
+    throw new ResourceChangedError(change)
   }
 }
 

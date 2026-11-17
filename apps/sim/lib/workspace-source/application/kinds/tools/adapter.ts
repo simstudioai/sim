@@ -20,10 +20,10 @@ import {
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
+import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
   authorizeNamed,
-  bindStored,
   declaredFinding,
   type NamedKind,
   type NamedPlan,
@@ -88,7 +88,7 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
         `This workspace has more than ${records.length} custom tools, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} one directory can hold.`
       )
     }
-    return bindStored(ctx, 'custom-tool', records, allocate)
+    return bindStored(ctx, 'custom-tool', records, { allocate })
   },
 
   async plan(desired, stored, ctx) {

@@ -17,10 +17,10 @@ import {
 } from '@/lib/skills/application/use-cases'
 import { builtinNameCollision, skillFieldProblem } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import { bindStored } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
   authorizeNamed,
-  bindStored,
   declaredFinding,
   type NamedKind,
   type NamedPlan,
@@ -74,7 +74,7 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
     const records = rows
       .filter((row) => !isBuiltinSkillId(row.id))
       .map((row) => ({ id: row.id, name: row.name, state: skills.declOf(row) }))
-    return bindStored(ctx, 'skill', records, allocate)
+    return bindStored(ctx, 'skill', records, { allocate })
   },
 
   async plan(desired, stored, ctx) {

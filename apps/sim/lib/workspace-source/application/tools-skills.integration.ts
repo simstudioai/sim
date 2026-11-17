@@ -25,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceCustomToolUseCase,
+  deleteWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -783,5 +784,45 @@ describe('workspace source: custom tools and skills', () => {
       toolWrite.mockRestore()
       skillWrite.mockRestore()
     }
+  })
+
+  check('re-creating a deleted tool under its old key reports the key rebound', async () => {
+    const workspaceId = await newWorkspace()
+    const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+    const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
+    await deleteWorkspaceCustomToolUseCase.execute({
+      principal: owner,
+      input: { workspaceId, toolId },
+    })
+
+    const recreated = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+
+    expect(actions(recreated.applied)).toEqual(['create custom-tool:lookup'])
+    expect(codes(recreated.diagnostics, 'info')).toEqual(['I_KEY_REBOUND'])
+  })
+
+  check('a tool delete refuses a tool edited after the plan read it', async () => {
+    const workspaceId = await newWorkspace()
+    const created = await apply(workspaceId, TOOLS, { kinds: ['custom-tool'] })
+    const toolId = created.base.resources['custom-tool:lookup']?.id ?? ''
+    const authorize = deleteWorkspaceCustomToolUseCase.authorize
+    const racing = vi
+      .spyOn(deleteWorkspaceCustomToolUseCase, 'authorize')
+      .mockImplementation(async (args) => {
+        await db
+          .update(customTools)
+          .set({ code: 'return "edited in the UI"' })
+          .where(eq(customTools.id, toolId))
+        return authorize.call(deleteWorkspaceCustomToolUseCase, args)
+      })
+
+    const result = await apply(
+      workspaceId,
+      {},
+      { kinds: ['custom-tool'], base: created.base, allowDelete: true }
+    ).finally(() => racing.mockRestore())
+
+    expect(result.failed).toMatchObject({ key: 'lookup', code: 'E_APPLY_STALE' })
+    expect((await snapshot(workspaceId)).tools.map((tool) => tool.id)).toEqual([toolId])
   })
 })

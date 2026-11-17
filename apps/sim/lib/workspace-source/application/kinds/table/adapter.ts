@@ -4,7 +4,6 @@
  * `updateTableUseCase`, the column use cases, `deleteTableUseCase`), so their authorization,
  * locks, audit and schema-change signals apply. Rows are never read or written.
  */
-import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
@@ -25,18 +24,18 @@ import {
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
 import {
+  assertUnchangedBeforeDelete,
   PartiallyAppliedError,
   ResourceChangedError,
 } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
-  noBaseFinding,
+  nameHolder,
+  nameTakenFinding,
   planUndeclared,
-  reboundFinding,
-  serverChangedFinding,
-  serverGoneFinding,
-  staleFinding,
+  refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
+import { bindStored, claimKey } from '@/lib/workspace-source/application/keys'
 import {
   columnInput,
   diffTable,
@@ -48,7 +47,7 @@ import {
   type StoredTableState,
   tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
-import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   KindAdapter,
@@ -57,14 +56,16 @@ import type {
   SourceContext,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
-import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** What the apply carries out for one existing table, decided at plan time. */
 interface TablePlan {
   /** The changes an update or adopt makes; absent for a delete. */
   changes?: TableChanges
-  /** The table's fingerprint when planned (under `bindings`); the apply refuses if it moved. */
-  serverFingerprint: string
+  /**
+   * An update's fingerprint of the table when planned (under `bindings`); the apply refuses if it
+   * moved. A delete records its own on the change.
+   */
+  serverFingerprint?: string
   bindings?: Record<string, BaseColumn>
 }
 
@@ -88,14 +89,6 @@ async function reload(ctx: SourceContext, tableId: string): Promise<StoredTableS
   }
   const folders = await folderIndex(ctx.workspace.workspaceId)
   return { table, folderPath: tableFolderPathForId(folders, table.folderId) }
-}
-
-/** The table other than `self` that holds `name` (table names are case-insensitive). */
-function nameHolder(stored: StoredSet<StoredTableState>, name: string, self?: string) {
-  const folded = name.toLowerCase()
-  return [...stored.bound.values(), ...stored.unbound].find(
-    (table) => table.id !== self && table.name.toLowerCase() === folded
-  )
 }
 
 async function planTable(
@@ -128,44 +121,17 @@ async function planTable(
     fingerprint: (resource, entry) => tableAsDecl(resource.state, entry?.columns).fingerprint,
     holds: holdsIn(stored),
   })
+  const settled = settle(
+    resolution,
+    change,
+    (resource) =>
+      printStoredTable(resource, key, entry?.id === resource.id ? entry.columns : undefined).base
+  )
+  if (settled) return settled
   switch (resolution.action) {
-    case 'deleted':
-      change.diagnostics.push(serverGoneFinding('table', key, resolution.stale))
-      return change
-    case 'stale':
-      change.diagnostics.push(staleFinding('table', key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'no-base':
-      change.diagnostics.push(noBaseFinding('table', key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'noop':
-      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding('table', key))
-      return {
-        ...change,
-        storedId: resolution.stored.id,
-        ...(resolution.refreshed
-          ? {
-              base: printStoredTable(
-                resolution.stored,
-                key,
-                entry?.id === resolution.stored.id ? entry.columns : undefined
-              ).base,
-            }
-          : {}),
-      }
     case 'create': {
-      const holder = nameHolder(stored, decl.name)
-      if (holder) {
-        change.diagnostics.push(
-          kindFinding(
-            'table',
-            key,
-            'E_NAME_TAKEN',
-            `The table name "${decl.name}" belongs to the table under key "${holder.key}".`,
-            'Rename one of them, or declare that table under its own key.'
-          )
-        )
-      }
+      const holder = nameHolder(stored, decl.name, { fold: true })
+      if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
       ctx.pending.push({ kind: 'table', key, id: generateId() })
       return {
         ...change,
@@ -176,18 +142,8 @@ async function planTable(
     case 'adopt':
     case 'update': {
       const { state } = resolution.stored
-      const holder = nameHolder(stored, decl.name, resolution.stored.id)
-      if (holder) {
-        change.diagnostics.push(
-          kindFinding(
-            'table',
-            key,
-            'E_NAME_TAKEN',
-            `The table name "${decl.name}" belongs to ${holder.key ? `the table under key "${holder.key}"` : 'another table'}.`,
-            'Pick another name, or rename that table first.'
-          )
-        )
-      }
+      const holder = nameHolder(stored, decl.name, { self: resolution.stored.id, fold: true })
+      if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
       if (resolution.action === 'adopt') {
         ctx.pending.push({ kind: 'table', key, id: resolution.stored.id })
       }
@@ -247,6 +203,8 @@ async function planTable(
         },
       }
     }
+    default:
+      return change
   }
 }
 
@@ -359,24 +317,12 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       listTableDefinitionsUseCase.execute({ principal: ctx.principal, input: { workspaceId } }),
       folderIndex(workspaceId),
     ])
-    const ids = tables.map((table) => table.id)
-    const keys = allocate
-      ? ((
-          await resolveKeys(
-            workspaceId,
-            ids.map((id) => ({ kind: 'table' as const, id })),
-            { createdBy: ctx.createdBy }
-          )
-        ).get('table') ?? new Map<string, string>())
-      : await readKeysByResource(db, workspaceId, 'table', ids)
-    const set: StoredSet<StoredTableState> = { bound: new Map(), unbound: [] }
-    for (const table of tables) {
-      const state = { table, folderPath: tableFolderPathForId(folders, table.folderId) }
-      const key = keys.get(table.id)
-      if (key === undefined) set.unbound.push(storedTable('', state))
-      else set.bound.set(key, storedTable(key, state))
-    }
-    return set
+    const records = tables.map((table) => ({
+      id: table.id,
+      name: table.name,
+      state: { table, folderPath: tableFolderPathForId(folders, table.folderId) },
+    }))
+    return bindStored(ctx, 'table', records, { allocate })
   },
 
   async plan(desired, stored, ctx) {
@@ -385,20 +331,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     const declaredNames = new Map<string, string>()
     for (const [key, decl] of desired) {
       const change = await planTable(key, decl, stored, ctx, folders)
-      const folded = decl.name.toLowerCase()
-      const first = declaredNames.get(folded)
-      if (first === undefined) declaredNames.set(folded, key)
-      else {
-        change.diagnostics.push(
-          kindFinding(
-            'table',
-            key,
-            'E_NAME_TAKEN',
-            `The table name "${decl.name}" is also declared by tables/${first}.`,
-            'Give each declared table its own name.'
-          )
-        )
-      }
+      refuseDeclaredTwice(declaredNames, change, decl.name.toLowerCase(), decl.name)
       changes.push(change)
     }
     const undeclared = planUndeclared<StoredTableState, TableDecl, TablePlan>(
@@ -416,13 +349,9 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       }
     )
     for (const change of undeclared) {
-      const resource = change.action === 'delete' ? stored.bound.get(change.key) : undefined
-      if (!resource) continue
+      if (change.action !== 'delete') continue
       const bindings = ctx.base?.resources[resourceAddress('table', change.key)]?.columns
-      change.detail = {
-        serverFingerprint: tableAsDecl(resource.state, bindings).fingerprint,
-        ...(bindings ? { bindings } : {}),
-      }
+      if (bindings) change.detail = { bindings }
     }
     return [...changes, ...undeclared]
   },
@@ -473,14 +402,12 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'delete') {
       if (!change.storedId) throw new Error('A table delete needs the stored table id')
-      if (change.detail) {
+      if (change.serverFingerprint !== undefined) {
         const current = await reload(ctx, change.storedId)
-        if (
-          tableAsDecl(current, change.detail.bindings).fingerprint !==
-          change.detail.serverFingerprint
-        ) {
-          throw new ResourceChangedError(change)
-        }
+        assertUnchangedBeforeDelete(
+          change,
+          tableAsDecl(current, change.detail?.bindings).fingerprint
+        )
       }
       await deleteTableUseCase.execute({
         principal,
@@ -503,18 +430,8 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
           },
         },
       })
-      const claim = await claimResourceKey({
-        workspaceId,
-        kind: 'table',
-        key: change.key,
-        resourceId: table.id,
-        origin: 'created',
-        createdBy: ctx.createdBy,
-      })
-      return {
-        ...(await written(ctx, change.key, table.id, decl)),
-        ...(claim === 'rebound' ? { diagnostics: [reboundFinding('table', change.key)] } : {}),
-      }
+      const diagnostics = await claimKey(change, ctx, table.id)
+      return { ...(await written(ctx, change.key, table.id, decl)), diagnostics }
     }
     const tableId = change.storedId
     const plan = change.detail
@@ -525,17 +442,10 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     }
     if (change.action === 'adopt') {
       await applyChanges(ctx, tableId, plan.changes)
-      await claimResourceKey({
-        workspaceId,
-        kind: 'table',
-        key: change.key,
-        resourceId: tableId,
-        origin: 'adopted',
-        createdBy: ctx.createdBy,
-      })
-    } else {
-      await applyUpdate(ctx, change, tableId, { ...plan, changes: plan.changes }, decl)
+      const diagnostics = await claimKey(change, ctx, tableId)
+      return { ...(await written(ctx, change.key, tableId, decl)), diagnostics }
     }
+    await applyUpdate(ctx, change, tableId, { ...plan, changes: plan.changes }, decl)
     return written(ctx, change.key, tableId, decl)
   },
 

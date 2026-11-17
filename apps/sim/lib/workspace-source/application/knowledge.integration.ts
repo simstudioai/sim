@@ -1186,4 +1186,120 @@ describe('knowledge bases as workspace source', () => {
       expect((await knowledgeBases(workspaceId)).map((row) => row.id)).toEqual([index.id])
     }
   )
+
+  check(
+    'an adopt that fails partway leaves the key free, so the next apply adopts again',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { knowledgeBase: unbound } = await createKnowledgeBase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'Policies' },
+      })
+      const failing = failUpload(2)
+
+      const first = await apply(workspaceId, POLICIES)
+      failing.mockRestore()
+
+      expect(first.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_FAILED' })
+      const second = await apply(workspaceId, POLICIES, { base: first.base })
+
+      expect(second.failed).toBeUndefined()
+      expect(actions(second, 'applied')).toEqual(['adopt knowledge-base:policies'])
+      expect(await filenames(unbound.id)).toEqual(['refunds.md', 'shipping.txt'])
+    }
+  )
+
+  check('refuses at plan time two declarations of one knowledge base name', async () => {
+    const workspaceId = await newWorkspace()
+
+    const refused = await refusal(
+      apply(
+        workspaceId,
+        {
+          files: { ...POLICIES.files, 'knowledge/copy/knowledge.ts': declaration('Policies') },
+          docs: POLICIES.docs,
+        },
+        { carry: 'none' }
+      )
+    )
+
+    expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+    expect(await knowledgeBases(workspaceId)).toEqual([])
+  })
+
+  check(
+    're-creating a deleted knowledge base under its old key reports the key rebound',
+    async () => {
+      const { workspaceId } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      await deleteKnowledgeBaseOperation.execute({
+        principal: owner,
+        input: { knowledgeBaseId: stored.id },
+      })
+
+      const recreated = await apply(workspaceId, POLICIES)
+
+      expect(actions(recreated, 'applied')).toEqual(['create knowledge-base:policies'])
+      expect(codes(recreated.diagnostics, 'info')).toContain('I_KEY_REBOUND')
+    }
+  )
+
+  check(
+    'a knowledge base delete refuses one that gained a document after the plan read it',
+    async () => {
+      const { workspaceId, read } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const authorize = deleteKnowledgeBaseOperation.authorize
+      const racing = vi
+        .spyOn(deleteKnowledgeBaseOperation, 'authorize')
+        .mockImplementation(async (args) => {
+          const buffer = Buffer.from('Added in the UI.\n')
+          await uploadKnowledgeDocument.execute({
+            principal: owner,
+            input: {
+              knowledgeBaseId: stored.id,
+              file: {
+                buffer,
+                filename: 'added.txt',
+                fileSize: buffer.byteLength,
+                mimeType: 'text/plain',
+              },
+            },
+          })
+          return authorize.call(deleteKnowledgeBaseOperation, args)
+        })
+
+      const result = await apply(
+        workspaceId,
+        { files: {}, docs: {} },
+        { base: read.base, allowDelete: true }
+      ).finally(() => racing.mockRestore())
+
+      expect(result.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_STALE' })
+      expect((await knowledgeBases(workspaceId)).map((row) => row.id)).toEqual([stored.id])
+    }
+  )
+
+  check('documents whose names differ only in letter case are left out of source', async () => {
+    const workspaceId = await newWorkspace()
+    const { knowledgeBase: created } = await createKnowledgeBase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'Notes' },
+    })
+    for (const filename of ['Notes.txt', 'notes.txt']) {
+      const buffer = Buffer.from(`${filename}\n`)
+      await uploadKnowledgeDocument.execute({
+        principal: owner,
+        input: {
+          knowledgeBaseId: created.id,
+          file: { buffer, filename, fileSize: buffer.byteLength, mimeType: 'text/plain' },
+        },
+      })
+    }
+
+    const read = await get(workspaceId)
+
+    expect(read.blobs).toHaveLength(1)
+    expect(codes(read.diagnostics, 'info')).toContain('I_KB_UNMANAGED_DOCS')
+  })
 })

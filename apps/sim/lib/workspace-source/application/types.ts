@@ -72,6 +72,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
   partialBlobs?: boolean
   decl?: D
   storedId?: string
+  /**
+   * A delete's fingerprint of the resource under its base entry, when planned: the write re-reads
+   * the resource and refuses one that changed since.
+   */
+  serverFingerprint?: string
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
   diagnostics: WorkspaceSourceDiagnostic[]

@@ -4,14 +4,12 @@
  * each declared resource, an unbound record of the same name is adopted, and a name another
  * resource holds is `E_NAME_TAKEN` naming that resource's key.
  */
-import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
 import {
   type BaseResource,
   fingerprintOf,
-  KIND_DIRS,
   type KindCodec,
   type ResourceFingerprint,
   resourceAddress,
@@ -19,16 +17,19 @@ import {
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
+import {
+  assertUnchangedBeforeDelete,
+  ResourceChangedError,
+} from '@/lib/workspace-source/application/errors'
 import {
   finding,
-  noBaseFinding,
+  nameHolder,
+  nameTakenFinding,
   planUndeclared,
-  serverChangedFinding,
-  serverGoneFinding,
-  staleFinding,
+  refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
-import { holdsIn, resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import { claimKey } from '@/lib/workspace-source/application/keys'
+import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
   AppliedResource,
   PlanContext,
@@ -38,7 +39,6 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /** How one named kind reads its stored records as declarations. */
 export interface NamedKind<D, S> {
@@ -62,33 +62,6 @@ export interface NamedPlan {
 
 function storedFingerprint<D, S>(named: NamedKind<D, S>, state: S): ResourceFingerprint {
   return fingerprintOf(named.codec.canonical(named.declOf(state)))
-}
-
-/** Binds each stored record to its key: allocating missing keys for a get, never for an apply. */
-export async function bindStored<S>(
-  ctx: SourceContext,
-  kind: NamedKind<unknown, S>['kind'],
-  records: ReadonlyArray<{ id: string; name: string; state: S }>,
-  allocate: boolean
-): Promise<StoredSet<S>> {
-  const { workspaceId } = ctx.workspace
-  const ids = records.map((record) => record.id)
-  const keys = allocate
-    ? ((
-        await resolveKeys(
-          workspaceId,
-          ids.map((id) => ({ kind, id })),
-          { createdBy: ctx.createdBy }
-        )
-      ).get(kind) ?? new Map<string, string>())
-    : await readKeysByResource(db, workspaceId, kind, ids)
-  const set: StoredSet<S> = { bound: new Map(), unbound: [] }
-  for (const record of records) {
-    const key = keys.get(record.id)
-    if (key === undefined) set.unbound.push({ ...record, key: '' })
-    else set.bound.set(key, { ...record, key })
-  }
-  return set
 }
 
 /** A finding about a declared resource, pinned to the file that declares it. */
@@ -142,23 +115,10 @@ export function planNamed<D, S>(
   file: string,
   claimed: Map<string, string>
 ): PlannedChange<D, NamedPlan> {
-  const { kind, noun } = named
+  const { kind } = named
   const name = named.nameOf(decl)
   const change: PlannedChange<D, NamedPlan> = { kind, key, action: 'noop', decl, diagnostics: [] }
-  const taken = (holder: string) =>
-    change.diagnostics.push(
-      declaredFinding(
-        kind,
-        key,
-        file,
-        'E_NAME_TAKEN',
-        `The ${noun} name "${name}" belongs to ${holder}.`,
-        'Rename one of them, or declare that resource under its own key.'
-      )
-    )
-  const twin = claimed.get(name)
-  if (twin !== undefined) taken(`${KIND_DIRS[kind]}/${twin}, declared in this directory too`)
-  else claimed.set(name, key)
+  refuseDeclaredTwice(claimed, change, name, name, file)
 
   const resolution = resolveDeclared({
     local: fingerprintOf(named.codec.canonical(decl)),
@@ -169,29 +129,13 @@ export function planNamed<D, S>(
     holds: holdsIn(stored),
   })
   const holderOf = (self?: string) => {
-    const holder = [...stored.bound.values(), ...stored.unbound].find(
-      (record) => record.name === name && record.id !== self
-    )
-    if (holder)
-      taken(holder.key ? `the ${noun} under key "${holder.key}"` : `another ${noun} ("${name}")`)
+    const holder = nameHolder(stored, name, { self })
+    const refused = change.diagnostics.some((finding) => finding.code === 'E_NAME_TAKEN')
+    if (holder && !refused) change.diagnostics.push(nameTakenFinding(kind, key, name, holder, file))
   }
+  const settled = settle(resolution, change, (record) => baseOf(named, record))
+  if (settled) return settled
   switch (resolution.action) {
-    case 'deleted':
-      change.diagnostics.push(serverGoneFinding(kind, key, resolution.stale))
-      return change
-    case 'stale':
-      change.diagnostics.push(staleFinding(kind, key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'no-base':
-      change.diagnostics.push(noBaseFinding(kind, key))
-      return { ...change, storedId: resolution.stored.id }
-    case 'noop':
-      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding(kind, key))
-      return {
-        ...change,
-        storedId: resolution.stored.id,
-        ...(resolution.refreshed ? { base: baseOf(named, resolution.stored) } : {}),
-      }
     case 'create':
       holderOf()
       ctx.pending.push({ kind, key, id: generateId(), name })
@@ -213,6 +157,8 @@ export function planNamed<D, S>(
         detail: { serverFingerprint: storedFingerprint(named, state), changed },
       }
     }
+    default:
+      return change
   }
 }
 
@@ -270,17 +216,14 @@ export async function applyNamed<D extends object, S>(
   ctx: SourceContext,
   writes: NamedWrites<D, S>
 ): Promise<AppliedResource> {
-  const claim = (resourceId: string, origin: 'created' | 'adopted') =>
-    claimResourceKey({
-      workspaceId: ctx.workspace.workspaceId,
-      kind: named.kind,
-      key: change.key,
-      resourceId,
-      origin,
-      createdBy: ctx.createdBy,
-    })
   if (change.action === 'delete') {
     if (!change.storedId) throw new Error(`A ${named.noun} delete needs the stored id`)
+    if (change.serverFingerprint !== undefined) {
+      assertUnchangedBeforeDelete(
+        change,
+        storedFingerprint(named, await writes.get(change.storedId))
+      )
+    }
     await writes.remove(change.storedId)
     return { id: change.storedId, text: {} }
   }
@@ -288,8 +231,8 @@ export async function applyNamed<D extends object, S>(
   if (!decl) throw new Error(`A ${named.noun} write needs its declaration`)
   if (change.action === 'create') {
     const created = await writes.create(decl)
-    await claim(created.id, 'created')
-    return writtenRecord(named, change.key, created)
+    const diagnostics = await claimKey(change, ctx, created.id)
+    return { ...writtenRecord(named, change.key, created), diagnostics }
   }
   const id = change.storedId
   if (!id) throw new Error(`A ${named.noun} update needs the stored id`)
@@ -301,8 +244,8 @@ export async function applyNamed<D extends object, S>(
     if (changed.includes(field)) fields[field] = decl[field]
   }
   const state = changed.length === 0 ? current : await writes.update(id, fields)
-  if (change.action === 'adopt') await claim(id, 'adopted')
-  return writtenRecord(named, change.key, { id, state })
+  const diagnostics = change.action === 'adopt' ? await claimKey(change, ctx, id) : []
+  return { ...writtenRecord(named, change.key, { id, state }), diagnostics }
 }
 
 /** Refuses a write to a record that changed since the plan read it. */

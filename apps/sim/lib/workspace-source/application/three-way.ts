@@ -1,5 +1,15 @@
 import type { BaseResource } from '@sim/workspace-code'
-import type { StoredResource, StoredSet } from '@/lib/workspace-source/application/types'
+import {
+  noBaseFinding,
+  serverChangedFinding,
+  serverGoneFinding,
+  staleFinding,
+} from '@/lib/workspace-source/application/findings'
+import type {
+  PlannedChange,
+  StoredResource,
+  StoredSet,
+} from '@/lib/workspace-source/application/types'
 
 /**
  * The three-way rule every kind decides a declared resource with, from its fingerprint in the
@@ -95,4 +105,37 @@ export function resolveDeclared<S>(input: {
   return input.local === input.fingerprint(stored)
     ? { action: 'noop', stored, serverChanged: false, refreshed: true }
     : { action: 'no-base', stored }
+}
+
+/**
+ * Plans every resolution that writes nothing, the same way for every kind: deleted on the server,
+ * stale, without a base, or a no-op (recording `baseOf(stored)` when it must refresh the base).
+ * Returns `null` for a create, adopt or update, which the kind plans itself.
+ */
+export function settle<S, C extends PlannedChange>(
+  resolution: DeclaredResolution<S>,
+  change: C,
+  baseOf: (stored: StoredResource<S>) => BaseResource
+): C | null {
+  const { kind, key } = change
+  switch (resolution.action) {
+    case 'deleted':
+      change.diagnostics.push(serverGoneFinding(kind, key, resolution.stale))
+      return change
+    case 'stale':
+      change.diagnostics.push(staleFinding(kind, key))
+      return { ...change, storedId: resolution.stored.id }
+    case 'no-base':
+      change.diagnostics.push(noBaseFinding(kind, key))
+      return { ...change, storedId: resolution.stored.id }
+    case 'noop':
+      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding(kind, key))
+      return {
+        ...change,
+        storedId: resolution.stored.id,
+        ...(resolution.refreshed ? { base: baseOf(resolution.stored) } : {}),
+      }
+    default:
+      return null
+  }
 }

@@ -113,6 +113,84 @@ export function reboundFinding(kind: WorkspaceKind, key: string): WorkspaceSourc
   )
 }
 
+/** How findings name one resource of a kind. */
+const NOUNS: Record<WorkspaceKind, string> = {
+  table: 'table',
+  'custom-tool': 'custom tool',
+  skill: 'skill',
+  'knowledge-base': 'knowledge base',
+  file: 'file',
+  workflow: 'workflow',
+}
+
+/** Who holds a name a declared resource wants: a stored resource, or another declaration. */
+export type NameHolder = Pick<StoredResource<unknown>, 'key'> | { declaredBy: string }
+
+/**
+ * `E_NAME_TAKEN` for a declared resource whose name `holder` holds: a stored resource (under its
+ * key, or one no source has named yet) or another declaration in the same directory.
+ */
+export function nameTakenFinding(
+  kind: WorkspaceKind,
+  key: string,
+  name: string,
+  holder: NameHolder,
+  file?: string
+): WorkspaceSourceDiagnostic {
+  const noun = NOUNS[kind]
+  const held =
+    'declaredBy' in holder
+      ? `${where(kind, holder.declaredBy)}, declared in this directory too`
+      : holder.key
+        ? `the ${noun} under key "${holder.key}"`
+        : `another ${noun} this directory does not manage`
+  return finding('E_NAME_TAKEN', `The ${noun} name "${name}" belongs to ${held}.`, {
+    hint: 'Rename one of them, or declare that resource under its own key.',
+    ...(file ? { file } : {}),
+    kind,
+    key,
+  })
+}
+
+/**
+ * The stored resource other than `self` that holds `name`; `fold` compares names
+ * case-insensitively, as table names are.
+ */
+export function nameHolder<S>(
+  stored: StoredSet<S>,
+  name: string,
+  options: { self?: string; fold?: boolean } = {}
+): StoredResource<S> | undefined {
+  const norm = (value: string) => (options.fold ? value.toLowerCase() : value)
+  const wanted = norm(name)
+  return [...stored.bound.values(), ...stored.unbound].find(
+    (resource) => resource.id !== options.self && norm(resource.name) === wanted
+  )
+}
+
+/**
+ * Refuses `change` when an earlier declaration in `claimed` already gave its resource `name`
+ * (already folded when the kind compares names case-insensitively), else records it. A change
+ * already refused for its name keeps that one finding and claims nothing.
+ */
+export function refuseDeclaredTwice(
+  claimed: Map<string, string>,
+  change: Pick<PlannedChange, 'kind' | 'key' | 'diagnostics'>,
+  name: string,
+  displayName: string = name,
+  file?: string
+): void {
+  if (change.diagnostics.some((finding) => finding.code === 'E_NAME_TAKEN')) return
+  const first = claimed.get(name)
+  if (first === undefined) {
+    claimed.set(name, change.key)
+    return
+  }
+  change.diagnostics.push(
+    nameTakenFinding(change.kind, change.key, displayName, { declaredBy: first }, file)
+  )
+}
+
 /** How {@link planUndeclared} tells a resource another change claims, or one that moved. */
 interface UndeclaredOptions<S> {
   /** The kind's planned changes for declared resources: a resource one of them targets stays. */
@@ -143,16 +221,18 @@ export function planUndeclared<S, D, P>(
     const entry = ctx.base?.resources[resourceAddress(kind, key)]
     const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
-      const moved =
-        entry.fingerprint !== undefined &&
-        options.fingerprint !== undefined &&
-        options.fingerprint(resource, entry) !== entry.fingerprint
+      const serverFingerprint =
+        entry.fingerprint !== undefined && options.fingerprint !== undefined
+          ? options.fingerprint(resource, entry)
+          : undefined
+      const moved = serverFingerprint !== undefined && serverFingerprint !== entry.fingerprint
       changes.push({
         kind,
         key,
         action: moved ? 'noop' : 'delete',
         storedId: resource.id,
         ...(moved ? {} : { destructive: destructive(resource) }),
+        ...(serverFingerprint !== undefined && !moved ? { serverFingerprint } : {}),
         diagnostics: moved ? [staleFinding(kind, key)] : [],
       })
       continue
