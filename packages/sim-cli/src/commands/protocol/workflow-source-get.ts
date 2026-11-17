@@ -508,9 +508,9 @@ function withSourceExitCode(error: unknown): unknown {
  * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
  * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
  * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them, a
- * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines that keep the source LF. Without `--dir`
- * the generated handler runs unchanged. Commander offers no way to read the action it holds, so
- * it is captured and delegated to, as `runs get` does.
+ * short `.sim/AGENTS.md`, the example `.sim/examples/cookbook.ts` and the `.gitattributes` lines
+ * that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
+ * no way to read the action it holds, so it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')

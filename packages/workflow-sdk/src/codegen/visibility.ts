@@ -7,8 +7,9 @@
  * are capped at {@link MAX_COMBINATIONS}; the widest siblings stop being enumerated first. A field
  * nobody enumerates is unknown, so a condition on it is "sometimes".
  *
- * Conditions are evaluated by the catalog's one evaluator (`@sim/workflow-code/catalog/conditions`),
- * which leaves a condition on a field nobody enumerates undecided: "sometimes" here.
+ * Conditions are evaluated by the catalog's one evaluator
+ * (`@sim/workflow-code/catalog/conditions`), which leaves a condition on a field nobody enumerates
+ * undecided: "sometimes" here.
  */
 
 import { compareStrings } from '@sim/utils/string'

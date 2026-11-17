@@ -76,8 +76,8 @@ export function attachProtocolCommands(program: Command): void {
     folders: 'listWorkflowFolders',
     createFolder: 'createWorkflowFolder',
   })
-  // All four augment commands the generated pass already built — `run` gains
-  // `--follow`, `runs get` gains block names, `runs` gains `wait`, and `source get` gains `--dir` — so they
+  // All four augment commands the generated pass already built — `run` gains `--follow`,
+  // `runs get` gains block names, `runs` gains `wait`, and `source get` gains `--dir` — so they
   // must attach after it, which is the order `buildProgram` calls them in.
   attachWorkflowRunFollow(workflows)
   const runs = group(workflows, 'runs')
