@@ -5,7 +5,7 @@
  * compiler.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createBlock } from '@sim/testing/factories/block.factory'
@@ -26,7 +26,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { generateRegistryCorpus } from '@/lib/workflows/code/corpus'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -46,6 +46,26 @@ const workDir = mkdtempSync(path.join(tmpdir(), 'workflow-sdk-real-catalog-'))
 afterAll(() => rmSync(workDir, { recursive: true, force: true }))
 
 describe('canonicalize and codegen over the real block catalog', () => {
+  it('keeps the SDK fixture catalog equal to the real projection of its blocks', () => {
+    const fixturePath = path.join(SDK_ROOT, 'test/fixtures/catalog.json')
+    const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as { blocks: object }
+    const types = new Set(Object.keys(fixture.blocks))
+    const projected = {
+      ...projectBlockCatalog({
+        blocks: registryBlocks.filter((block) => types.has(block.type)),
+        trigger: registryTrigger,
+        sdkNames: SDK_NAMES,
+      }),
+      hash: 'fixture',
+    }
+    const text = `${JSON.stringify(projected, null, 2)}\n`
+    if (process.env.UPDATE_SDK_FIXTURE_CATALOG === '1') writeFileSync(fixturePath, text)
+    expect(
+      JSON.parse(readFileSync(fixturePath, 'utf8')),
+      'Regenerate with UPDATE_SDK_FIXTURE_CATALOG=1 bun run test lib/workflows/code/real-catalog.test.ts'
+    ).toEqual(JSON.parse(text))
+  })
+
   it('canonicalizes every case of the registry corpus without throwing', () => {
     const failures: string[] = []
     const corpus = generateRegistryCorpus()
