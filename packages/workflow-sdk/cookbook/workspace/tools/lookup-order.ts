@@ -1,7 +1,8 @@
 // @sim-sdk 1
 import { codeFile, defineTool } from '@sim/workflow-sdk/workspace'
 
-// tools/<key>.ts, with its code in tools/<key>.js. A workflow names it as customTool('lookup-order').
+// tools/<key>.ts, with its code in tools/<key>.js.
+// A workflow names it as customTool('lookup-order').
 export default defineTool({
   title: 'Lookup order',
   schema: {

@@ -44,7 +44,10 @@ export interface KnowledgeBaseDeclaration {
   description?: string
   /** The knowledge base folder path (`/support`); the workspace root when omitted. */
   folder?: string
-  /** Applies to documents indexed from now on; stored chunks keep the settings they were made with. */
+  /**
+   * Applies to documents indexed from now on; stored chunks keep the settings they were made
+   * with.
+   */
   chunking?: KnowledgeChunking
   /** The embedding model, fixed when the knowledge base is created. */
   embeddingModel?: string
