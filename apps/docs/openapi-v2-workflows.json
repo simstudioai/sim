@@ -19128,7 +19128,7 @@
             "propertyNames": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 512
+              "maxLength": 1024
             },
             "additionalProperties": {
               "type": "string"
@@ -19912,7 +19912,7 @@
             "propertyNames": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 512
+              "maxLength": 1024
             },
             "additionalProperties": {
               "type": "string"

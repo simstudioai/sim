@@ -31,12 +31,18 @@ const applyWorkflowSourceQuerySchema = z
   })
   .strict()
 
+/** Longest path a source file may have, in a workflow's source and in a workspace's alike. */
+export const SOURCE_PATH_MAX_LENGTH = 1024
+
 const sourceFilesSchema = z
   .record(
     z
       .string()
       .min(1, 'files: a path cannot be empty')
-      .max(512, 'files: a path cannot exceed 512 characters'),
+      .max(
+        SOURCE_PATH_MAX_LENGTH,
+        `files: a path cannot exceed ${SOURCE_PATH_MAX_LENGTH} characters`
+      ),
     z.string()
   )
   .superRefine((files, ctx) => {

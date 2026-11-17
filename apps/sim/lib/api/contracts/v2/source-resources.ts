@@ -3,6 +3,12 @@ import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
+/**
+ * Most resources of one kind the manifest lists, oldest first. Past it the manifest says
+ * `truncated`; source can still name a later resource by its key.
+ */
+export const MAX_MANIFEST_RESOURCES_PER_KIND = 1000
+
 const v2SourceResourcesParamsSchema = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace whose resources to list.') })
   .strict()
@@ -88,7 +94,7 @@ const sourceResourcesSchema = z
     truncated: z
       .boolean()
       .describe(
-        'True when a kind had more than 1000 resources; only the oldest 1000 of that kind are listed.'
+        `True when a kind had more than ${MAX_MANIFEST_RESOURCES_PER_KIND} resources; only the oldest ${MAX_MANIFEST_RESOURCES_PER_KIND} of that kind are listed.`
       ),
   })
   .describe('The workspace resources workflow source can name, by key.')

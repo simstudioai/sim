@@ -80,7 +80,10 @@ const compileCatalogs = new LRUCache<string, BlockCatalog>({ max: CATALOG_CACHE_
  * so the types name the content; a custom block's config is not, and its overlay is rebuilt. An
  * overlay shares its base's maps, so an entry costs little beyond the added types.
  */
-const notAddableOverlays = new LRUCache<string, BlockCatalog>({ max: 64 })
+const NOT_ADDABLE_OVERLAY_CACHE_MAX = 64
+const notAddableOverlays = new LRUCache<string, BlockCatalog>({
+  max: NOT_ADDABLE_OVERLAY_CACHE_MAX,
+})
 
 /**
  * The content a build reads, hashed: every included built-in type (the registry config is a

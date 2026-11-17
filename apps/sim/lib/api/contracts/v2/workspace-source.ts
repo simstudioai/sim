@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import { SOURCE_PATH_MAX_LENGTH } from '@/lib/api/contracts/v2/workflow-source'
 
 const kindSchema = z
   .enum(APPLY_ORDER, {
@@ -40,7 +41,7 @@ const getQuerySchema = z
 const pathSchema = z
   .string()
   .min(1, 'a path cannot be empty')
-  .max(1024, 'a path cannot exceed 1024 characters')
+  .max(SOURCE_PATH_MAX_LENGTH, `a path cannot exceed ${SOURCE_PATH_MAX_LENGTH} characters`)
   .refine(
     isWorkspaceSourcePath,
     'a path must sit inside a kind folder, with no `.` or `..` segments'

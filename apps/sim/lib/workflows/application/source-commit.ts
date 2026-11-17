@@ -121,7 +121,7 @@ async function loadMutableStoredSourceIn(
   await requireMutableFolder(row.folderId, tx, 'Workflow is locked by its containing folder')
   return {
     state: {
-      blocks: (normalized?.blocks ?? {}) as Record<string, BlockState>,
+      blocks: normalized?.blocks ?? {},
       edges: (normalized?.edges ?? []) as WorkflowState['edges'],
       loops: normalized?.loops ?? {},
       parallels: normalized?.parallels ?? {},
