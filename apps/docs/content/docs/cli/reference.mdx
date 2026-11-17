@@ -9535,14 +9535,14 @@ sim workspaces source get [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--dir <dir>` | Yes | Directory to write the workspace source into. |
-| `--only <kinds>` | No | Read only these kinds (comma-separated: table, workflow). |
+| `--only <kinds>` | No | Read only these kinds (comma-separated folders: tools, skills, tables, knowledge, files, workflows). |
 | `--force` | No | Replace files with edits no apply has saved. |
 
 </CommandTable>
 
-Exit codes: 0 written; 1 the command failed, or the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workspace has more resources of a kind than one directory holds.
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds.
 
-API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile).
 
 ### sim workspaces source apply
 
@@ -9562,10 +9562,10 @@ sim workspaces source apply [options]
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
 | `--allow-delete` | No | Delete resources, columns and data the directory no longer declares. |
-| `--only <kinds>` | No | Apply only these kinds (comma-separated: table, workflow). |
+| `--only <kinds>` | No | Apply only these kinds (comma-separated folders: tools, skills, tables, knowledge, files, workflows). |
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way: what was written is saved into the directory, and applying again continues.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way: what was written is saved into the directory, and applying again continues.
 
 API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
