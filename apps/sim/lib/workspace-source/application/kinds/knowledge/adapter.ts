@@ -9,7 +9,6 @@
  */
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { fingerprintOf, resourceAddress } from '@sim/workspace-code'
@@ -329,19 +328,13 @@ interface CarriedDoc {
   buffer: Buffer
 }
 
-/**
- * The uploads whose bytes this round carries, each checked against its declared size and hash
- * before anything is written, so a corrupt round writes nothing.
- */
+/** The uploads whose bytes this round carries (checked against their hash when planned). */
 function carriedDocs(ctx: ApplyContext, key: string, uploads: readonly DocUpload[]): CarriedDoc[] {
   const carried: CarriedDoc[] = []
   for (const upload of uploads) {
     const path = knowledgeDocPath(key, upload.name)
     const buffer = ctx.blobs?.content.get(path)
     if (buffer === undefined) continue
-    if (buffer.byteLength !== upload.doc.size || sha256Hex(buffer) !== upload.doc.sha256) {
-      throw new OrchestrationError('validation', `${path} does not match its declared hash.`)
-    }
     carried.push({ upload, buffer })
   }
   return carried

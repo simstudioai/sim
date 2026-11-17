@@ -464,4 +464,92 @@ describe('workspace source across kinds', () => {
       expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
+
+  check(
+    'a carried blob that does not match its hash refuses the whole apply before any kind writes; a dry run never decodes',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const empty = await snapshot(workspaceId)
+      const forged = manifest(BLOBS, true).map((blob) =>
+        blob.path === 'knowledge/policies/docs/refunds.md'
+          ? { ...blob, content: Buffer.from('not the declared bytes').toString('base64') }
+          : blob
+      )
+      const send = (dryRun: boolean) =>
+        withPermissionGroupScope(() =>
+          applyWorkspaceSource.execute({
+            principal: owner,
+            input: { workspaceId, files: TEXT, blobs: forged, kinds: KINDS, dryRun },
+          })
+        )
+
+      const refused = await refusal(send(false))
+
+      expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toEqual([
+        expect.objectContaining({
+          code: 'E_BLOB_CONTENT',
+          file: 'knowledge/policies/docs/refunds.md',
+        }),
+      ])
+      expect(await snapshot(workspaceId)).toEqual(empty)
+      const dryRun = await send(true)
+      expect(findings(dryRun.diagnostics, 'error')).toEqual([])
+    }
+  )
+
+  check('a blob listed twice, or at a path no binary file lives at, is refused', async () => {
+    const workspaceId = await newWorkspace()
+    const [notes] = manifest({ 'files/notes.txt': BLOBS['files/notes.txt'] }, false)
+
+    const refused = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: {},
+            blobs: [notes, notes, { ...notes, path: 'tables/leads.ts' }],
+            kinds: ['file', 'table'],
+          },
+        })
+      )
+    )
+
+    expect(
+      refused.diagnostics
+        .filter((finding) => finding.severity === 'error')
+        .map((finding) => `${finding.code} ${finding.file}`)
+    ).toEqual(['E_BLOB_CONTENT files/notes.txt', 'E_BLOB_CONTENT tables/leads.ts'])
+  })
+
+  check(
+    'a kind counts resources by key, not file: 500 tools of two files each fit, 501 do not',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const tools = (count: number) =>
+        Object.fromEntries(
+          Array.from({ length: count }, (_, index) => [
+            [
+              `tools/t${index}.ts`,
+              TEXT['tools/lookup.ts']
+                .replace("'Lookup order'", `'Tool ${index}'`)
+                .replace('./lookup.js', `./t${index}.js`),
+            ],
+            [`tools/t${index}.js`, TEXT['tools/lookup.js']],
+          ]).flat()
+        )
+      const plan = (count: number) =>
+        withPermissionGroupScope(() =>
+          applyWorkspaceSource.execute({
+            principal: owner,
+            input: { workspaceId, files: tools(count), kinds: ['custom-tool'], dryRun: true },
+          })
+        )
+
+      expect(findings((await plan(500)).diagnostics, 'error')).toEqual([])
+      expect(findings((await plan(501)).diagnostics, 'error')).toEqual([
+        'E_LIMIT_EXCEEDED custom-tool:undefined',
+      ])
+    }
+  )
 })

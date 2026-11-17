@@ -231,6 +231,10 @@ const applyBodySchema = z
             ),
         })
       )
+      .max(
+        WORKSPACE_SOURCE_LIMITS.maxBlobs,
+        `blobs cannot list more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} files`
+      )
       .optional()
       .describe('Binary files by hash.'),
     base: baseSchema.optional(),

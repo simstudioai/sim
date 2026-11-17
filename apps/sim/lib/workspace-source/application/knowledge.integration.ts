@@ -476,19 +476,21 @@ describe('knowledge bases as workspace source', () => {
           : blob
       )
 
-      const result = await withPermissionGroupScope(() =>
-        applyWorkspaceSource.execute({
-          principal: owner,
-          input: {
-            workspaceId,
-            files: POLICIES.files,
-            blobs: forged,
-            kinds: ['knowledge-base'],
-          },
-        })
+      const refused = await refusal(
+        withPermissionGroupScope(() =>
+          applyWorkspaceSource.execute({
+            principal: owner,
+            input: {
+              workspaceId,
+              files: POLICIES.files,
+              blobs: forged,
+              kinds: ['knowledge-base'],
+            },
+          })
+        )
       )
 
-      expect(result.failed).toMatchObject({ key: 'policies', code: 'E_APPLY_REFUSED' })
+      expect(codes(refused.diagnostics)).toEqual(['E_BLOB_CONTENT'])
       expect(await knowledgeBases(workspaceId)).toEqual([])
     }
   )

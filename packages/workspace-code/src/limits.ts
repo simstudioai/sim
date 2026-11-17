@@ -16,6 +16,8 @@ export const WORKSPACE_SOURCE_LIMITS = {
   maxBlobBytes: 10_000_000,
   /** Blob bytes one request carries; an apply over it continues in further rounds. */
   maxBlobBytesPerRequest: 24_000_000,
+  /** Blobs (workspace files and knowledge documents together) one directory lists. */
+  maxBlobs: 20_000,
   /** Workflows one apply evaluates. */
   maxWorkflows: 100,
   /** Planned changes one apply makes, no-ops excluded. */

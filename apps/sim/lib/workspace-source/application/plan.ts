@@ -5,6 +5,7 @@
  * change through the use case that will make it, and cap the plan's size. Any error in the result
  * refuses the whole apply before anything is written.
  */
+import { sha256Hex } from '@sim/security/hash'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -18,7 +19,7 @@ import {
   type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { finding } from '@/lib/workspace-source/application/findings'
@@ -53,6 +54,51 @@ export interface WorkspacePlan {
   base: WorkspaceBaseV1
   /** Blob paths a change writes whose content this round did not carry. */
   needBlobs: string[]
+  /** The bytes this round carries by path, checked against their hash and size. */
+  carried: ReadonlyMap<string, Buffer>
+}
+
+type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
+
+/**
+ * The blob manifest by path, refusing a path listed twice or one that holds no binary file. With
+ * `decode`, the content each blob carries is decoded once and checked against its declared hash
+ * and size, so bytes that changed while they were sent refuse the apply before anything is
+ * written; a dry run never decodes.
+ */
+function readBlobs(
+  blobs: readonly SubmittedBlob[],
+  decode: boolean,
+  diagnostics: WorkspaceSourceDiagnostic[]
+): { byPath: Map<string, SubmittedBlob>; carried: Map<string, Buffer> } {
+  const byPath = new Map<string, SubmittedBlob>()
+  const carried = new Map<string, Buffer>()
+  for (const blob of blobs) {
+    const refuse = (message: string, hint?: string) =>
+      diagnostics.push(
+        error('E_BLOB_CONTENT', message, { file: blob.path, ...(hint ? { hint } : {}) })
+      )
+    if (!isBlobPath(blob.path)) {
+      refuse(`${blob.path} is sent as a binary file, but no binary file lives at that path.`)
+      continue
+    }
+    if (byPath.has(blob.path)) {
+      refuse(`${blob.path} is listed twice.`)
+      continue
+    }
+    byPath.set(blob.path, blob)
+    if (!decode || blob.content === undefined) continue
+    const bytes = Buffer.from(blob.content, 'base64')
+    if (bytes.byteLength !== blob.size || sha256Hex(bytes) !== blob.sha256) {
+      refuse(
+        `${blob.path} does not match the SHA-256 and size the directory declared for it.`,
+        'It changed while it was sent; apply again.'
+      )
+      continue
+    }
+    carried.set(blob.path, bytes)
+  }
+  return { byPath, carried }
 }
 
 function error(
@@ -116,21 +162,15 @@ function checkLimits(
   let declarationBytes = 0
   let workflowBytes = 0
   const workflows = new Set<string>()
-  const perKind = new Map<WorkspaceKind, Set<string>>()
   for (const [path, text] of Object.entries(files)) {
     const kind = kindOfPath(path)
     if (!kind) continue
-    const resource = path.split('/')[1] ?? ''
-    const resources = perKind.get(kind) ?? new Set<string>()
-    resources.add(resource)
-    perKind.set(kind, resources)
     if (kind === 'workflow') {
       workflowBytes += utf8Bytes(text)
-      workflows.add(resource)
+      workflows.add(path.split('/')[1] ?? '')
     } else declarationBytes += utf8Bytes(text)
   }
-  const { maxDeclarationBytes, maxWorkflowBytes, maxWorkflows, maxResourcesPerKind } =
-    WORKSPACE_SOURCE_LIMITS
+  const { maxDeclarationBytes, maxWorkflowBytes, maxWorkflows } = WORKSPACE_SOURCE_LIMITS
   if (declarationBytes > maxDeclarationBytes) {
     diagnostics.push(
       error(
@@ -161,22 +201,16 @@ function checkLimits(
       )
     )
   }
-  for (const [kind, resources] of perKind) {
-    if (resources.size > maxResourcesPerKind) {
-      diagnostics.push(
-        error(
-          'E_LIMIT_EXCEEDED',
-          `${KIND_DIRS[kind]}/ declares ${resources.size} resources, over the ${maxResourcesPerKind} limit.`,
-          { kind }
-        )
-      )
-    }
-  }
 }
 
+/**
+ * Plans `submission`. With `decodeBlobs` (an apply that writes), the content the round carries is
+ * decoded and checked into `carried`; a dry run leaves it encoded and unread.
+ */
 export async function planWorkspaceSource(
   submission: WorkspaceSourceSubmission,
-  ctx: SourceContext
+  ctx: SourceContext,
+  options: { decodeBlobs?: boolean } = {}
 ): Promise<WorkspacePlan> {
   const { workspaceId } = ctx.workspace
   const diagnostics: WorkspaceSourceDiagnostic[] = []
@@ -194,8 +228,9 @@ export async function planWorkspaceSource(
     })
   )
   checkLimits(files, diagnostics)
+  const blobs = readBlobs(submission.blobs ?? [], options.decodeBlobs === true, diagnostics)
   if (diagnostics.some((finding) => finding.severity === 'error')) {
-    return { changes: [], diagnostics, base, needBlobs: [] }
+    return { changes: [], diagnostics, base, needBlobs: [], carried: blobs.carried }
   }
 
   const planCtx: PlanContext = {
@@ -213,10 +248,9 @@ export async function planWorkspaceSource(
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
     const adapter = KIND_ADAPTERS[kind]
-    const paths = [
-      ...Object.keys(files),
-      ...(submission.blobs ?? []).map((blob) => blob.path),
-    ].filter((path) => kindOfPath(path) === kind)
+    const paths = [...Object.keys(files), ...blobs.byPath.keys()].filter(
+      (path) => kindOfPath(path) === kind
+    )
     if (adapter.supported === false) {
       diagnostics.push(
         error('E_KIND_UNSUPPORTED', `${KIND_DIRS[kind]}/ is not supported by this server yet.`, {
@@ -228,13 +262,25 @@ export async function planWorkspaceSource(
     }
     const grouped = adapter.codec.group(paths)
     const kindFindings = grouped.diagnostics.map(flattenDiagnostic)
+    if (grouped.groups.size > WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind) {
+      kindFindings.push(
+        error(
+          'E_LIMIT_EXCEEDED',
+          `${KIND_DIRS[kind]}/ declares ${grouped.groups.size} resources, over the ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} limit.`,
+          { kind }
+        )
+      )
+    }
     const desired = new Map<string, unknown>()
     for (const [key, group] of grouped.groups) {
       const text = Object.fromEntries(
         group.filter((path) => Object.hasOwn(files, path)).map((path) => [path, files[path]])
       )
-      const blobs = (submission.blobs ?? []).filter((blob) => group.includes(blob.path))
-      const parsed = adapter.codec.parse(key, text, blobs)
+      const parsed = adapter.codec.parse(
+        key,
+        text,
+        group.flatMap((path) => blobs.byPath.get(path) ?? [])
+      )
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
       if (parsed.decl !== undefined) {
         desired.set(key, parsed.decl)
@@ -293,13 +339,13 @@ export async function planWorkspaceSource(
   }
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
-  const carried = new Set(
-    (submission.blobs ?? []).filter((blob) => blob.content !== undefined).map((blob) => blob.path)
+  const sent = new Set(
+    [...blobs.byPath.values()].filter((blob) => blob.content !== undefined).map((blob) => blob.path)
   )
   const needBlobs = [
     ...new Set(
-      writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !carried.has(path))
+      writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !sent.has(path))
     ),
   ]
-  return { changes, diagnostics, base, needBlobs }
+  return { changes, diagnostics, base, needBlobs, carried: blobs.carried }
 }

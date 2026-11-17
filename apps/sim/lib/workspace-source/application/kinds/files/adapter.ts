@@ -406,16 +406,10 @@ function refuseCollisions(
   }
 }
 
-/** The bytes a write sends, refused unless they are the ones the directory declared. */
+/** The bytes a write sends, checked against the declared hash when the plan decoded them. */
 function contentOf(change: FileChange, ctx: ApplyContext): Buffer {
   const bytes = ctx.blobs?.content.get(fileBlobPath(change.key))
   if (!change.decl || !bytes) throw new Error('A file write needs its declaration and bytes')
-  if (bytes.length !== change.decl.size || sha256Hex(bytes) !== change.decl.sha256) {
-    throw new OrchestrationError(
-      'validation',
-      `${fileBlobPath(change.key)} does not match the hash it was declared with; it changed while it was sent.`
-    )
-  }
   return bytes
 }
 

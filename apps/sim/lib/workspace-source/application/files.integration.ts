@@ -658,19 +658,21 @@ describe('workspace source files', () => {
     const workspaceId = await newWorkspace()
     const forged = blobsOf({ 'files/a.txt': Buffer.from('declared') })
     const [blob] = forged
-    const result = await withPermissionGroupScope(() =>
-      applyWorkspaceSource.execute({
-        principal: owner,
-        input: {
-          workspaceId,
-          files: {},
-          blobs: [{ ...blob, content: Buffer.from('replaced!').toString('base64') }],
-          kinds: ['file'],
-        },
-      })
+    const refused = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: {},
+            blobs: [{ ...blob, content: Buffer.from('replaced!').toString('base64') }],
+            kinds: ['file'],
+          },
+        })
+      )
     )
 
-    expect(result.failed).toMatchObject({ key: 'a.txt', code: 'E_APPLY_REFUSED' })
+    expect(codes(refused.diagnostics)).toEqual(['E_BLOB_CONTENT'])
     expect(await storedFiles(workspaceId)).toEqual([])
   })
 

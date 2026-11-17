@@ -24,6 +24,11 @@ type DeclarationCode =
   | 'E_DECL_UNKNOWN_FIELD'
   /** A path inside a kind's folder that no resource owns. */
   | 'E_DECL_UNKNOWN_FILE'
+  /**
+   * A binary file sent with bytes that do not match the hash or size the directory declared, or
+   * listed twice or at a path that holds no binary file: the apply writes nothing.
+   */
+  | 'E_BLOB_CONTENT'
   /** A file larger than its limit, or nesting deeper than the cap. */
   | 'E_LIMIT_EXCEEDED'
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
@@ -75,7 +80,7 @@ type FileCode =
   | 'E_FILE_NAME'
   /** A file over the per-blob cap: a get skips it and an apply never writes it. */
   | 'E_FILE_TOO_LARGE'
-  /** Bytes that do not match the hash or size the directory declared for them. */
+  /** A workspace file sent as text, or listed without a valid SHA-256 and size. */
   | 'E_FILE_CONTENT'
 
 /** Knowledge bases. */

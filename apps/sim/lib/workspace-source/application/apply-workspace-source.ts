@@ -143,8 +143,8 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
-    const plan = await planWorkspaceSource(input, ctx)
     const dryRun = input.dryRun === true
+    const plan = await planWorkspaceSource(input, ctx, { decodeBlobs: !dryRun })
     const refused = plan.diagnostics.some((finding) => finding.severity === 'error')
     if (refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
     const result: ApplyWorkspaceSourceResult = {
@@ -163,16 +163,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     const missing = new Set(plan.needBlobs)
     const writeCtx: ApplyContext = {
       ...ctx,
-      blobs: {
-        content: new Map(
-          (input.blobs ?? []).flatMap((blob) =>
-            blob.content === undefined
-              ? []
-              : [[blob.path, Buffer.from(blob.content, 'base64')] as const]
-          )
-        ),
-        complete: missing.size === 0,
-      },
+      blobs: { content: plan.carried, complete: missing.size === 0 },
     }
     const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
     for (const change of plan.changes) {
