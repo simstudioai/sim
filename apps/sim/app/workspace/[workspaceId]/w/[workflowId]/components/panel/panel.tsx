@@ -602,7 +602,6 @@ export const Panel = memo(function Panel() {
       captureEvent(posthogRef.current, 'code_tab_opened', {
         workflow_id: scopedWorkflowId,
         workspace_id: workspaceId,
-        entry: 'toolbar',
       })
     }
     setActiveTab(tab)

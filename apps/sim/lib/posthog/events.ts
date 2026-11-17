@@ -935,7 +935,6 @@ export interface PostHogEventMap {
   code_tab_opened: {
     workflow_id: string
     workspace_id: string
-    entry: 'toolbar'
   }
 
   /**
