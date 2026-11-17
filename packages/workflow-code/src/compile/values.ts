@@ -522,13 +522,15 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           site.decl.key
         )
       }
-      if (!ctx.variables.has(name)) {
+      // Variables are keyed by their normalized name, while the SDK types `vars` by the key as declared.
+      const key = normalizeWorkflowBlockName(name)
+      if (!ctx.variables.has(key)) {
         ctx.reporter.report(
           'E_UNKNOWN_VARIABLE',
           `No workflow variable is keyed ${name}.`,
           rangeOf(ctx, first),
           {
-            hint: didYouMean(name, ctx.variables.keys(), (key) => `vars.${key}`),
+            hint: didYouMean(key, ctx.variables.keys(), (known) => `vars.${known}`),
             blockKey: site.decl.key,
           }
         )
@@ -536,8 +538,8 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       }
       const rest = segmentsOf(ctx, members.slice(1), site)
       if (!rest) return null
-      if (site.varNodes && rest.length === 0) return { $sim: 'var', key: name }
-      return `<${formatStoredPath([{ kind: 'name', name: 'variable' }, { kind: 'name', name }, ...rest])}>`
+      if (site.varNodes && rest.length === 0) return { $sim: 'var', key }
+      return `<${formatStoredPath([{ kind: 'name', name: 'variable' }, { kind: 'name', name: key }, ...rest])}>`
     }
     case 'sdk': {
       if (binding.name !== 'env') {

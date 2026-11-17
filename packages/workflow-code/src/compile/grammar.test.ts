@@ -468,6 +468,17 @@ describe('accepted grammar', () => {
     })
   })
 
+  it('resolves vars.<key as declared> to the normalized variable key the SDK types it by', () => {
+    const wf = ok(
+      source(
+        `${START}\nconst a = api('A', { url: vars.MyVar, body: t\`\${vars['My Var']}\` })`,
+        "{ variables: { MyVar: { type: 'string', value: '' } } }"
+      )
+    )
+    expect(paramValue(wf, 'a', 'url')).toBe('<variable.myvar>')
+    expect(paramValue(wf, 'a', 'body')).toBe('<variable.myvar>')
+  })
+
   it('collects comments at anchors and reports spans by anchor', () => {
     const text = [
       '// @sim-sdk 1',
