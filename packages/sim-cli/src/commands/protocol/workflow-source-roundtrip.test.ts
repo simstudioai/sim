@@ -642,7 +642,7 @@ describe('reading a workflow too large to print', () => {
 })
 
 describe('creating a workflow from a bare directory', () => {
-  it('leaves the directory ready to edit: types, tsconfig.json and the agent guide', async () => {
+  it('leaves the directory ready to edit: types, tsconfig.json, the agent guide and the cookbook', async () => {
     mkdirSync(dir)
     writeFileSync(join(dir, 'workflow.ts'), WORKFLOW_TS)
     mkdirSync(join(dir, 'functions'))
@@ -655,6 +655,7 @@ describe('creating a workflow from a bare directory', () => {
     expect(existsSync(join(dir, '.sim/sdk/workspace.d.ts'))).toBe(true)
     expect(existsSync(join(dir, 'tsconfig.json'))).toBe(true)
     expect(existsSync(join(dir, '.sim/AGENTS.md'))).toBe(true)
+    expect(existsSync(join(dir, '.sim/examples/cookbook.ts'))).toBe(true)
   })
 
   it('writes an agent guide whose workflow skeleton compiles', async () => {

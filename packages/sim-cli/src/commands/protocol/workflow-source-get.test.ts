@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { COOKBOOK_TS } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -130,6 +131,17 @@ describe('sim workflows source get --dir', () => {
     expect(readFileSync(join(outDir, '.sim/sdk/workspace.d.ts'), 'utf8')).toContain("'docs': true")
     expect(callsTo(CATALOG_PATH)).toHaveLength(1)
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
+  })
+
+  it('writes the cookbook example beside the guide, outside what the tsconfig.json type-checks', async () => {
+    serve()
+
+    await get('--dir', outDir)
+
+    expect(readFileSync(join(outDir, '.sim/examples/cookbook.ts'), 'utf8')).toBe(COOKBOOK_TS)
+    const [marker, ...tsconfig] = readFileSync(join(outDir, 'tsconfig.json'), 'utf8').split('\n')
+    expect(marker).toContain('sim workflows source get')
+    expect(JSON.parse(tsconfig.join('\n')).include).toEqual(['workflow.ts', '.sim/sdk/**/*.d.ts'])
   })
 
   it('revalidates one cached catalog per workspace, whatever the output directory, and reuses it on 304', async () => {

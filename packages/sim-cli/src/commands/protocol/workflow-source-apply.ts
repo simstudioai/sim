@@ -428,7 +428,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         const { client, profile } = connectCreate()
         const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
         printError(
-          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json and .sim/AGENTS.md were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and .sim/examples/cookbook.ts were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
         )
         printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
         return
