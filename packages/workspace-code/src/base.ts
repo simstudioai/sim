@@ -47,7 +47,10 @@ type BaseBlob = {
 export type BaseResource = {
   [extension: LockExtensionKey]: Json
   id: string
-  /** Absent for a workflow, whose freshness lives in its own `.sim/base.json`. */
+  /**
+   * A workflow's hashes its stored source fingerprint, which a delete checks; an edit checks the
+   * folder's own `.sim/base.json`.
+   */
   fingerprint?: ResourceFingerprint
   columns?: Record<string, BaseColumn>
   blobs?: Record<string, BaseBlob>

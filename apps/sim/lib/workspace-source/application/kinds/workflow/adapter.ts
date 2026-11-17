@@ -4,9 +4,17 @@
  * and archived through `deleteWorkflow`, so compile, gates, locks, the per-workflow fingerprint
  * (409) and audit are exactly a single-workflow apply's. Folder placement is not managed.
  */
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { parseWorkflowLock, type SourceBase, type WorkflowLockV1 } from '@sim/workflow-code'
-import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
+import {
+  type BaseResource,
+  fingerprintOf,
+  type ResourceFingerprint,
+  resourceAddress,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import {
   type WorkflowDecl,
   workflowCodec,
@@ -14,6 +22,7 @@ import {
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
 import { WORKFLOW_LOCK_FILE } from '@sim/workspace-code/layout'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,
@@ -35,13 +44,39 @@ import type {
   KindAdapter,
   PlanContext,
   PlannedChange,
+  SourceContext,
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
+const logger = createLogger('WorkspaceSourceWorkflows')
+
 /** Workflows per page while listing a workspace's workflows. */
 const LIST_PAGE = 200
+
+/** Undeclared workflows a plan reads at once to fingerprint them for a delete. */
+const FINGERPRINT_CONCURRENCY = 4
+
+/**
+ * The root base's fingerprint of a workflow: its stored source fingerprint (`sf1:`), so a delete
+ * can tell the workflow changed since the directory read it, as an edit's own `base` does.
+ */
+function workflowFingerprint(source: SourceBase): ResourceFingerprint {
+  return fingerprintOf({ source: source.fingerprint })
+}
+
+/** The fingerprint of workflow `workflowId` as it is stored now. */
+async function currentFingerprint(
+  ctx: SourceContext,
+  workflowId: string
+): Promise<ResourceFingerprint> {
+  const source = await readWorkflowSource.execute({
+    principal: ctx.principal,
+    input: { workflowId },
+  })
+  return workflowFingerprint(source.base)
+}
 
 /** A stored workflow carries nothing beyond its id and name: the pipeline reads the rest. */
 type StoredWorkflowState = null
@@ -265,13 +300,38 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     for (const [key, decl] of desired) {
       changes.push(await planWorkflow(key, decl, stored, ctx, pending))
     }
+    // A delete is stale when the workflow changed on the server since the base recorded it; one
+    // that cannot be read now never matches, so it is refused rather than deleted unseen.
+    const fingerprints = new Map<string, string>()
+    if (ctx.allowDelete) {
+      const claimed = new Set(changes.map((change) => change.storedId))
+      const candidates = [...stored.bound].filter(
+        ([key, workflow]) =>
+          !desired.has(key) &&
+          !claimed.has(workflow.id) &&
+          ctx.base?.resources[resourceAddress('workflow', key)]?.id === workflow.id
+      )
+      await mapWithConcurrency(candidates, FINGERPRINT_CONCURRENCY, async ([, workflow]) => {
+        try {
+          fingerprints.set(workflow.id, await currentFingerprint(ctx, workflow.id))
+        } catch (error) {
+          logger.warn('Could not read a workflow to fingerprint its delete', {
+            workflowId: workflow.id,
+            error: getErrorMessage(error),
+          })
+        }
+      })
+    }
     changes.push(
       ...planUndeclared<StoredWorkflowState, WorkflowDecl, WorkflowPlan>(
         'workflow',
         desired,
         stored,
         ctx,
-        { declared: changes }
+        {
+          declared: changes,
+          fingerprint: (workflow) => fingerprints.get(workflow.id) ?? '',
+        }
       )
     )
     return changes
@@ -300,6 +360,11 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     }
   },
 
+  async fingerprintNow(change, ctx) {
+    if (!change.storedId) throw new Error('A workflow check needs the stored workflow id')
+    return currentFingerprint(ctx, change.storedId)
+  },
+
   async apply(change, ctx) {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
@@ -325,7 +390,10 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
             principal,
             input: { workspaceId, files: decl.files, ...provenance },
           })
-    const base: BaseResource = { id: result.workflowId }
+    const base: BaseResource = {
+      id: result.workflowId,
+      fingerprint: workflowFingerprint(result.base),
+    }
     return {
       id: result.workflowId,
       base,
@@ -351,7 +419,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     return {
       text: printed.text,
       blobs: [],
-      base: { id: stored.id },
+      base: { id: stored.id, fingerprint: workflowFingerprint(source.base) },
       diagnostics: inFolder(stored.key, source.diagnostics),
     }
   },

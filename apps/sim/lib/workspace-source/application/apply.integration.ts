@@ -537,6 +537,42 @@ describe('workspace source apply', () => {
   })
 
   check(
+    'refuses deleting a workflow edited on the server since the directory was read',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+      })
+      const read = await get(workspaceId)
+      const edited = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          'workflows/ingest/workflow.ts': read.files['workflows/ingest/workflow.ts'].replace(
+            "'Save Lead'",
+            "'Store Lead'"
+          ),
+        },
+        { base: read.base }
+      )
+      expect(edited.applied.map(({ key }) => key)).toEqual(['ingest'])
+      const files = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => !path.startsWith('workflows/ingest/'))
+      )
+
+      const stale = await refusal(apply(workspaceId, files, { base: read.base, allowDelete: true }))
+
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect(stale.diagnostics[0]).toMatchObject({ kind: 'workflow', key: 'ingest' })
+      expect((await workflows(workspaceId)).map((stored) => stored.name).sort()).toEqual([
+        'Ingest',
+        'Intake',
+      ])
+    }
+  )
+
+  check(
     'refuses removing a select option its cells use without --allow-delete, and counts them',
     async () => {
       const workspaceId = await newWorkspace()

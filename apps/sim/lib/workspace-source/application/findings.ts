@@ -267,9 +267,10 @@ interface UndeclaredOptions<S, P> {
   declared?: ReadonlyArray<Pick<PlannedChange, 'storedId'>>
   /**
    * The resource's fingerprint under its base entry; a delete of one that moved since, or whose
-   * entry records no fingerprint to compare, is stale.
+   * entry records no fingerprint to compare, is stale. Required, so no kind deletes a resource
+   * edited on the server since the directory read it.
    */
-  fingerprint?: (resource: StoredResource<S>, base: BaseResource) => string
+  fingerprint: (resource: StoredResource<S>, base: BaseResource) => string
   /** What deleting the resource loses, beyond the resource itself (`{ rows: 12 }`). */
   counts?: (resource: StoredResource<S>) => Record<string, number>
   /** The plan data the kind's delete carries out. */
@@ -288,7 +289,7 @@ export function planUndeclared<S, D, P>(
   desired: ReadonlyMap<string, D>,
   stored: StoredSet<S>,
   ctx: PlanContext,
-  options: UndeclaredOptions<S, P> = {}
+  options: UndeclaredOptions<S, P>
 ): PlannedChange<D, P>[] {
   const claimed = new Set((options.declared ?? []).map((change) => change.storedId))
   const changes: PlannedChange<D, P>[] = []
@@ -297,8 +298,8 @@ export function planUndeclared<S, D, P>(
     const entry = ctx.base?.resources[resourceAddress(kind, key)]
     const managed = entry?.id === resource.id
     if (managed && ctx.allowDelete) {
-      const serverFingerprint = options.fingerprint?.(resource, entry)
-      if (serverFingerprint !== undefined && serverFingerprint !== entry.fingerprint) {
+      const serverFingerprint = options.fingerprint(resource, entry)
+      if (serverFingerprint !== entry.fingerprint) {
         changes.push({
           kind,
           key,
@@ -315,7 +316,7 @@ export function planUndeclared<S, D, P>(
         action: 'delete',
         storedId: resource.id,
         destructive: { what: NOUNS[kind], counts: options.counts?.(resource) ?? {} },
-        ...(serverFingerprint !== undefined ? { serverFingerprint } : {}),
+        serverFingerprint,
         ...(detail !== undefined ? { detail } : {}),
         diagnostics: [],
       })

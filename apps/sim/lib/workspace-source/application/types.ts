@@ -157,8 +157,7 @@ export interface KindAdapter<D, S, P = unknown> {
   authorize(change: PlannedChange<D, P>, ctx: SourceContext): Promise<void>
   /**
    * The stored resource's fingerprint now, as `serverFingerprint` records it at plan time. A kind
-   * whose write carries its own atomic precondition (a file's revision, a workflow's base) has
-   * none.
+   * whose writes all carry their own atomic precondition (a file's revision) has none.
    */
   fingerprintNow?(change: PlannedChange<D, P>, ctx: SourceContext): Promise<string>
   apply(change: PlannedChange<D, P>, ctx: ApplyContext): Promise<AppliedResource>
