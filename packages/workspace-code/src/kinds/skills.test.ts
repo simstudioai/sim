@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
+import { fingerprintOf } from '../fingerprint'
 import { type SkillDecl, skillCodec } from './skills'
 
 const text = fc.string({ maxLength: 40 }).filter((value) => !/[\u0000\ud800-\udfff]/.test(value))
@@ -96,6 +97,18 @@ describe('skillCodec', () => {
     expect(first('---\nname: tone\n---\n')).toEqual(['The frontmatter has no description.'])
     expect(first('---\nname: tone\ndescription:  spaced\n---\n')[0]).toContain('Quote')
     expect(first('---\nname: tone\ndescription: x\n---\n\u0000')[0]).toContain('NUL')
+  })
+
+  it('fingerprints content stored with CRLF the same after the CLI reads it back as LF', () => {
+    const stored: SkillDecl = { name: 'tone', description: 'Tone', content: 'one\r\ntwo\r\n' }
+    const printed = skillCodec.print('tone', stored).text['skills/tone.md']
+    const parsed = parse(printed.replace(/\r\n/g, '\n'))
+    expect(parsed.decl).toBeDefined()
+    if (parsed.decl) {
+      expect(fingerprintOf(skillCodec.canonical(parsed.decl))).toBe(
+        fingerprintOf(skillCodec.canonical(stored))
+      )
+    }
   })
 
   it('groups one markdown file per key', () => {

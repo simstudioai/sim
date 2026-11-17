@@ -183,5 +183,10 @@ export const skillCodec: KindCodec<SkillDecl> = {
     },
     blobs: [],
   }),
-  canonical: (decl) => ({ name: decl.name, description: decl.description, content: decl.content }),
+  /** Content is compared with LF line endings: the CLI reads every text file as LF. */
+  canonical: (decl) => ({
+    name: decl.name,
+    description: decl.description,
+    content: decl.content.replace(/\r\n/g, '\n'),
+  }),
 }
