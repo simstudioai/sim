@@ -100,6 +100,7 @@ import { db } from '@sim/db'
 import {
   changelogRelease,
   copilotChats,
+  document as knowledgeDocument,
   userTableRowSecretProvenance,
   workflowTest,
   workspaceFileSearchRevision,
@@ -1049,6 +1050,39 @@ describe('content reaching Chat is admitted per item', () => {
       const usage = await cli('GET', `${kbPath()}/tags/usage?workspaceId=${ws()}`)
       expect(usage.status).toBe(200)
       expect(usage.body).not.toContain(CANARY.unknown)
+    })
+
+    it('downloads a knowledge document’s original per its provenance, refusing an unknown one', async () => {
+      /** An original held inline, so the read needs no object storage. */
+      const seedOriginal = async (text: string, tracked: boolean) => {
+        const id = generateId()
+        await db.insert(knowledgeDocument).values({
+          id,
+          knowledgeBaseId: fixture.knowledge.knowledgeBaseId,
+          filename: `${id}.txt`,
+          fileUrl: `data:text/plain;base64,${Buffer.from(text).toString('base64')}`,
+          fileSize: Buffer.byteLength(text),
+          mimeType: 'text/plain',
+          processingStatus: 'completed',
+          acl: ['ws'],
+          aclRequirements: [],
+          aclVerifiedAt: new Date(),
+          // Tracked with no provenance row reads as unknown; untracked reads as clean.
+          ...(tracked ? { secretProvenanceVersion: 1 } : {}),
+        })
+        return id
+      }
+      const download = (documentId: string) =>
+        cli('GET', `${kbPath()}/documents/${documentId}/content?workspaceId=${ws()}`)
+
+      const clean = await download(await seedOriginal(`public notes ${CANARY.clean}`, false))
+      expect(clean.status).toBe(200)
+      expect(modelView(clean)).toContain(CANARY.clean)
+
+      const unknown = await download(await seedOriginal(`tainted ${CANARY.unknown}`, true))
+      expect(unknown.status).toBe(403)
+      expect(unknown.body).not.toContain(CANARY.unknown)
+      expect(unknown.registry.isPermanentlyIncomplete()).toBe(false)
     })
 
     it('creates and updates chunks without echoing unknown content (#10)', async () => {
