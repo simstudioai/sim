@@ -215,9 +215,10 @@ template.
 ### Structured fields
 
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →
-  `{ name, type: 'string', value: '' }`; `name: { type, … }` → `{ name, type, … }`; `{}` is the empty
-  list. Arrays pass through. The printer writes a list the record cannot carry (an integer-like or
-  repeated name, an unknown key) as `raw([…])`.
+  `{ name, type: 'string', value: '' }`; `name: { type, … }` → `{ name, type, … }`; an entry with
+  no type string (`count: 5`, `count: { value: 5 }`) is refused; `{}` is the empty list. Arrays
+  pass through. The printer writes a list the record cannot carry (an integer-like or repeated name,
+  an unknown key) as `raw([…])`.
 - Tools (`valueKind: 'tools'`): an array of
   - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`), or `builder.tool(params, options?)`
     for a builder at the namespace root (`agent.tool(…)`);

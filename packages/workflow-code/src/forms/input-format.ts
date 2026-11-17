@@ -47,6 +47,20 @@ export function renamedInputFields(value: Value): Array<{ key: string; name: Val
 }
 
 /**
+ * The record keys whose entry names no type: neither a type string nor a record with a string
+ * `type`. The SDK types every entry as one of those, so a bare value (`count: 5`) is refused rather
+ * than stored as a field with no type.
+ */
+export function untypedInputFields(value: Value): string[] {
+  if (!isPlainRecord(value)) return []
+  return Object.entries(value).flatMap(([key, entry]) =>
+    typeof entry === 'string' || (isPlainRecord(entry) && typeof entry.type === 'string')
+      ? []
+      : [key]
+  )
+}
+
+/**
  * The record sugar compiled: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list.
  * The record key is always the field name; an entry's own `name` never replaces it.
  */
@@ -59,8 +73,6 @@ export function inputFormatItems(value: Value): Value {
       for (const [key, field] of Object.entries(entry)) {
         if (key !== 'name') setOwn(item, key, field)
       }
-    } else {
-      setOwn(item, 'value', entry)
     }
     return item
   })

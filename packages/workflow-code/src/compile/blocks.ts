@@ -22,7 +22,7 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
-import { inputFormatItems, renamedInputFields } from '../forms/input-format'
+import { inputFormatItems, renamedInputFields, untypedInputFields } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import {
@@ -721,6 +721,15 @@ function compileField(
         property.value,
         `The ${renamed.key} field also writes name ${JSON.stringify(renamed.name)}; the key names the field.`,
         `Rename the key, or remove name from ${renamed.key}.`,
+        decl.key
+      )
+    }
+    for (const key of untypedInputFields(value)) {
+      unsupported(
+        ctx,
+        property.value,
+        `The ${key} field names no type.`,
+        `Write ${key}: 'string', or ${key}: { type: 'number', value: 5 }.`,
         decl.key
       )
     }

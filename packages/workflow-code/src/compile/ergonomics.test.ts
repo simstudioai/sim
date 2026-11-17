@@ -388,6 +388,16 @@ describe('JSON field literals', () => {
     expect(codes(result)).toEqual(['E_UNSUPPORTED_SYNTAX'])
   })
 
+  it.each(['5', 'true', 'null', "['string']", '{ value: 5 }', '{ type: 5 }'])(
+    'refuses an inputFormat entry %s that names no type',
+    (entry) => {
+      const result = run(
+        source(`  const start = trigger.start('Start', { inputFormat: { count: ${entry} } })`)
+      )
+      expect(codes(result)).toEqual(['E_UNSUPPORTED_SYNTAX'])
+    }
+  )
+
   it("types a human form's fields under submission, as the SDK does", () => {
     const workflow = compiled(
       source(
