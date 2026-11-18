@@ -436,6 +436,78 @@ describe('workspace source: deployments', () => {
     }
   )
 
+  check(
+    'a chat rewrite with a stored() password keeps that password, on the re-created-output path and a plain edit',
+    async () => {
+      const guardedChat = (identifier: string) =>
+        withChat(
+          `{ identifier: '${identifier}', title: 'Guarded', auth: { password: env.CHAT_PW }, outputs: [{ block: 'Answer', path: 'content' }] }`,
+          'draft',
+          'defineDeployment, env'
+        )
+      /** A deployed workflow whose password chat a get prints as `stored()`, with that get. */
+      const storedPasswordWorkspace = async (identifier: string) => {
+        const workspaceId = await workspaces.create({ name: 'Stored chat password', ownerId })
+        await db.insert(workspaceEnvironment).values({
+          id: generateId(),
+          workspaceId,
+          variables: { CHAT_PW: (await encryptSecret('correct horse battery')).encrypted },
+        })
+        const created = await apply(workspaceId, {
+          [WORKFLOW]: NIGHTLY,
+          [DEPLOYMENT]: guardedChat(identifier),
+        })
+        expect(created.failed).toBeUndefined()
+        const id = await workflowId(workspaceId)
+        const read = await runner.get(workspaceId)
+        const files: Files = read.files
+        expect(files[DEPLOYMENT]).toContain('password: stored()')
+        const before = (await deployState(id)).chat
+        expect(before).toMatchObject({ authType: 'password', identifier })
+        expect(before?.password).toBeTruthy()
+        return { workspaceId, id, files, base: read.base, before }
+      }
+
+      // The rewrite a re-created output block forces.
+      const recreated = await storedPasswordWorkspace('stored-recreated-chat')
+      const rewritten = await apply(
+        recreated.workspaceId,
+        { ...recreated.files, [WORKFLOW]: RETYPED },
+        { base: recreated.base, allowDelete: true }
+      )
+      expect(rewritten.failed).toBeUndefined()
+      expect(rewritten.plan.find((change) => change.kind === 'deployment')?.fields).toContain(
+        'chat outputs'
+      )
+      const afterRecreate = (await deployState(recreated.id)).chat
+      expect(afterRecreate?.outputConfigs).toEqual([
+        { blockId: await answerBlockId(recreated.id), path: 'content' },
+      ])
+      expect(afterRecreate).toMatchObject({
+        authType: 'password',
+        password: recreated.before?.password,
+      })
+
+      // A plain chat edit that writes the chat again.
+      const plain = await storedPasswordWorkspace('stored-plain-chat')
+      const retitled = await apply(
+        plain.workspaceId,
+        {
+          ...plain.files,
+          [DEPLOYMENT]: plain.files[DEPLOYMENT].replace("title: 'Guarded'", "title: 'Kept'"),
+        },
+        { base: plain.base }
+      )
+      expect(retitled.failed).toBeUndefined()
+      expect(retitled.plan.find((change) => change.kind === 'deployment')?.fields).toEqual(['chat'])
+      expect((await deployState(plain.id)).chat).toMatchObject({
+        title: 'Kept',
+        authType: 'password',
+        password: plain.before?.password,
+      })
+    }
+  )
+
   check('undeploying needs --allow-delete, and the plan says what stops', async () => {
     const { workspaceId, id, files, base } = await deployedWorkspace()
     const { [DEPLOYMENT]: _removed, ...withoutDeployment } = files
