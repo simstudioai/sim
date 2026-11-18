@@ -312,14 +312,18 @@ process.stdout.write(JSON.stringify({
                 exporter = runpy.run_path(str(SCRIPT))
                 output = root / "large-csv"
                 exporter["write_export"](output,
-                    ((f"engineering/project-{index:06d}-permissions", 1) for index in range(150000)),
+                    ((f"engineering/project-{index:06d}-permissions", 1) for index in range(600001)),
                     {1: "alice@example.com"})
-                assert (output / "project-permissions.csv").stat().st_size > 4 * 1024 * 1024
+                assert (output / "project-permissions.csv").stat().st_size > 8 * 1024 * 1024
                 with (output / "project-permissions.csv").open() as handle:
                     rows = csv.reader(handle)
                     assert next(rows) == ["project_path", "user_id"]
-                    assert sum(1 for _ in rows) == 150000
+                    assert sum(1 for _ in rows) == 600001
                 report["checks"].append({"name": "large-csv", "passed": True})
+                writer_globals = exporter["write_export"].__globals__
+                # Exercise overflow cleanup without creating a 1 GiB test artifact.
+                writer_globals["MAX_BYTES"] = 8 * 1024 * 1024
+                writer_globals["MAX_GRANTS"] = 500000
                 for scenario, grants in (
                     ("csv-row-bound", (("a/b", 1) for _ in range(500001))),
                     ("csv-byte-bound", (("a/" + "b" * 1000, 1) for _ in range(9000))),
@@ -335,7 +339,7 @@ process.stdout.write(JSON.stringify({
                         exporter["write_export"](output, grants, {1: "alice@example.com"})
                         raise AssertionError(f"{scenario}: export unexpectedly succeeded")
                     except exporter["ExportError"] as error:
-                        expected = {"csv-row-bound": "500,000-row limit", "csv-byte-bound": "8 MiB CSV limit",
+                        expected = {"csv-row-bound": "500,000-row limit", "csv-byte-bound": "CSV byte limit",
                                     "csv-partial-failure": "Provider failed after the first grant"}[scenario]
                         assert expected in str(error), str(error)
                         assert not output.exists(), "Published an incomplete CSV pair"

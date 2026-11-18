@@ -1,8 +1,6 @@
 import { z } from 'zod'
-import {
-  GITLAB_CSV_MAX_ROWS,
-  GITLAB_PERMISSION_MODES,
-} from '@/connectors/gitlab/permission-config/types'
+import { PERMISSION_IMPORT_MAX_ROWS } from '@/lib/knowledge/connectors/permission-import-limits'
+import { GITLAB_PERMISSION_MODES } from '@/connectors/gitlab/permission-config/types'
 
 const gitLabCsvUploadSchema = z
   .object({
@@ -37,7 +35,7 @@ export type GitLabPermissionUploadInput = z.input<typeof gitLabPermissionInputSc
 const gitLabCsvFileSummarySchema = z.object({
   filename: z.string().min(1).max(255),
   uploadedAt: z.string().datetime(),
-  rowCount: z.number().int().nonnegative().max(GITLAB_CSV_MAX_ROWS),
+  rowCount: z.number().int().nonnegative().max(PERMISSION_IMPORT_MAX_ROWS),
 })
 export const gitLabPermissionSummarySchema = z.object({
   provider: z.literal('gitlab'),

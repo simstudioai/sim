@@ -3,6 +3,10 @@ import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  loadPermissionImport,
+  validatePermissionImportScope,
+} from '@/lib/knowledge/connectors/permission-import-store'
+import {
   loadGitLabPermissionSnapshot,
   type PreparedGitLabPermissions,
   prepareGitLabPermissions,
@@ -97,8 +101,15 @@ export async function prepareGitLabPermissionChange(input: {
             getErrorMessage(error, 'Unable to validate the GitLab token and project.')
           )
         })
+  const prepared = prepareGitLabPermissions(permissions, project, existing, Boolean(input.existing))
+  if (prepared.snapshot.importId && input.existing) {
+    const record = await loadPermissionImport(prepared.snapshot.importId, input.existing.id)
+    if (!record || record.completedRevision === null)
+      throw new OrchestrationError('internal', 'Could not read the stored GitLab permissions.')
+    await validatePermissionImportScope(record, prepared.snapshot)
+  }
   return {
-    permissions: prepareGitLabPermissions(permissions, project, existing, Boolean(input.existing)),
+    permissions: prepared,
     ...(input.existing && input.apiKey
       ? { encryptedApiKey: (await encryptApiKey(input.apiKey)).encrypted }
       : {}),

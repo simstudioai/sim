@@ -217,6 +217,11 @@ import {
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import {
+  v2CompleteSourcePermissionImportContract,
+  v2CreateSourcePermissionImportContract,
+  v2PutSourcePermissionImportPartContract,
+} from '@/lib/api/contracts/v2/source-permission-imports'
+import {
   v2AddOrganizationDomainContract,
   v2DeleteSsoProviderContract,
   v2GetSsoPolicyContract,
@@ -645,6 +650,16 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.POST
       ),
   },
+  completeSourcePermissionImport: {
+    contract: v2CompleteSourcePermissionImportContract,
+    summary: 'Complete source permission import',
+    description:
+      'Validate and activate a complete permission snapshot atomically. The source revision must still match the revision pinned before export. Incomplete, expired, or invalid imports preserve current access. Retrying a completed import returns its committed revision.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete/route'
+      ).then((route) => route.POST),
+  },
   completeTableImport: {
     contract: v2CompleteTableImportContract,
     summary: 'Complete table import upload',
@@ -850,6 +865,16 @@ export const V2_MCP_OPERATIONS = {
       'Create a workspace skill with a unique kebab-case name that is not reserved by a built-in skill. Requires workspace write access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/skills/route').then((route) => route.POST),
+  },
+  createSourcePermissionImport: {
+    contract: v2CreateSourcePermissionImportContract,
+    summary: 'Create source permission import',
+    description:
+      'Stage a complete permission snapshot without changing active access. Upload numbered CSV parts, then complete the import within 24 hours using the same credential. Requires organization Admin access. Existing inline uploads remain supported.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/route'
+      ).then((route) => route.POST),
   },
   createTable: {
     contract: v2CreateTableContract,
@@ -2389,6 +2414,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/fork/push/route').then((route) => route.POST),
+  },
+  putSourcePermissionImportPart: {
+    contract: v2PutSourcePermissionImportPartContract,
+    summary: 'Upload source permission import part',
+    description:
+      'Upload one CSV part in order, with all user-mapping parts before project-permission parts. Each part supports 5,000 data rows and 1 MiB of UTF-8 content. An identical retry is safe; changed or out-of-order parts conflict.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]/route'
+      ).then((route) => route.PUT),
   },
   queryRows: {
     contract: v2QueryRowsContract,

@@ -14,7 +14,9 @@ import { detachKnowledgeConnector } from '@/lib/knowledge/connectors/detachment'
 import {
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+  KNOWLEDGE_PERMISSION_IMPORT_CLEANUP_EVENT,
 } from '@/lib/knowledge/connectors/outbox-events'
+import { cleanupPermissionImport } from '@/lib/knowledge/connectors/permission-import-cleanup'
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
@@ -238,6 +240,7 @@ const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
 export const knowledgeDocumentProcessingOutboxHandlers = {
   [KNOWLEDGE_CONNECTOR_CLEANUP_EVENT]: cleanupKnowledgeConnector,
   [KNOWLEDGE_CONNECTOR_DETACH_EVENT]: detachKnowledgeConnector,
+  [KNOWLEDGE_PERMISSION_IMPORT_CLEANUP_EVENT]: cleanupPermissionImport,
   [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
   [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
