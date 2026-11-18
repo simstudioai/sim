@@ -1,6 +1,7 @@
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const authorizeComputerUseBodySchema = z.object({ toolCallId: desktopToolCallIdSchema }).strict()
@@ -18,14 +19,13 @@ export const authorizeComputerUseContract = defineRouteContract({
   response: { mode: 'json', schema: authorizeComputerUseResponseSchema },
 })
 
-const computerUseAvailabilityParamsSchema = z.object({ id: z.string().min(1) }).strict()
 const computerUseAvailabilityResponseSchema = z.object({ available: z.boolean() }).strict()
 
 /** Whether the permission group governing this workspace lets its chats use computer use. */
 export const workspaceComputerUseAvailabilityContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/computer-use/availability',
-  params: computerUseAvailabilityParamsSchema,
+  params: z.object({ id: workspaceIdSchema }).strict(),
   response: { mode: 'json', schema: computerUseAvailabilityResponseSchema },
 })
 
@@ -33,6 +33,6 @@ export const workspaceComputerUseAvailabilityContract = defineRouteContract({
 export const organizationComputerUseAvailabilityContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/computer-use/availability',
-  params: computerUseAvailabilityParamsSchema,
+  params: z.object({ id: organizationIdSchema }).strict(),
   response: { mode: 'json', schema: computerUseAvailabilityResponseSchema },
 })
