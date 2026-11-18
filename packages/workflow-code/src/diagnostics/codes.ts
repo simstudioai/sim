@@ -164,6 +164,12 @@ const COMPILE_CATALOG_CODES = [
   'E_STORED_VALUE_MISSING',
   /** The value's JSON type differs from the field's `valueKind`; never coerced. */
   'W_VALUE_KIND',
+  /**
+   * A literal slider value outside the catalog `min`/`max`, off its `step`, or fractional where it
+   * takes integers. A warning: the executor forwards it unclamped and stored values keep
+   * round-tripping, so the provider or tool decides at run time.
+   */
+  'W_OUT_OF_RANGE',
   /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
   'W_TABLE_FILTER_SHAPE',
   /**

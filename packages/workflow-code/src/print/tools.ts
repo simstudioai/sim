@@ -346,7 +346,7 @@ export function storedSecret(
   ctx.diagnostics.push({
     code: 'W_LITERAL_SECRET',
     severity: 'warning',
-    ...literalSecretFinding(name, password),
+    ...literalSecretFinding(name, { password }),
     blockKey: block.key,
     param: name,
   })

@@ -93,6 +93,9 @@ export class EdgeCollector {
     viaEdgeCall = false
   ): boolean {
     if (this.full) return false
+    // A duplicate shares the first declaration's key, so its edges would wire that block instead
+    // (a phantom cycle among them). E_DUPLICATE_NAME already covers it.
+    if (from.duplicate || to.duplicate) return false
     const source = this.blocks.get(from.key)
     const target = this.blocks.get(to.key)
     if (!source || !target) return false
@@ -202,25 +205,43 @@ export class EdgeCollector {
         const edge = this.edges[index]
         return edge && !storedTuples.has(edgeTupleKey(edge.from, portKey(edge.port), edge.to))
       })
-      const at = fresh[0] ?? inside[0]
+      const candidates = fresh.length > 0 ? fresh : inside
+      const at = candidates.find((index) => this.isBackEdge(index)) ?? candidates[0]
       const edge = at === undefined ? undefined : this.edges[at]
       const node = at === undefined ? undefined : this.nodes[at]
       if (!edge || !node) continue
-      const names = component.map((key) => this.ctx.declsByKey.get(key)?.name ?? key)
+      const nameOf = (key: string) => this.ctx.declsByKey.get(key)?.name ?? key
+      const names = component.map(nameOf)
       const message =
         component.length === 1
           ? `${names[0]} is wired to itself, so it waits on its own output and never runs.`
           : `${names.join(', ')} are wired in a cycle; each waits on the one before it, so none of them runs.`
+      const back =
+        component.length === 1
+          ? 'Remove this edge'
+          : `Remove this edge from ${nameOf(edge.from)} back to ${nameOf(edge.to)}`
       this.ctx.reporter.report(
         fresh.length > 0 ? 'E_EDGE_CYCLE' : 'W_EDGE_CYCLE',
         message,
         rangeOf(this.ctx, node),
         {
-          hint: 'Remove the edge back, and repeat work with loop() or parallel() around the blocks instead.',
+          hint: `${back}, and repeat work with loop() or parallel() around the blocks instead.`,
           blockKey: edge.from,
         }
       )
     }
+  }
+
+  /**
+   * Whether the edge at `index` points back in source order: its target is declared no later than
+   * its source. Every cycle holds one, and it is the edge an author removes to break the cycle.
+   */
+  private isBackEdge(index: number): boolean {
+    const edge = this.edges[index]
+    if (!edge) return false
+    const from = this.ctx.declsByKey.get(edge.from)
+    const to = this.ctx.declsByKey.get(edge.to)
+    return from !== undefined && to !== undefined && to.order <= from.order
   }
 
   /**

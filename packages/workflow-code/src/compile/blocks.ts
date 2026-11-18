@@ -411,14 +411,14 @@ interface WrittenParam {
   value: Value
 }
 
-/** `W_LITERAL_SECRET` on a password field whose value is literal text, written or kept stored. */
+/** `W_LITERAL_SECRET` on a field holding a literal secret, written or kept stored. */
 function reportLiteralSecret(
   ctx: CompileContext,
   blockKey: BlockKey,
   entry: Pick<WrittenParam, 'property' | 'param'>,
-  password: boolean
+  field: Pick<CatalogSubBlock, 'password' | 'resourceKind'>
 ): void {
-  const { message, hint } = literalSecretFinding(entry.param, password)
+  const { message, hint } = literalSecretFinding(entry.param, field)
   ctx.reporter.report('W_LITERAL_SECRET', message, rangeOf(ctx, entry.property), {
     hint,
     blockKey,
@@ -664,7 +664,7 @@ function keepStored(
     if (param) setOwn(params, member.id, param)
     else state.unset.add(member.id)
     if (param?.kind === 'value' && holdsSecret(member, param.value)) {
-      reportLiteralSecret(ctx, decl.key, { property, param: name }, member.password === true)
+      reportLiteralSecret(ctx, decl.key, { property, param: name }, member)
     }
   }
   const mode = field && isModalPair(field) ? getOwn(stored.modes, field.param) : undefined
@@ -847,7 +847,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   const fromSource = new Set(Object.keys(params))
   const defaulted = fillEditorDefaults(state, shape)
   if (shape.index) checkFields(ctx, shape.index, state)
-  if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, state)
+  if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, shape.index, state)
 
   const block: CanonicalBlock = {
     key: decl.key,
@@ -1262,11 +1262,19 @@ const SCHEDULE_BLOCK_TYPE = 'schedule'
 
 /**
  * A schedule created from source with no `timezone` runs in UTC: the zone the editor seeds is the
- * viewer's own, so source never gets one by default (`I_SCHEDULE_UTC`).
+ * viewer's own, so source never gets one by default (`I_SCHEDULE_UTC`). Silent when the schedule
+ * type hides `timezone` (every few minutes, hourly), where checkFields warns against setting it.
  */
-function checkScheduleTimezone(ctx: CompileContext, state: BlockState): void {
+function checkScheduleTimezone(
+  ctx: CompileContext,
+  index: FieldIndex | null,
+  state: BlockState
+): void {
   const { decl, params } = state
   if (ctx.stored && getOwn(ctx.stored.blocks, decl.key)) return
+  const values = storedValues(params)
+  const field = index ? declarationFor(index, 'timezone', paramLookup(values)) : undefined
+  if (field && !isVisible(field, values)) return
   const timezone = getOwn(params, 'timezone')
   if (timezone?.kind === 'value' && timezone.value !== null && timezone.value !== '') return
   ctx.reporter.report(
@@ -1370,7 +1378,68 @@ function checkOption(
   )
 }
 
-/** Catalog warnings: visibility, required fields, value kinds. */
+/**
+ * The traits a literal-secret finding reads for a written param: the subBlock the value landed in,
+ * marked a credential when it is the manual member of a pair whose picker takes a saved credential
+ * (`credential: 'xoxb-…'` lands in `manualCredential`, but the fix is `credential('<key>')`).
+ */
+function secretFieldOf(
+  index: FieldIndex,
+  param: string,
+  sub: CatalogSubBlock
+): Pick<CatalogSubBlock, 'password' | 'resourceKind'> {
+  const field = index.fields.get(param) ?? index.aliased.get(param)
+  const credentialPair =
+    field?.kind === 'pair' && field.members.some((member) => member.resourceKind === 'credential')
+  return credentialPair ? { password: sub.password, resourceKind: 'credential' } : sub
+}
+
+/** How far a value may sit off a slider step and still count as on it (floating-point error). */
+const STEP_TOLERANCE = 1e-9
+
+/**
+ * Why a literal number falls outside a slider's catalog range (`min`, `max`, `step`, `integer`),
+ * with a hint naming the accepted values, or `null` when it fits or the field is not a slider.
+ */
+function sliderRangeProblem(
+  sub: CatalogSubBlock,
+  value: Value
+): { problem: string; hint: string } | null {
+  if (sub.type !== 'slider' || typeof value !== 'number' || !Number.isFinite(value)) return null
+  const { min, max, step, integer } = sub
+  const range =
+    min !== undefined && max !== undefined
+      ? `from ${min} to ${max}`
+      : min !== undefined
+        ? `of at least ${min}`
+        : max !== undefined
+          ? `of at most ${max}`
+          : null
+  if ((min !== undefined && value < min) || (max !== undefined && value > max)) {
+    return {
+      problem: `is ${value}, outside its range; it is kept as written.`,
+      hint: `Write a value ${range ?? ''}.`,
+    }
+  }
+  if (integer && !Number.isInteger(value)) {
+    return {
+      problem: `is ${value}, but takes whole numbers only; it is kept as written.`,
+      hint: `Write a whole number${range ? ` ${range}` : ''}.`,
+    }
+  }
+  if (step !== undefined && step > 0) {
+    const steps = (value - (min ?? 0)) / step
+    if (Math.abs(steps - Math.round(steps)) > STEP_TOLERANCE) {
+      return {
+        problem: `is ${value}, between steps of ${step}; it is kept as written.`,
+        hint: `Write a multiple of ${step}${min ? ` from ${min}` : ''}${range ? `, ${range}` : ''}.`,
+      }
+    }
+  }
+  return null
+}
+
+/** Catalog warnings: visibility, required fields, value kinds, slider ranges. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
   const values = storedValues(params)
@@ -1400,7 +1469,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
       })
     }
     if (holdsSecret(sub, entry.value)) {
-      reportLiteralSecret(ctx, decl.key, entry, sub.password === true)
+      reportLiteralSecret(ctx, decl.key, entry, secretFieldOf(index, entry.param, sub))
     }
     if (entry.checked) checkOption(ctx, state, sub, entry)
     if (entry.checked && !valueKindMatches(sub, entry.value)) {
@@ -1409,6 +1478,19 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         `${entry.param} expects a ${sub.valueKind} value; the value is kept as written.`,
         rangeOf(ctx, entry.property),
         { blockKey: decl.key, param: entry.param }
+      )
+    }
+    const outOfRange = entry.checked ? sliderRangeProblem(sub, entry.value) : null
+    if (outOfRange !== null) {
+      ctx.reporter.report(
+        'W_OUT_OF_RANGE',
+        `${entry.param} ${outOfRange.problem}`,
+        rangeOf(ctx, entry.property),
+        {
+          hint: outOfRange.hint,
+          blockKey: decl.key,
+          param: entry.param,
+        }
       )
     }
   }
