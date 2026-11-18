@@ -28,6 +28,7 @@ import {
   type SourceHints,
   sha256Hex,
   stableStringify,
+  toolModes,
   type Value,
 } from '@sim/workflow-code'
 import { editorDefaults } from '@sim/workflow-code/catalog/defaults'
@@ -710,7 +711,7 @@ export const cases: PrintCase[] = [
                 type: 'slack_v2',
                 operation: 'send',
                 params: { channel: 'C0OPS', text: 'Approve: <start.input>' },
-                modes: { channel: 'basic' },
+                modes: toolModes(registryCatalog, 'slack_v2', { channel: 'C0OPS' }),
                 usageControl: 'auto',
               },
               {

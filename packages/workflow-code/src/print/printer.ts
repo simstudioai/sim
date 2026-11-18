@@ -17,6 +17,7 @@ import {
   type WorkflowToolForm,
 } from '../agent-tools'
 import { portKey } from '../anchors'
+import { toolModeOverrides } from '../canonicalize/modes'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
@@ -730,8 +731,9 @@ class WorkflowPrinter {
       if (tool.title !== undefined)
         options.push({ key: 'title', value: this.values.string(tool.title) })
       options.push(...this.usageOptions(block, tool))
-      if (Object.keys(tool.modes).length > 0) {
-        options.push({ key: 'modes', value: this.modesExpr(tool.modes) })
+      const modes = toolModeOverrides(this.catalog, tool)
+      if (Object.keys(modes).length > 0) {
+        options.push({ key: 'modes', value: this.modesExpr(modes) })
       }
       if (tool.customTool !== undefined) {
         options.push({

@@ -18,7 +18,7 @@ export default workflow('Fixture', {}, () => {
     tools: [
       slack.tool.sendMessage(
         { channel: 'C0OPS', text: t`Approve: ${start.input}` },
-        { usageControl: 'auto', modes: { channel: 'basic' } }
+        { usageControl: 'auto' }
       ),
       customTool('lookup-vendor', { usageControl: 'auto' }),
       raw({
