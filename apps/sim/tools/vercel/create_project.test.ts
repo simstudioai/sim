@@ -94,4 +94,14 @@ describe('vercel_create_project nodeVersion', () => {
     expect(result.error).toContain('prj_1')
     expect(result.error).toContain('invalid nodeVersion')
   })
+
+  it('fails instead of dropping the version when the update call throws', async () => {
+    const postProcess = vercelCreateProjectTool.postProcess
+    if (!postProcess) throw new Error('postProcess missing')
+    const result = await postProcess(created, params, async () => {
+      throw new Error('socket hang up')
+    })
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('socket hang up')
+  })
 })

@@ -1,5 +1,6 @@
+import { toError } from '@sim/utils/errors'
 import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { VercelCreateProjectParams, VercelCreateProjectResponse } from '@/tools/vercel/types'
 
 export const vercelCreateProjectTool: ToolConfig<
@@ -121,13 +122,18 @@ export const vercelCreateProjectTool: ToolConfig<
     const nodeVersion = params.nodeVersion?.trim()
     if (!result.success || !nodeVersion) return result
 
-    const update = await executeTool('vercel_update_project', {
-      apiKey: params.apiKey,
-      projectId: result.output.id,
-      nodeVersion,
-      teamId: params.teamId,
-      slug: params.slug,
-    })
+    let update: ToolResponse
+    try {
+      update = await executeTool('vercel_update_project', {
+        apiKey: params.apiKey,
+        projectId: result.output.id,
+        nodeVersion,
+        teamId: params.teamId,
+        slug: params.slug,
+      })
+    } catch (error) {
+      update = { success: false, output: {}, error: toError(error).message }
+    }
     if (update.success) {
       const updatedAt = update.output?.updatedAt
       return typeof updatedAt === 'number'
