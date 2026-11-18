@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisSetnxParams, UpstashRedisSetnxResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashRedisSetnxResponse> =
   {
@@ -39,7 +40,7 @@ export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashR
     },
 
     request: {
-      url: (params) => `${params.restUrl}/setnx/${encodeURIComponent(params.key)}`,
+      url: (params) => `${params.restUrl}/setnx/${upstashPathSegment(params.key, 'key')}`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.restToken}`,

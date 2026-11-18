@@ -9,6 +9,7 @@ import {
   neo4jQueryContract,
   neo4jUpdateContract,
 } from '@/lib/api/contracts/tools/databases/neo4j'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   executeNeo4jCreate,
   executeNeo4jDelete,
@@ -35,6 +36,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
     return Response.json(await execute(parsed.data, signal))
   } catch (error) {
     signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error)) throw error
     if (error instanceof Neo4jOperationInputError) {
       return Response.json({ error: `Query validation failed: ${error.message}` }, { status: 400 })
     }
