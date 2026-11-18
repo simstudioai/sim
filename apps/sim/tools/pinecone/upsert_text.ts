@@ -92,7 +92,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     },
     method: 'POST',
     url: (params) =>
-      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true })}/upsert`,
+      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true, stripTabsAndNewlines: true })}/upsert`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/x-ndjson',

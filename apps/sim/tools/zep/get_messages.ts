@@ -58,6 +58,7 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
         {
           allowSeparators: true,
           preserveWhitespace: true,
+          stripTabsAndNewlines: true,
         }
       )}/messages${queryString ? `?${queryString}` : ''}`
     },

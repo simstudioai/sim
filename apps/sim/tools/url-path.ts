@@ -168,10 +168,13 @@ function encodeSegment(segment: string, paramName: string): string {
  * @param options.allowSeparators - Percent-encode `/` and `\` instead of
  *   rejecting them, for opaque ids (such as base64) that may legitimately
  *   contain them. Empty values and dot segments are still rejected.
- * @param options.preserveWhitespace - Keep spaces instead of trimming, for ids
- *   where surrounding whitespace is significant (an exact-match document id).
- *   Tabs and newlines are still removed, as the URL parser removes them from a
- *   raw URL. Blank values and dot segments are still rejected.
+ * @param options.preserveWhitespace - Encode the value as given instead of
+ *   trimming it, for ids where surrounding whitespace is significant (an
+ *   exact-match document id). Blank values and dot segments are still rejected.
+ * @param options.stripTabsAndNewlines - Remove tabs, carriage returns and
+ *   newlines before encoding, as the WHATWG URL parser does to a raw URL. For
+ *   call sites that once interpolated the id unencoded, so an id ending in a
+ *   newline keeps addressing the same resource.
  * @returns The percent-encoded segment (trimmed unless `preserveWhitespace`), safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
  *   segment, contains a path separator (unless allowed), or cannot be encoded.
@@ -179,12 +182,16 @@ function encodeSegment(segment: string, paramName: string): string {
 export function safeUrlPathSegment(
   value: string | number | bigint,
   paramName: string,
-  options?: { allowSeparators?: boolean; preserveWhitespace?: boolean }
+  options?: {
+    allowSeparators?: boolean
+    preserveWhitespace?: boolean
+    stripTabsAndNewlines?: boolean
+  }
 ): string {
   const raw = toGuardedString(value, paramName)
   const trimmed = raw.trim()
-  // The WHATWG URL parser strips tabs and newlines anywhere in a URL, so an id sent raw lost them.
-  const segment = options?.preserveWhitespace ? raw.replace(/[\t\r\n]/g, '') : trimmed
+  const kept = options?.preserveWhitespace ? raw : trimmed
+  const segment = options?.stripTabsAndNewlines ? kept.replace(/[\t\r\n]/g, '') : kept
 
   if (!trimmed) {
     throw new Error(`${paramName} is required`)
