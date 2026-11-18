@@ -1008,6 +1008,79 @@ describe('sunset block types', () => {
   })
 })
 
+describe('nestedNodes placement', () => {
+  const loopId = '88888888-8888-4888-8888-888888888888'
+  const agentId = '99999999-9999-4999-8999-999999999999'
+  const slackId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const unknownId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const agentOnly = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['agent'] }
+  const children = {
+    [agentId]: { type: 'agent', name: 'Inner agent' },
+    [slackId]: { type: 'slack', name: 'Inner slack' },
+    [unknownId]: { type: 'not_a_block', name: 'Inner unknown' },
+  }
+
+  function expectOnlyAgentPlaced(result: ReturnType<typeof applyOperationsToWorkflowState>) {
+    expect(result.state.blocks[agentId]).toBeDefined()
+    expect(result.state.blocks[slackId]).toBeUndefined()
+    expect(result.state.blocks[unknownId]).toBeUndefined()
+    expect(result.skippedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'block_not_allowed',
+          operationType: 'add_nested_node',
+          blockId: slackId,
+        }),
+        expect.objectContaining({
+          type: 'invalid_block_type',
+          operationType: 'add_nested_node',
+          blockId: unknownId,
+        }),
+      ])
+    )
+  }
+
+  it('holds a child of a new container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        {
+          operation_type: 'add',
+          block_id: loopId,
+          params: { type: 'loop', name: 'Each', nestedNodes: children },
+        },
+      ],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+
+  it('holds a new child merged into a stored container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [loopId]: {
+            id: loopId,
+            type: 'loop',
+            name: 'Each',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [{ operation_type: 'edit', block_id: loopId, params: { nestedNodes: children } }],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+})
+
 describe('permission-group tool access', () => {
   const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
 

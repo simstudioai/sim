@@ -22,39 +22,36 @@ import {
 } from './builders'
 import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
 import { checkBlockPlacement } from './gates'
-import type { EditWorkflowOperation, OperationContext, SkippedItem } from './types'
+import type { EditWorkflowOperation, OperationContext } from './types'
 import { logSkippedItem } from './types'
 import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './validation'
 
 const logger = createLogger('EditWorkflowServerTool')
 
 /**
- * Refuses a new block of a sunset (`legacy` / `deprecated`) type and names its
- * successor. Placed instances keep executing and stay editable.
+ * Holds a new child of a container to the same placement gates as a top-level `add`.
  *
  * @returns whether the placement was refused
  */
-function refuseSunsetPlacement(
-  skippedItems: SkippedItem[],
-  placement: {
-    blockType: string | undefined
-    operationType: string
-    blockId: string
-    outcome: string
-    details?: Record<string, unknown>
-  }
+function refuseNestedPlacement(
+  parentBlockId: string,
+  childId: string,
+  childBlock: { type?: unknown },
+  ctx: OperationContext
 ): boolean {
-  const { blockType, operationType, blockId, outcome, details } = placement
-  const sunset = blockType ? getBlock(blockType)?.sunset : undefined
-  if (!sunset) return false
-  const successor = sunset.replacedBy ? ` - use "${sunset.replacedBy}" instead` : ''
-  logSkippedItem(skippedItems, {
-    type: 'block_not_allowed',
-    operationType,
-    blockId,
-    reason: `Block type "${blockType}" is ${sunset.status}${successor} - ${outcome}`,
-    details: { requestedType: blockType, replacedBy: sunset.replacedBy, ...details },
-  })
+  const refusal = checkBlockPlacement(
+    {
+      blockId: childId,
+      blockType: typeof childBlock.type === 'string' ? childBlock.type : '',
+      operationType: 'add_nested_node',
+      outcome: 'child block skipped',
+      details: { parentBlockId },
+      others: ctx.modifiedState.blocks,
+    },
+    { permissionConfig: ctx.permissionConfig }
+  )
+  if (!refusal) return false
+  logSkippedItem(ctx.skippedItems, refusal)
   return true
 }
 
@@ -131,17 +128,7 @@ function processNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
@@ -322,17 +309,7 @@ function mergeNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
