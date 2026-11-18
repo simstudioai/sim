@@ -22,16 +22,18 @@ import { setCustomFieldValuesTool } from '@/tools/ashby/set_custom_field_values'
 import { transferApplicationTool } from '@/tools/ashby/transfer_application'
 import { updateCandidateTool } from '@/tools/ashby/update_candidate'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
-import type { ToolConfig } from '@/tools/types'
 
 const respond = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
-function requestBody<P, R>(tool: ToolConfig<P, R>, params: unknown): Record<string, unknown> {
+function requestBody(
+  tool: { request?: { body?: unknown } },
+  params: unknown
+): Record<string, unknown> {
   const build = tool.request?.body as (p: unknown) => Record<string, unknown>
   return build(params)
 }
 
-async function transform<P, R>(tool: ToolConfig<P, R>, body: unknown) {
+async function transform(tool: { transformResponse?: unknown }, body: unknown) {
   const run = tool.transformResponse as (r: Response) => Promise<{ output: Record<string, never> }>
   return run(respond(body))
 }
@@ -274,6 +276,15 @@ describe('ashby request bodies', () => {
     })
     expect(body).toMatchObject({ id: 'j', includeUnpublishedJobPostingsIds: true })
     expect(body).not.toHaveProperty('includeUnpublishedJobPostingIds')
+    for (const untouched of [null, '']) {
+      expect(
+        requestBody(getJobTool, {
+          apiKey: 'k',
+          jobId: 'j',
+          includeUnpublishedJobPostingIds: untouched,
+        })
+      ).toEqual({ id: 'j', expand: ['openings', 'location', 'compensation'] })
+    }
   })
 
   it('change_application_source sends sourceId when one is provided', () => {
