@@ -1,4 +1,5 @@
 import type { DSPyChainOfThoughtParams, DSPyChainOfThoughtResponse } from '@/tools/dspy/types'
+import { buildDSPyUrl } from '@/tools/dspy/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const chainOfThoughtTool: ToolConfig<DSPyChainOfThoughtParams, DSPyChainOfThoughtResponse> =
@@ -48,11 +49,7 @@ export const chainOfThoughtTool: ToolConfig<DSPyChainOfThoughtParams, DSPyChainO
         select: (params) => ({ question: params.question, context: params.context }),
       },
       method: 'POST',
-      url: (params) => {
-        const baseUrl = params.baseUrl.replace(/\/$/, '')
-        const endpoint = params.endpoint || '/predict'
-        return `${baseUrl}${endpoint}`
-      },
+      url: (params) => buildDSPyUrl(params.baseUrl, params.endpoint),
       headers: (params) => {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',

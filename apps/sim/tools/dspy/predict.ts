@@ -1,4 +1,5 @@
 import type { DSPyPredictParams, DSPyPredictResponse } from '@/tools/dspy/types'
+import { buildDSPyUrl } from '@/tools/dspy/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const predictTool: ToolConfig<DSPyPredictParams, DSPyPredictResponse> = {
@@ -58,11 +59,7 @@ export const predictTool: ToolConfig<DSPyPredictParams, DSPyPredictResponse> = {
       select: (params) => ({ input: params.input, context: params.context }),
     },
     method: 'POST',
-    url: (params) => {
-      const baseUrl = params.baseUrl.replace(/\/$/, '')
-      const endpoint = params.endpoint || '/predict'
-      return `${baseUrl}${endpoint}`
-    },
+    url: (params) => buildDSPyUrl(params.baseUrl, params.endpoint),
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
