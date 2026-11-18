@@ -7,6 +7,7 @@ import type {
 } from '@/tools/clerk/types'
 import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkDeleteAllowlistIdentifier')
 
@@ -37,7 +38,7 @@ export const clerkDeleteAllowlistIdentifierTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.clerk.com/v1/allowlist_identifiers/${params.identifierId?.trim()}`,
+      `https://api.clerk.com/v1/allowlist_identifiers/${safeUrlPathSegment(params.identifierId, 'identifierId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.secretKey) {

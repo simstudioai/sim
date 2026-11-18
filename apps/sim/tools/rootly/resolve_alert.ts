@@ -1,6 +1,7 @@
 import type { RootlyResolveAlertParams, RootlyResolveAlertResponse } from '@/tools/rootly/types'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyResolveAlertTool: ToolConfig<
   RootlyResolveAlertParams,
@@ -40,7 +41,8 @@ export const rootlyResolveAlertTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}/resolve`,
+    url: (params) =>
+      `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}/resolve`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -62,7 +64,10 @@ export const rootlyResolveAlertTool: ToolConfig<
       return {
         success: false,
         output: { alert: {} as RootlyResolveAlertResponse['output']['alert'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error:
+          errorData.errors?.[0]?.detail ||
+          errorData.errors?.[0]?.title ||
+          `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 

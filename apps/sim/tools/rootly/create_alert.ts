@@ -115,7 +115,10 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         return {
           success: false,
           output: { alert: {} as RootlyCreateAlertResponse['output']['alert'] },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error:
+            errorData.errors?.[0]?.detail ||
+            errorData.errors?.[0]?.title ||
+            `HTTP ${response.status}: ${response.statusText}`,
         }
       }
 

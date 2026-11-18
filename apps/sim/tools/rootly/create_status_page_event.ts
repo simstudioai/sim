@@ -4,6 +4,7 @@ import type {
 } from '@/tools/rootly/types'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyCreateStatusPageEventTool: ToolConfig<
   RootlyCreateStatusPageEventParams,
@@ -63,7 +64,7 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/status-page-events`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/status-page-events`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -90,7 +91,10 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
         output: {
           statusPageEvent: {} as RootlyCreateStatusPageEventResponse['output']['statusPageEvent'],
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error:
+          errorData.errors?.[0]?.detail ||
+          errorData.errors?.[0]?.title ||
+          `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 

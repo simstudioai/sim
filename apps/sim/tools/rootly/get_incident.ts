@@ -1,6 +1,7 @@
 import type { RootlyGetIncidentParams, RootlyGetIncidentResponse } from '@/tools/rootly/types'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGetIncidentResponse> =
   {
@@ -26,7 +27,8 @@ export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGe
     },
 
     request: {
-      url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}`,
+      url: (params) =>
+        `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}`,
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',
@@ -40,7 +42,10 @@ export const rootlyGetIncidentTool: ToolConfig<RootlyGetIncidentParams, RootlyGe
         return {
           success: false,
           output: { incident: {} as RootlyGetIncidentResponse['output']['incident'] },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error:
+            errorData.errors?.[0]?.detail ||
+            errorData.errors?.[0]?.title ||
+            `HTTP ${response.status}: ${response.statusText}`,
         }
       }
 

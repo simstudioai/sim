@@ -1,6 +1,7 @@
 import type { RootlyUpdateAlertParams, RootlyUpdateAlertResponse } from '@/tools/rootly/types'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUpdateAlertResponse> =
   {
@@ -80,7 +81,8 @@ export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUp
     },
 
     request: {
-      url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}`,
+      url: (params) =>
+        `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}`,
       method: 'PATCH',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',
@@ -113,7 +115,10 @@ export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUp
         return {
           success: false,
           output: { alert: {} as RootlyUpdateAlertResponse['output']['alert'] },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error:
+            errorData.errors?.[0]?.detail ||
+            errorData.errors?.[0]?.title ||
+            `HTTP ${response.status}: ${response.statusText}`,
         }
       }
 

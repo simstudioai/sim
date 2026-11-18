@@ -1,6 +1,7 @@
 import type { RootlyRunWorkflowParams, RootlyRunWorkflowResponse } from '@/tools/rootly/types'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRunWorkflowResponse> =
   {
@@ -52,7 +53,7 @@ export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRu
 
     request: {
       url: (params) =>
-        `https://api.rootly.com/v1/workflows/${params.workflowId.trim()}/workflow_runs`,
+        `https://api.rootly.com/v1/workflows/${safeUrlPathSegment(params.workflowId, 'workflowId')}/workflow_runs`,
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',
@@ -75,7 +76,10 @@ export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRu
         return {
           success: false,
           output: { workflowRun: {} as RootlyRunWorkflowResponse['output']['workflowRun'] },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error:
+            errorData.errors?.[0]?.detail ||
+            errorData.errors?.[0]?.title ||
+            `HTTP ${response.status}: ${response.statusText}`,
         }
       }
 

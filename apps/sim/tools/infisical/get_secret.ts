@@ -1,5 +1,5 @@
 import type { InfisicalGetSecretParams, InfisicalGetSecretResponse } from '@/tools/infisical/types'
-import { infisicalApiUrl } from '@/tools/infisical/utils'
+import { infisicalApiUrl, infisicalSecretPath } from '@/tools/infisical/utils'
 import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -89,7 +89,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
         searchParams.set('expandSecretReferences', String(params.expandSecretReferences))
       return infisicalApiUrl(
         params.baseUrl,
-        `/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}?${searchParams.toString()}`
+        `${infisicalSecretPath(params.secretName)}?${searchParams.toString()}`
       )
     },
     headers: (params) => ({

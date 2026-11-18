@@ -38,6 +38,7 @@ import {
   type InternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface OnePasswordOperationContext {
   signal?: AbortSignal
@@ -116,7 +117,7 @@ export async function executeOnePasswordGetVault(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}`,
     method: 'GET',
     signal: context.signal,
   })
@@ -147,7 +148,7 @@ export async function executeOnePasswordListItems(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items`,
     method: 'GET',
     query: input.filter ? `filter=${encodeURIComponent(input.filter)}` : undefined,
     signal: context.signal,
@@ -176,7 +177,7 @@ export async function executeOnePasswordGetItem(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}`,
     method: 'GET',
     signal: context.signal,
   })
@@ -233,12 +234,17 @@ export async function executeOnePasswordCreateItem(
     category: input.category,
   }
   if (input.title) body.title = input.title
-  if (input.tags) body.tags = input.tags.split(',').map((tag) => tag.trim())
+  if (input.tags) {
+    body.tags = input.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+  }
   if (input.fields) body.fields = JSON.parse(input.fields)
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items`,
     method: 'POST',
     body,
     signal: context.signal,
@@ -275,7 +281,7 @@ export async function executeOnePasswordUpdateItem(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}`,
     method: 'PATCH',
     body: operations,
     signal: context.signal,
@@ -310,7 +316,7 @@ export async function executeOnePasswordReplaceItem(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}`,
     method: 'PUT',
     body: itemData,
     signal: context.signal,
@@ -339,7 +345,7 @@ export async function executeOnePasswordDeleteItem(
   const response = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}`,
     method: 'DELETE',
     signal: context.signal,
   })
@@ -396,7 +402,7 @@ export async function executeOnePasswordGetItemFile(
   const metadataResponse = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}/files/${input.fileId}`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}/files/${safeUrlPathSegment(input.fileId, 'fileId')}`,
     method: 'GET',
     signal: context.signal,
   })
@@ -413,7 +419,7 @@ export async function executeOnePasswordGetItemFile(
   const contentResponse = await connectRequest({
     serverUrl: credentials.serverUrl,
     apiKey: credentials.apiKey,
-    path: `/v1/vaults/${input.vaultId}/items/${input.itemId}/files/${input.fileId}/content`,
+    path: `/v1/vaults/${safeUrlPathSegment(input.vaultId, 'vaultId')}/items/${safeUrlPathSegment(input.itemId, 'itemId')}/files/${safeUrlPathSegment(input.fileId, 'fileId')}/content`,
     method: 'GET',
     maxResponseBytes: MAX_FILE_SIZE,
     signal: context.signal,

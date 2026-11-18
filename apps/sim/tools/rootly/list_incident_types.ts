@@ -64,7 +64,10 @@ export const rootlyListIncidentTypesTool: ToolConfig<
       return {
         success: false,
         output: { incidentTypes: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error:
+          errorData.errors?.[0]?.detail ||
+          errorData.errors?.[0]?.title ||
+          `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 

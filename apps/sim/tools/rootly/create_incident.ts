@@ -144,7 +144,9 @@ export const rootlyCreateIncidentTool: ToolConfig<
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       const errorMsg =
-        errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`
+        errorData.errors?.[0]?.detail ||
+        errorData.errors?.[0]?.title ||
+        `HTTP ${response.status}: ${response.statusText}`
       return {
         success: false,
         output: { incident: {} as RootlyCreateIncidentResponse['output']['incident'] },

@@ -64,7 +64,10 @@ export const rootlyListEnvironmentsTool: ToolConfig<
       return {
         success: false,
         output: { environments: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error:
+          errorData.errors?.[0]?.detail ||
+          errorData.errors?.[0]?.title ||
+          `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 
