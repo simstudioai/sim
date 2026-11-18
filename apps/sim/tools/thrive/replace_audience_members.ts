@@ -57,7 +57,7 @@ export const replaceAudienceMembersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}/members`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => JSON.stringify(parseThriveArray<string>(params.users, 'users')),

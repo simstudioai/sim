@@ -68,7 +68,7 @@ export const listAudienceMembersTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}/members`
+        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members`
       )
       appendThriveQuery(url, 'page', params.page)
       appendThriveQuery(url, 'perPage', params.perPage)

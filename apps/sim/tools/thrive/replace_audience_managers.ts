@@ -57,7 +57,7 @@ export const replaceAudienceManagersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}/managers`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/managers`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => JSON.stringify(parseThriveArray(params.managers, 'managers')),

@@ -49,7 +49,7 @@ export const removeAudienceMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}/members/${safeUrlPathSegment(params.userRef, 'userRef', { allowSeparators: true })}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members/${safeUrlPathSegment(params.userRef, 'userRef', { allowSeparators: true })}`,
     method: 'DELETE',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

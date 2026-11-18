@@ -47,7 +47,7 @@ export const listAudienceManagersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}/managers`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/managers`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

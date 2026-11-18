@@ -40,7 +40,7 @@ export const deleteAudienceTool: ToolConfig<ThriveDeleteAudienceParams, ThriveDe
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}`,
     method: 'DELETE',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

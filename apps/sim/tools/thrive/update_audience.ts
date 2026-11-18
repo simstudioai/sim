@@ -59,7 +59,7 @@ export const updateAudienceTool: ToolConfig<ThriveUpdateAudienceParams, ThriveAu
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId')}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {
