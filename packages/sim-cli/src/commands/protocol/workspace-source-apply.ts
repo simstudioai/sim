@@ -63,7 +63,8 @@ into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the 
 too large; 8 the apply stopped part-way (a resource failed): what was written is saved into the
 directory, and applying again continues; 9 rate limited (HTTP 429) after the CLI's retries,
 before anything was written: wait a minute and apply again (binary files already uploaded are
-not sent again).`
+not sent again); 10 another apply is writing the workspace (SOURCE_BUSY): nothing was written,
+apply again once it finished.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
