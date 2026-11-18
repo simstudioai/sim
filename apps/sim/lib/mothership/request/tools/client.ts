@@ -485,11 +485,11 @@ export async function waitForWorkflowToolCompletion({
   const executionId = trustedExecution.executionId
   const status = getTerminalConfirmationStatus(trustedExecution.status)
   const genericMessage = getWorkflowToolCompletionMessage(status)
-  const error =
+  const runError =
     status !== MothershipStreamV1ToolOutcome.success
       ? (trustedExecution.error ?? genericMessage)
       : undefined
-  const rawData = boundRunResultForModel(
+  const { data: rawData, error } = boundRunResultForModel(
     {
       success: status === MothershipStreamV1ToolOutcome.success,
       workflowId,
@@ -504,7 +504,7 @@ export async function waitForWorkflowToolCompletion({
         ? { reason: 'user_cancelled', cancelledByUser: true }
         : {}),
     },
-    error,
+    runError,
     executionId,
     toolRegistry
   )

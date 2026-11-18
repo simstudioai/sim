@@ -5,8 +5,8 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { settingsRoute } from '@/main/app-routes'
 
 describe('settingsRoute', () => {
-  it('opens the settings of the organization the user was last in', () => {
-    expect(settingsRoute('/o/org-1/search?q=x')).toBe('/o/org-1/settings/general')
+  it('opens the desktop settings of the organization the user was last in', () => {
+    expect(settingsRoute('/o/org-1/search?q=x')).toBe('/o/org-1/settings/desktop')
   })
 
   it('keeps the desktop settings of the workspace the user was last in', () => {

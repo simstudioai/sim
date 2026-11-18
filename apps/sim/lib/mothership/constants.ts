@@ -67,6 +67,13 @@ export const CHAT_RUN_DEADLINE_MS = 3_600_000
 export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
 
 /**
+ * The workflow grace when no chat view is reading the turn's stream at dispatch: a tab closed,
+ * a switch to another chat or page. It only bridges a view that is re-attaching right then (a
+ * reload, a reconnect after a network drop), which reads the call within a reconnect poll.
+ */
+export const COPILOT_WORKFLOW_TOOL_NO_VIEWER_GRACE_MS = 5_000
+
+/**
  * How long a desktop tool call (browser, terminal, local import) waits for the desktop app to
  * claim it before it fails as never started.
  *
