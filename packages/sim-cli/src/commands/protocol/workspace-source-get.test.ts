@@ -633,4 +633,34 @@ describe('workspaces source get', () => {
     expect(call?.[1].query).toEqual({ kinds: 'custom-tool,knowledge-base' })
     await expect(get('--only', 'gadgets')).rejects.toThrow(/Unknown kind gadgets/)
   })
+
+  it('keeps the bytes of workspace files and documents through a git commit and a fresh clone', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    const crlf = Buffer.from('line one\r\nline two\r\n')
+    mkdirSync(join(dir, 'files/notes'), { recursive: true })
+    mkdirSync(join(dir, 'knowledge/policies/docs'), { recursive: true })
+    for (const path of ['files/notes/a.md', 'files/b.json', 'knowledge/policies/docs/c.md']) {
+      writeFileSync(join(dir, path), crlf)
+    }
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        'git',
+        ['-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t.invalid', ...args],
+        { cwd, stdio: 'pipe' }
+      )
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'workspace')
+    const clone = join(rootDir, 'clone')
+    git(rootDir, 'clone', '-q', dir, clone)
+
+    for (const path of ['files/notes/a.md', 'files/b.json', 'knowledge/policies/docs/c.md']) {
+      expect(readFileSync(join(clone, path)).equals(crlf)).toBe(true)
+    }
+    expect(readFileSync(join(clone, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8').split('\n')).toEqual(
+      expect.arrayContaining(['.sim/downloads/', '.sim/command.lock/', '.sim-staging-*/'])
+    )
+  })
 })

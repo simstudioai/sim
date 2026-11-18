@@ -21,9 +21,11 @@ import {
   realpath,
   rename,
   rm,
+  rmdir,
+  stat,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
@@ -35,6 +37,7 @@ import {
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
 import { embedStore } from '../../embed-context'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
@@ -51,11 +54,21 @@ export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
 export const SOURCE_EXAMPLES_DIR = '.sim/examples'
 /** Pins the source files to LF, merged into whatever the directory already holds. */
 export const SOURCE_GITATTRIBUTES_FILE = '.gitattributes'
+/** Keeps a command's transient files out of a repository, merged like `.gitattributes`. */
+export const SOURCE_GITIGNORE_FILE = '.gitignore'
 /**
  * A digest of each source file as the CLI last wrote it, so a later get can tell an unapplied
  * edit from a file it may replace. The CLI's own record: never sent to the server.
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
+/**
+ * Where a workspace get keeps the blobs it verified until they move into place. A get that fails
+ * leaves them there, so the next one downloads only the rest; the one that completes removes the
+ * folder.
+ */
+export const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
+/** The folder a write stages its files in before moving them into place; removed when it ends. */
+export const SOURCE_STAGING_PREFIX = '.sim-staging-'
 
 /**
  * The only files a server answer may name: the entry file and function code under `functions/`,
@@ -155,7 +168,7 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   }
 }
 
-/** `.gitattributes` with `lines` appended where missing, or `null` when it has them all. */
+/** `.gitattributes` (or `.gitignore`) with `lines` appended where missing, or `null` when it has them all. */
 export function mergedGitattributes(
   existing: string | null,
   lines: readonly string[] = GITATTRIBUTES_LINES
@@ -320,7 +333,7 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   let staging: string | null = null
   const disposeSignalCleanup = removeStagingOnSignal(() => staging)
   try {
-    const stagingDir = await mkdtemp(join(root, '.sim-staging-'))
+    const stagingDir = await mkdtemp(join(root, SOURCE_STAGING_PREFIX))
     staging = stagingDir
     const indexes = writes.map((_, index) => index)
     const staged = (index: number) => join(stagingDir, String(index))
@@ -589,4 +602,107 @@ export async function writeBack(
     ],
   })
   return write.length
+}
+
+/**
+ * Held while a command reads and rewrites a source directory, so two commands on one directory
+ * (an agent and a person, two terminals) never interleave their writes: each file moves into
+ * place atomically, but a set of them does not, and records from one command beside text from
+ * another would send stale text as an edit. A folder, since creating one is atomic everywhere.
+ */
+export const SOURCE_DIR_LOCK = '.sim/command.lock'
+
+/** A lock whose owner never recorded itself is stale after this long (it died while taking it). */
+const UNRECORDED_LOCK_STALE_MS = 60_000
+
+/** Who holds the lock, as its owner file records it. */
+interface LockOwner {
+  pid: number
+  host: string
+}
+
+/** A file-system or process error's code (`EEXIST`, `ESRCH`), if it has one. */
+function errorCode(error: unknown): string | undefined {
+  return isRecordLike(error) && typeof error.code === 'string' ? error.code : undefined
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return errorCode(error) === 'EPERM'
+  }
+}
+
+/**
+ * Whether the lock at `lock` was left by a command that is gone: its process on this machine no
+ * longer runs, or it never recorded an owner and is older than a minute. A lock another machine
+ * holds (a shared folder) is never taken over.
+ */
+async function isStaleLock(lock: string): Promise<boolean> {
+  const owner = toRecord(
+    await readFile(join(lock, 'owner.json'), 'utf8').then(
+      (text): unknown => JSON.parse(text),
+      () => null
+    )
+  )
+  if (typeof owner.pid === 'number' && typeof owner.host === 'string') {
+    return owner.host === hostname() && !isAlive(owner.pid)
+  }
+  const taken = await stat(lock).then(
+    (stats) => stats.mtimeMs,
+    () => null
+  )
+  return taken !== null && Date.now() - taken > UNRECORDED_LOCK_STALE_MS
+}
+
+/**
+ * Runs `run` holding the directory's command lock ({@link SOURCE_DIR_LOCK}). A second command on
+ * the directory meanwhile is refused (`SOURCE_DIR_BUSY`, exit 10) with nothing read or written; a
+ * lock its command left behind when it died is taken over. An embedded run has no local directory
+ * to lock.
+ */
+export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+  if (embedStore.getStore()) return run()
+  const records = join(dir, '.sim')
+  const absent = async (path: string) =>
+    stat(path).then(
+      () => false,
+      () => true
+    )
+  const createdDir = await absent(dir)
+  const createdRecords = createdDir || (await absent(records))
+  await mkdir(records, { recursive: true })
+  const lock = join(dir, SOURCE_DIR_LOCK)
+  let held = false
+  for (let attempt = 0; attempt < 2 && !held; attempt += 1) {
+    try {
+      await mkdir(lock)
+      held = true
+    } catch (error) {
+      if (errorCode(error) !== 'EEXIST') throw error
+      if (attempt === 0 && (await isStaleLock(lock)))
+        await rm(lock, { recursive: true, force: true })
+    }
+  }
+  if (!held) {
+    throw new SimApiError(
+      `Another sim command is using ${dir}; nothing was read or written. Run this one again once it finished. If none is running, remove ${join(dir, SOURCE_DIR_LOCK)}.`,
+      0,
+      'SOURCE_DIR_BUSY',
+      undefined,
+      SOURCE_BUSY_EXIT_CODE
+    )
+  }
+  const owner: LockOwner = { pid: process.pid, host: hostname() }
+  try {
+    await writeFile(join(lock, 'owner.json'), JSON.stringify(owner))
+    return await run()
+  } finally {
+    await rm(lock, { recursive: true, force: true })
+    // Folders the lock alone created go with it; one the command filled stays.
+    if (createdRecords) await rmdir(records).catch(() => {})
+    if (createdDir) await rmdir(dir).catch(() => {})
+  }
 }

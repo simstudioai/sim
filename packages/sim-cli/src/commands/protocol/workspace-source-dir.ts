@@ -45,7 +45,10 @@ import {
   FILE_CONCURRENCY,
   listSourceFiles,
   readSourceText,
+  SOURCE_DIR_LOCK,
+  SOURCE_DOWNLOADS_DIR,
   SOURCE_SDK_DIR,
+  SOURCE_STAGING_PREFIX,
   type StatDigest,
   type Written,
 } from './source-dir'
@@ -122,6 +125,18 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 - Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
 - To fork a workflow, copy its folder to a new key and delete the copy's \`.sim/\`: without it the copy is created as a new workflow, while with it the copy still names the original.
 - Renaming a workflow folder renames the key, not a delete. A resource a workflow still uses cannot be deleted.
+- A delete cannot be undone by applying an older copy of this directory (a reverted commit): the resource stays deleted, and table rows, knowledge base documents, a workflow's run history and its webhook URLs and schedules are gone. The plan marks each such change and the summary counts them (\`destructive\`); deleting a deployed workflow lists the live webhooks and schedules that stop.
+
+## Git and CI
+
+- Commit the whole directory, \`.sim/\` included: \`${WORKSPACE_BASE_FILE}\`, each workflow's \`.sim/\` and \`.sim/written.json\` are what a later apply compares with, from any clone. The generated \`.gitignore\` leaves out only what a command keeps while it runs (\`.sim/downloads/\`, \`.sim/command.lock/\`, \`.sim-staging-*\`), and \`.gitattributes\` keeps workspace files and documents byte for byte.
+- A fresh clone runs \`check\` (it downloads the block catalog once when none is cached), \`apply --dry-run\` and \`apply --yes\` with only the committed files. A workspace API key may apply tables, rows, knowledge bases, files, custom tools and MCP servers; workflows, skills, secrets, credentials and deployments need a member's personal API key (deployments an admin's).
+- Plan on every pull request (\`apply --dry-run\`), apply on merge, and commit the files the apply rewrote. Two branches that each applied: merge them, then run the dry run. No changes means the merged files match the workspace. Exit 5 means a resource changed since the base this branch holds: \`sim workspaces source get --dir <fresh dir>\`, carry the edit over, and apply from there.
+- One command at a time per directory: a second \`get\`, \`apply\` or \`check\` on the same directory exits 10 while the first runs.
+
+## Promote to another workspace
+
+\`sim workspaces source apply --dir . --to <workspaceId> --dry-run\`, then \`--yes\`: applies this directory to another workspace (dev to prod). Each resource binds by key to the target's own: one the target holds under the same key is updated in place (a workflow keeps its id and block ids, so its webhook URLs), a key it lacks is created (or adopts a resource of the same name), and a change made in the target since is refused as stale (exit 5). Secrets and credentials bind by name and key to the target's own; no value is copied. The target's resources this directory does not declare are kept with a warning, or deleted with \`--allow-delete\`. This directory is not changed and stays bound to the workspace it was read from. Without \`--to\`, an apply refuses a directory read from another workspace (\`SOURCE_OTHER_WORKSPACE\`).
 
 ## Good to know
 
@@ -134,7 +149,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply or someone else changed it: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`); 6 locked; 7 too large; 8 stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved here, so apply again, as often as it takes, until it exits 0; 9 rate limited (HTTP 429) after the CLI's retries: nothing more was written, so wait a minute and run the same command again (a get keeps the binary files it downloaded and fetches only the rest); 10 another apply (a CI job, a teammate) is writing this workspace: nothing was written, so wait for it to finish and apply again.
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply or someone else changed it: get into a fresh directory and compare, and only when it holds your edits run \`sim workspaces source get --dir . --force\`); 6 locked; 7 too large; 8 stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved here, so apply again, as often as it takes, until it exits 0; 9 rate limited (HTTP 429) after the CLI's retries: nothing more was written, so wait a minute and run the same command again (a get keeps the binary files it downloaded and fetches only the rest); 10 another apply (a CI job, a teammate) is writing this workspace, or another command is using this directory: nothing was written, so wait for it to finish and run the command again.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `
@@ -143,7 +158,17 @@ Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 export const WORKSPACE_TREE: SourceTreeProfile = {
   agents: AGENTS_GUIDE,
   tsconfig: workspaceTsconfig,
-  gitattributes: ['*.ts text eol=lf', '*.js text eol=lf', '*.md text eol=lf', '*.json text eol=lf'],
+  // Workspace files and knowledge base documents are bytes, kept as they are (`-text`, after the
+  // LF lines it overrides): a commit that rewrote their line endings would change their hashes.
+  gitattributes: [
+    '*.ts text eol=lf',
+    '*.js text eol=lf',
+    '*.md text eol=lf',
+    '*.json text eol=lf',
+    `${KIND_DIRS.file}/** -text`,
+    `${KIND_DIRS['knowledge-base']}/*/docs/** -text`,
+  ],
+  gitignore: [`${SOURCE_DOWNLOADS_DIR}/`, `${SOURCE_DIR_LOCK}/`, `${SOURCE_STAGING_PREFIX}*/`],
   sdk: Object.entries(WORKSPACE_SDK_DTS).map(
     ([name, text]) => [`${WORKSPACE_SDK_DIR}/${name}`, text] as const
   ),

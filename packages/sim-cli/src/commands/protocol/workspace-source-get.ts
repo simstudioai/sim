@@ -29,8 +29,10 @@ import {
   readSourceText,
   readWritten,
   recordedStats,
+  SOURCE_DOWNLOADS_DIR,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
+  withSourceDirLock,
   writtenFile,
   writtenRecord,
 } from './source-dir'
@@ -274,12 +276,6 @@ async function writeWorkspaceSource(
   }
 }
 
-/**
- * Where a get keeps the blobs it verified until they move into place. A get that fails leaves them
- * there, so the next one downloads only the rest; the one that completes removes the folder.
- */
-const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
-
 /** The prefix of a get's own folder in the downloads folder, for the downloads no get reuses. */
 const PARTIAL_PREFIX = '.partial-'
 
@@ -339,24 +335,26 @@ export function attachWorkspaceSourceGet(source: Command): void {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()
-      const { data } = await client
-        .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
-          params: { workspaceId },
-          ...(kinds ? { query: { kinds: kinds.join(',') } } : {}),
+      await withSourceDirLock(options.dir, async () => {
+        const { data } = await client
+          .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
+            params: { workspaceId },
+            ...(kinds ? { query: { kinds: kinds.join(',') } } : {}),
+          })
+          .catch((error: unknown) => {
+            throw withSourceExitCode(error)
+          })
+        const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
+        printProtocolResult(profile.output, {
+          workspaceId: data.workspaceId,
+          dir: options.dir,
+          kinds: data.kinds,
+          resources: Object.keys(data.base.resources).length,
+          files: result.written,
+          removed: result.removed,
+          skipped: data.skipped.length,
+          guide: result.guide,
         })
-        .catch((error: unknown) => {
-          throw withSourceExitCode(error)
-        })
-      const result = await writeWorkspaceSource(client, options.dir, data, options.force === true)
-      printProtocolResult(profile.output, {
-        workspaceId: data.workspaceId,
-        dir: options.dir,
-        kinds: data.kinds,
-        resources: Object.keys(data.base.resources).length,
-        files: result.written,
-        removed: result.removed,
-        skipped: data.skipped.length,
-        guide: result.guide,
       })
     })
 }

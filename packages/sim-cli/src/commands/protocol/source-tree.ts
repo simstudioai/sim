@@ -40,6 +40,7 @@ import {
   SOURCE_AGENTS_FILE,
   SOURCE_EXAMPLES_DIR,
   SOURCE_GITATTRIBUTES_FILE,
+  SOURCE_GITIGNORE_FILE,
   type SourceDirChange,
   updateSourceDir,
 } from './source-dir'
@@ -326,6 +327,8 @@ export interface SourceTreeProfile {
   tsconfig: (sdkFiles: readonly string[]) => string
   /** The `.gitattributes` lines that keep the source LF. */
   gitattributes?: readonly string[]
+  /** The `.gitignore` lines for the files a command leaves only while it runs or between runs. */
+  gitignore?: readonly string[]
   /** More declarations under the SDK directory, rewritten every time like `core.d.ts`. */
   sdk?: ReadonlyArray<readonly [string, string]>
   /** More examples beside the cookbook, rewritten every time like it. */
@@ -468,8 +471,9 @@ export async function sourceTreeChange(
     ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
-  const [gitattributes, index, tsconfig, tsconfigFull] = await Promise.all([
+  const [gitattributes, gitignore, index, tsconfig, tsconfigFull] = await Promise.all([
     readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
+    profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
     readSourceText(dir, SDK_INDEX_PATH),
     readSourceText(dir, TSCONFIG_FILE),
     readSourceText(dir, TSCONFIG_FULL_FILE),
@@ -482,6 +486,8 @@ export async function sourceTreeChange(
   const ownsTsconfig = tsconfigs.ownsTsconfig
   const mergedAttributes = mergedGitattributes(gitattributes, profile.gitattributes)
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
+  const mergedIgnore = profile.gitignore ? mergedGitattributes(gitignore, profile.gitignore) : null
+  if (mergedIgnore !== null) write.push([SOURCE_GITIGNORE_FILE, mergedIgnore])
   const indexHead = index?.split('\n', 2).join('\n')
   if (indexHead !== `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`) {
     remove.push(SDK_DIR)
