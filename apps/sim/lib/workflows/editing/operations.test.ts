@@ -120,6 +120,11 @@ const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
       },
     ],
   },
+  human_in_the_loop: {
+    type: 'human_in_the_loop',
+    name: 'Human in the Loop',
+    subBlocks: [{ id: 'notification', type: 'tool-input' }],
+  },
   table: {
     type: 'table',
     name: 'Table (Legacy)',
@@ -1116,6 +1121,58 @@ describe('permission-group tool access', () => {
         details: { blockType: 'slack', operation: 'canvas' },
       })
     )
+  })
+
+  it('drops a denied tool from a human in the loop notification, on add and on edit', () => {
+    const addedId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const storedId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const send = { type: 'slack', operation: 'send', title: 'Notify' }
+    const canvas = { type: 'slack', operation: 'canvas', title: 'Post' }
+    const workflow = emptyWorkflow()
+    workflow.blocks[storedId] = {
+      id: storedId,
+      type: 'human_in_the_loop',
+      name: 'Stored approval',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: { notification: { id: 'notification', type: 'tool-input', value: [] } },
+      outputs: {},
+      data: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      workflow,
+      [
+        {
+          operation_type: 'add',
+          block_id: addedId,
+          params: {
+            type: 'human_in_the_loop',
+            name: 'Approval',
+            inputs: { notification: [send, canvas] },
+          },
+        },
+        {
+          operation_type: 'edit',
+          block_id: storedId,
+          params: { inputs: { notification: [send, canvas] } },
+        },
+      ],
+      denyCanvas
+    )
+
+    expect(state.blocks[addedId].subBlocks.notification.value).toEqual([send])
+    expect(state.blocks[storedId].subBlocks.notification.value).toEqual([send])
+    expect(skippedItems.filter((item) => item.type === 'tool_not_allowed')).toEqual([
+      expect.objectContaining({
+        blockId: addedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+      expect.objectContaining({
+        blockId: storedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+    ])
   })
 
   it('leaves an existing operation untouched when an edit names a denied one', () => {

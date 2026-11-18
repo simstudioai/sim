@@ -13,11 +13,10 @@ import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   createSubBlockInputGate,
-  filterDisallowedTools,
+  gateToolInputValue,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
   normalizeSubblockValue,
-  normalizeTools,
   updateCanonicalModesForInputs,
 } from './builders'
 import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
@@ -251,14 +250,11 @@ function mergeNestedNodesForParent(
           if (!isInputAllowed(key, value)) return
           let sanitizedValue = normalizeSubblockValue(key, value)
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
-          if (key === 'tools' && Array.isArray(value)) {
-            sanitizedValue = filterDisallowedTools(
-              normalizeTools(value),
-              permissionConfig,
-              existingId,
-              skippedItems
-            )
-          }
+          sanitizedValue = gateToolInputValue(
+            { blockId: existingId, blockType: existingBlock.type, key, value, sanitizedValue },
+            permissionConfig,
+            skippedItems
+          )
           if (key === 'responseFormat' && value) {
             sanitizedValue = normalizeResponseFormat(value)
           }
@@ -508,14 +504,11 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig,
-          block_id,
-          skippedItems
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId: block_id, blockType: block.type, key, value, sanitizedValue },
+        permissionConfig,
+        skippedItems
+      )
 
       if (key === 'responseFormat' && value) {
         sanitizedValue = normalizeResponseFormat(value)
@@ -941,14 +934,11 @@ export function handleInsertIntoSubflowOperation(
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
-        if (key === 'tools' && Array.isArray(value)) {
-          sanitizedValue = filterDisallowedTools(
-            normalizeTools(value),
-            permissionConfig,
-            block_id,
-            skippedItems
-          )
-        }
+        sanitizedValue = gateToolInputValue(
+          { blockId: block_id, blockType: existingBlock.type, key, value, sanitizedValue },
+          permissionConfig,
+          skippedItems
+        )
 
         if (key === 'responseFormat' && value) {
           sanitizedValue = normalizeResponseFormat(value)

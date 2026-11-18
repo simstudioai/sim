@@ -21,6 +21,7 @@ import {
   checkRetrySetting,
   createFieldValueGate,
   createSeededValueGate,
+  isToolInputField,
   partitionToolEntries,
 } from './gates'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
@@ -226,15 +227,11 @@ export function createBlockFromParams(
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
-      // Special handling for tools - normalize and filter disallowed
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig ?? null,
-          blockId,
-          skippedItems ?? []
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId, blockType: params.type, key, value, sanitizedValue },
+        permissionConfig ?? null,
+        skippedItems ?? []
+      )
 
       // Special handling for responseFormat - normalize to ensure consistent format
       if (key === 'responseFormat' && value) {
@@ -871,6 +868,29 @@ export function filterDisallowedTools(
   const { kept, refused } = partitionToolEntries(tools, blockId, { permissionConfig })
   for (const item of refused) logSkippedItem(skippedItems, item)
   return kept
+}
+
+/**
+ * The value a `tool-input` field is written with: an agent's `tools` normalized, and in every such
+ * field (a human in the loop's `notification` as well) the entries a tool-entry gate refuses
+ * dropped. Any other field keeps `sanitizedValue`.
+ */
+export function gateToolInputValue(
+  input: {
+    blockId: string
+    blockType: string
+    key: string
+    value: unknown
+    sanitizedValue: unknown
+  },
+  permissionConfig: PermissionGroupConfig | null,
+  skippedItems: SkippedItem[]
+): unknown {
+  const { blockId, blockType, key, value, sanitizedValue } = input
+  if (!Array.isArray(value) || !isToolInputField(blockType, key)) return sanitizedValue
+  const entries = key === 'tools' ? normalizeTools(value) : sanitizedValue
+  if (!Array.isArray(entries)) return sanitizedValue
+  return filterDisallowedTools(entries, permissionConfig, blockId, skippedItems)
 }
 
 /** Decides whether one subBlock input may be written. Records its own skips. */

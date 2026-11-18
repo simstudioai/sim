@@ -116,6 +116,13 @@ export interface ToolEntry {
   params?: { serverId?: unknown }
 }
 
+/** Whether the block type declares `field` as a `tool-input`, whose entries the tool-entry gates judge. */
+export function isToolInputField(blockType: string, field: string): boolean {
+  return Boolean(
+    getBlock(blockType)?.subBlocks.some((sb) => sb.id === field && sb.type === 'tool-input')
+  )
+}
+
 function isContainerType(blockType: string): boolean {
   return blockType === 'loop' || blockType === 'parallel'
 }
