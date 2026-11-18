@@ -43,6 +43,9 @@ describe('KetchBlock', () => {
       },
       collectedAt: 1,
     })
+    if (!body || typeof body === 'string' || body instanceof FormData) {
+      throw new Error('Expected a JSON body')
+    }
 
     expect(body.purposes).toEqual({
       analytics: { allowed: 'true', legalBasisCode: 'consent_optin' },

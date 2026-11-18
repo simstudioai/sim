@@ -85,14 +85,14 @@ interface InfisicalActor {
 }
 
 export interface InfisicalSecretApproval {
-  id: string
-  policyId: string
-  slug: string
+  id: string | null
+  policyId: string | null
+  slug: string | null
   status: string | null
   hasMerged: boolean | null
-  folderId: string
-  createdAt: string
-  updatedAt: string
+  folderId: string | null
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 interface InfisicalSecret {
