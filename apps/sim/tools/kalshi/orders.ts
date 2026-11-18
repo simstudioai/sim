@@ -78,7 +78,7 @@ function optionalFlag(value: unknown): boolean | undefined {
 }
 
 /** The V2 book side for a legacy (side, action): buy yes and sell no bid; buy no and sell yes ask. */
-export function kalshiBookSide(side: unknown, action: unknown): 'bid' | 'ask' {
+function kalshiBookSide(side: unknown, action: unknown): 'bid' | 'ask' {
   const outcome = oneOf(side, ['yes', 'no'], '', 'Side')
   const direction = oneOf(action, ['buy', 'sell'], '', 'Action')
   if (!outcome) throw new Error('Side is required: yes or no')
