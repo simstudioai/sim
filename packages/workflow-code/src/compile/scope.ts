@@ -26,7 +26,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
+import { closest, HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
 
 const LOOP_METHODS: ReadonlySet<string> = new Set<LoopSpec['loopType']>([
@@ -96,6 +96,30 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       }
     )
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+  }
+  const [firstArgument] = call.arguments
+  const bareBuilderPaths =
+    !binding && firstArgument && literalText(firstArgument) !== null
+      ? [...catalogBuilderPaths(ctx.catalog), GENERIC_BUILDER, 'parallel']
+      : null
+  const imported = bareBuilderPaths?.includes(path.root) === true
+  if (bareBuilderPaths && (imported || closest(path.root, bareBuilderPaths) !== null)) {
+    // `apii('Call', { ... })`: a bare, builder-shaped call nothing binds, naming a builder or close
+    // to one (`fetch('x')` stays an unsupported call). It classifies as an unknown builder so the
+    // const still binds and its wiring raises no E_UNKNOWN_IDENTIFIER.
+    ctx.reporter.report(
+      'E_UNKNOWN_BUILDER',
+      imported
+        ? `${path.root} is not imported from '@sim/workflow-sdk'.`
+        : `${path.root} is not a block builder.`,
+      rangeOf(ctx, call.callee),
+      {
+        hint: imported
+          ? `Add ${path.root} to the import from '@sim/workflow-sdk'.`
+          : suggestBuilder(path.root, bareBuilderPaths),
+      }
+    )
+    return { kind: 'builder', path: path.root, builder: { kind: 'unknown' } }
   }
   if (!binding || binding.kind !== 'sdk') return { kind: 'other' }
   const root = binding.name
