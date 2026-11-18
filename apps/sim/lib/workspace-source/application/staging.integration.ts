@@ -5,7 +5,7 @@
  * directly, so "nothing was staged" means no row and no object. Writes a report to
  * `WORKSPACE_SOURCE_STAGING_REPORT_PATH`.
  */
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -110,6 +110,15 @@ async function rows(workspaceId: string) {
     .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
 }
 
+/** Every object stored under the workspace's prefix (empty folders left behind do not count). */
+function objectsUnder(workspaceId: string): string[] {
+  const root = path.join(storageRoot, 'workspace', workspaceId)
+  if (!existsSync(root)) return []
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+}
+
 function stored(storageKey: string): boolean {
   return existsSync(path.join(storageRoot, storageKey))
 }
@@ -179,7 +188,7 @@ describe('workspace source staging', () => {
 
     expect(refused).toMatchObject({ code: 'validation' })
     expect(await rows(workspaceId)).toEqual([])
-    expect(existsSync(path.join(storageRoot, 'workspace', workspaceId))).toBe(false)
+    expect(objectsUnder(workspaceId)).toEqual([])
   })
 
   check('staging past the per-caller file or byte cap is refused and stores nothing', async () => {
@@ -188,7 +197,7 @@ describe('workspace source staging', () => {
     const scope = `user:${ownerId}`
     await db.execute(sql`
       INSERT INTO workspace_source_staged_blob (id, workspace_id, scope, sha256, size, storage_key, expires_at)
-      SELECT md5(random()::text), ${workspaceId}, ${scope}, lpad(to_hex(n), 64, '0'), 1, 'seeded', ${expiresAt}
+      SELECT md5(random()::text), ${workspaceId}, ${scope}, lpad(to_hex(n), 64, '0'), 1, 'seeded', ${expiresAt.toISOString()}::timestamp
       FROM generate_series(1, ${WORKSPACE_SOURCE_LIMITS.maxStagedBlobs}) AS n
     `)
 
@@ -215,7 +224,7 @@ describe('workspace source staging', () => {
     const overBytes = await failure(stage(owner, workspaceId, [blob('one byte too many')]))
     expect(overBytes).toMatchObject({ code: 'payload_too_large' })
     expect(await rows(workspaceId)).toHaveLength(2)
-    expect(existsSync(path.join(storageRoot, 'workspace', workspaceId))).toBe(false)
+    expect(objectsUnder(workspaceId)).toEqual([])
 
     // Another caller has its own room.
     await stage(writer, workspaceId, [blob('the writer has room')])

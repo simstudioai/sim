@@ -12,7 +12,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, lt, lte, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { deleteFiles, downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
@@ -73,7 +73,7 @@ export async function findStagedBlobs(
       and(
         inScope(target),
         inArray(workspaceSourceStagedBlob.sha256, [...new Set(hashes)]),
-        sql`${workspaceSourceStagedBlob.expiresAt} > now()`
+        gt(workspaceSourceStagedBlob.expiresAt, new Date())
       )
     )
     .returning({
@@ -96,7 +96,7 @@ export async function stagedUsage(
       bytes: sql<number>`coalesce(sum(${workspaceSourceStagedBlob.size}), 0)::bigint`,
     })
     .from(workspaceSourceStagedBlob)
-    .where(and(inScope(target), sql`${workspaceSourceStagedBlob.expiresAt} > now()`))
+    .where(and(inScope(target), gt(workspaceSourceStagedBlob.expiresAt, new Date())))
   return { count: Number(usage?.count ?? 0), bytes: Number(usage?.bytes ?? 0) }
 }
 
@@ -168,7 +168,7 @@ export async function stageBlobs(
           and(
             inScope(target),
             inArray(workspaceSourceStagedBlob.sha256, hashes),
-            sql`${workspaceSourceStagedBlob.expiresAt} <= now()`
+            lte(workspaceSourceStagedBlob.expiresAt, new Date())
           )
         )
         .returning({ storageKey: workspaceSourceStagedBlob.storageKey })

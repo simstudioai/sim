@@ -434,24 +434,26 @@ export async function planWorkspaceSource(
       }
     })
   }
+  // Errors outside the changes, then those of changes not held back, refuse the apply.
+  const refusedByPlan =
+    diagnostics.some((finding) => finding.severity === 'error') ||
+    changes.some(
+      (change) => !change.held && change.diagnostics.some((finding) => finding.severity === 'error')
+    )
   const needed = [
     ...new Set(
       writes.filter((change) => !change.held).flatMap((change) => change.needsBlobs ?? [])
     ),
   ]
+  // A missing blob refuses only a plan nothing else refuses: the fix comes first, the upload after.
   const blobs = await resolveStaged(
     needed,
     manifest,
     ctx,
-    options.requireBlobs === true,
+    options.requireBlobs === true && !refusedByPlan,
     diagnostics
   )
-  // Errors outside the changes, then those of changes not held back, refuse the apply.
-  const refused =
-    diagnostics.some((finding) => finding.severity === 'error') ||
-    changes.some(
-      (change) => !change.held && change.diagnostics.some((finding) => finding.severity === 'error')
-    )
+  const refused = refusedByPlan || diagnostics.some((finding) => finding.code === 'E_BLOB_MISSING')
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
   return {

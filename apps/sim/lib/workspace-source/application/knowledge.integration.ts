@@ -835,8 +835,8 @@ describe('knowledge bases as workspace source', () => {
 
       expect(two.failed).toBeUndefined()
       expect(actions(two, 'applied')).toEqual([
-        'create knowledge-base:faq',
         'update knowledge-base:policies',
+        'create knowledge-base:faq',
         'delete knowledge-base:archive',
       ])
       const final = await docs(policies.id)
