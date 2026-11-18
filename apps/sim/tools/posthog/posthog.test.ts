@@ -99,3 +99,27 @@ describe('posthog block rollout mapping', () => {
     }
   )
 })
+
+describe('posthog path ids', () => {
+  const featureFlagUrl = (projectId: string, flagId: string) => {
+    const url = posthogTools.posthogGetFeatureFlagTool.request.url
+    if (typeof url !== 'function') throw new Error('PostHog URL must be built per request')
+    return url({ projectId, flagId, region: 'us', apiKey: 'test-key' })
+  }
+
+  it('keeps the @current project alias literal', () => {
+    expect(featureFlagUrl('@current', '42')).toBe(
+      'https://us.posthog.com/api/projects/@current/feature_flags/42/'
+    )
+  })
+
+  it('encodes a query character in an id instead of sending it as a query string', () => {
+    expect(featureFlagUrl('12345', '7?active=false')).toBe(
+      'https://us.posthog.com/api/projects/12345/feature_flags/7%3Factive%3Dfalse/'
+    )
+  })
+
+  it.each(['..', '1/../2'])('refuses the flag id %j', (flagId) => {
+    expect(() => featureFlagUrl('12345', flagId)).toThrow('flagId')
+  })
+})

@@ -1,4 +1,5 @@
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Shared PostHog base URL resolution.
@@ -37,4 +38,12 @@ function normalizeHost(host: string): string {
     throw new Error(`${validation.error} (e.g., posthog.mycompany.com)`)
   }
   return withProtocol
+}
+
+/**
+ * Encodes one ID path segment of a PostHog REST URL, keeping `@` literal so the `@current`
+ * aliases send the same URL as before. Tabs and newlines are stripped, as the URL parser did.
+ */
+export function postHogPathSegment(value: string, paramName: string): string {
+  return safeUrlPathSegment(value, paramName, { stripTabsAndNewlines: true }).replaceAll('%40', '@')
 }
