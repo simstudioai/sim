@@ -35,7 +35,8 @@ function containing(id: string): string {
 
 /**
  * The live workflows of the workspace whose blocks name any of `ids`, by resource id; `null` when
- * the scan did not finish within {@link SCAN_TIMEOUT_MS}. A block names a resource by its id as a
+ * the scan did not finish within {@link SCAN_TIMEOUT_MS}, which every caller must treat as refusing
+ * the delete. A block names a resource by its id as a
  * whole sub-block value, as an item of a list, or as one part of a comma-joined value, at any
  * depth (a tool's parameters included), the forms a workflow source read lifts to resource keys.
  * An id that only appears inside other text, such as a prompt that mentions it, names nothing.
@@ -97,6 +98,20 @@ export async function workflowsUsing(
 }
 
 /**
+ * `E_APPLY_REFUSED` for a delete of `change`'s resource whose users the scan could not confirm in
+ * time ({@link workflowsUsing} answered `null`): the delete is refused rather than made blind.
+ */
+export function inUseUncheckedFinding(change: Pick<PlannedChange, 'kind' | 'key'>) {
+  return kindFinding(
+    change.kind,
+    change.key,
+    'E_APPLY_REFUSED',
+    `Could not confirm in time that no stored workflow uses ${where(change.kind, change.key)}, so it is not deleted.`,
+    { hint: 'Apply again; if it keeps timing out, delete it from the workspace instead.' }
+  )
+}
+
+/**
  * Checks every delete the plan makes against the stored workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
  * the keys of each kind sent without files) keeps using it, so the delete is
  * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
@@ -126,18 +141,9 @@ export async function checkDeletesInUse(
     workspaceId,
     deleting.flatMap((change) => change.storedId ?? [])
   )
+  // Fails closed: a delete whose users could not be checked is refused, never made blind.
   if (using === null) {
-    for (const change of deleting) {
-      change.diagnostics.push(
-        kindFinding(
-          change.kind,
-          change.key,
-          'W_RESOURCE_IN_USE',
-          `Could not check in time which stored workflows use ${where(change.kind, change.key)}; deleting it breaks any that still do.`,
-          { hint: 'Check its workflows before applying, or keep its declaration.' }
-        )
-      )
-    }
+    for (const change of deleting) change.diagnostics.push(inUseUncheckedFinding(change))
     return
   }
   const deletedWorkflows = new Set<string>()

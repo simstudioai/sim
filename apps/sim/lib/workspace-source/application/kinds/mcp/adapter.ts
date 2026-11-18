@@ -44,7 +44,7 @@ import {
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
-import { workflowsUsing } from '@/lib/workspace-source/application/in-use'
+import { inUseUncheckedFinding, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
   declOf,
@@ -196,7 +196,7 @@ async function planReplace(
   record: StoredServer,
   ctx: PlanContext
 ): Promise<McpChange> {
-  // `null` when the scan ran out of time: unknown users are treated as some.
+  // `null` when the scan ran out of time: the replace deletes the old server, so it is refused.
   const using = await workflowsUsing(ctx.workspace.workspaceId, [record.id])
   const users = using?.get(record.id) ?? []
   const replaced: McpChange = {
@@ -216,17 +216,15 @@ async function planReplace(
       { file, hint: 'Its id derives from its URL; the key moves to the new server.' }
     )
   )
-  if ((using === null || users.length > 0) && !ctx.allowDelete) {
-    const breaks =
-      using === null
-        ? 'may break stored workflows (they could not be checked in time) that call it by id'
-        : `breaks ${users.length} stored workflow(s) that call it by id`
+  if (using === null) {
+    replaced.diagnostics.push(inUseUncheckedFinding(change))
+  } else if (users.length > 0 && !ctx.allowDelete) {
     replaced.diagnostics.push(
       kindFinding(
         'mcp-server',
         change.key,
         'E_APPLY_DELETE_NOT_ALLOWED',
-        `Replacing "${record.name}" ${breaks} until they are applied again; it needs --allow-delete.`,
+        `Replacing "${record.name}" breaks ${users.length} stored workflow(s) that call it by id until they are applied again; it needs --allow-delete.`,
         { file, hint: 'Pass --allow-delete, or keep the URL.' }
       )
     )

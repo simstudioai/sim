@@ -413,7 +413,12 @@ export function planUndeclared<S, D, P>(
               key,
               'E_APPLY_DELETE_NOT_ALLOWED',
               `${where(kind, key)} is no longer declared; deleting "${resource.name}" needs --allow-delete.`,
-              { hint: 'Pass --allow-delete to delete it, or restore its file to keep it.' }
+              {
+                hint:
+                  kind === 'deployment'
+                    ? 'Pass --allow-delete to delete it, or restore its file to keep it.'
+                    : 'Pass --allow-delete to delete it, or restore its file to keep it. Run with --allow-delete --dry-run to see which workflows use it.',
+              }
             )
           : kindFinding(
               kind,
