@@ -206,6 +206,18 @@ const MODEL_RUN_RESULT_MAX_CHARS = 16_000
 const FINAL_OUTPUT_PREVIEW_CHARS = 4_000
 /** A preview shorter than this says too little to be worth more than a pointer. */
 const FINAL_OUTPUT_PREVIEW_MIN_CHARS = 200
+/** The head of an oversized error that stays inline; an HTTP failure can carry a whole HTML page. */
+const ERROR_KEEP_CHARS = 1_500
+/** Block entries kept at each end of a long run (loop iterations) beside every failed one. */
+const KEPT_EDGE_LOG_ENTRIES = 5
+/** Stands in for a failed block's error that repeats the run error word for word. */
+const SAME_AS_RUN_ERROR = '…[same as the run error]'
+
+/** A run result as the agent reads it: the tool's data and its separate error. */
+interface ModelRunResult {
+  data: Record<string, unknown>
+  error: string | undefined
+}
 
 /** `value` serialized the way the agent receives it; undefined for a value JSON cannot encode. */
 function serialize(value: unknown): string | undefined {
@@ -214,6 +226,12 @@ function serialize(value: unknown): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/** `chars`, stepped back off a high surrogate so a cut never splits a pair. */
+function cutPoint(text: string, chars: number): number {
+  const last = text.charCodeAt(chars - 1)
+  return last >= 0xd800 && last <= 0xdbff ? chars - 1 : chars
 }
 
 /**
@@ -226,19 +244,33 @@ function finalOutputPreview(
   chars: number,
   executionId: string | undefined
 ): string {
-  let end = chars
-  const last = serialized.charCodeAt(end - 1)
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1
+  const end = cutPoint(serialized, chars)
   return `${serialized.slice(0, end)} …[final output cut at ${end} of ${serialized.length} chars; inspect with logs get ${executionId ?? '<executionId>'} --trace]`
+}
+
+/** Whether a failed block's error only repeats the run error (`failedBlockError` prefixes the name). */
+function repeatsRunError(entry: Record<string, unknown>, runError: string | undefined): boolean {
+  if (runError === undefined || typeof entry.error !== 'string' || entry.error === '') return false
+  return (
+    entry.error === runError ||
+    (typeof entry.blockName === 'string' && `${entry.blockName}: ${entry.error}` === runError) ||
+    (typeof entry.blockId === 'string' && `${entry.blockId}: ${entry.error}` === runError)
+  )
 }
 
 /**
  * Holds a run result to {@link MODEL_RUN_RESULT_MAX_CHARS} so the agent reads pass/fail, the
- * failing block's error, and each block's status inline. Echoed block inputs and outputs are
- * replaced with pointers, largest first, until the result fits; the per-block entries keep their
- * name, id, status, and error. If that is not enough, the final output is cut to a preview that
- * fits what is left, or to a pointer when a secret is active. Values a caller named with `select`
- * are kept. A result that still does not fit is returned as far as it was reduced.
+ * failing block, its error, and each block's status inline. Each step runs only while the result is
+ * still over, cheapest loss first:
+ * 1. A failed block's error that repeats the run error is replaced with a marker.
+ * 2. Echoed block inputs and outputs become pointers, largest first.
+ * 3. Errors past {@link ERROR_KEEP_CHARS} keep their head and a pointer. The text is cut after
+ *    secret projection, so no cut can strand part of a secret.
+ * 4. A long run of block entries keeps every failed one and those at each end.
+ * 5. The final output is cut to a preview that fits what is left, or to a pointer while a secret
+ *    is active.
+ * Values a caller named with `select` are kept. A result that still does not fit is returned as
+ * far as it was reduced.
  *
  * While `registry` makes the projection walk the result, its size is measured as projected:
  * replacing many short secrets with their longer names can grow it. Raw sizes rank the parts and
@@ -250,24 +282,42 @@ function fitRunResultToWindow(
   executionId: string | undefined,
   registry: ResolvedSecretTraceRegistry | undefined,
   walksContent: boolean
-): Record<string, unknown> {
-  const envelope = (candidate: Record<string, unknown>) =>
-    error === undefined ? { output: candidate } : { output: candidate, error }
-  const fits = (candidate: Record<string, unknown>, rawChars: number): boolean => {
-    if (rawChars > MODEL_RUN_RESULT_MAX_CHARS) return false
+): ModelRunResult {
+  const reference = executionId ?? '<executionId>'
+  const envelope = (candidate: ModelRunResult) =>
+    candidate.error === undefined
+      ? { output: candidate.data }
+      : { output: candidate.data, error: candidate.error }
+  const rawChars = (candidate: ModelRunResult) =>
+    serialize(envelope(candidate))?.length ?? Number.POSITIVE_INFINITY
+  const fits = (candidate: ModelRunResult, raw = rawChars(candidate)): boolean => {
+    if (raw > MODEL_RUN_RESULT_MAX_CHARS) return false
     if (!walksContent) return true
     const projection = projectResolvedSecretModelContent(envelope(candidate), registry)
     const projected = projection.safe ? serialize(projection.value)?.length : undefined
-    return (projected ?? rawChars) <= MODEL_RUN_RESULT_MAX_CHARS
+    return (projected ?? raw) <= MODEL_RUN_RESULT_MAX_CHARS
   }
+  const withLogs = (candidate: ModelRunResult, logs: unknown[]): ModelRunResult => ({
+    ...candidate,
+    data: { ...candidate.data, logs },
+  })
 
-  let raw = serialize(envelope(data))?.length
-  if (raw === undefined || fits(data, raw)) return data
+  let fitted: ModelRunResult = { data, error }
+  const initialRaw = serialize(envelope(fitted))?.length
+  if (initialRaw === undefined || fits(fitted, initialRaw)) return fitted
 
-  let fitted = data
   if (Array.isArray(data.logs)) {
+    const runError = error ?? (typeof data.error === 'string' ? data.error : undefined)
+    const deduplicated = data.logs.map((entry) =>
+      isPlainRecord(entry) && repeatsRunError(entry, runError)
+        ? { ...entry, error: SAME_AS_RUN_ERROR }
+        : entry
+    )
+    fitted = withLogs(fitted, deduplicated)
+    if (fits(fitted)) return fitted
+
     const parts: Array<{ index: number; field: 'input' | 'output'; size: number }> = []
-    for (const [index, entry] of data.logs.entries()) {
+    for (const [index, entry] of deduplicated.entries()) {
       if (!isPlainRecord(entry)) continue
       for (const field of ['input', 'output'] as const) {
         if (entry[field] === undefined) continue
@@ -276,12 +326,13 @@ function fitRunResultToWindow(
       }
     }
     parts.sort((left, right) => right.size - left.size)
-    const logs = [...data.logs]
+    const logs = [...deduplicated]
+    let raw = rawChars(fitted)
     for (const part of parts) {
       const entry = logs[part.index] as Record<string, unknown>
       const pointer =
         part.field === 'input'
-          ? omittedInputMarker('', executionId ?? '<executionId>')
+          ? omittedInputMarker('', reference)
           : blockOutputPointer(
               sizeBlockOutput(entry.output)?.label ?? 'output omitted',
               executionId
@@ -290,25 +341,36 @@ function fitRunResultToWindow(
       if (saved <= 0) continue
       logs[part.index] = { ...entry, [part.field]: pointer }
       raw -= saved
-      fitted = { ...data, logs }
+      fitted = withLogs(fitted, logs)
       if (fits(fitted, raw)) return fitted
     }
   }
-  if (!Object.hasOwn(fitted, 'output')) return fitted
 
+  fitted = capErrors(fitted, reference, registry, walksContent)
+  if (fits(fitted)) return fitted
+
+  if (Array.isArray(fitted.data.logs)) {
+    fitted = withLogs(fitted, keepFailedAndEdgeEntries(fitted.data.logs, reference))
+    if (fits(fitted)) return fitted
+  }
+
+  if (!Object.hasOwn(fitted.data, 'output')) return fitted
   // A final output no longer than a preview is what the run was for; it stays whole.
-  const serialized = serialize(fitted.output)
+  const serialized = serialize(fitted.data.output)
   if (serialized === undefined || serialized.length <= FINAL_OUTPUT_PREVIEW_CHARS) return fitted
-  const label = sizeBlockOutput(fitted.output)?.label
+  const label = sizeBlockOutput(fitted.data.output)?.label
   if (!label) return fitted
-  const pointed = { ...fitted, output: blockOutputPointer(label, executionId) }
+  const withOutput = (output: unknown): ModelRunResult => ({
+    ...fitted,
+    data: { ...fitted.data, output },
+  })
+  const pointed = withOutput(blockOutputPointer(label, executionId))
   if (walksContent) return pointed
 
-  const rest = serialize(envelope(pointed))?.length ?? Number.POSITIVE_INFINITY
-  let chars = Math.min(FINAL_OUTPUT_PREVIEW_CHARS, MODEL_RUN_RESULT_MAX_CHARS - rest)
+  let chars = Math.min(FINAL_OUTPUT_PREVIEW_CHARS, MODEL_RUN_RESULT_MAX_CHARS - rawChars(pointed))
   while (chars >= FINAL_OUTPUT_PREVIEW_MIN_CHARS && chars < serialized.length) {
-    const previewed = { ...fitted, output: finalOutputPreview(serialized, chars, executionId) }
-    const previewedChars = serialize(envelope(previewed))?.length ?? Number.POSITIVE_INFINITY
+    const previewed = withOutput(finalOutputPreview(serialized, chars, executionId))
+    const previewedChars = rawChars(previewed)
     if (previewedChars <= MODEL_RUN_RESULT_MAX_CHARS) return previewed
     // JSON escapes inside the preview grow it once it is embedded as a string.
     chars -= previewedChars - MODEL_RUN_RESULT_MAX_CHARS
@@ -317,21 +379,92 @@ function fitRunResultToWindow(
 }
 
 /**
- * Bounds a run's whole model-facing result before secret projection, in two steps. First, when
- * `registry` makes the projection walk the result, one past any of its caps is withheld entirely.
- * So a result that would pass a cap first has its bulkiest block-log outputs replaced with
- * pointers, down to their budget, and if it still would, its final output too. The result is
- * measured whole, envelope and error included. A block output that run_block or
- * run_workflow_until_block lifted into `output` is the run's final output here too. Then every
- * result, secret or not, is held to the agent's inline window ({@link fitRunResultToWindow}). A
- * result that fits both is returned untouched.
+ * `text` as the agent will read it, cut to {@link ERROR_KEEP_CHARS} with a pointer to the rest.
+ * While a secret is active the text is projected first and the projection is what gets cut, so a
+ * cut can only fall inside a secret's name, never the secret. Text the projection cannot vouch for
+ * is left whole for the result's own projection to decide.
+ */
+function capErrorText(
+  text: string,
+  reference: string,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  walksContent: boolean
+): string {
+  if (text.length <= ERROR_KEEP_CHARS) return text
+  let visible = text
+  if (walksContent) {
+    const projection = projectResolvedSecretModelContent(text, registry)
+    if (!projection.safe || typeof projection.value !== 'string') return text
+    visible = projection.value
+    if (visible.length <= ERROR_KEEP_CHARS) return visible
+  }
+  const end = cutPoint(visible, ERROR_KEEP_CHARS)
+  return `${visible.slice(0, end)} …[error cut at ${end} of ${visible.length} chars; inspect with logs get ${reference} --trace]`
+}
+
+function capErrors(
+  result: ModelRunResult,
+  reference: string,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  walksContent: boolean
+): ModelRunResult {
+  const cap = (text: string) => capErrorText(text, reference, registry, walksContent)
+  const data: Record<string, unknown> = { ...result.data }
+  if (typeof data.error === 'string') data.error = cap(data.error)
+  if (Array.isArray(data.logs)) {
+    data.logs = data.logs.map((entry) =>
+      isPlainRecord(entry) && typeof entry.error === 'string'
+        ? { ...entry, error: cap(entry.error) }
+        : entry
+    )
+  }
+  return { data, error: result.error === undefined ? undefined : cap(result.error) }
+}
+
+/**
+ * The block entries of a long run (a loop's iterations) cut to every failed one plus
+ * {@link KEPT_EDGE_LOG_ENTRIES} at each end; each gap becomes one marker naming how many entries
+ * it stands for.
+ */
+function keepFailedAndEdgeEntries(logs: unknown[], reference: string): unknown[] {
+  const kept: unknown[] = []
+  let omitted = 0
+  const flush = () => {
+    if (omitted === 0) return
+    kept.push(`…[${omitted} block entries omitted; inspect with logs get ${reference} --trace]`)
+    omitted = 0
+  }
+  for (const [index, entry] of logs.entries()) {
+    const failed =
+      isPlainRecord(entry) && (entry.success === false || typeof entry.error === 'string')
+    const atEdge = index < KEPT_EDGE_LOG_ENTRIES || index >= logs.length - KEPT_EDGE_LOG_ENTRIES
+    if (failed || atEdge) {
+      flush()
+      kept.push(entry)
+    } else {
+      omitted += 1
+    }
+  }
+  flush()
+  return kept
+}
+
+/**
+ * Bounds a run's whole model-facing result, its data and its error, before the result's secret
+ * projection, in two steps. First, when `registry` makes the projection walk the result, one past
+ * any of its caps is withheld entirely. So a result that would pass a cap first has its bulkiest
+ * block-log outputs replaced with pointers, down to their budget, and if it still would, its final
+ * output too. The result is measured whole, envelope and error included. A block output that
+ * run_block or run_workflow_until_block lifted into `output` is the run's final output here too.
+ * Then every result, secret or not, is held to the agent's inline window
+ * ({@link fitRunResultToWindow}). A result that fits both is returned untouched.
  */
 export function boundRunResultForModel(
   data: Record<string, unknown>,
   error: string | undefined,
   executionId: string | undefined,
   registry: ResolvedSecretTraceRegistry | undefined
-): Record<string, unknown> {
+): ModelRunResult {
   const walksContent = copilotProjectionWalksContent(registry)
   const capped = walksContent ? boundToProjectionCaps(data, error, executionId) : data
   return fitRunResultToWindow(capped, error, executionId, registry, walksContent)
