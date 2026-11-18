@@ -6,6 +6,7 @@ import {
   LineIndex,
   type SourceSpan,
 } from '@sim/workflow-code'
+import type { WorkspaceKind } from '../kind'
 import {
   type DiagnosticSeverity,
   type SeverityOfCode,
@@ -13,11 +14,19 @@ import {
   type WorkspaceDiagnosticCode,
 } from './codes'
 
-/** The resource a finding is about, beside where in its files. */
-interface ResourceFields {
-  kind?: string
-  key?: string
+/** The resource a finding is about: the CLI joins a finding to its planned change by both. */
+export interface FindingResource {
+  kind: WorkspaceKind
+  key: string
 }
+
+/** The {@link FindingResource} of `kind`'s resource `key`. */
+export function resourceOf(kind: WorkspaceKind, key: string): FindingResource {
+  return { kind, key }
+}
+
+/** The resource a finding is about, beside where in its files. */
+type ResourceFields = Partial<FindingResource>
 
 /**
  * One workspace source finding. A union over codes, so `severity` always agrees with the code's
@@ -118,7 +127,7 @@ export interface FlatDiagnostic {
   endColumn?: number
   frame?: string
   path?: string
-  kind?: string
+  kind?: WorkspaceKind
   key?: string
 }
 

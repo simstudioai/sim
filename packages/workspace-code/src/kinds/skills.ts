@@ -19,7 +19,7 @@
 import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/field-table'
 import { isOneOf } from '../declaration/fields'
 import { unstorableCharacter } from '../declaration/read'
-import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, resourceOf, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { groupByFile } from './group'
 
@@ -86,8 +86,7 @@ function parseSkill(
   const report = (start: number, end: number, message: string) => {
     diagnostics.push(
       diagnostic('E_SKILL_FRONTMATTER', message, {
-        kind: 'skill',
-        key,
+        ...resourceOf('skill', key),
         ...at.located(at.span(start, end)),
         hint: `A skill file opens with a \`${FENCE}\` line, \`name: …\`, \`description: …\` and a \`${FENCE}\` line; its content follows.`,
       })

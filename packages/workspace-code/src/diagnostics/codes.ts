@@ -4,6 +4,8 @@
  * freeze at release. The first letter fixes the severity, as in `@sim/workflow-code`.
  */
 
+import type { DiagnosticCode } from '@sim/workflow-code'
+
 /** Declaration files and the directory layout. */
 const DECLARATION_CODES = [
   /** A Babel parse error, re-coded. */
@@ -270,8 +272,10 @@ export type RefusalClass = 'conflict' | 'locked' | 'payload_too_large' | 'valida
  * since the directory was read (`conflict`), then a locked one, then a size limit, else
  * `validation`.
  */
-export function refusalClass(codes: Iterable<string>): RefusalClass {
-  const present = new Set(codes)
+export function refusalClass(
+  codes: Iterable<WorkspaceDiagnosticCode | DiagnosticCode>
+): RefusalClass {
+  const present = new Set<WorkspaceDiagnosticCode | DiagnosticCode>(codes)
   if (present.has('E_APPLY_STALE')) return 'conflict'
   if (present.has('E_APPLY_LOCKED')) return 'locked'
   if (

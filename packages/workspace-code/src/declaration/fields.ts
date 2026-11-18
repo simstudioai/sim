@@ -6,6 +6,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { type Json, pointerSegment, type SourceSpan } from '@sim/workflow-code'
 import {
   diagnostic,
+  type FindingResource,
   findingLimitReached,
   MAX_FINDINGS_PER_FILE,
   sourceLocator,
@@ -30,7 +31,7 @@ export function fieldReporter(
   text: string,
   spans: ReadonlyMap<string, SourceSpan>,
   diagnostics: WorkspaceDiagnostic[],
-  resource: { kind: string; key: string }
+  resource: FindingResource
 ): FieldReport {
   let locator: ReturnType<typeof sourceLocator> | undefined
   let capped = false

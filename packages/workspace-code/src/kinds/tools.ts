@@ -27,7 +27,13 @@ import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/fi
 import { checkKnownFields, fieldReporter, readObject, readStringField } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
-import { diagnostic, sourceLocator, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import {
+  diagnostic,
+  resourceOf,
+  sourceLocator,
+  type WorkspaceDiagnostic,
+  wholeFile,
+} from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
@@ -87,7 +93,7 @@ function readCodeFile(
 ): string | undefined {
   const file = codePath(key)
   const source = text[file]
-  const resource = { kind: 'custom-tool', key }
+  const resource = resourceOf('custom-tool', key)
   if (source === undefined) {
     diagnostics.push(
       diagnostic('E_TOOL_CODE', `${file} is missing.`, {
@@ -144,7 +150,7 @@ function parseTool(
   text: Readonly<Record<string, string>>
 ): { decl?: ToolDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = toolDeclarationPath(key)
-  const resource = { kind: 'custom-tool', key }
+  const resource = resourceOf('custom-tool', key)
   const source = text[file]
   if (source === undefined) {
     return {

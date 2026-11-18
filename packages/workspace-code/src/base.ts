@@ -22,6 +22,7 @@ import {
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, SHA256_HEX, type WorkspaceKind } from './kind'
 import { isFileKey, isResourceKey, isSecretName } from './layout'
+import { type KeyShape, WORKSPACE_KIND_SPECS } from './specs'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -89,6 +90,12 @@ function isResourceFingerprint(value: unknown): value is ResourceFingerprint {
   return typeof value === 'string' && FINGERPRINT.test(value)
 }
 
+const IS_KEY_OF_SHAPE: Record<KeyShape, (key: string) => boolean> = {
+  resource: isResourceKey,
+  path: isFileKey,
+  'secret-name': isSecretName,
+}
+
 /** The address of a resource in the base. */
 export function resourceAddress(kind: WorkspaceKind, key: string): ResourceAddress {
   return `${kind}:${key}`
@@ -100,9 +107,7 @@ export function parseResourceAddress(address: string): { kind: WorkspaceKind; ke
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)
   if (colon <= 0 || !isWorkspaceKind(kind)) return null
-  const valid =
-    kind === 'file' ? isFileKey(key) : kind === 'secret' ? isSecretName(key) : isResourceKey(key)
-  return valid ? { kind, key } : null
+  return IS_KEY_OF_SHAPE[WORKSPACE_KIND_SPECS[kind].keyShape](key) ? { kind, key } : null
 }
 
 /** An empty base for `workspaceId`. */
