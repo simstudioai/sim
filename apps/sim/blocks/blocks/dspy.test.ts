@@ -16,7 +16,7 @@ describe('DSPy block params', () => {
 
   it('fails on Additional Inputs that are not valid JSON instead of dropping them', () => {
     expect(() => mapParams({ additionalInputs: '{"topic": ' })).toThrow(
-      'Invalid JSON for Additional Inputs'
+      'Additional Inputs must be valid JSON'
     )
   })
 

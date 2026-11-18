@@ -791,6 +791,7 @@ Cancel an existing order on Kalshi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
+| `ticker` | string | No | Market ticker of the order \(e.g., "KXBTC-24DEC31"\), so the cancel reaches the order's exchange shard. Leave empty to look it up from the order first |
 
 #### Output
 
@@ -851,7 +852,7 @@ Modify the price or quantity of an existing order on Kalshi
 | `action` | string | Yes | Action type: "buy" or "sell" |
 | `clientOrderId` | string | No | Original client-specified order ID |
 | `updatedClientOrderId` | string | No | New client-specified order ID after amendment |
-| `count` | string | No | New total contracts for the order: already filled plus desired resting \(e.g., "10"\). Leave empty to keep the current total |
+| `count` | string | No | New total contracts for the order: already filled plus desired resting \(e.g., "10"\). Leave empty to keep the current total, only if the order hasn't just changed; Kalshi's order reads can briefly lag |
 | `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
 | `noPrice` | string | No | Updated no price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
@@ -910,7 +911,7 @@ Modify the price or quantity of an existing order on Kalshi
 |   ↳ `action` | string | Action \(buy/sell\) |
 |   ↳ `count` | number | Number of contracts |
 |   ↳ `remaining_count` | number | Remaining contracts |
-|   ↳ `fill_count_fp` | string | Filled count \(fixed-point\) |
+|   ↳ `fill_count_fp` | string | Contracts filled by this amend \(fixed-point\) |
 |   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
 |   ↳ `created_time` | string | Order creation time |
 |   ↳ `expiration_time` | string | Order expiration time |

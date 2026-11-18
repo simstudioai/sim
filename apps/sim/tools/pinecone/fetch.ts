@@ -12,7 +12,7 @@ function parseFetchIds(value: unknown): unknown[] {
     if (!trimmed) throw new Error('ids is required')
     try {
       const parsed: unknown = JSON.parse(trimmed)
-      // A JSON number or literal (`1e3`, `true`) is a plain ID typed as is, not its parsed value.
+      // Only an array or a string is taken as parsed; a bare JSON number or literal stays as typed.
       ids = Array.isArray(parsed) || typeof parsed === 'string' ? parsed : trimmed
     } catch {
       ids = trimmed

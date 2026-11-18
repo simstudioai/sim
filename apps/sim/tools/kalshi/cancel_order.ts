@@ -1,31 +1,86 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
+import { kalshiCountNumber, kalshiOrderPath, kalshiOrderReadPath } from '@/tools/kalshi/orders'
 import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 /**
- * Cancel Order (V2): Kalshi removed `DELETE /portfolio/orders/{id}` (410 `deprecated_v1_order_endpoint`).
- * With no `exchange_index` or `market_ticker` it routes to shard 0, as the removed endpoint did.
+ * Cancel Order (V2) routes by `market_ticker`: without it Kalshi sends the cancel to shard 0, and
+ * an order resting on another shard answers 404 and stays open (Kalshi's order_errors guide). With
+ * no ticker given, the tool first reads the order (`GET /portfolio/orders/{id}`, which needs no
+ * routing) and `postProcess` sends the cancel with the order's ticker.
  */
-function cancelOrderPath(orderId: string): string {
-  return `/portfolio/events/orders/${safeUrlPathSegment(orderId, 'orderId')}`
+function cancelNeedsTicker(params: { ticker?: string }): boolean {
+  return params.ticker == null || String(params.ticker).trim() === ''
 }
 
-/** Kalshi's V2 cancel returns `reduced_by` as a fixed-point count string ("10.00"). */
-function reducedByCount(reducedBy: unknown): number {
-  const count = Number(reducedBy)
-  return Number.isFinite(count) ? count : 0
+function cancelRequestPath(params: { orderId: string; ticker?: string }): string {
+  return cancelNeedsTicker(params)
+    ? kalshiOrderReadPath(params.orderId)
+    : kalshiOrderPath(params.orderId)
 }
+
+function cancelRequestUrl(params: { orderId: string; ticker?: string }): string {
+  const url = buildKalshiUrl(cancelRequestPath(params))
+  if (cancelNeedsTicker(params)) return url
+  return `${url}?${new URLSearchParams({ market_ticker: String(params.ticker).trim() })}`
+}
+
+function cancelRequestMethod(params: { ticker?: string }): 'GET' | 'DELETE' {
+  return cancelNeedsTicker(params) ? 'GET' : 'DELETE'
+}
+
+/** The ticker of the order a cancel's read returned (GetOrderResponse `order`). */
+function readOrderTicker(data: unknown): string | null {
+  const ticker = toRecord(toRecord(data).order).ticker
+  return typeof ticker === 'string' && ticker.trim() ? ticker : null
+}
+
+/** Sends the cancel once the order read found the order's ticker. */
+async function cancelWithOrderTicker(
+  toolId: string,
+  params: Record<string, unknown>,
+  ticker: unknown,
+  executeTool: (toolId: string, params: Record<string, unknown>) => Promise<ToolResponse>
+): Promise<ToolResponse> {
+  if (typeof ticker !== 'string' || !ticker) {
+    return {
+      success: false,
+      output: {},
+      error: "Could not cancel the order: Kalshi's order read returned no market ticker",
+    }
+  }
+  try {
+    return await executeTool(toolId, { ...params, ticker })
+  } catch (error) {
+    return {
+      success: false,
+      output: {},
+      error: `Could not cancel the order: ${getErrorMessage(error)}`,
+    }
+  }
+}
+
+const TICKER_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'user-or-llm',
+  description:
+    'Market ticker of the order (e.g., "KXBTC-24DEC31"), so the cancel reaches the order\'s exchange shard. Leave empty to look it up from the order first',
+} as const
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
+  ticker?: string // Market ticker, which routes the cancel to the order's shard
 }
 
 export interface KalshiCancelOrderResponse {
   success: boolean
+  error?: string
   output: {
-    order: { order_id: string | null; client_order_id: string | null }
+    order: { order_id: string | null; client_order_id: string | null; ticker: string | null }
     reducedBy: number
   }
 }
@@ -57,25 +112,41 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         visibility: 'user-or-llm',
         description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
       },
+      ticker: TICKER_PARAM,
     },
 
     request: {
-      url: (params) => buildKalshiUrl(cancelOrderPath(params.orderId)),
-      method: 'DELETE',
+      url: (params) => cancelRequestUrl(params),
+      method: (params) => cancelRequestMethod(params),
       headers: (params) =>
         buildKalshiAuthHeaders(
           params.keyId,
           params.privateKey,
-          'DELETE',
-          `/trade-api/v2${cancelOrderPath(params.orderId)}`
+          cancelRequestMethod(params),
+          `/trade-api/v2${cancelRequestPath(params)}`
         ),
     },
 
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params) => {
       const data = await response.json()
 
       if (!response.ok) {
         handleKalshiError(data, 'cancel_order')
+      }
+
+      // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.
+      if (params && cancelNeedsTicker(params)) {
+        return {
+          success: true,
+          output: {
+            order: {
+              order_id: params.orderId,
+              client_order_id: null,
+              ticker: readOrderTicker(data),
+            },
+            reducedBy: 0,
+          },
+        }
       }
 
       // V2 returns only the order's identity, not the full order object.
@@ -85,17 +156,28 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
           order: {
             order_id: data.order_id ?? null,
             client_order_id: data.client_order_id ?? null,
+            ticker: params?.ticker?.trim() || null,
           },
-          reducedBy: reducedByCount(data.reduced_by),
+          reducedBy: kalshiCountNumber(data.reduced_by) ?? 0,
         },
       }
+    },
+
+    postProcess: async (result, params, executeTool) => {
+      if (!result.success || !cancelNeedsTicker(params)) return result
+      return cancelWithOrderTicker(
+        'kalshi_cancel_order',
+        { ...params },
+        result.output.order.ticker,
+        executeTool
+      ) as Promise<typeof result>
     },
 
     outputs: {
       order: {
         type: 'object',
         description:
-          'The canceled order: order_id and client_order_id (Kalshi no longer returns the full order on cancel)',
+          'The canceled order: order_id, client_order_id and ticker (Kalshi no longer returns the full order on cancel)',
       },
       reducedBy: {
         type: 'number',
@@ -106,10 +188,12 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
 
 export interface KalshiCancelOrderV2Params extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
+  ticker?: string // Market ticker, which routes the cancel to the order's shard
 }
 
 export interface KalshiCancelOrderV2Response {
   success: boolean
+  error?: string
   output: {
     order: {
       order_id: string | null
@@ -180,36 +264,41 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
     },
+    ticker: TICKER_PARAM,
   },
 
   request: {
-    url: (params) => buildKalshiUrl(cancelOrderPath(params.orderId)),
-    method: 'DELETE',
+    url: (params) => cancelRequestUrl(params),
+    method: (params) => cancelRequestMethod(params),
     headers: (params) =>
       buildKalshiAuthHeaders(
         params.keyId,
         params.privateKey,
-        'DELETE',
-        `/trade-api/v2${cancelOrderPath(params.orderId)}`
+        cancelRequestMethod(params),
+        `/trade-api/v2${cancelRequestPath(params)}`
       ),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!response.ok) {
       handleKalshiError(data, 'cancel_order_v2')
     }
 
+    // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.
+    const isRead = Boolean(params && cancelNeedsTicker(params))
+    const ticker = isRead ? readOrderTicker(data) : params?.ticker?.trim() || null
+
     // V2 returns only the order's identity, so the other order fields are unknown here.
     return {
       success: true,
       output: {
         order: {
-          order_id: data.order_id ?? null,
+          order_id: isRead ? (params?.orderId ?? null) : (data.order_id ?? null),
           user_id: null,
-          client_order_id: data.client_order_id ?? null,
-          ticker: null,
+          client_order_id: isRead ? null : (data.client_order_id ?? null),
+          ticker,
           side: null,
           action: null,
           type: null,
@@ -240,12 +329,21 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
           order_group_id: null,
           cancel_order_on_pause: null,
         },
-        reduced_by: reducedByCount(data.reduced_by),
-        reduced_by_fp: typeof data.reduced_by === 'string' ? data.reduced_by : null,
+        reduced_by: isRead ? 0 : (kalshiCountNumber(data.reduced_by) ?? 0),
+        reduced_by_fp: !isRead && typeof data.reduced_by === 'string' ? data.reduced_by : null,
       },
     }
   },
 
+  postProcess: async (result, params, executeTool) => {
+    if (!result.success || !cancelNeedsTicker(params)) return result
+    return cancelWithOrderTicker(
+      'kalshi_cancel_order_v2',
+      { ...params },
+      result.output.order.ticker,
+      executeTool
+    ) as Promise<typeof result>
+  },
   outputs: {
     order: {
       type: 'object',

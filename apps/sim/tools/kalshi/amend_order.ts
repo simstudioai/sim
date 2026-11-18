@@ -59,7 +59,15 @@ async function amendWithCurrentOrder(
       error: `Could not read the order's current count and price to amend it: ${getErrorMessage(error)}`,
     }
   }
-  return executeTool(toolId, { ...params, ...next })
+  try {
+    return await executeTool(toolId, { ...params, ...next })
+  } catch (error) {
+    return {
+      success: false,
+      output: {},
+      error: `Could not amend the order: ${getErrorMessage(error)}`,
+    }
+  }
 }
 
 export interface KalshiAmendOrderParams extends KalshiAuthParams {
@@ -78,6 +86,7 @@ export interface KalshiAmendOrderParams extends KalshiAuthParams {
 
 export interface KalshiAmendOrderResponse {
   success: boolean
+  error?: string
   output: {
     order: Record<string, unknown>
   }
@@ -144,7 +153,7 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
       required: false,
       visibility: 'user-or-llm',
       description:
-        'New total contracts for the order: already filled plus desired resting (e.g., "10"). Leave empty to keep the current total',
+        'New total contracts for the order: already filled plus desired resting (e.g., "10"). Leave empty to keep the current total, only if the order hasn\'t just changed; Kalshi\'s order reads can briefly lag',
     },
     yesPrice: {
       type: 'string',
@@ -317,6 +326,7 @@ function mapOrder(order: Record<string, unknown>): KalshiAmendOrderV2Order {
 
 export interface KalshiAmendOrderV2Response {
   success: boolean
+  error?: string
   output: {
     old_order: KalshiAmendOrderV2Order
     order: KalshiAmendOrderV2Order
@@ -387,7 +397,7 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'New total contracts for the order: already filled plus desired resting (e.g., "10"). Leave empty to keep the current total',
+        'New total contracts for the order: already filled plus desired resting (e.g., "10"). Leave empty to keep the current total, only if the order hasn\'t just changed; Kalshi\'s order reads can briefly lag',
     },
     yesPrice: {
       type: 'string',
@@ -553,7 +563,7 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
         remaining_count: { type: 'number', description: 'Remaining contracts', nullable: true },
         fill_count_fp: {
           type: 'string',
-          description: 'Filled count (fixed-point)',
+          description: 'Contracts filled by this amend (fixed-point)',
           nullable: true,
         },
         remaining_count_fp: {

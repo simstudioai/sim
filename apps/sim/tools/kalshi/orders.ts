@@ -58,6 +58,20 @@ function parseScaled(value: unknown, decimals: number, label: string): number {
   return Number(match[1]) * 10 ** decimals + Number((match[2] ?? '').padEnd(decimals, '0'))
 }
 
+/**
+ * {@link parseScaled} for a value Kalshi returned: responses may emit up to 6 decimals, so zeros
+ * past `decimals` are dropped ("0.560000" reads as "0.5600"). Real precision beyond it is rejected.
+ */
+function parseResponseScaled(value: unknown, decimals: number, label: string): number {
+  const text = String(value ?? '').trim()
+  const fraction = /\.(\d+)$/.exec(text)?.[1] ?? ''
+  const trimmed =
+    fraction.length > decimals && /^0+$/.test(fraction.slice(decimals))
+      ? text.slice(0, text.length - (fraction.length - decimals))
+      : text
+  return parseScaled(trimmed, decimals, label)
+}
+
 function formatScaled(units: number, decimals: number): string {
   const scale = 10 ** decimals
   return `${Math.floor(units / scale)}.${String(units % scale).padStart(decimals, '0')}`
@@ -233,9 +247,9 @@ export function kalshiAmendParamsFromOrder<P extends KalshiLegacyOrderParams>(
   const current = toRecord(order)
   const next: P = { ...params }
   if (fixedPointCount(params) === undefined) {
-    const filled = parseScaled(current.fill_count_fp ?? '', COUNT_DECIMALS, 'Order fill count')
-    const resting = parseScaled(
-      current.remaining_count_fp ?? '',
+    const filled = parseResponseScaled(current.fill_count_fp, COUNT_DECIMALS, 'Order fill count')
+    const resting = parseResponseScaled(
+      current.remaining_count_fp,
       COUNT_DECIMALS,
       'Order remaining count'
     )
@@ -247,7 +261,7 @@ export function kalshiAmendParamsFromOrder<P extends KalshiLegacyOrderParams>(
     next.noPrice = undefined
     next.noPriceDollars = undefined
     next.yesPriceDollars = formatScaled(
-      parseScaled(current.yes_price_dollars ?? '', PRICE_DECIMALS, 'Order yes price'),
+      parseResponseScaled(current.yes_price_dollars, PRICE_DECIMALS, 'Order yes price'),
       PRICE_DECIMALS
     )
   }

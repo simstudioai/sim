@@ -188,4 +188,48 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
       remaining_count_fp: '6.00',
     })
   })
+
+  it("reads Kalshi's 6-decimal response values when the extra digits are zeros", async () => {
+    const params = { ...BASE, count: '10' }
+    const read = await kalshiAmendOrderV2Tool.transformResponse?.(
+      Response.json({
+        order: {
+          ...CURRENT_ORDER,
+          yes_price_dollars: '0.560000',
+          fill_count_fp: '2.000',
+          remaining_count_fp: '6.00',
+        },
+      }),
+      { ...BASE }
+    )
+    const postProcess = kalshiAmendOrderV2Tool.postProcess
+    if (!read || !postProcess) throw new Error('amend tool cannot read the order')
+    const boundary = amendBoundary(kalshiAmendOrderV2Tool)
+    await postProcess(read, { ...BASE }, boundary.executeTool)
+    expect(boundary.sent[0].body).toMatchObject({ price: '0.5600', count: '8.00' })
+
+    const subPenny = await kalshiAmendOrderV2Tool.transformResponse?.(
+      Response.json({ order: { ...CURRENT_ORDER, yes_price_dollars: '0.560050' } }),
+      params
+    )
+    if (!subPenny) throw new Error('amend tool cannot read the order')
+    const rejected = await postProcess(subPenny, params, boundary.executeTool)
+    expect(rejected.success).toBe(false)
+    expect(boundary.sent).toHaveLength(1)
+  })
+
+  it('reports a failed amend, not the successful read, when the amend throws', async () => {
+    const params = { ...BASE, yesPrice: '57' }
+    const read = await kalshiAmendOrderV2Tool.transformResponse?.(
+      Response.json({ order: CURRENT_ORDER }),
+      params
+    )
+    const postProcess = kalshiAmendOrderV2Tool.postProcess
+    if (!read || !postProcess) throw new Error('amend tool cannot read the order')
+    const result = await postProcess(read, params, async () => {
+      throw new Error('network down')
+    })
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('network down')
+  })
 })

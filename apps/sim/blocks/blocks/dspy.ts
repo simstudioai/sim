@@ -6,7 +6,13 @@ import { failToolCallOnError, mapperOperation, parseOptionalJsonInput } from '@/
 
 /** Predict's Additional Inputs: a JSON object as text from the canvas, or an object from an agent. */
 function parseAdditionalInputs(value: unknown): Record<string, unknown> | undefined {
-  const parsed = parseOptionalJsonInput(value, 'Additional Inputs')
+  let parsed: unknown
+  try {
+    parsed = parseOptionalJsonInput(value, 'Additional Inputs')
+  } catch {
+    // Static on purpose: the parser's message quotes the input, which can hold a resolved secret.
+    throw new Error('Additional Inputs must be valid JSON')
+  }
   if (parsed === undefined) return undefined
   if (!isPlainRecord(parsed)) {
     throw new Error('Additional Inputs must be a JSON object')

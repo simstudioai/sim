@@ -432,6 +432,13 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['get_order', 'cancel_order', 'amend_order'] },
     },
     {
+      id: 'cancelTicker',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: "Order's market ticker (optional; looked up from the order when empty)",
+      condition: { field: 'operation', value: ['cancel_order'] },
+    },
+    {
       id: 'tickerOrder',
       title: 'Market Ticker',
       type: 'short-input',
@@ -726,6 +733,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           tickerOrder,
           orderType,
           orderSelfTradePrevention,
+          cancelTicker,
           countAmend,
           clientOrderIdAmend,
           ...rest
@@ -797,6 +805,11 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
         if (operation === 'create_order' || operation === 'amend_order') {
           mapField('ticker', tickerOrder)
+        }
+
+        // Routes the cancel to the order's exchange shard; the tool looks it up when empty.
+        if (operation === 'cancel_order') {
+          mapField('ticker', cancelTicker)
         }
 
         if (operation === 'create_order') {
