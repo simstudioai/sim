@@ -72,6 +72,8 @@ function severityOf(code: CompileDiagnosticCode): SeverityOfCode {
 export const MAX_ERRORS = 100
 /** Warnings one compile lists before the rest are omitted with `W_TOO_MANY_WARNINGS`. */
 export const MAX_WARNINGS = 100
+/** Infos one compile lists before the rest are dropped; counted apart so none displaces a warning. */
+export const MAX_INFOS = 100
 /** Code units of a message or hint kept; longer text, which quotes the source, is cut. */
 const MAX_MESSAGE_LENGTH = 1_000
 
@@ -94,7 +96,7 @@ function capLength(text: string): string {
 /**
  * Collects located diagnostics for every file a compile reads. Each diagnostic gets its span (from
  * offsets) and code frame here, so no other module computes line numbers. Output is bounded: at
- * most {@link MAX_ERRORS} errors and {@link MAX_WARNINGS} warnings, each with a bounded frame and
+ * most {@link MAX_ERRORS} errors, {@link MAX_WARNINGS} warnings and {@link MAX_INFOS} infos, each with a bounded frame and
  * message.
  */
 export class Reporter {
@@ -102,6 +104,7 @@ export class Reporter {
   private readonly indexes = new Map<string, LineIndex>()
   private errorCount = 0
   private warningCount = 0
+  private infoCount = 0
 
   addFile(path: string, text: string): void {
     this.indexes.set(path, new LineIndex(text))
@@ -130,10 +133,12 @@ export class Reporter {
   /**
    * Records a diagnostic. The error after the {@link MAX_ERRORS}th is recorded as
    * `E_TOO_MANY_ERRORS` and throws {@link ErrorLimitReached}; the warning after the
-   * {@link MAX_WARNINGS}th is recorded as `W_TOO_MANY_WARNINGS` and later ones are dropped.
+   * {@link MAX_WARNINGS}th is recorded as `W_TOO_MANY_WARNINGS` and later ones are dropped. Infos
+   * have their own cap, {@link MAX_INFOS}, so they never crowd out a warning.
    */
   report(code: CompileDiagnosticCode, message: string, at: Range, extras: ReportExtras = {}): void {
-    if (severityOf(code) === 'error') {
+    const severity = severityOf(code)
+    if (severity === 'error') {
       if (this.errorCount === MAX_ERRORS) {
         this.record(
           'E_TOO_MANY_ERRORS',
@@ -143,6 +148,8 @@ export class Reporter {
         )
         throw new ErrorLimitReached()
       }
+    } else if (severity === 'info') {
+      if (this.infoCount >= MAX_INFOS) return
     } else if (this.warningCount >= MAX_WARNINGS) {
       if (this.warningCount === MAX_WARNINGS) {
         this.record(
@@ -167,6 +174,7 @@ export class Reporter {
     const lines = this.indexes.get(at.file)?.lines ?? ['']
     const severity = severityOf(code)
     if (severity === 'error') this.errorCount++
+    else if (severity === 'info') this.infoCount++
     else this.warningCount++
     const hint = typeof extras.hint === 'function' ? extras.hint() : extras.hint
     const diagnostic = {
