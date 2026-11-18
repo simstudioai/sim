@@ -1,6 +1,7 @@
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { fileAdapter } from '@/lib/workspace-source/application/kinds/files/adapter'
 import { knowledgeAdapter } from '@/lib/workspace-source/application/kinds/knowledge/adapter'
+import { mcpAdapter } from '@/lib/workspace-source/application/kinds/mcp/adapter'
 import { skillAdapter } from '@/lib/workspace-source/application/kinds/skills/adapter'
 import { tableAdapter } from '@/lib/workspace-source/application/kinds/table/adapter'
 import { toolAdapter } from '@/lib/workspace-source/application/kinds/tools/adapter'
@@ -11,6 +12,7 @@ import type { KindAdapter } from '@/lib/workspace-source/application/types'
 export const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<unknown, unknown> } = {
   'custom-tool': toolAdapter,
   skill: skillAdapter,
+  'mcp-server': mcpAdapter,
   table: tableAdapter,
   'knowledge-base': knowledgeAdapter,
   file: fileAdapter,

@@ -25,7 +25,6 @@ import {
   isWorkspaceKind,
   type ResourceFingerprint,
   resourceAddress,
-  type WorkspaceKind,
 } from '@sim/workspace-code'
 import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import {
@@ -44,7 +43,7 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
-import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
+import type { PendingResource, SourceReference } from '@/lib/workflows/application/source-evaluate'
 import {
   countLiveWorkflows,
   LAST_WORKFLOW_MESSAGE,
@@ -68,7 +67,6 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
 const logger = createLogger('WorkspaceSourceWorkflows')
 
@@ -111,12 +109,18 @@ type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
 
 /**
  * The resources a compiled workflow names that a workspace directory declares by the same key: a
- * kind whose source key is its resource key (a workspace file's source key is its path).
+ * kind whose source key is its resource key (a workspace file's source key is its path), once per
+ * member it names (an MCP server's tools).
  */
-function sourceRefs(references: readonly ResourceKeyRef[]): NonNullable<WorkflowChange['refs']> {
-  const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
-  for (const { kind, key } of references) {
-    if (isWorkspaceKind(kind) && isResourceKeyed(kind)) refs.set(`${kind}:${key}`, { kind, key })
+function sourceRefs(references: readonly SourceReference[]): NonNullable<WorkflowChange['refs']> {
+  const refs = new Map<string, NonNullable<WorkflowChange['refs']>[number]>()
+  for (const { kind, key, member } of references) {
+    if (!isWorkspaceKind(kind) || !isResourceKeyed(kind)) continue
+    refs.set(JSON.stringify([kind, key, member ?? null]), {
+      kind,
+      key,
+      ...(member !== undefined ? { member } : {}),
+    })
   }
   return [...refs.values()]
 }

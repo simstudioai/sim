@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
@@ -91,6 +92,14 @@ export interface SourceEvaluationInput {
   pendingResources?: readonly PendingResource[]
 }
 
+/**
+ * A resource the source names by key; `member` is the part of it a reference names, when it names
+ * one: an MCP server's tool, for `mcp(key).tool(name)`.
+ */
+export interface SourceReference extends ResourceKeyRef {
+  member?: string
+}
+
 /** A resource an enclosing apply creates or adopts, by key, with the id that stands in for it. */
 export interface PendingResource {
   kind: ResourceKind
@@ -160,6 +169,7 @@ const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReferen
   'knowledge-base': 'resource',
   file: 'resource',
   workflow: 'resource',
+  'mcp-server': 'mcp-tool',
 }
 
 /** Unresolved reference kinds whose ids an enclosing apply may create. */
@@ -225,13 +235,16 @@ export interface SourcePlan {
   /** Answers every resource reference of both the stored and the submitted source. */
   resources: ResourceKeyResolver
   /** Every resource the submitted source names by key, as the compiler read it. */
-  references: ResourceKeyRef[]
+  references: SourceReference[]
 }
 
 export type SourceEvaluation = { refused: WorkflowSourceDiagnostic[] } | { plan: SourcePlan }
 
-/** Every `(kind, key)` resource reference in a compiled model, for ident lookup. */
-function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
+/**
+ * Every `(kind, key)` resource reference in a compiled model, for ident lookup, and the tool each
+ * MCP agent tool (`mcp(key).tool(name)`) names on its server.
+ */
+function collectResourceKeys(value: unknown, refs: SourceReference[]): void {
   if (Array.isArray(value)) {
     for (const item of value) collectResourceKeys(item, refs)
     return
@@ -245,7 +258,25 @@ function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
   ) {
     refs.push({ kind: record.kind as ResourceKind, key: record.key })
   }
+  const tool = mcpToolReference(record)
+  if (tool) refs.push(tool)
   for (const nested of Object.values(record)) collectResourceKeys(nested, refs)
+}
+
+/** The server and tool an MCP agent tool entry names, or `null` for anything else. */
+function mcpToolReference(record: Record<string, unknown>): SourceReference | null {
+  if (record.type !== 'mcp' || !isRecordLike(record.params)) return null
+  const { serverId, toolName } = record.params
+  if (
+    !isRecordLike(serverId) ||
+    serverId.$sim !== 'resource' ||
+    serverId.kind !== 'mcp-server' ||
+    typeof serverId.key !== 'string' ||
+    typeof toolName !== 'string'
+  ) {
+    return null
+  }
+  return { kind: 'mcp-server', key: serverId.key, member: toolName }
 }
 
 /** Block ids another workflow already stores, among `ids`. */
@@ -338,7 +369,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     }
   }
 
-  const compiledKeys: ResourceKeyRef[] = []
+  const compiledKeys: SourceReference[] = []
   collectResourceKeys(compiledWorkflow.blocks, compiledKeys)
   const storedResources = resources
   const newKeys = compiledKeys.filter(({ kind, key }) => storedResources.toId(kind, key) === null)

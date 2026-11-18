@@ -94,6 +94,20 @@ const sourceResourcesSchema = z
         manifestResourceSchema.describe('A workspace custom tool, by its title: `customTool(key)`.')
       )
       .describe('Workspace custom tools, oldest first.'),
+    mcpServers: z
+      .array(
+        manifestResourceSchema
+          .extend({
+            tools: z
+              .array(z.string())
+              .optional()
+              .describe(
+                'Tool names the server listed, for `mcp(key).tool(name)`; absent when it could not be listed (unreachable, or not listable by this caller).'
+              ),
+          })
+          .describe('An MCP server the workspace consumes: `mcp(key)`.')
+      )
+      .describe('MCP servers, oldest first.'),
     env: z
       .array(z.string())
       .describe(
