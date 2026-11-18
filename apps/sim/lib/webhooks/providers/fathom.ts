@@ -1,18 +1,39 @@
 import { createLogger } from '@sim/logger'
+import type { NextResponse } from 'next/server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   SubscriptionContext,
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Fathom')
 
 export const fathomHandler: WebhookProviderHandler = {
+  /**
+   * Fathom signs deliveries with the Standard Webhooks scheme using the secret
+   * returned when Sim registers the webhook. Rows registered before Sim stored
+   * that secret have none and keep being accepted until they are redeployed.
+   */
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
+    const signingSecret = providerConfig.signingSecret as string | undefined
+    if (!signingSecret?.trim()) return null
+
+    return verifyStandardWebhookRequest({
+      request,
+      rawBody,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Fathom',
+    })
+  },
+
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const { webhook, requestId } = ctx
     try {
@@ -109,7 +130,12 @@ export const fathomHandler: WebhookProviderHandler = {
         fathomWebhookId: responseBody.id,
       })
 
-      return { providerConfigUpdates: { externalId: responseBody.id } }
+      const signingSecret =
+        typeof responseBody.secret === 'string' && responseBody.secret.trim()
+          ? responseBody.secret
+          : undefined
+
+      return { providerConfigUpdates: { externalId: responseBody.id, signingSecret } }
     } catch (error: unknown) {
       if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error

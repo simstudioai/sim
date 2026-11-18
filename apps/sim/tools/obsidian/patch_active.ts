@@ -70,6 +70,7 @@ export const patchActiveTool: ToolConfig<ObsidianPatchActiveParams, ObsidianPatc
       const headers: Record<string, string> = {
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'text/markdown',
+        'Markdown-Patch-Version': '1',
         Operation: params.operation,
         'Target-Type': params.targetType,
         Target: encodeURIComponent(params.target),

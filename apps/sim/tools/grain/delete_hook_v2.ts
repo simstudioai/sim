@@ -1,6 +1,7 @@
 import type { GrainDeleteHookV2Params, GrainDeleteHookV2Response } from '@/tools/grain/types'
 import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const grainDeleteHookV2Tool: ToolConfig<GrainDeleteHookV2Params, GrainDeleteHookV2Response> =
   {
@@ -26,7 +27,8 @@ export const grainDeleteHookV2Tool: ToolConfig<GrainDeleteHookV2Params, GrainDel
     },
 
     request: {
-      url: (params) => `https://api.grain.com/_/public-api/v2/hooks/${params.hookId.trim()}`,
+      url: (params) =>
+        `https://api.grain.com/_/public-api/v2/hooks/${safeUrlPathSegment(params.hookId, 'hookId')}`,
       method: 'DELETE',
       headers: (params) => ({
         'Content-Type': 'application/json',
