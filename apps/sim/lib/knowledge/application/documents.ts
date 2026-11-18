@@ -51,6 +51,7 @@ import {
   deleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase,
   getDocuments,
+  getDocumentsAfter,
   getProcessingConfig,
   type ProcessingOptions,
   updateDocument,
@@ -102,6 +103,20 @@ export interface ListKnowledgeDocumentsInput {
    */
   tagNameFilters?: KnowledgeTagNameFilter[]
 }
+
+interface ListKnowledgeDocumentsAfterInput {
+  knowledgeBaseId: string
+  assertedWorkspaceId?: string
+  /** The id the previous page ended at (its `next`); `null` for the first page. */
+  after: string | null
+  /** Documents per page, at most {@link MAX_DOCUMENTS_PAGE_AFTER}. */
+  limit: number
+  /** Lists only these documents (at most `limit`), those that are live and readable. */
+  documentIds?: string[]
+}
+
+/** The largest page {@link listKnowledgeDocumentsAfter} reads. */
+export const MAX_DOCUMENTS_PAGE_AFTER = 1_000
 
 export interface ReadKnowledgeDocumentInput {
   knowledgeBaseId: string
@@ -338,6 +353,48 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
         (await getDocumentTagDefinitions(context.knowledgeBaseId)),
       workspaceId: context.workspaceId,
+    }
+  },
+})
+
+/**
+ * Every live document of a knowledge base the caller can read, one keyset page at a time in id
+ * order: a walk over every page never skips or repeats a document that changes between pages,
+ * and each page costs the same at any depth. Same operation and admission as
+ * {@link listKnowledgeDocuments}, without its counts, sorting or filters.
+ */
+export const listKnowledgeDocumentsAfter = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.listDocuments,
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListKnowledgeDocumentsAfterInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
+  async execute({ principal, input, context }) {
+    const { limit, documentIds } = input
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_DOCUMENTS_PAGE_AFTER) {
+      throw new OrchestrationError(
+        'validation',
+        `Document limit must be between 1 and ${MAX_DOCUMENTS_PAGE_AFTER}`
+      )
+    }
+    if (documentIds && documentIds.length > limit) {
+      throw new OrchestrationError('validation', 'List at most `limit` documents by id')
+    }
+    const page = await getDocumentsAfter(
+      context.knowledgeBaseId,
+      { after: input.after, limit, ...(documentIds ? { documentIds } : {}) },
+      context.access
+    )
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      page.documents.map((doc) => ({ id: doc.id, value: doc }))
+    )
+    return {
+      documents: page.documents.filter((doc) => admitted.has(doc.id)),
+      next: page.next,
     }
   },
 })
