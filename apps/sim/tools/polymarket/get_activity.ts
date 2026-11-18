@@ -128,10 +128,12 @@ export const polymarketGetActivityTool: ToolConfig<
       if (params.market) query.append('condition', params.market)
       if (params.eventId) query.append('event_id', params.eventId)
       if (params.type) query.append('type', params.type)
-      if (params.start != null && !Number.isNaN(params.start)) {
-        query.append('start', String(params.start))
+      for (const key of ['start', 'end'] as const) {
+        const value = params[key]
+        if (value == null || String(value).trim() === '') continue
+        const seconds = Number(value)
+        if (Number.isFinite(seconds)) query.append(key, String(seconds))
       }
-      if (params.end != null && !Number.isNaN(params.end)) query.append('end', String(params.end))
       if (params.sortBy) query.append('sort_by', params.sortBy)
       if (params.sortDirection) query.append('sort_direction', params.sortDirection)
       if (params.side) query.append('side', params.side)

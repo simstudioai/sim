@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { polymarketGetActivityTool } from '@/tools/polymarket/get_activity'
 import { polymarketGetLeaderboardTool } from '@/tools/polymarket/get_leaderboard'
 import { polymarketGetPositionsTool } from '@/tools/polymarket/get_positions'
 import { polymarketGetTradesTool } from '@/tools/polymarket/get_trades'
@@ -105,5 +106,20 @@ describe('Polymarket Data API v2', () => {
       { user: '0xabc', redeemable: 'false' }
     )
     expect(result?.output.positions.map((position) => position.asset)).toEqual(['open'])
+  })
+
+  it('skips an untouched (null) or empty start/end and accepts a numeric string', () => {
+    const url = requestUrl(polymarketGetActivityTool, {
+      user: '0xabc',
+      start: null as unknown as number,
+      end: '' as unknown as number,
+    })
+    expect(url.searchParams.has('start')).toBe(false)
+    expect(url.searchParams.has('end')).toBe(false)
+    const fromString = requestUrl(polymarketGetActivityTool, {
+      user: '0xabc',
+      start: '1700000000' as unknown as number,
+    })
+    expect(fromString.searchParams.get('start')).toBe('1700000000')
   })
 })
