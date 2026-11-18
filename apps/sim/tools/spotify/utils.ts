@@ -33,6 +33,16 @@ export function splitSpotifyLibraryIds(ids: string, maxIds?: number): string[] {
 }
 
 /**
+ * The Spotify URI for an ID, or the value itself when it is already a URI of `type`. A URI of
+ * another type is rejected, so a track tool never saves or removes an album, say.
+ */
+function toSpotifyUri(id: string, type: SpotifyLibraryItemType): string {
+  if (!id.startsWith('spotify:')) return `spotify:${type}:${id}`
+  if (id.split(':')[1] !== type) throw new Error(`"${id}" is not a Spotify ${type} URI`)
+  return id
+}
+
+/**
  * Builds one Save/Remove (`/me/library`) or Check (`/me/library/contains`) URL per 40 Spotify IDs
  * of one type. These generic endpoints replace the per-type save, remove, follow, and contains
  * endpoints Spotify removed for Development Mode apps in February 2026, and take Spotify URIs
@@ -44,7 +54,7 @@ function spotifyLibraryUrls(
   options: SpotifyLibraryOptions
 ): string[] {
   const uris = splitSpotifyLibraryIds(ids, options.maxIds).map((id) =>
-    encodeURIComponent(id.startsWith('spotify:') ? id : `spotify:${type}:${id}`)
+    encodeURIComponent(toSpotifyUri(id, type))
   )
   const base = `https://api.spotify.com/v1${options.contains ? '/me/library/contains' : '/me/library'}`
   const urls: string[] = []
@@ -93,15 +103,18 @@ export async function sendRemainingSpotifyLibraryChunks(
       const body = (await response.json().catch(() => null)) as {
         error?: { message?: string }
       } | null
+      const reason = body?.error?.message ?? `HTTP ${response.status}`
+      const handled = method === 'GET' ? 'checked' : 'applied'
+      const unsent = last < total ? ` IDs ${last + 1}-${total} were not sent.` : ''
       throw new Error(
-        `Spotify rejected IDs ${first}-${last}: ${
-          body?.error?.message ?? `HTTP ${response.status}`
-        }`
+        `IDs 1-${first - 1} were ${handled}. Spotify rejected IDs ${first}-${last}: ${reason}.${unsent}`
       )
     }
     if (options.contains) {
       const chunk: unknown = await response.json()
-      if (Array.isArray(chunk)) results.push(...chunk.map(Boolean))
+      if (!Array.isArray(chunk))
+        throw new Error('Spotify returned an invalid library check response')
+      results.push(...chunk.map(Boolean))
     }
   }
   return results
