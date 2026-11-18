@@ -1,6 +1,7 @@
 import type { PolymarketEvent } from '@/tools/polymarket/types'
 import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface PolymarketGetEventParams {
   eventId?: string // Event ID
@@ -42,9 +43,9 @@ export const polymarketGetEventTool: ToolConfig<
   request: {
     url: (params) => {
       if (params.slug) {
-        return buildGammaUrl(`/events/slug/${params.slug.trim()}`)
+        return buildGammaUrl(`/events/slug/${safeUrlPathSegment(params.slug, 'slug')}`)
       }
-      return buildGammaUrl(`/events/${params.eventId?.trim()}`)
+      return buildGammaUrl(`/events/${safeUrlPathSegment(params.eventId ?? '', 'eventId')}`)
     },
     method: 'GET',
     headers: () => ({

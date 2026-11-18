@@ -50,16 +50,26 @@ describe('SMTP operation', () => {
         host: '203.0.113.10',
         port: 465,
         secure: true,
+        requireTLS: false,
         auth: { user: 'user', pass: 'password' },
         name: 'sim.example.com',
         tls: { rejectUnauthorized: true, servername: 'smtp.example.com' },
       },
       expect.objectContaining({
-        from: '"Sender" <from@example.com>',
+        from: { name: 'Sender', address: 'from@example.com' },
         to: 'to@example.com',
         subject: 'Hello',
         html: '<b>Hello</b>',
       }),
+      context.signal
+    )
+  })
+
+  it('requires STARTTLS in TLS mode so credentials never go out in plaintext', async () => {
+    await executeSmtpSend({ ...base, smtpPort: 587, smtpSecure: 'TLS' }, context)
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ secure: false, requireTLS: true }),
+      expect.anything(),
       context.signal
     )
   })

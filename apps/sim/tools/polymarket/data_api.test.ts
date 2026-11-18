@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest'
+import { polymarketGetLeaderboardTool } from '@/tools/polymarket/get_leaderboard'
+import { polymarketGetPositionsTool } from '@/tools/polymarket/get_positions'
+import { polymarketGetTradesTool } from '@/tools/polymarket/get_trades'
+
+const parseUrl = (url: unknown) => new URL(String(url))
+
+/** The unversioned Data API v1 routes answer `410 Gone`; every Data tool must call v2. */
+describe('Polymarket Data API v2', () => {
+  it('sends v1-style position filters under their v2 names', () => {
+    const url = parseUrl(
+      polymarketGetPositionsTool.request.url({
+        user: '0xabc',
+        market: '0xcond',
+        eventId: '42',
+        sizeThreshold: '5',
+        redeemable: 'true',
+        sortBy: 'CURRENT',
+        limit: '10',
+        cursor: 'next-page',
+      })
+    )
+    expect(url.pathname).toBe('/v2/positions')
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      user: '0xabc',
+      condition: '0xcond',
+      event_id: '42',
+      filter_amount: '5',
+      status: 'REDEEMABLE',
+      sort_by: 'CURRENT_VALUE',
+      limit: '10',
+      cursor: 'next-page',
+    })
+  })
+
+  it('maps v2 snake_case rows and the cursor envelope to the existing outputs', async () => {
+    const body = {
+      data: [
+        {
+          proxy_wallet: '0xw',
+          token_id: '123',
+          condition_id: '0xc',
+          side: 'BUY',
+          size: 2,
+          price: 0.4,
+          timestamp: 1700000000,
+          event_slug: 'event',
+          outcome_index: 1,
+          profile_image: 'img',
+          transaction_hash: '0xt',
+        },
+      ],
+      pagination: { has_more: true, next_cursor: 'cursor-2', limit: 1, offset: 0 },
+    }
+    const result = await polymarketGetTradesTool.transformResponse?.(
+      new Response(JSON.stringify(body), { status: 200 })
+    )
+    expect(result?.output).toMatchObject({
+      trades: [
+        {
+          proxyWallet: '0xw',
+          asset: '123',
+          conditionId: '0xc',
+          eventSlug: 'event',
+          outcomeIndex: 1,
+          profileImage: 'img',
+          transactionHash: '0xt',
+        },
+      ],
+      nextCursor: 'cursor-2',
+      hasMore: true,
+    })
+  })
+
+  it("returns one wallet's volume rank from the v2 standing object", async () => {
+    const params = { user: '0xw', orderBy: 'VOL' }
+    expect(
+      parseUrl(polymarketGetLeaderboardTool.request.url(params)).searchParams.get('sort_by')
+    ).toBe('VOLUME')
+    const body = { data: { user_id: '0xw', rank_pnl: 9, rank_volume: 3, volume: 10, pnl: 1 } }
+    const result = await polymarketGetLeaderboardTool.transformResponse?.(
+      new Response(JSON.stringify(body), { status: 200 }),
+      params
+    )
+    expect(result?.output.leaderboard).toEqual([
+      expect.objectContaining({ rank: '3', proxyWallet: '0xw', vol: 10 }),
+    ])
+  })
+})

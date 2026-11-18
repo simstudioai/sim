@@ -242,11 +242,15 @@ export const SftpBlock = {
 
         if (params.authMethod === 'privateKey') {
           connectionConfig.privateKey = params.privateKey
-          if (params.passphrase) {
-            connectionConfig.passphrase = params.passphrase
-          }
+          connectionConfig.passphrase = params.passphrase || undefined
+          connectionConfig.password = undefined
         } else {
           connectionConfig.password = params.password
+          if (params.authMethod === 'password') {
+            // A key stored before switching to password auth would otherwise win on the server.
+            connectionConfig.privateKey = undefined
+            connectionConfig.passphrase = undefined
+          }
         }
 
         const operation = mapperOperation(params, context) || 'sftp_upload'
@@ -258,6 +262,8 @@ export const SftpBlock = {
               remotePath: params.remotePath,
               // files is the canonical param from uploadFiles (basic) or files (advanced)
               files: normalizeFileInput(params.files),
+              fileContent: toolCallArg(context, params.fileContent),
+              fileName: toolCallArg(context, params.fileName),
               overwrite: params.overwrite !== false,
               permissions: params.permissions,
             }
@@ -265,6 +271,7 @@ export const SftpBlock = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
+              files: undefined,
               fileContent: params.fileContent,
               fileName: params.fileName,
               overwrite: params.overwrite !== false,

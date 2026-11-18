@@ -246,16 +246,21 @@ export function readSftpFileCapped(
   return readNodeStreamToBufferWithLimit(stream, { maxBytes, label, signal })
 }
 
+/** Percent-decodes a remote path; a path that is not valid percent-encoding (a literal `%`) is used as typed. */
+function decodeRemotePath(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
 export function sanitizePath(path: string): string {
-  return decodeURIComponent(path.replace(/\0/g, '')).replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+  return decodeRemotePath(path.replace(/\0/g, '')).replace(/\\/g, '/').replace(/\/+/g, '/').trim()
 }
 
 export function sanitizeFileName(fileName: string): string {
-  let sanitized = fileName.replace(/\0/g, '')
-  try {
-    sanitized = decodeURIComponent(sanitized)
-  } catch {}
-  sanitized = sanitized
+  const sanitized = decodeRemotePath(fileName.replace(/\0/g, ''))
     .replace(/[/\\]+/g, '_')
     .replace(/^\.+/, '')
     .replace(/[\x00-\x1f\x7f]/g, '')
@@ -266,12 +271,8 @@ export function sanitizeFileName(fileName: string): string {
 export function isPathSafe(path: string): boolean {
   const normalizedPath = path.replace(/\\/g, '/')
   if (normalizedPath.includes('../') || normalizedPath.includes('..\\')) return false
-  try {
-    const decoded = decodeURIComponent(normalizedPath)
-    if (decoded.includes('../') || decoded.includes('..\\')) return false
-  } catch {
-    return false
-  }
+  const decoded = decodeRemotePath(normalizedPath)
+  if (decoded.includes('../') || decoded.includes('..\\')) return false
   return !normalizedPath.includes('\0')
 }
 

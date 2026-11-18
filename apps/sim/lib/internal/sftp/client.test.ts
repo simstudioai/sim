@@ -62,8 +62,10 @@ vi.mock('ssh2', () => ({
 
 import {
   createSftpConnection,
+  isPathSafe,
   readSftpFileCapped,
   sanitizeFileName,
+  sanitizePath,
 } from '@/lib/internal/sftp/client'
 
 const { mockValidateDatabaseHost } = inputValidationMockFns
@@ -143,5 +145,13 @@ describe('SFTP client boundary', () => {
 
     expect(sanitized).toBe(expected)
     expect(sanitized).not.toMatch(/[/\\]/)
+  })
+
+  it('accepts a remote path with a literal percent sign as typed', () => {
+    expect(isPathSafe('/reports/100% done.csv')).toBe(true)
+    expect(sanitizePath('/reports/100% done.csv')).toBe('/reports/100% done.csv')
+    expect(sanitizePath('/reports/q1%20summary.csv')).toBe('/reports/q1 summary.csv')
+    expect(isPathSafe('/reports/%2e%2e%2f100%')).toBe(true)
+    expect(isPathSafe('/reports/%2e%2e%2fsecret')).toBe(false)
   })
 })
