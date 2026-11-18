@@ -450,6 +450,49 @@ describe('table rows as workspace source', () => {
     ])
   })
 
+  check('refuses rows the declared columns cannot hold at plan time, writing nothing', async () => {
+    const workspaceId = await newWorkspace()
+    const seeded = {
+      'tables/plans.ts': SEED,
+      'tables/plans.rows.jsonl': [
+        '{}',
+        '{"code":"solo","seats":"many"}',
+        '{"code":"team","tier":"gold"}',
+        '{"code":"solo"}',
+        '',
+      ].join('\n'),
+    }
+    const dryRun = await apply(workspaceId, seeded, { dryRun: true })
+    expect(codes(dryRun.diagnostics)).toEqual(['E_TABLE_ROWS'])
+    const [seedFinding] = dryRun.diagnostics
+    expect(seedFinding.message).toMatch(/^4 row\(s\) of tables\/plans\.rows\.jsonl/)
+    expect(seedFinding.message).toContain('row 1: Missing required field: code')
+    expect(seedFinding.message).toMatch(/row 4: [^;]*must be unique/)
+    const refused = await refusal(apply(workspaceId, seeded))
+    expect(codes(refused.diagnostics)).toEqual(['E_TABLE_ROWS'])
+    const tables = await db
+      .select({ id: userTableDefinitions.id })
+      .from(userTableDefinitions)
+      .where(eq(userTableDefinitions.workspaceId, workspaceId))
+    expect(tables).toEqual([])
+
+    const managed = await newWorkspace()
+    const read = await managedPlans(managed)
+    const edited = {
+      ...read.files,
+      'tables/plans.rows.jsonl': ROWS.replace('"tier":"pro"', '"tier":"gold"'),
+    }
+    const managedDryRun = await apply(managed, edited, { base: read.base, dryRun: true })
+    expect(codes(managedDryRun.diagnostics)).toEqual(['E_TABLE_ROWS'])
+    expect(codes((await refusal(apply(managed, edited, { base: read.base }))).diagnostics)).toEqual(
+      ['E_TABLE_ROWS']
+    )
+    expect(await storedRows(managed)).toEqual([
+      { code: 'solo', seats: 1, tier: 'basic' },
+      { code: 'team', seats: 10, tier: 'pro' },
+    ])
+  })
+
   check('seeds a new table once, and only a new or empty one', async () => {
     const workspaceId = await newWorkspace()
     const files = { 'tables/plans.ts': SEED, 'tables/plans.rows.jsonl': ROWS }

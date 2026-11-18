@@ -43,6 +43,12 @@ import {
   listTableDefinitionsUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
+import type { RowData, TableSchema } from '@/lib/table/types'
+import {
+  coerceRowToSchema,
+  findBatchUniqueDuplicates,
+  validateRowSize,
+} from '@/lib/table/validation'
 import {
   keyRenamedChange,
   kindFinding,
@@ -172,8 +178,64 @@ function rowsWrite(decl: TableDecl, allowDelete: boolean): ReshapeRows | undefin
     : { mode: 'seed', rows: named }
 }
 
+/** How many refused rows a finding lists before it counts the rest. */
+const LISTED_INVALID_ROWS = 5
+
+/**
+ * Refuses declared rows the declared columns cannot hold, checked at plan time as the write checks
+ * them, so a dry run fails where the apply would and an apply fails before writing anything: each
+ * row within the size limit, coerced to its columns' types and select options without blanking a
+ * value (`coerceRowToSchema`, `reject`), with every required cell filled, and no unique value
+ * repeated across the rows.
+ */
+function invalidRowsFinding(
+  key: string,
+  decl: TableDecl,
+  rows: readonly RowData[]
+): WorkspaceSourceDiagnostic | undefined {
+  const schema: TableSchema = {
+    columns: Object.entries(decl.columns).map(([columnKey, column]) =>
+      columnInput(columnKey, column)
+    ),
+  }
+  const errorsByRow = new Map<number, string[]>()
+  const coerced = rows.map((row, index) => {
+    const copy = structuredClone(row)
+    const size = validateRowSize(copy)
+    const result = size.valid ? coerceRowToSchema(copy, schema, 'reject') : size
+    if (!result.valid) errorsByRow.set(index, result.errors)
+    return copy
+  })
+  for (const { row, errors } of findBatchUniqueDuplicates(coerced, schema)) {
+    errorsByRow.set(row, [...(errorsByRow.get(row) ?? []), ...errors])
+  }
+  if (errorsByRow.size === 0) return undefined
+  const listed = [...errorsByRow.entries()]
+    .sort(([a], [b]) => a - b)
+    .slice(0, LISTED_INVALID_ROWS)
+    .map(([index, errors]) => `row ${index + 1}: ${errors.join(', ')}`)
+  const more = errorsByRow.size - listed.length
+  return kindFinding(
+    'table',
+    key,
+    'E_TABLE_ROWS',
+    `${errorsByRow.size} row(s) of ${tableRowsPath(key)} do not fit the declared columns: ${listed.join('; ')}${more > 0 ? `; and ${more} more` : ''}.`,
+    { file: tableRowsPath(key) }
+  )
+}
+
+/** The rows `write` writes, refused as {@link invalidRowsFinding} refuses them. */
+function writeFindings(
+  key: string,
+  decl: TableDecl,
+  write: ReshapeRows | undefined
+): WorkspaceSourceDiagnostic[] {
+  const finding = write ? invalidRowsFinding(key, decl, write.rows) : undefined
+  return finding ? [finding] : []
+}
+
 /** The rows of a table the apply creates: every declared row, and the managed mark. */
-function createRows(decl: TableDecl): RowsOutcome {
+function createRows(key: string, decl: TableDecl): RowsOutcome {
   const rows = decl.rows
   if (!rows) return { fields: [], removed: 0, diagnostics: [] }
   const mark = markOf(decl)
@@ -185,7 +247,7 @@ function createRows(decl: TableDecl): RowsOutcome {
     },
     fields: rows.data.length > 0 ? [`rows (${rows.mode} ${rows.data.length})`] : [],
     removed: 0,
-    diagnostics: [],
+    diagnostics: writeFindings(key, decl, write),
   }
 }
 
@@ -211,11 +273,10 @@ async function planRows(
     }
     if (rows?.mode === 'seed' && rows.data.length > 0 && !entry) {
       if (state.table.rowCount === 0) {
-        outcome.plan = {
-          ...outcome.plan,
-          write: { mode: 'seed', rows: namedRows(rows, namesByKey(decl)) },
-        }
+        const write: ReshapeRows = { mode: 'seed', rows: namedRows(rows, namesByKey(decl)) }
+        outcome.plan = { ...outcome.plan, write }
         outcome.fields.push(`rows (seed ${rows.data.length})`)
+        outcome.diagnostics.push(...writeFindings(key, decl, write))
       } else {
         outcome.diagnostics.push(
           kindFinding(
@@ -266,12 +327,14 @@ async function planRows(
       )
     )
   }
+  const write = rowsWrite(decl, ctx.allowDelete)
   outcome.plan = {
-    write: rowsWrite(decl, ctx.allowDelete),
+    write,
     ...(marked ? {} : { mark: markOf(decl) }),
     version: stored.version,
   }
   outcome.fields.push(`rows (${rows.data.length})`)
+  outcome.diagnostics.push(...writeFindings(key, decl, write))
   return outcome
 }
 
@@ -361,15 +424,17 @@ async function planTable(
         if (renamed) return renamed
         change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
       }
+      const rows = createRows(key, decl)
+      change.diagnostics.push(...rows.diagnostics)
       return {
         ...change,
         action: 'create',
         fields: [
           ...Object.keys(decl.columns).map((column) => `columns.${column} (add)`),
-          ...createRows(decl).fields,
+          ...rows.fields,
         ],
         pending: pendingOf({ ...change, action: 'create' }, { columns: declaredColumnNames(decl) }),
-        detail: { rows: createRows(decl).plan },
+        detail: { rows: rows.plan },
       }
     }
     case 'adopt':
