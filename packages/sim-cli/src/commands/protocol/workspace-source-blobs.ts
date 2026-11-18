@@ -9,6 +9,7 @@ import { createReadStream, createWriteStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -32,8 +33,8 @@ import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import {
   checkedPath,
+  FILE_CONCURRENCY,
   type FileStat,
-  inPool,
   isMissing,
   type StatDigest,
   type Written,
@@ -134,7 +135,7 @@ export async function blobDigests(
     throw error
   }
   const verified = new Set<string>()
-  await inPool(paths, async (path) => {
+  await mapWithConcurrency(paths, FILE_CONCURRENCY, async (path) => {
     try {
       const file = await checkedPath(root, path, verified)
       digests.set(path, await statDigest(file, path, await stat(file), written))

@@ -1,5 +1,6 @@
 import { mkdir, mkdtemp, realpath, rename, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import {
   APPLY_ORDER,
@@ -21,7 +22,7 @@ import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   editedFiles,
-  inPool,
+  FILE_CONCURRENCY,
   readSourceJson,
   readSourceText,
   readWritten,
@@ -193,8 +194,9 @@ async function writeWorkspaceSource(
   try {
     const downloaded = new Map<string, StatDigest & { file: string }>()
     if (scratch) {
-      await inPool(
+      await mapWithConcurrency(
         stale.map((blob, index) => [blob, join(scratch, String(index))] as const),
+        FILE_CONCURRENCY,
         async ([blob, file]) => {
           const sha256 = await downloadBlob(client, blob, file)
           const { size, mtimeMs } = await stat(file)

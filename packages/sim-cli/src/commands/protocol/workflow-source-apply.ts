@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -19,7 +20,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
-  inPool,
+  FILE_CONCURRENCY,
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
@@ -168,7 +169,9 @@ async function readSourceFiles(
   const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   const paths = codeFilePaths(entry, lock)
-  const texts = await inPool(paths, (path) => readSourceText(directory, path))
+  const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
+    readSourceText(directory, path)
+  )
   paths.forEach((path, index) => {
     const text = texts[index]
     if (text !== null) files[path] = text

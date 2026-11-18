@@ -6,6 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
@@ -19,7 +20,7 @@ import { SimApiError } from '../../http/client'
 import {
   checkedPath,
   digest,
-  inPool,
+  FILE_CONCURRENCY,
   listSourceFiles,
   readSourceText,
   SOURCE_SDK_DIR,
@@ -222,7 +223,9 @@ export async function readWorkspaceDir(
     APPLY_ORDER.filter((kind) => !only || only.includes(kind))
   )
   const textPaths = paths.filter((path) => !isBlobPath(path))
-  const texts = await inPool(textPaths, (path) => readSourceText(dir, path))
+  const texts = await mapWithConcurrency(textPaths, FILE_CONCURRENCY, (path) =>
+    readSourceText(dir, path)
+  )
   const files: Record<string, string> = {}
   textPaths.forEach((path, index) => {
     const text = texts[index]
@@ -253,25 +256,29 @@ export async function readWorkspaceDir(
   const verified = new Set<string>()
   const listed = new Map(known.map((blob) => [blob.path, blob]))
   const hashed = new Map<string, StatDigest>()
-  const blobs = await inPool(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const entry = listed.get(path)
-    if (entry) return entry
-    const file = await checkedPath(root, path, verified)
-    const current = await stat(file)
-    const { size } = current
-    if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
-      throw new SimApiError(
-        `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
-        0,
-        'SOURCE_TOO_LARGE',
-        undefined,
-        SOURCE_TOO_LARGE_EXIT_CODE
-      )
+  const blobs = await mapWithConcurrency(
+    paths.filter(isBlobPath),
+    FILE_CONCURRENCY,
+    async (path): Promise<BlobEntry> => {
+      const entry = listed.get(path)
+      if (entry) return entry
+      const file = await checkedPath(root, path, verified)
+      const current = await stat(file)
+      const { size } = current
+      if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
+        throw new SimApiError(
+          `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
+          0,
+          'SOURCE_TOO_LARGE',
+          undefined,
+          SOURCE_TOO_LARGE_EXIT_CODE
+        )
+      }
+      const digested = await statDigest(file, path, current, written)
+      hashed.set(path, digested)
+      return { path, sha256: digested.sha256, size: digested.size }
     }
-    const digested = await statDigest(file, path, current, written)
-    hashed.set(path, digested)
-    return { path, sha256: digested.sha256, size: digested.size }
-  })
+  )
   const baseText = await readSourceText(dir, WORKSPACE_BASE_FILE)
   let base: ApplyWorkspaceSourceBody['base']
   if (baseText !== null) {
