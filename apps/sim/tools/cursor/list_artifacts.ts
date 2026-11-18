@@ -1,6 +1,27 @@
-import type { ListArtifactsParams, ListArtifactsResponse } from '@/tools/cursor/types'
+import type {
+  ArtifactMetadata,
+  ListArtifactsParams,
+  ListArtifactsResponse,
+} from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+/** Maps Cursor's `{ absolutePath, sizeBytes, updatedAt }` artifacts, also filling the original `path`/`size` names. */
+function mapArtifacts(raw: unknown): ArtifactMetadata[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((item: Record<string, unknown> | null) => {
+    const absolutePath = typeof item?.absolutePath === 'string' ? item.absolutePath : ''
+    const sizeBytes = typeof item?.sizeBytes === 'number' ? item.sizeBytes : null
+    return {
+      absolutePath,
+      sizeBytes,
+      updatedAt: typeof item?.updatedAt === 'string' ? item.updatedAt : null,
+      path: absolutePath,
+      size: sizeBytes,
+    }
+  })
+}
 
 const listArtifactsBase = {
   params: {
@@ -19,7 +40,7 @@ const listArtifactsBase = {
   },
   request: {
     url: (params: ListArtifactsParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/artifacts`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/artifacts`,
     method: 'GET',
     headers: (params: ListArtifactsParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
@@ -38,7 +59,7 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
 
   transformResponse: async (response) => {
     const data = await response.json()
-    const artifacts = data.artifacts ?? []
+    const artifacts = mapArtifacts(data.artifacts)
 
     return {
       success: true,
@@ -63,8 +84,23 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
           items: {
             type: 'object',
             properties: {
-              path: { type: 'string', description: 'Artifact file path' },
-              size: { type: 'number', description: 'File size in bytes', optional: true },
+              absolutePath: {
+                type: 'string',
+                description:
+                  'Absolute artifact path on the agent filesystem; pass it to Download Artifact',
+              },
+              sizeBytes: { type: 'number', description: 'File size in bytes', optional: true },
+              updatedAt: {
+                type: 'string',
+                description: 'ISO 8601 time the artifact was last updated',
+                optional: true,
+              },
+              path: { type: 'string', description: 'Artifact file path (same as absolutePath)' },
+              size: {
+                type: 'number',
+                description: 'File size in bytes (same as sizeBytes)',
+                optional: true,
+              },
             },
           },
         },
@@ -76,7 +112,7 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
 interface ListArtifactsV2Response {
   success: boolean
   output: {
-    artifacts: Array<{ path: string; size?: number }>
+    artifacts: ArtifactMetadata[]
   }
 }
 
@@ -90,12 +126,12 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
 
   transformResponse: async (response) => {
     const data = await response.json()
-    const artifacts = data.artifacts ?? []
+    const artifacts = mapArtifacts(data.artifacts)
 
     return {
       success: true,
       output: {
-        artifacts: Array.isArray(artifacts) ? artifacts : [],
+        artifacts,
       },
     }
   },
@@ -107,8 +143,23 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
       items: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Artifact file path' },
-          size: { type: 'number', description: 'File size in bytes', optional: true },
+          absolutePath: {
+            type: 'string',
+            description:
+              'Absolute artifact path on the agent filesystem; pass it to Download Artifact',
+          },
+          sizeBytes: { type: 'number', description: 'File size in bytes', optional: true },
+          updatedAt: {
+            type: 'string',
+            description: 'ISO 8601 time the artifact was last updated',
+            optional: true,
+          },
+          path: { type: 'string', description: 'Artifact file path (same as absolutePath)' },
+          size: {
+            type: 'number',
+            description: 'File size in bytes (same as sizeBytes)',
+            optional: true,
+          },
         },
       },
     },

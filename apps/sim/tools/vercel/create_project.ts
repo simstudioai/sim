@@ -108,10 +108,33 @@ export const vercelCreateProjectTool: ToolConfig<
       if (params.outputDirectory) body.outputDirectory = params.outputDirectory.trim()
       if (params.installCommand) body.installCommand = params.installCommand.trim()
       if (params.rootDirectory) body.rootDirectory = params.rootDirectory.trim()
-      if (params.nodeVersion) body.nodeVersion = params.nodeVersion.trim()
       if (params.devCommand) body.devCommand = params.devCommand.trim()
       return body
     },
+  },
+
+  /**
+   * Vercel's create-project body rejects `nodeVersion` (it allows no additional properties), so the
+   * version is applied with a follow-up update once the project exists.
+   */
+  postProcess: async (result, params, executeTool) => {
+    const nodeVersion = params.nodeVersion?.trim()
+    if (!result.success || !nodeVersion) return result
+
+    const update = await executeTool('vercel_update_project', {
+      apiKey: params.apiKey,
+      projectId: result.output.id,
+      nodeVersion,
+      teamId: params.teamId,
+      slug: params.slug,
+    })
+    if (update.success) return result
+
+    return {
+      ...result,
+      success: false,
+      error: `Project ${result.output.id} was created, but setting Node.js version ${nodeVersion} failed: ${update.error ?? 'unknown error'}`,
+    }
   },
 
   transformResponse: async (response: Response) => {

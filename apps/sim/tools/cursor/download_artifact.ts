@@ -24,7 +24,8 @@ const downloadArtifactBase = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Absolute path of the artifact to download (e.g., /src/index.ts)',
+      description:
+        'Absolute artifact path from List Artifacts (e.g., /opt/cursor/artifacts/screenshot.png)',
     },
   },
   operation: {

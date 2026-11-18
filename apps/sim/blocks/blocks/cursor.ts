@@ -302,7 +302,11 @@ export const CursorV2Block: BlockConfig = {
     agents: { type: 'json', description: 'Array of agent objects (list operation)' },
     nextCursor: { type: 'string', description: 'Pagination cursor (list operation)' },
     messages: { type: 'json', description: 'Conversation messages (get conversation operation)' },
-    artifacts: { type: 'json', description: 'List of artifact files (list artifacts operation)' },
+    artifacts: {
+      type: 'json',
+      description:
+        'Artifact files [{absolutePath, sizeBytes, updatedAt, path, size}] (list artifacts operation)',
+    },
     file: { type: 'file', description: 'Downloaded artifact file (download artifact operation)' },
     models: { type: 'json', description: 'Available model names (list models operation)' },
     repositories: {

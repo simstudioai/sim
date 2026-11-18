@@ -1,5 +1,6 @@
 import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 import { normalizeTags } from './utils'
@@ -59,7 +60,8 @@ export const devinCreateSessionTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
     },
-    url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
+    url: (params) =>
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

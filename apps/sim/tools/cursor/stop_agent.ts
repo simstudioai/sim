@@ -1,6 +1,7 @@
 import type { StopAgentParams, StopAgentResponse } from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const stopAgentBase = {
   params: {
@@ -19,7 +20,7 @@ const stopAgentBase = {
   },
   request: {
     url: (params: StopAgentParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/stop`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/stop`,
     method: 'POST',
     headers: (params: StopAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
