@@ -16,6 +16,7 @@
  * printer also quotes a value a YAML reader would take for a boolean, null, number or date. The
  * server checks names and lengths against the skill rules.
  */
+import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/field-table'
 import { isOneOf } from '../declaration/fields'
 import { unstorableCharacter } from '../declaration/read'
 import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
@@ -31,9 +32,19 @@ export interface SkillDecl {
 
 const EXTENSION = '.md'
 const FENCE = '---'
-const FIELDS = ['name', 'description'] as const
+const FIELDS = ['name', 'description'] as const satisfies readonly (keyof SkillDecl)[]
 
 type SkillField = (typeof FIELDS)[number]
+
+/**
+ * What each field of a skill adds to its fingerprint. Content is compared with LF line endings:
+ * the CLI reads every text file as LF.
+ */
+const SKILL_CANONICAL: CanonicalFields<SkillDecl> = {
+  name: asDeclared,
+  description: asDeclared,
+  content: (content) => content?.replace(/\r\n/g, '\n'),
+}
 
 /** `skills/<key>.md`. */
 export function skillPath(key: string): string {
@@ -180,10 +191,5 @@ export const skillCodec: KindCodec<SkillDecl> = {
     },
     blobs: [],
   }),
-  /** Content is compared with LF line endings: the CLI reads every text file as LF. */
-  canonical: (decl) => ({
-    name: decl.name,
-    description: decl.description,
-    content: decl.content.replace(/\r\n/g, '\n'),
-  }),
+  canonical: (decl) => canonicalOf(SKILL_CANONICAL, decl),
 }

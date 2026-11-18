@@ -14,13 +14,21 @@
 import { compareStrings } from '@sim/utils/string'
 import type { Json } from '@sim/workflow-code'
 import {
-  checkKnownFields,
-  type FieldReport,
+  asDeclared,
+  booleanField,
+  canonicalFields,
+  type DeclField,
+  type DeclFields,
+  folderField,
+  objectField,
+  printFields,
+  readFields,
+  stringField,
+} from '../declaration/field-table'
+import {
   fieldPointer,
   fieldReporter,
   isOneOf,
-  readBooleanField,
-  readFolderField,
   readObject,
   readStringField,
 } from '../declaration/fields'
@@ -85,9 +93,6 @@ const MAX_DESCRIPTION_LENGTH = 10_000
 const CALLEE = 'defineKnowledgeBase'
 const DECLARATION_FILE = 'knowledge.ts'
 const DOCS_FOLDER = 'docs'
-const KNOWLEDGE_FIELDS = ['name', 'description', 'folder', 'chunking', 'embeddingModel']
-const CHUNKING_FIELDS = ['maxSize', 'minSize', 'overlap', 'strategy', 'strategyOptions']
-const STRATEGY_OPTION_FIELDS = ['pattern', 'separators', 'recipe', 'strictBoundaries']
 
 /** `knowledge/<key>/knowledge.ts`. */
 function knowledgeDeclarationPath(key: string): string {
@@ -107,90 +112,93 @@ export function isKnowledgeDocName(name: string): boolean {
   return !name.includes('/') && filePathProblem(name) === null
 }
 
-function readSizeField(
-  value: Record<string, Json>,
-  field: string,
-  pointer: string,
-  report: FieldReport
-): number | undefined {
-  const raw = value[field]
-  if (raw === undefined) return undefined
-  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0) {
-    report('E_DECL_SHAPE', fieldPointer(pointer, field), `"${field}" must be a whole number.`)
-    return undefined
+/** A chunk size: a whole number, fingerprinted as `fallback` when not declared. */
+function sizeField(fallback: number): DeclField<number | undefined> {
+  return {
+    read(value, field, pointer, report) {
+      const raw = value[field]
+      if (raw === undefined) return undefined
+      if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0) {
+        report('E_DECL_SHAPE', fieldPointer(pointer, field), `"${field}" must be a whole number.`)
+        return undefined
+      }
+      return raw
+    },
+    print: asDeclared,
+    canonical: (size) => size ?? fallback,
   }
-  return raw
 }
 
-function readEnumField<T extends string>(
-  value: Record<string, Json>,
-  field: string,
-  allowed: readonly T[],
-  pointer: string,
-  report: FieldReport
-): T | undefined {
-  const raw = readStringField(value, field, pointer, report)
-  if (raw === undefined) return undefined
-  if (isOneOf(allowed, raw)) return raw
-  report(
-    'E_DECL_SHAPE',
-    fieldPointer(pointer, field),
-    `"${field}" is one of ${allowed.join(', ')}.`
-  )
-  return undefined
-}
-
-function readStrategyOptions(
-  raw: Json,
-  pointer: string,
-  report: FieldReport
-): KnowledgeChunkingDecl['strategyOptions'] {
-  const value = readObject(raw, pointer, report, 'strategyOptions')
-  if (!value) return undefined
-  checkKnownFields(value, STRATEGY_OPTION_FIELDS, pointer, report)
-  const options: NonNullable<KnowledgeChunkingDecl['strategyOptions']> = {}
-  const pattern = readStringField(value, 'pattern', pointer, report)
-  if (pattern !== undefined) options.pattern = pattern
-  const separators = value.separators
-  if (separators !== undefined) {
-    if (Array.isArray(separators) && separators.every((item) => typeof item === 'string')) {
-      options.separators = separators as string[]
-    } else {
+/** One of `allowed`, fingerprinted as declared or as `null` when not. */
+function enumField<T extends string>(allowed: readonly T[]): DeclField<T | undefined> {
+  return {
+    read(value, field, pointer, report) {
+      const raw = readStringField(value, field, pointer, report)
+      if (raw === undefined) return undefined
+      if (isOneOf(allowed, raw)) return raw
       report(
         'E_DECL_SHAPE',
-        fieldPointer(pointer, 'separators'),
-        '"separators" must be a list of strings.'
+        fieldPointer(pointer, field),
+        `"${field}" is one of ${allowed.join(', ')}.`
       )
-    }
+      return undefined
+    },
+    print: asDeclared,
+    canonical: (choice) => choice ?? null,
   }
-  const recipe = readEnumField(value, 'recipe', RECURSIVE_RECIPES, pointer, report)
-  if (recipe !== undefined) options.recipe = recipe
-  const strict = readBooleanField(value, 'strictBoundaries', pointer, report)
-  if (strict !== undefined) options.strictBoundaries = strict
-  return options
 }
 
-function readChunking(raw: Json, report: FieldReport): KnowledgeChunkingDecl | undefined {
-  const pointer = '/chunking'
-  const value = readObject(raw, pointer, report, 'chunking')
-  if (!value) return undefined
-  checkKnownFields(value, CHUNKING_FIELDS, pointer, report)
-  const chunking: KnowledgeChunkingDecl = {}
-  for (const field of ['maxSize', 'minSize', 'overlap'] as const) {
-    const size = readSizeField(value, field, pointer, report)
-    if (size !== undefined) chunking[field] = size
-  }
-  const strategy = readEnumField(value, 'strategy', CHUNKING_STRATEGIES, pointer, report)
-  if (strategy !== undefined) chunking.strategy = strategy
-  if (value.strategyOptions !== undefined) {
-    const options = readStrategyOptions(
-      value.strategyOptions,
-      fieldPointer(pointer, 'strategyOptions'),
-      report
-    )
-    if (options) chunking.strategyOptions = options
-  }
-  return chunking
+type StrategyOptionsDecl = NonNullable<KnowledgeChunkingDecl['strategyOptions']>
+
+const STRATEGY_OPTION_FIELDS: DeclFields<StrategyOptionsDecl> = {
+  pattern: stringField(),
+  separators: {
+    read(value, field, pointer, report) {
+      const separators = value[field]
+      if (separators === undefined) return undefined
+      if (Array.isArray(separators)) {
+        const strings = separators.filter((item) => typeof item === 'string')
+        if (strings.length === separators.length) return strings
+      }
+      report(
+        'E_DECL_SHAPE',
+        fieldPointer(pointer, field),
+        '"separators" must be a list of strings.'
+      )
+      return undefined
+    },
+    print: asDeclared,
+    canonical: asDeclared,
+  },
+  recipe: { ...enumField(RECURSIVE_RECIPES), canonical: asDeclared },
+  /** Off is the default, so only `true` is fingerprinted. */
+  strictBoundaries: booleanField((strict) => (strict === true ? true : undefined)),
+}
+
+const CHUNKING_FIELDS: DeclFields<KnowledgeChunkingDecl> = {
+  maxSize: sizeField(DEFAULT_CHUNKING.maxSize),
+  minSize: sizeField(DEFAULT_CHUNKING.minSize),
+  overlap: sizeField(DEFAULT_CHUNKING.overlap),
+  strategy: enumField(CHUNKING_STRATEGIES),
+  strategyOptions: objectField(STRATEGY_OPTION_FIELDS, (options) => {
+    const canonical = canonicalFields(STRATEGY_OPTION_FIELDS, options ?? {})
+    return Object.keys(canonical).length > 0 ? canonical : null
+  }),
+}
+
+/**
+ * The fields of `knowledge.ts`. The embedding model is left out of the fingerprint: it never
+ * changes, and a changed one is refused outright.
+ */
+const KNOWLEDGE_FIELDS: DeclFields<Omit<KnowledgeBaseDecl, 'docs'>> = {
+  name: stringField({ required: true }),
+  description: stringField(
+    { maxLength: MAX_DESCRIPTION_LENGTH },
+    (description) => description || null
+  ),
+  folder: folderField('/support'),
+  chunking: objectField(CHUNKING_FIELDS, (chunking) => canonicalChunking(chunking)),
+  embeddingModel: { ...stringField(), canonical: null },
 }
 
 function fileFinding(
@@ -295,28 +303,11 @@ function parseKnowledgeBase(
   const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
-  checkKnownFields(value, KNOWLEDGE_FIELDS, '', report)
-  const name = readStringField(value, 'name', '', report, { required: true })
-  const description = readStringField(value, 'description', '', report, {
-    maxLength: MAX_DESCRIPTION_LENGTH,
-  })
-  const folder = readFolderField(value, report, '/support')
-  const chunking = value.chunking === undefined ? undefined : readChunking(value.chunking, report)
-  const embeddingModel = readStringField(value, 'embeddingModel', '', report)
+  const { name, ...fields } = readFields(KNOWLEDGE_FIELDS, value, '', report)
   if (diagnostics.some((finding) => finding.severity === 'error') || name === undefined) {
     return { diagnostics }
   }
-  return {
-    decl: {
-      name,
-      ...(description !== undefined ? { description } : {}),
-      ...(folder !== undefined ? { folder } : {}),
-      ...(chunking !== undefined ? { chunking } : {}),
-      ...(embeddingModel !== undefined ? { embeddingModel } : {}),
-      docs,
-    },
-    diagnostics,
-  }
+  return { decl: { name, ...fields, docs }, diagnostics }
 }
 
 /** Groups by folder, refusing any path but the declaration and flat `docs/` files. */
@@ -347,39 +338,9 @@ function groupKnowledge(paths: readonly string[]) {
   return grouped
 }
 
-function printChunking(chunking: KnowledgeChunkingDecl): Json {
-  const value: Record<string, Json> = {}
-  if (chunking.maxSize !== undefined) value.maxSize = chunking.maxSize
-  if (chunking.minSize !== undefined) value.minSize = chunking.minSize
-  if (chunking.overlap !== undefined) value.overlap = chunking.overlap
-  if (chunking.strategy !== undefined) value.strategy = chunking.strategy
-  if (chunking.strategyOptions !== undefined) {
-    const { pattern, separators, recipe, strictBoundaries } = chunking.strategyOptions
-    const options: Record<string, Json> = {}
-    if (pattern !== undefined) options.pattern = pattern
-    if (separators !== undefined) options.separators = separators
-    if (recipe !== undefined) options.recipe = recipe
-    if (strictBoundaries !== undefined) options.strictBoundaries = strictBoundaries
-    value.strategyOptions = options
-  }
-  return value
-}
-
 /** The chunking a declaration resolves to: undeclared sizes are the defaults. */
-export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): Json {
-  const options: Record<string, Json> = {}
-  const declared = chunking?.strategyOptions
-  if (declared?.pattern !== undefined) options.pattern = declared.pattern
-  if (declared?.separators !== undefined) options.separators = declared.separators
-  if (declared?.recipe !== undefined) options.recipe = declared.recipe
-  if (declared?.strictBoundaries === true) options.strictBoundaries = true
-  return {
-    maxSize: chunking?.maxSize ?? DEFAULT_CHUNKING.maxSize,
-    minSize: chunking?.minSize ?? DEFAULT_CHUNKING.minSize,
-    overlap: chunking?.overlap ?? DEFAULT_CHUNKING.overlap,
-    strategy: chunking?.strategy ?? null,
-    strategyOptions: Object.keys(options).length > 0 ? options : null,
-  }
+export function canonicalChunking(chunking: Partial<KnowledgeChunkingDecl> | undefined): Json {
+  return canonicalFields(CHUNKING_FIELDS, chunking ?? {})
 }
 
 /** A document's path, `knowledge/<key>/docs/<name>`: the kind's only binary files. */
@@ -393,11 +354,7 @@ export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
   baseBlobPath: knowledgeDocPath,
   parse: parseKnowledgeBase,
   print(key, decl) {
-    const value: Record<string, Json> = { name: decl.name }
-    if (decl.description !== undefined) value.description = decl.description
-    if (decl.folder !== undefined) value.folder = decl.folder
-    if (decl.chunking !== undefined) value.chunking = printChunking(decl.chunking)
-    if (decl.embeddingModel !== undefined) value.embeddingModel = decl.embeddingModel
+    const value = printFields(KNOWLEDGE_FIELDS, decl)
     return {
       text: { [knowledgeDeclarationPath(key)]: printDeclaration(CALLEE, value) },
       blobs: Object.entries(decl.docs)
@@ -405,12 +362,8 @@ export const knowledgeCodec: KindCodec<KnowledgeBaseDecl> = {
         .map(([name, doc]) => ({ path: knowledgeDocPath(key, name), ...doc })),
     }
   },
-  /** The embedding model is left out: it never changes, and a changed one is refused outright. */
   canonical: (decl) => ({
-    name: decl.name,
-    description: decl.description || null,
-    folder: decl.folder ?? '/',
-    chunking: canonicalChunking(decl.chunking),
+    ...canonicalFields(KNOWLEDGE_FIELDS, decl),
     docs: Object.fromEntries(Object.entries(decl.docs).map(([name, doc]) => [name, doc.sha256])),
   }),
 }
