@@ -6,6 +6,7 @@ import type {
 import { THRIVE_CPD_REQUIREMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCpdRequirementTool: ToolConfig<
   ThriveGetCpdRequirementParams,
@@ -46,7 +47,7 @@ export const getCpdRequirementTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/cpdRequirementSummaries/${encodeURIComponent(params.audienceRequirementId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/cpdRequirementSummaries/${safeUrlPathSegment(params.audienceRequirementId, 'audienceRequirementId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

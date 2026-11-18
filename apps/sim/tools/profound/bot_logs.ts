@@ -5,7 +5,8 @@ import type { ProfoundBotLogsParams, ProfoundBotLogsResponse } from './types'
 export const profoundBotLogsTool: ToolConfig<ProfoundBotLogsParams, ProfoundBotLogsResponse> = {
   id: 'profound_bot_logs',
   name: 'Profound Bot Logs',
-  description: 'Get identified bot visit logs with filters for a domain in Profound',
+  description:
+    'Get identified bot visit logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Bots Report instead.',
   version: '1.0.0',
   oauth: PROFOUND_CREDENTIAL_OAUTH,
 

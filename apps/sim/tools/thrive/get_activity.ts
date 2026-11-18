@@ -3,6 +3,7 @@ import type { ThriveActivityResponse, ThriveGetActivityParams } from '@/tools/th
 import { THRIVE_ACTIVITY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivityResponse> = {
   id: 'thrive_get_activity',
@@ -40,7 +41,7 @@ export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivity
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/activity/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/activities/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

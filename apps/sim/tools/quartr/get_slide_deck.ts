@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetSlideDeckTool: ToolConfig<
   QuartrGetSlideDeckParams,
@@ -37,7 +38,7 @@ export const quartrGetSlideDeckTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildQuartrUrl(`/documents/slides/${encodeURIComponent(String(params.slideDeckId).trim())}`, {
+      buildQuartrUrl(`/documents/slides/${safeUrlPathSegment(params.slideDeckId, 'slideDeckId')}`, {
         expand: 'event',
       }),
     method: 'GET',

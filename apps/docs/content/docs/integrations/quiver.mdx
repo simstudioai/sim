@@ -32,14 +32,14 @@ Generate SVG images from text prompts using QuiverAI
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `prompt` | string | Yes | A text description of the desired SVG |
-| `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-preview"\) |
+| `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-2"\) |
 | `instructions` | string | No | Style or formatting guidance for the SVG output |
 | `references` | file | No | Reference images to guide SVG generation \(up to 4\) |
 | `n` | number | No | Number of SVGs to generate \(1-16, default 1\) |
-| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
-| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
-| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-65536\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\). Not sent for Arrow 2 Telos, which rejects it |
 
 #### Output
 
@@ -64,12 +64,12 @@ Convert raster images into vector SVG format using QuiverAI
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-preview"\) |
+| `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-2"\) |
 | `image` | file | Yes | The raster image to vectorize into SVG |
-| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
-| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
-| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-65536\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\). Not sent for Arrow 2 Telos, which rejects it |
 | `auto_crop` | boolean | No | Automatically crop the image before vectorizing |
 | `target_size` | number | No | Square resize target in pixels \(128-4096\) |
 

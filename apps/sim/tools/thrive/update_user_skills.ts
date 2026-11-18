@@ -7,6 +7,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateUserSkillsTool: ToolConfig<ThriveUpdateUserSkillsParams, ThriveMessageResponse> =
   {
@@ -52,7 +53,7 @@ export const updateUserSkillsTool: ToolConfig<ThriveUpdateUserSkillsParams, Thri
 
     request: {
       url: (params) =>
-        `${getThriveBaseUrl(params.host, 'v1')}/users/${encodeURIComponent(params.userId)}/skills`,
+        `${getThriveBaseUrl(params.host, 'v1')}/users/${safeUrlPathSegment(params.userId, 'userId')}/skills`,
       method: 'PATCH',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
       body: (params) => ({

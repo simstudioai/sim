@@ -8,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateAssignmentTool: ToolConfig<
   ThriveUpdateAssignmentParams,
@@ -78,7 +79,7 @@ export const updateAssignmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${encodeURIComponent(params.assignmentId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${safeUrlPathSegment(params.assignmentId, 'assignmentId')}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

@@ -3,6 +3,7 @@ import type { ThriveCpdEntryResponse, ThriveGetCpdEntryParams } from '@/tools/th
 import { THRIVE_CPD_ENTRY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCpdEntryTool: ToolConfig<ThriveGetCpdEntryParams, ThriveCpdEntryResponse> = {
   id: 'thrive_get_cpd_entry',
@@ -40,7 +41,7 @@ export const getCpdEntryTool: ToolConfig<ThriveGetCpdEntryParams, ThriveCpdEntry
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/cpdEntries/${encodeURIComponent(params.logEntryId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/cpdEntries/${safeUrlPathSegment(params.logEntryId, 'logEntryId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

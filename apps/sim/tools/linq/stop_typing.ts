@@ -2,6 +2,7 @@ import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqStopTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
   id: 'linq_stop_typing',
@@ -26,7 +27,7 @@ export const linqStopTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessRes
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/typing`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/typing`,
     method: 'DELETE',
     headers: (params) => linqHeaders(params.apiKey),
   },
