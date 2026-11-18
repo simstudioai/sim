@@ -10,6 +10,7 @@ import {
   customTool,
   env,
   gmail,
+  human,
   js,
   knowledge,
   knowledgeBase,
@@ -207,6 +208,12 @@ export default workflow('Rejected', {}, () => {
     text: 'x',
   })
   slack.sendMessage('Credential id from env', { credential: env.CRM_KEY, channel: 'C1', text: 'x' })
+
+  // A human-in-the-loop submission holds the fields its form declares.
+  const review = human('Review', { inputFormat: { approved: { type: 'boolean', required: true } } })
+  review.submission.approved satisfies Ref<boolean>
+  // @ts-expect-error `aproved` is not a field of the review form
+  t`${review.submission.aproved}`
 
   // A credential for another provider than the block's service.
   slack.sendMessage('Wrong credential', {
