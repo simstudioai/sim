@@ -27,6 +27,16 @@ import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './
 
 const logger = createLogger('EditWorkflowServerTool')
 
+/** The graph's blocks other than `blockId`, for judging that block's own type change. */
+function otherBlocks(
+  blocks: Record<string, { type: string }>,
+  blockId: string
+): Array<{ type: string }> {
+  return Object.entries(blocks)
+    .filter(([id]) => id !== blockId)
+    .map(([, block]) => block)
+}
+
 /**
  * Holds a new child of a container to the same placement gates as a top-level `add`.
  *
@@ -456,6 +466,23 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
+  // Before the inputs, so they are judged against the type the block will have.
+  if (params?.type !== undefined) {
+    const refusal = checkBlockPlacement(
+      {
+        blockId: block_id,
+        blockType: params.type,
+        previousType: block.type,
+        operationType: 'edit',
+        outcome: 'type change skipped',
+        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
+      },
+      { permissionConfig }
+    )
+    if (refusal) logSkippedItem(skippedItems, refusal)
+    else block.type = params.type
+  }
+
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -607,20 +634,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  if (params?.type !== undefined) {
-    const refusal = checkBlockPlacement(
-      {
-        blockId: block_id,
-        blockType: params.type,
-        previousType: block.type,
-        operationType: 'edit',
-        outcome: 'type change skipped',
-      },
-      { permissionConfig }
-    )
-    if (refusal) logSkippedItem(skippedItems, refusal)
-    else block.type = params.type
-  }
   if (params?.name !== undefined) {
     const normalizedName = normalizeName(params.name)
     if (!normalizedName) {
@@ -973,6 +986,7 @@ export function handleInsertIntoSubflowOperation(
         operationType: 'insert_into_subflow',
         outcome: 'block not inserted into subflow',
         details: { subflowId },
+        others: modifiedState.blocks,
       },
       { permissionConfig }
     )
