@@ -484,7 +484,8 @@ export function recordedStats(written: Written): Map<string, StatDigest> {
  * The files among `touched` (path → the text about to be written, or `null` for a removal) whose
  * text on disk is neither what the CLI last wrote there nor what it is about to write: a write
  * would destroy an edit no apply has saved. A file the CLI has no record of counts as edited, so a
- * hand-written file is never replaced silently either.
+ * hand-written file is never replaced silently either; so does one the CLI wrote that is missing
+ * now and would be written again, a delete no apply has sent.
  */
 export async function editedFiles(
   dir: string,
@@ -497,7 +498,8 @@ export async function editedFiles(
   )
   return entries.flatMap(([path, next], index) => {
     const current = texts[index]
-    if (current === null || (next !== null && current === normalizeSourceText(next))) return []
+    if (current === null) return next !== null && Object.hasOwn(written, path) ? [path] : []
+    if (next !== null && current === normalizeSourceText(next)) return []
     return written[path] !== digest(current) ? [path] : []
   })
 }
