@@ -153,7 +153,11 @@ async function writeSourceTree(
   return finishTree(dir, written, workspaceTypes, tree.ownsTsconfig)
 }
 
-const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: workflowTsconfig }
+/** The workflow directory's tree beside the printed source. */
+export const WORKFLOW_TREE: SourceTreeProfile = {
+  agents: AGENTS_GUIDE,
+  tsconfig: workflowTsconfig,
+}
 
 /** The `workflow.ts` a new directory starts from: the smallest workflow that compiles. */
 const STARTER_SOURCE = `// @sim-sdk 1
