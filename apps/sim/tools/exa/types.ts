@@ -27,6 +27,7 @@ export interface ExaFreshnessParams {
  * still honors, kept so workflows saved against the old dropdown keep running.
  */
 type ExaSearchType =
+  | 'lite'
   | 'instant'
   | 'fast'
   | 'auto'

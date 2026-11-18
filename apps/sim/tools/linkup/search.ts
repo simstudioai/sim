@@ -152,7 +152,11 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       if (params.includeSources !== undefined) body.includeSources = params.includeSources
 
       if (params.maxResults !== undefined && String(params.maxResults).trim() !== '') {
-        body.maxResults = Number(params.maxResults)
+        const maxResults = Number(params.maxResults)
+        if (!Number.isInteger(maxResults) || maxResults < 1) {
+          throw new Error('Linkup Max Results must be a whole number of at least 1')
+        }
+        body.maxResults = maxResults
       }
 
       return body

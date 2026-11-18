@@ -253,8 +253,8 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
         properties: {
           title: { type: 'string', description: 'Title of the result page' },
           url: { type: 'string', description: 'URL of the result page' },
-          date: { type: 'string', description: 'Publication date', optional: true },
-          last_updated: { type: 'string', description: 'Last update date', optional: true },
+          date: { type: 'string', description: 'Publication date', nullable: true },
+          last_updated: { type: 'string', description: 'Last update date', nullable: true },
           snippet: { type: 'string', description: 'Text snippet from the page' },
         },
       },

@@ -52,7 +52,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
     paper: {
       type: 'object',
       description: 'Detailed information about the requested ArXiv paper',
-      optional: true,
+      nullable: true,
       properties: {
         id: { type: 'string' },
         title: { type: 'string' },

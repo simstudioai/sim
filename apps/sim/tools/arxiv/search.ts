@@ -120,5 +120,6 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       type: 'number',
       description: 'Total number of results found for the search query',
     },
+    query: { type: 'string', description: 'The search query that was executed' },
   },
 }

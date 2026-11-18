@@ -90,5 +90,6 @@ export const getAuthorPapersTool: ToolConfig<
       type: 'number',
       description: 'Total number of papers found for the author',
     },
+    authorName: { type: 'string', description: 'The author name that was searched' },
   },
 }
