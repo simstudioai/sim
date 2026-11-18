@@ -17,3 +17,22 @@ export const authorizeComputerUseContract = defineRouteContract({
   body: authorizeComputerUseBodySchema,
   response: { mode: 'json', schema: authorizeComputerUseResponseSchema },
 })
+
+const computerUseAvailabilityParamsSchema = z.object({ id: z.string().min(1) }).strict()
+const computerUseAvailabilityResponseSchema = z.object({ available: z.boolean() }).strict()
+
+/** Whether the permission group governing this workspace lets its chats use computer use. */
+export const workspaceComputerUseAvailabilityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/computer-use/availability',
+  params: computerUseAvailabilityParamsSchema,
+  response: { mode: 'json', schema: computerUseAvailabilityResponseSchema },
+})
+
+/** Whether this organization's default permission group lets its chats use computer use. */
+export const organizationComputerUseAvailabilityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/computer-use/availability',
+  params: computerUseAvailabilityParamsSchema,
+  response: { mode: 'json', schema: computerUseAvailabilityResponseSchema },
+})

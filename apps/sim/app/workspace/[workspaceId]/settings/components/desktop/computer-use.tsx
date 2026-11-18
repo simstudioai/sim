@@ -6,9 +6,8 @@ import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
-import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import { type ComputerUseOwner, useComputerUseAvailability } from '@/hooks/queries/computer-use'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
 const ON_OFF_OPTIONS = [
@@ -18,12 +17,16 @@ const ON_OFF_OPTIONS = [
 
 /** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
 export function ComputerUseSettings() {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
-  const permission = useUserPermissionConfig(workspaceId)
-  const allowed =
-    permission.isSuccess &&
-    (permission.data.config === null ||
-      !CAPABILITY_RULES['computer_use.use'].deniedBy(permission.data.config))
+  const { workspaceId, organizationId } = useParams<{
+    workspaceId?: string
+    organizationId?: string
+  }>()
+  const owner: ComputerUseOwner | null = workspaceId
+    ? { workspaceId }
+    : organizationId
+      ? { organizationId }
+      : null
+  const allowed = useComputerUseAvailability(owner).data === true
   return (
     <>
       <ComputerUseActivity />

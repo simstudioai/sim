@@ -11,7 +11,6 @@ import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-deskto
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 
 const native = vi.hoisted(() => ({
@@ -21,15 +20,16 @@ const native = vi.hoisted(() => ({
   cancel: vi.fn<() => Promise<void>>(),
   onActivity: vi.fn<(listener: (activity: ComputerUseActivity | null) => void) => () => void>(),
 }))
-const permission = vi.hoisted(() => ({
-  config: null as Record<string, unknown> | null,
+const availability = vi.hoisted(() => ({
+  available: true,
   ready: true,
+  owner: undefined as unknown,
 }))
-vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
-  useUserPermissionConfig: () =>
-    permission.ready
-      ? { isSuccess: true, data: { config: permission.config } }
-      : { isSuccess: false, data: undefined },
+vi.mock('@/hooks/queries/computer-use', () => ({
+  useComputerUseAvailability: (owner: unknown) => {
+    availability.owner = owner
+    return { data: availability.ready && owner ? availability.available : undefined }
+  },
 }))
 vi.mock(
   'next/navigation',
@@ -48,8 +48,9 @@ let root: Root
 let container: HTMLDivElement
 
 beforeEach(() => {
-  permission.config = null
-  permission.ready = true
+  availability.available = true
+  availability.ready = true
+  availability.owner = undefined
   nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'ws-1' })
   permissions = [...initialPermissions]
   activity = null
@@ -88,18 +89,30 @@ function renderSettings() {
   root.render(<ComputerUseSettings />)
 }
 
-it.each(['disableComputerUse', 'hideCopilot'])(
-  'withholds the device controls when the permission group sets %s',
-  async (key) => {
-    permission.config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, [key]: true }
-    await act(async () => renderSettings())
-    expect(appRow('com.example.First')).toBeUndefined()
-    expect(container.querySelector('[role="switch"]')).toBeNull()
-  }
-)
+it('withholds the device controls when the permission group withholds computer use', async () => {
+  availability.available = false
+  await act(async () => renderSettings())
+  expect(availability.owner).toEqual({ workspaceId: 'ws-1' })
+  expect(appRow('com.example.First')).toBeUndefined()
+  expect(native.listAppPermissions).not.toHaveBeenCalled()
+})
 
-it('withholds the device controls until the permission read succeeds', async () => {
-  permission.ready = false
+it('asks the organization on organization settings and shows its controls', async () => {
+  nextNavigationMockFns.mockUseParams.mockReturnValue({ organizationId: 'org-1' })
+  await act(async () => renderSettings())
+  expect(availability.owner).toEqual({ organizationId: 'org-1' })
+  expect(native.listAppPermissions).toHaveBeenCalled()
+})
+
+it('withholds the device controls where no workspace or organization governs them', async () => {
+  nextNavigationMockFns.mockUseParams.mockReturnValue({})
+  await act(async () => renderSettings())
+  expect(availability.owner).toBeNull()
+  expect(native.listAppPermissions).not.toHaveBeenCalled()
+})
+
+it('withholds the device controls until the availability read succeeds', async () => {
+  availability.ready = false
   await act(async () => renderSettings())
   expect(appRow('com.example.First')).toBeUndefined()
   expect(container.querySelector('[role="switch"]')).toBeNull()
