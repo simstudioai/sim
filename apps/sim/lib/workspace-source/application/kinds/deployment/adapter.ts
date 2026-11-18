@@ -81,7 +81,7 @@ const READ_CONCURRENCY = 4
 const PASSWORD_ENV = 'x-passwordEnv'
 
 /** What an apply carries out for one deployment, decided at plan time. */
-interface DeploymentPlan {
+export interface DeploymentPlan {
   /** The workflow, when it exists at plan time (not one this apply creates). */
   workflowId?: string
   /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
@@ -100,7 +100,7 @@ interface DeploymentPlan {
   recreatedOutputs?: Record<string, string>
 }
 
-type DeploymentChange = PlannedChange<DeploymentDecl, DeploymentPlan>
+type DeploymentChange = PlannedChange<'deployment'>
 
 /** The variable a base entry records the chat password under. */
 function passwordEnvOf(base: BaseResource | undefined): string | undefined {
@@ -586,7 +586,7 @@ function listAllDeployedWorkflows(ctx: SourceContext) {
   })
 }
 
-export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, DeploymentPlan> = {
+export const deploymentAdapter: KindAdapter<'deployment', StoredDeployment> = {
   codec: deploymentCodec,
 
   async load(ctx, { allocate }) {
@@ -601,20 +601,14 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
   async plan(desired, stored, ctx) {
     const changes: DeploymentChange[] = []
     for (const [key, decl] of desired) changes.push(await planDeployment(key, decl, stored, ctx))
-    const undeclared = planUndeclared<StoredDeployment, DeploymentDecl, DeploymentPlan>(
-      'deployment',
-      desired,
-      stored,
-      ctx,
-      {
-        fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
-        detail: (record, base) => ({
-          workflowId: record.id,
-          deploy: false,
-          ...(passwordEnvOf(base) ? { basePasswordEnv: passwordEnvOf(base) } : {}),
-        }),
-      }
-    )
+    const undeclared = planUndeclared('deployment', desired, stored, ctx, {
+      fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
+      detail: (record, base) => ({
+        workflowId: record.id,
+        deploy: false,
+        ...(passwordEnvOf(base) ? { basePasswordEnv: passwordEnvOf(base) } : {}),
+      }),
+    })
     // Undeploying stops the workflow's triggers: the plan says which, deleting or refusing to.
     for (const change of undeclared) {
       const record = change.storedId ? stored.bound.get(change.key) : undefined

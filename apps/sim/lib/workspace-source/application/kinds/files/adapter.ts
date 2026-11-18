@@ -98,7 +98,7 @@ type StoredFile = StoredResource<StoredFileState>
  * What a write carries out: for an update or delete, the content revision the plan saw (the
  * write refuses a file that moved past it); for a create, the resource key it claims.
  */
-interface FilePlan {
+export interface FilePlan {
   rev?: string
   /**
    * The key a workflow names the created file by (`file('report-pdf')`), as a get would first
@@ -108,7 +108,7 @@ interface FilePlan {
   resourceKey?: string
 }
 
-type FileChange = PlannedChange<FileDecl, FilePlan>
+type FileChange = PlannedChange<'file'>
 
 /**
  * A stored file's path under `files/` (its folder names, then its name), and why no directory can
@@ -356,7 +356,7 @@ function planDeletes(
     bound: new Map([...stored.bound].filter(([, file]) => !file.state.unmanaged)),
     unbound: [],
   }
-  return planUndeclared<StoredFileState, FileDecl, FilePlan>('file', desired, managed, ctx, {
+  return planUndeclared('file', desired, managed, ctx, {
     declared,
     fingerprint: (file, base) =>
       baseRev(file.key, base) === file.state.rev
@@ -482,7 +482,7 @@ async function written(
   return { id: fileId, base: fileBase(key, fileId, state.rev, state.sha256 ?? sha256), text: {} }
 }
 
-export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
+export const fileAdapter: KindAdapter<'file', StoredFileState> = {
   codec: fileCodec,
 
   async load(ctx) {

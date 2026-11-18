@@ -83,7 +83,7 @@ import type {
 } from '@/lib/workspace-source/application/types'
 
 /** What the apply carries out for one knowledge base, decided at plan time. */
-interface KnowledgePlan {
+export interface KnowledgePlan {
   /** The changes a create, update or adopt makes; absent for a delete. */
   changes?: Pick<KnowledgeChanges, 'settings' | 'uploads' | 'deletes' | 'superseded'>
   /** Document id → SHA-256 for every stored document whose bytes the plan knows. */
@@ -95,7 +95,7 @@ interface KnowledgePlan {
   listed?: StoredDoc[]
 }
 
-type KnowledgeChange = PlannedChange<KnowledgeBaseDecl, KnowledgePlan>
+type KnowledgeChange = PlannedChange<'knowledge-base'>
 
 const KIND = 'knowledge-base'
 
@@ -509,258 +509,249 @@ async function written(
   }
 }
 
-export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeState, KnowledgePlan> =
-  {
-    codec: knowledgeCodec,
+export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeState> = {
+  codec: knowledgeCodec,
 
-    async load(ctx, { allocate }) {
-      const { knowledgeBases } = await listKnowledgeBases.execute({
-        principal: ctx.principal,
-        input: { workspaceId: ctx.workspace.workspaceId },
-      })
-      const records = knowledgeBases.map((state) => ({
-        id: state.knowledgeBase.id,
-        name: state.knowledgeBase.name,
-        state,
-      }))
-      // A search index is the workspace's own and never source; it only holds its name.
-      return bindStored(ctx, KIND, records, {
-        allocate,
-        bindable: (record) => !record.state.knowledgeBase.isSearchIndex,
-      })
-    },
+  async load(ctx, { allocate }) {
+    const { knowledgeBases } = await listKnowledgeBases.execute({
+      principal: ctx.principal,
+      input: { workspaceId: ctx.workspace.workspaceId },
+    })
+    const records = knowledgeBases.map((state) => ({
+      id: state.knowledgeBase.id,
+      name: state.knowledgeBase.name,
+      state,
+    }))
+    // A search index is the workspace's own and never source; it only holds its name.
+    return bindStored(ctx, KIND, records, {
+      allocate,
+      bindable: (record) => !record.state.knowledgeBase.isSearchIndex,
+    })
+  },
 
-    async plan(desired, stored, ctx) {
-      const { folders: listed } = await listKnowledgeFolders.execute({
-        principal: ctx.principal,
-        input: { workspaceId: ctx.workspace.workspaceId },
-      })
-      const folders = new Set(listed.map((folder) => folder.path))
-      const changes: KnowledgeChange[] = []
-      const declaredNames = new Map<string, string>()
-      // The server's embedding model, resolved once for every create this plan makes.
-      let embedding: ReturnType<typeof getConfiguredKbEmbedding> | undefined
-      const configured = () => {
-        embedding ??= getConfiguredKbEmbedding()
-        return embedding
-      }
-      // Documents are listed a few knowledge bases at a time, ahead of the plans that read them;
-      // each plan still runs in order, so the request's hashing budget is spent in order.
-      for (const window of chunkArray([...desired], LIST_CONCURRENCY)) {
-        const listed = await Promise.allSettled(
-          window.map(async ([key]) => {
-            const bound = stored.bound.get(key)
-            return bound ? loadDocs(ctx, bound.id) : []
-          })
-        )
-        for (const [index, [key, decl]] of window.entries()) {
-          const docs = settledValue(listed[index])
-          const change = await planKnowledgeBase(
-            key,
-            decl,
-            stored,
-            desired,
-            ctx,
-            folders,
-            configured,
-            docs
-          )
-          refuseDeclaredTwice(declaredNames, change, decl.name)
-          changes.push(change)
-        }
-      }
-      // A delete is stale when the knowledge base changed on the server since the base; the
-      // hashes the base vouches for are kept for the apply's `fingerprintNow` re-check.
-      const undeclared = new Map<string, { fingerprint: string; hashes: Map<string, string> }>()
-      if (ctx.allowDelete) {
-        const deletable = [...stored.bound].flatMap(([key, resource]) => {
-          const entry = ctx.base?.resources[resourceAddress(KIND, key)]
-          return desired.has(key) || !entry || entry.id !== resource.id ? [] : [{ resource, entry }]
+  async plan(desired, stored, ctx) {
+    const { folders: listed } = await listKnowledgeFolders.execute({
+      principal: ctx.principal,
+      input: { workspaceId: ctx.workspace.workspaceId },
+    })
+    const folders = new Set(listed.map((folder) => folder.path))
+    const changes: KnowledgeChange[] = []
+    const declaredNames = new Map<string, string>()
+    // The server's embedding model, resolved once for every create this plan makes.
+    let embedding: ReturnType<typeof getConfiguredKbEmbedding> | undefined
+    const configured = () => {
+      embedding ??= getConfiguredKbEmbedding()
+      return embedding
+    }
+    // Documents are listed a few knowledge bases at a time, ahead of the plans that read them;
+    // each plan still runs in order, so the request's hashing budget is spent in order.
+    for (const window of chunkArray([...desired], LIST_CONCURRENCY)) {
+      const listed = await Promise.allSettled(
+        window.map(async ([key]) => {
+          const bound = stored.bound.get(key)
+          return bound ? loadDocs(ctx, bound.id) : []
         })
-        const listed = await mapSettledWithConcurrency(
-          deletable,
-          LIST_CONCURRENCY,
-          ({ resource }) => loadDocs(ctx, resource.id)
-        )
-        for (const [index, { resource, entry }] of deletable.entries()) {
-          const docs = settledValue(listed[index])
-          const hashes = baseHashes(docs, entry)
-          undeclared.set(resource.id, {
-            fingerprint: knowledgeView(resource.state, docs, hashes).fingerprint,
-            hashes,
-          })
-        }
-      }
-      const deletes = planUndeclared<StoredKnowledgeState, KnowledgeBaseDecl, KnowledgePlan>(
-        KIND,
-        desired,
-        stored,
-        ctx,
-        {
-          declared: changes,
-          fingerprint: (resource) => undeclared.get(resource.id)?.fingerprint ?? '',
-          counts: (resource) => ({ documents: resource.state.knowledgeBase.docCount }),
-          detail: (resource) => {
-            const hashes = undeclared.get(resource.id)?.hashes
-            return hashes ? { hashes } : undefined
-          },
-        }
       )
-      return [...changes, ...deletes]
-    },
+      for (const [index, [key, decl]] of window.entries()) {
+        const docs = settledValue(listed[index])
+        const change = await planKnowledgeBase(
+          key,
+          decl,
+          stored,
+          desired,
+          ctx,
+          folders,
+          configured,
+          docs
+        )
+        refuseDeclaredTwice(declaredNames, change, decl.name)
+        changes.push(change)
+      }
+    }
+    // A delete is stale when the knowledge base changed on the server since the base; the
+    // hashes the base vouches for are kept for the apply's `fingerprintNow` re-check.
+    const undeclared = new Map<string, { fingerprint: string; hashes: Map<string, string> }>()
+    if (ctx.allowDelete) {
+      const deletable = [...stored.bound].flatMap(([key, resource]) => {
+        const entry = ctx.base?.resources[resourceAddress(KIND, key)]
+        return desired.has(key) || !entry || entry.id !== resource.id ? [] : [{ resource, entry }]
+      })
+      const listed = await mapSettledWithConcurrency(deletable, LIST_CONCURRENCY, ({ resource }) =>
+        loadDocs(ctx, resource.id)
+      )
+      for (const [index, { resource, entry }] of deletable.entries()) {
+        const docs = settledValue(listed[index])
+        const hashes = baseHashes(docs, entry)
+        undeclared.set(resource.id, {
+          fingerprint: knowledgeView(resource.state, docs, hashes).fingerprint,
+          hashes,
+        })
+      }
+    }
+    const deletes = planUndeclared(KIND, desired, stored, ctx, {
+      declared: changes,
+      fingerprint: (resource) => undeclared.get(resource.id)?.fingerprint ?? '',
+      counts: (resource) => ({ documents: resource.state.knowledgeBase.docCount }),
+      detail: (resource) => {
+        const hashes = undeclared.get(resource.id)?.hashes
+        return hashes ? { hashes } : undefined
+      },
+    })
+    return [...changes, ...deletes]
+  },
 
-    async authorize(change, ctx) {
-      const { principal } = ctx
-      const workspaceId = ctx.workspace.workspaceId
-      if (change.action === 'create' && change.decl) {
-        await createKnowledgeBase.authorize({
-          principal,
-          input: { workspaceId, name: change.decl.name },
-        })
-        if (Object.keys(change.decl.docs).length > 0) {
-          await admitOnce(ctx, 'knowledge-document:upload', () =>
-            admitWorkspaceKnowledgeDocumentUpload.authorize({ principal, input: { workspaceId } })
-          )
-        }
-        return
+  async authorize(change, ctx) {
+    const { principal } = ctx
+    const workspaceId = ctx.workspace.workspaceId
+    if (change.action === 'create' && change.decl) {
+      await createKnowledgeBase.authorize({
+        principal,
+        input: { workspaceId, name: change.decl.name },
+      })
+      if (Object.keys(change.decl.docs).length > 0) {
+        await admitOnce(ctx, 'knowledge-document:upload', () =>
+          admitWorkspaceKnowledgeDocumentUpload.authorize({ principal, input: { workspaceId } })
+        )
       }
-      const knowledgeBaseId = change.storedId
-      if (!knowledgeBaseId) return
-      const scope = { knowledgeBaseId, assertedWorkspaceId: workspaceId }
-      if (change.action === 'delete') {
-        await deleteKnowledgeBaseOperation.authorize({ principal, input: scope })
-        return
-      }
-      const changes = change.detail?.changes
-      if (!changes) return
-      if (Object.keys(changes.settings).length > 0) {
-        await updateKnowledgeBaseOperation.authorize({ principal, input: scope })
-      }
-      if (changes.uploads.length > 0) {
-        await admitKnowledgeDocumentUpload.authorize({ principal, input: scope })
-      }
-      const removed =
-        changes.deletes[0] ??
-        changes.superseded[0] ??
-        changes.uploads.find((upload) => upload.replaces)?.replaces
-      if (removed) {
-        await deleteKnowledgeDocument.authorize({
-          principal,
-          input: { ...scope, documentId: removed.id },
-        })
-      }
-    },
+      return
+    }
+    const knowledgeBaseId = change.storedId
+    if (!knowledgeBaseId) return
+    const scope = { knowledgeBaseId, assertedWorkspaceId: workspaceId }
+    if (change.action === 'delete') {
+      await deleteKnowledgeBaseOperation.authorize({ principal, input: scope })
+      return
+    }
+    const changes = change.detail?.changes
+    if (!changes) return
+    if (Object.keys(changes.settings).length > 0) {
+      await updateKnowledgeBaseOperation.authorize({ principal, input: scope })
+    }
+    if (changes.uploads.length > 0) {
+      await admitKnowledgeDocumentUpload.authorize({ principal, input: scope })
+    }
+    const removed =
+      changes.deletes[0] ??
+      changes.superseded[0] ??
+      changes.uploads.find((upload) => upload.replaces)?.replaces
+    if (removed) {
+      await deleteKnowledgeDocument.authorize({
+        principal,
+        input: { ...scope, documentId: removed.id },
+      })
+    }
+  },
 
-    async fingerprintNow(change, ctx) {
-      const id = change.storedId
-      if (!id) throw new Error('A knowledge base check needs the stored id')
-      const [current, docs] = await Promise.all([reload(ctx, id), loadDocs(ctx, id)])
-      if (change.detail) change.detail.listed = docs
-      return knowledgeView(current, docs, change.detail?.hashes ?? new Map()).fingerprint
-    },
+  async fingerprintNow(change, ctx) {
+    const id = change.storedId
+    if (!id) throw new Error('A knowledge base check needs the stored id')
+    const [current, docs] = await Promise.all([reload(ctx, id), loadDocs(ctx, id)])
+    if (change.detail) change.detail.listed = docs
+    return knowledgeView(current, docs, change.detail?.hashes ?? new Map()).fingerprint
+  },
 
-    async apply(change, ctx) {
-      const { principal } = ctx
-      const workspaceId = ctx.workspace.workspaceId
-      if (change.action === 'delete') {
-        if (!change.storedId) throw new Error('A knowledge base delete needs the stored id')
-        await deleteKnowledgeBaseOperation.execute({
-          principal,
-          input: { knowledgeBaseId: change.storedId, assertedWorkspaceId: workspaceId },
-        })
-        return { id: change.storedId, text: {} }
-      }
-      const decl = change.decl
-      const plan = change.detail
-      if (!decl || !plan?.changes) throw new Error('A knowledge base write needs its plan')
-      const { uploads } = plan.changes
-      if (change.action === 'create') {
-        const { knowledgeBase } = await createKnowledgeBase.execute({
-          principal,
-          input: {
-            workspaceId,
-            name: decl.name,
-            ...(decl.description !== undefined ? { description: decl.description } : {}),
-            ...(decl.folder !== undefined ? { folderPath: decl.folder } : {}),
-            chunkingConfig: chunkingConfig(decl.chunking),
-          },
-        })
-        const uploaded = await uploadDocs(ctx, change.key, knowledgeBase.id, uploads)
-        return written(ctx, change.key, knowledgeBase.id, uploaded, new Set(uploaded.keys()), [])
-      }
-      const knowledgeBaseId = change.storedId
-      if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
-      const { settings, deletes, superseded } = plan.changes
-      if (Object.keys(settings).length > 0) {
-        await updateKnowledgeBaseOperation.execute({
-          principal,
-          input: { knowledgeBaseId, assertedWorkspaceId: workspaceId, ...settings },
-        })
-      }
-      const uploaded = await uploadDocs(ctx, change.key, knowledgeBaseId, uploads)
-      for (const doc of superseded) await deleteDoc(ctx, knowledgeBaseId, doc.id)
-      for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
-      const removed = new Set(
-        [...superseded, ...deletes, ...uploads.flatMap((upload) => upload.replaces ?? [])].map(
-          (doc) => doc.id
+  async apply(change, ctx) {
+    const { principal } = ctx
+    const workspaceId = ctx.workspace.workspaceId
+    if (change.action === 'delete') {
+      if (!change.storedId) throw new Error('A knowledge base delete needs the stored id')
+      await deleteKnowledgeBaseOperation.execute({
+        principal,
+        input: { knowledgeBaseId: change.storedId, assertedWorkspaceId: workspaceId },
+      })
+      return { id: change.storedId, text: {} }
+    }
+    const decl = change.decl
+    const plan = change.detail
+    if (!decl || !plan?.changes) throw new Error('A knowledge base write needs its plan')
+    const { uploads } = plan.changes
+    if (change.action === 'create') {
+      const { knowledgeBase } = await createKnowledgeBase.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: decl.name,
+          ...(decl.description !== undefined ? { description: decl.description } : {}),
+          ...(decl.folder !== undefined ? { folderPath: decl.folder } : {}),
+          chunkingConfig: chunkingConfig(decl.chunking),
+        },
+      })
+      const uploaded = await uploadDocs(ctx, change.key, knowledgeBase.id, uploads)
+      return written(ctx, change.key, knowledgeBase.id, uploaded, new Set(uploaded.keys()), [])
+    }
+    const knowledgeBaseId = change.storedId
+    if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
+    const { settings, deletes, superseded } = plan.changes
+    if (Object.keys(settings).length > 0) {
+      await updateKnowledgeBaseOperation.execute({
+        principal,
+        input: { knowledgeBaseId, assertedWorkspaceId: workspaceId, ...settings },
+      })
+    }
+    const uploaded = await uploadDocs(ctx, change.key, knowledgeBaseId, uploads)
+    for (const doc of superseded) await deleteDoc(ctx, knowledgeBaseId, doc.id)
+    for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
+    const removed = new Set(
+      [...superseded, ...deletes, ...uploads.flatMap((upload) => upload.replaces ?? [])].map(
+        (doc) => doc.id
+      )
+    )
+    return written(
+      ctx,
+      change.key,
+      knowledgeBaseId,
+      new Map([...plan.hashes, ...uploaded]),
+      new Set(uploaded.keys()),
+      plan.listed?.filter((doc) => !removed.has(doc.id))
+    )
+  },
+
+  async read(stored, ctx) {
+    const docs = await loadDocs(ctx, stored.id)
+    const { byName, unmanaged } = sourceDocs(docs)
+    const hashes = new Map<string, string>()
+    const unhashed = await hashDocs(ctx, stored.id, byName.values(), hashes)
+    const view = knowledgeView(stored.state, docs, hashes)
+    const printed = knowledgeCodec.print(stored.key, view.decl)
+    const left = unmanaged + byName.size - hashes.size - unhashed.length
+    const diagnostics = indexingStateFindings(stored.key, stored.name, [...byName.values()])
+    if (unhashed.length > 0) {
+      diagnostics.push(
+        kindFinding(
+          KIND,
+          stored.key,
+          'I_KB_DOCS_UNHASHED',
+          `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget, or could not read their bytes.`
         )
       )
-      return written(
-        ctx,
-        change.key,
-        knowledgeBaseId,
-        new Map([...plan.hashes, ...uploaded]),
-        new Set(uploaded.keys()),
-        plan.listed?.filter((doc) => !removed.has(doc.id))
+    }
+    if (left > 0) {
+      diagnostics.push(
+        kindFinding(
+          KIND,
+          stored.key,
+          'I_KB_UNMANAGED_DOCS',
+          `${left} document(s) of "${stored.name}" are not part of source (connector-synced, too large, unreadable, or sharing a file name) and are left as they are.`
+        )
       )
-    },
-
-    async read(stored, ctx) {
-      const docs = await loadDocs(ctx, stored.id)
-      const { byName, unmanaged } = sourceDocs(docs)
-      const hashes = new Map<string, string>()
-      const unhashed = await hashDocs(ctx, stored.id, byName.values(), hashes)
-      const view = knowledgeView(stored.state, docs, hashes)
-      const printed = knowledgeCodec.print(stored.key, view.decl)
-      const left = unmanaged + byName.size - hashes.size - unhashed.length
-      const diagnostics = indexingStateFindings(stored.key, stored.name, [...byName.values()])
-      if (unhashed.length > 0) {
-        diagnostics.push(
-          kindFinding(
-            KIND,
-            stored.key,
-            'I_KB_DOCS_UNHASHED',
-            `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget, or could not read their bytes.`
-          )
-        )
-      }
-      if (left > 0) {
-        diagnostics.push(
-          kindFinding(
-            KIND,
-            stored.key,
-            'I_KB_UNMANAGED_DOCS',
-            `${left} document(s) of "${stored.name}" are not part of source (connector-synced, too large, unreadable, or sharing a file name) and are left as they are.`
-          )
-        )
-      }
-      return {
-        text: printed.text,
-        blobs: [
-          ...printed.blobs.flatMap((blob) => {
-            const doc = byName.get(blob.path.slice(knowledgeDocPath(stored.key, '').length))
-            return doc ? [{ ...blob, id: doc.id, href: documentHref(ctx, stored.id, doc.id) }] : []
-          }),
-          ...unhashed.map((doc) => ({
-            path: knowledgeDocPath(stored.key, doc.filename),
-            size: doc.fileSize,
-            id: doc.id,
-            href: documentHref(ctx, stored.id, doc.id),
-            rev: String(docRevision(doc)),
-          })),
-        ],
-        base: view.base,
-        ...(diagnostics.length > 0 ? { diagnostics } : {}),
-      }
-    },
-  }
+    }
+    return {
+      text: printed.text,
+      blobs: [
+        ...printed.blobs.flatMap((blob) => {
+          const doc = byName.get(blob.path.slice(knowledgeDocPath(stored.key, '').length))
+          return doc ? [{ ...blob, id: doc.id, href: documentHref(ctx, stored.id, doc.id) }] : []
+        }),
+        ...unhashed.map((doc) => ({
+          path: knowledgeDocPath(stored.key, doc.filename),
+          size: doc.fileSize,
+          id: doc.id,
+          href: documentHref(ctx, stored.id, doc.id),
+          rev: String(docRevision(doc)),
+        })),
+      ],
+      base: view.base,
+      ...(diagnostics.length > 0 ? { diagnostics } : {}),
+    }
+  },
+}

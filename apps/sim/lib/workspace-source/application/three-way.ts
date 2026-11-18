@@ -1,4 +1,4 @@
-import type { BaseResource } from '@sim/workspace-code'
+import type { BaseResource, WorkspaceKind } from '@sim/workspace-code'
 import {
   noBaseFinding,
   serverChangedFinding,
@@ -6,7 +6,7 @@ import {
   staleFinding,
 } from '@/lib/workspace-source/application/findings'
 import type {
-  PlannedChange,
+  KindChange,
   StoredResource,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
@@ -114,7 +114,7 @@ type WriteResolution<S> = Extract<DeclaredResolution<S>, { action: 'create' | 'a
  * returned as `settled`. A create, adopt or update comes back as the narrowed resolution, which
  * the kind plans itself.
  */
-export function settle<S, C extends PlannedChange>(
+export function settle<S, C extends KindChange<WorkspaceKind>>(
   resolution: DeclaredResolution<S>,
   change: C,
   baseOf: (stored: StoredResource<S>) => BaseResource

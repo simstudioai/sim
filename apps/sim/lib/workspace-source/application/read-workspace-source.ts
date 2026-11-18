@@ -16,7 +16,7 @@ import { sourceContext } from '@/lib/workspace-source/application/context'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { kindLimitFinding, overKindLimit } from '@/lib/workspace-source/application/findings'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
-import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
+import { adapterOf } from '@/lib/workspace-source/application/registry'
 import type {
   ReadBlob,
   ReadOutcome,
@@ -77,7 +77,7 @@ function directoryBudget() {
     spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
       const bytes: DirectoryBudgets = { declaration: 0, workflow: 0, rows: 0 }
       for (const [path, text] of Object.entries(read.text)) {
-        bytes[budgetOfPath(KIND_ADAPTERS[kind].codec, path)] += utf8Bytes(text)
+        bytes[budgetOfPath(adapterOf(kind).codec, path)] += utf8Bytes(text)
       }
       for (const budget of SOURCE_BUDGETS) {
         if (spent[budget] + bytes[budget] > limits[budget]) {
@@ -149,7 +149,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     // Kinds left out: the caller may not load them, or the workspace holds too many.
     const unread = new Set<WorkspaceKind>()
     for (const kind of kinds) {
-      const adapter = KIND_ADAPTERS[kind]
+      const adapter = adapterOf(kind)
       let stored: Awaited<ReturnType<typeof adapter.load>>
       try {
         stored = await adapter.load(ctx, { allocate: true })

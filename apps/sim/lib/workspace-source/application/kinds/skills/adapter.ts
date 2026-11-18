@@ -36,9 +36,9 @@ import type {
   SourceContext,
 } from '@/lib/workspace-source/application/types'
 
-type SkillChange = PlannedChange<SkillDecl, NamedPlan>
+type SkillChange = PlannedChange<'skill'>
 
-const skills: NamedKind<SkillDecl, SkillDecl> = {
+const skills: NamedKind<'skill', SkillDecl> = {
   kind: 'skill',
   codec: skillCodec,
   nameOf: (decl) => decl.name,
@@ -75,7 +75,7 @@ function checkFields(change: SkillChange, decl: SkillDecl): void {
   if (collision) finding('E_NAME_TAKEN', `${collision}.`)
 }
 
-export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
+export const skillAdapter: KindAdapter<'skill', SkillDecl> = {
   codec: skillCodec,
 
   async load(ctx, { allocate }) {

@@ -54,12 +54,12 @@ interface StoredCredential {
 }
 
 /** What a binding carries out: the declared entry, and the credential the key moves off. */
-interface CredentialPlan {
+export interface CredentialPlan {
   entry?: CredentialDecl
   boundTo?: string
 }
 
-type CredentialChange = PlannedChange<CredentialsDecl, CredentialPlan>
+type CredentialChange = PlannedChange<'credential'>
 type Credential = StoredResource<StoredCredential>
 
 /** Credentials per page while listing a workspace's credentials. */
@@ -254,7 +254,7 @@ function planUndeclaredKeys(
   return undeclared
 }
 
-export const credentialAdapter: KindAdapter<CredentialsDecl, StoredCredential, CredentialPlan> = {
+export const credentialAdapter: KindAdapter<'credential', StoredCredential> = {
   codec: credentialCodec,
 
   async load(ctx, { allocate }) {

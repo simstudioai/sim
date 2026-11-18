@@ -8,9 +8,27 @@ import type {
   WorkspaceDiagnosticCode,
   WorkspaceKind,
 } from '@sim/workspace-code'
+import type { CredentialsDecl } from '@sim/workspace-code/kinds/credentials'
+import type { DeploymentDecl } from '@sim/workspace-code/kinds/deployment'
+import type { FileDecl } from '@sim/workspace-code/kinds/files'
+import type { KnowledgeBaseDecl } from '@sim/workspace-code/kinds/knowledge'
+import type { McpServerDecl } from '@sim/workspace-code/kinds/mcp'
+import type { SecretDecl, SecretsDecl } from '@sim/workspace-code/kinds/secrets'
+import type { SkillDecl } from '@sim/workspace-code/kinds/skills'
+import type { TableDecl } from '@sim/workspace-code/kinds/table'
+import type { ToolDecl } from '@sim/workspace-code/kinds/tools'
+import type { WorkflowDecl } from '@sim/workspace-code/kinds/workflow'
 import type { SourceRequestShare } from '@/lib/workflows/application/apply-workflow-source'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import type { HashBudget } from '@/lib/workspace-source/application/hash-budget'
+import type { CredentialPlan } from '@/lib/workspace-source/application/kinds/credentials/adapter'
+import type { DeploymentPlan } from '@/lib/workspace-source/application/kinds/deployment/adapter'
+import type { FilePlan } from '@/lib/workspace-source/application/kinds/files/adapter'
+import type { KnowledgePlan } from '@/lib/workspace-source/application/kinds/knowledge/adapter'
+import type { McpPlan } from '@/lib/workspace-source/application/kinds/mcp/adapter'
+import type { NamedPlan } from '@/lib/workspace-source/application/kinds/named'
+import type { TablePlan } from '@/lib/workspace-source/application/kinds/table/adapter'
+import type { WorkflowPlan } from '@/lib/workspace-source/application/kinds/workflow/adapter'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** One finding of a workspace source read or apply, as the wire carries it. */
@@ -91,9 +109,8 @@ export interface UnavailableReference {
   hint: string
 }
 
-/** What an apply would do to one resource. */
-export interface PlannedChange<D = unknown, P = unknown> {
-  kind: WorkspaceKind
+/** What a change records whatever its kind (see {@link KindChange}). */
+interface ChangeFields {
   key: string
   action: ChangeAction
   /** What changes, for the plan display (`name`, `columns.email.type`, …). */
@@ -105,7 +122,6 @@ export interface PlannedChange<D = unknown, P = unknown> {
    * (nothing written) while any is missing.
    */
   needsBlobs?: string[]
-  decl?: D
   storedId?: string
   /**
    * How a later kind's dry run (a workflow naming this resource by key) sees the change before it
@@ -153,9 +169,47 @@ export interface PlannedChange<D = unknown, P = unknown> {
    */
   held?: true
   diagnostics: WorkspaceSourceDiagnostic[]
-  /** Kind-private plan data the apply carries out (a table's column changes, …). */
-  detail?: P
 }
+
+/**
+ * Each kind's declaration and the kind-private plan data its apply carries out (a table's column
+ * changes, …). Indexed by every `WorkspaceKind`, so a new kind fails to type-check until it has an
+ * entry here.
+ */
+interface KindChangeTypes {
+  secret: { decl: SecretsDecl; detail: SecretDecl }
+  credential: { decl: CredentialsDecl; detail: CredentialPlan }
+  'custom-tool': { decl: ToolDecl; detail: NamedPlan }
+  skill: { decl: SkillDecl; detail: NamedPlan }
+  'mcp-server': { decl: McpServerDecl; detail: McpPlan }
+  table: { decl: TableDecl; detail: TablePlan }
+  'knowledge-base': { decl: KnowledgeBaseDecl; detail: KnowledgePlan }
+  file: { decl: FileDecl; detail: FilePlan }
+  workflow: { decl: WorkflowDecl; detail: WorkflowPlan }
+  deployment: { decl: DeploymentDecl; detail: DeploymentPlan }
+}
+
+/** The declaration type of kind `K`. */
+export type DeclOf<K extends WorkspaceKind> = KindChangeTypes[K]['decl']
+
+/**
+ * What an apply would do to one resource of kind `K`. Helpers generic over the kind build this;
+ * for a concrete kind it is the {@link PlannedChange} member of that kind.
+ */
+export interface KindChange<K extends WorkspaceKind> extends ChangeFields {
+  kind: K
+  decl?: DeclOf<K>
+  detail?: KindChangeTypes[K]['detail']
+}
+
+/**
+ * What an apply would do to one resource, discriminated by `kind`: checking the kind narrows
+ * `decl` and `detail`. `PlannedChange<K>` is the member of kind `K`.
+ */
+export type PlannedChange<K extends WorkspaceKind = WorkspaceKind> = Extract<
+  { [Kind in WorkspaceKind]: KindChange<Kind> }[WorkspaceKind],
+  { kind: K }
+>
 
 /**
  * What applying one change stored: the id, the base entry (absent for a delete, which drops it),
@@ -194,11 +248,11 @@ export interface ReadResource {
 /**
  * How workspace source reads and writes one kind. Every protected read and write goes through the
  * use cases that own the kind, so their authorization, audit and notifications apply unchanged.
- * Methods (not function properties), so the registry of adapters with different declaration and
- * state types type-checks.
+ * Methods (not function properties), so the registry of adapters with different state types
+ * type-checks.
  */
-export interface KindAdapter<D, S, P = unknown> {
-  codec: KindCodec<D>
+export interface KindAdapter<K extends WorkspaceKind, S> {
+  codec: KindCodec<DeclOf<K>>
   /**
    * When a write claims its source key: by default a create or adopt claims it once written;
    * `every-write` claims on an update too (a renamed workflow folder moves its key). A kind whose
@@ -212,18 +266,18 @@ export interface KindAdapter<D, S, P = unknown> {
   load(ctx: SourceContext, options: { allocate: boolean }): Promise<StoredSet<S>>
   /** Plans every declared and stored resource of the kind; `desired` is keyed by source key. */
   plan(
-    desired: Map<string, D>,
+    desired: Map<string, DeclOf<K>>,
     stored: StoredSet<S>,
     ctx: PlanContext
-  ): Promise<PlannedChange<D, P>[]>
+  ): Promise<PlannedChange<K>[]>
   /** Throws when the principal may not make `change`, before anything is written. */
-  authorize(change: PlannedChange<D, P>, ctx: SourceContext): Promise<void>
+  authorize(change: PlannedChange<K>, ctx: SourceContext): Promise<void>
   /**
    * The stored resource's fingerprint now, as `serverFingerprint` records it at plan time. A kind
    * whose writes all carry their own atomic precondition (a file's revision) has none.
    */
-  fingerprintNow?(change: PlannedChange<D, P>, ctx: SourceContext): Promise<string>
-  apply(change: PlannedChange<D, P>, ctx: ApplyContext): Promise<AppliedResource>
+  fingerprintNow?(change: PlannedChange<K>, ctx: SourceContext): Promise<string>
+  apply(change: PlannedChange<K>, ctx: ApplyContext): Promise<AppliedResource>
   read(stored: StoredResource<S>, ctx: SourceContext): Promise<ReadResource>
   /**
    * Reads many stored resources together, for a kind whose reads share work (one authorization,

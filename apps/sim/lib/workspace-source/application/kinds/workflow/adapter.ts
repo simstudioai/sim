@@ -165,7 +165,7 @@ function readOf(
 type StoredWorkflowState = null
 
 /** What a write applies, decided at plan time. */
-interface WorkflowPlan {
+export interface WorkflowPlan {
   /**
    * An update's validated lock and base, and the apply's `--allow-delete`, which also lets the
    * workflow's apply delete its blocks; a create has none.
@@ -188,7 +188,7 @@ interface WorkflowPlan {
   evaluated?: EvaluatedSource
 }
 
-type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
+type WorkflowChange = PlannedChange<'workflow'>
 
 /**
  * The resources a compiled workflow names that a workspace directory declares: by the same key
@@ -629,7 +629,7 @@ export async function refuseDeletingEveryWorkflow(
   }
 }
 
-export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, WorkflowPlan> = {
+export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
   codec: workflowCodec,
   keys: 'every-write',
 
@@ -736,17 +736,11 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       })
     }
     changes.push(
-      ...planUndeclared<StoredWorkflowState, WorkflowDecl, WorkflowPlan>(
-        'workflow',
-        desired,
-        stored,
-        ctx,
-        {
-          declared: changes,
-          fingerprint: (workflow) => fingerprints.get(workflow.id) ?? '',
-          locked: (workflow) => locks.get(workflow.id),
-        }
-      )
+      ...planUndeclared('workflow', desired, stored, ctx, {
+        declared: changes,
+        fingerprint: (workflow) => fingerprints.get(workflow.id) ?? '',
+        locked: (workflow) => locks.get(workflow.id),
+      })
     )
     return changes
   },

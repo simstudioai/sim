@@ -45,11 +45,11 @@ interface StoredTool {
   code: string
 }
 
-type ToolChange = PlannedChange<ToolDecl, NamedPlan>
+type ToolChange = PlannedChange<'custom-tool'>
 
 const PAGE_SIZE = 200
 
-const tools: NamedKind<ToolDecl, StoredTool> = {
+const tools: NamedKind<'custom-tool', StoredTool> = {
   kind: 'custom-tool',
   codec: toolCodec,
   nameOf: (decl) => decl.title,
@@ -73,7 +73,7 @@ async function getTool(ctx: SourceContext, toolId: string): Promise<StoredTool> 
   return tool
 }
 
-export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
+export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
   codec: toolCodec,
 
   async load(ctx, { allocate }) {

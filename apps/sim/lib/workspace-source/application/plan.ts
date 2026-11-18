@@ -36,9 +36,10 @@ import {
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { warnDeployedDraftChanges } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import { refuseDeletingEveryWorkflow } from '@/lib/workspace-source/application/kinds/workflow/adapter'
-import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
+import { adapterOf } from '@/lib/workspace-source/application/registry'
 import { stagingScopeOf } from '@/lib/workspace-source/application/stage-blobs'
 import type {
+  DeclOf,
   PlanContext,
   PlannedChange,
   SourceContext,
@@ -340,7 +341,7 @@ export async function planWorkspaceSource(
   const unchanged = new Map<WorkspaceKind, ReadonlySet<string>>()
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
-    const adapter = KIND_ADAPTERS[kind]
+    const adapter = adapterOf(kind)
     const paths = [...Object.keys(files), ...manifest.keys()].filter(
       (path) => kindOfPath(path) === kind
     )
@@ -355,7 +356,7 @@ export async function planWorkspaceSource(
         )
       )
     }
-    const desired = new Map<string, unknown>()
+    const desired = new Map<string, DeclOf<WorkspaceKind>>()
     for (const [key, group] of grouped.groups) {
       const text = Object.fromEntries(
         group.filter((path) => Object.hasOwn(files, path)).map((path) => [path, files[path]])
@@ -410,7 +411,7 @@ export async function planWorkspaceSource(
   await checkDeletesInUse(changes, unchanged, workspaceId)
   for (const kind of APPLY_ORDER) {
     try {
-      await KIND_ADAPTERS[kind].checkRefs?.(changes, planCtx)
+      await adapterOf(kind).checkRefs?.(changes, planCtx)
     } catch (caught) {
       diagnostics.push(refusalDiagnostic(caught, { kind }))
     }
@@ -443,7 +444,7 @@ export async function planWorkspaceSource(
     )
     await mapWithConcurrency(authorizable, AUTHORIZE_CONCURRENCY, async (change) => {
       try {
-        await KIND_ADAPTERS[change.kind].authorize(change, ctx)
+        await adapterOf(change.kind).authorize(change, ctx)
       } catch (caught) {
         change.diagnostics.push(refusalDiagnostic(caught, { kind: change.kind, key: change.key }))
       }

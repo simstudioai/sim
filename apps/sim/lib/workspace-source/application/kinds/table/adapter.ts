@@ -100,7 +100,7 @@ interface RowsPlan {
 }
 
 /** What the apply carries out for one table, decided at plan time. */
-interface TablePlan {
+export interface TablePlan {
   /** The changes an update or adopt makes; absent for a create or delete. */
   changes?: TableChanges
   /** The base's column bindings the plan's fingerprint was read under. */
@@ -108,7 +108,7 @@ interface TablePlan {
   rows?: RowsPlan
 }
 
-type TableChange = PlannedChange<TableDecl, TablePlan>
+type TableChange = PlannedChange<'table'>
 
 /** The table folder paths a load read, so the plan that follows need not re-read them. */
 const loadedFolders = new WeakMap<StoredSet<StoredTableState>, ReadonlySet<string>>()
@@ -623,7 +623,7 @@ function reshapeInput(
   }
 }
 
-export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> = {
+export const tableAdapter: KindAdapter<'table', StoredTableState> = {
   codec: tableCodec,
 
   async load(ctx, { allocate }) {
@@ -653,22 +653,16 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       refuseDeclaredTwice(declaredNames, change, decl.name.toLowerCase(), decl.name)
       changes.push(change)
     }
-    const undeclared = planUndeclared<StoredTableState, TableDecl, TablePlan>(
-      'table',
-      desired,
-      stored,
-      ctx,
-      {
-        declared: changes,
-        fingerprint: (resource, entry) => storedFingerprint(resource.state, entry.columns),
-        counts: (resource) => ({ rows: resource.state.table.rowCount }),
-        locked: ({ state }) =>
-          state.table.locks.deleteLocked
-            ? `Table "${state.table.name}" is delete-locked.`
-            : undefined,
-        detail: (_resource, entry) => (entry.columns ? { bindings: entry.columns } : undefined),
-      }
-    )
+    const undeclared = planUndeclared('table', desired, stored, ctx, {
+      declared: changes,
+      fingerprint: (resource, entry) => storedFingerprint(resource.state, entry.columns),
+      counts: (resource) => ({ rows: resource.state.table.rowCount }),
+      locked: ({ state }) =>
+        state.table.locks.deleteLocked
+          ? `Table "${state.table.name}" is delete-locked.`
+          : undefined,
+      detail: (_resource, entry) => (entry.columns ? { bindings: entry.columns } : undefined),
+    })
     return [...changes, ...undeclared]
   },
 

@@ -45,7 +45,7 @@ interface StoredSecret {
 }
 
 /** A secret change carries the declared entry it writes. */
-type SecretChange = PlannedChange<SecretsDecl, SecretDecl>
+type SecretChange = PlannedChange<'secret'>
 
 /** Secrets per page while listing a workspace's secrets. */
 const LIST_PAGE = 200
@@ -156,7 +156,7 @@ function planSecret(
   return 'settled' in settled ? settled.settled : update
 }
 
-export const secretAdapter: KindAdapter<SecretsDecl, StoredSecret, SecretDecl> = {
+export const secretAdapter: KindAdapter<'secret', StoredSecret> = {
   codec: secretCodec,
 
   async load(ctx) {
