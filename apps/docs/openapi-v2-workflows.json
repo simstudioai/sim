@@ -20011,11 +20011,19 @@
                             "description": "Column type, e.g. `string`, `number`, `boolean`, `json`, `select`."
                           },
                           "options": {
-                            "description": "Option ids a `select` column accepts.",
+                            "description": "Option names a `select` column accepts, as table blocks read and write them.",
                             "type": "array",
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "multiple": {
+                            "description": "A `select` column whose cells hold several options.",
+                            "type": "boolean"
+                          },
+                          "required": {
+                            "description": "Every row holds a value.",
+                            "type": "boolean"
                           }
                         },
                         "required": ["name", "type"],

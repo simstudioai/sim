@@ -231,7 +231,7 @@ export interface CatalogBlockGraph {
  * (the editor's output picker reads the tool's outputs too): `names` lists the block outputs the
  * tool declares, in block order, and `nullable` those of them it may return as `null`.
  */
-export interface CatalogOperationOutputs {
+interface CatalogOperationOutputs {
   names: string[]
   nullable?: string[]
 }

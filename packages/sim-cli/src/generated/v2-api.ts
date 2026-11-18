@@ -8008,6 +8008,7 @@ export type GetSourceCatalogResponse = {
               columns?: Array<string>
               selectorKey?: string
               serviceId?: string
+              credentialProviders?: Array<string>
               valueKind:
                 | 'string'
                 | 'number'
@@ -8062,6 +8063,13 @@ export type GetSourceCatalogResponse = {
           }
         >
         sharedOutputs?: number
+        operationOutputs?: Record<
+          string,
+          {
+            names: Array<string>
+            nullable?: Array<string>
+          }
+        >
         dynamicOutputs?: {
           source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
           param: string
@@ -8237,6 +8245,7 @@ export type GetSourceCatalogResponse = {
               columns?: Array<string>
               selectorKey?: string
               serviceId?: string
+              credentialProviders?: Array<string>
               valueKind:
                 | 'string'
                 | 'number'
@@ -8426,6 +8435,7 @@ export type GetSourceCatalogResponse = {
       columns?: Array<string>
       selectorKey?: string
       serviceId?: string
+      credentialProviders?: Array<string>
       valueKind:
         | 'string'
         | 'number'
@@ -8487,6 +8497,8 @@ export type GetSourceResourcesResponse = {
         name: string
         type: string
         options?: Array<string>
+        multiple?: boolean
+        required?: boolean
       }>
     }>
     knowledgeBases: Array<{
