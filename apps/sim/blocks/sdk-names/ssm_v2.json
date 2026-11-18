@@ -1,0 +1,32 @@
+{
+  "namespace": "ssm",
+  "methods": {
+    "cancel_command": "cancelCommand",
+    "delete_parameter": "deleteParameter",
+    "describe_automation_executions": "describeAutomationExecutions",
+    "describe_instance_information": "describeInstanceInformation",
+    "describe_instance_patch_states": "describeInstancePatchStates",
+    "describe_instance_patches": "describeInstancePatches",
+    "describe_parameters": "describeParameters",
+    "get_automation_execution": "getAutomationExecution",
+    "get_command_invocation": "getCommandInvocation",
+    "get_document": "getDocument",
+    "get_parameter": "getParameter",
+    "get_parameters": "getParameters",
+    "get_parameters_by_path": "getParametersByPath",
+    "list_command_invocations": "listCommandInvocations",
+    "list_commands": "listCommands",
+    "list_compliance_items": "listComplianceItems",
+    "list_compliance_summaries": "listComplianceSummaries",
+    "list_documents": "listDocuments",
+    "put_parameter": "putParameter",
+    "send_command": "sendCommand",
+    "start_automation_execution": "startAutomationExecution",
+    "stop_automation_execution": "stopAutomationExecution"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

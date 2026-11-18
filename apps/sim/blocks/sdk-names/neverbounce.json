@@ -1,0 +1,7 @@
+{
+  "namespace": "neverbounce",
+  "methods": {
+    "neverbounce_get_credits": "getRemainingCredits",
+    "neverbounce_verify_email": "verifyEmail"
+  }
+}

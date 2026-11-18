@@ -1,0 +1,19 @@
+{
+  "namespace": "firecrawl",
+  "methods": {
+    "agent": "agent",
+    "batch_scrape": "batchScrape",
+    "batch_scrape_status": "batchScrapeStatus",
+    "cancel_crawl": "cancelCrawl",
+    "crawl": "crawl",
+    "crawl_status": "crawlStatus",
+    "credit_usage": "creditUsage",
+    "enrich": "enrichContactOrCompany",
+    "extract": "extract",
+    "extract_status": "extractStatus",
+    "map": "map",
+    "parse": "parseDocument",
+    "scrape": "scrape",
+    "search": "search"
+  }
+}

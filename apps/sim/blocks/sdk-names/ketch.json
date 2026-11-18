@@ -1,0 +1,10 @@
+{
+  "namespace": "ketch",
+  "methods": {
+    "get_consent": "getConsent",
+    "get_subscriptions": "getSubscriptions",
+    "invoke_right": "invokeRight",
+    "set_consent": "setConsent",
+    "set_subscriptions": "setSubscriptions"
+  }
+}

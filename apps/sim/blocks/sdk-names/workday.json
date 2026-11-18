@@ -1,0 +1,15 @@
+{
+  "namespace": "workday",
+  "methods": {
+    "assign_onboarding": "assignOnboardingPlan",
+    "change_job": "changeJob",
+    "create_prehire": "createPreHire",
+    "get_compensation": "getCompensation",
+    "get_organizations": "getOrganizations",
+    "get_worker": "getWorker",
+    "hire_employee": "hireEmployee",
+    "list_workers": "listWorkers",
+    "terminate_worker": "terminateWorker",
+    "update_worker": "updatePersonalInformation"
+  }
+}

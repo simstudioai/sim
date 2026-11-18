@@ -1,0 +1,48 @@
+{
+  "namespace": "instantly",
+  "methods": {
+    "activate_campaign": "activateCampaign",
+    "create_campaign": "createCampaign",
+    "create_lead": "createLead",
+    "create_lead_list": "createLeadList",
+    "delete_campaign": "deleteCampaign",
+    "delete_leads": "deleteLeads",
+    "get_lead": "getLead",
+    "list_campaigns": "listCampaigns",
+    "list_emails": "listEmails",
+    "list_lead_lists": "listLeadLists",
+    "list_leads": "listLeads",
+    "patch_campaign": "patchCampaign",
+    "patch_lead": "patchLead",
+    "pause_campaign": "pauseCampaign",
+    "reply_to_email": "replyToEmail",
+    "update_lead_interest_status": "updateLeadInterestStatus"
+  },
+  "triggers": {
+    "instantly_account_error": "accountError",
+    "instantly_auto_reply_received": "autoReplyReceived",
+    "instantly_campaign_completed": "campaignCompleted",
+    "instantly_email_bounced": "emailBounced",
+    "instantly_email_opened": "emailOpened",
+    "instantly_email_sent": "emailSent",
+    "instantly_lead_closed": "leadClosed",
+    "instantly_lead_interested": "leadInterested",
+    "instantly_lead_meeting_booked": "leadMeetingBooked",
+    "instantly_lead_meeting_completed": "leadMeetingCompleted",
+    "instantly_lead_neutral": "leadNeutral",
+    "instantly_lead_no_show": "leadNoShow",
+    "instantly_lead_not_interested": "leadNotInterested",
+    "instantly_lead_out_of_office": "leadOutOfOffice",
+    "instantly_lead_unsubscribed": "leadUnsubscribed",
+    "instantly_lead_wrong_person": "leadWrongPerson",
+    "instantly_link_clicked": "linkClicked",
+    "instantly_reply_received": "replyReceived",
+    "instantly_supersearch_enrichment_completed": "supersearchEnrichmentCompleted",
+    "instantly_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

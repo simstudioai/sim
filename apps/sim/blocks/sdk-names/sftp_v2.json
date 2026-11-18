@@ -1,0 +1,11 @@
+{
+  "namespace": "sftp",
+  "methods": {
+    "sftp_create": "createFile",
+    "sftp_delete": "deleteFileDirectory",
+    "sftp_download": "downloadFile",
+    "sftp_list": "listDirectory",
+    "sftp_mkdir": "createDirectory",
+    "sftp_upload": "uploadFiles"
+  }
+}

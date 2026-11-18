@@ -1,0 +1,23 @@
+{
+  "namespace": "fireflies",
+  "methods": {
+    "fireflies_add_to_live_meeting": "addBotToLiveMeeting",
+    "fireflies_create_bite": "createBite",
+    "fireflies_delete_transcript": "deleteTranscript",
+    "fireflies_get_transcript": "getTranscript",
+    "fireflies_get_user": "getUser",
+    "fireflies_list_bites": "listBites",
+    "fireflies_list_contacts": "listContacts",
+    "fireflies_list_transcripts": "listTranscripts",
+    "fireflies_list_users": "listUsers",
+    "fireflies_upload_audio": "uploadAudio"
+  },
+  "triggers": {
+    "fireflies_transcription_complete": "transcriptionComplete"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

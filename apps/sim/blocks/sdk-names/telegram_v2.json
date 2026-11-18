@@ -1,0 +1,32 @@
+{
+  "namespace": "telegram",
+  "methods": {
+    "telegram_copy_message": "copyMessage",
+    "telegram_delete_message": "deleteMessage",
+    "telegram_edit_message_text": "editMessageText",
+    "telegram_forward_message": "forwardMessage",
+    "telegram_get_chat": "getChat",
+    "telegram_get_chat_member": "getChatMember",
+    "telegram_message": "sendMessage",
+    "telegram_pin_message": "pinMessage",
+    "telegram_send_animation": "sendAnimation",
+    "telegram_send_audio": "sendAudio",
+    "telegram_send_chat_action": "sendChatAction",
+    "telegram_send_contact": "sendContact",
+    "telegram_send_document": "sendDocument",
+    "telegram_send_location": "sendLocation",
+    "telegram_send_photo": "sendPhoto",
+    "telegram_send_poll": "sendPoll",
+    "telegram_send_video": "sendVideo",
+    "telegram_set_message_reaction": "setMessageReaction",
+    "telegram_unpin_message": "unpinMessage"
+  },
+  "triggers": {
+    "telegram_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

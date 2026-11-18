@@ -1,0 +1,21 @@
+{
+  "namespace": "legacy.jupyter",
+  "methods": {
+    "jupyter_copy_content": "copyContent",
+    "jupyter_create_file": "createFile",
+    "jupyter_create_session": "createSession",
+    "jupyter_delete_content": "deleteContent",
+    "jupyter_delete_session": "deleteSession",
+    "jupyter_get_content": "getContent",
+    "jupyter_interrupt_kernel": "interruptKernel",
+    "jupyter_list_contents": "listContents",
+    "jupyter_list_kernels": "listKernels",
+    "jupyter_list_kernelspecs": "listKernelSpecs",
+    "jupyter_list_sessions": "listSessions",
+    "jupyter_rename_content": "renameContent",
+    "jupyter_restart_kernel": "restartKernel",
+    "jupyter_start_kernel": "startKernel",
+    "jupyter_stop_kernel": "stopKernel",
+    "jupyter_upload_file": "uploadFile"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "namespace": "cbinsights",
+  "methods": {
+    "chat": "askChatCbi",
+    "get_commercial_maturity_history": "getCommercialMaturityHistory",
+    "get_exit_probability_history": "getExitProbabilityHistory",
+    "get_mosaic_history": "getMosaicHistory",
+    "get_org_business_relationships": "getOrganizationBusinessRelationships",
+    "get_org_funding_window": "getOrganizationFundingWindow",
+    "get_org_fundings": "getOrganizationFundings",
+    "get_org_investments": "getOrganizationInvestments",
+    "get_org_management_and_board": "getOrganizationManagementAndBoard",
+    "get_org_outlook": "getOrganizationOutlook",
+    "get_org_portfolio_exits": "getOrganizationPortfolioExits",
+    "get_org_revenue": "getOrganizationRevenue",
+    "get_scouting_report": "getScoutingReport",
+    "get_strategy_map": "getStrategyMap",
+    "list_business_relationships": "listBusinessRelationships",
+    "list_funding_window": "listFundingWindows",
+    "list_fundings": "listFundings",
+    "list_investments": "listInvestments",
+    "list_management_and_board": "listManagementAndBoard",
+    "list_outlook": "listOutlook",
+    "list_portfolio_exits": "listPortfolioExits",
+    "list_revenue": "listRevenue",
+    "lookup_organizations": "lookUpOrganizations",
+    "rag": "retrieveContext",
+    "search_firmographics": "searchFirmographics"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

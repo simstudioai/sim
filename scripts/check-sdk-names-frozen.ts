@@ -1,26 +1,29 @@
 #!/usr/bin/env bun
 /**
- * Keeps `apps/sim/blocks/sdk-names.json` add-only against a base ref.
+ * Keeps the frozen SDK names (`apps/sim/blocks/sdk-names/<type>.json`) add-only against a base ref.
  *
  * A builder name is public API the moment a workflow file uses it (`slack.sendMessage(...)`), so
  * once a namespace, method, trigger builder or param alias reaches the base branch it may never
  * change or disappear. `check:sdk-names` proves the file covers the registry; it cannot see a
- * rename, because the renamed file is just as complete. This check compares the working-tree file
- * with the one at the merge-base and fails on any base entry that is missing or different. New
- * entries pass. A base that has no file yet means everything is new.
+ * rename, because the renamed file is just as complete. This check compares the working-tree files
+ * with the ones at the merge-base and fails on any base entry that is missing or different. New
+ * entries pass. A base that has no names yet means everything is new; a base from before the
+ * per-block split is read from its single `sdk-names.json`.
  *
  * Usage:
  *   bun run scripts/check-sdk-names-frozen.ts [baseRef]   # base defaults to origin/staging
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const NAMES_PATH = 'apps/sim/blocks/sdk-names.json'
+const NAMES_DIR = 'apps/sim/blocks/sdk-names'
+/** The single file the names lived in before the per-block split. */
+const LEGACY_NAMES_PATH = 'apps/sim/blocks/sdk-names.json'
 
 /** The maps under a block entry whose every key is frozen once it reaches the base. */
 const NAME_MAPS = ['methods', 'triggers'] as const
@@ -50,7 +53,7 @@ function compareMap(
 
 /**
  * Every base name the head drops or changes, one line each. `base` is `null` when the base ref
- * has no sdk-names file, which makes every head entry new.
+ * has no SDK names, which makes every head entry new.
  */
 export function frozenNameViolations(base: unknown, head: unknown): string[] {
   if (base === null) return []
@@ -99,8 +102,29 @@ function git(args: string[]): string | null {
   }
 }
 
+/** `{ blocks }` from per-block file texts keyed by path. */
+function namesFromFiles(files: Iterable<[string, string]>): { blocks: Record<string, unknown> } {
+  const blocks: Record<string, unknown> = {}
+  for (const [file, text] of files) blocks[path.basename(file, '.json')] = JSON.parse(text)
+  return { blocks }
+}
+
+/** Every `.json` path under {@link NAMES_DIR} at `revision`, with its text. */
+function readTreeFiles(revision: string): Array<[string, string]> {
+  const listing = git(['ls-tree', '-r', '--name-only', revision, '--', `${NAMES_DIR}/`])
+  if (listing === null) throw new Error(`Cannot list ${NAMES_DIR} at ${revision}.`)
+  return listing
+    .split('\n')
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => {
+      const text = git(['show', `${revision}:${file}`])
+      if (text === null) throw new Error(`Cannot read ${file} at ${revision}.`)
+      return [file, text]
+    })
+}
+
 /**
- * The base file's JSON, `null` when the base has no file, or throws when the ref is unusable. The
+ * The base names, `null` when the base has none, or throws when the ref is unusable. The
  * merge-base is preferred; a shallow CI fetch that has no merge-base compares against the ref.
  */
 function readBase(baseRef: string): unknown {
@@ -110,10 +134,21 @@ function readBase(baseRef: string): unknown {
   if (!mergeBase) {
     throw new Error(`Cannot resolve '${baseRef}'. Fetch it before running this check.`)
   }
-  if (git(['cat-file', '-e', `${mergeBase}:${NAMES_PATH}`]) === null) return null
-  const text = git(['show', `${mergeBase}:${NAMES_PATH}`])
-  if (text === null) throw new Error(`Cannot read ${NAMES_PATH} at ${mergeBase}.`)
+  const files = readTreeFiles(mergeBase)
+  if (files.length > 0) return namesFromFiles(files)
+  if (git(['cat-file', '-e', `${mergeBase}:${LEGACY_NAMES_PATH}`]) === null) return null
+  const text = git(['show', `${mergeBase}:${LEGACY_NAMES_PATH}`])
+  if (text === null) throw new Error(`Cannot read ${LEGACY_NAMES_PATH} at ${mergeBase}.`)
   return JSON.parse(text)
+}
+
+function readHead(): { blocks: Record<string, unknown> } {
+  const dir = path.join(ROOT, NAMES_DIR)
+  return namesFromFiles(
+    readdirSync(dir)
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => [file, readFileSync(path.join(dir, file), 'utf8')])
+  )
 }
 
 if (import.meta.main) {
@@ -125,18 +160,18 @@ if (import.meta.main) {
     console.error(`✗ sdk-names freeze check could not run.\n  ${getErrorMessage(error)}`)
     process.exit(1)
   }
-  const head: unknown = JSON.parse(readFileSync(path.join(ROOT, NAMES_PATH), 'utf8'))
+  const head = readHead()
   const violations = frozenNameViolations(base, head)
   if (violations.length > 0) {
     console.error(
-      `✗ ${NAMES_PATH} changed or removed ${violations.length} name(s) that ${baseRef} already ships. Names are add-only: restore each one, and give a colliding NEW entry a hand-picked name instead.\n`
+      `✗ ${NAMES_DIR} changed or removed ${violations.length} name(s) that ${baseRef} already ships. Names are add-only: restore each one, and give a colliding NEW entry a hand-picked name instead.\n`
     )
     for (const violation of violations) console.error(`  ${violation}`)
     process.exit(1)
   }
   console.log(
     base === null
-      ? `✓ ${baseRef} has no ${NAMES_PATH}; every name is new.`
-      : `✓ ${NAMES_PATH} keeps every name ${baseRef} ships.`
+      ? `✓ ${baseRef} has no SDK names; every name is new.`
+      : `✓ ${NAMES_DIR} keeps every name ${baseRef} ships.`
   )
 }

@@ -1,0 +1,26 @@
+{
+  "namespace": "tiktok",
+  "methods": {
+    "tiktok_get_post_status": "getPostStatus",
+    "tiktok_get_user": "getUserInfo",
+    "tiktok_list_videos": "listVideos",
+    "tiktok_query_videos": "queryVideos",
+    "tiktok_upload_video_draft": "uploadVideoDraft"
+  },
+  "triggers": {
+    "tiktok_authorization_removed": "authorizationRemoved",
+    "tiktok_post_inbox_delivered": "postInboxDelivered",
+    "tiktok_post_no_longer_public": "postNoLongerPublic",
+    "tiktok_post_publicly_available": "postPubliclyAvailable",
+    "tiktok_post_publish_complete": "postPublishComplete",
+    "tiktok_post_publish_failed": "postPublishFailed"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "triggerCredentials": "credential"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "namespace": "dynamodb",
+  "methods": {
+    "delete": "deleteItem",
+    "get": "getItem",
+    "introspect": "introspect",
+    "put": "putItem",
+    "query": "query",
+    "scan": "scan",
+    "update": "updateItem"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

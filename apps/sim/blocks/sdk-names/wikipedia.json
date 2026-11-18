@@ -1,0 +1,9 @@
+{
+  "namespace": "wikipedia",
+  "methods": {
+    "wikipedia_content": "getPageContent",
+    "wikipedia_random": "randomPage",
+    "wikipedia_search": "searchPages",
+    "wikipedia_summary": "getPageSummary"
+  }
+}

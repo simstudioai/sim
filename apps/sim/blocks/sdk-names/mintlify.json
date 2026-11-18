@@ -1,0 +1,23 @@
+{
+  "namespace": "mintlify",
+  "methods": {
+    "create_agent_job": "createAgentJob",
+    "create_assistant_message": "askAssistant",
+    "detect_ai_prose": "detectAiSoundingProse",
+    "get_agent_job": "getAgentJob",
+    "get_assistant_caller_stats": "getAssistantCallerStats",
+    "get_assistant_conversations": "getAssistantConversations",
+    "get_feedback": "getFeedback",
+    "get_feedback_by_page": "getFeedbackByPage",
+    "get_page_content": "getPageContent",
+    "get_searches": "getSearchQueries",
+    "get_update_status": "getUpdateStatus",
+    "get_views": "getPageViews",
+    "get_visitors": "getUniqueVisitors",
+    "search": "searchDocumentation",
+    "send_agent_message": "sendAgentMessage",
+    "trigger_automation": "triggerAutomation",
+    "trigger_preview": "triggerPreviewDeployment",
+    "trigger_update": "triggerUpdate"
+  }
+}

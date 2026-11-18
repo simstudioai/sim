@@ -1,0 +1,26 @@
+{
+  "namespace": "legacy.sharepoint",
+  "methods": {
+    "add_list_items": "addListItems",
+    "create_list": "createList",
+    "create_page": "createPage",
+    "delete_file": "deleteFile",
+    "delete_list_item": "deleteListItem",
+    "delete_page": "deletePage",
+    "download_file": "downloadFile",
+    "get_drive_item": "getDriveItem",
+    "get_list_item": "getListItem",
+    "list_sites": "listSites",
+    "publish_page": "publishPage",
+    "read_list": "readList",
+    "read_page": "readPage",
+    "update_list": "updateList",
+    "update_page": "updatePage",
+    "upload_file": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

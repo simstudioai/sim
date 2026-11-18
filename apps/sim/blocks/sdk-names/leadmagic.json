@@ -1,0 +1,14 @@
+{
+  "namespace": "leadmagic",
+  "methods": {
+    "leadmagic_company_search": "companySearch",
+    "leadmagic_email_to_profile": "emailToProfile",
+    "leadmagic_find_email": "findEmail",
+    "leadmagic_find_mobile": "findMobile",
+    "leadmagic_get_credits": "getCredits",
+    "leadmagic_profile_search": "profileSearch",
+    "leadmagic_profile_to_email": "profileToEmail",
+    "leadmagic_role_finder": "roleFinder",
+    "leadmagic_validate_email": "validateEmail"
+  }
+}

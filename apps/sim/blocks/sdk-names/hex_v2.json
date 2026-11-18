@@ -1,0 +1,31 @@
+{
+  "namespace": "hex",
+  "methods": {
+    "cancel_run": "cancelRun",
+    "create_collection": "createCollection",
+    "create_group": "createGroup",
+    "deactivate_user": "deactivateUser",
+    "delete_group": "deleteGroup",
+    "get_collection": "getCollection",
+    "get_data_connection": "getDataConnection",
+    "get_group": "getGroup",
+    "get_project": "getProject",
+    "get_project_runs": "getProjectRuns",
+    "get_queried_tables": "getQueriedTables",
+    "get_run_status": "getRunStatus",
+    "list_collections": "listCollections",
+    "list_data_connections": "listDataConnections",
+    "list_groups": "listGroups",
+    "list_projects": "listProjects",
+    "list_users": "listUsers",
+    "run_project": "runProject",
+    "update_collection": "updateCollection",
+    "update_group": "updateGroup",
+    "update_project": "updateProject"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -217,7 +217,7 @@ makes a source stale. `canonicalHash` covers the CWM alone. Get returns the fing
 
 The source catalog is the per-workspace authoring catalog codegen, print and compile read
 (`apps/sim/lib/workflows/code/catalog/`). `projectBlockCatalog` projects the live registry
-(`CatalogBlock`, `CatalogTrigger`, frozen builder names from `sdk-names.json`);
+(`CatalogBlock`, `CatalogTrigger`, frozen builder names from `apps/sim/blocks/sdk-names/`);
 `buildSourceCatalog` narrows it to the caller's gate (visibility, allowlist, the workspace's custom
 blocks) plus every type the workflow already stores, marking types that may stay but not be added
 `addable: false`. Builds are cached by content key in an `lru-cache`.
@@ -226,7 +226,7 @@ Notable fields:
 
 - `CatalogBlock.graph` (`canBeTarget`, `errorPort`, `container`, `annotationOnly`, the branches
   subBlock), `dynamicOutputs?: { source, param }`, `singleInstance`, `paramAliases` (frozen
-  `sdk-names.json` aliases, `oauthCredential` → `credential`), `addable?: false`, legacy ids.
+  `sdk-names` aliases, `oauthCredential` → `credential`), `addable?: false`, legacy ids.
 - `CatalogSubBlock`: `surface` (separates the action and trigger copies of one id), `condition`,
   `visibleFor`/`visibleWhen`/`visibleForModel` (data the projection precomputed for function
   conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`,

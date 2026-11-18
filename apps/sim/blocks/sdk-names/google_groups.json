@@ -1,0 +1,26 @@
+{
+  "namespace": "googleGroups",
+  "methods": {
+    "add_alias": "addAlias",
+    "add_member": "addMember",
+    "create_group": "createGroup",
+    "delete_group": "deleteGroup",
+    "get_group": "getGroup",
+    "get_member": "getMember",
+    "get_settings": "getSettings",
+    "has_member": "checkMembership",
+    "list_aliases": "listAliases",
+    "list_groups": "listGroups",
+    "list_members": "listMembers",
+    "remove_alias": "removeAlias",
+    "remove_member": "removeMember",
+    "update_group": "updateGroup",
+    "update_member": "updateMemberRole",
+    "update_settings": "updateSettings"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

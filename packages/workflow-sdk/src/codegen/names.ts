@@ -1,5 +1,5 @@
 /**
- * Builder names come from the catalog's frozen `builders` map (`apps/sim/blocks/sdk-names.json`).
+ * Builder names come from the catalog's frozen `builders` map (`apps/sim/blocks/sdk-names/<type>.json`).
  * Codegen never invents a method name: it validates the map, splits each dotted path into
  * namespaces, and names the generated type aliases after it.
  */

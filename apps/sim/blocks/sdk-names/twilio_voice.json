@@ -1,0 +1,11 @@
+{
+  "namespace": "legacy.twilioVoice",
+  "methods": {
+    "get_recording": "getRecording",
+    "list_calls": "listCalls",
+    "make_call": "makeCall"
+  },
+  "triggers": {
+    "twilio_voice_webhook": "webhook"
+  }
+}

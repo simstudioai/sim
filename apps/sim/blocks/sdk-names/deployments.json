@@ -1,0 +1,10 @@
+{
+  "namespace": "deployments",
+  "methods": {
+    "deployments_deploy": "deploy",
+    "deployments_get_version": "getVersionDetails",
+    "deployments_list_versions": "listVersions",
+    "deployments_promote": "promoteVersionToLive",
+    "deployments_undeploy": "undeploy"
+  }
+}

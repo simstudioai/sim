@@ -1,0 +1,35 @@
+{
+  "namespace": "legacy.googleCalendar",
+  "methods": {
+    "create": "createEvent",
+    "create_calendar": "createCalendar",
+    "delete": "deleteEvent",
+    "delete_calendar": "deleteCalendar",
+    "freebusy": "checkFreeBusy",
+    "get": "getEvent",
+    "instances": "getRecurringInstances",
+    "invite": "inviteAttendees",
+    "list": "listEvents",
+    "list_acl": "listSharing",
+    "list_calendars": "listCalendars",
+    "move": "moveEvent",
+    "quick_add": "quickAddNaturalLanguage",
+    "respond": "respondToInvitationRsvp",
+    "share_calendar": "shareCalendar",
+    "unshare_calendar": "removeSharing",
+    "update": "updateEvent",
+    "update_acl": "updateSharing",
+    "update_calendar": "updateCalendar"
+  },
+  "triggers": {
+    "google_calendar_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

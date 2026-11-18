@@ -1,0 +1,46 @@
+{
+  "namespace": "oracleFusionFinancials",
+  "methods": {
+    "oracle_fusion_financials_apply_receivables_receipt": "applyReceivablesReceipt",
+    "oracle_fusion_financials_approve_receivables_invoice": "approveReceivablesInvoice",
+    "oracle_fusion_financials_create_expense_line": "createExpenseLine",
+    "oracle_fusion_financials_create_expense_report": "createExpenseReport",
+    "oracle_fusion_financials_create_receivables_credit_memo": "createReceivablesCreditMemo",
+    "oracle_fusion_financials_create_receivables_invoice": "createReceivablesInvoice",
+    "oracle_fusion_financials_create_receivables_receipt": "createReceivablesReceipt",
+    "oracle_fusion_financials_get_expense_line": "getExpenseLine",
+    "oracle_fusion_financials_get_expense_report": "getExpenseReport",
+    "oracle_fusion_financials_get_gl_journal_batch": "getGlJournalBatch",
+    "oracle_fusion_financials_get_gl_ledger": "getGlLedger",
+    "oracle_fusion_financials_get_payables_invoice": "getPayablesInvoice",
+    "oracle_fusion_financials_get_payables_invoice_line": "getPayablesInvoiceLine",
+    "oracle_fusion_financials_get_payables_payment": "getPayablesPayment",
+    "oracle_fusion_financials_get_receivables_credit_memo": "getReceivablesCreditMemo",
+    "oracle_fusion_financials_get_receivables_invoice": "getReceivablesInvoice",
+    "oracle_fusion_financials_get_receivables_invoice_installment": "getReceivablesInvoiceInstallment",
+    "oracle_fusion_financials_get_receivables_invoice_line": "getReceivablesInvoiceLine",
+    "oracle_fusion_financials_get_receivables_receipt": "getReceivablesReceipt",
+    "oracle_fusion_financials_list_expense_lines": "listExpenseLines",
+    "oracle_fusion_financials_list_expense_reports": "listExpenseReports",
+    "oracle_fusion_financials_list_gl_balances": "listGlBalances",
+    "oracle_fusion_financials_list_gl_journal_batches": "listGlJournalBatches",
+    "oracle_fusion_financials_list_gl_ledgers": "listGlLedgers",
+    "oracle_fusion_financials_list_payables_invoice_lines": "listPayablesInvoiceLines",
+    "oracle_fusion_financials_list_payables_invoices": "listPayablesInvoices",
+    "oracle_fusion_financials_list_payables_payments": "listPayablesPayments",
+    "oracle_fusion_financials_list_receivables_credit_memos": "listReceivablesCreditMemos",
+    "oracle_fusion_financials_list_receivables_invoice_installments": "listReceivablesInvoiceInstallments",
+    "oracle_fusion_financials_list_receivables_invoice_lines": "listReceivablesInvoiceLines",
+    "oracle_fusion_financials_list_receivables_invoices": "listReceivablesInvoices",
+    "oracle_fusion_financials_list_receivables_receipts": "listReceivablesReceipts",
+    "oracle_fusion_financials_submit_expense_report": "submitExpenseReport",
+    "oracle_fusion_financials_update_expense_line": "updateExpenseLine",
+    "oracle_fusion_financials_update_expense_report": "updateExpenseReport",
+    "oracle_fusion_financials_update_receivables_invoice": "updateReceivablesInvoice"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

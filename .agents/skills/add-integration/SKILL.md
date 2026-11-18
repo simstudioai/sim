@@ -371,7 +371,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 }
 ```
 
-Then run `bun run generate:sdk-names` and commit `apps/sim/blocks/sdk-names.json` and `apps/sim/blocks/sdk-names.generated.ts`, so workflow source gets a typed builder for the new block (`check:sdk-names` fails CI until it runs).
+Then run `bun run generate:sdk-names` and commit the new `apps/sim/blocks/sdk-names/<type>.json` and the regenerated `apps/sim/blocks/sdk-names.generated.ts` (names are add-only: never edit or delete an existing entry; on a merge conflict in the generated module, rerun the generator), so workflow source gets a typed builder for the new block (`check:sdk-names` fails CI until it runs).
 
 ### Trigger Registry (`apps/sim/triggers/registry.ts`) - If triggers exist
 

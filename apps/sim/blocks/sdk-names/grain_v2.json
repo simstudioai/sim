@@ -1,0 +1,26 @@
+{
+  "namespace": "legacy.grainV2",
+  "methods": {
+    "grain_create_hook_v2": "createWebhook",
+    "grain_delete_hook_v2": "deleteWebhook",
+    "grain_get_recording": "getRecording",
+    "grain_get_transcript": "getTranscript",
+    "grain_list_hooks_v2": "listWebhooks",
+    "grain_list_meeting_types": "listMeetingTypes",
+    "grain_list_recordings": "listRecordings",
+    "grain_list_teams": "listTeams"
+  },
+  "triggers": {
+    "grain_all_events_v2": "allEvents",
+    "grain_highlight_added_v2": "highlightAdded",
+    "grain_highlight_deleted_v2": "highlightDeleted",
+    "grain_highlight_updated_v2": "highlightUpdated",
+    "grain_recording_added_v2": "recordingAdded",
+    "grain_recording_deleted_v2": "recordingDeleted",
+    "grain_recording_updated_v2": "recordingUpdated",
+    "grain_story_added_v2": "storyAdded",
+    "grain_story_deleted_v2": "storyDeleted",
+    "grain_story_updated_v2": "storyUpdated",
+    "grain_upload_status_v2": "uploadStatus"
+  }
+}

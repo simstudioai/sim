@@ -1,0 +1,12 @@
+{
+  "namespace": "neo4j",
+  "methods": {
+    "create": "createNodesRelationships",
+    "delete": "deleteNodesRelationships",
+    "execute": "executeCypher",
+    "introspect": "introspectSchema",
+    "merge": "mergeFindOrCreate",
+    "query": "queryMatch",
+    "update": "updatePropertiesSet"
+  }
+}

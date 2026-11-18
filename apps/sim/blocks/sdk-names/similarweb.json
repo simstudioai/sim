@@ -1,0 +1,11 @@
+{
+  "namespace": "legacy.similarweb",
+  "methods": {
+    "similarweb_bounce_rate": "bounceRate",
+    "similarweb_page_views": "pageViews",
+    "similarweb_pages_per_visit": "pagesPerVisit",
+    "similarweb_traffic_visits": "trafficVisits",
+    "similarweb_visit_duration": "visitDurationDesktop",
+    "similarweb_website_overview": "websiteOverview"
+  }
+}

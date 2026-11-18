@@ -1,0 +1,10 @@
+{
+  "namespace": "legacy.infisical",
+  "methods": {
+    "create_secret": "createSecret",
+    "delete_secret": "deleteSecret",
+    "get_secret": "getSecret",
+    "list_secrets": "listSecrets",
+    "update_secret": "updateSecret"
+  }
+}
