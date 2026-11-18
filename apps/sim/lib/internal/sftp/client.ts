@@ -246,17 +246,30 @@ export function readSftpFileCapped(
   return readNodeStreamToBufferWithLimit(stream, { maxBytes, label, signal })
 }
 
-/** Percent-decodes a remote path; a path that is not valid percent-encoding (a literal `%`) is used as typed. */
+/**
+ * Percent-decodes each run of escapes on its own, so a literal `%` (as in `100% done.csv`) stays as
+ * typed without stopping the other escapes in the path from decoding.
+ */
 function decodeRemotePath(path: string): string {
-  try {
-    return decodeURIComponent(path)
-  } catch {
-    return path
-  }
+  return path.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+    try {
+      return decodeURIComponent(run)
+    } catch {
+      return run
+    }
+  })
 }
 
 export function sanitizePath(path: string): string {
   return decodeRemotePath(path.replace(/\0/g, '')).replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+}
+
+/**
+ * Joins a sanitized directory and a sanitized file name without decoding again, so an encoded
+ * separator left in the name cannot turn into a path separator.
+ */
+export function joinRemotePath(directory: string, fileName: string): string {
+  return directory.endsWith('/') ? `${directory}${fileName}` : `${directory}/${fileName}`
 }
 
 export function sanitizeFileName(fileName: string): string {
