@@ -79,9 +79,9 @@ describe('a block created from source passes the apply gate on its seeded defaul
   })
 
   it('seeds a switch that defaults off as false', () => {
-    const applied = applyNew("block('posthog', 'Flags', { operation: 'posthog_create_cohort' })")
+    const applied = applyNew("block('tinybird', 'Events', { operation: 'tinybird_events' })")
     expect(applied.findings).toEqual([])
-    expect(applied.value('isStatic')).toBe(false)
+    expect(applied.value('wait')).toBe(false)
   })
 
   it('seeds a slider as a number, so nothing is normalized', () => {
