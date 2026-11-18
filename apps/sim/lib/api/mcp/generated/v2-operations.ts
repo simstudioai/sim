@@ -368,6 +368,7 @@ import {
 import { v2GetWorkspacePermissionConfigContract } from '@/lib/api/contracts/v2/workspace-permissions'
 import {
   v2ApplyWorkspaceSourceContract,
+  v2FindMissingWorkspaceSourceBlobsContract,
   v2GetWorkspaceSourceContract,
 } from '@/lib/api/contracts/v2/workspace-source'
 import {
@@ -488,7 +489,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ApplyWorkspaceSourceContract,
     summary: 'Apply workspace source',
     description:
-      'Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest, and the `base` from Get Workspace Source; binary content may span rounds, each answering with the paths it still `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+      'Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first (Find Missing Workspace Source Blobs, then Stage Workspace Source Blobs) and the apply names them by hash: a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.POST),
   },
@@ -1318,6 +1319,16 @@ export const V2_MCP_OPERATIONS = {
       'Export the saved draft as portable workflow data with workspace read access. Registered credential fields and opaque table/tool values are cleared; environment references and ordinary workflow variables remain included. Review other configuration before sharing.\n\nDefault exports clear workspace bindings. Use `includeWorkspaceBindings=true` to retain non-secret bindings for a same-workspace import, or `includeReferences=true` for source identities and field occurrences used by mapped imports. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/export/route').then((route) => route.GET),
+  },
+  findMissingWorkspaceSourceBlobs: {
+    contract: v2FindMissingWorkspaceSourceBlobsContract,
+    summary: 'Find missing workspace source blobs',
+    description:
+      'List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. The staged ones are renewed: staged bytes expire a day after they were last staged, checked for, or planned with. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route').then(
+        (route) => route.POST
+      ),
   },
   forkWorkspace: {
     contract: v2ForkWorkspaceContract,

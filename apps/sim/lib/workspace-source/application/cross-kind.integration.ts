@@ -67,6 +67,7 @@ import {
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import { findMissingSourceBlobs } from '@/lib/workspace-source/application/stage-blobs'
 import {
   blobManifest,
   codes,
@@ -74,6 +75,7 @@ import {
   sourceChecks,
   sourceRunner,
   sourceWorkspaces,
+  stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
@@ -459,7 +461,7 @@ describe('workspace source across kinds', () => {
   )
 
   check(
-    'a round that leaves a knowledge base document for the next defers the workflow using it, and two rounds converge',
+    'a knowledge base document not staged refuses the whole apply (the file, the base and the workflow using it), and once staged one apply writes them all',
     async () => {
       const workspaceId = await newWorkspace()
       const dir: Directory = {
@@ -482,31 +484,36 @@ export default workflow('Answer', {}, () => {
         },
         blobs: BLOBS,
       }
-      const send = (carried: readonly string[], base?: WorkspaceBaseV1) =>
+      const empty = await snapshot(workspaceId)
+      const manifest = blobManifest(BLOBS, () => false)
+      const send = () =>
         withPermissionGroupScope(() =>
           applyWorkspaceSource.execute({
             principal: owner,
-            input: {
-              workspaceId,
-              files: dir.files,
-              blobs: blobManifest(BLOBS, () => false).map((blob) =>
-                carried.includes(blob.path)
-                  ? { ...blob, content: BLOBS[blob.path].toString('base64') }
-                  : blob
-              ),
-              kinds: KINDS,
-              ...(base ? { base } : {}),
-            },
+            input: { workspaceId, files: dir.files, blobs: manifest, kinds: KINDS },
           })
         )
+      const stage = (path: string) =>
+        stageBlobsAs(owner, workspaceId, [
+          {
+            sha256: manifest.find((blob) => blob.path === path)?.sha256 ?? '',
+            content: BLOBS[path].toString('base64'),
+          },
+        ])
 
-      const first = await send(['files/notes.txt'])
+      await stage('files/notes.txt')
+      const refused = await refusal(send())
+      expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toEqual([
+        expect.objectContaining({
+          code: 'E_BLOB_MISSING',
+          file: 'knowledge/policies/docs/refunds.md',
+        }),
+      ])
+      expect(await snapshot(workspaceId)).toEqual(empty)
 
-      expect(first.failed).toBeUndefined()
-      expect(first.remainingBlobs).toEqual(['knowledge/policies/docs/refunds.md'])
-      const second = await send(first.remainingBlobs, first.base)
-      expect(second.failed).toBeUndefined()
-      expect(second.remainingBlobs).toEqual([])
+      await stage('knowledge/policies/docs/refunds.md')
+      const applied = await send()
+      expect(applied.failed).toBeUndefined()
       const stored = await snapshot(workspaceId)
       expect(stored.bases.map((base) => base.name)).toEqual(['Policies'])
       expect(stored.documents.map((doc) => doc.filename)).toEqual(['refunds.md'])
@@ -643,34 +650,56 @@ export default workflow('Answer', {}, () => {
   )
 
   check(
-    'a carried blob that does not match its hash refuses the whole apply before any kind writes; a dry run never decodes',
+    'bytes staged under a SHA-256 they do not hash to are refused, nothing staged, and an apply naming them writes no kind; a dry run lists them',
     async () => {
       const workspaceId = await newWorkspace()
       const empty = await snapshot(workspaceId)
-      const forged = blobManifest(BLOBS, () => true).map((blob) =>
-        blob.path === 'knowledge/policies/docs/refunds.md'
-          ? { ...blob, content: Buffer.from('not the declared bytes').toString('base64') }
-          : blob
+      const manifest = blobManifest(BLOBS, () => true)
+      const refunds = manifest.find((blob) => blob.path === 'knowledge/policies/docs/refunds.md')
+      if (!refunds) throw new Error('No refunds blob')
+
+      const forged = await stageBlobsAs(owner, workspaceId, [
+        {
+          sha256: refunds.sha256,
+          content: Buffer.from('not the declared bytes').toString('base64'),
+        },
+      ]).then(
+        () => null,
+        (error: unknown) => error
+      )
+      expect(forged).toMatchObject({ code: 'validation' })
+      await stageBlobsAs(
+        owner,
+        workspaceId,
+        manifest.flatMap((blob) =>
+          blob.path === refunds.path || !blob.content
+            ? []
+            : [{ sha256: blob.sha256, content: blob.content }]
+        )
       )
       const send = (dryRun: boolean) =>
         withPermissionGroupScope(() =>
           applyWorkspaceSource.execute({
             principal: owner,
-            input: { workspaceId, files: TEXT, blobs: forged, kinds: KINDS, dryRun },
+            input: {
+              workspaceId,
+              files: TEXT,
+              blobs: manifest.map(({ path, sha256, size }) => ({ path, sha256, size })),
+              kinds: KINDS,
+              dryRun,
+            },
           })
         )
 
       const refused = await refusal(send(false))
 
       expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toEqual([
-        expect.objectContaining({
-          code: 'E_BLOB_CONTENT',
-          file: 'knowledge/policies/docs/refunds.md',
-        }),
+        expect.objectContaining({ code: 'E_BLOB_MISSING', file: refunds.path }),
       ])
       expect(await snapshot(workspaceId)).toEqual(empty)
       const dryRun = await send(true)
       expect(findings(dryRun.diagnostics, 'error')).toEqual([])
+      expect(dryRun.needBlobs).toEqual([refunds.path])
     }
   )
 
@@ -858,17 +887,33 @@ export default workflow('Answer', {}, () => {
     expect(read.blobs.filter((blob) => blob.sha256 === undefined)).toHaveLength(1)
   })
 
-  check('refuses a round carrying more binary bytes than one request may', async () => {
+  check('refuses a staging request carrying more binary bytes than one request may', async () => {
     const workspaceId = await newWorkspace()
     const size = Math.floor(WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest / 2.5)
-    const blobs = Object.fromEntries(
-      ['a', 'b', 'c'].map((name) => [`files/${name}.bin`, Buffer.alloc(size, name)])
+    const blobs = blobManifest(
+      Object.fromEntries(
+        ['a', 'b', 'c'].map((name) => [`files/${name}.bin`, Buffer.alloc(size, name)])
+      ),
+      () => true
     )
 
-    const refused = await refusal(apply(workspaceId, { files: {}, blobs }, { kinds: ['file'] }))
+    const refused = await stageBlobsAs(
+      owner,
+      workspaceId,
+      blobs.map((blob) => ({ sha256: blob.sha256, content: blob.content ?? '' }))
+    ).then(
+      () => null,
+      (error: unknown) => error
+    )
 
-    expect(codes(refused.diagnostics)).toEqual(['E_LIMIT_EXCEEDED'])
-    expect((await snapshot(workspaceId)).files).toEqual([])
+    expect(refused).toMatchObject({ code: 'payload_too_large' })
+    const missing = await withPermissionGroupScope(() =>
+      findMissingSourceBlobs.execute({
+        principal: owner,
+        input: { workspaceId, blobs: blobs.map(({ sha256, size }) => ({ sha256, size })) },
+      })
+    )
+    expect(missing.missing).toHaveLength(3)
   })
 
   check('a plan already refused authorizes no change', async () => {

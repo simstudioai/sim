@@ -110,7 +110,6 @@ import type {
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   blobManifest,
-  cliRound,
   codes,
   refusal,
   sourceChecks,
@@ -156,17 +155,12 @@ const POLICIES: Directory = {
 
 type Carry = 'all' | 'none' | readonly string[]
 
-/** The blob manifest a directory sends, with the content of the paths `carry` names. */
+/** The blob manifest a directory sends, staging the bytes of the paths `carry` names. */
 function blobs(dir: Directory, carry: Carry) {
   return blobManifest(
     dir.docs,
     (path) => carry === 'all' || (carry !== 'none' && carry.includes(path))
   )
-}
-
-/** The paths the CLI carries in one round of `dir`. */
-function round(dir: Directory, wanted: readonly string[]): string[] {
-  return cliRound(blobs(dir, 'none'), wanted)
 }
 
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files' | 'blobs'>> & {
@@ -411,7 +405,6 @@ describe('knowledge bases as workspace source', () => {
     ])
 
     expect(result.failed).toBeUndefined()
-    expect(result.remainingBlobs).toEqual([])
     const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
     const storedDocs = await docs(stored.id)
     expect(storedDocs.map((doc) => [doc.filename, doc.processingStatus])).toEqual([
@@ -769,7 +762,7 @@ describe('knowledge bases as workspace source', () => {
   })
 
   check(
-    'documents over the request cap travel in two rounds, deletes run only in the last, and an interrupted apply resumes',
+    'documents not all staged refuse the apply before any write, deletes included, and a resumed run stages only the rest',
     async () => {
       const big = (fill: string) => Buffer.alloc(9_000_000, fill)
       const start: Directory = {
@@ -805,36 +798,32 @@ describe('knowledge bases as workspace source', () => {
         'knowledge/policies/docs/c.txt',
         'knowledge/policies/docs/d.txt',
       ])
-      const first = round(target, preview.needBlobs)
-      expect(first).toEqual(['knowledge/faq/docs/a.txt', 'knowledge/policies/docs/b.txt'])
-
-      const one = await apply(workspaceId, target, { ...options, carry: first })
-
-      expect(one.failed).toBeUndefined()
-      expect(actions(one, 'applied').sort()).toEqual([
-        'create knowledge-base:faq',
-        'update knowledge-base:policies',
+      // Only a.txt and b.txt staged: the apply is refused and nothing changes, deletes included.
+      const before = (await docs(policies.id)).map((doc) => doc.filename)
+      const partial = await refusal(
+        apply(workspaceId, target, {
+          ...options,
+          carry: ['knowledge/faq/docs/a.txt', 'knowledge/policies/docs/b.txt'],
+        })
+      )
+      expect(
+        partial.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.file}`)
+          .sort()
+      ).toEqual([
+        'E_BLOB_MISSING knowledge/policies/docs/c.txt',
+        'E_BLOB_MISSING knowledge/policies/docs/d.txt',
       ])
-      expect(one.remainingBlobs.sort()).toEqual([
-        'knowledge/policies/docs/c.txt',
-        'knowledge/policies/docs/d.txt',
-      ])
-      expect((await docs(policies.id)).map((doc) => doc.filename)).toEqual([
-        'b.txt',
-        'refunds.md',
-        'shipping.txt',
-      ])
+      expect((await docs(policies.id)).map((doc) => doc.filename)).toEqual(before)
       expect((await knowledgeBases(workspaceId)).map((row) => row.name).sort()).toEqual([
         'Archive',
-        'FAQ',
         'Policies',
       ])
 
-      // Interrupted here: a fresh apply starts from the directory the first round saved.
-      const saved = reprinted(target, one)
-      const resumedPlan = await apply(workspaceId, saved, {
-        base: one.base,
-        allowDelete: true,
+      // The resumed run stages only what is missing and plans once more: everything lands.
+      const resumedPlan = await apply(workspaceId, target, {
+        ...options,
         dryRun: true,
         carry: 'none',
       })
@@ -842,18 +831,11 @@ describe('knowledge bases as workspace source', () => {
         'knowledge/policies/docs/c.txt',
         'knowledge/policies/docs/d.txt',
       ])
-      const second = round(saved, resumedPlan.needBlobs)
-      expect(second).toEqual(resumedPlan.needBlobs.sort())
-
-      const two = await apply(workspaceId, saved, {
-        base: one.base,
-        allowDelete: true,
-        carry: second,
-      })
+      const two = await apply(workspaceId, target, { ...options, carry: resumedPlan.needBlobs })
 
       expect(two.failed).toBeUndefined()
-      expect(two.remainingBlobs).toEqual([])
       expect(actions(two, 'applied')).toEqual([
+        'create knowledge-base:faq',
         'update knowledge-base:policies',
         'delete knowledge-base:archive',
       ])
@@ -864,8 +846,9 @@ describe('knowledge bases as workspace source', () => {
         'FAQ',
         'Policies',
       ])
+      const saved = reprinted(target, two)
 
-      const settled = await apply(workspaceId, reprinted(saved, two), {
+      const settled = await apply(workspaceId, saved, {
         base: two.base,
         allowDelete: true,
         carry: 'none',

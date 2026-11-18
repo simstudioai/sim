@@ -1036,7 +1036,6 @@ export type ApplyWorkspaceSourceBody = {
     path: string
     sha256: string
     size: number
-    content?: string
   }>
   base?: {
     version: 1
@@ -1169,6 +1168,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
         | 'E_BLOB_CONTENT'
+        | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
         | 'E_KEY_INVALID'
         | 'E_BASE_JSON'
@@ -1380,7 +1380,6 @@ export type ApplyWorkspaceSourceResponse = {
       message: string
     }
     needBlobs: Array<string>
-    remainingBlobs: Array<string>
     files: Record<string, string>
     base: {
       version: 1
@@ -1420,6 +1419,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
         | 'E_BLOB_CONTENT'
+        | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
         | 'E_KEY_INVALID'
         | 'E_BASE_JSON'
@@ -6940,6 +6940,25 @@ export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs/missing` */
+export type FindMissingWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type FindMissingWorkspaceSourceBlobsBody = {
+  blobs: Array<{
+    sha256: string
+    size: number
+  }>
+}
+
+export type FindMissingWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    missing: Array<string>
+  }
+}
+
 /** `POST /api/v2/workspaces/[workspaceId]/fork` */
 export type ForkWorkspaceParams = {
   workspaceId: string
@@ -10602,6 +10621,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_DECL_UNKNOWN_FIELD'
         | 'E_DECL_UNKNOWN_FILE'
         | 'E_BLOB_CONTENT'
+        | 'E_BLOB_MISSING'
         | 'E_LIMIT_EXCEEDED'
         | 'E_KEY_INVALID'
         | 'E_BASE_JSON'
@@ -16865,6 +16885,21 @@ export type SetSecretResponse = {
   data: SetSecretResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs` */
+export type StageWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type StageWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    staged: Array<{
+      sha256: string
+      size: number
+    }>
+  }
+}
+
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync` */
 export type SyncKnowledgeConnectorParams = {
   connectorId: string
@@ -19096,7 +19131,11 @@ export const V2_OPERATIONS = {
         describe:
           'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
       },
-      blobs: { kind: 'array', describe: 'Binary files by hash.' },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Stage the bytes a write needs first (Stage Workspace Source Blobs); an apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
       base: {
         kind: 'object',
         describe:
@@ -21675,6 +21714,17 @@ export const V2_OPERATIONS = {
         describe:
           'Keep non-secret table, knowledge base, document, folder, channel, and other workspace bindings for a same-workspace import. Defaults to false, which clears these IDs. Registered credential fields and opaque table/tool values are cleared either way; environment references and ordinary workflow variables remain included.',
       },
+    },
+  },
+  findMissingWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs/missing',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Find missing workspace source blobs',
+    body: {
+      blobs: { kind: 'array', required: true, describe: 'The binary files an apply will need.' },
     },
   },
   forkWorkspace: {
@@ -27350,6 +27400,14 @@ export const V2_OPERATIONS = {
           'Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.',
       },
     },
+  },
+  stageWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Stage workspace source blobs',
   },
   syncKnowledgeConnector: {
     method: 'POST',

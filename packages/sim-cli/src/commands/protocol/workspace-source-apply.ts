@@ -2,7 +2,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
-import { roundPaths } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
@@ -28,10 +27,14 @@ import {
   writtenRecord,
 } from './source-dir'
 import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
-import { appliedBlobDigests, assertBlobsFetched, blobsToCarry } from './workspace-source-blobs'
+import {
+  appliedBlobDigests,
+  assertBlobsFetched,
+  blobsToCarry,
+  stageBlobs,
+} from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
-  blobContent,
   readWorkspaceDir,
   type WorkspaceSubmission,
 } from './workspace-source-dir'
@@ -57,9 +60,10 @@ the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base rec
 files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again
 into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is
-too large; 8 the apply stopped part-way (a resource failed, or a later round stayed rate limited):
-what was written is saved into the directory, and applying again continues; 9 rate limited (HTTP
-429) after the CLI's retries, before anything was written: wait a minute and apply again.`
+too large; 8 the apply stopped part-way (a resource failed): what was written is saved into the
+directory, and applying again continues; 9 rate limited (HTTP 429) after the CLI's retries,
+before anything was written: wait a minute and apply again (binary files already uploaded are
+not sent again).`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -129,20 +133,21 @@ function printPlan(plan: Change[]): void {
 }
 
 /**
- * The blob contents one round carries: the paths the server asked for, in order, until the next
- * would pass the per-request byte cap (always at least one, so every round makes progress).
+ * The binary paths an apply refusal names as not staged, when those are its only errors: the CLI
+ * stages them and applies once more. `null` for any other refusal.
  */
-async function blobRound(
-  dir: string,
-  submission: WorkspaceSubmission,
-  wanted: ReadonlySet<string>
-): Promise<NonNullable<ApplyWorkspaceSourceBody['blobs']>> {
-  const carried = roundPaths(submission.blobs, wanted)
-  const blobs: NonNullable<ApplyWorkspaceSourceBody['blobs']> = []
-  for (const blob of submission.blobs) {
-    blobs.push(carried.has(blob.path) ? await blobContent(dir, blob.path) : blob)
+function missingBlobPaths(error: unknown): string[] | null {
+  if (!(error instanceof SimApiError) || !isRecordLike(error.details)) return null
+  const { diagnostics } = error.details
+  if (!Array.isArray(diagnostics)) return null
+  const errors = diagnostics.filter(
+    (finding): finding is { code: string; file?: string } =>
+      isRecordLike(finding) && finding.severity === 'error' && typeof finding.code === 'string'
+  )
+  if (errors.length === 0 || errors.some((finding) => finding.code !== 'E_BLOB_MISSING')) {
+    return null
   }
-  return blobs
+  return errors.flatMap((finding) => (typeof finding.file === 'string' ? [finding.file] : []))
 }
 
 /** A workflow folder's lock, as an apply answer names it. */
@@ -232,12 +237,17 @@ function assertBaseWorkspace(
 
 /**
  * `sim workspaces source apply --dir <dir>`: applies a directory `workspaces source get` wrote.
- * On a terminal it shows the plan and asks; anywhere else it needs `--yes`. Binary files travel
- * in rounds: each round sends what the server asked for, up to the per-request cap, and the
- * directory is saved after each, so an interrupted apply resumes where it stopped.
+ * On a terminal it shows the plan and asks; anywhere else it needs `--yes`. Binary files are
+ * staged first, by hash (only those the server does not hold staged for this caller, so an
+ * interrupted upload resumes), then one apply names them: the server plans once and writes
+ * nothing when a blob it needs is missing.
  */
 export function attachWorkspaceSourceApply(source: Command): void {
-  const [command, connect] = apiCommand(source, 'apply', ['applyWorkspaceSource'])
+  const [command, connect] = apiCommand(source, 'apply', [
+    'applyWorkspaceSource',
+    'findMissingWorkspaceSourceBlobs',
+    'stageWorkspaceSourceBlobs',
+  ])
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
     .option('--dry-run', 'Plan and check without writing anything')
@@ -252,15 +262,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
       const only = parseKinds(options.only)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()
-      const send = async (
-        submission: WorkspaceSubmission,
-        dryRun: boolean,
-        blobs: NonNullable<ApplyWorkspaceSourceBody['blobs']> = submission.blobs
-      ): Promise<ApplyData> => {
+      const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
           kinds: submission.kinds,
-          blobs,
+          blobs: submission.blobs,
           ...(submission.base ? { base: submission.base } : {}),
           options: {
             ...(options.allowDelete ? { allowDelete: true } : {}),
@@ -268,41 +274,59 @@ export function attachWorkspaceSourceApply(source: Command): void {
           },
           provenance: { client: 'cli' },
         }
-        try {
-          const response = await client.request<ApplyWorkspaceSourceResponse>(
-            'applyWorkspaceSource',
-            {
-              params: { workspaceId },
-              ...(dryRun ? { query: { dryRun: true } } : {}),
-              body,
-              retryRateLimited: true,
-            }
-          )
-          return response.data
-        } catch (error) {
-          if (!dryRun && roundsSaved > 0 && error instanceof SimApiError && error.status === 429) {
-            throw new SimApiError(
-              `${error.message} The ${roundsSaved === 1 ? 'round' : `${roundsSaved} rounds`} before it ${roundsSaved === 1 ? 'is' : 'are'} applied and saved into ${options.dir}: apply again to continue.`,
-              error.status,
-              error.code,
-              error.details,
-              SOURCE_PARTIAL_EXIT_CODE,
-              error.requestId
-            )
+        const response = await client.request<ApplyWorkspaceSourceResponse>(
+          'applyWorkspaceSource',
+          {
+            params: { workspaceId },
+            ...(dryRun ? { query: { dryRun: true } } : {}),
+            body,
+            retryRateLimited: true,
           }
-          return printRefusal(
-            error,
-            dryRun
-              ? undefined
-              : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it was, and \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date (the server holds your edits, so nothing is lost); otherwise apply again.`
-          )
+        )
+        return response.data
+      }
+      /** Uploads what the server lacks of `paths`; nothing is applied if this fails. */
+      const stage = async (submission: WorkspaceSubmission, paths: ReadonlySet<string>) => {
+        let staged: { count: number; bytes: number }
+        try {
+          staged = await stageBlobs(client, workspaceId, options.dir, submission.blobs, paths)
+        } catch (error) {
+          return printRefusal(error)
+        }
+        if (staged.count > 0) {
+          printError(`Uploaded ${staged.count} binary file(s), ${staged.bytes} bytes.`)
         }
       }
+      /**
+       * Sends the directory. A commit the server refuses only for blobs that are not staged (the
+       * CLI's guess from the base missed one) stages those and is sent once more.
+       */
+      const send = async (submission: WorkspaceSubmission, dryRun: boolean): Promise<ApplyData> => {
+        let refusal: unknown
+        try {
+          return await post(submission, dryRun)
+        } catch (error) {
+          refusal = error
+        }
+        const missing = dryRun ? null : missingBlobPaths(refusal)
+        if (missing && missing.length > 0) {
+          await stage(submission, new Set(missing))
+          try {
+            return await post(submission, dryRun)
+          } catch (error) {
+            refusal = error
+          }
+        }
+        return printRefusal(
+          refusal,
+          dryRun
+            ? undefined
+            : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it was, and \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date (the server holds your edits, so nothing is lost); otherwise apply again.`
+        )
+      }
 
-      /** Write rounds this run saved into the directory; a later refusal leaves them standing. */
-      let roundsSaved = 0
       let written = await readWritten(options.dir)
-      let submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
+      const submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
       assertBaseWorkspace(
         options.dir,
         submission.base,
@@ -315,7 +339,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
         )
       }
-      // A later round repeats findings the preview and earlier rounds already showed.
+      // The apply repeats findings the preview already showed.
       const printed = new Set<string>()
       let preview: ApplyData | null = null
       if (options.dryRun || !options.yes) {
@@ -333,45 +357,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
 
-      /**
-       * One write round: the blobs the server asked for carry their content, and the submission
-       * keeps the hash of the bytes each one sent, which is what the saved digests compare.
-       */
-      const writeRound = async (wanted: ReadonlySet<string>): Promise<ApplyData> => {
-        const blobs = await blobRound(options.dir, submission, wanted)
-        submission = {
-          ...submission,
-          blobs: blobs.map(({ path, sha256, size }) => ({ path, sha256, size })),
-        }
-        return send(submission, false, blobs)
-      }
-      // Without a preview, the first round carries the blobs the base does not hold as they are.
-      let wanted = preview ? new Set(preview.needBlobs) : blobsToCarry(submission)
-      let data = await writeRound(wanted)
-      for (;;) {
-        printNewDiagnostics(data.diagnostics, printed)
-        written = await saveApplied(options.dir, data, submission, written)
-        roundsSaved++
-        if (data.failed || data.remainingBlobs.length === 0) break
-        const next = new Set(data.remainingBlobs)
-        if (next.size >= wanted.size && [...next].every((path) => wanted.has(path))) {
-          throw new SimApiError(
-            `The server did not accept the binary files ${[...next].join(', ')}; nothing more was applied.`,
-            0
-          )
-        }
-        wanted = next
-        // Blobs hashed for the first round stand; a round re-reads only what it sends.
-        const reread = await readWorkspaceDir(
-          options.dir,
-          only,
-          workspaceId,
-          written,
-          submission.blobs
-        )
-        submission = { ...reread, hashed: new Map([...submission.hashed, ...reread.hashed]) }
-        data = await writeRound(wanted)
-      }
+      // Without a preview, stage the blobs the base does not hold as they are.
+      await stage(submission, preview ? new Set(preview.needBlobs) : blobsToCarry(submission))
+      const data = await send(submission, false)
+      printNewDiagnostics(data.diagnostics, printed)
+      written = await saveApplied(options.dir, data, submission, written)
       const held = data.plan.filter((change) => change.held)
       if (held.length > 0) {
         printError(

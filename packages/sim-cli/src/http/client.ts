@@ -50,6 +50,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   query?: Record<string, QueryValue>
   body?: unknown
+  /** A multipart body, sent as is (its boundary sets the content type) in place of `body`. */
+  form?: FormData
   /** Contract-declared headers, e.g. the `upload-token` a transfer is bound to. */
   headers?: Record<string, string>
   /** Cancels both the initial request and any subsequent streaming body read. */
@@ -679,7 +681,7 @@ export class SimClient {
     }
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
-    const hasBody = options.body !== undefined
+    const hasBody = options.body !== undefined && options.form === undefined
     const method = options.method ?? 'GET'
 
     warnIfProxyIgnored()
@@ -710,7 +712,7 @@ export class SimClient {
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
-        body: hasBody ? JSON.stringify(options.body) : undefined,
+        body: options.form ?? (hasBody ? JSON.stringify(options.body) : undefined),
         signal,
         redirect: 'manual',
       })

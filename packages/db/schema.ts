@@ -2785,6 +2785,36 @@ export const workspaceResourceKey = pgTable(
 )
 
 /**
+ * Binary files staged for a workspace source apply, content-addressed by SHA-256 and scoped to the
+ * workspace and the caller that staged them (`scope`: `user:<id>` or `workspace_api_key:<id>`).
+ * The bytes live in object storage at `storage_key`; an apply references them by hash, and a
+ * sweep deletes rows and objects past `expires_at`.
+ */
+export const workspaceSourceStagedBlob = pgTable(
+  'workspace_source_staged_blob',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    scope: text('scope').notNull(),
+    sha256: text('sha256').notNull(),
+    size: integer('size').notNull(),
+    storageKey: text('storage_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    scopeHashUnique: uniqueIndex('workspace_source_staged_blob_scope_hash_unique').on(
+      table.workspaceId,
+      table.scope,
+      table.sha256
+    ),
+    expiresAtIdx: index('workspace_source_staged_blob_expires_at_idx').on(table.expiresAt),
+  })
+)
+
+/**
  * The user's stored dependent-field re-picks for an edge: a (target workflow, target block,
  * subblock) -> selected value mapping (a Gmail label, a KB document, a sheet tab). The sync
  * modal reads and writes this, and every promote applies it verbatim - it is the single

@@ -114,6 +114,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/cleanup-session-sandboxes/route.ts',
   'apps/sim/app/api/cron/cleanup-oauth-tokens/route.ts',
+  'apps/sim/app/api/cron/cleanup-source-staging/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/aws-marketplace-reconcile/route.ts',

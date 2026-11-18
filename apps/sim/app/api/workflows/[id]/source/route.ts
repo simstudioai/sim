@@ -1,3 +1,4 @@
+import { sha256Hex } from '@sim/security/hash'
 import { getWorkflowSourceContract } from '@/lib/api/contracts/workflow-source'
 import {
   defineInternalJsonRoute,
@@ -26,6 +27,11 @@ const SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
  * GET /api/workflows/[id]/source — the draft as TypeScript source for the canvas Code tab. The
  * same use case as `GET /api/v2/workflows/{workflowId}/source`, under session auth.
  *
+ * Answers with an `ETag` that digests the printed source (its `sf1:` fingerprint, files, lock,
+ * catalog hash and findings), so the Code tab's refetch of an unchanged draft is a bodiless `304`.
+ * The bare fingerprint would not do: it ignores what it does not hash (canvas positions,
+ * comments), which the printed files and lock can still carry.
+ *
  * `headSafe: false` because the first read that references a resource with no key allocates one
  * (`workspace_resource_key`), so a `HEAD` probe must not run it.
  */
@@ -44,5 +50,6 @@ export const GET = defineInternalJsonRoute({
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
   useCase: readWorkflowSource,
+  entityTag: (source) => `${source.base.fingerprint}.${sha256Hex(JSON.stringify(source))}`,
   present: (source) => ({ data: source }),
 })

@@ -300,24 +300,6 @@ async function planKnowledgeBase(
   }
 }
 
-/** One upload whose bytes this round carries. */
-interface CarriedDoc {
-  upload: DocUpload
-  buffer: Buffer
-}
-
-/** The uploads whose bytes this round carries (checked against their hash when planned). */
-function carriedDocs(ctx: ApplyContext, key: string, uploads: readonly DocUpload[]): CarriedDoc[] {
-  const carried: CarriedDoc[] = []
-  for (const upload of uploads) {
-    const path = knowledgeDocPath(key, upload.name)
-    const buffer = ctx.blobs?.content.get(path)
-    if (buffer === undefined) continue
-    carried.push({ upload, buffer })
-  }
-  return carried
-}
-
 async function deleteDoc(ctx: ApplyContext, knowledgeBaseId: string, documentId: string) {
   await deleteKnowledgeDocument.execute({
     principal: ctx.principal,
@@ -389,16 +371,20 @@ async function carryTags(
 }
 
 /**
- * Uploads each carried document; a replacement takes the tag values of the document it replaces,
+ * Uploads each planned document from its staged bytes; a replacement takes the tag values of the document it replaces,
  * which is deleted only once its replacement is stored. Returns the new documents' hashes by id.
  */
 async function uploadDocs(
   ctx: ApplyContext,
+  key: string,
   knowledgeBaseId: string,
-  carried: readonly CarriedDoc[]
+  uploads: readonly DocUpload[]
 ): Promise<Map<string, string>> {
   const hashes = new Map<string, string>()
-  for (const { upload, buffer } of carried) {
+  for (const upload of uploads) {
+    if (!ctx.blobs) throw new Error('A document upload needs its staged bytes')
+    // One document's bytes at a time: a large knowledge base never sits in memory whole.
+    const buffer = await ctx.blobs.read(knowledgeDocPath(key, upload.name))
     const extension = getFileExtension(upload.name)
     const { document } = await uploadKnowledgeDocument.execute({
       principal: ctx.principal,
@@ -630,7 +616,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
       const decl = change.decl
       const plan = change.detail
       if (!decl || !plan?.changes) throw new Error('A knowledge base write needs its plan')
-      const carried = carriedDocs(ctx, change.key, plan.changes.uploads)
+      const { uploads } = plan.changes
       if (change.action === 'create') {
         const { knowledgeBase } = await createKnowledgeBase.execute({
           principal,
@@ -642,7 +628,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
             chunkingConfig: chunkingConfig(decl.chunking),
           },
         })
-        const uploaded = await uploadDocs(ctx, knowledgeBase.id, carried)
+        const uploaded = await uploadDocs(ctx, change.key, knowledgeBase.id, uploads)
         return written(ctx, change.key, knowledgeBase.id, uploaded, new Set(uploaded.keys()))
       }
       const knowledgeBaseId = change.storedId
@@ -654,12 +640,9 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
           input: { knowledgeBaseId, assertedWorkspaceId: workspaceId, ...settings },
         })
       }
-      const uploaded = await uploadDocs(ctx, knowledgeBaseId, carried)
+      const uploaded = await uploadDocs(ctx, change.key, knowledgeBaseId, uploads)
       for (const doc of superseded) await deleteDoc(ctx, knowledgeBaseId, doc.id)
-      // Deletes wait for the round that carries every blob, so a resumed apply loses nothing.
-      if (ctx.blobs?.complete !== false) {
-        for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
-      }
+      for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
       return written(
         ctx,
         change.key,

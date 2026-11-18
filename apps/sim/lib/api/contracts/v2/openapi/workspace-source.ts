@@ -7,13 +7,17 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2ApplyWorkspaceSourceContract,
+  v2FindMissingWorkspaceSourceBlobsContract,
   v2GetWorkspaceSourceContract,
+  v2StageWorkspaceSourceBlobsContract,
+  v2StageWorkspaceSourceBlobsFormSchema,
 } from '@/lib/api/contracts/v2/workspace-source'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const TABLE_ID = 'tbl_5c0e2a7b9d1f4e3a8b6c2d0f7e9a1b3c'
+const SHA256_EXAMPLE = '9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e'
 const FINGERPRINT = 'rf1:4b8d2f6a0c3e7b1d5f9a2c6e0b4d8f3a7c1e5b9d2f6a0c4e8b3d7f1a5c9e2b6d'
 
 const LEADS_TS = `// @sim-sdk 1
@@ -95,7 +99,7 @@ export const workspaceSourceOpenApiRoutes = [
       applicationOperation: workspaceSourceOperations.apply,
       operationId: 'applyWorkspaceSource',
       summary: 'Apply workspace source',
-      description: `Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, \`kinds\` (the kind folders the directory holds), the binary-file manifest, and the \`base\` from Get Workspace Source; binary content may span rounds, each answering with the paths it still \`needBlobs\`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns \`409\` (\`SOURCE_STALE\`); a schema-locked table \`423\`; a directory over a size limit \`413\` (at most ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} resources per kind, ${WORKSPACE_SOURCE_LIMITS.maxWorkflows} workflows and ${WORKSPACE_SOURCE_LIMITS.maxChanges} changes per apply). A resource, table column or option the directory no longer declares is deleted only with \`options.allowDelete\`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets \`E_APPLY_FORBIDDEN\` for workflows and skills (narrow the apply with \`options.only\`). Writes commit one by one: a write that fails mid-apply answers \`200\` with \`failed\` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next \`base\`. \`dryRun=true\` plans, checks and authorizes without writing and answers \`200\` with the findings in \`diagnostics\`. Returns \`403\` while workflows as code is not enabled.`,
+      description: `Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, \`kinds\` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the \`base\` from Get Workspace Source. Binary bytes are staged first (Find Missing Workspace Source Blobs, then Stage Workspace Source Blobs) and the apply names them by hash: a write whose bytes are not staged refuses the whole apply with \`E_BLOB_MISSING\` before anything is written, and a dry run lists those paths in \`needBlobs\`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns \`409\` (\`SOURCE_STALE\`); a schema-locked table \`423\`; a directory over a size limit \`413\` (at most ${WORKSPACE_SOURCE_LIMITS.maxResourcesPerKind} resources per kind, ${WORKSPACE_SOURCE_LIMITS.maxWorkflows} workflows and ${WORKSPACE_SOURCE_LIMITS.maxChanges} changes per apply). A resource, table column or option the directory no longer declares is deleted only with \`options.allowDelete\`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets \`E_APPLY_FORBIDDEN\` for workflows and skills (narrow the apply with \`options.only\`). Writes commit one by one: a write that fails mid-apply answers \`200\` with \`failed\` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next \`base\`. \`dryRun=true\` plans, checks and authorizes without writing and answers \`200\` with the findings in \`diagnostics\`. Returns \`403\` while workflows as code is not enabled.`,
       tags: ['Workflows'],
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The applied (or planned) changes.', headers: RATE_LIMIT_HEADERS },
@@ -133,13 +137,82 @@ export const workspaceSourceOpenApiRoutes = [
               plan: [{ kind: 'table', key: 'leads', action: 'noop', id: TABLE_ID }],
               applied: [],
               needBlobs: [],
-              remainingBlobs: [],
               files: {},
               base: BASE_EXAMPLE,
               diagnostics: [],
             },
           },
         ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2FindMissingWorkspaceSourceBlobsContract,
+    {
+      applicationOperation: workspaceSourceOperations.findMissingBlobs,
+      operationId: 'findMissingWorkspaceSourceBlobs',
+      summary: 'Find missing workspace source blobs',
+      description: `List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. The staged ones are renewed: staged bytes expire a day after they were last staged, checked for, or planned with. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns \`403\` while workflows as code is not enabled.`,
+      tags: ['Workflows'],
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The binary files still to stage.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2FindMissingWorkspaceSourceBlobsContract.params,
+        'FindMissingWorkspaceSourceBlobsParams',
+        'Find missing workspace source blobs path parameters',
+        'Workspace the apply will target.'
+      ),
+      body: documentedSchema(
+        v2FindMissingWorkspaceSourceBlobsContract.body,
+        'FindMissingWorkspaceSourceBlobsBody',
+        'Find missing workspace source blobs body',
+        'The binary files an apply will need.',
+        [{ blobs: [{ sha256: SHA256_EXAMPLE, size: 18432 }] }]
+      ),
+      response: documentedSchema(
+        v2FindMissingWorkspaceSourceBlobsContract.response.schema,
+        'FindMissingWorkspaceSourceBlobsResponse',
+        'Find missing workspace source blobs response',
+        'The SHA-256 of each binary file still to stage.',
+        [{ data: { workspaceId: WORKSPACE_ID, missing: [SHA256_EXAMPLE] } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2StageWorkspaceSourceBlobsContract,
+    {
+      applicationOperation: workspaceSourceOperations.stageBlobs,
+      operationId: 'stageWorkspaceSourceBlobs',
+      summary: 'Stage workspace source blobs',
+      description: `Stage the bytes of binary files (workspace files, knowledge documents) for a workspace source apply, as multipart form data: one file part per blob, its field name the SHA-256 of its bytes. At most ${WORKSPACE_SOURCE_LIMITS.maxBlobsPerRequest} files and ${WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest} bytes per request, ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes} bytes per file. A part whose bytes hash to another SHA-256 refuses the whole request (\`400\`), nothing staged. Staged files are scoped to the workspace and the caller, capped at ${WORKSPACE_SOURCE_LIMITS.maxStagedBlobs} files and ${WORKSPACE_SOURCE_LIMITS.maxStagedBytes} bytes (\`413\` past either), released once an apply writes them, and otherwise expire a day after their last use. Staging the same bytes again only renews them. Requires workspace write access. Returns \`403\` while workflows as code is not enabled.`,
+      tags: ['Workflows'],
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The binary files staged.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2StageWorkspaceSourceBlobsContract.params,
+        'StageWorkspaceSourceBlobsParams',
+        'Stage workspace source blobs path parameters',
+        'Workspace the apply will target.'
+      ),
+      requestBody: {
+        schema: documentedSchema(
+          v2StageWorkspaceSourceBlobsFormSchema,
+          'StageWorkspaceSourceBlobsForm',
+          'Stage workspace source blobs form',
+          'One file part per binary file, named by its SHA-256.'
+        ),
+        contentTypes: ['multipart/form-data'],
+      },
+      response: documentedSchema(
+        v2StageWorkspaceSourceBlobsContract.response.schema,
+        'StageWorkspaceSourceBlobsResponse',
+        'Stage workspace source blobs response',
+        'The binary files now staged.',
+        [{ data: { workspaceId: WORKSPACE_ID, staged: [{ sha256: SHA256_EXAMPLE, size: 18432 }] } }]
       ),
     }
   ),

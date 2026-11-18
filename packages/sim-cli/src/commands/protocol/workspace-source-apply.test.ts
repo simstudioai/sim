@@ -21,7 +21,42 @@ import { digest } from './source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
-const { mockRequest: request } = contextMockFns
+const { mockRequest } = contextMockFns
+
+/** The apply calls: every request but the staging ones, which {@link staging} answers. */
+const request = vi.fn()
+
+/** The server's staging area for the caller: hashes held, and every staging call made. */
+const staging = {
+  held: new Set<string>(),
+  asked: [] as string[][],
+  uploaded: [] as string[][],
+}
+
+/** Answers the staging calls as the server would, from {@link staging}. */
+async function stagingAnswer(path: string, options: { body?: unknown; form?: FormData }) {
+  if (path.endsWith('/source/blobs/missing')) {
+    const { blobs } = options.body as { blobs: Array<{ sha256: string }> }
+    staging.asked.push(blobs.map((blob) => blob.sha256))
+    return {
+      data: {
+        workspaceId: 'ws_local',
+        missing: blobs.map((blob) => blob.sha256).filter((sha256) => !staging.held.has(sha256)),
+      },
+    }
+  }
+  const sent: string[] = []
+  for (const [sha256, value] of options.form?.entries() ?? []) {
+    const bytes = Buffer.from(await (value as File).arrayBuffer())
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(sha256)
+    sent.push(sha256)
+    staging.held.add(sha256)
+  }
+  staging.uploaded.push(sent)
+  return { data: { workspaceId: 'ws_local', staged: [] } }
+}
+
+const sha = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex')
 
 const BASE = { version: 1, workspaceId: 'ws_local', resources: {} }
 const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', columns: {} })\n"
@@ -39,7 +74,6 @@ function answer(overrides: Record<string, unknown> = {}) {
       plan: [],
       applied: [],
       needBlobs: [],
-      remainingBlobs: [],
       files: {},
       base: BASE,
       diagnostics: [],
@@ -61,7 +95,7 @@ function apply(...argv: string[]): Promise<void> {
 
 function bodies(): Array<{
   files: Record<string, string>
-  blobs?: Array<{ path: string; content?: string }>
+  blobs?: Array<{ path: string; sha256: string; size: number }>
 }> {
   return request.mock.calls.map((call) => call[1].body)
 }
@@ -70,6 +104,13 @@ beforeEach(() => {
   contextMockState.output = 'json'
   contextMockState.workspaceSource = 'config'
   request.mockReset()
+  mockRequest.mockReset()
+  mockRequest.mockImplementation((path: string, options: { body?: unknown; form?: FormData }) =>
+    path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+  )
+  staging.held.clear()
+  staging.asked.length = 0
+  staging.uploaded.length = 0
   dir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-'))
   write('.sim/base.json', JSON.stringify(BASE))
   write('tables/leads.ts', LEADS)
@@ -210,32 +251,92 @@ describe('workspaces source apply', () => {
     })
   })
 
-  it('carries the blobs the base does not hold in the first round, then what the server asks for', async () => {
+  it('stages only the blobs the base does not hold, then applies once naming them by hash', async () => {
     write('files/a.bin', Buffer.from([1, 2, 3]))
     write('files/b.bin', Buffer.from([4, 5]))
-    const sha256 = createHash('sha256')
-      .update(Buffer.from([1, 2, 3]))
-      .digest('hex')
     write(
       '.sim/base.json',
       JSON.stringify({
         ...BASE,
         resources: {
-          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256 } } },
+          'file:a.bin': {
+            id: 'f1',
+            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+          },
         },
       })
     )
-    request
-      .mockResolvedValueOnce(answer({ remainingBlobs: ['files/a.bin'] }))
-      .mockResolvedValueOnce(answer())
+    request.mockResolvedValueOnce(answer())
 
     await apply('--yes')
 
-    const sent = bodies().map((body) =>
-      (body.blobs ?? []).filter((blob) => blob.content !== undefined).map((blob) => blob.path)
-    )
-    expect(sent).toEqual([['files/b.bin'], ['files/a.bin']])
+    expect(staging.asked).toEqual([[sha(Buffer.from([4, 5]))]])
+    expect(staging.uploaded).toEqual([[sha(Buffer.from([4, 5]))]])
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(bodies()[0].blobs).toEqual([
+      { path: 'files/a.bin', sha256: sha(Buffer.from([1, 2, 3])), size: 3 },
+      { path: 'files/b.bin', sha256: sha(Buffer.from([4, 5])), size: 2 },
+    ])
     expect(request.mock.calls.every((call) => call[1].query === undefined)).toBe(true)
+  })
+
+  it('a resumed apply uploads only the blobs not already staged', async () => {
+    write('files/a.bin', Buffer.from([1, 2, 3]))
+    write('files/b.bin', Buffer.from([4, 5]))
+    staging.held.add(sha(Buffer.from([1, 2, 3])))
+    request.mockResolvedValueOnce(answer())
+
+    await apply('--yes')
+
+    expect(staging.asked[0]?.sort()).toEqual(
+      [sha(Buffer.from([1, 2, 3])), sha(Buffer.from([4, 5]))].sort()
+    )
+    expect(staging.uploaded).toEqual([[sha(Buffer.from([4, 5]))]])
+  })
+
+  it('stages what a refusal names as missing and applies once more; any other refusal stands', async () => {
+    write('files/a.bin', Buffer.from([1, 2, 3]))
+    write(
+      '.sim/base.json',
+      JSON.stringify({
+        ...BASE,
+        resources: {
+          'file:a.bin': {
+            id: 'f1',
+            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+          },
+        },
+      })
+    )
+    const missing = new SimApiError('Rejected', 400, 'SOURCE_REJECTED', {
+      code: 'SOURCE_REJECTED',
+      diagnostics: [
+        { code: 'E_BLOB_MISSING', severity: 'error', message: 'missing', file: 'files/a.bin' },
+      ],
+    })
+    request.mockRejectedValueOnce(missing).mockResolvedValueOnce(answer())
+
+    await apply('--yes')
+
+    expect(staging.uploaded).toEqual([[sha(Buffer.from([1, 2, 3]))]])
+    expect(request).toHaveBeenCalledTimes(2)
+
+    request.mockReset()
+    request.mockRejectedValue(missing)
+    await expect(apply('--yes')).rejects.toMatchObject({ status: 400 })
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses a blob that changed after it was hashed, before staging or applying it', async () => {
+    write('files/a.bin', Buffer.from([1, 2, 3]))
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs/missing')) write('files/a.bin', Buffer.from([9, 9, 9]))
+      return stagingAnswer(path, options)
+    })
+
+    await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_BLOB_CHANGED' })
+    expect(staging.uploaded).toEqual([])
+    expect(request).not.toHaveBeenCalled()
   })
 
   describe('rate limiting', () => {
@@ -247,55 +348,49 @@ describe('workspaces source apply', () => {
       write('files/b.bin', Buffer.from([4, 5]))
     })
 
-    it('a 429 on a later blob round saves what landed and exits 8', async () => {
-      request
-        .mockResolvedValueOnce(
-          answer({
-            applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
-            remainingBlobs: ['files/a.bin'],
-            files: { 'tables/leads.ts': `${LEADS}// stored\n` },
-            base: { ...BASE, resources: { 'table:leads': { id: 'tbl_1' } } },
-          })
-        )
-        .mockRejectedValueOnce(limited())
+    it('a 429 while staging writes nothing and keeps the rate-limit exit; the rerun skips what landed', async () => {
+      let uploads = 0
+      mockRequest.mockImplementation(
+        async (path: string, options: { body?: unknown; form?: FormData }) => {
+          if (path.endsWith('/source/blobs') && ++uploads === 1) {
+            await stagingAnswer(path, options)
+            throw limited()
+          }
+          return path.includes('/source/blobs')
+            ? stagingAnswer(path, options)
+            : request(path, options)
+        }
+      )
+      request.mockResolvedValue(answer())
 
-      await expect(apply('--yes')).rejects.toMatchObject({
-        status: 429,
-        exitCode: 8,
-        message: expect.stringMatching(/apply again/),
-      })
-      expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
-      const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files
-      expect(written['tables/leads.ts']).toBe(digest(`${LEADS}// stored\n`))
+      await expect(apply('--yes')).rejects.toMatchObject({ status: 429, exitCode: 9 })
+      expect(request).not.toHaveBeenCalled()
+      expect(existsSync(join(dir, '.sim/written.json'))).toBe(false)
+
+      await apply('--yes')
+      expect(staging.uploaded).toHaveLength(1)
+      expect(request).toHaveBeenCalledTimes(1)
     })
 
-    it('a 429 on the first round, which wrote nothing, keeps the rate-limit exit', async () => {
+    it('a 429 on the apply, which wrote nothing, keeps the rate-limit exit', async () => {
       request.mockRejectedValueOnce(limited())
 
       await expect(apply('--yes')).rejects.toMatchObject({ status: 429, exitCode: 9 })
       expect(existsSync(join(dir, '.sim/written.json'))).toBe(false)
     })
 
-    it('marks the dry run and every write round as safe to resend after a 429', async () => {
+    it('marks the dry run, the apply and every staging call as safe to resend after a 429', async () => {
       request
         .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin'] }))
-        .mockResolvedValueOnce(answer({ remainingBlobs: ['files/b.bin'] }))
         .mockResolvedValueOnce(answer())
 
       await apply('--dry-run')
       await apply('--yes')
 
-      expect(request).toHaveBeenCalledTimes(3)
-      for (const call of request.mock.calls) expect(call[1].retryRateLimited).toBe(true)
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockRequest).toHaveBeenCalledTimes(4)
+      for (const call of mockRequest.mock.calls) expect(call[1].retryRateLimited).toBe(true)
     })
-  })
-
-  it('stops when a round makes no progress instead of looping', async () => {
-    write('files/a.bin', Buffer.from([1]))
-    request.mockResolvedValue(answer({ remainingBlobs: ['files/a.bin'] }))
-
-    await expect(apply('--yes')).rejects.toThrow(/did not accept the binary files/)
-    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('reuses a recorded blob digest while the file keeps its size and modification time', async () => {

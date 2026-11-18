@@ -15,8 +15,14 @@ export const WORKSPACE_SOURCE_LIMITS = {
   maxWorkflowBytes: 8_000_000,
   /** Bytes of one blob (a knowledge document or a workspace file). */
   maxBlobBytes: 10_000_000,
-  /** Blob bytes one request carries; an apply over it continues in further rounds. */
+  /** Blob bytes one staging request carries (and one request may download to hash). */
   maxBlobBytesPerRequest: 24_000_000,
+  /** Blobs one staging request carries. */
+  maxBlobsPerRequest: 1_000,
+  /** Blobs one caller may hold staged in one workspace at once. */
+  maxStagedBlobs: 20_000,
+  /** Bytes one caller may hold staged in one workspace at once. */
+  maxStagedBytes: 4_000_000_000,
   /** Blobs (workspace files and knowledge documents together) one directory lists. */
   maxBlobs: 20_000,
   /** Workflows one apply evaluates. */
@@ -31,28 +37,37 @@ export const WORKSPACE_SOURCE_LIMITS = {
 
 /**
  * Body cap for a workspace source apply: declarations and workflow files doubled for JSON string
- * escaping, blob content as base64 (4 bytes per 3), plus room for the base.
+ * escaping, plus room for the base and the blob manifest (blob bytes are staged beforehand).
  */
 export const WORKSPACE_SOURCE_REQUEST_MAX_BYTES =
   2 * (WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + WORKSPACE_SOURCE_LIMITS.maxWorkflowBytes) +
-  Math.ceil((WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest * 4) / 3) +
-  2_000_000
+  6_000_000
+
+/** Body cap for one staging request: its blobs plus multipart framing. */
+export const WORKSPACE_SOURCE_STAGE_MAX_BYTES =
+  WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest + 2_000_000
 
 /**
- * The blob paths one apply round carries content for: those `wanted` names, in manifest order,
- * while they fit `maxBlobBytesPerRequest` (always at least one, so every round makes progress).
+ * Splits `blobs` into staging requests, in order: each carries at most `maxBlobsPerRequest` blobs
+ * and `maxBlobBytesPerRequest` bytes, and always at least one blob, so every request progresses.
  */
-export function roundPaths(
-  manifest: ReadonlyArray<{ path: string; size: number }>,
-  wanted: ReadonlySet<string>
-): Set<string> {
+export function stageBatches<T extends { size: number }>(blobs: readonly T[]): T[][] {
+  const { maxBlobBytesPerRequest, maxBlobsPerRequest } = WORKSPACE_SOURCE_LIMITS
+  const batches: T[][] = []
+  let batch: T[] = []
   let bytes = 0
-  const carried = new Set<string>()
-  for (const blob of manifest) {
-    if (!wanted.has(blob.path)) continue
-    if (bytes > 0 && bytes + blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest) continue
+  for (const blob of blobs) {
+    if (
+      batch.length > 0 &&
+      (bytes + blob.size > maxBlobBytesPerRequest || batch.length >= maxBlobsPerRequest)
+    ) {
+      batches.push(batch)
+      batch = []
+      bytes = 0
+    }
+    batch.push(blob)
     bytes += blob.size
-    carried.add(blob.path)
   }
-  return carried
+  if (batch.length > 0) batches.push(batch)
+  return batches
 }

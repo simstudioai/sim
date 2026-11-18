@@ -29,7 +29,12 @@ const DECLARATION_CODES = [
    * listed twice or at a path that holds no binary file: the apply writes nothing.
    */
   'E_BLOB_CONTENT',
-  /** A size, count or nesting limit exceeded (a file, a round's blobs, a kind, findings). */
+  /**
+   * A binary file a write needs whose bytes are not staged (or were staged at another size): the
+   * apply writes nothing. Stage it, then apply again.
+   */
+  'E_BLOB_MISSING',
+  /** A size, count or nesting limit exceeded (a file, a kind, the staging area, findings). */
   'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   'E_KEY_INVALID',

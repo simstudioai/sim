@@ -185,11 +185,32 @@ failure stops the apply and reports what was written before it (`failed`); the C
 progress back into the directory and exits 8 (`SOURCE_PARTIAL_EXIT_CODE`). Re-running the same
 directory converges.
 
-**Blob rounds.** The text and the blob manifest (path, hash, size) travel in every request; blob
-bytes travel only when the server asks for them (`needBlobs`), at most
-`maxBlobBytesPerRequest` per round (`roundPaths`, `src/limits.ts`). A change waits for a later
-round while its blobs are missing; a delete waits while any blob is missing, so a resumed apply
-never deletes early.
+**Staged blobs.** Blob bytes never travel in an apply. A client first asks which of the blobs it
+will send it has not staged (`POST /source/blobs/missing`, by SHA-256 and size), uploads only
+those (`POST /source/blobs`, multipart, one part per blob named by its hash, at most
+`maxBlobBytesPerRequest` per request, `stageBatches` in `src/limits.ts`), then sends one apply
+whose manifest names each blob by path, hash and size. The server checks every uploaded part
+against its hash before staging it, so a staged blob is verified bytes. The plan resolves the
+blobs its writes need against the staging area once, before any write: a missing one (never
+staged, expired, or staged at another size) refuses the whole apply with `E_BLOB_MISSING`, and a
+dry run lists such paths in `needBlobs` instead. Writes then read each blob from staging one at a
+time (rechecking its hash), and a complete apply releases what it consumed; after a failure the
+staged blobs stay, so the retry uploads nothing. The server plans once per apply, whatever the
+directory's size.
+
+Staging (`apps/sim/lib/workspace-source/staging/store.ts`, use cases in
+`application/stage-blobs.ts`) is scoped to the workspace and the caller (a person's credentials
+share one scope; a workspace API key has its own), capped per scope at `maxStagedBlobs` and
+`maxStagedBytes`, and expires a day after a blob was last staged, asked for or planned with; an
+hourly cron (`/api/cron/cleanup-source-staging`) deletes expired rows and objects. Both staging
+calls need write access, as the apply does, and draw on their own rate bucket.
+
+This replaced a round protocol in which every request resent the text, base and manifest with up
+to 24 MB of base64 blob content and the server re-planned the workspace each round. Nothing
+outside this repository spoke that protocol (workspace source never shipped with it), so it was
+removed rather than kept beside staging: the CLI and server move together, and an older CLI build
+that still sends `content` in the manifest is refused by the contract (`blobs[].content` is not
+a field).
 
 ## Limits
 

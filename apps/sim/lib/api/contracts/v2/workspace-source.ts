@@ -237,22 +237,15 @@ const applyBodySchema = z
         'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.'
       ),
     blobs: z
-      .array(
-        blobSchema.extend({
-          content: z
-            .string()
-            .optional()
-            .describe(
-              'Base64 bytes; send only the paths the previous round listed in `needBlobs`.'
-            ),
-        })
-      )
+      .array(blobSchema)
       .max(
         WORKSPACE_SOURCE_LIMITS.maxBlobs,
         `blobs cannot list more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} files`
       )
       .optional()
-      .describe('Binary files by hash.'),
+      .describe(
+        'Binary files by path, with the SHA-256 and size of their bytes. Stage the bytes a write needs first (Stage Workspace Source Blobs); an apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.'
+      ),
     base: baseSchema.optional(),
     kinds: z
       .array(kindSchema)
@@ -303,10 +296,11 @@ const applyDataSchema = z
       .describe(
         'The change that failed mid-apply. The changes before it are written (`applied`); the rest were not attempted. Applying the same directory again continues.'
       ),
-    needBlobs: z.array(z.string()).describe('Binary paths whose content the next round must send.'),
-    remainingBlobs: z
+    needBlobs: z
       .array(z.string())
-      .describe('Binary writes this round skipped for missing content.'),
+      .describe(
+        'Binary paths a write needs whose bytes are not staged: on a dry run, exactly what to stage before applying.'
+      ),
     files: z
       .record(z.string(), z.string())
       .describe('Files re-printed from what was saved, for every resource written.'),
@@ -323,4 +317,76 @@ export const v2ApplyWorkspaceSourceContract = defineRouteContract({
   query: applyQuerySchema,
   body: applyBodySchema,
   response: { mode: 'json', schema: v2DataResponse(applyDataSchema) },
+})
+
+const stagedBlobSchema = z
+  .object({ sha256: sha256Schema, size: blobSchema.shape.size })
+  .strict()
+  .describe('A binary file by the SHA-256 and size of its bytes.')
+
+/**
+ * The multipart form a staging request sends: one file part per blob, its field name the
+ * SHA-256 of its bytes.
+ */
+export const v2StageWorkspaceSourceBlobsFormSchema = z
+  .record(
+    sha256Schema.describe('The SHA-256 of the part, lowercase hex.'),
+    z.file().max(WORKSPACE_SOURCE_LIMITS.maxBlobBytes).describe('The bytes of one binary file.')
+  )
+  .describe(
+    `One file part per binary file, named by its SHA-256: at most ${WORKSPACE_SOURCE_LIMITS.maxBlobsPerRequest} files and ${WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest} bytes per request.`
+  )
+
+/** `POST /api/v2/workspaces/{workspaceId}/source/blobs`: stage binary files for an apply. */
+export const v2StageWorkspaceSourceBlobsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/source/blobs',
+  params: paramsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z
+        .object({
+          workspaceId: z.string().describe('Workspace id.'),
+          staged: z.array(stagedBlobSchema).describe('The binary files now staged.'),
+        })
+        .describe('What the request staged.')
+    ),
+  },
+})
+
+const missingBodySchema = z
+  .object({
+    blobs: z
+      .array(stagedBlobSchema)
+      .max(
+        WORKSPACE_SOURCE_LIMITS.maxStagedBlobs,
+        `blobs cannot list more than ${WORKSPACE_SOURCE_LIMITS.maxStagedBlobs} files`
+      )
+      .describe('The binary files an apply will need.'),
+  })
+  .strict()
+
+/**
+ * `POST /api/v2/workspaces/{workspaceId}/source/blobs/missing`: which binary files the caller has
+ * not staged.
+ */
+export const v2FindMissingWorkspaceSourceBlobsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/source/blobs/missing',
+  params: paramsSchema,
+  body: missingBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z
+        .object({
+          workspaceId: z.string().describe('Workspace id.'),
+          missing: z
+            .array(sha256Schema)
+            .describe('SHA-256 of each listed file that is not staged, in the order listed.'),
+        })
+        .describe('The binary files still to stage.')
+    ),
+  },
 })

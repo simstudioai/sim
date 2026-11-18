@@ -169,6 +169,17 @@ const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
+/**
+ * Staging the binary files of a workspace source apply: each request carries up to 24 MB, so a
+ * 1 GB directory stages in about 45 requests. Its own bucket, so staging never spends the
+ * applies that follow it.
+ */
+const V2_SOURCE_BLOB_STAGE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 200,
+  refillRate: 100,
+  refillIntervalMs: 60_000,
+}
+
 export const v2RateLimits = {
   /** The plan's API budget, one bucket per operation. */
   publicApi: {
@@ -190,6 +201,18 @@ export const v2RateLimits = {
         'workflows.source.write',
         V2_SOURCE_WRITE_RATE_LIMIT,
         cost
+      )
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_BLOB_STAGE_RATE_LIMIT}, shared by staging and asking what is staged. */
+  sourceBlobStage: {
+    async enforce(request, auth) {
+      return enforceV2Buckets(
+        request,
+        auth,
+        'workspaces.source.blobs',
+        V2_SOURCE_BLOB_STAGE_RATE_LIMIT,
+        1
       )
     },
   } satisfies V2RateLimitPolicy,

@@ -3235,6 +3235,13 @@
       "when": 1794984661597,
       "tag": "0462_document_file_sha256",
       "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795022087120,
+      "tag": "0463_workspace_source_staged_blob",
+      "breakpoints": true
     }
   ]
 }
