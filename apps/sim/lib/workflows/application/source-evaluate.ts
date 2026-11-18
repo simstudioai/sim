@@ -96,6 +96,8 @@ export interface PendingResource {
   kind: ResourceKind
   key: string
   id: string
+  /** `id` stands in for a resource the apply has yet to create, not one it stores already. */
+  placeholder?: boolean
   /** The name the apply writes it under, which a workflow's stored reference repeats (a skill). */
   name?: string
   /**

@@ -1,9 +1,10 @@
+import type { NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
+import { loadWorkflowReadSnapshot, loadWorkflowReadSnapshots } from '@/lib/workflows/queries'
 import {
   type CopilotWorkflowState,
   sanitizeForCopilot,
@@ -59,16 +60,47 @@ export async function loadWorkflowGraph(context: {
   if (!snapshot.workflowRecord) {
     throw new OrchestrationError('not_found', 'Workflow not found')
   }
-  /** Normalize all persisted variable formats identically for graph reads and diagnostics. */
-  const variables = parseWorkflowVariables(snapshot.workflowRecord.variables)
+  return graphOf(context, snapshot.normalizedData, snapshot.workflowRecord.variables)
+}
+
+/**
+ * {@link loadWorkflowGraph} for many workflows of one workspace, read in one snapshot, each with
+ * its row's name and description, by workflow id. A workflow that is archived or not in the
+ * workspace is left out.
+ */
+export async function loadWorkflowGraphs(
+  workspaceId: string,
+  workflowIds: readonly string[]
+): Promise<
+  Map<string, { graph: ReadWorkflowGraphResult; name: string; description: string | null }>
+> {
+  const snapshots = await loadWorkflowReadSnapshots(workflowIds, workspaceId)
+  return new Map(
+    [...snapshots].map(([workflowId, { normalizedData, workflowRecord }]) => [
+      workflowId,
+      {
+        graph: graphOf({ workflowId, workspaceId }, normalizedData, workflowRecord.variables),
+        name: workflowRecord.name,
+        description: workflowRecord.description,
+      },
+    ])
+  )
+}
+
+/** A loaded draft as the graph read returns it, every persisted variable format normalized. */
+function graphOf(
+  context: { workflowId: string; workspaceId: string },
+  normalizedData: NormalizedWorkflowData | null,
+  storedVariables: Parameters<typeof parseWorkflowVariables>[0]
+): ReadWorkflowGraphResult {
   return {
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
-    blocks: (snapshot.normalizedData?.blocks ?? {}) as Record<string, BlockState>,
-    edges: (snapshot.normalizedData?.edges ?? []) as WorkflowState['edges'],
-    loops: snapshot.normalizedData?.loops ?? {},
-    parallels: snapshot.normalizedData?.parallels ?? {},
-    variables: variables ?? {},
+    blocks: (normalizedData?.blocks ?? {}) as Record<string, BlockState>,
+    edges: (normalizedData?.edges ?? []) as WorkflowState['edges'],
+    loops: normalizedData?.loops ?? {},
+    parallels: normalizedData?.parallels ?? {},
+    variables: parseWorkflowVariables(storedVariables) ?? {},
   }
 }
 

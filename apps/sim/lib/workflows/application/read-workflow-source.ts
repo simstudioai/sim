@@ -7,20 +7,31 @@ import {
   type SourceBase,
   sourceDepthOverflow,
   type WorkflowLockV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import {
   SOURCE_LIMITS,
   type SourceLimitExcess,
   sourceLimitExcesses,
 } from '@sim/workflow-code/limits'
-import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
-import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
+import {
+  readWorkflowSourceMeta,
+  readWorkflowSourceMetas,
+} from '@sim/workflow-persistence/source-meta'
+import {
+  type CatalogGate,
+  resolveCatalogGate,
+  withCatalogBlockScope,
+} from '@/lib/catalog/application/context'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
+import {
+  loadWorkflowGraph,
+  loadWorkflowGraphs,
+} from '@/lib/workflows/application/read-workflow-graph'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
@@ -30,7 +41,13 @@ import {
   type StoredSource,
   storedCanonicalHash,
 } from '@/lib/workflows/code/print-stored'
-import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
+import {
+  canonicalizeStored,
+  type PrefetchedStoredResources,
+  prefetchStoredResources,
+  prefetchStoredResourcesFor,
+} from '@/lib/workflows/code/stored-canonical'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 interface GetWorkflowSourceInput {
   workflowId: string
@@ -45,7 +62,7 @@ type WorkflowSourceReadDiagnostic = Pick<
   'code' | 'severity' | 'message' | 'hint' | 'blockKey' | 'param'
 >
 
-interface ReadWorkflowSourceResult {
+export interface ReadWorkflowSourceResult {
   workflowId: string
   workspaceId: string
   /** Repo-relative path → text: `workflow.ts` first, then any function-code files. */
@@ -132,6 +149,64 @@ export async function loadStoredSource(
   }
 }
 
+/** Everything one workflow's source read prints from, loaded by a single or a batched read. */
+interface LoadedSource {
+  scope: { workflowId: string; workspaceId: string; workspaceOrganizationId: string | null }
+  stored: StoredSource
+  gate: CatalogGate
+  sourceMeta: WorkflowSourceMetaV1 | null
+  prefetched: PrefetchedStoredResources
+}
+
+/**
+ * Prints a loaded workflow as source: builds its catalog, canonicalizes the stored graph with its
+ * resource keys and prints it with its source meta, refusing one over `SOURCE_LIMITS`.
+ */
+async function printLoadedSource(
+  loaded: LoadedSource,
+  functionCode: 'inline' | 'files'
+): Promise<ReadWorkflowSourceResult> {
+  const { scope, gate, sourceMeta, prefetched } = loaded
+  const { state, meta } = loaded.stored
+  const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
+  assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
+  return withCatalogBlockScope(gate, async () => {
+    const catalog = buildSourceCatalog({
+      gate,
+      organizationId: scope.workspaceOrganizationId,
+      storedTypes: storedCatalogTypes(Object.values(state.blocks)),
+    })
+    const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
+    const canonicalHash = storedCanonicalHash(canonical)
+    const printed = printStoredSource({
+      state,
+      meta,
+      catalog,
+      resources,
+      sourceMeta,
+      functionCode,
+      lockless: canonical,
+    })
+    assertFitsSourceLimits(printed, counts)
+    return {
+      workflowId: scope.workflowId,
+      workspaceId: scope.workspaceId,
+      files: printed.files,
+      lock: printed.lock,
+      base: {
+        workflowId: scope.workflowId,
+        workspaceId: scope.workspaceId,
+        fingerprint: printed.fingerprint,
+        catalogHash: catalog.hash,
+      },
+      canonicalHash,
+      sdkMajor: catalog.sdkMajor,
+      blockTypes: usedBlockTypes(canonical.workflow),
+      diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),
+    }
+  })
+}
+
 /**
  * Reads a workflow's stored draft as TypeScript source. Builds the per-workflow source catalog
  * (the blocks this caller may place plus every type already in the workflow), canonicalizes the
@@ -149,7 +224,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
     return resolvePrincipalWorkflowContext(args)
   },
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
-    const [{ state, meta }, gate, sourceMeta, prefetched] = await Promise.all([
+    const [stored, gate, sourceMeta, prefetched] = await Promise.all([
       loadStoredSource(context),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMeta(db, context.workflowId),
@@ -159,42 +234,78 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       }),
     ])
-    const counts = { blocks: Object.keys(state.blocks).length, edges: state.edges.length }
-    assertFitsSourceLimits({ files: {}, entryDepth: 0 }, counts)
-    const catalog = await withCatalogBlockScope(gate, async () =>
-      buildSourceCatalog({
-        gate,
-        organizationId: context.workspaceOrganizationId,
-        storedTypes: storedCatalogTypes(Object.values(state.blocks)),
-      })
+    return printLoadedSource(
+      { scope: context, stored, gate, sourceMeta, prefetched },
+      input.functionCode ?? 'files'
     )
-    const { canonical, resources } = await canonicalizeStored({ prefetched, state, meta, catalog })
-    const canonicalHash = storedCanonicalHash(canonical)
-    const printed = printStoredSource({
-      state,
-      meta,
-      catalog,
-      resources,
-      sourceMeta,
-      functionCode: input.functionCode ?? 'files',
-      lockless: canonical,
-    })
-    assertFitsSourceLimits(printed, counts)
-    return {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      files: printed.files,
-      lock: printed.lock,
-      base: {
-        workflowId: context.workflowId,
-        workspaceId: context.workspaceId,
-        fingerprint: printed.fingerprint,
-        catalogHash: catalog.hash,
-      },
-      canonicalHash,
-      sdkMajor: catalog.sdkMajor,
-      blockTypes: usedBlockTypes(canonical.workflow),
-      diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),
+  },
+})
+
+interface ReadWorkflowSourcesInput {
+  workspaceId: string
+  /** Workflows of the workspace to read; one archived or in another workspace reads as missing. */
+  workflowIds: readonly string[]
+}
+
+/** One workflow of a batched read: its source, or why it could not be read as source. */
+export type WorkflowSourceRead =
+  | { source: ReadWorkflowSourceResult }
+  | { error: OrchestrationError }
+
+/**
+ * {@link readWorkflowSource} for many workflows of one workspace (`functionCode: 'files'`), with
+ * what every read loads the same done once: the workspace is authorized once with the same
+ * operation, the catalog gate is resolved once, and the graphs, source meta and resource keys of
+ * all of them are loaded together. Each workflow's result is its own: one too large to read as
+ * source, or missing, is an error for that workflow alone.
+ */
+export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.readSource,
+  resolveContext: async ({ input }: { input: ReadWorkflowSourcesInput }) => {
+    await requireWorkflowCodeEnabled()
+    return resolveActiveWorkspaceApplicationContext(input.workspaceId)
+  },
+  async execute({ principal, input, context }): Promise<Map<string, WorkflowSourceRead>> {
+    const { workspaceId } = context
+    const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
+    const [graphs, gate, sourceMetas, prefetched] = await Promise.all([
+      loadWorkflowGraphs(workspaceId, input.workflowIds),
+      resolveCatalogGate(principal, context, { customBlockInputs: true }),
+      readWorkflowSourceMetas(db, input.workflowIds),
+      prefetchStoredResourcesFor({ workspaceId, createdBy }, input.workflowIds),
+    ])
+    const reads = new Map<string, WorkflowSourceRead>()
+    for (const workflowId of input.workflowIds) {
+      const loaded = graphs.get(workflowId)
+      if (!loaded) {
+        reads.set(workflowId, { error: new OrchestrationError('not_found', 'Workflow not found') })
+        continue
+      }
+      const { blocks, edges, loops, parallels, variables } = loaded.graph
+      try {
+        const source = await printLoadedSource(
+          {
+            scope: {
+              workflowId,
+              workspaceId,
+              workspaceOrganizationId: context.workspaceOrganizationId,
+            },
+            stored: {
+              state: { blocks, edges, loops, parallels, variables },
+              meta: { name: loaded.name, description: loaded.description ?? null },
+            },
+            gate,
+            sourceMeta: sourceMetas.get(workflowId) ?? null,
+            prefetched: { ...prefetched, workflowId },
+          },
+          'files'
+        )
+        reads.set(workflowId, { source })
+      } catch (error) {
+        if (!(error instanceof OrchestrationError)) throw error
+        reads.set(workflowId, { error })
+      }
     }
+    return reads
   },
 })

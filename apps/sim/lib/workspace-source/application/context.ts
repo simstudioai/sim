@@ -8,7 +8,10 @@ import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
 import type { SourceContext } from '@/lib/workspace-source/application/types'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
-/** A get's or an apply's context, with a fresh hashing budget and no admissions checked yet. */
+/**
+ * A get's or an apply's context, with a fresh hashing budget, no admissions checked yet and
+ * nothing loaded to share.
+ */
 export function sourceContext(
   principal: Principal,
   workspace: ActiveWorkspaceApplicationContext
@@ -19,6 +22,7 @@ export function sourceContext(
     createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
     hashBudget: newHashBudget(),
     admitted: new Map(),
+    shared: {},
   }
 }
 

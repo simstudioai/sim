@@ -97,10 +97,11 @@ export function pendingOf(
   change: Pick<PlannedChange, 'kind' | 'key' | 'action' | 'storedId'>,
   extra: Pick<PendingResource, 'name' | 'columns'> = {}
 ): PendingResource {
+  const stored = change.action !== 'create' ? change.storedId : undefined
   return {
     kind: change.kind,
     key: change.key,
-    id: change.action !== 'create' && change.storedId ? change.storedId : generateId(),
+    ...(stored ? { id: stored } : { id: generateId(), placeholder: true }),
     ...extra,
   }
 }

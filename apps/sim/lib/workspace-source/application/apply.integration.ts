@@ -1764,6 +1764,62 @@ export default workflow('Notes', {}, () => {
     expect(await tables(workspaceId)).toEqual([])
   })
 
+  check(
+    'refuses an edited copy of a workflow folder instead of writing it over the original',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const [original] = await workflows(workspaceId)
+      const copy = Object.fromEntries(
+        Object.entries(read.files)
+          .filter(([path]) => path.startsWith('workflows/ingest/'))
+          .map(([path, text]) => [
+            path.replace('workflows/ingest/', 'workflows/ingest-v2/'),
+            path.endsWith('workflow.ts')
+              ? text.replace("'Ingest'", "'Ingest v2'").replace("'Save Lead'", "'Store Lead'")
+              : text,
+          ])
+      )
+
+      const refused = await refusal(
+        apply(workspaceId, { ...read.files, ...copy }, { base: read.base })
+      )
+
+      expect(codes(refused.diagnostics, 'error')).toEqual(['E_WORKFLOW_FOLDER_COPIED'])
+      expect(refused.diagnostics.find((finding) => finding.severity === 'error')).toMatchObject({
+        key: 'ingest-v2',
+        file: 'workflows/ingest-v2/.sim/base.json',
+      })
+      const stored = await readWorkflowSource.execute({
+        principal: owner,
+        input: { workflowId: original.id },
+      })
+      expect(stored.files['workflow.ts']).not.toContain('Store Lead')
+      expect(await workflows(workspaceId)).toHaveLength(1)
+    }
+  )
+
+  check(
+    'refuses two new workflow folders that compile to one name before creating either',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const nightly = INGEST.replace("'Ingest'", "'Nightly'")
+      const files = {
+        ...read.files,
+        'workflows/nightly-a/workflow.ts': nightly,
+        'workflows/nightly-b/workflow.ts': nightly,
+      }
+
+      const dry = await apply(workspaceId, files, { base: read.base, dryRun: true })
+
+      expect(codes(dry.diagnostics, 'error')).toEqual(['E_NAME_TAKEN'])
+      expect(dry.diagnostics.find((finding) => finding.severity === 'error')?.key).toBe('nightly-b')
+      await refusal(apply(workspaceId, files, { base: read.base }))
+      expect(await workflows(workspaceId)).toHaveLength(1)
+    }
+  )
+
   check('a get prints a column named __proto__, and applying it back changes nothing', async () => {
     const workspaceId = await newWorkspace()
     await tableUseCases.createTableUseCase.execute({

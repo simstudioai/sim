@@ -18,7 +18,7 @@ import {
   sourceMetaEquals,
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code/source-meta'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { DbOrTx } from './types'
 
 const logger = createLogger('WorkflowSourceMeta')
@@ -54,6 +54,21 @@ export async function readWorkflowSourceMeta(
   workflowId: string
 ): Promise<WorkflowSourceMetaV1 | null> {
   return readSourceMetaValue(workflowId, await readStoredSourceMeta(executor, workflowId))
+}
+
+/** {@link readWorkflowSourceMeta} for many workflows in one query, by workflow id. */
+export async function readWorkflowSourceMetas(
+  executor: DbOrTx,
+  workflowIds: readonly string[]
+): Promise<Map<string, WorkflowSourceMetaV1 | null>> {
+  const metas = new Map<string, WorkflowSourceMetaV1 | null>()
+  if (workflowIds.length === 0) return metas
+  const rows = await executor
+    .select({ workflowId: workflowSourceMeta.workflowId, meta: workflowSourceMeta.meta })
+    .from(workflowSourceMeta)
+    .where(inArray(workflowSourceMeta.workflowId, [...workflowIds]))
+  for (const row of rows) metas.set(row.workflowId, readSourceMetaValue(row.workflowId, row.meta))
+  return metas
 }
 
 /**

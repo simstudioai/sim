@@ -141,6 +141,8 @@ type PlanCode =
   | 'E_NAME_TAKEN'
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */
   | 'E_WORKFLOW_FILES_MISSING'
+  /** A workflow folder holding the base of another declared folder's workflow: a copy. */
+  | 'E_WORKFLOW_FOLDER_COPIED'
   /**
    * A resource the server holds that the directory does not declare (kept without
    * `--allow-delete`).

@@ -13,6 +13,7 @@ import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import {
   loadWorkflowFromNormalizedTablesRaw,
+  loadWorkflowsFromNormalizedTablesRaw,
   persistMigratedBlocks,
   type RawNormalizedWorkflow,
 } from '@sim/workflow-persistence/load'
@@ -638,6 +639,23 @@ export async function loadWorkflowFromNormalizedTables(
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
   return fromRawNormalized(workflowId, raw, externalTx ?? db)
+}
+
+/**
+ * {@link loadWorkflowFromNormalizedTables} for many workflows of one workspace, by workflow id; a
+ * workflow not in `workspaceId` is left out.
+ */
+export async function loadWorkflowsFromNormalizedTables(
+  workflowIds: readonly string[],
+  workspaceId: string,
+  externalTx?: DbOrTx
+): Promise<Map<string, NormalizedWorkflowData>> {
+  const raws = await loadWorkflowsFromNormalizedTablesRaw(workflowIds, workspaceId, externalTx)
+  const loaded = new Map<string, NormalizedWorkflowData>()
+  for (const [workflowId, raw] of raws) {
+    loaded.set(workflowId, await fromRawNormalized(workflowId, raw, externalTx ?? db))
+  }
+  return loaded
 }
 
 /**
