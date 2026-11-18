@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { agentmailGetMessageTool } from '@/tools/agentmail/get_message'
 import { agentmailReplyMessageTool } from '@/tools/agentmail/reply_message'
 
-type UrlBuilder = (params: Record<string, unknown>) => string
+const scope = { apiKey: 'key', inboxId: 'agent@agentmail.to' }
+
+function buildUrl<P>(url: string | ((params: P) => string), params: P): string {
+  return typeof url === 'function' ? url(params) : url
+}
 
 describe('agentmail request paths', () => {
   it('encodes RFC 5322 message IDs so their characters stay inside one path segment', () => {
-    const url = (agentmailGetMessageTool.request.url as UrlBuilder)({
-      apiKey: 'key',
-      inboxId: 'agent@agentmail.to',
+    const url = buildUrl(agentmailGetMessageTool.request.url, {
+      ...scope,
       messageId: '<a/b#c?d%e@mail.example.com>',
     })
 
@@ -18,10 +21,8 @@ describe('agentmail request paths', () => {
   })
 
   it('rejects a dot-segment message ID instead of addressing the parent path', () => {
-    const url = agentmailReplyMessageTool.request.url as UrlBuilder
-
-    expect(() => url({ apiKey: 'key', inboxId: 'agent@agentmail.to', messageId: '..' })).toThrow(
-      /messageId/
-    )
+    expect(() =>
+      buildUrl(agentmailReplyMessageTool.request.url, { ...scope, messageId: '..' })
+    ).toThrow(/messageId/)
   })
 })
