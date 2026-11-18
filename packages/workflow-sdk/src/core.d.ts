@@ -228,6 +228,14 @@ export type CredentialKeyFor<Providers extends string> = keyof WorkspaceCredenti
     }[Extract<keyof WorkspaceCredentials, string>]
 export declare function credential<K extends CredentialKey>(key: K): CredentialRef<K>
 
+/**
+ * The other form a credential field takes beside `credential('key')`: a credential id produced at
+ * run time by a reference, a template or an environment variable, stored in the field's advanced
+ * twin (`manualCredential`). Literal text is not one, so a pasted token never type-checks; a
+ * literal id the stored workflow already holds prints as `raw('…')`.
+ */
+export type CredentialIdValue = RefTo<string> | Template | EnvRef
+
 /** The columns of a workspace table, or loose JSON when `workspace.d.ts` does not know it. */
 export type TableColumns<K extends string> = K extends keyof WorkspaceTables
   ? WorkspaceTables[K]
@@ -253,8 +261,30 @@ type FieldValue<T> = [Json] extends [T]
     ? JsonWithRefs
     : Value<T> | null
 
-/** Column values written to a row, each checked against its column's type. */
+/** The columns of table `K` every row must hold: those whose cell type does not admit `null`. */
+type RequiredColumns<K extends keyof WorkspaceTables> = {
+  [C in keyof WorkspaceTables[K]]-?: null extends WorkspaceTables[K][C] ? never : C
+}[keyof WorkspaceTables[K]]
+
+/**
+ * A whole row, as an insert, an upsert or a batch insert writes it, each value checked against
+ * its column's type. A required column must be present and not `null`: the table refuses a row
+ * without it (`Missing required field`), and an upsert checks the whole row before it looks for a
+ * match.
+ */
 export type TableData<K extends string> = K extends keyof WorkspaceTables
+  ? { [C in RequiredColumns<K>]-?: Exclude<FieldValue<WorkspaceTables[K][C]>, null> } & {
+      [C in Exclude<keyof WorkspaceTables[K], RequiredColumns<K>>]?: FieldValue<
+        WorkspaceTables[K][C]
+      >
+    }
+  : { [column: string]: JsonWithRefs }
+
+/**
+ * The cells an update writes, each checked against its column's type. Every column is optional:
+ * an update merges these cells over the stored row.
+ */
+export type TableDataPatch<K extends string> = K extends keyof WorkspaceTables
   ? { [C in keyof WorkspaceTables[K]]?: FieldValue<WorkspaceTables[K][C]> }
   : { [column: string]: JsonWithRefs }
 

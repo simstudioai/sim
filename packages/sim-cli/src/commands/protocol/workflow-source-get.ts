@@ -76,11 +76,12 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 
 ## Edit loop (run from this directory)
 
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${typecheckCommand()}\` type-checks locally with the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
-2. \`tsconfig.json\` checks only the blocks this workflow used when it was last written, which keeps \`tsc\` fast. A builder you add from another block fails with \`has no exported member\` (or \`Property 'x' does not exist\` on its namespace): check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\` instead, which includes every current block. The next apply or get adds the block to \`tsconfig.json\`.
-3. \`sim workflows source apply --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
-4. \`sim workflows source apply --dir . --yes\`: saves the draft (never deploys). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out), so read the file again before the next edit rather than editing from memory.
-5. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare it with this one. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`).
+2. \`sim workflows source check --dir .\`: compiles offline with the server's compiler, in milliseconds. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added (\`--strict\`: in every block). It also adds the blocks the source now uses to \`tsconfig.json\`. Fix and rerun until it exits 0.
+3. \`${typecheckCommand()}\` type-checks with the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). \`tsconfig.json\` includes only the blocks the source used at the last check, get or apply, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+4. \`sim workflows source apply --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
+5. \`sim workflows source apply --dir . --yes\`: saves the draft (never deploys). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out), so read the file again before the next edit rather than editing from memory.
+6. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means the draft changed, by that apply or by someone else: get into a fresh directory and compare it with this one. Only when it holds your edit, run \`sim workflows source get <workflowId> --dir . --force\`; otherwise reapply your edit in the fresh directory.
 
 An apply that deletes blocks (a declaration removed from \`${SOURCE_ENTRY_FILE}\`) is refused with \`E_APPLY_BLOCK_DELETE\` naming them; pass \`--allow-delete\` when the deletion is intended. Editing the \`workflow('…')\` name or description renames or redescribes the workflow; a name another workflow in its folder holds is refused with \`E_NAME_TAKEN\`.
 
@@ -153,7 +154,11 @@ async function writeSourceTree(
   return finishTree(dir, written, workspaceTypes, tree.ownsTsconfig)
 }
 
-const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: workflowTsconfig }
+/** The workflow directory's tree beside the printed source. */
+export const WORKFLOW_TREE: SourceTreeProfile = {
+  agents: AGENTS_GUIDE,
+  tsconfig: workflowTsconfig,
+}
 
 /** The `workflow.ts` a new directory starts from: the smallest workflow that compiles. */
 const STARTER_SOURCE = `// @sim-sdk 1

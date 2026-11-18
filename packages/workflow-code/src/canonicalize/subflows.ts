@@ -1,10 +1,15 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
-import type { BlockKey, Json, LoopSpec, ParallelSpec } from '../model'
+import {
+  type BlockKey,
+  isLoopType,
+  isParallelType,
+  type Json,
+  type LoopSpec,
+  type ParallelSpec,
+} from '../model'
 import type { CanonContext } from './context'
 import { toValue } from './values'
 
-const LOOP_TYPES = new Set(['for', 'forEach', 'while', 'doWhile'])
-const PARALLEL_TYPES = new Set(['count', 'collection'])
 const PARALLEL_BATCH_MIN = 1
 export const PARALLEL_BATCH_MAX = 20
 /** `count || 5` in `convertLoopBlockToLoop` and the loop orchestrator. */
@@ -91,8 +96,8 @@ export function loopSpec(
   const rejected: string[] = []
 
   const loopType = firstDefined(data.loopType, loop?.loopType)
-  if (typeof loopType === 'string' && LOOP_TYPES.has(loopType)) {
-    spec.loopType = loopType as LoopSpec['loopType']
+  if (isLoopType(loopType)) {
+    spec.loopType = loopType
   } else if (loopType !== undefined) {
     // The serializer runs `data.loopType || 'for'` and never reads the map's type, so a falsy
     // stored type runs `for` and any other unknown one fails in the loop orchestrator.
@@ -153,8 +158,8 @@ export function parallelSpec(
   const rejected: string[] = []
 
   const parallelType = firstDefined(data.parallelType, parallel?.parallelType)
-  if (typeof parallelType === 'string' && PARALLEL_TYPES.has(parallelType)) {
-    spec.parallelType = parallelType as ParallelSpec['parallelType']
+  if (isParallelType(parallelType)) {
+    spec.parallelType = parallelType
   } else if (parallelType !== undefined) {
     rejectIfFromData(rejected, data, 'parallelType')
     repaired(

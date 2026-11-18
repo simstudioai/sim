@@ -15,9 +15,11 @@ import {
   type CanonicalTool,
   isJsonObject,
   isPlainRecord,
+  isUsageControl,
   type ParamMode,
   type ResourceNode,
   type UnresolvedNode,
+  USAGE_CONTROLS,
   type Value,
 } from '../model'
 import { deepEqual, getOwn, setOwn } from '../records'
@@ -34,19 +36,18 @@ import {
   type ValueSite,
 } from './values'
 
-const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
-
-const TOOL_OPTIONS = [
-  'operation',
-  'toolId',
-  'title',
-  'usageControl',
-  'usageControlExpression',
-  'modes',
-  'customTool',
-  'operationPolicy',
-  'extra',
-]
+/** The options of a tool written through its builder: every {@link CanonicalTool} field but its type and params. */
+const TOOL_OPTIONS = Object.keys({
+  operation: true,
+  toolId: true,
+  title: true,
+  usageControl: true,
+  usageControlExpression: true,
+  modes: true,
+  customTool: true,
+  operationPolicy: true,
+  extra: true,
+} satisfies Record<Exclude<keyof CanonicalTool, 'type' | 'params'>, true>)
 
 type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
 
@@ -63,12 +64,12 @@ function compileUsage(
 ): boolean {
   if (option === 'usageControl') {
     const text = literalText(property.value)
-    if (text !== 'auto' && text !== 'force' && text !== 'none') {
+    if (!isUsageControl(text)) {
       unsupported(
         ctx,
         property.value,
         'Unknown usage control.',
-        `Use ${[...USAGE_CONTROLS].join(', ')}.`,
+        `Use ${USAGE_CONTROLS.join(', ')}.`,
         site.decl.key
       )
       return false

@@ -29,7 +29,13 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
 
-2. Edit `workflow.ts`. Your editor type-checks it against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for. If you add a block the workflow does not use yet, check with `-p ./support-triage/tsconfig.full.json` until the next save. `sim workflows source check --dir ./support-triage` compiles the file with Sim's compiler on your machine, without a request, for a quick first pass.
+2. Edit `workflow.ts`, then compile it on your machine with Sim's compiler, without a request:
+
+   ```bash
+   sim workflows source check --dir ./support-triage
+   ```
+
+   It exits 1 on an error, and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added since the get (`--strict` fails on these in every block, `--no-strict` never on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
 
 3. Check the change without saving it:
 

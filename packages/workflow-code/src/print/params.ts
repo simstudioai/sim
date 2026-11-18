@@ -16,6 +16,7 @@ import { type EditorDefault, editorDefaults } from '../catalog/defaults'
 import {
   buildFieldIndex,
   declarationFor,
+  isCredentialIdTwin,
   isWrittenInSource,
   memberFor,
   requiredForBuilder,
@@ -107,6 +108,7 @@ export function fieldContext(
     from: block.key,
     variablesField: structuredCodec(sb)?.varNodes === true,
     ...(sb ? { subBlock: sb } : {}),
+    ...(sb && declared && isCredentialIdTwin(sb, declared.subBlocks) ? { credentialId: true } : {}),
   }
 }
 

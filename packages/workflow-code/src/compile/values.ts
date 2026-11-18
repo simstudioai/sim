@@ -10,7 +10,6 @@ import type {
 } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
@@ -35,18 +34,19 @@ import {
   responseFormatFields,
   valueTree,
 } from '../json-fields'
-import type {
-  BlockKey,
-  CanonicalBlock,
-  CanonicalParam,
-  Json,
-  ResourceKind,
-  SubBlockId,
-  Value,
-  VarNode,
+import {
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalParam,
+  isResourceKind,
+  type Json,
+  type ResourceKind,
+  type SubBlockId,
+  type Value,
+  type VarNode,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { SDK_RESOURCE_CALLS } from '../sdk'
+import { isTemplateTag, SDK_RESOURCE_CALLS, type SdkCoreExport, TEMPLATE_TAGS } from '../sdk'
 import {
   type BlockDecl,
   type CompileContext,
@@ -102,14 +102,14 @@ export function isSelectorForm(form: ValueForm): boolean {
 
 /** Call-form resource constructors and the kind each produces. */
 const RESOURCE_KIND_BY_CALL: ReadonlyMap<string, ResourceKind> = new Map(
-  Object.entries(SDK_RESOURCE_CALLS).map(([kind, call]) => [call, kind as ResourceKind])
+  Object.entries(SDK_RESOURCE_CALLS).flatMap(([kind, call]) =>
+    isResourceKind(kind) ? [[call, kind]] : []
+  )
 )
 
-const TEMPLATE_TAGS = new Set(['t', 'js', 'json', 'md', 'py', 'sh'])
-
 /** SDK functions that are values, not block builders. */
-export const SDK_VALUE_FUNCTIONS = new Set([
-  ...RESOURCE_KIND_BY_CALL.keys(),
+export const SDK_VALUE_FUNCTIONS: ReadonlySet<string> = new Set([
+  ...Object.values(SDK_RESOURCE_CALLS),
   ...TEMPLATE_TAGS,
   'raw',
   'todo',
@@ -119,12 +119,7 @@ export const SDK_VALUE_FUNCTIONS = new Set([
   'edge',
   'env',
   'vars',
-])
-
-const RESOURCE_KINDS: ReadonlySet<string> = new Set<string>([
-  ...WORKFLOW_RESOURCE_KINDS.filter((kind) => kind !== 'env-var'),
-  'workflow',
-])
+] as const satisfies readonly SdkCoreExport[])
 
 /** Named-form container outputs (`LoopResolver` / `ParallelResolver` `KNOWN_PROPERTIES`). */
 const CONTAINER_OUTPUTS = ['results', 'result']
@@ -248,16 +243,12 @@ function isCanonicalNode(value: Record<string, unknown>): boolean {
       return only('$sim', 'key') && typeof value.key === 'string'
     case 'resource':
       return (
-        only('$sim', 'kind', 'key') &&
-        typeof value.kind === 'string' &&
-        RESOURCE_KINDS.has(value.kind) &&
-        typeof value.key === 'string'
+        only('$sim', 'kind', 'key') && isResourceKind(value.kind) && typeof value.key === 'string'
       )
     case 'unresolved':
       return (
         only('$sim', 'kind', 'id') &&
-        typeof value.kind === 'string' &&
-        (value.kind === 'var' || RESOURCE_KINDS.has(value.kind)) &&
+        (value.kind === 'var' || isResourceKind(value.kind)) &&
         typeof value.id === 'string'
       )
     case 'csv':
@@ -930,7 +921,7 @@ function compileCall(
 
 /** The hint for an SDK call written where a value goes that is not a value call. */
 function valueCallHint(path: string): string {
-  if (TEMPLATE_TAGS.has(path)) return `Use ${path}\`...\` as a tagged template.`
+  if (isTemplateTag(path)) return `Use ${path}\`...\` as a tagged template.`
   if (path === 'edge') return 'edge(...) is wiring; write it as its own statement.'
   if (path === 'env') return 'Write env.NAME.'
   return HINTS.bindInline
@@ -1076,8 +1067,7 @@ export function compileValue(
     }
     case 'TaggedTemplateExpression': {
       const tag = node.tag.type === 'Identifier' ? lookup(site.scope, node.tag.name) : null
-      if (!tag || tag.kind !== 'sdk' || !TEMPLATE_TAGS.has(tag.name))
-        return rejectNode(ctx, node, site)
+      if (!tag || tag.kind !== 'sdk' || !isTemplateTag(tag.name)) return rejectNode(ctx, node, site)
       const text = templateText(ctx, node, site)
       return text === null ? null : { kind: 'value', value: text, form: 'template' }
     }

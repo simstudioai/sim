@@ -104,7 +104,8 @@ export default workflow('Cookbook', { description: 'One example of each common b
   })
 
   // Loop over a list: p.currentItem is one element; the loop's results is the list of
-  // iteration outputs.
+  // iteration outputs. In js`` code a reference is the value itself, not text spliced in: write
+  // it where an expression goes, never inside quotes ('${x}' would give the JSON, quotes included).
   const each = loop.forEach('Each Order', { collection: recent.rows }, (p) => {
     const line = fn('Line', {
       code: js`return ${p.currentItem.data.orderId} + ': ' + ${p.currentItem.data.status}`,

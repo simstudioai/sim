@@ -28,6 +28,7 @@ import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
+import { BLOCK_GATES } from '@/lib/workflows/editing/gates'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { isDeferredSkippedItem } from '@/lib/workflows/editing/types'
@@ -977,5 +978,42 @@ describe('gateSourceDiff', () => {
     const target = graph(block(ID.b, 'api_trigger', 'API'))
     const diagnostics = await gate(base, target, null)
     expect(diagnostics).toEqual([])
+  })
+})
+
+/**
+ * Source apply runs every gate in `BLOCK_GATES` through the same runners as the engine, so a new
+ * gate applies to both. What can still drift is the skip vocabulary: a gate reporting a type with
+ * no apply code would throw inside `gateSourceDiff` at runtime, and an apply code no gate and no
+ * source-side check produces is dead.
+ */
+describe('BLOCK_GATES totality', () => {
+  /** Apply codes produced by source checks outside `BLOCK_GATES`, each by its own engine function. */
+  const OUTSIDE_THE_GATES = [
+    'block_not_found',
+    'block_locked',
+    'invalid_edge_source',
+    'invalid_edge_scope',
+    'invalid_source_handle',
+    'invalid_target_handle',
+    'invalid_subblock_field',
+    'missing_required_params',
+    'disabled_ancestor',
+  ]
+  const gateSkipTypes = new Set<string>(BLOCK_GATES.flatMap((gate) => gate.skipTypes))
+
+  it('maps every skip type a gate reports to an apply code', () => {
+    const unmapped = [...gateSkipTypes].filter(
+      (type) => !Object.hasOwn(SKIP_TYPE_APPLY_CODES, type)
+    )
+    expect(unmapped).toEqual([])
+  })
+
+  it('accounts for every apply code as a gate or a named check outside the gates', () => {
+    const unaccounted = Object.keys(SKIP_TYPE_APPLY_CODES).filter(
+      (type) => !gateSkipTypes.has(type) && !OUTSIDE_THE_GATES.includes(type)
+    )
+    const overlapping = OUTSIDE_THE_GATES.filter((type) => gateSkipTypes.has(type))
+    expect({ unaccounted, overlapping }).toEqual({ unaccounted: [], overlapping: [] })
   })
 })

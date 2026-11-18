@@ -19,6 +19,7 @@ import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from 
 import { builderOutputSchemas, printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
+  builderPins,
   hasDefaultValue,
   isWrittenInSource,
   onSurface,
@@ -35,9 +36,10 @@ import {
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
 } from './layout'
-import { mapSubBlock } from './map-subblock'
+import { mapParamType, mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
+import { RUNTIME_SEMANTICS } from './semantics'
 import {
   buildVisibilityContext,
   classifyParam,
@@ -61,6 +63,7 @@ const CORE_TYPE_NAMES = [
   'Block',
   'BlockMeta',
   'BranchExpression',
+  'CredentialIdValue',
   'CredentialKeyFor',
   'CredentialRef',
   'DocumentTag',
@@ -87,6 +90,7 @@ const CORE_TYPE_NAMES = [
   'SkillRef',
   'Sort',
   'TableData',
+  'TableDataPatch',
   'TablePredicate',
   'TableRef',
   'TableRow',
@@ -100,9 +104,6 @@ const CORE_TYPE_NAMES = [
   'VariableAssignment',
   'WorkflowRef',
 ] as const
-
-/** The trigger and operation selectors, which a builder pins rather than takes as params. */
-const BUILDER_PINNED_IDS: ReadonlySet<string> = new Set(['selectedTriggerId', 'operation'])
 
 const HEADER_PREFIX = '// @sim-sdk'
 
@@ -121,10 +122,10 @@ export function sdkIndexHeader(catalog: Pick<BlockCatalog, 'sdkMajor' | 'hash'>)
 /** The subBlocks a builder can write: the ones its surface uses (`onSurface`) that source can state. */
 function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSubBlock[] {
   const triggerMode = entry.builder.triggerMode === true
-  const fixed = entry.builder.fixed ?? {}
+  const pins = builderPins(entry.builder)
   return block.subBlocks.filter((subBlock) => {
     if (!isWrittenInSource(subBlock) || !onSurface(block, subBlock, triggerMode)) return false
-    if (BUILDER_PINNED_IDS.has(subBlock.id) || subBlock.id in fixed) return false
+    if (pins.has(subBlock.id)) return false
     return mapSubBlock(subBlock) !== null
   })
 }
@@ -196,12 +197,6 @@ interface BuilderTypes {
   summary: string
   /** The params type's name. */
   paramsName: string
-}
-
-function pinnedValues(entry: BuilderEntry): Record<string, Scalar> {
-  const pinned: Record<string, Scalar> = { ...(entry.builder.fixed ?? {}) }
-  if (entry.builder.operation !== undefined) pinned.operation = entry.builder.operation
-  return pinned
 }
 
 /**
@@ -342,7 +337,7 @@ function buildParams(
   context: VisibilityContext
 } {
   const candidates = candidateSubBlocks(block, entry)
-  const context = buildVisibilityContext(candidates, pinnedValues(entry))
+  const context = buildVisibilityContext(candidates, Object.fromEntries(builderPins(entry.builder)))
   const coreParams = new Set(entry.special?.coreParams ?? [])
   const aliases = paramAliases(block, entry.builder.triggerMode === true)
   const params: Param[] = []
@@ -350,12 +345,7 @@ function buildParams(
     if (coreParams.has(name)) continue
     const visibility = classifyParam(members, context)
     if (visibility.kind === 'never') continue
-    let type = union(
-      members.flatMap((member) => {
-        const mapped = mapSubBlock(member)
-        return mapped ? [mapped.type] : []
-      })
-    )
+    let type = mapParamType(members)
     if (isTableFilterPair(members)) type = 'Filter | TablePredicate | Template | string'
     if (plan && plan.param.name === name) type = plan.param.type
     else if (plan?.paramOverrides[name]) type = plan.paramOverrides[name]
@@ -388,7 +378,8 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
     builderOutputSchemas(catalog, block, entry.builder)
   )
   const spec = block.dynamicOutputs ?? null
-  const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
+  const plan =
+    spec && !entry.special ? dynamicOutputPlan(spec, outputs, entry.builder.operation) : null
   const { params, gate, candidates, context } = buildParams(block, entry, plan)
   const paramsName = `${entry.typeName}Params`
   const outputName = `${entry.typeName}Output`
@@ -678,6 +669,7 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
       '',
       'Find a builder: `grep -i "gmail" .sim/sdk/INDEX.md`. Read its params and outputs: `grep -n -A40 "export type GmailSendEmailParams" .sim/sdk/blocks/gmail_v2.d.ts` (the output type follows as `GmailSendEmailOutput`).',
       '',
+      ...RUNTIME_SEMANTICS,
       '## Builders',
       '',
       ...current.map(line),

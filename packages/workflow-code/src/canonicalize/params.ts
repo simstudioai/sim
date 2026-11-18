@@ -8,6 +8,7 @@ import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import { structuredCodec } from '../structured'
 import type { CanonContext } from './context'
+import { liftTools } from './tools'
 import { liftResourceValue, toValue } from './values'
 
 /**
@@ -181,6 +182,13 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       : decodeLegacyScalar(raw, declaration, catalog)
     const location = { blockKey, param: id }
 
+    if (declaration?.structured === 'tools' && Array.isArray(decoded)) {
+      const tools = liftTools(decoded, overrides, blockKey, id, context)
+      if (tools) {
+        setOwn(params, id, { kind: 'tools', tools })
+        continue
+      }
+    }
     const lifted = structuredCodec(declaration)?.lift(decoded, {
       blockKey,
       param: id,
