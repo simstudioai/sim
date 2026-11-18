@@ -153,6 +153,10 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.id) {
+      throw new Error(data.error || 'Firecrawl did not return an extract job id to poll')
+    }
+
     return {
       success: true,
       output: {
@@ -177,7 +181,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       try {
         signal?.throwIfAborted()
         const statusResponse = await outboundFetch(
-          `https://api.firecrawl.dev/v2/extract/${jobId}`,
+          `https://api.firecrawl.dev/v2/extract/${encodeURIComponent(jobId)}`,
           {
             method: 'GET',
             headers: {

@@ -452,14 +452,17 @@ export interface SourceTreeUse {
  * Everything beside the printed source that makes a directory editable: the agent guide and the
  * example workflows (both rewritten every time and never in `.sim/written.json`), the
  * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
- * CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines.
+ * CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines. `incremental` (a write that
+ * leaves workflows on disk unread, such as a get of only some kinds) keeps the blocks
+ * `tsconfig.json` includes now, as {@link refreshTsconfigs} does, adding the ones `use` needs.
  */
 export async function sourceTreeChange(
   dir: string,
   catalog: BlockCatalog,
   workspaceTypes: string | null,
   profile: SourceTreeProfile,
-  use: SourceTreeUse
+  use: SourceTreeUse,
+  options: { incremental?: boolean } = {}
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, profile.agents],
@@ -478,10 +481,14 @@ export async function sourceTreeChange(
     readSourceText(dir, TSCONFIG_FILE),
     readSourceText(dir, TSCONFIG_FULL_FILE),
   ])
-  const tsconfigs = tsconfigWrites(catalog, workspaceTypes !== null, profile, use, {
-    tsconfig,
-    full: tsconfigFull,
-  })
+  const kept = options.incremental ? includedBlockTypes(tsconfig) : []
+  const tsconfigs = tsconfigWrites(
+    catalog,
+    workspaceTypes !== null,
+    profile,
+    { ...use, blockTypes: [...(use.blockTypes ?? []), ...kept] },
+    { tsconfig, full: tsconfigFull }
+  )
   write.push(...tsconfigs.write)
   const ownsTsconfig = tsconfigs.ownsTsconfig
   const mergedAttributes = mergedGitattributes(gitattributes, profile.gitattributes)

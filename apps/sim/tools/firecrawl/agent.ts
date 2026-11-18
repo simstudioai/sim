@@ -98,6 +98,10 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!data.id) {
+      throw new Error(data.error || 'Firecrawl did not return an agent job id to poll')
+    }
+
     return {
       success: true,
       output: {
@@ -123,14 +127,17 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
         signal?.throwIfAborted()
-        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          signal,
-        })
+        const statusResponse = await outboundFetch(
+          `https://api.firecrawl.dev/v2/agent/${encodeURIComponent(jobId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal,
+          }
+        )
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get agent status: ${statusResponse.statusText}`)

@@ -28,6 +28,7 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
+import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import {
   codes,
   refusal,
@@ -98,6 +99,22 @@ const PASSWORD_CHAT = withChat(
 )
 
 type Files = Record<string, string>
+
+/** A chat answering from the Answer block. */
+function answerChat(identifier: string): string {
+  return withChat(
+    `{ identifier: '${identifier}', title: 'Answers', auth: 'public', outputs: [{ block: 'Answer', path: 'content' }] }`
+  )
+}
+
+/** The Answer agent renamed Responder (its variable kept, so it keeps its id) and its chat with it. */
+function renamedAnswer(files: Files): Files {
+  return {
+    ...files,
+    [WORKFLOW]: files[WORKFLOW].replace("agent('Answer'", "agent('Responder'"),
+    [DEPLOYMENT]: files[DEPLOYMENT].replace("block: 'Answer'", "block: 'Responder'"),
+  }
+}
 
 function apply(
   workspaceId: string,
@@ -435,6 +452,59 @@ describe('workspace source: deployments', () => {
       expect(after.chat?.outputConfigs).toEqual([{ blockId: newId, path: 'content' }])
     }
   )
+
+  check(
+    'renames a chat output block and the chat naming it in one apply, keeping the block id',
+    async () => {
+      const deployed = await deployedWorkspace(answerChat('renamed-chat'))
+      const { workspaceId, id, base } = deployed
+      const answerId = await answerBlockId(id)
+
+      const result = await apply(workspaceId, renamedAnswer(deployed.files), { base })
+      expect(result.failed).toBeUndefined()
+      const [renamedBlock] = await db
+        .select({ name: workflowBlocks.name })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.id, answerId))
+      expect(renamedBlock?.name).toBe('Responder')
+      const after = await deployState(id)
+      expect(after.versions).toBe(2)
+      expect(after.chat?.outputConfigs).toEqual([{ blockId: answerId, path: 'content' }])
+      expect(result.files[DEPLOYMENT]).toContain("block: 'Responder'")
+    }
+  )
+
+  check('a rename apply still refuses a chat the server re-pointed after the plan', async () => {
+    const deployed = await deployedWorkspace(answerChat('repointed-chat'))
+    const { workspaceId, id, base } = deployed
+    const [start] = await db
+      .select({ id: workflowBlocks.id })
+      .from(workflowBlocks)
+      .where(and(eq(workflowBlocks.workflowId, id), eq(workflowBlocks.name, 'Start')))
+    if (!start) throw new Error('No Start block')
+    const check = deploymentAdapter.fingerprintNow
+    if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
+    // A teammate points the chat at another block between the plan and the pre-write check.
+    const moved = vi
+      .spyOn(deploymentAdapter, 'fingerprintNow')
+      .mockImplementation(async (change, ctx) => {
+        await db
+          .update(chat)
+          .set({ outputConfigs: [{ blockId: start.id, path: 'input' }] })
+          .where(eq(chat.workflowId, id))
+        return check.call(deploymentAdapter, change, ctx)
+      })
+    try {
+      const result = await apply(workspaceId, renamedAnswer(deployed.files), { base })
+      expect(moved).toHaveBeenCalledOnce()
+      expect([result.failed?.key, result.failed?.code]).toEqual(['nightly', 'E_APPLY_STALE'])
+    } finally {
+      moved.mockRestore()
+    }
+    const after = await deployState(id)
+    expect(after.versions).toBe(1)
+    expect(after.chat?.outputConfigs).toEqual([{ blockId: start.id, path: 'input' }])
+  })
 
   check(
     'a chat rewrite with a stored() password keeps that password, on the re-created-output path and a plain edit',

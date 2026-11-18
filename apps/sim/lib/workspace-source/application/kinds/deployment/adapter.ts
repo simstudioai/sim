@@ -96,11 +96,12 @@ interface DeploymentPlan {
   /** The variable the base recorded the stored chat password under (for `fingerprintNow`). */
   basePasswordEnv?: string
   /**
-   * The kept chat's outputs whose block this apply's workflow edit re-creates, by the block id the
-   * chat stores, with the name the block had: the chat is written again, and `fingerprintNow`
-   * (after the workflow write deleted those ids) reads them by these names, as the plan did.
+   * The stored chat's output block names at plan time, by the block id the chat stores. The
+   * workflow writes first, and may rename or re-create those blocks, so `fingerprintNow` reads each
+   * output by this name, as the plan did: the check compares the block ids the chat stores, and an
+   * output re-pointed at another block since the plan still moves the fingerprint.
    */
-  recreatedOutputs?: Record<string, string>
+  plannedOutputNames?: Record<string, string>
 }
 
 type DeploymentChange = PlannedChange<DeploymentDecl, DeploymentPlan>
@@ -236,8 +237,7 @@ async function checkChat(
  * outputs by block id, so an edit that deletes a block and adds one under the same name leaves
  * it answering from a block that no longer exists. Every output whose block is still there is
  * fine. One whose block is gone is re-created when exactly one block of the edited graph has its
- * name: returned (stored block id to name), so the chat is written again, its outputs resolved
- * to that block. When several share it, it refuses (`E_DEPLOY_CHAT_OUTPUT`). A kept chat
+ * name: counted, so the chat is written again, its outputs resolved to that block. When several share it, it refuses (`E_DEPLOY_CHAT_OUTPUT`). A kept chat
  * declares the names it stores, so one no block has is refused by {@link checkChat}'s name
  * check, which runs as well; both before anything goes live.
  */
@@ -245,14 +245,14 @@ function checkKeptOutputs(
   change: DeploymentChange,
   outputs: ReadonlyArray<{ blockId: string; block?: string }>,
   editedBlocks: ReadonlyMap<string, string>
-): Record<string, string> {
-  const recreated: Record<string, string> = {}
+): number {
+  let recreated = 0
   for (const output of outputs) {
     if (editedBlocks.has(output.blockId) || output.block === undefined) continue
     const name = normalizeWorkflowBlockName(output.block)
     const matches = [...editedBlocks.values()].filter((block) => block === name).length
     if (matches === 1) {
-      recreated[output.blockId] = output.block
+      recreated += 1
       continue
     }
     if (matches === 0) continue
@@ -349,6 +349,12 @@ async function planDeployment(
   }
   if (state) {
     next.serverFingerprint = storedFingerprint(state, basePasswordEnv)
+    const plannedOutputNames = Object.fromEntries(
+      (state.chat?.outputs ?? []).flatMap((output) =>
+        output.block === undefined ? [] : [[output.blockId, output.block]]
+      )
+    )
+    if (Object.keys(plannedOutputNames).length > 0) detail.plannedOutputNames = plannedOutputNames
     const draftDiffers = state.needsRedeployment || draftEdited
     if (draftDiffers && decl.live === 'draft') {
       detail.deploy = true
@@ -384,10 +390,8 @@ async function planDeployment(
     draftEdited &&
     workflowChange?.blocks
   ) {
-    const recreated = checkKeptOutputs(next, state.chat.outputs, workflowChange.blocks)
-    if (Object.keys(recreated).length > 0) {
+    if (checkKeptOutputs(next, state.chat.outputs, workflowChange.blocks) > 0) {
       detail.chat = 'replace'
-      detail.recreatedOutputs = recreated
       next.fields = [...(next.fields ?? []), 'chat outputs']
     }
   }
@@ -665,16 +669,16 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     if (!workflowId) throw new Error('A deployment check needs the workflow id')
     const read = await readDeployment(ctx, workflowId)
     if (!read) return ''
-    const recreated = change.detail?.recreatedOutputs ?? {}
+    const planned = change.detail?.plannedOutputNames ?? {}
     const state: StoredDeployment = read.chat
       ? {
           ...read,
           chat: {
             ...read.chat,
-            outputs: read.chat.outputs.map((output) =>
-              output.block === undefined && recreated[output.blockId] !== undefined
-                ? { ...output, block: recreated[output.blockId] }
-                : output
+            outputs: read.chat.outputs.map(({ blockId, path }) =>
+              planned[blockId] === undefined
+                ? { blockId, path }
+                : { blockId, path, block: planned[blockId] }
             ),
           },
         }

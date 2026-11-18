@@ -122,6 +122,18 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
   })
 
+  it('refuses to restore a file deleted since the CLI wrote it, a pending delete', async () => {
+    serve({ 'tables/leads.ts': LEADS, 'tables/accounts.ts': ACCOUNTS })
+    await get()
+    rmSync(join(dir, 'tables/leads.ts'))
+
+    await expect(get()).rejects.toThrow(/edits no apply has saved \(tables\/leads\.ts\)/)
+    expect(existsSync(join(dir, 'tables/leads.ts'))).toBe(false)
+
+    await get('--force')
+    expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
+  })
+
   it('refuses a workflow sidecar path that climbs out of its folder, writing nothing', async () => {
     serve({ 'tables/leads.ts': LEADS, 'workflows/../.sim/base.json': '{}' })
 
@@ -470,6 +482,19 @@ describe('workspaces source get', () => {
       expect(readFileSync(join(dir, 'files/report.bin'))).toEqual(Buffer.from([7]))
     })
 
+    it('refuses to restore a blob deleted since the CLI wrote it, a pending delete', async () => {
+      serve({}, { kinds: ['file'], blobs: [listed()] })
+      requestRaw.mockImplementation(async () => new Response(BYTES))
+      await get()
+      rmSync(join(dir, 'files/report.bin'))
+
+      await expect(get()).rejects.toThrow(/edits no apply has saved \(files\/report\.bin\)/)
+      expect(existsSync(join(dir, 'files/report.bin'))).toBe(false)
+
+      await get('--force')
+      expect(readFileSync(join(dir, 'files/report.bin'))).toEqual(BYTES)
+    })
+
     describe('a same-size edit that kept its modification time (cp -p, rsync -t)', () => {
       const EDITED = Buffer.from([0, 1, 2, 250, 7])
 
@@ -616,6 +641,32 @@ describe('workspaces source get', () => {
 
     expect(typecheck(uses('tone'))).toBe('')
     expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
+  })
+
+  it('keeps the block types workflows on disk use when a get refreshes only tables', async () => {
+    const notifying = [
+      '// @sim-sdk 1',
+      "import { slack, trigger, workflow } from '@sim/workflow-sdk'",
+      "export default workflow('Notify', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const post = slack.sendMessage('Post', { destinationType: 'channel', channel: 'ops', text: 'hi' })",
+      '  start.to(post)',
+      '})',
+      '',
+    ].join('\n')
+    serve(
+      { 'tables/leads.ts': LEADS, 'workflows/notify/workflow.ts': notifying },
+      { kinds: ['table', 'workflow'] }
+    )
+    await get()
+    const tsconfig = readFileSync(join(dir, 'tsconfig.json'), 'utf8')
+    expect(tsconfig).toContain('.sim/sdk/blocks/slack_v2.d.ts')
+
+    serve({ 'tables/leads.ts': LEADS }, { kinds: ['table'] })
+    await get('--only', 'tables')
+
+    expect(readFileSync(join(dir, 'tsconfig.json'), 'utf8')).toBe(tsconfig)
+    expect(readFileSync(join(dir, 'workflows/notify/workflow.ts'), 'utf8')).toBe(notifying)
   })
 
   it('exits 7 when the server refuses the workspace as too large', async () => {

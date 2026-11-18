@@ -192,11 +192,19 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
-  const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE, {
-    sources: Object.entries(source.files).flatMap(([path, text]) =>
-      path.endsWith('.ts') ? [text] : []
-    ),
-  })
+  // A get that leaves the workflows unread keeps the blocks those on disk type-check against.
+  const tree = await sourceTreeChange(
+    dir,
+    catalog,
+    workspaceTypes,
+    WORKSPACE_TREE,
+    {
+      sources: Object.entries(source.files).flatMap(([path, text]) =>
+        path.endsWith('.ts') ? [text] : []
+      ),
+    },
+    { incremental: !source.kinds.includes('workflow') }
+  )
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
   // hash of one listed without it; they land inside the directory so each moves into place by a
   // rename.
