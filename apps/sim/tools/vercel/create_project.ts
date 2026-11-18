@@ -138,7 +138,7 @@ export const vercelCreateProjectTool: ToolConfig<
     return {
       ...result,
       success: false,
-      error: `Project ${result.output.id} was created, but setting Node.js version ${nodeVersion} failed: ${update.error ?? 'unknown error'}`,
+      error: `Project ${result.output.name} (${result.output.id}) was created, but setting Node.js version ${nodeVersion} failed: ${update.error ?? 'unknown error'}`,
     }
   },
 

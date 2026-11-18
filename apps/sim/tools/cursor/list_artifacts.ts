@@ -127,7 +127,8 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
   ...listArtifactsBase,
   id: 'cursor_list_artifacts_v2',
   name: 'Cursor List Artifacts',
-  description: 'List generated artifact files for a cloud agent. Returns API-aligned fields only.',
+  description:
+    'List generated artifact files for a cloud agent. Returns the API fields plus `path` and `size` aliases.',
   version: '2.0.0',
   oauth: CURSOR_CREDENTIAL_OAUTH,
 
