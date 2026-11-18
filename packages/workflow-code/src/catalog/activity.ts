@@ -21,7 +21,13 @@ import {
 } from './canonical-index'
 import { evaluateCondition, recordLookup } from './conditions'
 import { isTriggerSurface, onSurface, serializedCanonicalIndex } from './surface'
-import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
+import type {
+  BlockCatalog,
+  CatalogBlock,
+  CatalogBuilder,
+  CatalogOutput,
+  CatalogSubBlock,
+} from './types'
 import { catalogBlock, catalogTrigger, declarationsOf } from './view'
 
 /** A custom block's computed wiring; the serializer recomputes it and never forwards it. */
@@ -74,7 +80,7 @@ function deployedTriggerId(
   block: CatalogBlock,
   blockType: string,
   triggerMode: boolean,
-  values: Record<string, unknown>
+  values: Readonly<Record<string, unknown>>
 ): string | undefined {
   if (block.category === 'triggers' && triggerExists(catalog, blockType)) return blockType
   if (!triggerMode) return undefined
@@ -82,6 +88,45 @@ function deployedTriggerId(
   if (triggerExists(catalog, values.triggerId)) return values.triggerId
   const available = block.triggers?.enabled ? block.triggers.available[0] : undefined
   return triggerExists(catalog, available) ? available : undefined
+}
+
+/**
+ * The outputs a block exposes to references: a block acting as a trigger runs as the trigger it
+ * deploys as ({@link deployedTriggerId}) and emits that trigger's payload in place of its own
+ * outputs; any other block exposes its own. This is the runtime's rule: `getBlockOutputs`
+ * (lib/workflows/blocks/outputs.ts) returns the resolved trigger's outputs instead of the block's
+ * for a block in trigger mode, and `TriggerBlockHandler` (executor/handlers/trigger/handler.ts)
+ * returns the trigger's payload as the block's output. A trigger block (`category: 'triggers'`)
+ * only ever runs as a trigger, so it resolves its trigger as in trigger mode whatever its flag
+ * says (IMAP's `imap` block runs as `imap_poller`). `values` are the block's stored values, or a
+ * builder's pins when only the builder is known.
+ */
+export function blockOutputSchemas(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  options: { triggerMode: boolean; values: Readonly<Record<string, unknown>> }
+): Record<string, CatalogOutput> {
+  const triggerMode = options.triggerMode || block.category === 'triggers'
+  const triggerId = deployedTriggerId(catalog, block, block.type, triggerMode, options.values)
+  const trigger = triggerId === undefined ? undefined : catalogTrigger(catalog, triggerId)
+  return trigger ? trigger.outputs : block.outputs
+}
+
+/**
+ * The outputs a block declared through `builder` exposes ({@link blockOutputSchemas}) when its
+ * source sets no trigger of its own: a trigger-mode builder runs as the trigger it pins, else as
+ * its block's first. Compile checks output paths and SDK codegen types a builder's outputs by
+ * this one call, so a path compile accepts is one the SDK types.
+ */
+export function builderOutputSchemas(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  builder: CatalogBuilder | undefined
+): Record<string, CatalogOutput> {
+  return blockOutputSchemas(catalog, block, {
+    triggerMode: builder?.triggerMode === true,
+    values: builder?.fixed ?? {},
+  })
 }
 
 /**

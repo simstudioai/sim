@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { BlockCatalog, CatalogBlock } from './catalog/types'
 import { compileWorkflow } from './compile'
 import { TEST_CATALOG } from './compile/catalog.test-helpers'
-import { valueTree } from './json-fields'
+import { refValueKind, valueTree } from './json-fields'
+import type { CanonicalBlock } from './model'
 
 const IMPORTS = "import { agent, api, raw, table, trigger, workflow } from '@sim/workflow-sdk'"
 
@@ -76,5 +78,67 @@ describe('a reference into an agent responseFormat, in a JSON field', () => {
   it('keeps a field the format types as a number bare', () => {
     const { stored } = body("{ schema: { properties: { summary: { type: 'number' } } } }")
     expect(stored).toBe('{\n  "text": <classify.summary>\n}')
+  })
+})
+
+describe('refValueKind for a block acting as a trigger', () => {
+  const service: CatalogBlock = {
+    ...TEST_CATALOG.blocks.api,
+    type: 'service',
+    name: 'Service',
+    subBlocks: [],
+    triggers: { enabled: true, available: ['service_a', 'service_b'] },
+    outputs: { status: { type: 'string' } },
+  }
+  const catalog: BlockCatalog = {
+    ...TEST_CATALOG,
+    blocks: { ...TEST_CATALOG.blocks, service },
+    triggers: {
+      service_a: {
+        id: 'service_a',
+        provider: 'service',
+        name: 'A',
+        subBlocks: [],
+        outputs: { payload: { type: 'string' } },
+      },
+      service_b: {
+        id: 'service_b',
+        provider: 'service',
+        name: 'B',
+        subBlocks: [],
+        outputs: { payload: { type: 'json' } },
+      },
+    },
+  }
+  const stored = (params: CanonicalBlock['params']): CanonicalBlock => ({
+    key: 'svc',
+    name: 'Svc',
+    type: 'service',
+    parent: null,
+    enabled: true,
+    locked: false,
+    triggerMode: true,
+    advancedMode: false,
+    errorPort: false,
+    retry: null,
+    params,
+    modes: {},
+  })
+  const kind = (token: string, block: CanonicalBlock) =>
+    refValueKind(token, {
+      catalog,
+      block: (key) => (key === block.key ? block : undefined),
+      variable: () => undefined,
+    })
+
+  it('types an output by the trigger the block deploys as, its stored triggerId', () => {
+    const block = stored({ triggerId: { kind: 'value', value: 'service_b' } })
+    expect(kind('<svc.payload>', block)).toBe('typed')
+  })
+
+  it('exposes the trigger outputs in place of the block outputs', () => {
+    const block = stored({ selectedTriggerId: { kind: 'value', value: 'service_a' } })
+    expect(kind('<svc.payload>', block)).toBe('string')
+    expect(kind('<svc.status>', block)).toBe('untyped')
   })
 })

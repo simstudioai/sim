@@ -16,7 +16,7 @@
 
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
-import { printKey, quoteString } from '@sim/workflow-code'
+import { builderOutputSchemas, printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
   hasDefaultValue,
@@ -25,7 +25,7 @@ import {
   paramAliases,
   requiredForBuilder,
 } from '@sim/workflow-code/catalog/surface'
-import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
+import { catalogBlock, catalogBlockTypes } from '@sim/workflow-code/catalog/view'
 import { hasToolForm } from '@sim/workflow-code/sdk'
 import { indentLines, jsdoc, literal, pascal, union } from './emit'
 import {
@@ -202,21 +202,6 @@ function pinnedValues(entry: BuilderEntry): Record<string, Scalar> {
   const pinned: Record<string, Scalar> = { ...(entry.builder.fixed ?? {}) }
   if (entry.builder.operation !== undefined) pinned.operation = entry.builder.operation
   return pinned
-}
-
-function outputSource(
-  catalog: BlockCatalog,
-  block: CatalogBlock,
-  entry: BuilderEntry
-): Record<string, CatalogOutput> {
-  const triggerId = entry.builder.fixed?.selectedTriggerId
-  const pinned = triggerId ? catalogTrigger(catalog, triggerId) : undefined
-  if (pinned) return pinned.outputs
-  const isTrigger = entry.builder.triggerMode === true || block.category === 'triggers'
-  const available = block.triggers?.available ?? []
-  const only =
-    isTrigger && available.length === 1 ? catalogTrigger(catalog, available[0]) : undefined
-  return only ? only.outputs : block.outputs
 }
 
 /**
@@ -397,7 +382,11 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
       `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
     )
   }
-  const { outputs, nullable } = operationOutputs(block, entry, outputSource(catalog, block, entry))
+  const { outputs, nullable } = operationOutputs(
+    block,
+    entry,
+    builderOutputSchemas(catalog, block, entry.builder)
+  )
   const spec = block.dynamicOutputs ?? null
   const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
   const { params, gate, candidates, context } = buildParams(block, entry, plan)

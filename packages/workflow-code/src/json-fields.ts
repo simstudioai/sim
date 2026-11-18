@@ -17,8 +17,9 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { blockOutputSchemas } from './catalog/activity'
 import type { BlockCatalog, CatalogOutput } from './catalog/types'
-import { catalogBlock, catalogTrigger } from './catalog/view'
+import { catalogBlock } from './catalog/view'
 import { parseStoredPath, type RefSegment } from './code-files/ref-path'
 import {
   type BlockKey,
@@ -206,19 +207,14 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   }
   const declared = catalogBlock(scope.catalog, block.type)
   if (!declared) return 'untyped'
-  const schemas = [declared.outputs]
-  if (block.triggerMode) {
-    const pinned = getOwn(block.params, 'selectedTriggerId')
-    const ids =
-      pinned?.kind === 'value' && typeof pinned.value === 'string'
-        ? [pinned.value]
-        : (declared.triggers?.available ?? [])
-    for (const id of ids) {
-      const trigger = catalogTrigger(scope.catalog, id)
-      if (trigger) schemas.push(trigger.outputs)
-    }
-  }
-  const found = schemas.map((outputs) => outputAt(outputs, segments)).find(Boolean)
+  const outputs = blockOutputSchemas(scope.catalog, declared, {
+    triggerMode: block.triggerMode,
+    values: {
+      selectedTriggerId: storedValue(block, 'selectedTriggerId'),
+      triggerId: storedValue(block, 'triggerId'),
+    },
+  })
+  const found = outputAt(outputs, segments)
   if (found) return found.type === 'string' ? 'string' : 'typed'
   if (declared.dynamicOutputs) {
     const { source, param } = declared.dynamicOutputs
@@ -231,6 +227,12 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
     if (type !== undefined) return type === 'string' ? 'string' : 'typed'
   }
   return 'untyped'
+}
+
+/** A block's stored value of `id`, when it holds one. */
+function storedValue(block: CanonicalBlock, id: string): Value | undefined {
+  const param = getOwn(block.params, id)
+  return param?.kind === 'value' ? param.value : undefined
 }
 
 /**
