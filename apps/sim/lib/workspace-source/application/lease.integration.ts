@@ -1,0 +1,196 @@
+/**
+ * Concurrent workspace source applies against Postgres: the per-workspace apply lease lets one
+ * apply write a workspace at a time, refuses a second one with nothing written, and is given up
+ * on every way an apply ends, or lapses when its process died.
+ */
+import { db } from '@sim/db'
+import { customTools, skill, user, workspaceSourceApplyLease } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { generateId } from '@sim/utils/id'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { afterAll, afterEach, beforeAll, describe, expect, vi } from 'vitest'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
+import { skillAdapter } from '@/lib/workspace-source/application/kinds/skills/adapter'
+import {
+  sourceChecks,
+  sourceRunner,
+  sourceWorkspaces,
+} from '@/lib/workspace-source/application/workspace-source.test-helpers'
+import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
+
+const ownerId = generateId()
+const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
+const { check, writeReport } = sourceChecks(
+  'WORKSPACE_SOURCE_LEASE_REPORT_PATH',
+  'workspace-source-lease.json'
+)
+const workspaces = sourceWorkspaces()
+const runner = sourceRunner(['custom-tool', 'skill'], owner)
+
+function tool(title: string, name: string): string {
+  return `// @sim-sdk 1
+import { defineTool } from '@sim/workflow-sdk/workspace'
+
+export default defineTool({
+  title: '${title}',
+  schema: {
+    type: 'function',
+    function: { name: '${name}', parameters: { type: 'object', properties: {} } },
+  },
+  code: 'return 1',
+})
+`
+}
+
+function skillFile(name: string): string {
+  return `---\nname: ${name}\ndescription: "A fixture skill"\n---\nWrite like a person.\n`
+}
+
+const FIRST = {
+  'tools/lookup.ts': tool('Lookup order', 'lookup_order'),
+  'skills/tone.md': skillFile('tone'),
+}
+const SECOND = {
+  'tools/refund.ts': tool('Refund order', 'refund_order'),
+  'skills/brief.md': skillFile('brief'),
+}
+
+async function stored(workspaceId: string) {
+  const [tools, skills] = await Promise.all([
+    db
+      .select({ title: customTools.title })
+      .from(customTools)
+      .where(eq(customTools.workspaceId, workspaceId)),
+    db.select({ name: skill.name }).from(skill).where(eq(skill.workspaceId, workspaceId)),
+  ])
+  return {
+    tools: tools.map((row) => row.title).sort(),
+    skills: skills.map((row) => row.name).sort(),
+  }
+}
+
+async function leases(workspaceId: string) {
+  return db
+    .select({ token: workspaceSourceApplyLease.token })
+    .from(workspaceSourceApplyLease)
+    .where(eq(workspaceSourceApplyLease.workspaceId, workspaceId))
+}
+
+/** What `promise` rejects with, or `null` when it resolves. */
+function rejection(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => null,
+    (error: unknown) => error
+  )
+}
+
+beforeAll(async () => {
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+    async (flag: string) => flag === 'workflow-code'
+  )
+  const now = new Date()
+  await db.insert(user).values({
+    id: ownerId,
+    name: 'Workspace source lease fixture',
+    email: `${ownerId}@workspace-source-lease.invalid`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+afterAll(async () => {
+  await writeReport()
+  await workspaces.cleanup()
+  await db.delete(user).where(inArray(user.id, [ownerId]))
+})
+
+describe('workspace source: one apply at a time', () => {
+  check(
+    'a second apply while one is writing is refused SOURCE_BUSY and writes nothing',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Concurrent applies', ownerId })
+      let entered: () => void = () => {}
+      const inside = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      let open: () => void = () => {}
+      const gate = new Promise<void>((resolve) => {
+        open = resolve
+      })
+      const write = skillAdapter.apply.bind(skillAdapter)
+      vi.spyOn(skillAdapter, 'apply')
+        .mockImplementationOnce(async (change, ctx) => {
+          entered()
+          await gate
+          return write(change, ctx)
+        })
+        .mockImplementation(write)
+
+      // The first apply has written its tool and is part-way through.
+      const first = runner.apply(workspaceId, { files: FIRST })
+      await inside
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: [] })
+
+      const second = await rejection(runner.apply(workspaceId, { files: SECOND }))
+      expect(second).toBeInstanceOf(WorkspaceSourceBusyError)
+      // A dry run never waits on, or is refused by, an apply in progress.
+      const dryRun = await runner.apply(workspaceId, { files: SECOND, dryRun: true })
+      expect(dryRun.dryRun).toBe(true)
+
+      open()
+      const result = await first
+      expect(result.failed).toBeUndefined()
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+      expect(await leases(workspaceId)).toEqual([])
+    }
+  )
+
+  check('a failing apply gives the lease up, so the next apply writes', async () => {
+    const workspaceId = await workspaces.create({ name: 'Failing apply', ownerId })
+    vi.spyOn(skillAdapter, 'apply').mockRejectedValueOnce(new Error('storage went away'))
+
+    const failed = await runner.apply(workspaceId, { files: FIRST })
+    expect(failed.failed).toMatchObject({ kind: 'skill', key: 'tone', code: 'E_APPLY_FAILED' })
+    expect(await leases(workspaceId)).toEqual([])
+
+    const retried = await runner.apply(workspaceId, { files: FIRST, base: failed.base })
+    expect(retried.failed).toBeUndefined()
+    expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+  })
+
+  check(
+    'a live lease refuses an apply, and an expired one (a dead process) is taken over',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Dead holder', ownerId })
+      await db.insert(workspaceSourceApplyLease).values({
+        workspaceId,
+        token: generateId(),
+        expiresAt: sql`now() + interval '1 minute'`,
+      })
+      const busy = await rejection(runner.apply(workspaceId, { files: FIRST }))
+      expect(busy).toBeInstanceOf(WorkspaceSourceBusyError)
+      expect(await stored(workspaceId)).toEqual({ tools: [], skills: [] })
+
+      await db
+        .update(workspaceSourceApplyLease)
+        .set({ expiresAt: sql`now() - interval '1 second'` })
+        .where(eq(workspaceSourceApplyLease.workspaceId, workspaceId))
+      const taken = await runner.apply(workspaceId, { files: FIRST })
+      expect(taken.failed).toBeUndefined()
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+      expect(await leases(workspaceId)).toEqual([])
+    }
+  )
+})

@@ -2,13 +2,15 @@ import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflo
 import { kindOfPath } from '@sim/workspace-code/layout'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
  * Workspace source routes conceal an unreachable workspace as absent. A refused apply answers its
  * status (`400`, `409` stale, `423` locked, `413` over a limit) with `details.diagnostics`;
  * `details.code` is `SOURCE_STALE` when a resource changed since the directory was read, else
- * `SOURCE_REJECTED`.
+ * `SOURCE_REJECTED`. An apply while another one writes the workspace answers `409` with
+ * `details.code` `SOURCE_BUSY`.
  */
 export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Workspace not found',
@@ -18,6 +20,9 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
         code: error.stale ? 'SOURCE_STALE' : 'SOURCE_REJECTED',
         diagnostics: error.diagnostics,
       })
+    }
+    if (error instanceof WorkspaceSourceBusyError) {
+      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_BUSY' })
     }
     return v2CaughtOrchestrationError(error)
   },
