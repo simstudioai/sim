@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckSavedAlbumsParams {
@@ -30,20 +30,28 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated album IDs (max 40)',
+      description: 'Comma-separated album IDs (max 20)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.albumIds, 'album', { contains: true }),
+    url: (params) => spotifyLibraryUrl(params.albumIds, 'album', { contains: true, maxIds: 20 }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (response): Promise<SpotifyCheckSavedAlbumsResponse> => {
-    const results = await response.json()
+  transformResponse: async (response, params): Promise<SpotifyCheckSavedAlbumsResponse> => {
+    const results: boolean[] = [
+      ...(await response.json()),
+      ...(params
+        ? await sendRemainingSpotifyLibraryChunks(params, params.albumIds, 'album', 'GET', {
+            contains: true,
+            maxIds: 20,
+          })
+        : []),
+    ]
     return { success: true, output: { results } }
   },
 

@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckFollowingParams {
@@ -37,21 +37,35 @@ export const spotifyCheckFollowingTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated artist or user IDs (max 40)',
+      description: 'Comma-separated artist or user IDs (max 50)',
     },
   },
 
   request: {
     url: (params) =>
-      spotifyLibraryUrl(params.ids, params.type === 'user' ? 'user' : 'artist', { contains: true }),
+      spotifyLibraryUrl(params.ids, params.type === 'user' ? 'user' : 'artist', {
+        contains: true,
+        maxIds: 50,
+      }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (response): Promise<SpotifyCheckFollowingResponse> => {
-    const results = await response.json()
+  transformResponse: async (response, params): Promise<SpotifyCheckFollowingResponse> => {
+    const results: boolean[] = [
+      ...(await response.json()),
+      ...(params
+        ? await sendRemainingSpotifyLibraryChunks(
+            params,
+            params.ids,
+            params.type === 'user' ? 'user' : 'artist',
+            'GET',
+            { contains: true, maxIds: 50 }
+          )
+        : []),
+    ]
     return { success: true, output: { results } }
   },
 

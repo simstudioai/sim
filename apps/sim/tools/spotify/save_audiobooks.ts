@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySaveAudiobooksParams {
@@ -30,19 +30,23 @@ export const spotifySaveAudiobooksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated audiobook IDs (max 40)',
+      description: 'Comma-separated audiobook IDs (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.audiobookIds, 'audiobook'),
+    url: (params) => spotifyLibraryUrl(params.audiobookIds, 'audiobook', { maxIds: 50 }),
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (): Promise<SpotifySaveAudiobooksResponse> => {
+  transformResponse: async (_response, params): Promise<SpotifySaveAudiobooksResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(params, params.audiobookIds, 'audiobook', 'PUT', {
+        maxIds: 50,
+      })
     return { success: true, output: { success: true } }
   },
 

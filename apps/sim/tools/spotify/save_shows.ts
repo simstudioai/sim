@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySaveShowsParams {
@@ -27,19 +27,21 @@ export const spotifySaveShowsTool: ToolConfig<SpotifySaveShowsParams, SpotifySav
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated show IDs (max 40)',
+      description: 'Comma-separated show IDs (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.showIds, 'show'),
+    url: (params) => spotifyLibraryUrl(params.showIds, 'show', { maxIds: 50 }),
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (): Promise<SpotifySaveShowsResponse> => {
+  transformResponse: async (_response, params): Promise<SpotifySaveShowsResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(params, params.showIds, 'show', 'PUT', { maxIds: 50 })
     return { success: true, output: { success: true } }
   },
 

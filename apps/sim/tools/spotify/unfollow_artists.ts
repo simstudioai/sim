@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyUnfollowArtistsParams {
@@ -32,19 +32,23 @@ export const spotifyUnfollowArtistsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated artist IDs to unfollow (max 40)',
+      description: 'Comma-separated artist IDs to unfollow (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.artistIds, 'artist'),
+    url: (params) => spotifyLibraryUrl(params.artistIds, 'artist', { maxIds: 50 }),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (): Promise<SpotifyUnfollowArtistsResponse> => {
+  transformResponse: async (_response, params): Promise<SpotifyUnfollowArtistsResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(params, params.artistIds, 'artist', 'DELETE', {
+        maxIds: 50,
+      })
     return {
       success: true,
       output: { success: true },

@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedShowsParams {
@@ -30,19 +30,23 @@ export const spotifyRemoveSavedShowsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated show IDs (max 40)',
+      description: 'Comma-separated show IDs (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.showIds, 'show'),
+    url: (params) => spotifyLibraryUrl(params.showIds, 'show', { maxIds: 50 }),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (): Promise<SpotifyRemoveSavedShowsResponse> => {
+  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedShowsResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(params, params.showIds, 'show', 'DELETE', {
+        maxIds: 50,
+      })
     return { success: true, output: { success: true } }
   },
 

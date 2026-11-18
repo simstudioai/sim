@@ -2,7 +2,11 @@ import type {
   SpotifyCheckSavedTracksParams,
   SpotifyCheckSavedTracksResponse,
 } from '@/tools/spotify/types'
-import { splitSpotifyLibraryIds, spotifyLibraryUrl } from '@/tools/spotify/utils'
+import {
+  sendRemainingSpotifyLibraryChunks,
+  splitSpotifyLibraryIds,
+  spotifyLibraryUrl,
+} from '@/tools/spotify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const spotifyCheckSavedTracksTool: ToolConfig<
@@ -25,12 +29,12 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated track IDs to check (max 40)',
+      description: 'Comma-separated track IDs to check (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.trackIds, 'track', { contains: true }),
+    url: (params) => spotifyLibraryUrl(params.trackIds, 'track', { contains: true, maxIds: 50 }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -38,8 +42,16 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
   },
 
   transformResponse: async (response, params): Promise<SpotifyCheckSavedTracksResponse> => {
-    const data = await response.json()
-    const ids = splitSpotifyLibraryIds(params?.trackIds || '')
+    const data: boolean[] = [
+      ...(await response.json()),
+      ...(params
+        ? await sendRemainingSpotifyLibraryChunks(params, params.trackIds, 'track', 'GET', {
+            contains: true,
+            maxIds: 50,
+          })
+        : []),
+    ]
+    const ids = splitSpotifyLibraryIds(params?.trackIds || '', 50)
 
     const results = ids.map((id, index) => ({
       id,

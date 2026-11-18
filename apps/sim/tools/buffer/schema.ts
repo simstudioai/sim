@@ -405,8 +405,13 @@ const BUFFER_SCHEMA: Record<string, BufferSchemaType> = {
   },
   ChannelAction: {
     values: [
+      'approvePosts',
       'backfillChannel',
+      'cleanQueue',
+      'deleteDrafts',
+      'emptyQueue',
       'exportInsights',
+      'interactWithTakeaways',
       'manageCapabilities',
       'manageChannelSettings',
       'manageComments',
@@ -419,6 +424,7 @@ const BUFFER_SCHEMA: Record<string, BufferSchemaType> = {
       'reconnectChannel',
       'removeChannel',
       'scheduleUpdates',
+      'shuffleQueue',
       'viewCapabilities',
       'viewChannel',
       'viewComments',

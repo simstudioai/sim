@@ -1,4 +1,4 @@
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedAudiobooksParams {
@@ -30,19 +30,23 @@ export const spotifyRemoveSavedAudiobooksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated audiobook IDs (max 40)',
+      description: 'Comma-separated audiobook IDs (max 50)',
     },
   },
 
   request: {
-    url: (params) => spotifyLibraryUrl(params.audiobookIds, 'audiobook'),
+    url: (params) => spotifyLibraryUrl(params.audiobookIds, 'audiobook', { maxIds: 50 }),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
 
-  transformResponse: async (): Promise<SpotifyRemoveSavedAudiobooksResponse> => {
+  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedAudiobooksResponse> => {
+    if (params)
+      await sendRemainingSpotifyLibraryChunks(params, params.audiobookIds, 'audiobook', 'DELETE', {
+        maxIds: 50,
+      })
     return { success: true, output: { success: true } }
   },
 

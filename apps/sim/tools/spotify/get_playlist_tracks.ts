@@ -31,7 +31,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 50,
-      description: 'Maximum number of tracks to return (1-50)',
+      description: 'Maximum number of tracks to return (1-100)',
     },
     offset: {
       type: 'number',
@@ -50,7 +50,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const limit = Math.min(Math.max(params.limit || 50, 1), 50)
+      const limit = Math.min(Math.max(params.limit || 50, 1), 100)
       const offset = params.offset || 0
       // `/items` only returns playlists the user owns or collaborates on; `/tracks` still reads any
       // public playlist for Extended Quota Mode apps.

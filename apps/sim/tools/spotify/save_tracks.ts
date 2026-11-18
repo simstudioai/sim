@@ -1,5 +1,5 @@
 import type { SpotifySaveTracksParams, SpotifySaveTracksResponse } from '@/tools/spotify/types'
-import { spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifySaveTracksResponse> =
@@ -20,7 +20,7 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Comma-separated Spotify track IDs to save (max 40)',
+        description: 'Comma-separated Spotify track IDs to save (max 50)',
       },
     },
 
@@ -32,7 +32,8 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
       }),
     },
 
-    transformResponse: async (): Promise<SpotifySaveTracksResponse> => {
+    transformResponse: async (_response, params): Promise<SpotifySaveTracksResponse> => {
+      if (params) await sendRemainingSpotifyLibraryChunks(params, params.trackIds, 'track', 'PUT')
       return {
         success: true,
         output: {
