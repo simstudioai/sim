@@ -30,8 +30,10 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   request: {
     url: (params) => {
-      const noteId = params.noteId == null ? '' : String(params.noteId).trim()
-      if (!noteId) return 'https://api.crmworkspace.com/v1/notes'
+      const noteId = params.noteId
+      if (noteId == null || (typeof noteId === 'string' && !noteId.trim())) {
+        return 'https://api.crmworkspace.com/v1/notes'
+      }
       return `https://api.crmworkspace.com/v1/notes/${safeUrlPathSegment(noteId, 'noteId')}`
     },
     method: 'GET',

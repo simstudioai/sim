@@ -30,8 +30,10 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
 
   request: {
     url: (params) => {
-      const contactId = params.contactId == null ? '' : String(params.contactId).trim()
-      if (!contactId) return 'https://api.crmworkspace.com/v1/contacts'
+      const contactId = params.contactId
+      if (contactId == null || (typeof contactId === 'string' && !contactId.trim())) {
+        return 'https://api.crmworkspace.com/v1/contacts'
+      }
       return `https://api.crmworkspace.com/v1/contacts/${safeUrlPathSegment(contactId, 'contactId')}`
     },
     method: 'GET',

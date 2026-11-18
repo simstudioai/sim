@@ -50,8 +50,8 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
 
   request: {
     url: (params) => {
-      const taskId = params.taskId == null ? '' : String(params.taskId).trim()
-      if (taskId) {
+      const taskId = params.taskId
+      if (taskId != null && !(typeof taskId === 'string' && !taskId.trim())) {
         return `https://api.crmworkspace.com/v1/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
       }
       return 'https://api.crmworkspace.com/v1/tasks'

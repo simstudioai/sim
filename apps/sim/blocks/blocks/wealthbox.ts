@@ -252,7 +252,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
           const taskParams = {
             ...baseParams,
             ...(description ? { description } : {}),
-            taskId: toolCallArg(context, taskId),
+            taskId: undefined,
           }
           if (!contactId?.trim()) {
             if (isToolCall(context)) return taskParams

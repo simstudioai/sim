@@ -121,6 +121,15 @@ describe('Wealthbox reads without an ID', () => {
 })
 
 describe('Wealthbox Write Task with a stale Read Task ID', () => {
+  it('drops a stored task ID on an agent call too', () => {
+    const params = mapParams(
+      { oauthCredential: 'cred', title: 'Call client', dueDate: 'tomorrow', taskId: '999' },
+      { operation: 'write_task' }
+    )
+
+    expect(params.taskId).toBeUndefined()
+  })
+
   it('creates the task instead of posting to the stale task path', () => {
     const params = mapParams({
       operation: 'write_task',
