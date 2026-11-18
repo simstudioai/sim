@@ -43,12 +43,11 @@ export interface ColumnOptions<
   unique?: boolean
 }
 
-/** Options a `select` column takes: at least one option, and never `unique`. */
-type SelectOptions<
-  O extends readonly [string, ...string[]],
-  N extends string | undefined,
-  R extends boolean,
-> = Omit<ColumnOptions<N, R>, 'unique'> & { options: O }
+/** The shared options a `select` column takes: never `unique`. */
+type SelectOptions<N extends string | undefined, R extends boolean> = Omit<
+  ColumnOptions<N, R>,
+  'unique'
+>
 
 /** The column helpers: `column.string()`, `column.select({ options: [...] })`, … */
 export declare const column: {
@@ -81,13 +80,13 @@ export declare const column: {
     const O extends readonly [string, ...string[]],
     const N extends string | undefined = undefined,
     const R extends boolean = false,
-  >(options: SelectOptions<O, N, R> & { multiple?: false }): Column<O[number], N, R>
+  >(options: SelectOptions<N, R> & { options: O; multiple?: false }): Column<O[number], N, R>
   /** Several options per cell. */
   select<
     const O extends readonly [string, ...string[]],
     const N extends string | undefined = undefined,
     const R extends boolean = false,
-  >(options: SelectOptions<O, N, R> & { multiple: true }): Column<O[number][], N, R>
+  >(options: SelectOptions<N, R> & { options: O; multiple: true }): Column<O[number][], N, R>
 }
 
 /** Any column, whatever it holds. */
