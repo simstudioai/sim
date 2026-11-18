@@ -34,18 +34,18 @@ interface CreateFeatureFlagResponse {
 }
 
 /**
- * A rollout percentage the caller actually set: a number, or numeric text from a tool call,
- * within 0-100. An empty field arrives as `null` or `''`, and PostHog reads a null rollout as
- * 100%, so anything else yields `undefined` and no release condition is sent.
+ * The rollout percentage the caller set, or `undefined` when the field is empty. An empty
+ * field arrives as `null` or blank text, and PostHog reads a null rollout as 100%, so it must
+ * send no release condition. A canvas value arrives as text, so numeric text is accepted.
  */
 function parseRolloutPercentage(value: unknown): number | undefined {
+  if (value == null || (typeof value === 'string' && !value.trim())) return undefined
   const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim()
-        ? Number(value)
-        : Number.NaN
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : undefined
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw new Error('Rollout percentage must be a number from 0 to 100')
+  }
+  return parsed
 }
 
 export const createFeatureFlagTool: ToolConfig<

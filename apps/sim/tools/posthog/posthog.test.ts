@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PostHogBlock } from '@/blocks/blocks/posthog'
 import * as posthogTools from '@/tools/posthog'
 import type { ToolConfig } from '@/tools/types'
 
@@ -58,17 +59,42 @@ describe('posthog create feature flag rollout', () => {
     }) as { filters?: { groups: { rollout_percentage: number }[] } }
   }
 
-  it.each([null, '', '   ', 'abc', 150])('sends no release condition for %j', (value) => {
+  it.each([null, undefined, '', '   '])('sends no release condition for %j', (value) => {
     expect(buildBody(value).filters).toBeUndefined()
+  })
+
+  it.each(['abc', '50%', 150, -5])('refuses the rollout %j', (value) => {
+    expect(() => buildBody(value)).toThrow('Rollout percentage must be a number from 0 to 100')
   })
 
   it.each([
     ['30', 30],
+    [' 30 ', 30],
     [30, 30],
     [0, 0],
+    ['0', 0],
   ])('releases the flag to %j percent', (value, expected) => {
     expect(buildBody(value).filters?.groups).toEqual([
       { properties: [], rollout_percentage: expected },
     ])
+  })
+})
+
+describe('posthog block rollout mapping', () => {
+  const mapParams = (operation: string, rolloutPercentage: unknown) =>
+    PostHogBlock.tools.config?.params?.({ operation, rolloutPercentage }) ?? {}
+
+  it.each(['', '   ', '0', 0, null])(
+    'leaves a create rollout of %j for the tool to read',
+    (value) => {
+      expect(mapParams('posthog_create_feature_flag', value)).not.toHaveProperty(
+        'rolloutPercentage'
+      )
+    }
+  )
+
+  it('keeps sending update rollouts as before', () => {
+    expect(mapParams('posthog_update_feature_flag', '30')).toEqual({ rolloutPercentage: 30 })
+    expect(mapParams('posthog_update_feature_flag', 0)).toEqual({})
   })
 })
