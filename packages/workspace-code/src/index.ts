@@ -20,7 +20,6 @@ export { fingerprintOf } from './fingerprint'
 export {
   APPLY_ORDER,
   type BlobEntry,
-  FILE_KINDS,
   type FileKind,
   isFileKind,
   isWorkspaceKind,

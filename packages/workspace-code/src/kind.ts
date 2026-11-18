@@ -41,7 +41,7 @@ export const KIND_DIRS = {
  * The kinds one root file declares whole (`secrets.ts`), each entry of it one resource: the file
  * is the kind's only path, so it has no folder or folder marker.
  */
-export const FILE_KINDS = ['secret', 'credential'] as const satisfies readonly WorkspaceKind[]
+const FILE_KINDS = ['secret', 'credential'] as const satisfies readonly WorkspaceKind[]
 
 /** A kind one root file declares whole. */
 export type FileKind = (typeof FILE_KINDS)[number]

@@ -22,7 +22,7 @@ import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspa
  * The resource kind `kind`'s keys are recorded under; throws for a kind with no key row (a
  * secret), which never binds or claims a key.
  */
-export function resourceKindOf(kind: WorkspaceKind): ResourceKind {
+function resourceKindOf(kind: WorkspaceKind): ResourceKind {
   const resourceKind = WORKSPACE_KIND_SPECS[kind].resourceKind
   if (resourceKind === null) throw new Error(`The ${kind} kind has no resource keys`)
   return resourceKind

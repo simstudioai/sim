@@ -30,10 +30,10 @@ export interface SecretDecl {
 export type SecretsDecl = Record<string, SecretDecl>
 
 /** Mirrors the secret description limit (`setSecretContract` in apps/sim). */
-export const SECRET_DESCRIPTION_MAX_LENGTH = 500
+const SECRET_DESCRIPTION_MAX_LENGTH = 500
 
 /** A secret's fields; an empty description fingerprints as none, as the server stores it. */
-export const SECRET_FIELDS: DeclFields<SecretDecl> = {
+const SECRET_FIELDS: DeclFields<SecretDecl> = {
   description: stringField(
     { maxLength: SECRET_DESCRIPTION_MAX_LENGTH },
     (description) => description || null

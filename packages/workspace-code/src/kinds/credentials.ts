@@ -36,7 +36,7 @@ export interface CredentialDecl {
 export type CredentialsDecl = Record<string, CredentialDecl>
 
 /** A credential's fields; an undeclared `name` fingerprints as none. */
-export const CREDENTIAL_FIELDS: DeclFields<CredentialDecl> = {
+const CREDENTIAL_FIELDS: DeclFields<CredentialDecl> = {
   provider: stringField({ required: true }),
   name: stringField({}, (name) => name ?? null),
 }
