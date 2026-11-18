@@ -71,7 +71,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_count`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_count`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),

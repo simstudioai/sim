@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import { blockFieldOrToolArg, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
@@ -605,11 +605,6 @@ export const SQSBlock: BlockConfig = {
       },
       params: (params, context) => {
         const operation = mapperOperation(params, context)
-        /** A blank block-only field yields, on a tool call, the model's arg under the tool's name. */
-        const orToolArg = (blockValue: unknown, toolValue: unknown) =>
-          blockValue === undefined || blockValue === null || blockValue === ''
-            ? toolCallArg(context, toolValue)
-            : blockValue
 
         const parseJson = (value: unknown, fieldName: string) => {
           if (value === undefined || value === null || value === '') return undefined
@@ -678,7 +673,11 @@ export const SQSBlock: BlockConfig = {
             const waitTimeSeconds = parseInteger(params.waitTimeSeconds, 'waitTimeSeconds')
             if (waitTimeSeconds !== undefined) result.waitTimeSeconds = waitTimeSeconds
             result.visibilityTimeout = parseInteger(
-              orToolArg(params.receiveVisibilityTimeout, params.visibilityTimeout),
+              blockFieldOrToolArg(
+                context,
+                params.receiveVisibilityTimeout,
+                params.visibilityTimeout
+              ),
               'visibilityTimeout'
             )
             const messageAttributeNames = parseJson(
@@ -796,7 +795,7 @@ export const SQSBlock: BlockConfig = {
           case 'list_message_move_tasks': {
             result.sourceArn = params.sourceArn
             result.maxResults = parseInteger(
-              orToolArg(params.moveTaskMaxResults, params.maxResults),
+              blockFieldOrToolArg(context, params.moveTaskMaxResults, params.maxResults),
               'maxResults'
             )
             break

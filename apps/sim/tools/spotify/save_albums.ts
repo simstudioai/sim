@@ -1,4 +1,4 @@
-import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySaveAlbumsParams {
@@ -40,18 +40,7 @@ export const spotifySaveAlbumsTool: ToolConfig<SpotifySaveAlbumsParams, SpotifyS
       }),
     },
 
-    transformResponse: async (_response, params, context): Promise<SpotifySaveAlbumsResponse> => {
-      if (params)
-        await sendRemainingSpotifyLibraryChunks(
-          params,
-          params.albumIds,
-          'album',
-          'PUT',
-          {
-            maxIds: 20,
-          },
-          context?.signal
-        )
+    transformResponse: async (): Promise<SpotifySaveAlbumsResponse> => {
       return { success: true, output: { success: true } }
     },
 

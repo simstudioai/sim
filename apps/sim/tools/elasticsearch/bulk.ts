@@ -78,7 +78,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
       let url = params.index
-        ? `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_bulk`
+        ? `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_bulk`
         : `${baseUrl}/_bulk`
 
       if (params.refresh) {

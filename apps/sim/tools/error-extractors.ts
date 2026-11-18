@@ -20,6 +20,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
 import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
@@ -58,6 +59,8 @@ interface ErrorExtractorConfig {
 
 const CODA_MAX_VALIDATION_MESSAGES = 5
 const HELPSCOUT_MAX_FIELD_ERRORS = 5
+/** Caps a plain-text or HTML error body (a proxy or gateway page) so it is not dumped whole. */
+const TAVILY_MAX_TEXT_ERROR_LENGTH = 500
 
 /**
  * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
@@ -648,9 +651,19 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       'Tavily error bodies: FastAPI `detail` as an object with `error`, a string, or a validation array; a top-level `error`; or a plain-text body',
     examples: ['Tavily'],
     explicitOnly: true,
+    // A proxy or gateway page is capped on the retained body too, not only in the message.
+    redactData: (errorInfo) =>
+      typeof errorInfo?.data === 'string'
+        ? truncateAtCodePoint(errorInfo.data, TAVILY_MAX_TEXT_ERROR_LENGTH, '…')
+        : errorInfo?.data,
     extract: (errorInfo) => {
       const data = errorInfo?.data
-      if (typeof data === 'string') return data.trim() || errorInfo?.statusText
+      if (typeof data === 'string') {
+        const text = data.trim()
+        return text
+          ? truncateAtCodePoint(text, TAVILY_MAX_TEXT_ERROR_LENGTH, '…')
+          : errorInfo?.statusText
+      }
       const detail = data?.detail
       if (typeof detail === 'string') return detail
       if (typeof detail?.error === 'string') return detail.error

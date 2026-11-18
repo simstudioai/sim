@@ -65,7 +65,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
     request: {
       url: (params) => {
         const baseUrl = buildBaseUrl(params)
-        return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}`
+        return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}`
       },
       method: 'GET',
       headers: (params) => buildAuthHeaders(params),

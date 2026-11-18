@@ -8,6 +8,7 @@ import type {
   ItemOverview,
   ItemSection,
   VaultOverview,
+  VaultType,
   Website,
 } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
@@ -345,12 +346,16 @@ export function normalizeSdkVault(vault: VaultOverview): NormalizedVault {
   }
 }
 
-/** Maps SDK vault types (`userCreated`, `personal`, ...) to Connect's uppercase vault types. */
-const SDK_TO_CONNECT_VAULT_TYPE: Record<string, string> = {
+/**
+ * Maps SDK vault types (`userCreated`, `personal`, ...) to Connect's uppercase vault types. The
+ * `?? 'UNSUPPORTED'` at the lookup only catches a type a newer SDK adds.
+ */
+const SDK_TO_CONNECT_VAULT_TYPE: Record<VaultType, string> = {
   personal: 'PERSONAL',
   everyone: 'EVERYONE',
   transfer: 'TRANSFER',
   userCreated: 'USER_CREATED',
+  unsupported: 'UNSUPPORTED',
 }
 
 /** Normalize an SDK ItemOverview to match Connect API item summary shape. */

@@ -73,6 +73,40 @@ export function spotifyLibraryUrl(
   return spotifyLibraryUrls(ids, type, options)[0]
 }
 
+/** Reads one `/contains` response: one boolean per ID checked, in request order. */
+export async function readSpotifyLibraryCheck(response: Response): Promise<boolean[]> {
+  const chunk: unknown = await response.json()
+  if (!Array.isArray(chunk)) throw new Error('Spotify returned an invalid library check response')
+  return chunk.map(Boolean)
+}
+
+/**
+ * Reads a `/contains` check: the first chunk from the tool's own `response`, then, when
+ * `remaining` is given, every later chunk of `remaining.ids`. Results are in request order.
+ */
+export async function readSpotifyLibraryChecks(
+  response: Response,
+  remaining:
+    | { params: { accessToken: string }; ids: string; type: SpotifyLibraryItemType; maxIds: number }
+    | undefined,
+  signal?: AbortSignal
+): Promise<boolean[]> {
+  const first = await readSpotifyLibraryCheck(response)
+  if (!remaining) return first
+  const { params, ids, type, maxIds } = remaining
+  return [
+    ...first,
+    ...(await sendRemainingSpotifyLibraryChunks(
+      params,
+      ids,
+      type,
+      'GET',
+      { contains: true, maxIds },
+      signal
+    )),
+  ]
+}
+
 /**
  * Sends the chunks after the first one (which the tool's own request already sent) and returns
  * their `/contains` results in order, so a run with more than 40 IDs handles all of them. Throws
@@ -110,12 +144,7 @@ export async function sendRemainingSpotifyLibraryChunks(
         `IDs 1-${first - 1} were ${handled}. Spotify rejected IDs ${first}-${last}: ${reason}.${unsent}`
       )
     }
-    if (options.contains) {
-      const chunk: unknown = await response.json()
-      if (!Array.isArray(chunk))
-        throw new Error('Spotify returned an invalid library check response')
-      results.push(...chunk.map(Boolean))
-    }
+    if (options.contains) results.push(...(await readSpotifyLibraryCheck(response)))
   }
   return results
 }

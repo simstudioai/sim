@@ -1,4 +1,4 @@
-import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { readSpotifyLibraryChecks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckSavedAudiobooksParams {
@@ -48,22 +48,11 @@ export const spotifyCheckSavedAudiobooksTool: ToolConfig<
     params,
     context
   ): Promise<SpotifyCheckSavedAudiobooksResponse> => {
-    const results: boolean[] = [
-      ...(await response.json()),
-      ...(params
-        ? await sendRemainingSpotifyLibraryChunks(
-            params,
-            params.audiobookIds,
-            'audiobook',
-            'GET',
-            {
-              contains: true,
-              maxIds: 50,
-            },
-            context?.signal
-          )
-        : []),
-    ]
+    const results = await readSpotifyLibraryChecks(
+      response,
+      params && { params, ids: params.audiobookIds, type: 'audiobook', maxIds: 50 },
+      context?.signal
+    )
     return { success: true, output: { results } }
   },
 

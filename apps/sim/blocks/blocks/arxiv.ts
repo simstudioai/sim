@@ -171,6 +171,7 @@ export const ArxivBlock: BlockConfig = {
         'Matching papers [{id, title, summary, authors, published, updated, link, pdfLink, categories, primaryCategory, comment, journalRef, doi}]',
     },
     totalResults: { type: 'number', description: 'Total results count' },
+    query: { type: 'string', description: 'Executed search query (search)' },
     // Get Paper Details output
     paper: {
       type: 'json',
@@ -178,6 +179,7 @@ export const ArxivBlock: BlockConfig = {
         'Paper details (id, title, summary, authors, published, updated, link, pdfLink, categories, primaryCategory, comment, journalRef, doi)',
     },
     // Get Author Papers output
+    authorName: { type: 'string', description: 'Author searched (get author papers)' },
     authorPapers: {
       type: 'json',
       description:

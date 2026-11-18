@@ -1,4 +1,11 @@
-import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import {
+  buildKalshiCreateOrderBody,
+  kalshiCountNumber,
+  kalshiLegacyOrder,
+  kalshiOrderPath,
+  kalshiWrittenOrder,
+} from '@/tools/kalshi/orders'
+import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -26,9 +33,29 @@ export interface KalshiCreateOrderParams extends KalshiAuthParams {
 export interface KalshiCreateOrderResponse {
   success: boolean
   output: {
-    order: KalshiOrder
+    order: Record<string, unknown>
   }
 }
+
+/** What a V2 create reports about the order, under the legacy order field names. */
+type KalshiCreatedOrder = Omit<ReturnType<typeof kalshiWrittenOrder>, 'processed_time'> & {
+  created_time: string | null
+}
+
+/** Maps Kalshi's CreateOrderV2Response onto the order this create sent. */
+function createdOrder(
+  data: unknown,
+  params: KalshiCreateOrderParams | KalshiCreateOrderV2Params
+): KalshiCreatedOrder {
+  const { processed_time, ...order } = kalshiWrittenOrder(
+    data,
+    params,
+    buildKalshiCreateOrderBody(params)
+  )
+  return { ...order, created_time: processed_time }
+}
+
+const ORDERS_PATH = kalshiOrderPath()
 
 export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCreateOrderResponse> =
   {
@@ -79,7 +106,8 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Order type: "limit" or "market" (default: "limit")',
+        description:
+          'Order type: "limit" (default). Kalshi no longer accepts "market" orders; set a price instead',
       },
       yesPrice: {
         type: 'string',
@@ -121,13 +149,15 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: "Time in force: 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel'",
+        description:
+          "Time in force: 'good_till_canceled' (default), 'fill_or_kill', or 'immediate_or_cancel'",
       },
       buyMaxCost: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum cost in cents (auto-enables fill_or_kill)',
+        description:
+          'No longer supported by Kalshi: set a limit price and count with timeInForce fill_or_kill instead',
       },
       postOnly: {
         type: 'string',
@@ -145,7 +175,7 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: "Self-trade prevention: 'taker_at_cross' or 'maker'",
+        description: "Self-trade prevention: 'taker_at_cross' (default) or 'maker'",
       },
       orderGroupId: {
         type: 'string',
@@ -156,50 +186,33 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
     },
 
     request: {
-      url: () => buildKalshiUrl('/portfolio/orders'),
+      url: () => buildKalshiUrl(ORDERS_PATH),
       method: 'POST',
-      headers: (params) => {
-        const path = '/trade-api/v2/portfolio/orders'
-        return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
-      },
-      body: (params) => {
-        const body: Record<string, any> = {
-          ticker: params.ticker,
-          side: params.side.toLowerCase(),
-          action: params.action.toLowerCase(),
-          count: Number.parseInt(params.count, 10),
-        }
-
-        if (params.type) body.type = params.type.toLowerCase()
-        if (params.yesPrice) body.yes_price = Number.parseInt(params.yesPrice, 10)
-        if (params.noPrice) body.no_price = Number.parseInt(params.noPrice, 10)
-        if (params.yesPriceDollars) body.yes_price_dollars = params.yesPriceDollars
-        if (params.noPriceDollars) body.no_price_dollars = params.noPriceDollars
-        if (params.clientOrderId) body.client_order_id = params.clientOrderId
-        if (params.expirationTs) body.expiration_ts = Number.parseInt(params.expirationTs, 10)
-        if (params.timeInForce) body.time_in_force = params.timeInForce
-        if (params.buyMaxCost) body.buy_max_cost = Number.parseInt(params.buyMaxCost, 10)
-        if (params.postOnly) body.post_only = params.postOnly === 'true'
-        if (params.reduceOnly) body.reduce_only = params.reduceOnly === 'true'
-        if (params.selfTradePreventionType)
-          body.self_trade_prevention_type = params.selfTradePreventionType
-        if (params.orderGroupId) body.order_group_id = params.orderGroupId
-
-        return body
-      },
+      headers: (params) =>
+        buildKalshiAuthHeaders(
+          params.keyId,
+          params.privateKey,
+          'POST',
+          `/trade-api/v2${ORDERS_PATH}`
+        ),
+      body: (params) => buildKalshiCreateOrderBody(params),
     },
 
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params) => {
       const data = await response.json()
 
       if (!response.ok) {
         handleKalshiError(data, 'create_order')
       }
+      if (!params) throw new Error('Kalshi create_order needs its params to read the response')
 
       return {
         success: true,
         output: {
-          order: data.order,
+          order: kalshiLegacyOrder({
+            ...createdOrder(data, params),
+            count: kalshiCountNumber(buildKalshiCreateOrderBody(params).count),
+          }),
         },
       }
     },
@@ -207,7 +220,8 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
     outputs: {
       order: {
         type: 'object',
-        description: 'The created order object',
+        description:
+          'The created order: order_id, client_order_id and fill counts from Kalshi, with the direction, price and settings this request sent',
       },
     },
   }
@@ -239,14 +253,14 @@ export interface KalshiCreateOrderV2Response {
   success: boolean
   output: {
     order: {
-      order_id: string
+      order_id: string | null
       user_id: string | null
       client_order_id: string | null
-      ticker: string
-      side: string
-      action: string
-      type: string
-      status: string
+      ticker: string | null
+      side: string | null
+      action: string | null
+      type: string | null
+      status: string | null
       yes_price: number | null
       no_price: number | null
       yes_price_dollars: string | null
@@ -327,7 +341,8 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Order type: "limit" or "market" (default: "limit")',
+      description:
+        'Order type: "limit" (default). Kalshi no longer accepts "market" orders; set a price instead',
     },
     yesPrice: {
       type: 'string',
@@ -369,13 +384,15 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Time in force: 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel'",
+      description:
+        "Time in force: 'good_till_canceled' (default), 'fill_or_kill', or 'immediate_or_cancel'",
     },
     buyMaxCost: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum cost in cents (auto-enables fill_or_kill)',
+      description:
+        'No longer supported by Kalshi: set a limit price and count with timeInForce fill_or_kill instead',
     },
     postOnly: {
       type: 'string',
@@ -393,7 +410,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Self-trade prevention: 'taker_at_cross' or 'maker'",
+      description: "Self-trade prevention: 'taker_at_cross' (default) or 'maker'",
     },
     orderGroupId: {
       type: 'string',
@@ -422,90 +439,67 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: () => buildKalshiUrl('/portfolio/orders'),
+    url: () => buildKalshiUrl(ORDERS_PATH),
     method: 'POST',
-    headers: (params) => {
-      const path = '/trade-api/v2/portfolio/orders'
-      return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
-    },
-    body: (params) => {
-      const body: Record<string, any> = {
-        ticker: params.ticker,
-        side: params.side.toLowerCase(),
-        action: params.action.toLowerCase(),
-      }
-
-      // count or count_fp must be provided (but not both required)
-      if (params.count) body.count = Number.parseInt(params.count, 10)
-      if (params.countFp) body.count_fp = params.countFp
-      if (params.type) body.type = params.type.toLowerCase()
-      if (params.yesPrice) body.yes_price = Number.parseInt(params.yesPrice, 10)
-      if (params.noPrice) body.no_price = Number.parseInt(params.noPrice, 10)
-      if (params.yesPriceDollars) body.yes_price_dollars = params.yesPriceDollars
-      if (params.noPriceDollars) body.no_price_dollars = params.noPriceDollars
-      if (params.clientOrderId) body.client_order_id = params.clientOrderId
-      if (params.expirationTs) body.expiration_ts = Number.parseInt(params.expirationTs, 10)
-      if (params.timeInForce) body.time_in_force = params.timeInForce
-      if (params.buyMaxCost) body.buy_max_cost = Number.parseInt(params.buyMaxCost, 10)
-      if (params.postOnly) body.post_only = params.postOnly === 'true'
-      if (params.reduceOnly) body.reduce_only = params.reduceOnly === 'true'
-      if (params.selfTradePreventionType)
-        body.self_trade_prevention_type = params.selfTradePreventionType
-      if (params.orderGroupId) body.order_group_id = params.orderGroupId
-      if (params.cancelOrderOnPause)
-        body.cancel_order_on_pause = params.cancelOrderOnPause === 'true'
-      if (params.subaccount) body.subaccount = params.subaccount
-
-      return body
-    },
+    headers: (params) =>
+      buildKalshiAuthHeaders(
+        params.keyId,
+        params.privateKey,
+        'POST',
+        `/trade-api/v2${ORDERS_PATH}`
+      ),
+    body: (params) => buildKalshiCreateOrderBody(params),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!response.ok) {
       handleKalshiError(data, 'create_order_v2')
     }
+    if (!params) throw new Error('Kalshi create_order_v2 needs its params to read the response')
 
-    const order = data.order || {}
+    const order = createdOrder(data, params)
 
+    // Kalshi's V2 create returns only the order's identity and fill counts; fields it no longer
+    // reports on a write are null.
     return {
       success: true,
       output: {
         order: {
-          order_id: order.order_id ?? null,
-          user_id: order.user_id ?? null,
-          client_order_id: order.client_order_id ?? null,
-          ticker: order.ticker ?? null,
-          side: order.side ?? null,
-          action: order.action ?? null,
-          type: order.type ?? null,
-          status: order.status ?? null,
-          yes_price: order.yes_price ?? null,
-          no_price: order.no_price ?? null,
-          yes_price_dollars: order.yes_price_dollars ?? null,
-          no_price_dollars: order.no_price_dollars ?? null,
-          fill_count: order.fill_count ?? null,
-          fill_count_fp: order.fill_count_fp ?? null,
-          remaining_count: order.remaining_count ?? null,
-          remaining_count_fp: order.remaining_count_fp ?? null,
-          initial_count: order.initial_count ?? null,
-          initial_count_fp: order.initial_count_fp ?? null,
-          taker_fees: order.taker_fees ?? null,
-          maker_fees: order.maker_fees ?? null,
-          taker_fees_dollars: order.taker_fees_dollars ?? null,
-          maker_fees_dollars: order.maker_fees_dollars ?? null,
-          taker_fill_cost: order.taker_fill_cost ?? null,
-          maker_fill_cost: order.maker_fill_cost ?? null,
-          taker_fill_cost_dollars: order.taker_fill_cost_dollars ?? null,
-          maker_fill_cost_dollars: order.maker_fill_cost_dollars ?? null,
-          queue_position: order.queue_position ?? null,
-          expiration_time: order.expiration_time ?? null,
-          created_time: order.created_time ?? null,
-          last_update_time: order.last_update_time ?? null,
-          self_trade_prevention_type: order.self_trade_prevention_type ?? null,
-          order_group_id: order.order_group_id ?? null,
-          cancel_order_on_pause: order.cancel_order_on_pause ?? null,
+          order_id: order.order_id,
+          user_id: null,
+          client_order_id: order.client_order_id,
+          ticker: order.ticker,
+          side: order.side,
+          action: order.action,
+          type: order.type,
+          status: null,
+          yes_price: null,
+          no_price: null,
+          yes_price_dollars: order.yes_price_dollars,
+          no_price_dollars: order.no_price_dollars,
+          fill_count: order.fill_count,
+          fill_count_fp: order.fill_count_fp,
+          remaining_count: order.remaining_count,
+          remaining_count_fp: order.remaining_count_fp,
+          initial_count: kalshiCountNumber(order.initial_count_fp),
+          initial_count_fp: order.initial_count_fp,
+          taker_fees: null,
+          maker_fees: null,
+          taker_fees_dollars: null,
+          maker_fees_dollars: null,
+          taker_fill_cost: null,
+          maker_fill_cost: null,
+          taker_fill_cost_dollars: null,
+          maker_fill_cost_dollars: null,
+          queue_position: null,
+          expiration_time: null,
+          created_time: order.created_time,
+          last_update_time: null,
+          self_trade_prevention_type: order.self_trade_prevention_type,
+          order_group_id: order.order_group_id,
+          cancel_order_on_pause: order.cancel_order_on_pause,
         },
       },
     }
@@ -514,41 +508,94 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
   outputs: {
     order: {
       type: 'object',
-      description: 'The created order object with full API response fields',
+      description:
+        'The created order. Kalshi reports only its ID and fill counts on create; the direction, price and settings are the ones this request sent, and fields Kalshi no longer reports are null',
       properties: {
-        order_id: { type: 'string', description: 'Order ID' },
-        user_id: { type: 'string', description: 'User ID' },
-        client_order_id: { type: 'string', description: 'Client order ID' },
-        ticker: { type: 'string', description: 'Market ticker' },
-        side: { type: 'string', description: 'Order side (yes/no)' },
-        action: { type: 'string', description: 'Action (buy/sell)' },
-        type: { type: 'string', description: 'Order type (limit/market)' },
-        status: { type: 'string', description: 'Order status (resting/canceled/executed)' },
-        yes_price: { type: 'number', description: 'Yes price in cents' },
-        no_price: { type: 'number', description: 'No price in cents' },
-        yes_price_dollars: { type: 'string', description: 'Yes price in dollars' },
-        no_price_dollars: { type: 'string', description: 'No price in dollars' },
-        fill_count: { type: 'number', description: 'Filled contract count' },
-        fill_count_fp: { type: 'string', description: 'Filled count (fixed-point)' },
-        remaining_count: { type: 'number', description: 'Remaining contracts' },
-        remaining_count_fp: { type: 'string', description: 'Remaining count (fixed-point)' },
-        initial_count: { type: 'number', description: 'Initial contract count' },
-        initial_count_fp: { type: 'string', description: 'Initial count (fixed-point)' },
-        taker_fees: { type: 'number', description: 'Taker fees in cents' },
-        maker_fees: { type: 'number', description: 'Maker fees in cents' },
-        taker_fees_dollars: { type: 'string', description: 'Taker fees in dollars' },
-        maker_fees_dollars: { type: 'string', description: 'Maker fees in dollars' },
-        taker_fill_cost: { type: 'number', description: 'Taker fill cost in cents' },
-        maker_fill_cost: { type: 'number', description: 'Maker fill cost in cents' },
-        taker_fill_cost_dollars: { type: 'string', description: 'Taker fill cost in dollars' },
-        maker_fill_cost_dollars: { type: 'string', description: 'Maker fill cost in dollars' },
-        queue_position: { type: 'number', description: 'Queue position (deprecated)' },
-        expiration_time: { type: 'string', description: 'Order expiration time' },
-        created_time: { type: 'string', description: 'Order creation time' },
-        last_update_time: { type: 'string', description: 'Last update time' },
-        self_trade_prevention_type: { type: 'string', description: 'Self-trade prevention type' },
-        order_group_id: { type: 'string', description: 'Order group ID' },
-        cancel_order_on_pause: { type: 'boolean', description: 'Cancel on market pause' },
+        order_id: { type: 'string', description: 'Order ID', nullable: true },
+        user_id: { type: 'string', description: 'User ID', nullable: true },
+        client_order_id: { type: 'string', description: 'Client order ID', nullable: true },
+        ticker: { type: 'string', description: 'Market ticker', nullable: true },
+        side: { type: 'string', description: 'Order side (yes/no)', nullable: true },
+        action: { type: 'string', description: 'Action (buy/sell)', nullable: true },
+        type: { type: 'string', description: 'Order type (limit/market)', nullable: true },
+        status: {
+          type: 'string',
+          description: 'Order status (resting/canceled/executed)',
+          nullable: true,
+        },
+        yes_price: { type: 'number', description: 'Yes price in cents', nullable: true },
+        no_price: { type: 'number', description: 'No price in cents', nullable: true },
+        yes_price_dollars: { type: 'string', description: 'Yes price in dollars', nullable: true },
+        no_price_dollars: { type: 'string', description: 'No price in dollars', nullable: true },
+        fill_count: { type: 'number', description: 'Filled contract count', nullable: true },
+        fill_count_fp: {
+          type: 'string',
+          description: 'Filled count (fixed-point)',
+          nullable: true,
+        },
+        remaining_count: { type: 'number', description: 'Remaining contracts', nullable: true },
+        remaining_count_fp: {
+          type: 'string',
+          description: 'Remaining count (fixed-point)',
+          nullable: true,
+        },
+        initial_count: { type: 'number', description: 'Initial contract count', nullable: true },
+        initial_count_fp: {
+          type: 'string',
+          description: 'Initial count (fixed-point)',
+          nullable: true,
+        },
+        taker_fees: { type: 'number', description: 'Taker fees in cents', nullable: true },
+        maker_fees: { type: 'number', description: 'Maker fees in cents', nullable: true },
+        taker_fees_dollars: {
+          type: 'string',
+          description: 'Taker fees in dollars',
+          nullable: true,
+        },
+        maker_fees_dollars: {
+          type: 'string',
+          description: 'Maker fees in dollars',
+          nullable: true,
+        },
+        taker_fill_cost: {
+          type: 'number',
+          description: 'Taker fill cost in cents',
+          nullable: true,
+        },
+        maker_fill_cost: {
+          type: 'number',
+          description: 'Maker fill cost in cents',
+          nullable: true,
+        },
+        taker_fill_cost_dollars: {
+          type: 'string',
+          description: 'Taker fill cost in dollars',
+          nullable: true,
+        },
+        maker_fill_cost_dollars: {
+          type: 'string',
+          description: 'Maker fill cost in dollars',
+          nullable: true,
+        },
+        queue_position: {
+          type: 'number',
+          description: 'Queue position (deprecated)',
+          nullable: true,
+        },
+        expiration_time: { type: 'string', description: 'Order expiration time', nullable: true },
+        created_time: { type: 'string', description: 'Order creation time', nullable: true },
+        last_update_time: { type: 'string', description: 'Last update time', nullable: true },
+        self_trade_prevention_type: {
+          type: 'string',
+          description: 'Self-trade prevention type',
+          nullable: true,
+        },
+        order_group_id: { type: 'string', description: 'Order group ID', nullable: true },
+        cancel_order_on_pause: {
+          type: 'boolean',
+          description: 'Cancel on market pause',
+          nullable: true,
+        },
       },
     },
   },

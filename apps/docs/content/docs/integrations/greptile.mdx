@@ -1,6 +1,6 @@
 ---
 title: Greptile
-description: AI-powered codebase search and Q&A
+description: Index repositories and check indexing status with Greptile
 integration:
   type: "greptile"
   color: "#181C1E"
@@ -15,13 +15,13 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 ## Use the block [#usage-instructions]
 
-Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.
+Index repositories with Greptile and check their indexing status. Greptile has retired its natural-language query and search endpoints, so the Query operation is no longer offered.
 
 ## Actions
 
 ### Greptile Query
 
-Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions.
+Retired: Greptile removed the POST /v2/query endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.
 
 <ReferenceDetails>
 
