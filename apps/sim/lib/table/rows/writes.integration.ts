@@ -1,7 +1,7 @@
 /**
  * Row-write integration tests against the provisioned, disposable TEST_DATABASE_URL database (the
  * integration setup points DATABASE_URL at it too). The unique-value locks run for real
- * everywhere; the `rows_version` cases also need the migrated deferred trigger and skip without it.
+ * everywhere; the `rows_version` cases also need the deferred trigger and skip without it.
  */
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRowSecretProvenance, userTableRows } from '@sim/db/schema'
@@ -59,11 +59,11 @@ const workspaceId = generateId()
 const userId = generateId()
 
 /**
- * `db:push` never installs the migration-only `rows_version` triggers, and a database migrated
- * only through 0240 has a statement-level UPDATE trigger under the same name. Only the deferred
- * constraint trigger satisfies the `rows_version` cases, so only it enables them.
+ * Whether `rows_version` advances at commit (0390; `db:push` installs it too). A database migrated
+ * only through 0240 has a statement-level UPDATE trigger under the same name, so only the deferred
+ * constraint trigger enables the `rows_version` cases.
  */
-const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
+const [{ bumpsAtCommit }] = await control<{ bumpsAtCommit: boolean }[]>`SELECT EXISTS (
   SELECT 1 FROM pg_trigger t
   JOIN pg_proc p ON p.oid = t.tgfoid
   WHERE t.tgrelid = 'user_table_rows'::regclass
@@ -72,7 +72,13 @@ const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
     AND t.tgdeferrable
     AND t.tginitdeferred
     AND p.proname = 'bump_user_table_rows_version_at_commit'
-) AS migrated`
+) AS "bumpsAtCommit"`
+
+/** Whether a cell write demotes the row's secret provenance (0283's migration-only trigger). */
+const [{ demotesProvenance }] = await control<{ demotesProvenance: boolean }[]>`SELECT EXISTS (
+  SELECT 1 FROM pg_trigger
+  WHERE tgrelid = 'user_table_rows'::regclass AND tgname = 'user_table_rows_secret_provenance_demote'
+) AS "demotesProvenance"`
 
 /** Whether the row triggers log to `user_table_row_changes` (0402) rather than lock the definition. */
 const [{ logsRowChanges }] = await control<{ logsRowChanges: boolean }[]>`SELECT EXISTS (
@@ -323,7 +329,7 @@ describe('table row writes against real PostgreSQL', () => {
           const shown = projectResolvedSecretModelContent(stored.data, registry)
           expect(shown).toMatchObject({ safe: true, value: { note: '{{ROW_TOKEN}}' } })
         }
-        if (migrated) {
+        if (demotesProvenance) {
           await write('changed content')
           const [changed] = await db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
           expect(changed.data).toEqual({ key: 'stable', note: 'changed content' })
@@ -1710,7 +1716,7 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
 
-  describe.skipIf(!migrated || !logsRowChanges)('a held definition row', () => {
+  describe.skipIf(!bumpsAtCommit || !logsRowChanges)('a held definition row', () => {
     it('lets every row write path commit while another session holds the definition row', async () => {
       const table = await createTable([
         { id: 'key', name: 'key', type: 'string', unique: true },
@@ -2044,7 +2050,7 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
 
-  describe.skipIf(!migrated)('rows_version', () => {
+  describe.skipIf(!bumpsAtCommit)('rows_version', () => {
     it('advances once for a transaction that edits cells across several statements', async () => {
       const table = await createTable(textColumns('name'))
       await seedRows(table.id, [
