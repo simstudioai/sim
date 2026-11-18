@@ -93,6 +93,9 @@ export class EdgeCollector {
     viaEdgeCall = false
   ): boolean {
     if (this.full) return false
+    // A duplicate shares the first declaration's key, so its edges would wire that block instead
+    // (a phantom cycle among them). E_DUPLICATE_NAME already covers it.
+    if (from.duplicate || to.duplicate) return false
     const source = this.blocks.get(from.key)
     const target = this.blocks.get(to.key)
     if (!source || !target) return false

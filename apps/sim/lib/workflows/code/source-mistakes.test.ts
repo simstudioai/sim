@@ -89,4 +89,11 @@ describe('mistakes from the blind DX trial, against the real catalog', () => {
       "Add api to the import from '@sim/workflow-sdk'."
     )
   })
+
+  it('reports a duplicate block name alone, without a phantom cycle through the first block', () => {
+    const result = compile(probe("slack.sendMessage('Notify'", "slack.sendMessage('Ask'"))
+    expect(findings(result)).toEqual([
+      'E_DUPLICATE_NAME 17: Ask normalizes to ask, which Ask already uses.',
+    ])
+  })
 })
