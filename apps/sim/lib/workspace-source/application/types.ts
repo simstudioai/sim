@@ -75,13 +75,12 @@ export interface PlannedChange<D = unknown, P = unknown> {
   needsBlobs?: string[]
   decl?: D
   storedId?: string
-  /** The name a create or adopt writes, when a workflow's stored reference repeats it (a skill). */
-  name?: string
   /**
-   * The column names a table change declares, which a later workflow's dry run checks its row
-   * writes against before the table is written.
+   * How a later kind's dry run (a workflow naming this resource by key) sees the change before it
+   * is written: set by the kind on a create (a placeholder id), an adopt (the stored id), or a
+   * change whose written state a dry run checks against (a reshaped table's columns).
    */
-  columns?: string[]
+  pending?: PendingResource
   /**
    * The resource's fingerprint when planned (an update, adopt or delete): the apply re-reads it
    * with the adapter's `fingerprintNow` just before the write and refuses one that moved since.
@@ -141,12 +140,11 @@ interface ReadResource {
 export interface KindAdapter<D, S, P = unknown> {
   codec: KindCodec<D>
   /**
-   * How source keys bind to what the apply writes: by default a create or adopt is registered for
-   * later kinds' dry runs when planned and claims its key once written; `every-write` claims on an
-   * update too (a renamed workflow folder moves its key); `none` never does (a file's key is its
-   * path).
+   * When a write claims its source key: by default a create or adopt claims it once written;
+   * `every-write` claims on an update too (a renamed workflow folder moves its key). A kind whose
+   * codec keys resources by path (a file) never claims one.
    */
-  keys?: 'every-write' | 'none'
+  keys?: 'every-write'
   /**
    * The kind's stored resources. `allocate` binds a key to every unbound one (a get does; an
    * apply never does, so an unbound resource can still be adopted by name).

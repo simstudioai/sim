@@ -25,7 +25,6 @@ import {
 } from '@/lib/workflows/migrations/subblock-migrations'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { isViewerDefault } from '@/blocks/viewer-defaults'
 import {
   isHumanInTheLoopBlock,
   isMetadataOnlyBlockType,
@@ -267,17 +266,18 @@ function projectOptions(subBlock: SubBlockConfig): CatalogSubBlock['options'] {
 
 /**
  * A `value()` thunk is a constant when it reads no param and returns the same value twice (some
- * thunks mint ids, which must never be frozen into the catalog), unless it is a viewer default,
- * which would freeze the server's environment into the catalog and its hash; anything else is
- * `computed`.
+ * thunks mint ids, which must never be frozen into the catalog), unless its `valueScope` is the
+ * viewer, which would freeze the server's environment into the catalog and its hash; anything
+ * else is `computed`.
  * A computed thunk that reads params still has one creation value: canvas creation calls it with
  * no values (`createBlockFromParams`), so that result is kept as `initial` when it is JSON and
  * the same twice.
  */
 function projectValueDefault(
-  thunk: NonNullable<SubBlockConfig['value']>
+  thunk: NonNullable<SubBlockConfig['value']>,
+  scope: SubBlockConfig['valueScope']
 ): CatalogSubBlock['valueDefault'] {
-  if (isViewerDefault(thunk)) return { computed: true }
+  if (scope === 'viewer') return { computed: true }
   const first = probeThunk(thunk)
   if (!first.ok) return { computed: true }
   if (first.reads.size > 0) {
@@ -345,7 +345,7 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
     projected.defaultValue = structuredClone(subBlock.defaultValue)
   }
   if (writable && typeof subBlock.value === 'function') {
-    assign(projected, 'valueDefault', projectValueDefault(subBlock.value))
+    assign(projected, 'valueDefault', projectValueDefault(subBlock.value, subBlock.valueScope))
   }
   assign(projected, 'options', projectOptions(subBlock))
 

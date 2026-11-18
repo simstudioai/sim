@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { type BaseResource, refusalClass, type WorkspaceKind } from '@sim/workspace-code'
+import { refusalClass, type WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeBaseConflictError } from '@/lib/knowledge/service'
 import { TableConflictError } from '@/lib/table/service'
@@ -59,21 +59,6 @@ export class ResourceChangedError extends OrchestrationError {
 export function assertUnchanged(change: PlannedChange, current: string): void {
   if (change.serverFingerprint !== undefined && current !== change.serverFingerprint) {
     throw new ResourceChangedError(change)
-  }
-}
-
-/**
- * A write that failed after part of it committed (a table update runs one use case per column
- * change). `base` is the resource's base entry as it now stands, so the apply records it and the
- * next run plans only the remainder instead of finding the resource changed since its base.
- */
-export class PartiallyAppliedError extends Error {
-  constructor(
-    cause: unknown,
-    readonly base: BaseResource
-  ) {
-    super(getErrorMessage(cause), { cause })
-    this.name = 'PartiallyAppliedError'
   }
 }
 

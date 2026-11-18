@@ -398,9 +398,10 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
 
   const record = (skipped: SkippedItem[], param?: string) => {
     for (const item of skipped) {
-      if (item.type === 'invalid_edge_target') continue
       if (!isGatedSkip(item)) {
-        throw new Error(`A source gate reported ${item.type}, which compile already refuses`)
+        throw new Error(
+          `A source gate reported ${item.type}, which source refuses before the gates`
+        )
       }
       diagnostics.push({
         code: SKIP_TYPE_APPLY_CODES[item.type],

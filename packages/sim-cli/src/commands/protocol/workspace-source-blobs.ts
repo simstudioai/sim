@@ -10,6 +10,7 @@ import { realpath } from 'node:fs/promises'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
+  APPLY_ORDER,
   type BlobEntry,
   fingerprintOf,
   type KindCodec,
@@ -18,14 +19,18 @@ import {
   resourceAddress,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { fileCodec } from '@sim/workspace-code/kinds/files'
-import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
-import { isBlobPath, isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
+import {
+  BLOB_KIND_CODECS,
+  isBlobKind,
+  isBlobPath,
+  KIND_LAYOUTS,
+} from '@sim/workspace-code/kinds/registry'
+import { isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
-import { checkedPath, inBatches, isMissing, readWrittenDigests } from './workflow-source-layout'
+import { checkedPath, inBatches, isMissing, readWrittenDigests } from './source-dir'
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
@@ -198,12 +203,6 @@ export async function downloadBlob(
   return sha256
 }
 
-/** The codecs of the kinds that hold blobs, which can fingerprint a resource from its files. */
-const BLOB_CODECS: Partial<Record<WorkspaceKind, KindCodec<unknown>>> = {
-  file: fileCodec as KindCodec<unknown>,
-  'knowledge-base': knowledgeCodec as KindCodec<unknown>,
-}
-
 /**
  * The base a get writes once it hashed the blobs the server listed without a hash (it had no
  * budget left to): each such blob's resource records it as `{ id, rev, sha256 }`, and its
@@ -216,9 +215,9 @@ export function recordHashedBlobs(
   digests: ReadonlyMap<string, string>
 ): WorkspaceSource['base'] {
   const resources = { ...source.base.resources }
-  for (const [kind, codec] of Object.entries(BLOB_CODECS) as Array<
-    [WorkspaceKind, KindCodec<unknown>]
-  >) {
+  for (const kind of APPLY_ORDER) {
+    if (!isBlobKind(kind)) continue
+    const codec: KindCodec<unknown> = BLOB_KIND_CODECS[kind]
     const blobs = new Map(
       source.blobs
         .filter((blob) => kindOfPath(blob.path) === kind)
@@ -271,9 +270,9 @@ function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<st
   for (const [address, resource] of Object.entries(resources)) {
     const target = parseResourceAddress(address)
     if (!target || !kinds.includes(target.kind)) continue
-    const codec = BLOB_CODECS[target.kind]
+    const layout = KIND_LAYOUTS[target.kind]
     for (const [name, blob] of Object.entries(resource.blobs ?? {})) {
-      const path = codec?.baseBlobPath?.(target.key, name) ?? name
+      const path = layout.baseBlobPath?.(target.key, name) ?? name
       if (!isBlobPath(path) || !isWorkspaceSourcePath(path)) continue
       digests.set(path, blob.sha256)
     }

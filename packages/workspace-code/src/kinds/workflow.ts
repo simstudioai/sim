@@ -6,10 +6,9 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { type SourceBase, setOwn } from '@sim/workflow-code'
-import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
+import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
-import { WORKFLOW_BASE_FILE, WORKFLOW_LOCK_FILE } from '../layout'
 import { groupByFolder } from './group'
 
 /** A workflow folder's files, as the workflow compiler reads them. */
@@ -30,9 +29,8 @@ export function workflowFolder(key: string): string {
   return `${KIND_DIRS.workflow}/${key}`
 }
 
-/** A workflow folder's base, when it is one (`SourceBase`: where the workflow was read). */
-export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
-  const base = decl.base
+/** `value` as a workflow folder's base (`SourceBase`: where the workflow was read), or `null`. */
+function sourceBaseOf(base: unknown): SourceBase | null {
   return isRecordLike(base) &&
     typeof base.workflowId === 'string' &&
     typeof base.workspaceId === 'string' &&
@@ -47,12 +45,41 @@ export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
     : null
 }
 
+/** A workflow folder's base, when it is one (`SourceBase`: where the workflow was read). */
+export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
+  return sourceBaseOf(decl.base)
+}
+
+/**
+ * What workflow folder `key` is sent as when every file is as the CLI last wrote it: its base
+ * alone, which the codec reads back as unchanged (`isUnchanged`), so the server never evaluates
+ * it. Only a folder read from `workspaceId`, the workspace applied to, is sent that way: anywhere
+ * else its base names no workflow, so the folder is sent whole and the apply creates it there.
+ * `text` is the folder's files by workspace path.
+ */
+export function unchangedFiles(
+  key: string,
+  text: Readonly<Record<string, string>>,
+  workspaceId: string
+): Record<string, string> {
+  const basePath = `${workflowFolder(key)}/${SOURCE_BASE_FILE}`
+  const baseText = text[basePath]
+  if (baseText === undefined) return { ...text }
+  let base: SourceBase | null = null
+  try {
+    base = sourceBaseOf(JSON.parse(baseText))
+  } catch {}
+  return base?.workspaceId === workspaceId ? { [basePath]: baseText } : { ...text }
+}
+
 function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
 /** The codec of `workflows/<key>/`: it carries the files; the workflow pipeline compiles them. */
 export const workflowCodec: KindCodec<WorkflowDecl> = {
+  budget: 'workflow',
+  isUnchanged: (decl) => Object.keys(decl.files).length === 0,
   group: (paths) => groupByFolder(KIND_DIRS.workflow, paths),
   parse(key, text) {
     const folder = `${workflowFolder(key)}/`
@@ -60,9 +87,9 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
     const diagnostics: WorkspaceDiagnostic[] = []
     for (const [path, content] of Object.entries(text)) {
       const relative = path.slice(folder.length)
-      if (relative === WORKFLOW_LOCK_FILE || relative === WORKFLOW_BASE_FILE) {
+      if (relative === SOURCE_LOCK_FILE || relative === SOURCE_BASE_FILE) {
         try {
-          decl[relative === WORKFLOW_LOCK_FILE ? 'lock' : 'base'] = JSON.parse(content)
+          decl[relative === SOURCE_LOCK_FILE ? 'lock' : 'base'] = JSON.parse(content)
         } catch {
           diagnostics.push(
             diagnostic('E_DECL_SHAPE', `${path} is not valid JSON.`, { kind: 'workflow', key })
@@ -86,8 +113,8 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
     const folder = workflowFolder(key)
     const text: Record<string, string> = {}
     for (const [path, content] of Object.entries(decl.files)) text[`${folder}/${path}`] = content
-    if (decl.lock !== undefined) text[`${folder}/${WORKFLOW_LOCK_FILE}`] = json(decl.lock)
-    if (decl.base !== undefined) text[`${folder}/${WORKFLOW_BASE_FILE}`] = json(decl.base)
+    if (decl.lock !== undefined) text[`${folder}/${SOURCE_LOCK_FILE}`] = json(decl.lock)
+    if (decl.base !== undefined) text[`${folder}/${SOURCE_BASE_FILE}`] = json(decl.base)
     return { text, blobs: [] }
   },
   /** Workflows keep their own fingerprint (`sf1:`); this only tells two submissions apart. */

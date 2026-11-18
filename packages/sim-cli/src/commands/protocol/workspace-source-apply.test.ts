@@ -15,7 +15,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
-import { digest } from './workflow-source-layout'
+import { digest } from './source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -24,6 +24,10 @@ const { mockRequest: request } = contextMockFns
 const BASE = { version: 1, workspaceId: 'ws_local', resources: {} }
 const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', columns: {} })\n"
 const INGEST = "// @sim-sdk 1\nexport default workflow('Ingest', {}, () => {})\n"
+/** A workflow folder's base, as a get in `workspaceId` writes it. */
+const folderBase = (workspaceId: string) =>
+  JSON.stringify({ workflowId: 'wf_1', workspaceId, fingerprint: 'sf1:a', catalogHash: 'c' })
+const INGEST_BASE = folderBase('ws_local')
 
 function answer(overrides: Record<string, unknown> = {}) {
   return {
@@ -68,7 +72,7 @@ beforeEach(() => {
   write('.sim/base.json', JSON.stringify(BASE))
   write('tables/leads.ts', LEADS)
   write('workflows/ingest/workflow.ts', INGEST)
-  write('workflows/ingest/.sim/base.json', '{}')
+  write('workflows/ingest/.sim/base.json', INGEST_BASE)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -85,7 +89,7 @@ describe('workspaces source apply', () => {
       JSON.stringify({
         files: {
           'workflows/ingest/workflow.ts': digest(INGEST),
-          'workflows/ingest/.sim/base.json': digest('{}'),
+          'workflows/ingest/.sim/base.json': digest(INGEST_BASE),
         },
       })
     )
@@ -103,6 +107,27 @@ describe('workspaces source apply', () => {
     await apply('--yes')
 
     expect(Object.keys(bodies()[0].files)).toContain('workflows/ingest/workflow.ts')
+  })
+
+  it('sends an unchanged workflow folder whole when applying a copy to another workspace', async () => {
+    const copied = folderBase('ws_other')
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    write('workflows/ingest/.sim/base.json', copied)
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        files: {
+          'workflows/ingest/workflow.ts': digest(INGEST),
+          'workflows/ingest/.sim/base.json': digest(copied),
+        },
+      })
+    )
+    contextMockState.workspaceSource = 'flag'
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    expect(bodies()[0].files['workflows/ingest/workflow.ts']).toBe(INGEST)
   })
 
   it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
@@ -131,6 +156,28 @@ describe('workspaces source apply', () => {
     expect(existsSync(join(dir, 'workflows/ingest/functions/mine.js'))).toBe(true)
     const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files
     expect(Object.keys(written)).not.toContain('workflows/ingest/functions/old.js')
+  })
+
+  it('keeps every function file of a workflow whose new lock does not read as one', async () => {
+    write(
+      'workflows/ingest/.sim/lock.json',
+      `${JSON.stringify({ version: 1, blocks: { b0: { id: 'blk_0', codeFile: 'functions/score.js' } }, variables: {} })}\n`
+    )
+    write('workflows/ingest/functions/score.js', 'return 1\n')
+    request.mockResolvedValue(
+      answer({
+        applied: [{ kind: 'workflow', key: 'ingest', action: 'update', id: 'wf_1' }],
+        files: {
+          'workflows/ingest/workflow.ts': INGEST,
+          'workflows/ingest/.sim/lock.json': '{ not json',
+          'workflows/ingest/.sim/base.json': '{}\n',
+        },
+      })
+    )
+
+    await apply('--yes')
+
+    expect(existsSync(join(dir, 'workflows/ingest/functions/score.js'))).toBe(true)
   })
 
   it('saves what a part-way apply wrote and exits 8', async () => {

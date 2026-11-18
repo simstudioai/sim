@@ -125,7 +125,7 @@ export class ValuePrinter {
       const callee = getOwn<string>(SDK_RESOURCE_CALLS, node.kind)
       if (callee) return { ...this.call(callee, [this.string(node.key)]), selector: true }
     }
-    return this.call('raw', [this.json(node as unknown as Json)])
+    return this.call('raw', [this.json(simNodeJson(node))])
   }
 
   private text(text: string, context: FieldContext): PrintedValue {
@@ -192,4 +192,20 @@ function containsSimKey(value: unknown): boolean {
     return Object.entries(value).some(([key, item]) => key === '$sim' || containsSimKey(item))
   }
   return false
+}
+
+/** A {@link SimNode} as the plain JSON `raw()` takes, fields in the order canonicalize writes. */
+function simNodeJson(node: SimNode): Json {
+  switch (node.$sim) {
+    case 'var':
+      return { $sim: node.$sim, key: node.key }
+    case 'resource':
+      return { $sim: node.$sim, kind: node.kind, key: node.key }
+    case 'unresolved':
+      return { $sim: node.$sim, kind: node.kind, id: node.id }
+    case 'csv':
+      return { $sim: node.$sim, items: node.items.map(simNodeJson) }
+    case 'literal':
+      return { $sim: node.$sim, value: node.value }
+  }
 }

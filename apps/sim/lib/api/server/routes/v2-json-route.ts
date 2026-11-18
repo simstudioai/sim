@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
+  requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
 import type {
@@ -290,25 +291,6 @@ export const V2_PARSE_DEFAULTS = {
 
 export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
-}
-
-/**
- * Refuses at module load to build a `headSafe: false` route whose use case
- * cannot answer the authorization question on its own — see the `headSafe`
- * option below. A use case with no `authorize` leaves the builder nothing but
- * admission to answer a `HEAD` from, so the gap is a boot failure rather than a
- * silent 200.
- */
-export function requireHeadAuthorizableUseCase(
-  contract: { method: string; path: string },
-  headSafe: boolean | undefined,
-  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
-): void {
-  if (headSafe !== false) return
-  if (typeof useCase.authorize === 'function') return
-  throw new Error(
-    `V2 route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
-  )
 }
 
 /**

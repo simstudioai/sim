@@ -213,6 +213,7 @@ Return ONLY the cron expression, nothing else. No explanation, no backticks, no 
         { label: 'Auckland (UTC+12)', id: 'Pacific/Auckland' },
       ],
       value: getBrowserTimezone,
+      valueScope: 'viewer',
       required: false,
       mode: 'trigger',
       condition: { field: 'scheduleType', value: ['minutes', 'hourly'], not: true },

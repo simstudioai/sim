@@ -392,6 +392,45 @@ describe('OpenAPI generator', () => {
     )
   })
 
+  it('documents a bodiless 304 with its headers for a conditional read', () => {
+    const route = simpleRoute()
+    const conditional = {
+      ...route,
+      operation: operation('conditional', {
+        description: 'The body.',
+        headers: ['Location'],
+        notModified: { description: 'Unchanged since the tag sent.', headers: ['Location'] },
+      }),
+    }
+
+    const responses = getOperation(
+      generateOpenApiDocument(document([conditional])),
+      '/simple',
+      'get'
+    ).responses as JsonObject
+
+    expect(responses['304']).toEqual({
+      description: 'Unchanged since the tag sent.',
+      headers: { Location: { $ref: '#/components/headers/Location' } },
+    })
+    expect(Object.keys(responses['200'] as JsonObject)).toContain('content')
+  })
+
+  it('rejects a 304 that names an undeclared header', () => {
+    const route = simpleRoute()
+    const conditional = {
+      ...route,
+      operation: operation('conditional', {
+        description: 'The body.',
+        notModified: { description: 'Unchanged.', headers: ['ETag'] },
+      }),
+    }
+
+    expect(() => generateOpenApiDocument(document([conditional]))).toThrow(
+      /unknown success header ETag/
+    )
+  })
+
   it('rejects an error example that does not fit the error schema', () => {
     expect(() =>
       generateOpenApiDocument({

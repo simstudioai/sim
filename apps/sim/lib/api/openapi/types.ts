@@ -83,6 +83,12 @@ export interface OpenApiSuccessMetadata {
   description: string
   headers?: readonly string[]
   contentTypes?: readonly [string, ...string[]]
+  /**
+   * A conditional read's `304 Not Modified`: the bodiless answer to an `If-None-Match` that names
+   * the current entity tag. Documented beside the success status rather than in the contract,
+   * which validates only the bodies a route sends.
+   */
+  notModified?: { description: string; headers?: readonly string[] }
 }
 
 export interface OpenApiStatusSuccessMetadata {

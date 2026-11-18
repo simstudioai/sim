@@ -44,6 +44,12 @@ export const SOURCE_ENTRY_FILE = 'workflow.ts'
 /** The directory the printer writes function-code files under (`functions/<ident>.js`). */
 export const SOURCE_CODE_DIR = 'functions'
 
+/** A source directory's identity lock (`WorkflowLockV1`), beside the entry file. */
+export const SOURCE_LOCK_FILE = '.sim/lock.json'
+
+/** A source directory's base (`SourceBase`): where and at which fingerprint it was read. */
+export const SOURCE_BASE_FILE = '.sim/base.json'
+
 /**
  * Each function language's code file extension, which is also its template tag (`js```). The
  * languages are `CodeLanguage` (apps/sim/lib/execution/languages.ts).

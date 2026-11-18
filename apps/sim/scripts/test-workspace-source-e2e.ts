@@ -17,8 +17,11 @@ import postgres from 'postgres'
  * table and a workflow that writes to it, applies both in one run, proves a re-apply changes
  * nothing and a fresh get reproduces the directory byte for byte, refuses dropping a column with
  * data without `--allow-delete` (and drops it with it), exits 5 on an edit to a table the server
- * changed, and uploads a workspace file then deletes it once it is removed from the directory.
- * The app must run with the `workflow-code` flag on.
+ * changed, uploads a workspace file then deletes it once it is removed from the directory, and
+ * round-trips a knowledge base with one document: created by an apply, re-applied as a no-op,
+ * downloaded byte for byte by a fresh get (the document content route and the CLI's hash check),
+ * and replaced when the document is edited. The app must run with the `workflow-code` flag on and
+ * an embedding model configured for knowledge bases.
  *
  *   WORKSPACE_SOURCE_E2E_BASE_URL=http://127.0.0.1:3000 \
  *   WORKSPACE_SOURCE_E2E_DATABASE_URL=postgres://…/sim_test \
@@ -76,6 +79,23 @@ export default workflow('Ingest', {}, () => {
   start.to(save)
 })
 `
+
+const HANDBOOK = `// @sim-sdk 1
+import { defineKnowledgeBase } from '@sim/workflow-sdk/workspace'
+
+export default defineKnowledgeBase({
+  name: 'handbook',
+})
+`
+
+/** The live documents of the `handbook` knowledge base, by file name. */
+async function handbookDocuments() {
+  return sql<{ id: string; filename: string }[]>`
+    select d.id, d.filename from document d
+    join knowledge_base kb on kb.id = d.knowledge_base_id
+    where kb.workspace_id = ${workspaceId} and kb.name = 'handbook' and kb.deleted_at is null
+      and d.deleted_at is null and d.archived_at is null`
+}
 
 /** Runs the CLI from source with the fixture key; returns its exit status and parsed output. */
 function sim(configDir: string, ...argv: string[]) {
@@ -169,6 +189,8 @@ async function main() {
   const fresh = join(root, 'b')
   const filesDir = join(root, 'files')
   const filesCheck = join(root, 'files-check')
+  const kbDir = join(root, 'knowledge')
+  const kbFresh = join(root, 'knowledge-check')
   await seedFixtures()
   try {
     await check(
@@ -296,6 +318,63 @@ async function main() {
       assert.equal(removed.status, 0, removed.stderr)
       assert(!(await serverHoldsFile(config, filesCheck, 'notes.txt')), 'the file was deleted')
     })
+
+    await check(
+      'a knowledge base document round-trips: created, re-applied as a no-op, read back byte for byte, replaced',
+      async () => {
+        const read = sim(
+          config,
+          'workspaces',
+          'source',
+          'get',
+          '--dir',
+          kbDir,
+          '--only',
+          'knowledge-base'
+        )
+        assert.equal(read.status, 0, read.stderr)
+        const intro = '# Intro\n\nWelcome to the team.\n'
+        await mkdir(join(kbDir, 'knowledge/handbook/docs'), { recursive: true })
+        await writeFile(join(kbDir, 'knowledge/handbook/knowledge.ts'), HANDBOOK)
+        await writeFile(join(kbDir, 'knowledge/handbook/docs/intro.md'), intro)
+        const created = sim(config, 'workspaces', 'source', 'apply', '--dir', kbDir, '--yes')
+        assert.equal(created.status, 0, created.stderr)
+        const [document] = await handbookDocuments()
+        assert.equal(document?.filename, 'intro.md')
+
+        const again = sim(config, 'workspaces', 'source', 'apply', '--dir', kbDir, '--dry-run')
+        assert.equal(again.status, 0, again.stderr)
+        assert.equal(again.output.unchanged, 1)
+
+        await rm(kbFresh, { recursive: true, force: true })
+        const fresh = sim(
+          config,
+          'workspaces',
+          'source',
+          'get',
+          '--dir',
+          kbFresh,
+          '--only',
+          'knowledge-base'
+        )
+        assert.equal(fresh.status, 0, fresh.stderr)
+        assert.equal(
+          await readFile(join(kbFresh, 'knowledge/handbook/docs/intro.md'), 'utf8'),
+          intro
+        )
+
+        await writeFile(join(kbDir, 'knowledge/handbook/docs/intro.md'), `${intro}Edited.\n`)
+        const replaced = sim(config, 'workspaces', 'source', 'apply', '--dir', kbDir, '--yes')
+        assert.equal(replaced.status, 0, replaced.stderr)
+        assert.equal(replaced.output.updated, 1)
+        const after = await handbookDocuments()
+        assert.deepEqual(
+          after.map((entry) => entry.filename),
+          ['intro.md']
+        )
+        assert.notEqual(after[0].id, document.id, 'the edited document replaced the old one')
+      }
+    )
   } finally {
     await check('remove disposable fixtures', removeFixtures)
     await rm(root, { recursive: true, force: true })

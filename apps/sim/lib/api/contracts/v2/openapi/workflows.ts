@@ -1774,8 +1774,6 @@ const declaredRoutes = [
   ),
 ] as const
 
-const routes = declaredRoutes.map(withRequestBodyErrors)
-
 export const workflowsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-workflows.json',
   info: {
@@ -1816,9 +1814,10 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
   routes: [
-    ...routes,
-    ...[...workflowSourceOpenApiRoutes, ...sourceResourcesOpenApiRoutes].map(withRequestBodyErrors),
+    ...declaredRoutes,
+    ...workflowSourceOpenApiRoutes,
+    ...sourceResourcesOpenApiRoutes,
     ...workspaceSyncOpenApiRoutes,
-    ...workspaceSourceOpenApiRoutes.map(withRequestBodyErrors),
-  ],
+    ...workspaceSourceOpenApiRoutes,
+  ].map(withRequestBodyErrors),
 })

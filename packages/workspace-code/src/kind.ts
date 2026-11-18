@@ -70,12 +70,45 @@ export interface PrintedDeclaration {
 }
 
 /**
- * Reads and writes one kind's files. Pure: no I/O, no ids. Methods (not function properties) so a
- * registry of codecs with different declaration types type-checks.
+ * Where one kind's files live and how they travel, apart from what they declare: grouping paths
+ * into resources, which paths are blobs, what a key names and which budget the text counts
+ * against. Catalog-independent, so the CLI and the plan read every kind's layout without the
+ * server's column-type catalog a table codec needs. Methods (not function properties) so a
+ * registry of layouts and codecs type-checks.
  */
-export interface KindCodec<D> {
+export interface KindLayout {
   /** Groups the kind's paths by resource key; a path no resource owns is `E_DECL_UNKNOWN_FILE`. */
   group(paths: readonly string[]): GroupedPaths
+  /**
+   * The name a resource's base entry records one of its blobs under; a kind without it records
+   * each blob under its workspace path.
+   */
+  baseBlobName?(key: string, path: string): string
+  /** The blob path a base entry's blob `name` stands for: the inverse of `baseBlobName`. */
+  baseBlobPath?(key: string, name: string): string
+  /**
+   * Whether `path`, one of the kind's, holds bytes rather than text: a blob travels by hash, and
+   * its content only in the rounds the server asks for it. A kind without it holds only text.
+   */
+  isBlob?(path: string): boolean
+  /**
+   * What a key names: a resource key (the default), which the workspace's key table binds to the
+   * resource and a workflow names it by; or `path`, the resource's own path (a workspace file),
+   * which no key table records.
+   */
+  readonly keys?: 'resource' | 'path'
+  /**
+   * The byte limit the kind's text counts against: `declaration` (the default,
+   * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).
+   */
+  readonly budget?: 'declaration' | 'workflow'
+}
+
+/**
+ * Reads and writes one kind's files: its {@link KindLayout} plus what the files declare. Pure: no
+ * I/O, no ids.
+ */
+export interface KindCodec<D> extends KindLayout {
   /** Reads one resource's text files (workspace-relative path → text) and blobs. */
   parse(
     key: string,
@@ -86,10 +119,9 @@ export interface KindCodec<D> {
   /** Id-free canonical JSON; sha256 of it is the resource fingerprint `rf1:…`. */
   canonical(decl: D): Json
   /**
-   * The name a resource's base entry records one of its blobs under; a kind without it records
-   * each blob under its workspace path.
+   * Whether a declaration was sent without its files, unchanged since the CLI last wrote them, so
+   * nothing evaluates it (see `unchangedFiles` of the workflow kind). A kind without it always
+   * sends its files.
    */
-  baseBlobName?(key: string, path: string): string
-  /** The blob path a base entry's blob `name` stands for: the inverse of `baseBlobName`. */
-  baseBlobPath?(key: string, name: string): string
+  isUnchanged?(decl: D): boolean
 }
