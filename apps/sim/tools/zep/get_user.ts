@@ -31,6 +31,7 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
       `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
         allowSeparators: true,
         preserveWhitespace: true,
+        stripTabsAndNewlines: true,
       })}`,
     method: 'GET',
     headers: (params) => ({

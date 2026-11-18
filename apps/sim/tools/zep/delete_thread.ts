@@ -30,6 +30,7 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
       `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
         allowSeparators: true,
         preserveWhitespace: true,
+        stripTabsAndNewlines: true,
       })}`,
     method: 'DELETE',
     headers: (params) => ({
