@@ -14,12 +14,12 @@ function requestedUris(url: string): string[] {
 
 const mockFetch = vi.fn()
 
-describe('Spotify library tools with more IDs than one /me/library request takes', () => {
-  beforeEach(() => {
-    mockFetch.mockReset()
-    vi.stubGlobal('fetch', mockFetch)
-  })
+beforeEach(() => {
+  mockFetch.mockReset()
+  vi.stubGlobal('fetch', mockFetch)
+})
 
+describe('Spotify library tools with more IDs than one /me/library request takes', () => {
   it('checks all 45 tracks across two /me/library/contains requests, in order', async () => {
     const url = spotifyCheckSavedTracksTool.request.url
     if (typeof url !== 'function') throw new Error('Missing check URL builder')
