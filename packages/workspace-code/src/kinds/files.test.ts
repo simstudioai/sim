@@ -71,6 +71,13 @@ describe('fileCodec', () => {
     })
   })
 
+  it('refuses paths that differ only in Unicode normalization, which macOS holds as one file', () => {
+    expect(grouped(['files/caf\u00e9.txt', 'files/cafe\u0301.txt'])).toEqual({
+      keys: ['caf\u00e9.txt'],
+      codes: ['E_FILE_PATH_COLLISION'],
+    })
+  })
+
   it('refuses folders a case-insensitive disk holds as one folder', () => {
     expect(grouped(['files/Docs/a.txt', 'files/docs/b.txt'])).toEqual({
       keys: ['Docs/a.txt'],

@@ -71,6 +71,9 @@ describe('readDeclaration on hostile input', () => {
   it('refuses statements beside the imports and the one export', () => {
     expect(codes("console.log('x')\nexport default defineTable({})\n")).toEqual(['E_DECL_EXPORT'])
     expect(codes('export default defineTable({})\nexport const x = 1\n')).toEqual(['E_DECL_EXPORT'])
+    expect(codes('export default defineTable({})\nexport default defineTable({})\n')).toEqual([
+      'E_DECL_EXPORT',
+    ])
   })
 
   it('refuses imports from anywhere else, and renamed imports', () => {
