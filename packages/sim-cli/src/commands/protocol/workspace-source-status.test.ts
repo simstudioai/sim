@@ -1,0 +1,439 @@
+import { createHash } from 'node:crypto'
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { Command } from 'commander'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../../http/client'
+import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { digest } from './source-dir'
+import { attachWorkspaceSourceDiff, attachWorkspaceSourceStatus } from './workspace-source-status'
+
+vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
+
+const { mockRequest, mockProfileFrom } = contextMockFns
+
+const WORKSPACE_ID = 'ws_local'
+const BASE = { version: 1, workspaceId: WORKSPACE_ID, resources: {} }
+const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', columns: {} })\n"
+const DEALS = "// @sim-sdk 1\nexport default defineTable({ name: 'deals', columns: {} })\n"
+const INGEST = "// @sim-sdk 1\nexport default workflow('Ingest', {}, () => {})\n"
+const INGEST_BASE = `${JSON.stringify({ workflowId: 'wf_1', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a', catalogHash: 'c' })}\n`
+const NOTES = Buffer.from('binary notes, version one')
+
+/** The files a get wrote, by path: what `.sim/written.json` records. */
+const GOT: Record<string, string> = {
+  'tables/leads.ts': LEADS,
+  'tables/deals.ts': DEALS,
+  'workflows/ingest/workflow.ts': INGEST,
+  'workflows/ingest/.sim/base.json': INGEST_BASE,
+}
+
+let dir: string
+
+function write(path: string, text: string | Buffer) {
+  mkdirSync(dirname(join(dir, path)), { recursive: true })
+  writeFileSync(join(dir, path), text)
+}
+
+async function run(command: 'status' | 'diff', ...argv: string[]): Promise<void> {
+  const source = new Command('source')
+  attachWorkspaceSourceStatus(source)
+  attachWorkspaceSourceDiff(source)
+  source.exitOverride()
+  for (const each of source.commands) each.exitOverride()
+  await source.parseAsync(['node', 'source', command, '--dir', dir, ...argv])
+}
+
+/** The JSON the last command printed. */
+function printed(): Record<string, unknown> {
+  return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+}
+
+/** A dry run's answer: the plan's changes and findings. */
+function dryRun(
+  plan: Array<Record<string, unknown>> = [],
+  diagnostics: Array<Record<string, unknown>> = []
+) {
+  return {
+    data: {
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      plan,
+      applied: [],
+      needBlobs: [],
+      files: {},
+      base: BASE,
+      diagnostics,
+    },
+  }
+}
+
+/** A get's answer for `kinds`: the server's current files and blobs. */
+function served(files: Record<string, string>, blobs: Array<Record<string, unknown>> = []) {
+  return {
+    data: {
+      workspaceId: WORKSPACE_ID,
+      kinds: ['table', 'file', 'workflow'],
+      files,
+      blobs,
+      base: BASE,
+      skipped: [],
+      diagnostics: [],
+    },
+  }
+}
+
+/** The bodies of the dry runs sent. */
+function sentFiles(): Array<Record<string, string>> {
+  return mockRequest.mock.calls.map((call) => call[1].body.files)
+}
+
+beforeEach(() => {
+  contextMockState.output = 'json'
+  contextMockState.workspaceSource = 'config'
+  mockRequest.mockReset()
+  mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
+  dir = mkdtempSync(join(tmpdir(), 'sim-workspace-status-'))
+  write('.sim/base.json', JSON.stringify(BASE))
+  for (const [path, text] of Object.entries(GOT)) write(path, text)
+  write(
+    '.sim/written.json',
+    JSON.stringify({
+      version: 1,
+      files: Object.fromEntries(Object.entries(GOT).map(([path, text]) => [path, digest(text)])),
+    })
+  )
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  process.exitCode = undefined
+  rmSync(dir, { recursive: true, force: true })
+  vi.restoreAllMocks()
+})
+
+describe('workspaces source status', () => {
+  it('is clean, exit 0, when nothing changed on either side', async () => {
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).toEqual({
+      workspaceId: WORKSPACE_ID,
+      dir,
+      server: 'checked',
+      state: 'clean',
+      local: [],
+      drift: [],
+      conflicts: [],
+      plan: { create: 0, update: 0, delete: 0, unchanged: 0, held: 0, errors: 0, warnings: 0 },
+      next: null,
+    })
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    unlinkSync(join(dir, 'tables/deals.ts'))
+    write('skills/tone.md', '# Tone\n')
+    mockRequest.mockResolvedValue(
+      dryRun([
+        { kind: 'table', key: 'leads', action: 'update' },
+        { kind: 'table', key: 'deals', action: 'delete' },
+        { kind: 'skill', key: 'tone', action: 'create' },
+      ])
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report.state).toBe('local')
+    expect(report.local).toEqual([
+      {
+        kind: 'skill',
+        key: 'tone',
+        change: 'created',
+        files: [{ path: 'skills/tone.md', change: 'created' }],
+      },
+      {
+        kind: 'table',
+        key: 'deals',
+        change: 'deleted',
+        files: [{ path: 'tables/deals.ts', change: 'deleted' }],
+      },
+      {
+        kind: 'table',
+        key: 'leads',
+        change: 'edited',
+        files: [{ path: 'tables/leads.ts', change: 'edited' }],
+      },
+    ])
+    expect(report.next).toEqual({
+      command: `sim workspaces source apply --dir ${dir} --yes --allow-delete`,
+      reason: 'Applies your changes.',
+    })
+    expect(process.exitCode).toBe(11)
+  })
+
+  it('counts a removed kind folder as no longer managed, not as deleted resources', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).toMatchObject({ state: 'clean', local: [] })
+  })
+
+  it('sends every workflow folder whole, so the dry run compares it with the stored workflow', async () => {
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(sentFiles()[0]['workflows/ingest/workflow.ts']).toBe(INGEST)
+    expect(mockRequest.mock.calls[0][1]).toMatchObject({
+      query: { dryRun: true },
+      body: { options: { allowDelete: true } },
+    })
+  })
+
+  it('reports drift when the server changed a resource left alone here, exit 12, and names a get', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'workflow', key: 'ingest', action: 'noop' }],
+        [
+          { code: 'I_SERVER_CHANGED', severity: 'info', message: 'm', kind: 'table', key: 'leads' },
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message: 'm',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+          { code: 'W_UNDECLARED', severity: 'warning', message: 'm', kind: 'skill', key: 'new' },
+        ]
+      )
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report.state).toBe('drift')
+    expect(report.drift).toEqual([
+      { kind: 'skill', key: 'new', server: 'added' },
+      { kind: 'table', key: 'leads', server: 'changed' },
+      { kind: 'workflow', key: 'ingest', server: 'changed' },
+    ])
+    expect(report.plan).toMatchObject({ errors: 0, warnings: 0 })
+    expect(report.next).toMatchObject({ command: `sim workspaces source get --dir ${dir}` })
+    expect(process.exitCode).toBe(12)
+  })
+
+  it('never reports a resource the get skipped as added on the server', async () => {
+    write('.sim/skipped.json', JSON.stringify([{ kind: 'file', key: 'big.bin', reason: 'size' }]))
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [],
+        [{ code: 'W_UNDECLARED', severity: 'warning', message: 'm', kind: 'file', key: 'big.bin' }]
+      )
+    )
+
+    await run('status')
+
+    expect(printed()).toMatchObject({ state: 'clean', drift: [] })
+  })
+
+  it('reports a conflict when a locally edited resource changed on the server, exit 12', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'table', key: 'leads', action: 'noop' }],
+        [{ code: 'E_APPLY_STALE', severity: 'error', message: 'm', kind: 'table', key: 'leads' }]
+      )
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report.state).toBe('conflict')
+    expect(report.conflicts).toEqual([
+      { kind: 'table', key: 'leads', server: 'changed', change: 'edited' },
+    ])
+    expect(report.drift).toEqual([])
+    expect(report.next).toMatchObject({
+      command: 'sim workspaces source get --dir <fresh dir>',
+    })
+    expect(process.exitCode).toBe(12)
+  })
+
+  it('degrades to the local view when the server cannot be reached, and says so', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockRejectedValue(
+      new SimApiError('Could not reach https://sim.example: ECONNREFUSED', 0)
+    )
+
+    await run('status')
+
+    const report = printed()
+    expect(report).toMatchObject({
+      server: 'unreachable',
+      state: 'local',
+      plan: null,
+      next: { command: `sim workspaces source apply --dir ${dir} --dry-run` },
+    })
+    expect(report.note).toContain('Could not reach')
+    expect(process.exitCode).toBe(11)
+  })
+
+  it('fails rather than hides a server refusal that is not about reaching it', async () => {
+    mockRequest.mockRejectedValue(new SimApiError('Forbidden', 403, 'FORBIDDEN'))
+
+    await expect(run('status')).rejects.toThrow('Forbidden')
+  })
+
+  it('asks no server with --offline', async () => {
+    await run('status', '--offline')
+
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(printed()).toMatchObject({ server: 'offline', state: 'clean', next: null })
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  it('prints one screen ending with the next command for a person', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+    mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'text' })
+
+    await run('status')
+
+    const screen = String(vi.mocked(console.log).mock.calls.at(-1)?.[0])
+    expect(screen).toContain('edited   table leads: tables/leads.ts')
+    expect(screen.trimEnd().split('\n').at(-2)).toBe(
+      `Next: sim workspaces source apply --dir ${dir} --yes`
+    )
+  })
+})
+
+describe('workspaces source diff', () => {
+  it('shows a local edit against the base text the server still holds', async () => {
+    write('tables/leads.ts', LEADS.replace("'leads'", "'leads2'"))
+    mockRequest.mockResolvedValue(served({ 'tables/leads.ts': LEADS }))
+
+    await run('diff')
+
+    const report = printed()
+    expect(mockRequest.mock.calls[0][1]).toMatchObject({ query: { kinds: 'table' } })
+    expect(report).toMatchObject({
+      against: 'base',
+      files: [{ path: 'tables/leads.ts', change: 'edited' }],
+    })
+    const [file] = report.files as Array<{ patch: string }>
+    expect(file.patch).toContain(
+      " // @sim-sdk 1\n-export default defineTable({ name: 'leads', columns: {} })"
+    )
+    expect(file.patch).toContain("+export default defineTable({ name: 'leads2', columns: {} })")
+    expect(file.patch.startsWith('--- base/tables/leads.ts\n+++ local/tables/leads.ts\n')).toBe(
+      true
+    )
+  })
+
+  it('says the base text is gone when the server changed the file since', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    mockRequest.mockResolvedValue(served({ 'tables/leads.ts': `${LEADS}// theirs\n` }))
+
+    await run('diff')
+
+    expect(printed().files).toEqual([
+      {
+        path: 'tables/leads.ts',
+        change: 'edited',
+        unavailable:
+          'the server changed it since the directory was read, so its base text is gone; compare with --server',
+      },
+    ])
+  })
+
+  it('shows a created file without asking the server, and filters by path and by kind:key', async () => {
+    write('skills/tone.md', '# Tone\n')
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+
+    await run('diff', 'skill:tone')
+
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(printed().files).toEqual([
+      {
+        path: 'skills/tone.md',
+        change: 'created',
+        patch: '--- /dev/null\n+++ local/skills/tone.md\n@@ -0,0 +1,1 @@\n+# Tone\n',
+      },
+    ])
+
+    await run('diff', 'skills/')
+    expect((printed().files as unknown[]).length).toBe(1)
+  })
+
+  it('reports a binary file by its sizes', async () => {
+    const sha256 = createHash('sha256').update(NOTES).digest('hex')
+    write('files/notes.bin', Buffer.concat([NOTES, Buffer.from(' and two')]))
+    const written = {
+      version: 1,
+      files: {
+        ...Object.fromEntries(Object.entries(GOT).map(([path, text]) => [path, digest(text)])),
+        'files/notes.bin': sha256,
+      },
+    }
+    write('.sim/written.json', JSON.stringify(written))
+    mockRequest.mockResolvedValue(
+      served({}, [{ path: 'files/notes.bin', sha256, size: NOTES.length, id: 'f', href: '/f' }])
+    )
+
+    await run('diff')
+
+    expect(printed().files).toEqual([
+      {
+        path: 'files/notes.bin',
+        change: 'edited',
+        binary: { before: NOTES.length, after: NOTES.length + 8 },
+      },
+    ])
+  })
+
+  it('with --server, compares every selected file with the server now, sidecars left out', async () => {
+    mockRequest.mockResolvedValue(
+      served({
+        'tables/leads.ts': `${LEADS}// theirs\n`,
+        'tables/deals.ts': DEALS,
+        'workflows/ingest/workflow.ts': INGEST,
+        'workflows/ingest/.sim/base.json': '{}\n',
+      })
+    )
+
+    await run('diff', '--server')
+
+    expect(printed()).toMatchObject({
+      against: 'server',
+      files: [{ path: 'tables/leads.ts', change: 'edited' }],
+    })
+  })
+
+  it('names the unreachable server, still showing what needs none', async () => {
+    write('tables/leads.ts', `${LEADS}// edited\n`)
+    write('skills/tone.md', '# Tone\n')
+    mockRequest.mockRejectedValue(
+      new SimApiError('Could not reach https://sim.example: ECONNREFUSED', 0)
+    )
+
+    await run('diff')
+
+    const report = printed()
+    expect(report.unreachable).toContain('Could not reach')
+    expect(report.files).toMatchObject([
+      { path: 'skills/tone.md', change: 'created' },
+      {
+        path: 'tables/leads.ts',
+        unavailable: 'its base text is read from the server, which could not be reached',
+      },
+    ])
+  })
+})

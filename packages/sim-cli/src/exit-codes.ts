@@ -41,3 +41,18 @@ export const RATE_LIMITED_EXIT_CODE = 9
  * again; a write the other one made to a resource this directory changes then exits 5.
  */
 export const SOURCE_BUSY_EXIT_CODE = 10
+
+/**
+ * A `workflows source status` or `workspaces source status` whose directory holds changes no apply
+ * has saved, while the server (when it answered) changed nothing the directory read: applying
+ * writes them.
+ */
+export const SOURCE_LOCAL_CHANGES_EXIT_CODE = 11
+
+/**
+ * A `workflows source status` or `workspaces source status` that found the server changed since
+ * the directory was read: drift (a resource edited, added or deleted on the server that the
+ * directory leaves alone) or a conflict (one also changed locally, so applying it is refused as
+ * stale). Local changes may exist beside it.
+ */
+export const SOURCE_DRIFT_EXIT_CODE = 12

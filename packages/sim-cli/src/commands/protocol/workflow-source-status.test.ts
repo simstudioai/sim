@@ -1,0 +1,286 @@
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { Command } from 'commander'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../../http/client'
+import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { digest } from './source-dir'
+import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
+
+vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
+
+const { mockRequest, mockProfileFrom } = contextMockFns
+
+const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
+const WORKSPACE_ID = 'ws_local'
+const BASE = {
+  workflowId: WORKFLOW_ID,
+  workspaceId: WORKSPACE_ID,
+  fingerprint: 'sf1:a',
+  catalogHash: 'h',
+}
+const LOCK = {
+  version: 1,
+  blocks: {
+    score: { id: 'b-0', parent: null, ident: 'score', order: 0, codeFile: 'functions/score.js' },
+  },
+  variables: {},
+}
+const ENTRY =
+  "// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('W', {}, () => {\n  fn('Score', { code: codeFile('./functions/score.js') })\n})\n"
+const SCORE = 'return 1\n'
+const GOT: Record<string, string> = { 'workflow.ts': ENTRY, 'functions/score.js': SCORE }
+
+let root: string
+
+function write(base: string, path: string, text: string) {
+  mkdirSync(dirname(join(base, path)), { recursive: true })
+  writeFileSync(join(base, path), text)
+}
+
+/** Writes a workflow directory as a get leaves it, its record at `record` (the directory's own). */
+function writeWorkflowDir(dir: string, record: { at: string; prefix: string } | null) {
+  for (const [path, text] of Object.entries(GOT)) write(dir, path, text)
+  write(dir, '.sim/lock.json', JSON.stringify(LOCK))
+  write(dir, '.sim/base.json', JSON.stringify(BASE))
+  const digests = Object.fromEntries(
+    Object.entries(GOT).map(([path, text]) => [`${record?.prefix ?? ''}${path}`, digest(text)])
+  )
+  write(record?.at ?? dir, '.sim/written.json', JSON.stringify({ version: 1, files: digests }))
+}
+
+async function run(dir: string, command: 'status' | 'diff', ...argv: string[]): Promise<void> {
+  const source = new Command('source')
+  attachWorkflowSourceStatus(source)
+  attachWorkflowSourceDiff(source)
+  source.exitOverride()
+  for (const each of source.commands) each.exitOverride()
+  await source.parseAsync(['node', 'source', command, '--dir', dir, ...argv])
+}
+
+function printed(): Record<string, unknown> {
+  return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+}
+
+/** A dry run's answer: the graph diff and the findings. */
+function dryRun(diagnostics: Array<Record<string, unknown>> = [], modified = 0) {
+  return {
+    data: {
+      workflowId: WORKFLOW_ID,
+      workspaceId: WORKSPACE_ID,
+      dryRun: true,
+      applied: false,
+      diff: {
+        noop: modified === 0,
+        blocks: {
+          added: [],
+          removed: [],
+          renamed: [],
+          modified: Array.from({ length: modified }, () => ({
+            id: 'b-0',
+            key: 'score',
+            fields: ['code'],
+          })),
+        },
+        edges: { added: 0, removed: 0 },
+        variables: { added: [], removed: [], modified: [] },
+      },
+      diagnostics,
+      files: GOT,
+      lock: LOCK,
+      base: BASE,
+      mintedIds: {},
+      notes: [],
+      needsRedeployment: false,
+    },
+  }
+}
+
+const STALE = { code: 'E_APPLY_STALE', severity: 'error', message: 'The workflow changed.' }
+
+beforeEach(() => {
+  contextMockState.output = 'json'
+  mockRequest.mockReset()
+  mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
+  root = mkdtempSync(join(tmpdir(), 'sim-workflow-status-'))
+  writeWorkflowDir(root, null)
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  process.exitCode = undefined
+  rmSync(root, { recursive: true, force: true })
+  vi.restoreAllMocks()
+})
+
+describe('workflows source status', () => {
+  it('is clean, exit 0, with nothing changed on either side', async () => {
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run(root, 'status')
+
+    expect(printed()).toEqual({
+      workflowId: WORKFLOW_ID,
+      dir: root,
+      server: 'checked',
+      state: 'clean',
+      local: [],
+      drift: [],
+      conflicts: [],
+      plan: {
+        blocksAdded: 0,
+        blocksRemoved: 0,
+        blocksModified: 0,
+        edgesAdded: 0,
+        edgesRemoved: 0,
+        errors: 0,
+        warnings: 0,
+      },
+      next: null,
+    })
+    expect(mockRequest.mock.calls[0]).toMatchObject([
+      `/api/v2/workflows/${WORKFLOW_ID}/source`,
+      { query: { dryRun: true, allowDelete: true }, body: { files: GOT, lock: LOCK, base: BASE } },
+    ])
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  it('reports an edit, a deleted function file and a new one, exit 11', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    unlinkSync(join(root, 'functions/score.js'))
+    write(root, 'functions/rank.js', 'return 2\n')
+    mockRequest.mockResolvedValue(dryRun([], 1))
+
+    await run(root, 'status')
+
+    const report = printed()
+    expect(report.local).toEqual([
+      {
+        kind: 'workflow',
+        key: WORKFLOW_ID,
+        change: 'edited',
+        files: [
+          { path: 'functions/rank.js', change: 'created' },
+          { path: 'functions/score.js', change: 'deleted' },
+          { path: 'workflow.ts', change: 'edited' },
+        ],
+      },
+    ])
+    expect(report.next).toMatchObject({ command: `sim workflows source apply --dir ${root} --yes` })
+    expect(process.exitCode).toBe(11)
+  })
+
+  it('reports drift when the workflow changed on the server and nothing here, exit 12', async () => {
+    mockRequest.mockResolvedValue(dryRun([STALE]))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      state: 'drift',
+      drift: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'changed' }],
+      plan: { errors: 0 },
+      next: { command: `sim workflows source get ${WORKFLOW_ID} --dir ${root}` },
+    })
+    expect(process.exitCode).toBe(12)
+  })
+
+  it('reports a conflict when both sides changed, exit 12, and names a fresh get', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockResolvedValue(dryRun([STALE]))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      state: 'conflict',
+      conflicts: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'changed', change: 'edited' }],
+      next: { command: `sim workflows source get ${WORKFLOW_ID} --dir <fresh dir>` },
+    })
+    expect(process.exitCode).toBe(12)
+  })
+
+  it('reports a workflow the server no longer has as deleted there', async () => {
+    mockRequest.mockRejectedValue(new SimApiError('Workflow not found', 404, 'NOT_FOUND'))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({
+      state: 'drift',
+      drift: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'deleted' }],
+    })
+  })
+
+  it('degrades to the local view when the server cannot be reached', async () => {
+    write(root, 'workflow.ts', `${ENTRY}// edited\n`)
+    mockRequest.mockRejectedValue(new SimApiError('Bad gateway', 502))
+
+    await run(root, 'status')
+
+    expect(printed()).toMatchObject({ server: 'unreachable', state: 'local', plan: null })
+    expect(process.exitCode).toBe(11)
+  })
+
+  it("reads a workspace folder's changes from the workspace directory's record", async () => {
+    const folder = join(root, 'ws/workflows/score')
+    write(
+      join(root, 'ws'),
+      '.sim/base.json',
+      JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    )
+    writeWorkflowDir(folder, { at: join(root, 'ws'), prefix: 'workflows/score/' })
+    write(folder, 'functions/score.js', 'return 3\n')
+
+    await run(folder, 'status', '--offline')
+
+    expect(printed()).toMatchObject({
+      server: 'offline',
+      local: [{ files: [{ path: 'functions/score.js', change: 'edited' }] }],
+    })
+  })
+})
+
+describe('workflows source diff', () => {
+  it('shows an edit against the base text, and with --server against the server now', async () => {
+    write(root, 'functions/score.js', 'return 2\n')
+    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+
+    await run(root, 'diff')
+
+    expect(mockRequest.mock.calls[0][0]).toBe(`/api/v2/workflows/${WORKFLOW_ID}/source`)
+    expect(printed()).toEqual({
+      dir: root,
+      against: 'base',
+      files: [
+        {
+          path: 'functions/score.js',
+          change: 'edited',
+          patch:
+            '--- base/functions/score.js\n+++ local/functions/score.js\n@@ -1,1 +1,1 @@\n-return 1\n+return 2\n',
+        },
+      ],
+    })
+
+    mockRequest.mockResolvedValue({
+      data: { ...dryRun().data, files: { ...GOT, 'workflow.ts': `${ENTRY}// theirs\n` } },
+    })
+    await run(root, 'diff', '--server', 'workflow.ts')
+
+    expect(printed()).toMatchObject({
+      against: 'server',
+      files: [{ path: 'workflow.ts', change: 'edited' }],
+    })
+  })
+
+  it('prints a colorless unified diff for a person when stdout is not a terminal', async () => {
+    write(root, 'functions/score.js', 'return 2\n')
+    mockRequest.mockResolvedValue({ data: { ...dryRun().data, files: GOT } })
+    mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'text' })
+
+    await run(root, 'diff')
+
+    expect(String(vi.mocked(console.log).mock.calls.at(-1)?.[0])).toBe(
+      '--- base/functions/score.js\n+++ local/functions/score.js\n@@ -1,1 +1,1 @@\n-return 1\n+return 2'
+    )
+  })
+})

@@ -373,13 +373,15 @@ export interface WorkspaceSubmission {
  * workspace still sends every workflow it creates. `written` is `.sim/written.json` as the command
  * read it. Blobs are hashed as streams (reusing the digest `written` records for one whose size and
  * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
- * read.
+ * read. With `whole`, every workflow folder is sent with its files, as a status's dry run sends
+ * them so the server compares each with the stored workflow.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
-  written: Written
+  written: Written,
+  options: { whole?: boolean } = {}
 ): Promise<WorkspaceSubmission> {
   const {
     present: kinds,
@@ -407,7 +409,7 @@ export async function readWorkspaceDir(
     const folder = path.split('/', 2).join('/')
     recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
   }
-  for (const [key, folderPaths] of folders) {
+  for (const [key, folderPaths] of options.whole ? [] : folders) {
     const unchanged =
       recorded.get(workflowFolder(key)) === folderPaths.length &&
       folderPaths.every((path) => written.digests[path] === digest(files[path]))

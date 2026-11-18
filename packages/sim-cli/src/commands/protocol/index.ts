@@ -21,10 +21,12 @@ import { attachWorkflowRunWait } from './workflow-run-wait'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 import { attachWorkflowSourceGet } from './workflow-source-get'
+import { attachWorkflowSourceDiff, attachWorkflowSourceStatus } from './workflow-source-status'
 import { attachWorkspaceOperationWait } from './workspace-operation-wait'
 import { attachWorkspaceSourceApply } from './workspace-source-apply'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 import { attachWorkspaceSourceGet } from './workspace-source-get'
+import { attachWorkspaceSourceDiff, attachWorkspaceSourceStatus } from './workspace-source-status'
 
 function group(program: Command, name: string): Command {
   const existing = program.commands.find((command) => command.name() === name)
@@ -92,6 +94,8 @@ export function attachProtocolCommands(program: Command): void {
   attachWorkflowSourceApply(source)
   attachWorkflowSourceCreate(source)
   attachWorkflowSourceCheck(source)
+  attachWorkflowSourceStatus(source)
+  attachWorkflowSourceDiff(source)
 
   const workspaces = group(program, 'workspaces')
   attachWorkspaceOperationWait(group(workspaces, 'operations'))
@@ -99,6 +103,8 @@ export function attachProtocolCommands(program: Command): void {
   attachWorkspaceSourceGet(workspaceSource)
   attachWorkspaceSourceApply(workspaceSource)
   attachWorkspaceSourceCheck(workspaceSource)
+  attachWorkspaceSourceStatus(workspaceSource)
+  attachWorkspaceSourceDiff(workspaceSource)
 
   attachLogsFollow(group(program, 'logs'))
 
