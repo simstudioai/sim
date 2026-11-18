@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { TSCONFIG_MARKER } from './source-tree'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
 const prompt = vi.hoisted(() => ({ question: vi.fn() }))
@@ -17,6 +18,9 @@ vi.mock('node:readline/promises', () => ({
 }))
 
 const { mockRequest: request } = contextMockFns
+
+/** A real catalog projected from registry blocks, shared with the SDK's own type checks. */
+const FIXTURE_CATALOG = join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json')
 
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
@@ -164,6 +168,46 @@ describe('sim workflows source apply', () => {
     expect(request.mock.calls[0][0]).toBe(APPLY_PATH)
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
     expect(prompt.question).not.toHaveBeenCalled()
+  })
+
+  it('applies to the workflow .sim/base.json names when no workflow id is given', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome())
+
+    await apply('--dir', dir, '--yes')
+
+    expect(request.mock.calls.map((call) => call[0])).toEqual([APPLY_PATH])
+    expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+  })
+
+  it('refuses a workflow id other than the one .sim/base.json names, sending nothing', async () => {
+    setTerminal(false)
+
+    const error = await apply('00000000-0000-4000-8000-0000000000ff', '--dir', dir, '--yes').catch(
+      (caught: unknown) => caught
+    )
+
+    expect((error as SimApiError).code).toBe('SOURCE_WORKFLOW_MISMATCH')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('points tsconfig.json at a block the applied source added, from the cached catalog', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    mkdirSync(join(dir, 'config/cache/source-catalog'), { recursive: true })
+    writeFileSync(
+      join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
+      readFileSync(FIXTURE_CATALOG, 'utf8')
+    )
+    writeFileSync(join(dir, 'tsconfig.json'), `${TSCONFIG_MARKER}\n{}\n`)
+    const stored = outcome()
+    stored.data.files = { 'workflow.ts': `${ENTRY}// slack.sendMessage('Post', {})\n` }
+    request.mockResolvedValue(stored)
+
+    await apply('--dir', dir, '--yes')
+
+    const [, ...json] = readFileSync(join(dir, 'tsconfig.json'), 'utf8').split('\n')
+    expect(JSON.parse(json.join('\n')).include).toContain('.sim/sdk/blocks/slack_v2.d.ts')
   })
 
   it('never asks on a dry run, even at a terminal, and writes nothing', async () => {
@@ -505,9 +549,7 @@ describe('the code files an apply sends', () => {
 })
 
 describe('sim workflows source create on a directory with no workflow.ts', () => {
-  const CATALOG = JSON.parse(
-    readFileSync(join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json'), 'utf8')
-  )
+  const CATALOG = JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
   const MANIFEST = {
     data: {
       workspaceId: WORKSPACE_ID,

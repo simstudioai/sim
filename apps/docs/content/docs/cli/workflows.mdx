@@ -1346,7 +1346,7 @@ API request and response schemas: [createWorkflowFromSource](/api-reference/work
 ### Apply a workflow source directory to a workflow draft
 
 ```bash
-sim workflows source apply <workflowId> [options]
+sim workflows source apply [workflowId] [options]
 ```
 
 **Arguments**
@@ -1355,7 +1355,7 @@ sim workflows source apply <workflowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | Yes | Workflow whose draft the source replaces |
+| `workflowId` | No | Workflow whose draft the source replaces (default: the workflowId in .sim/base.json) |
 
 </CommandTable>
 
@@ -1392,6 +1392,26 @@ sim workflows source catalog [options]
 </CommandTable>
 
 API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+
+### Compile a workflow source directory locally, without the server
+
+```bash
+sim workflows source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+
+</CommandTable>
+
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring); the dry run still checks what only the server knows (resource keys, credentials, stored values, deployment), so run it before applying.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run `sim workflows source get` once).
 
 ### List the tables, knowledge bases, credentials, workflows, skills, custom tools and env names source can name
 

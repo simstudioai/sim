@@ -188,7 +188,11 @@ async function writeWorkspaceSource(
     loadWorkspaceTypes(client, source.workspaceId, localDeclarations(Object.keys(source.files))),
   ])
   assertSdkMajor(catalog)
-  const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
+  const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE, {
+    sources: Object.entries(source.files).flatMap(([path, text]) =>
+      path.endsWith('.ts') ? [text] : []
+    ),
+  })
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
   // hash of one listed without it and `.sim/written.json` the stat of each; they land inside the
   // directory so each moves into place by a rename, which keeps that stat.

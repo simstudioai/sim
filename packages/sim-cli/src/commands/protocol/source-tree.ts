@@ -10,11 +10,16 @@ import { isRecordLike } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import {
-  COOKBOOK_TS,
+  COOKBOOK_EXAMPLES,
   CORE_DTS,
+  defaultBlockFiles,
+  fullBlockFiles,
   generateSdkTypes,
   generateWorkspaceTypes,
+  referencedBlockTypes,
+  SDK_INDEX_FILE,
   SDK_MAJOR,
+  SDK_MODELS_FILE,
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
@@ -32,14 +37,17 @@ import {
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
-  SOURCE_COOKBOOK_FILE,
+  SOURCE_EXAMPLES_DIR,
   SOURCE_GITATTRIBUTES_FILE,
   type SourceDirChange,
+  updateSourceDir,
 } from './source-dir'
 
 const TSCONFIG_FILE = 'tsconfig.json'
+/** Type-checks the source against every current block, for a block the default one leaves out. */
+export const TSCONFIG_FULL_FILE = 'tsconfig.full.json'
 /** The SDK file whose first line names the catalog the declarations were generated from. */
-const SDK_INDEX_FILE = `${SDK_DIR}/index.d.ts`
+const SDK_INDEX_PATH = `${SDK_DIR}/${SDK_INDEX_FILE}`
 /** The workspace's resources as types (`generateWorkspaceTypes`), beside the SDK. */
 export const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
 /** A cached catalog is a few megabytes of JSON; a larger file was not written by this CLI. */
@@ -76,7 +84,7 @@ function catalogCachePath(workspaceId: string): string {
  * The cached catalog, or `null`. Standalone runs only: an embedded run has no local disk of its
  * own to cache on. The file is read without following a link and under a size cap.
  */
-function readCachedCatalog(workspaceId: string): BlockCatalog | null {
+export function cachedCatalog(workspaceId: string): BlockCatalog | null {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
   const cached = readJsonFile(catalogCachePath(workspaceId), MAX_CATALOG_CACHE_BYTES)
   return isBlockCatalog(cached) ? cached : null
@@ -108,7 +116,7 @@ export async function loadCatalog(
     workflowId?: string
   }
 ): Promise<BlockCatalog> {
-  const cached = readCachedCatalog(source.workspaceId)
+  const cached = cachedCatalog(source.workspaceId)
   let catalog: BlockCatalog
   try {
     catalog = catalogFrom(
@@ -254,7 +262,7 @@ function sdkGeneratorLine(): string {
 function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
   const generator = sdkGeneratorLine()
   return generateSdkTypes(catalog).map((file) => {
-    if (file.path !== 'index.d.ts') return [`${SDK_DIR}/${file.path}`, file.text] as const
+    if (file.path !== SDK_INDEX_FILE) return [`${SDK_DIR}/${file.path}`, file.text] as const
     const [header, ...rest] = file.text.split('\n')
     return [`${SDK_DIR}/${file.path}`, [header, generator, ...rest].join('\n')] as const
   })
@@ -289,8 +297,11 @@ export function finishTree(
 export interface SourceTreeProfile {
   /** `.sim/AGENTS.md`. */
   agents: string
-  /** The CLI's `tsconfig.json`, starting with {@link TSCONFIG_MARKER}. */
-  tsconfig: string
+  /**
+   * A `tsconfig.json` the CLI writes, starting with {@link TSCONFIG_MARKER}, that type-checks the
+   * source with the SDK declarations `sdkFiles` (directory-relative paths).
+   */
+  tsconfig: (sdkFiles: readonly string[]) => string
   /** The `.gitattributes` lines that keep the source LF. */
   gitattributes?: readonly string[]
   /** More declarations under the SDK directory, rewritten every time like `core.d.ts`. */
@@ -300,32 +311,119 @@ export interface SourceTreeProfile {
 }
 
 /**
+ * The SDK files each written tsconfig includes for source that uses the `used` block types:
+ * `tsconfig.json` the models, `workspace.d.ts` and only those blocks (plus the core builders'),
+ * so `tsc` reads a few dozen files instead of every block; `tsconfig.full.json` every current
+ * block for adding one the source does not use yet.
+ */
+function sdkIncludes(
+  catalog: BlockCatalog,
+  used: readonly string[],
+  hasWorkspaceTypes: boolean
+): { tsconfig: string[]; full: string[] } {
+  const workspace = hasWorkspaceTypes ? [WORKSPACE_TYPES_FILE] : []
+  const inSdk = (files: readonly string[]) => files.map((file) => `${SDK_DIR}/${file}`)
+  return {
+    tsconfig: [
+      ...inSdk([SDK_MODELS_FILE]),
+      ...workspace,
+      ...inSdk(defaultBlockFiles(catalog, used)),
+    ],
+    full: [...inSdk(fullBlockFiles(catalog, used)), ...workspace],
+  }
+}
+
+/**
+ * The CLI's tsconfig files for source that uses `use`: each written when it is absent or still
+ * starts with {@link TSCONFIG_MARKER}, so a person's own file is never replaced.
+ */
+function tsconfigWrites(
+  catalog: BlockCatalog,
+  hasWorkspaceTypes: boolean,
+  profile: Pick<SourceTreeProfile, 'tsconfig'>,
+  use: SourceTreeUse,
+  current: { tsconfig: string | null; full: string | null }
+): { write: Array<readonly [string, string]>; ownsTsconfig: boolean } {
+  const used = [
+    ...new Set([...(use.blockTypes ?? []), ...referencedBlockTypes(catalog, use.sources)]),
+  ]
+  const includes = sdkIncludes(catalog, used, hasWorkspaceTypes)
+  const owned = (text: string | null) => text === null || text.startsWith(TSCONFIG_MARKER)
+  const write: Array<readonly [string, string]> = []
+  const ownsTsconfig = owned(current.tsconfig)
+  if (ownsTsconfig) write.push([TSCONFIG_FILE, profile.tsconfig(includes.tsconfig)])
+  if (owned(current.full)) write.push([TSCONFIG_FULL_FILE, profile.tsconfig(includes.full)])
+  return { write, ownsTsconfig }
+}
+
+/**
+ * Rewrites the CLI's tsconfig files after an apply, which keeps the declarations but may have
+ * added a block `tsconfig.json` should now include. It reads the workspace's cached catalog, so
+ * it costs no request; without one nothing changes until the next get.
+ */
+export async function refreshTsconfigs(
+  dir: string,
+  workspaceId: string,
+  profile: Pick<SourceTreeProfile, 'tsconfig'>,
+  use: SourceTreeUse
+): Promise<void> {
+  const catalog = cachedCatalog(workspaceId)
+  if (!catalog) return
+  const [tsconfig, full, workspaceTypes] = await Promise.all([
+    readSourceText(dir, TSCONFIG_FILE),
+    readSourceText(dir, TSCONFIG_FULL_FILE),
+    readSourceText(dir, WORKSPACE_TYPES_FILE),
+  ])
+  const { write } = tsconfigWrites(catalog, workspaceTypes !== null, profile, use, {
+    tsconfig,
+    full,
+  })
+  await updateSourceDir(dir, { write })
+}
+
+/** What a tree write type-checks: the source texts it scans for builders, and known block types. */
+export interface SourceTreeUse {
+  /** Workflow source texts (`workflow.ts` files); the builders they call pick the blocks. */
+  sources: Iterable<string>
+  /** Block types the server reported the source using, as blocks or agent tools. */
+  blockTypes?: readonly string[]
+}
+
+/**
  * Everything beside the printed source that makes a directory editable: the agent guide and the
- * cookbook example (both rewritten every time and never in `.sim/written.json`), the declarations
- * (regenerated only when the catalog or generator changed), `workspace.d.ts`, the CLI's
- * `tsconfig.json` and the LF lines.
+ * example workflows (both rewritten every time and never in `.sim/written.json`), the
+ * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
+ * CLI's `tsconfig.json` and `tsconfig.full.json`, and the LF lines.
  */
 export async function sourceTreeChange(
   dir: string,
   catalog: BlockCatalog,
   workspaceTypes: string | null,
-  profile: SourceTreeProfile
+  profile: SourceTreeProfile,
+  use: SourceTreeUse
 ): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, profile.agents],
-    [SOURCE_COOKBOOK_FILE, COOKBOOK_TS],
+    ...Object.entries(COOKBOOK_EXAMPLES).map(
+      ([file, text]) => [`${SOURCE_EXAMPLES_DIR}/${file}`, text] as const
+    ),
     ...(profile.examples ?? []),
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
     ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
-  const [gitattributes, index, tsconfig] = await Promise.all([
+  const [gitattributes, index, tsconfig, tsconfigFull] = await Promise.all([
     readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
-    readSourceText(dir, SDK_INDEX_FILE),
+    readSourceText(dir, SDK_INDEX_PATH),
     readSourceText(dir, TSCONFIG_FILE),
+    readSourceText(dir, TSCONFIG_FULL_FILE),
   ])
-  const ownsTsconfig = tsconfig === null || tsconfig.startsWith(TSCONFIG_MARKER)
-  if (ownsTsconfig) write.push([TSCONFIG_FILE, profile.tsconfig])
+  const tsconfigs = tsconfigWrites(catalog, workspaceTypes !== null, profile, use, {
+    tsconfig,
+    full: tsconfigFull,
+  })
+  write.push(...tsconfigs.write)
+  const ownsTsconfig = tsconfigs.ownsTsconfig
   const mergedAttributes = mergedGitattributes(gitattributes, profile.gitattributes)
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
   const indexHead = index?.split('\n', 2).join('\n')

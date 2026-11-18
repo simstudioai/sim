@@ -25,17 +25,19 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    sim workflows source get <workflowId> --dir ./support-triage
    ```
 
-   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names. It also writes a `tsconfig.json` that resolves them, unless the directory already has its own `tsconfig.json`, which is left as it is, plus two files for coding agents: `.sim/AGENTS.md`, a short guide, and `.sim/examples/cookbook.ts`, one correct example of each common block to copy from. The example names placeholder resources, so `tsconfig.json` leaves it out of the type-check.
+   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names, with `.sim/sdk/INDEX.md` listing every builder by block and operation. It also writes a `tsconfig.json` that resolves them and type-checks the blocks the workflow uses, and a `tsconfig.full.json` that type-checks every block, unless the directory already has files of those names, which are left as they are. For coding agents it writes `.sim/AGENTS.md`, a short guide, and example workflows under `.sim/examples/` with one correct example of each common block to copy from. The examples name placeholder resources, so the tsconfig files leave them out of the type-check.
 
    `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
 
-2. Edit `workflow.ts`. Your editor type-checks it against the generated declarations, and `tsc -p ./support-triage` checks it from the command line.
+2. Edit `workflow.ts`. Your editor type-checks it against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for. If you add a block the workflow does not use yet, check with `-p ./support-triage/tsconfig.full.json` until the next save. `sim workflows source check --dir ./support-triage` compiles the file with Sim's compiler on your machine, without a request, for a quick first pass.
 
 3. Check the change without saving it:
 
    ```bash
-   sim workflows source apply <workflowId> --dir ./support-triage --dry-run
+   sim workflows source apply --dir ./support-triage --dry-run
    ```
+
+   `apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow.
 
    Sim compiles the file and runs every check a save would run: unknown settings, missing required fields, broken references, permissions, and locked blocks. Each problem prints with its line, the code around it, and a hint:
 
@@ -52,10 +54,10 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 4. Save the draft:
 
    ```bash
-   sim workflows source apply <workflowId> --dir ./support-triage --yes
+   sim workflows source apply --dir ./support-triage --yes
    ```
 
-   The workflow builder updates for anyone who has the workflow open. Deploy when you are ready.
+   The workflow builder updates for anyone who has the workflow open. Deploy when you are ready. The save rewrites `workflow.ts` in canonical form, so read it again before the next edit.
 
    Lines starting with `note:` explain where the save differs from the file. For example, renaming the workflow in `workflow('…')` does not rename the stored workflow, so the save writes the stored name back into `workflow.ts`.
 

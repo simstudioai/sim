@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { COOKBOOK_TS } from '@sim/workflow-sdk/codegen'
+import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -61,6 +61,12 @@ function program(): Command {
   }
   override(root)
   return root
+}
+
+/** The `include` list of a tsconfig the CLI wrote into the output directory. */
+function tsconfigInclude(project: string): string[] {
+  const [, ...json] = readFileSync(join(outDir, project), 'utf8').split('\n')
+  return JSON.parse(json.join('\n')).include
 }
 
 async function get(...argv: string[]): Promise<void> {
@@ -138,15 +144,70 @@ describe('sim workflows source get --dir', () => {
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })
 
-  it('writes the cookbook example beside the guide, outside what the tsconfig.json type-checks', async () => {
+  it('writes the example workflows beside the guide, outside what the tsconfig files type-check', async () => {
     serve()
 
     await get('--dir', outDir)
 
-    expect(readFileSync(join(outDir, '.sim/examples/cookbook.ts'), 'utf8')).toBe(COOKBOOK_TS)
-    const [marker, ...tsconfig] = readFileSync(join(outDir, 'tsconfig.json'), 'utf8').split('\n')
-    expect(marker).toContain('sim workflows source get')
-    expect(JSON.parse(tsconfig.join('\n')).include).toEqual(['workflow.ts', '.sim/sdk/**/*.d.ts'])
+    for (const [file, text] of Object.entries(COOKBOOK_EXAMPLES)) {
+      expect(readFileSync(join(outDir, '.sim/examples', file), 'utf8')).toBe(text)
+    }
+    for (const project of ['tsconfig.json', 'tsconfig.full.json']) {
+      const [marker] = readFileSync(join(outDir, project), 'utf8').split('\n')
+      expect(marker).toContain('sim workflows source get')
+      expect(tsconfigInclude(project).some((path) => path.startsWith('.sim/examples'))).toBe(false)
+    }
+  })
+
+  it('type-checks only the blocks the source uses by default, and every current block in tsconfig.full.json', async () => {
+    serve({
+      [SOURCE_PATH]: () =>
+        source(
+          {
+            'workflow.ts': [
+              '// @sim-sdk 1',
+              "const mail = gmail.sendEmail('Mail', {})",
+              "const bot = agent('Bot', { tools: [slack.tool.sendMessage({})] })",
+            ].join('\n'),
+          },
+          ['agent']
+        ),
+    })
+
+    await get('--dir', outDir)
+
+    const include = tsconfigInclude('tsconfig.json')
+    expect(include.slice(0, 3)).toEqual([
+      'workflow.ts',
+      '.sim/sdk/models.d.ts',
+      '.sim/sdk/workspace.d.ts',
+    ])
+    expect(include).toEqual(
+      expect.arrayContaining([
+        '.sim/sdk/blocks/agent.d.ts',
+        '.sim/sdk/blocks/gmail_v2.d.ts',
+        '.sim/sdk/blocks/slack_v2.d.ts',
+        '.sim/sdk/blocks/workflow_input.d.ts',
+      ])
+    )
+    expect(include).not.toContain('.sim/sdk/blocks/google_sheets_v2.d.ts')
+    expect(include.every((path) => existsSync(join(outDir, path)))).toBe(true)
+    expect(tsconfigInclude('tsconfig.full.json')).toEqual([
+      'workflow.ts',
+      '.sim/sdk/index.d.ts',
+      '.sim/sdk/workspace.d.ts',
+    ])
+  })
+
+  it('writes one declaration file per block, and the builder index', async () => {
+    serve()
+
+    await get('--dir', outDir)
+
+    expect(existsSync(join(outDir, '.sim/sdk/operations'))).toBe(false)
+    expect(readFileSync(join(outDir, '.sim/sdk/INDEX.md'), 'utf8')).toContain(
+      '- `gmail.sendEmail` — Gmail: Send Email → `blocks/gmail_v2.d.ts` (`GmailSendEmailParams`)'
+    )
   })
 
   it('revalidates one cached catalog per workspace, whatever the output directory, and reuses it on 304', async () => {

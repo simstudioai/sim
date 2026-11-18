@@ -7,7 +7,13 @@
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
+import {
+  SDK_GUIDE_FILE,
+  SOURCE_COMPILER_OPTIONS,
+  typecheckCommand,
+  WORKSPACE_COOKBOOK,
+  WORKSPACE_SDK_DTS,
+} from '@sim/workflow-sdk/codegen'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -32,7 +38,12 @@ import {
   type StatDigest,
   type Written,
 } from './source-dir'
-import { type LocalDeclarations, type SourceTreeProfile, TSCONFIG_MARKER } from './source-tree'
+import {
+  type LocalDeclarations,
+  type SourceTreeProfile,
+  TSCONFIG_FULL_FILE,
+  TSCONFIG_MARKER,
+} from './source-tree'
 import { statDigest } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
@@ -40,31 +51,31 @@ const WORKSPACE_SDK_DIR = `${SOURCE_SDK_DIR}/workspace`
 /** An empty kind folder still manages its kind, so a get keeps one with this marker. */
 const KEEP_FILE = '.gitkeep'
 
-const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
-  {
-    compilerOptions: {
-      target: 'ES2022',
-      lib: ['ES2022'],
-      module: 'ESNext',
-      moduleResolution: 'bundler',
-      moduleDetection: 'force',
-      types: [],
-      strict: true,
-      noEmit: true,
-      skipLibCheck: true,
-      paths: {
-        '@sim/workflow-sdk': [`./${SOURCE_SDK_DIR}/core.d.ts`],
-        '@sim/workflow-sdk/workspace': [`./${WORKSPACE_SDK_DIR}/index.d.ts`],
+/**
+ * A `tsconfig.json` for the workspace directory: every kind's TypeScript files, checked with the
+ * workspace declaration SDK and the workflow SDK files `sdkFiles`.
+ */
+function workspaceTsconfig(sdkFiles: readonly string[]): string {
+  return `${TSCONFIG_MARKER}\n${JSON.stringify(
+    {
+      compilerOptions: {
+        ...SOURCE_COMPILER_OPTIONS,
+        skipLibCheck: true,
+        paths: {
+          '@sim/workflow-sdk': [`./${SOURCE_SDK_DIR}/core.d.ts`],
+          '@sim/workflow-sdk/workspace': [`./${WORKSPACE_SDK_DIR}/index.d.ts`],
+        },
       },
+      include: [
+        ...APPLY_ORDER.flatMap((kind) => WORKSPACE_KIND_SPECS[kind].typeChecked),
+        `${WORKSPACE_SDK_DIR}/*.d.ts`,
+        ...sdkFiles,
+      ],
     },
-    include: [
-      ...APPLY_ORDER.flatMap((kind) => WORKSPACE_KIND_SPECS[kind].typeChecked),
-      `${SOURCE_SDK_DIR}/**/*.d.ts`,
-    ],
-  },
-  null,
-  2
-)}\n`
+    null,
+    2
+  )}\n`
+}
 
 /** Where the workspace example is written: `.sim/examples/workspace/<path>`. */
 const WORKSPACE_EXAMPLES_DIR = '.sim/examples/workspace'
@@ -85,7 +96,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop (run from this directory)
 
-1. Edit the files. \`bunx tsc -p .\` type-checks them, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+1. Edit the files. \`${typecheckCommand()}\` type-checks them with the TypeScript release the declarations are built for, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is. \`tsconfig.json\` checks only the blocks the workflows used at the last get, which keeps it fast: a builder from another block fails with \`has no exported member\`, so check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\` (every current block) until the next get. \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations.
 2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
@@ -117,7 +128,7 @@ Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 /** The workspace directory's tree beside the printed source. */
 export const WORKSPACE_TREE: SourceTreeProfile = {
   agents: AGENTS_GUIDE,
-  tsconfig: TSCONFIG,
+  tsconfig: workspaceTsconfig,
   gitattributes: ['*.ts text eol=lf', '*.js text eol=lf', '*.md text eol=lf', '*.json text eol=lf'],
   sdk: Object.entries(WORKSPACE_SDK_DTS).map(
     ([name, text]) => [`${WORKSPACE_SDK_DIR}/${name}`, text] as const
