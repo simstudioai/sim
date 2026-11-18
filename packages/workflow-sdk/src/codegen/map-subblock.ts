@@ -108,7 +108,6 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     case 'project-selector':
     case 'document-selector':
     case 'column-selector':
-    case 'mcp-server-selector':
     case 'mcp-tool-selector':
       return { type: 'string', doc: [...doc, ...selectorDoc(subBlock)] }
     case 'folder-selector':
@@ -117,6 +116,8 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
         : { type: 'string', doc: [...doc, ...selectorDoc(subBlock)] }
     case 'knowledge-base-selector':
       return { type: 'KnowledgeBaseRef', doc }
+    case 'mcp-server-selector':
+      return { type: 'McpServerRef', doc }
     case 'table-selector':
       return { type: 'TableRef', doc }
     case 'workflow-selector':

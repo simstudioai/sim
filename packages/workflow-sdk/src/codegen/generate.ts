@@ -64,6 +64,7 @@ const CORE_TYPE_NAMES = [
   'JsonWithRefs',
   'KnowledgeBaseRef',
   'LiteralUnion',
+  'McpServerRef',
   'Message',
   'Model',
   'ModelFallback',
