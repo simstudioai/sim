@@ -29,6 +29,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   getTableColumns: vi.fn(() => ({})),
+  inArray: vi.fn(),
   isNull: vi.fn(),
   sql: vi.fn(() => 'updated_at::text'),
 }))

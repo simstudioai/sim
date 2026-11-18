@@ -1,3 +1,5 @@
+import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
+import { kindOfPath } from '@sim/workspace-code/layout'
 import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
@@ -20,3 +22,20 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     return v2CaughtOrchestrationError(error)
   },
 })
+
+/**
+ * The source-write units a workspace apply (or dry run) costs: one for each workflow folder it
+ * sends with its files, which it evaluates as a single-workflow apply (one unit) would, and at
+ * least one. A folder sent as its base alone is never evaluated.
+ */
+export function workspaceApplyRateCost(files: Readonly<Record<string, string>>): number {
+  const { groups } = workflowCodec.group(
+    Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
+  )
+  let evaluated = 0
+  for (const [key, paths] of groups) {
+    const folder = `${workflowFolder(key)}/`
+    if (paths.some((path) => !path.slice(folder.length).startsWith('.sim/'))) evaluated += 1
+  }
+  return Math.max(1, evaluated)
+}

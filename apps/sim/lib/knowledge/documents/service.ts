@@ -2952,6 +2952,7 @@ export async function getDocuments(
     fileUrl: string
     contentHash: string | null
     fileSize: number
+    fileSha256: string | null
     mimeType: string
     chunkCount: number
     tokenCount: number
@@ -3060,6 +3061,7 @@ export async function getDocuments(
         fileUrl: document.fileUrl,
         contentHash: document.contentHash,
         fileSize: document.fileSize,
+        fileSha256: document.fileSha256,
         mimeType: document.mimeType,
         chunkCount: document.chunkCount,
         tokenCount: document.tokenCount,
@@ -3178,6 +3180,7 @@ export async function getDocuments(
       fileUrl: doc.fileUrl,
       contentHash: doc.contentHash,
       fileSize: doc.fileSize,
+      fileSha256: doc.fileSha256,
       mimeType: doc.mimeType,
       chunkCount: doc.chunkCount,
       tokenCount: doc.tokenCount,
@@ -3286,12 +3289,36 @@ export async function getKnowledgeDocumentById(
   return row ? { ...row, connectorType: row.connectorType ?? null } : null
 }
 
+/**
+ * Records the SHA-256 of a document's original bytes, read from `storageKey`. Only a document
+ * that still holds that key and has none recorded is written, so a concurrent replace or an
+ * earlier record wins.
+ */
+export async function recordDocumentFileSha256(
+  documentId: string,
+  storageKey: string,
+  sha256: string
+): Promise<void> {
+  await db
+    .update(document)
+    .set({ fileSha256: sha256 })
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.storageKey, storageKey),
+        isNull(document.fileSha256)
+      )
+    )
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string
     fileUrl: string
     fileSize: number
     mimeType: string
+    /** SHA-256 of the file's bytes, when the caller holds them (`document.fileSha256`). */
+    fileSha256?: string
     documentTagsData?: string
     tag1?: string
     tag2?: string
@@ -3389,6 +3416,7 @@ export async function createSingleDocument(
     fileUrl: resolvedDocumentData.fileUrl,
     storageKey: getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl),
     fileSize: resolvedDocumentData.fileSize,
+    fileSha256: documentData.fileSha256 ?? null,
     mimeType: resolvedDocumentData.mimeType,
     chunkCount: 0,
     tokenCount: 0,

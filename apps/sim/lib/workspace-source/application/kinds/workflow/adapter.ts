@@ -17,8 +17,9 @@
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { parseWorkflowLock, type SourceBase, type WorkflowLockV1 } from '@sim/workflow-code'
-import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
+import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   type BaseResource,
   fingerprintOf,
@@ -38,10 +39,15 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,
+  type EvaluatedSource,
 } from '@/lib/workflows/application/apply-workflow-source'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
-import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
+import {
+  type ReadWorkflowSourceResult,
+  readWorkflowSource,
+  readWorkflowSources,
+} from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
@@ -57,6 +63,7 @@ import {
   kindFinding,
   noBaseFinding,
   planUndeclared,
+  refuseDeclaredTwice,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
@@ -64,7 +71,10 @@ import type {
   KindAdapter,
   PlanContext,
   PlannedChange,
+  ReadOutcome,
+  ReadResource,
   SourceContext,
+  StoredResource,
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
@@ -77,6 +87,12 @@ const LIST_PAGE = 200
 
 /** Undeclared workflows a plan reads at once to fingerprint them for a delete. */
 const FINGERPRINT_CONCURRENCY = 4
+
+/** Edited workflow folders a plan evaluates at once. */
+const PLAN_CONCURRENCY = 4
+
+/** Workflows a get reads together: one authorization and one graph load for each batch. */
+const READ_BATCH = 50
 
 /**
  * The root base's fingerprint of a workflow: its stored source fingerprint (`sf1:`), so a delete
@@ -98,13 +114,36 @@ async function currentFingerprint(
   return workflowFingerprint(source.base)
 }
 
+/** A workflow's source as its folder prints it, with its base entry. */
+function readOf(
+  stored: StoredResource<StoredWorkflowState>,
+  source: Pick<ReadWorkflowSourceResult, 'files' | 'lock' | 'base' | 'diagnostics'>
+): ReadResource {
+  const printed = workflowCodec.print(stored.key, {
+    files: source.files,
+    lock: source.lock,
+    base: source.base,
+  })
+  return {
+    text: printed.text,
+    blobs: [],
+    base: { id: stored.id, fingerprint: workflowFingerprint(source.base) },
+    diagnostics: inFolder(stored.key, source.diagnostics),
+  }
+}
+
 /** A stored workflow carries nothing beyond its id and name: the pipeline reads the rest. */
 type StoredWorkflowState = null
 
-/** What an update applies, decided at plan time: the folder's validated lock and base. */
+/** What a write applies, decided at plan time. */
 interface WorkflowPlan {
-  lock: WorkflowLockV1
-  base: SourceBase
+  /** An update's validated lock and base; a create has none. */
+  update?: { lock: WorkflowLockV1; base: SourceBase }
+  /**
+   * The plan's evaluation, which the write commits without evaluating again; absent when it
+   * resolved a resource this apply creates first, whose stand-in id the write must replace.
+   */
+  evaluated?: EvaluatedSource
 }
 
 type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
@@ -171,20 +210,66 @@ function readLock(
 }
 
 /**
- * Plans one workflow folder. `pending` holds the resources earlier kinds and folders of this apply
- * create or adopt, which the dry run resolves; a created workflow carries its own entry, so a
- * later folder naming it resolves too.
+ * Declared folders sent with their files whose base names the same workflow as another declared
+ * folder's, other than the folder bound to that workflow: copies (`cp -r`), each mapped to the
+ * folder it was copied from. Writing one would overwrite that workflow and take its key, so the
+ * plan refuses it. A folder sent as its base alone writes nothing, so it is never refused.
  */
-async function planWorkflow(
+function copiedFolders(
+  desired: ReadonlyMap<string, WorkflowDecl>,
+  stored: StoredSet<StoredWorkflowState>,
+  workspaceId: string
+): Map<string, string> {
+  const keysByWorkflow = new Map<string, string[]>()
+  for (const [key, decl] of desired) {
+    const base = workflowSourceBase(decl)
+    if (base?.workspaceId !== workspaceId) continue
+    keysByWorkflow.set(base.workflowId, [...(keysByWorkflow.get(base.workflowId) ?? []), key])
+  }
+  const copies = new Map<string, string>()
+  for (const [workflowId, keys] of keysByWorkflow) {
+    if (keys.length < 2) continue
+    const bound = keys.find((key) => stored.bound.get(key)?.id === workflowId)
+    for (const key of keys) {
+      if (key === bound || Object.keys(desired.get(key)?.files ?? {}).length === 0) continue
+      copies.set(key, bound ?? keys.find((other) => other !== key) ?? key)
+    }
+  }
+  return copies
+}
+
+/** `E_WORKFLOW_FOLDER_COPIED`: folder `key` holds the base of folder `original`. */
+function copiedFinding(key: string, original: string): WorkspaceSourceDiagnostic {
+  return kindFinding(
+    'workflow',
+    key,
+    'E_WORKFLOW_FOLDER_COPIED',
+    `${workflowFolder(key)} holds the ${SOURCE_BASE_FILE} of ${workflowFolder(original)}, so applying it would overwrite that workflow.`,
+    {
+      hint: `To create ${workflowFolder(key)} as a new workflow, delete its .sim/ folder; to keep one workflow, delete one of the two folders.`,
+      file: `${workflowFolder(key)}/${SOURCE_BASE_FILE}`,
+    }
+  )
+}
+
+/**
+ * What planning a folder takes: a decided change (a no-op, or a refusal), an update of a stored
+ * workflow to evaluate, or a create to evaluate.
+ */
+type FolderStep =
+  | { change: WorkflowChange }
+  | { change: WorkflowChange; update: { workflowId: string; base: SourceBase } }
+  | { change: WorkflowChange; create: true }
+
+/** Decides what planning folder `key` takes, without evaluating it. */
+function classifyFolder(
   key: string,
   decl: WorkflowDecl,
   stored: StoredSet<StoredWorkflowState>,
-  ctx: PlanContext,
-  pending: readonly PendingResource[]
-): Promise<WorkflowChange> {
+  workspaceId: string,
+  copiedFrom: string | undefined
+): FolderStep {
   const change: WorkflowChange = { kind: 'workflow', key, action: 'noop', decl, diagnostics: [] }
-  const { principal } = ctx
-  const workspaceId = ctx.workspace.workspaceId
   const base = workflowSourceBase(decl)
   const existing =
     base && base.workspaceId === workspaceId
@@ -192,6 +277,11 @@ async function planWorkflow(
           (workflow) => workflow.id === base.workflowId
         )
       : undefined
+  if (copiedFrom !== undefined) {
+    change.diagnostics.push(copiedFinding(key, copiedFrom))
+    // It still targets the workflow, so the plan never reads that workflow as undeclared.
+    return { change: { ...change, ...(existing ? { storedId: existing.id } : {}) } }
+  }
   const holder = stored.bound.get(key)
   if (holder && holder.id !== existing?.id) {
     change.diagnostics.push(
@@ -205,14 +295,14 @@ async function planWorkflow(
           )
         : noBaseFinding('workflow', key)
     )
-    return change
+    return { change }
   }
   const unchanged = Object.keys(decl.files).length === 0
-  if (unchanged && existing) return { ...change, storedId: existing.id }
+  if (unchanged && existing) return { change: { ...change, storedId: existing.id } }
   // The folder's base names a workflow of this workspace the server no longer holds.
   if (!existing && base?.workspaceId === workspaceId) {
     change.diagnostics.push(serverGoneFinding('workflow', key, !unchanged))
-    return change
+    return { change }
   }
   if (unchanged) {
     change.diagnostics.push(
@@ -224,52 +314,115 @@ async function planWorkflow(
         { hint: 'Edit the folder so the apply sends its files and creates the workflow here.' }
       )
     )
+    return { change }
+  }
+  if (existing && base) return { change, update: { workflowId: existing.id, base } }
+  return { change, create: true }
+}
+
+/**
+ * Whether a plan's evaluation still holds at write time: it resolved no stand-in id of a resource
+ * this apply creates first (those get their real ids only once written).
+ */
+function commitsAsPlanned(
+  references: readonly ResourceKeyRef[],
+  pending: readonly PendingResource[]
+): boolean {
+  return !references.some((ref) =>
+    pending.some((entry) => entry.placeholder && entry.kind === ref.kind && entry.key === ref.key)
+  )
+}
+
+/**
+ * Evaluates an edited folder of a stored workflow (plan only, no write). `pending` holds the
+ * resources this apply creates or adopts first, which the evaluation resolves.
+ */
+async function planUpdate(
+  change: WorkflowChange,
+  update: { workflowId: string; base: SourceBase },
+  ctx: PlanContext,
+  pending: readonly PendingResource[]
+): Promise<WorkflowChange> {
+  const { key, decl } = change
+  if (!decl) return change
+  const read = readLock(key, decl)
+  if ('diagnostics' in read) {
+    change.diagnostics.push(...read.diagnostics)
     return change
   }
-  try {
-    if (existing && base) {
-      const read = readLock(key, decl)
-      if ('diagnostics' in read) {
-        change.diagnostics.push(...read.diagnostics)
-        return change
-      }
-      const result = await applyWorkflowSource.execute({
-        principal,
-        input: {
-          workflowId: existing.id,
-          files: decl.files,
-          lock: read.lock,
-          base,
-          dryRun: true,
-          pendingResources: pending,
-        },
-      })
-      change.diagnostics.push(...inFolder(key, result.diagnostics))
-      // A graph no-op that changes only idents, order or comments still writes its source meta.
-      const metaOnly = result.diff.noop && result.sourceMetaChanged
-      return {
-        ...change,
-        action: result.diff.noop && !metaOnly ? 'noop' : 'update',
-        storedId: existing.id,
-        fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
-        refs: sourceRefs(result.references),
-        detail: { lock: read.lock, base },
-      }
-    }
-    const result = await createWorkflowFromSource.execute({
-      principal,
-      input: { workspaceId, files: decl.files, dryRun: true, pendingResources: pending },
-    })
-    change.diagnostics.push(...inFolder(key, result.diagnostics))
-    return {
+  const result = await applyWorkflowSource.execute({
+    principal: ctx.principal,
+    input: {
+      workflowId: update.workflowId,
+      files: decl.files,
+      lock: read.lock,
+      base: update.base,
+      planOnly: true,
+      pendingResources: pending,
+      shared: ctx.shared,
+    },
+  })
+  change.diagnostics.push(...inFolder(key, result.diagnostics))
+  // A graph no-op that changes only idents, order or comments still writes its source meta.
+  const metaOnly = result.diff.noop && result.sourceMetaChanged
+  const evaluated =
+    result.evaluated && commitsAsPlanned(result.references, pending) ? result.evaluated : undefined
+  return {
+    ...change,
+    action: result.diff.noop && !metaOnly ? 'noop' : 'update',
+    storedId: update.workflowId,
+    fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
+    refs: sourceRefs(result.references),
+    detail: { update: { lock: read.lock, base: update.base }, ...(evaluated ? { evaluated } : {}) },
+  }
+}
+
+/**
+ * Evaluates a new folder (plan only, no write). A create carries its own pending entry, so a
+ * later folder naming it resolves; `name` is the workflow name it compiles to, when it compiled.
+ */
+async function planCreate(
+  change: WorkflowChange,
+  ctx: PlanContext,
+  pending: readonly PendingResource[]
+): Promise<{ change: WorkflowChange; name?: string }> {
+  const { decl } = change
+  if (!decl) return { change }
+  const result = await createWorkflowFromSource.execute({
+    principal: ctx.principal,
+    input: {
+      workspaceId: ctx.workspace.workspaceId,
+      files: decl.files,
+      planOnly: true,
+      pendingResources: pending,
+      shared: ctx.shared,
+    },
+  })
+  change.diagnostics.push(...inFolder(change.key, result.diagnostics))
+  const evaluated =
+    result.evaluated && commitsAsPlanned(result.references, pending) ? result.evaluated : undefined
+  return {
+    change: {
       ...change,
       action: 'create',
       pending: pendingOf({ ...change, action: 'create' }),
       fields: diffFields(result.diff),
       refs: sourceRefs(result.references),
-    }
+      ...(evaluated ? { detail: { evaluated } } : {}),
+    },
+    ...(result.evaluated ? { name: result.workflowName } : {}),
+  }
+}
+
+/** Runs one folder's evaluation, turning its refusal into the folder's finding. */
+async function refusing(
+  change: WorkflowChange,
+  evaluate: () => Promise<WorkflowChange>
+): Promise<WorkflowChange> {
+  try {
+    return await evaluate()
   } catch (error) {
-    change.diagnostics.push(refusalDiagnostic(error, { kind: 'workflow', key }))
+    change.diagnostics.push(refusalDiagnostic(error, { kind: 'workflow', key: change.key }))
     return change
   }
 }
@@ -329,11 +482,38 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
   },
 
   async plan(desired, stored, ctx) {
-    const changes: WorkflowChange[] = []
-    for (const [key, decl] of desired) {
-      const pending = [...ctx.pending, ...changes.flatMap((change) => change.pending ?? [])]
-      changes.push(await planWorkflow(key, decl, stored, ctx, pending))
+    const { workspaceId } = ctx.workspace
+    const copies = copiedFolders(desired, stored, workspaceId)
+    const steps = [...desired].map(([key, decl]) =>
+      classifyFolder(key, decl, stored, workspaceId, copies.get(key))
+    )
+    const planned = new Map<string, WorkflowChange>()
+    // Creates first, in order: each resolves the creates before it, as the writes will run.
+    const pending = [...ctx.pending]
+    const names = new Map<string, string>()
+    for (const step of steps) {
+      if (!('create' in step)) continue
+      const change = await refusing(step.change, async () => {
+        const created = await planCreate(step.change, ctx, pending)
+        if (created.change.pending) pending.push(created.change.pending)
+        // Every create lands in the workspace root, so two of one name cannot both be written.
+        if (created.name !== undefined) {
+          const file = `${workflowFolder(created.change.key)}/${SOURCE_ENTRY_FILE}`
+          refuseDeclaredTwice(names, created.change, created.name, created.name, file)
+        }
+        return created.change
+      })
+      planned.set(change.key, change)
     }
+    // Updates depend on nothing but the creates, so they evaluate together.
+    const updates = steps.flatMap((step) => ('update' in step ? [step] : []))
+    await mapWithConcurrency(updates, PLAN_CONCURRENCY, async (step) => {
+      const change = await refusing(step.change, () =>
+        planUpdate(step.change, step.update, ctx, pending)
+      )
+      planned.set(change.key, change)
+    })
+    const changes = steps.map((step) => planned.get(step.change.key) ?? step.change)
     // A delete is stale when the workflow changed on the server since the base recorded it; one
     // that cannot be read now never matches, so it is refused rather than deleted unseen.
     const fingerprints = new Map<string, string>()
@@ -387,10 +567,10 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       await deleteWorkflow.authorize({ principal, input: { workflowId: change.storedId } })
       return
     }
-    if (change.decl && change.detail) {
+    if (change.decl && change.detail?.update) {
       await applyWorkflowSource.authorize({
         principal,
-        input: { workflowId: change.storedId, ...change.detail, files: change.decl.files },
+        input: { workflowId: change.storedId, ...change.detail.update, files: change.decl.files },
       })
     }
   },
@@ -410,21 +590,23 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     }
     const decl = change.decl
     if (!decl) throw new Error('A workflow write needs its files')
-    const provenance = ctx.provenance ? { provenance: ctx.provenance } : {}
-    const plan = change.detail
-    if (change.action !== 'create' && (!plan || !change.storedId)) {
+    const update = change.detail?.update
+    if (change.action !== 'create' && (!update || !change.storedId)) {
       throw new Error('A workflow update needs its plan')
     }
+    const submission = {
+      files: decl.files,
+      shared: ctx.shared,
+      ...(ctx.provenance ? { provenance: ctx.provenance } : {}),
+      ...(change.detail?.evaluated ? { evaluated: change.detail.evaluated } : {}),
+    }
     const write = () =>
-      plan && change.storedId
+      update && change.storedId
         ? applyWorkflowSource.execute({
             principal,
-            input: { workflowId: change.storedId, ...plan, files: decl.files, ...provenance },
+            input: { workflowId: change.storedId, ...update, ...submission },
           })
-        : createWorkflowFromSource.execute({
-            principal,
-            input: { workspaceId, files: decl.files, ...provenance },
-          })
+        : createWorkflowFromSource.execute({ principal, input: { workspaceId, ...submission } })
     // The pipeline's own refusal is the apply's, with its findings pinned to the folder.
     const result = await write().catch((error: unknown) => {
       if (!(error instanceof WorkflowSourceRejectedError)) throw error
@@ -451,16 +633,28 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       principal: ctx.principal,
       input: { workflowId: stored.id },
     })
-    const printed = workflowCodec.print(stored.key, {
-      files: source.files,
-      lock: source.lock,
-      base: source.base,
-    })
-    return {
-      text: printed.text,
-      blobs: [],
-      base: { id: stored.id, fingerprint: workflowFingerprint(source.base) },
-      diagnostics: inFolder(stored.key, source.diagnostics),
+    return readOf(stored, source)
+  },
+
+  async readMany(stored, ctx) {
+    const outcomes = new Map<string, ReadOutcome>()
+    for (const batch of chunkArray(stored, READ_BATCH)) {
+      const reads = await readWorkflowSources.execute({
+        principal: ctx.principal,
+        input: {
+          workspaceId: ctx.workspace.workspaceId,
+          workflowIds: batch.map((workflow) => workflow.id),
+        },
+      })
+      for (const workflow of batch) {
+        const read = reads.get(workflow.id)
+        if (!read) continue
+        outcomes.set(
+          workflow.key,
+          'error' in read ? { error: read.error } : { read: readOf(workflow, read.source) }
+        )
+      }
     }
+    return outcomes
   },
 }

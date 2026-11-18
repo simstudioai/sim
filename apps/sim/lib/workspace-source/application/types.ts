@@ -7,6 +7,7 @@ import type {
   WorkspaceBaseV1,
   WorkspaceKind,
 } from '@sim/workspace-code'
+import type { SourceRequestShare } from '@/lib/workflows/application/apply-workflow-source'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import type { HashBudget } from '@/lib/workspace-source/application/hash-budget'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -24,6 +25,8 @@ export interface SourceContext {
   hashBudget: HashBudget
   /** Workspace-wide admissions this request already ran, by key (see `admitOnce`). */
   admitted: Map<string, Promise<unknown>>
+  /** What every workflow this request evaluates loads the same (its catalog gate, env names). */
+  shared: SourceRequestShare
 }
 
 export interface PlanContext extends SourceContext {
@@ -124,7 +127,7 @@ export interface ReadBlob extends Omit<BlobEntry, 'sha256'> {
 }
 
 /** One stored resource as source. */
-interface ReadResource {
+export interface ReadResource {
   text: Record<string, string>
   blobs: ReadBlob[]
   base: BaseResource
@@ -165,4 +168,13 @@ export interface KindAdapter<D, S, P = unknown> {
   fingerprintNow?(change: PlannedChange<D, P>, ctx: SourceContext): Promise<string>
   apply(change: PlannedChange<D, P>, ctx: ApplyContext): Promise<AppliedResource>
   read(stored: StoredResource<S>, ctx: SourceContext): Promise<ReadResource>
+  /**
+   * Reads many stored resources together, for a kind whose reads share work (one authorization,
+   * catalog gate and graph load for every workflow): each resource's read, or the error that kept
+   * it from being read, by key. A kind without it is read one resource at a time with `read`.
+   */
+  readMany?(stored: StoredResource<S>[], ctx: SourceContext): Promise<Map<string, ReadOutcome>>
 }
+
+/** One resource of a batched read: what was read, or the error that kept it from being read. */
+export type ReadOutcome = { read: ReadResource } | { error: unknown }

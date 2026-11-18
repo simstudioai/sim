@@ -4407,6 +4407,12 @@ export const document = pgTable(
     storageKey: text('storage_key'),
     /** Size in bytes */
     fileSize: integer('file_size').notNull(),
+    /**
+     * SHA-256 (hex) of the original file's bytes, recorded when the server holds them: on upload,
+     * or on the first read of an older document's original. An original never changes in place,
+     * so it stays valid. NULL until then.
+     */
+    fileSha256: text('file_sha256'),
     /** e.g., 'application/pdf', 'text/plain' */
     mimeType: text('mime_type').notNull(),
 

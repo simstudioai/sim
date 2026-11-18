@@ -313,6 +313,11 @@ async function snapshot(workspaceId: string) {
   )
 }
 
+/** Makes a document read as one uploaded before its bytes' hash was recorded. */
+async function forgetFileHash(documentId: string) {
+  await db.update(document).set({ fileSha256: null }).where(eq(document.id, documentId))
+}
+
 async function newWorkspace(options: { organizationId?: string } = {}): Promise<string> {
   return workspaces.create({
     name: 'Knowledge source',
@@ -997,7 +1002,7 @@ describe('knowledge bases as workspace source', () => {
   })
 
   check(
-    'a get lists documents past its download budget without a hash, and a plan never writes one it could not compare',
+    'a get lists older documents past its download budget without a hash, and a plan never writes one it could not compare',
     async () => {
       const workspaceId = await newWorkspace()
       const big: Directory = {
@@ -1027,6 +1032,7 @@ describe('knowledge bases as workspace source', () => {
           },
         })
       }
+      for (const doc of await docs(created.id)) await forgetFileHash(doc.id)
       await indexed(workspaceId)
       const before = await snapshot(workspaceId)
 
@@ -1036,6 +1042,8 @@ describe('knowledge bases as workspace source', () => {
       expect(codes(adopted.diagnostics, 'warning')).toEqual(['W_KB_DOC_UNCHECKED'])
       expect(adopted.needBlobs).toEqual([])
       expect(await snapshot(workspaceId)).toEqual(before)
+      // The plan recorded the hashes it downloaded; the get reads the documents as older again.
+      for (const doc of await docs(created.id)) await forgetFileHash(doc.id)
 
       const read = await get(workspaceId)
 
@@ -1331,11 +1339,35 @@ describe('knowledge bases as workspace source', () => {
   })
 
   check(
+    'a get lists uploaded documents by their recorded hash, downloading only an older one, once',
+    async () => {
+      const { workspaceId } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      const [older] = await docs(stored.id)
+      await forgetFileHash(older.id)
+      const reads = vi.spyOn(readOriginalKnowledgeDocument, 'execute')
+      const readIds = () => reads.mock.calls.map(([args]) => args.input.documentId)
+
+      const first = await get(workspaceId)
+      const firstReads = readIds()
+      const second = await get(workspaceId)
+      const allReads = readIds()
+      reads.mockRestore()
+
+      expect(firstReads).toEqual([older.id])
+      expect(allReads).toEqual([older.id])
+      expect(first.blobs.every((blob) => blob.sha256 !== undefined)).toBe(true)
+      expect(second.blobs).toEqual(first.blobs)
+    }
+  )
+
+  check(
     'a document whose bytes cannot be read is listed unhashed, not failing the get',
     async () => {
       const { workspaceId } = await setUp()
       const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
       const [broken] = await docs(stored.id)
+      await forgetFileHash(broken.id)
       const readOriginal = readOriginalKnowledgeDocument.execute
       const failing = vi
         .spyOn(readOriginalKnowledgeDocument, 'execute')

@@ -62,6 +62,26 @@ export async function prefetchStoredResources(
   return { ...scope, loaded, resources }
 }
 
+/**
+ * {@link prefetchStoredResources} for many workflows read together: one resolver for every
+ * reference any of them made last time, so each canonicalizes against it with no load of its own
+ * (a workflow that gained a reference still loads its own on the second pass).
+ */
+export async function prefetchStoredResourcesFor(
+  scope: Omit<StoredResourceScope, 'workflowId'>,
+  workflowIds: readonly string[]
+): Promise<Omit<PrefetchedStoredResources, 'workflowId'>> {
+  let loaded: ResourceReferences = { ids: [], keys: [] }
+  for (const workflowId of workflowIds) {
+    const remembered = referencesByWorkflow.get(workflowId)
+    if (remembered) loaded = unionReferences(loaded, remembered)
+  }
+  const resources = await loadResourceKeyResolver(scope.workspaceId, loaded, {
+    actorUserId: scope.createdBy,
+  })
+  return { ...scope, loaded, resources }
+}
+
 interface StoredCanonicalInput {
   prefetched: PrefetchedStoredResources
   state: WorkflowState

@@ -292,6 +292,40 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('X-RateLimit-Reset')).toBe(restrictiveReset.toISOString())
   })
 
+  it('charges a body-sized cost before the use case, capped at the bucket, and refuses past it', async () => {
+    const execute = vi.fn<Execute>(async ({ input }) => ({ value: input.value }))
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.sourceWrite,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      rateLimitCost: (input) => input.value.length,
+      useCase: { operation, execute },
+      present: (result) => ({ data: result }),
+    })
+    const charged = () => v2RouteMocks.operationRate.mock.calls.map(([, , cost]) => cost)
+
+    const small = await handler(request({ value: 'abc' }))
+
+    expect(small.status).toBe(201)
+    expect(charged()).toEqual([1, 1, 2, 2])
+
+    v2RouteMocks.operationRate.mockClear()
+    v2RouteMocks.operationRate.mockImplementation(async (_key: string, _config: unknown, cost) =>
+      cost > 1
+        ? { allowed: false, remaining: 0, resetAt, retryAfterMs: 30_000 }
+        : { allowed: true, remaining: 39, resetAt }
+    )
+
+    const large = await handler(request({ value: 'x'.repeat(500) }))
+
+    expect(large.status).toBe(429)
+    expect(charged()).toEqual([1, 1, 39, 39])
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects when any rate subject is denied, regardless of other bucket capacity', async () => {
     const mapInput = vi.fn<(input: ParsedRequest<typeof contract>) => Input>()
     const execute = vi.fn<Execute>()

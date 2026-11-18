@@ -59,6 +59,7 @@ import type {
   KindAdapter,
   PlanContext,
   PlannedChange,
+  ReadOutcome,
   SourceContext,
   StoredResource,
   StoredSet,
@@ -536,5 +537,34 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
       blobs: [{ path: fileBlobPath(key), sha256, size, id, href }],
       base: fileBase(key, id, state.rev, sha256),
     }
+  },
+
+  /**
+   * Reads every file, first hashing those whose hash nothing records (older files), within the
+   * request's budget and a few at a time, so a get never downloads them one after another. A file
+   * whose bytes cannot be read is that file's error.
+   */
+  async readMany(stored, ctx) {
+    const outcomes = new Map<string, ReadOutcome>()
+    const unrecorded = stored.filter((file) => !file.state.unmanaged && file.state.sha256 === null)
+    const { taken } = takeHashBudget(ctx, unrecorded, (file) => file.state.size)
+    await mapWithConcurrency(taken, HASH_CONCURRENCY, async (file) => {
+      try {
+        const content = await storedBytes(ctx, file.id)
+        file.state.sha256 = sha256Hex(content)
+        file.state.size = content.length
+      } catch (error) {
+        outcomes.set(file.key, { error })
+      }
+    })
+    for (const file of stored) {
+      if (outcomes.has(file.key)) continue
+      try {
+        outcomes.set(file.key, { read: await this.read(file, ctx) })
+      } catch (error) {
+        outcomes.set(file.key, { error })
+      }
+    }
+    return outcomes
   },
 }

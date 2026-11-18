@@ -20,6 +20,7 @@ import {
   writeTableFields,
 } from '@/lib/table/application/tables'
 import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnTypeById } from '@/lib/table/column-types'
 import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
@@ -58,11 +59,13 @@ function freeColumnName(table: TableDefinition): string {
 }
 
 /**
- * Applies column updates so each rename finds its target name free. An update whose new name a
- * column with its own pending rename still holds waits for that rename; when every update waits
- * (a swap, or any longer cycle), a column another update waits on is parked under a free name
- * first, which unblocks that update. A name held by a column that is not being renamed is left to
- * the update to refuse.
+ * Applies column updates so each rename finds its target name free and each retype onto a type a
+ * table may hold only so many of (`maxPerTable`) finds a slot. An update whose new name a column
+ * with its own pending rename still holds waits for that rename; an update onto a capped type
+ * waits while another pending update still moves a column off it. When every update waits (a
+ * swap, or any longer rename cycle), a column another update waits on for its name is parked
+ * under a free name first, which unblocks that update. A name held by a column that is not being
+ * renamed, or a capped type no pending update frees, is left to the update to refuse.
  */
 async function updateColumns(
   table: TableDefinition,
@@ -79,6 +82,8 @@ async function updateColumns(
     pending.some(
       (entry) => entry.updates.name !== undefined && columnMatchesRef(column, entry.columnName)
     )
+  const columnOf = (entry: ReshapeColumnUpdate) =>
+    current.schema.columns.find((column) => columnMatchesRef(column, entry.columnName))
   /** The column holding the name `entry` renames to, when that column is itself being renamed. */
   const blockerOf = (entry: ReshapeColumnUpdate) => {
     const name = entry.updates.name?.toLowerCase()
@@ -88,18 +93,36 @@ async function updateColumns(
     )
     return holder && renaming(holder) ? holder : undefined
   }
+  /** Whether `entry` retypes onto a capped type another pending update still moves a column off. */
+  const awaitsTypeSlot = (entry: ReshapeColumnUpdate) => {
+    const type = entry.updates.type
+    if (type === undefined || columnTypeById(type).maxPerTable === undefined) return false
+    if (columnOf(entry)?.type === type) return false
+    return pending.some(
+      (other) =>
+        other !== entry &&
+        other.updates.type !== undefined &&
+        other.updates.type !== type &&
+        columnOf(other)?.type === type
+    )
+  }
   while (pending.length > 0) {
-    const ready = pending.findIndex((entry) => blockerOf(entry) === undefined)
+    const ready = pending.findIndex(
+      (entry) => blockerOf(entry) === undefined && !awaitsTypeSlot(entry)
+    )
     if (ready === -1) {
       const blockers = pending.map(blockerOf)
       const parked = pending.find((entry) =>
         blockers.some((blocker) => blocker && columnMatchesRef(blocker, entry.columnName))
       )
-      if (!parked) throw new Error('A column rename cycle has no column to park')
-      current = await update(current, parked.columnName, { name: freeColumnName(current) })
-      continue
+      if (parked) {
+        current = await update(current, parked.columnName, { name: freeColumnName(current) })
+        continue
+      }
     }
-    const [next] = pending.splice(ready, 1)
+    // With nothing ready and no rename to park, capped types only free each other: the first
+    // update runs and refuses.
+    const [next] = pending.splice(Math.max(ready, 0), 1)
     current = await update(current, next.columnName, next.updates)
   }
   return current

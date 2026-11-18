@@ -8,15 +8,21 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type {
+  BlockCatalog,
   CanonicalizeResult,
   SourceBase,
+  SourceFingerprint,
   WorkflowLockV1,
   WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
-import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
+import {
+  type CatalogGate,
+  resolveCatalogGate,
+  withCatalogBlockScope,
+} from '@/lib/catalog/application/context'
 import { principalAuditSource } from '@/lib/core/application'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -45,7 +51,11 @@ import {
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import { evaluateSource, type PendingResource } from '@/lib/workflows/application/source-evaluate'
+import {
+  evaluateSource,
+  type PendingResource,
+  type SourcePlan,
+} from '@/lib/workflows/application/source-evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
@@ -55,7 +65,11 @@ import {
   storedFingerprint,
 } from '@/lib/workflows/code/print-stored'
 import { loadEnvNames } from '@/lib/workflows/code/resources'
-import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'
+import {
+  canonicalizeStored,
+  prefetchStoredResources,
+  type StoredCanonical,
+} from '@/lib/workflows/code/stored-canonical'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -80,6 +94,46 @@ interface SourceSubmission {
   provenance?: { client: 'cli' | 'copilot' | 'canvas' | 'api'; gitSha?: string; repo?: string }
   /** Resources the enclosing workspace source apply creates or adopts first (`evaluateSource`). */
   pendingResources?: readonly PendingResource[]
+  /**
+   * Evaluate and stop, for a caller that commits later through `evaluated`: a dry run without the
+   * deployment check or the re-print of what a write would store, so the result's `files` echo
+   * the submission and `needsRedeployment` is false. A create still checks its name is free.
+   */
+  planOnly?: boolean
+  /**
+   * A `planOnly` run's evaluation of this same submission: the write commits it without loading or
+   * evaluating again. The commit still re-checks the fingerprint under the workflow row lock, so a
+   * draft that moved since is a 409 as ever. In-process only, never on a wire contract.
+   */
+  evaluated?: EvaluatedSource
+  /** Loads shared by every workflow one request evaluates (see {@link SourceRequestShare}). */
+  shared?: SourceRequestShare
+}
+
+/**
+ * Loads that are the same for every workflow one request evaluates in one workspace for one
+ * principal (a workspace source apply): each starts on first use and is reused after. Never share
+ * one across principals or workspaces.
+ */
+export interface SourceRequestShare {
+  catalogGate?: Promise<CatalogGate>
+  envNames?: Promise<string[]>
+}
+
+/**
+ * What a `planOnly` run evaluated, handed back as `evaluated` so the write commits it as is: the
+ * stored draft and catalog it was evaluated against, the fingerprint the commit re-checks, and
+ * the plan.
+ */
+export interface EvaluatedSource {
+  workflowId: string
+  gate: CatalogGate
+  catalog: BlockCatalog
+  stored: StoredSource
+  storedSourceMeta: WorkflowSourceMetaV1 | null
+  storedCanonical: StoredCanonical
+  baseFingerprint: SourceFingerprint
+  plan: SourcePlan
 }
 
 export interface ApplyWorkflowSourceInput extends SourceSubmission {
@@ -136,6 +190,8 @@ interface ApplyWorkflowSourceResult {
   notes: string[]
   needsRedeployment: boolean
   sdkMajor: number
+  /** On a `planOnly` run that passed every check, what the write commits through `evaluated`. */
+  evaluated?: EvaluatedSource
 }
 
 /**
@@ -225,7 +281,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
         {
           kind: 'new',
           workspace: context,
-          workflowId: generateId(),
+          workflowId: input.evaluated?.workflowId ?? generateId(),
           create: {
             ...(input.name !== undefined ? { name: input.name } : {}),
             ...(input.description !== undefined ? { description: input.description } : {}),
@@ -294,9 +350,10 @@ function sourceAuditMetadata(
 
 /**
  * The source-apply pipeline for either target: evaluate the submission onto the stored graph
- * (empty for a new workflow), then write it: source meta alone for a graph no-op, a replace under
- * the row lock for an existing draft, or a create that inserts the row and its graph in one
- * transaction. A dry run stops before the write; a refusal throws, or on a dry run answers 200.
+ * (empty for a new workflow), or take a `planOnly` run's evaluation, then write it: source meta
+ * alone for a graph no-op, a replace under the row lock for an existing draft, or a create that
+ * inserts the row and its graph in one transaction. A dry run stops before the write; a refusal
+ * throws, or on a dry run answers 200.
  */
 async function runSourceApply(
   principal: Principal,
@@ -308,7 +365,8 @@ async function runSourceApply(
       ? target.context
       : { ...target.workspace, workflowId: target.workflowId }
   const isNew = target.kind === 'new'
-  const dryRun = input.dryRun === true
+  const planOnly = input.planOnly === true
+  const dryRun = input.dryRun === true || planOnly
   const subjectUserId = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,
   }).attributedUserId
@@ -320,41 +378,39 @@ async function runSourceApply(
     workspaceOrganizationId: context.workspaceOrganizationId,
     subjectUserId,
   }
+  if (input.evaluated && input.evaluated.workflowId !== context.workflowId) {
+    throw new Error('An evaluated source commits only to the workflow it was evaluated for')
+  }
 
-  const [gate, stored, storedSourceMeta, prefetched, envNames] = await Promise.all([
-    resolveCatalogGate(principal, context, { customBlockInputs: true }),
-    target.kind === 'existing' ? loadStoredSource(target.context) : EMPTY_STORED_SOURCE,
-    target.kind === 'existing' ? readWorkflowSourceMeta(db, context.workflowId) : null,
-    prefetchStoredResources({
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      createdBy,
-    }),
-    loadEnvNames(context.workspaceId, subjectUserId),
-  ])
+  const shared: SourceRequestShare = input.shared ?? {}
+  const loaded = input.evaluated
+    ? null
+    : await Promise.all([
+        (shared.catalogGate ??= resolveCatalogGate(principal, context, {
+          customBlockInputs: true,
+        })),
+        target.kind === 'existing' ? loadStoredSource(target.context) : EMPTY_STORED_SOURCE,
+        target.kind === 'existing' ? readWorkflowSourceMeta(db, context.workflowId) : null,
+        prefetchStoredResources({
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          createdBy,
+        }),
+        (shared.envNames ??= loadEnvNames(context.workspaceId, subjectUserId)),
+      ])
   /**
    * A dry run writes no graph, so whether the draft differs from its deployment is known now and
    * runs beside the evaluation. The `catch` only keeps it observed when an error throws first.
    */
   const dryRunNeedsRedeployment =
-    dryRun && !isNew ? checkNeedsRedeployment(context.workflowId) : null
+    dryRun && !planOnly && !isNew ? checkNeedsRedeployment(context.workflowId) : null
   dryRunNeedsRedeployment?.catch(() => {})
+  const gate = input.evaluated?.gate ?? loaded?.[0]
+  if (!gate) throw new Error('A source apply needs its catalog gate')
   return withCatalogBlockScope(gate, async () => {
-    const catalog = buildSourceCatalog({
-      gate,
-      organizationId: context.workspaceOrganizationId,
-      storedTypes: storedCatalogTypes(Object.values(stored.state.blocks)),
-    })
-    const storedCanonical = await canonicalizeStored({
-      prefetched,
-      state: stored.state,
-      meta: stored.meta,
-      catalog,
-    })
-    const baseFingerprint = storedFingerprint(storedCanonical.canonical)
-
     /** The one response shape: what is (or would be) stored, printed, and the outcome. */
     const result = async (
+      evaluated: Pick<EvaluatedSource, 'catalog' | 'stored'>,
       printed: Pick<PrintedSource, 'files' | 'lock'> & Pick<SourceBase, 'fingerprint'>,
       outcome: Pick<ApplyWorkflowSourceResult, 'applied' | 'diff' | 'diagnostics'> &
         Partial<
@@ -366,11 +422,12 @@ async function runSourceApply(
             | 'notes'
             | 'wroteSourceMeta'
             | 'sourceMetaChanged'
+            | 'evaluated'
           >
         >
     ): Promise<ApplyWorkflowSourceResult> => ({
       workflowId: context.workflowId,
-      workflowName: stored.meta.name,
+      workflowName: evaluated.stored.meta.name,
       workspaceId: context.workspaceId,
       dryRun,
       mintedIds: {},
@@ -386,66 +443,97 @@ async function runSourceApply(
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         fingerprint: printed.fingerprint,
-        catalogHash: catalog.hash,
+        catalogHash: evaluated.catalog.hash,
       },
       needsRedeployment:
-        !isNew && (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId))),
-      sdkMajor: catalog.sdkMajor,
+        !isNew &&
+        !planOnly &&
+        (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId))),
+      sdkMajor: evaluated.catalog.sdkMajor,
     })
-    /**
-     * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
-     * echoes the caller's own base fingerprint, so applying its response after a stale or
-     * mismatched read still fails the freshness check rather than overwriting the newer draft.
-     */
-    const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
-      if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
-      const fingerprint = target.kind === 'existing' ? target.base.fingerprint : baseFingerprint
-      return result(
-        { files: input.files, lock: input.lock, fingerprint },
-        { applied: false, diff: emptyDiffSummary(), diagnostics }
-      )
-    }
 
-    if (target.kind === 'existing' && target.base.workflowId !== context.workflowId) {
-      return refuse([
-        {
-          code: 'E_APPLY_WORKFLOW_MISMATCH',
-          severity: 'error',
-          message: `This source was read from workflow ${target.base.workflowId}, not ${context.workflowId}; applying it here would overwrite a different workflow.`,
-          hint: 'Apply it to the workflow it was read from, or get this workflow’s source into its own directory.',
-          path: '/base/workflowId',
-        },
-      ])
-    }
-    if (target.kind === 'existing' && baseFingerprint !== target.base.fingerprint) {
-      if (!dryRun) throw new WorkflowSourceStaleError(baseFingerprint)
-      return refuse([
-        {
-          code: 'E_APPLY_STALE',
-          severity: 'error',
-          message:
-            'The workflow changed since this source was read. Get the source again, reapply your edit and retry.',
-        },
-      ])
-    }
+    let evaluated = input.evaluated
+    if (!evaluated) {
+      if (!loaded) throw new Error('A source apply needs its stored draft')
+      const [, stored, storedSourceMeta, prefetched, envNames] = loaded
+      const catalog = buildSourceCatalog({
+        gate,
+        organizationId: context.workspaceOrganizationId,
+        storedTypes: storedCatalogTypes(Object.values(stored.state.blocks)),
+      })
+      const storedCanonical = await canonicalizeStored({
+        prefetched,
+        state: stored.state,
+        meta: stored.meta,
+        catalog,
+      })
+      const baseFingerprint = storedFingerprint(storedCanonical.canonical)
+      /**
+       * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
+       * echoes the caller's own base fingerprint, so applying its response after a stale or
+       * mismatched read still fails the freshness check rather than overwriting the newer draft.
+       */
+      const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
+        if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
+        const fingerprint = target.kind === 'existing' ? target.base.fingerprint : baseFingerprint
+        return result(
+          { catalog, stored },
+          { files: input.files, lock: input.lock, fingerprint },
+          { applied: false, diff: emptyDiffSummary(), diagnostics }
+        )
+      }
 
-    const evaluation = await evaluateSource({
-      principal,
-      scope,
-      stored,
-      storedCanonical,
-      storedSourceMeta,
-      catalog,
-      envNames: new Set(envNames),
-      createdBy,
-      files: input.files,
-      lock: input.lock,
-      ...(input.pendingResources ? { pendingResources: input.pendingResources } : {}),
-      ...(target.kind === 'existing' ? { base: target.base } : {}),
-      ...(target.kind === 'new' ? { create: target.create } : {}),
-    })
-    if ('refused' in evaluation) return refuse(evaluation.refused)
-    const { plan } = evaluation
+      if (target.kind === 'existing' && target.base.workflowId !== context.workflowId) {
+        return refuse([
+          {
+            code: 'E_APPLY_WORKFLOW_MISMATCH',
+            severity: 'error',
+            message: `This source was read from workflow ${target.base.workflowId}, not ${context.workflowId}; applying it here would overwrite a different workflow.`,
+            hint: 'Apply it to the workflow it was read from, or get this workflow’s source into its own directory.',
+            path: '/base/workflowId',
+          },
+        ])
+      }
+      if (target.kind === 'existing' && baseFingerprint !== target.base.fingerprint) {
+        if (!dryRun) throw new WorkflowSourceStaleError(baseFingerprint)
+        return refuse([
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message:
+              'The workflow changed since this source was read. Get the source again, reapply your edit and retry.',
+          },
+        ])
+      }
+
+      const evaluation = await evaluateSource({
+        principal,
+        scope,
+        stored,
+        storedCanonical,
+        storedSourceMeta,
+        catalog,
+        envNames: new Set(envNames),
+        createdBy,
+        files: input.files,
+        lock: input.lock,
+        ...(input.pendingResources ? { pendingResources: input.pendingResources } : {}),
+        ...(target.kind === 'existing' ? { base: target.base } : {}),
+        ...(target.kind === 'new' ? { create: target.create } : {}),
+      })
+      if ('refused' in evaluation) return refuse(evaluation.refused)
+      evaluated = {
+        workflowId: context.workflowId,
+        gate,
+        catalog,
+        stored,
+        storedSourceMeta,
+        storedCanonical,
+        baseFingerprint,
+        plan: evaluation.plan,
+      }
+    }
+    const { catalog, stored, storedSourceMeta, storedCanonical, baseFingerprint, plan } = evaluated
     const { diff, diagnostics, mintedIds } = plan
     /** The function files the submission named, kept so a write never renames the author's. */
     const submittedCodeFiles: Record<string, string> = {}
@@ -495,7 +583,7 @@ async function runSourceApply(
           catalog,
         })
       }
-      return result(printed, {
+      return result(evaluated, printed, {
         applied: false,
         diff,
         diagnostics,
@@ -503,7 +591,34 @@ async function runSourceApply(
         notes: plan.notes,
         wroteSourceMeta,
         sourceMetaChanged,
+        ...(planOnly ? { evaluated } : {}),
       })
+    }
+
+    if (planOnly) {
+      // A create's name is checked now, so a taken one refuses the plan, not the write. An
+      // update's ids are its own or minted (evaluation drops lock ids held elsewhere), and the
+      // commit re-checks them under the row lock.
+      if (target.kind === 'new') {
+        await previewSourceCommit(context.workflowId, plan, {
+          workspaceId: context.workspaceId,
+          folderId: target.folderId,
+        })
+      }
+      return result(
+        evaluated,
+        { files: input.files, lock: input.lock, fingerprint: baseFingerprint },
+        {
+          applied: false,
+          diff,
+          diagnostics,
+          mintedIds,
+          references: plan.references,
+          notes: plan.notes,
+          workflowName: plan.meta.name,
+          evaluated,
+        }
+      )
     }
 
     if (dryRun) {
@@ -515,13 +630,14 @@ async function runSourceApply(
           : undefined
       )
       logger.info('Evaluated workflow source without persisting', logContext)
-      return result(printWritten(preview.state), {
+      return result(evaluated, printWritten(preview.state), {
         applied: false,
         diff,
         diagnostics,
         mintedIds,
         references: plan.references,
         notes: [...plan.notes, ...preview.warnings],
+        workflowName: plan.meta.name,
       })
     }
 
@@ -539,7 +655,7 @@ async function runSourceApply(
             name: stored.meta.name,
           }
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
-    return result(printWritten(committed.state), {
+    return result(evaluated, printWritten(committed.state), {
       applied: true,
       wroteSourceMeta: true,
       diff,

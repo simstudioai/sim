@@ -90,6 +90,11 @@ export const v2ApiKeyAuth = {
 } as const
 
 export interface V2RateLimitPolicy {
+  /**
+   * The most one request may be charged: a route's `rateLimitCost` above it is charged this, so
+   * the largest request the route accepts still fits the bucket.
+   */
+  maxCost?: number
   /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
@@ -177,6 +182,7 @@ export const v2RateLimits = {
    * an apply and a create from source cannot double it.
    */
   sourceWrite: {
+    maxCost: V2_SOURCE_WRITE_RATE_LIMIT.maxTokens,
     async enforce(request, auth, _operation, cost = 1) {
       return enforceV2Buckets(
         request,
@@ -529,6 +535,13 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
   /**
+   * What a request costs in rate-limit units once its input is known, for a route whose work grows
+   * with its body (a workspace source apply evaluates every workflow it sends). Admission charges
+   * one unit before the body is read; the rest, up to the policy's `maxCost`, is charged before
+   * the use case runs, and a request over the budget is refused with the same 429.
+   */
+  rateLimitCost?(input: NoInfer<I>): number
+  /**
    * A strong validator for a result whose content is already content-addressed (the block
    * catalog's hash). When set, a success carries `ETag`, and a request whose `If-None-Match`
    * names that tag (or `*`) is answered `304` with no body, after the use case ran, so
@@ -642,6 +655,18 @@ export function defineV2JsonRoute<
 
       try {
         const input = options.mapInput(parsed.data, credentialFacts)
+        // A Mothership request is admitted without a rate limit, so it is charged nothing more.
+        if (options.rateLimitCost && 'rateLimitSubjectIds' in auth) {
+          const cost = Math.min(
+            options.rateLimitCost(input),
+            options.rateLimit.maxCost ?? Number.POSITIVE_INFINITY
+          )
+          const limited =
+            cost > 1
+              ? await options.rateLimit.enforce(request, auth, options.operation, cost - 1)
+              : null
+          if (limited) return limited
+        }
         const result = await options.useCase.execute({
           principal: auth.principal,
           input,

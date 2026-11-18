@@ -14,7 +14,12 @@ import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { kindLimitFinding, overKindLimit } from '@/lib/workspace-source/application/findings'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
-import type { ReadBlob, WorkspaceSourceDiagnostic } from '@/lib/workspace-source/application/types'
+import type {
+  ReadBlob,
+  ReadOutcome,
+  ReadResource,
+  WorkspaceSourceDiagnostic,
+} from '@/lib/workspace-source/application/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ReadWorkspaceSourceInput {
@@ -70,6 +75,23 @@ function directoryBudget() {
 }
 
 /**
+ * One resource's read: from the kind's batched read when it ran (its failure, or the resource's
+ * own error, is that resource's), else read alone.
+ */
+async function readOne(
+  batch: { reads: Map<string, ReadOutcome> } | { error: unknown } | undefined,
+  key: string,
+  read: () => Promise<ReadResource>
+): Promise<ReadResource> {
+  if (batch === undefined) return read()
+  if ('error' in batch) throw batch.error
+  const outcome = batch.reads.get(key)
+  if (!outcome) return read()
+  if ('error' in outcome) throw outcome.error
+  return outcome.read
+}
+
+/**
  * Reads a workspace as source: for each requested kind, every stored resource printed as the
  * files `sim workspaces source get` writes, plus the base that binds each key to its id. Each
  * resource is read through the use case that owns it. Like a workflow source get, the one write
@@ -114,9 +136,15 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         unread.add(kind)
         continue
       }
+      const batch = adapter.readMany
+        ? await adapter.readMany([...stored.bound.values()], ctx).then(
+            (reads) => ({ reads }),
+            (error: unknown) => ({ error })
+          )
+        : undefined
       for (const [key, resource] of stored.bound) {
         try {
-          const read = await adapter.read(resource, ctx)
+          const read = await readOne(batch, key, () => adapter.read(resource, ctx))
           const over = budget.spend(kind, read)
           if (over) {
             result.skipped.push({ kind, key, reason: over })

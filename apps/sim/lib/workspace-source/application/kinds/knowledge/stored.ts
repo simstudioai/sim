@@ -37,6 +37,8 @@ export interface StoredDoc {
   id: string
   filename: string
   fileSize: number
+  /** The SHA-256 of its original bytes, when recorded (on upload, or a first read). */
+  fileSha256: string | null
   uploadedAt: Date
   connectorId: string | null
   /** Whether it holds a tag value, which a replace does not carry over. */
@@ -75,6 +77,7 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         id: doc.id,
         filename: doc.filename,
         fileSize: doc.fileSize,
+        fileSha256: doc.fileSha256,
         uploadedAt: doc.uploadedAt,
         connectorId: doc.connectorId,
         tagged: ALL_TAG_SLOTS.some((field) => doc[field] !== null && doc[field] !== ''),
