@@ -1,9 +1,11 @@
+import { chunkArray } from '@sim/utils/helpers'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
   budgetOfPath,
   emptyBase,
   resourceAddress,
+  type SourceBudget,
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
@@ -45,29 +47,39 @@ export interface ReadWorkspaceSourceResult {
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
+/** The byte budgets of one directory, by the budget each file counts against. */
+type DirectoryBudgets = Record<SourceBudget, number>
+
+const SOURCE_BUDGETS = [
+  'declaration',
+  'workflow',
+  'rows',
+] as const satisfies readonly SourceBudget[]
+
 /**
- * What one directory may hold across kinds, so anything a get writes applies back: declaration
- * bytes (the text every codec counts against the declaration budget; a workflow is held to its
- * own limits when read), table rows bytes and listed blobs. A resource that would take the
- * directory past any of them is left out and listed in `skipped`, in apply order, so earlier kinds
- * are kept whole.
+ * What one directory may hold across kinds, so anything a get writes applies back and one get
+ * holds a bounded amount: declaration bytes (the text every codec counts against the declaration
+ * budget), workflow bytes (each workflow is also held to its own limits when read), table rows
+ * bytes and listed blobs. A resource that would take the directory past any of them is left out
+ * and listed in `skipped`, in apply order, so earlier kinds are kept whole.
  */
 function directoryBudget() {
-  const { maxDeclarationBytes, maxRowsBytes, maxBlobs } = WORKSPACE_SOURCE_LIMITS
-  const limits: Record<'declaration' | 'rows', number> = {
+  const { maxDeclarationBytes, maxDirectoryWorkflowBytes, maxRowsBytes, maxBlobs } =
+    WORKSPACE_SOURCE_LIMITS
+  const limits: DirectoryBudgets = {
     declaration: maxDeclarationBytes,
+    workflow: maxDirectoryWorkflowBytes,
     rows: maxRowsBytes,
   }
-  const spent: Record<'declaration' | 'rows', number> = { declaration: 0, rows: 0 }
+  const spent: DirectoryBudgets = { declaration: 0, workflow: 0, rows: 0 }
   let blobs = 0
   return {
     spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
-      const bytes = { declaration: 0, rows: 0 }
+      const bytes: DirectoryBudgets = { declaration: 0, workflow: 0, rows: 0 }
       for (const [path, text] of Object.entries(read.text)) {
-        const budget = budgetOfPath(KIND_ADAPTERS[kind].codec, path)
-        if (budget !== 'workflow') bytes[budget] += utf8Bytes(text)
+        bytes[budgetOfPath(KIND_ADAPTERS[kind].codec, path)] += utf8Bytes(text)
       }
-      for (const budget of ['declaration', 'rows'] as const) {
+      for (const budget of SOURCE_BUDGETS) {
         if (spent[budget] + bytes[budget] > limits[budget]) {
           return `its ${budget} would take the directory past the ${limits[budget]}-byte ${budget} limit`
         }
@@ -75,13 +87,19 @@ function directoryBudget() {
       if (blobs + read.blobs.length > maxBlobs) {
         return `its binary files would take the directory past the ${maxBlobs}-file limit`
       }
-      spent.declaration += bytes.declaration
-      spent.rows += bytes.rows
+      for (const budget of SOURCE_BUDGETS) spent[budget] += bytes[budget]
       blobs += read.blobs.length
       return null
     },
   }
 }
+
+/**
+ * Resources a get reads together: a kind that reads in batches reads this many at once, and each
+ * batch is spent against the budget and dropped before the next, so a get never holds a whole
+ * kind's reads (every workflow's stored graph and printed text) at once.
+ */
+const READ_CHUNK = 25
 
 /**
  * One resource's read: from the kind's batched read when it ran (its failure, or the resource's
@@ -145,29 +163,36 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         unread.add(kind)
         continue
       }
-      const batch = adapter.readMany
-        ? await adapter.readMany([...stored.bound.values()], ctx).then(
-            (reads) => ({ reads }),
-            (error: unknown) => ({ error })
-          )
-        : undefined
       const readResources: typeof stored.unbound = []
-      for (const [key, resource] of stored.bound) {
-        try {
-          const read = await readOne(batch, key, () => adapter.read(resource, ctx))
-          const over = budget.spend(kind, read)
-          if (over) {
-            result.skipped.push({ kind, key, reason: over })
-            continue
+      for (const chunk of chunkArray([...stored.bound], READ_CHUNK)) {
+        const batch = adapter.readMany
+          ? await adapter
+              .readMany(
+                chunk.map(([, resource]) => resource),
+                ctx
+              )
+              .then(
+                (reads) => ({ reads }),
+                (error: unknown) => ({ error })
+              )
+          : undefined
+        for (const [key, resource] of chunk) {
+          try {
+            const read = await readOne(batch, key, () => adapter.read(resource, ctx))
+            const over = budget.spend(kind, read)
+            if (over) {
+              result.skipped.push({ kind, key, reason: over })
+              continue
+            }
+            Object.assign(result.files, read.text)
+            result.blobs.push(...read.blobs)
+            result.base.resources[resourceAddress(kind, key)] = read.base
+            result.diagnostics.push(...(read.diagnostics ?? []))
+            readResources.push(resource)
+          } catch (error) {
+            const finding = refusalDiagnostic(error, { kind, key })
+            result.skipped.push({ kind, key, reason: finding.message })
           }
-          Object.assign(result.files, read.text)
-          result.blobs.push(...read.blobs)
-          result.base.resources[resourceAddress(kind, key)] = read.base
-          result.diagnostics.push(...(read.diagnostics ?? []))
-          readResources.push(resource)
-        } catch (error) {
-          const finding = refusalDiagnostic(error, { kind, key })
-          result.skipped.push({ kind, key, reason: finding.message })
         }
       }
       // A kind one root file declares whole prints that file once, from every resource read.

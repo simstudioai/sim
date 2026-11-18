@@ -1,7 +1,8 @@
 /**
  * The limits workspace source shares across reading and writing. A get skips what an apply would
  * refuse (a blob over `maxBlobBytes`, or a resource that would take the directory past
- * `maxDeclarationBytes` or `maxBlobs`, is listed in `.sim/skipped.json`), so anything a get writes
+ * `maxDeclarationBytes`, `maxDirectoryWorkflowBytes` or `maxBlobs`, is listed in
+ * `.sim/skipped.json`), so anything a get writes
  * can be applied back unchanged. One workflow keeps its own `SOURCE_LIMITS`.
  *
  * Client-safe: no parser imports, so contracts and the CLI can read it.
@@ -13,6 +14,11 @@ export const WORKSPACE_SOURCE_LIMITS = {
   maxDeclarationBytes: 2_000_000,
   /** UTF-8 bytes of every workflow file one apply sends. */
   maxWorkflowBytes: 8_000_000,
+  /**
+   * UTF-8 bytes of every workflow file one get writes; a workflow past it is skipped. Larger than
+   * `maxWorkflowBytes`, since an apply sends only the workflows it edits.
+   */
+  maxDirectoryWorkflowBytes: 32_000_000,
   /** Bytes of one blob (a knowledge document or a workspace file). */
   maxBlobBytes: 10_000_000,
   /** Blob bytes one staging request carries (and one request may download to hash). */
