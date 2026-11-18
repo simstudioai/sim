@@ -37,8 +37,10 @@ import {
   checkedPath,
   FILE_CONCURRENCY,
   type FileStat,
+  fileStatOf,
   isMissing,
   type StatDigest,
+  sameFileStat,
   type Written,
 } from './source-dir'
 
@@ -97,9 +99,10 @@ async function hashFile(file: string): Promise<{ sha256: string; size: number }>
 }
 
 /**
- * The SHA-256 and size of the blob at `file` (the directory's `path`), with the modification time
- * of `current`, its stat taken before any read. The digest `written` records is reused while the
- * file's size and modification time are the ones recorded with it; otherwise the file is read.
+ * The SHA-256 and size of the blob at `file` (the directory's `path`), with `current`, its stat
+ * taken before any read. The digest `written` records is reused only while every field of the stat
+ * recorded with it still holds (see {@link FileStat}); otherwise the file is read, so a same-size
+ * rewrite that kept its modification time is still seen as an edit.
  */
 export async function statDigest(
   file: string,
@@ -107,16 +110,13 @@ export async function statDigest(
   current: FileStat,
   written: Written
 ): Promise<StatDigest> {
+  const taken = fileStatOf(current)
   const recorded = written.stats[path]
   const sha256 = written.digests[path]
-  if (
-    sha256 !== undefined &&
-    recorded?.size === current.size &&
-    recorded.mtimeMs === current.mtimeMs
-  ) {
-    return { sha256, size: current.size, mtimeMs: current.mtimeMs }
+  if (sha256 !== undefined && recorded !== undefined && sameFileStat(recorded, taken)) {
+    return { ...taken, sha256 }
   }
-  return { ...(await hashFile(file)), mtimeMs: current.mtimeMs }
+  return { ...taken, ...(await hashFile(file)) }
 }
 
 /**
@@ -253,8 +253,14 @@ function keptName(blob: ListedBlob): string | null {
   return identity && createHash('sha256').update(identity.join('\0')).digest('hex')
 }
 
-/** A blob's bytes in a get's downloads folder, verified against its listing. */
-export interface FetchedBlob extends StatDigest {
+/**
+ * A blob's bytes in a get's downloads folder, verified against its listing. It carries no stat:
+ * the renames that move it into place change its change time, so the first command after the get
+ * reads it once and records the stat it then has.
+ */
+export interface FetchedBlob {
+  sha256: string
+  size: number
   file: string
   /** Whether a failed get keeps the file for the next one to reuse. */
   kept: boolean
@@ -275,9 +281,8 @@ export async function fetchBlob(
   if (name !== null) {
     try {
       const kept = await hashFile(file)
-      const { mtimeMs } = await stat(file)
       if (kept.size === blob.size && (blob.sha256 === undefined || kept.sha256 === blob.sha256)) {
-        return { ...kept, mtimeMs, file, kept: true }
+        return { ...kept, file, kept: true }
       }
       await rm(file, { force: true })
     } catch (error) {
@@ -293,8 +298,7 @@ export async function fetchBlob(
     throw error
   }
   await rename(part, file)
-  const { size, mtimeMs } = await stat(file)
-  return { sha256, size, mtimeMs, file, kept: name !== null }
+  return { sha256, size: blob.size, file, kept: name !== null }
 }
 
 /**

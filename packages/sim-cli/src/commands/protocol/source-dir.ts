@@ -357,10 +357,35 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   }
 }
 
-/** A file's size and modification time when its digest was taken. */
+/**
+ * What identifies a file's bytes without reading them, taken when its digest was: the file (device
+ * and inode), its size, and its modification and change times. The change time is the one a user
+ * tool cannot set back (`cp -p`, `rsync -t` and `touch -d` restore only the modification time), so
+ * any write since the digest moves it even when the size and modification time match.
+ */
 export interface FileStat {
+  dev: number
+  ino: number
   size: number
   mtimeMs: number
+  ctimeMs: number
+}
+
+/** The {@link FileStat} of a `stat` result. */
+export function fileStatOf(stats: FileStat): FileStat {
+  const { dev, ino, size, mtimeMs, ctimeMs } = stats
+  return { dev, ino, size, mtimeMs, ctimeMs }
+}
+
+/** Whether two stats name the same, unchanged bytes. */
+export function sameFileStat(a: FileStat, b: FileStat): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs
+  )
 }
 
 /** A blob's SHA-256 with the stat of the file it was read from. */
@@ -404,8 +429,8 @@ export function writtenRecord(
     ...kept,
     ...Object.fromEntries(Object.entries(files).map(([path, text]) => [path, digest(text)])),
   }
-  const recorded = [...stats].flatMap(([path, { sha256, size, mtimeMs }]) =>
-    digests[path] === sha256 ? [[path, { size, mtimeMs }] as const] : []
+  const recorded = [...stats].flatMap(([path, { sha256, ...stat }]) =>
+    digests[path] === sha256 ? [[path, fileStatOf(stat)] as const] : []
   )
   return { digests, stats: Object.fromEntries(recorded) }
 }
@@ -430,8 +455,16 @@ export async function readWritten(dir: string): Promise<Written> {
   )
   const stats: Record<string, FileStat> = {}
   for (const [path, stat] of Object.entries(toRecord(record.stats))) {
-    const { size, mtimeMs } = toRecord(stat)
-    if (typeof size === 'number' && typeof mtimeMs === 'number') stats[path] = { size, mtimeMs }
+    const { dev, ino, size, mtimeMs, ctimeMs } = toRecord(stat)
+    if (
+      typeof dev === 'number' &&
+      typeof ino === 'number' &&
+      typeof size === 'number' &&
+      typeof mtimeMs === 'number' &&
+      typeof ctimeMs === 'number'
+    ) {
+      stats[path] = { dev, ino, size, mtimeMs, ctimeMs }
+    }
   }
   return { digests, stats }
 }

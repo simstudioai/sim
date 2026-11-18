@@ -7,7 +7,9 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -391,6 +393,75 @@ describe('workspaces source get', () => {
 
       await expect(get()).rejects.toMatchObject({ code: 'SOURCE_LOCAL_EDITS' })
       expect(readFileSync(join(dir, 'files/report.bin'))).toEqual(Buffer.from([7]))
+    })
+
+    describe('a same-size edit that kept its modification time (cp -p, rsync -t)', () => {
+      const EDITED = Buffer.from([0, 1, 2, 250, 7])
+
+      /** Whole seconds, which every file system and `utimes` hold exactly. */
+      const MTIME = 1_700_000_000
+
+      /**
+       * Gets the blob twice, so the second records the stat of the file in place, with a
+       * modification time `utimes` can put back exactly.
+       */
+      async function getTwice(): Promise<string> {
+        serve({}, { kinds: ['file'], blobs: [listed()], resources: fileResource })
+        requestRaw.mockImplementation(async () => new Response(BYTES))
+        await get()
+        const file = join(dir, 'files/report.bin')
+        utimesSync(file, MTIME, MTIME)
+        await get()
+        const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
+        expect(written.stats['files/report.bin']).toBeDefined()
+        return file
+      }
+
+      /** Rewrites `file` with bytes of the same length and puts its modification time back. */
+      function editKeepingMtime(file: string): void {
+        writeFileSync(file, EDITED)
+        utimesSync(file, MTIME, MTIME)
+        expect(statSync(file).mtimeMs).toBe(MTIME * 1000)
+      }
+
+      it('refuses to overwrite it', async () => {
+        const file = await getTwice()
+        editKeepingMtime(file)
+        const next = Buffer.from([1, 2, 3])
+        serve({}, { kinds: ['file'], blobs: [listed(next)] })
+        requestRaw.mockImplementation(async () => new Response(next))
+
+        await expect(get()).rejects.toMatchObject({ code: 'SOURCE_LOCAL_EDITS' })
+        expect(readFileSync(file)).toEqual(EDITED)
+      })
+
+      it('sends it on apply', async () => {
+        editKeepingMtime(await getTwice())
+        request.mockReset()
+        request.mockResolvedValue({
+          data: {
+            workspaceId: 'ws_local',
+            dryRun: true,
+            plan: [],
+            applied: [],
+            needBlobs: [],
+            remainingBlobs: [],
+            files: {},
+            base: { version: 1, workspaceId: 'ws_local', resources: fileResource },
+            diagnostics: [],
+          },
+        })
+
+        await runWorkspaceSource('apply', dir, '--dry-run', '--allow-delete')
+
+        expect(request.mock.calls[0][1].body.blobs).toEqual([
+          {
+            path: 'files/report.bin',
+            sha256: createHash('sha256').update(EDITED).digest('hex'),
+            size: EDITED.length,
+          },
+        ])
+      })
     })
 
     it('a get then an apply sends every blob by hash and plans from a complete directory', async () => {

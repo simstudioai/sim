@@ -194,8 +194,8 @@ async function writeWorkspaceSource(
     ),
   })
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
-  // hash of one listed without it and `.sim/written.json` the stat of each; they land inside the
-  // directory so each moves into place by a rename, which keeps that stat.
+  // hash of one listed without it; they land inside the directory so each moves into place by a
+  // rename.
   const downloads = join(await downloadsRoot(dir), SOURCE_DOWNLOADS_DIR)
   const downloaded = new Map<string, FetchedBlob>()
   if (stale.length > 0) {
@@ -227,11 +227,7 @@ async function writeWorkspaceSource(
       ])
     ),
   }
-  const record = writtenRecord(
-    source.files,
-    kept,
-    new Map([...recordedStats(written), ...digests, ...downloaded])
-  )
+  const record = writtenRecord(source.files, kept, new Map([...recordedStats(written), ...digests]))
   const skipped = skippedFile(await mergedSkipped(dir, source))
   const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
   const write: Array<readonly [string, string]> = [
