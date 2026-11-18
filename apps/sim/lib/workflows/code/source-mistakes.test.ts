@@ -105,4 +105,25 @@ describe('mistakes from the blind DX trial, against the real catalog', () => {
       'Remove this edge from Notify back to Ask, and repeat work with loop() or parallel() around the blocks instead.'
     )
   })
+
+  it('asks for a timezone only on a schedule type that uses one', () => {
+    const schedule = (params: string) =>
+      compile(`// @sim-sdk 1
+import { api, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Sync', {}, () => {
+  const tick = trigger.schedule('Tick', { ${params} })
+  const call = api('Call', { url: 'https://example.com/hook' })
+  tick.to(call)
+})
+`)
+        .diagnostics.map((diagnostic) => diagnostic.code)
+        .filter((code) => code === 'I_SCHEDULE_UTC' || code === 'W_FIELD_NOT_APPLICABLE')
+    expect(schedule("scheduleType: 'hourly', hourlyMinute: 5")).toEqual([])
+    expect(schedule("scheduleType: 'hourly', hourlyMinute: 5, timezone: 'UTC'")).toEqual([
+      'W_FIELD_NOT_APPLICABLE',
+    ])
+    expect(schedule("scheduleType: 'minutes', minutesInterval: 15")).toEqual([])
+    expect(schedule("scheduleType: 'daily', dailyTime: '09:00'")).toEqual(['I_SCHEDULE_UTC'])
+  })
 })

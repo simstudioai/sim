@@ -857,7 +857,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   const fromSource = new Set(Object.keys(params))
   const defaulted = fillEditorDefaults(state, shape)
   if (shape.index) checkFields(ctx, shape.index, state)
-  if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, state)
+  if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, shape.index, state)
 
   const block: CanonicalBlock = {
     key: decl.key,
@@ -1276,11 +1276,19 @@ const SCHEDULE_BLOCK_TYPE = 'schedule'
 
 /**
  * A schedule created from source with no `timezone` runs in UTC: the zone the editor seeds is the
- * viewer's own, so source never gets one by default (`I_SCHEDULE_UTC`).
+ * viewer's own, so source never gets one by default (`I_SCHEDULE_UTC`). Silent when the schedule
+ * type hides `timezone` (every few minutes, hourly), where checkFields warns against setting it.
  */
-function checkScheduleTimezone(ctx: CompileContext, state: BlockState): void {
+function checkScheduleTimezone(
+  ctx: CompileContext,
+  index: FieldIndex | undefined,
+  state: BlockState
+): void {
   const { decl, params } = state
   if (ctx.stored && getOwn(ctx.stored.blocks, decl.key)) return
+  const values = storedValues(params)
+  const field = index ? declarationFor(index, 'timezone', paramLookup(values)) : undefined
+  if (field && !isVisible(field, values)) return
   const timezone = getOwn(params, 'timezone')
   if (timezone?.kind === 'value' && timezone.value !== null && timezone.value !== '') return
   ctx.reporter.report(
