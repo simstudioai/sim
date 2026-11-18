@@ -43,7 +43,7 @@ export const agentphoneGetCallTranscriptTool: ToolConfig<
 
   transformResponse: async (response, params): Promise<AgentPhoneGetCallTranscriptResult> => {
     const data = await response.json()
-    const callId = params?.callId?.trim() ?? ''
+    const callId = String(params?.callId ?? '').trim()
 
     if (!response.ok) {
       return {

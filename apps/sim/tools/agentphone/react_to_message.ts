@@ -50,7 +50,7 @@ export const agentphoneReactToMessageTool: ToolConfig<
 
   transformResponse: async (response, params): Promise<AgentPhoneReactToMessageResult> => {
     const data = await response.json()
-    const messageId = params?.messageId?.trim() ?? ''
+    const messageId = String(params?.messageId ?? '').trim()
 
     if (!response.ok) {
       return {

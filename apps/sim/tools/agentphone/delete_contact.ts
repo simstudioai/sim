@@ -41,7 +41,7 @@ export const agentphoneDeleteContactTool: ToolConfig<
   },
 
   transformResponse: async (response, params): Promise<AgentPhoneDeleteContactResult> => {
-    const contactId = params?.contactId?.trim() ?? ''
+    const contactId = String(params?.contactId ?? '').trim()
 
     if (!response.ok) {
       let errorMessage = 'Failed to delete contact'

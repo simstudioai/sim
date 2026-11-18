@@ -41,7 +41,7 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   },
 
   transformResponse: async (response, params): Promise<AgentPhoneReleaseNumberResult> => {
-    const numberId = params?.numberId?.trim() ?? ''
+    const numberId = String(params?.numberId ?? '').trim()
 
     if (!response.ok) {
       let errorMessage = 'Failed to release phone number'
