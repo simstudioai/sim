@@ -19,7 +19,7 @@ import {
   type ResourceKeyResolver,
 } from '@sim/workflow-code'
 import {
-  COOKBOOK_TS,
+  COOKBOOK_EXAMPLES,
   generateWorkspaceTypes,
   SPECIAL_BUILDER_KEYS,
   WORKSPACE_COOKBOOK,
@@ -51,7 +51,7 @@ const workDir = mkdtempSync(path.join(tmpdir(), 'workflow-sdk-real-catalog-'))
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }))
 
-/** The resources `.sim/examples/cookbook.ts` names, as a workspace that has them lists them. */
+/** The resources the `.sim/examples/` workflows name, as a workspace that has them lists them. */
 const COOKBOOK_WORKSPACE: WorkspaceManifest = {
   tables: {
     orders: {
@@ -61,10 +61,23 @@ const COOKBOOK_WORKSPACE: WorkspaceManifest = {
         risk: { type: 'string' },
       },
     },
+    leads: {
+      columns: {
+        email: { type: 'string' },
+        domain: { type: 'string' },
+        company: { type: 'string' },
+        enriched: { type: 'boolean' },
+      },
+    },
   },
   knowledgeBases: ['policies'],
-  credentials: { 'ops-slack': { provider: 'slack' } },
-  env: ['ANTHROPIC_API_KEY'],
+  credentials: {
+    'ops-slack': { provider: 'slack' },
+    'ops-gmail': { provider: 'google-email' },
+  },
+  workflows: { 'enrich-lead': { inputs: { email: 'string' } } },
+  customTools: ['lookup-order'],
+  env: ['ANTHROPIC_API_KEY', 'CLEARBIT_KEY', 'LEADS_WEBHOOK_TOKEN'],
 }
 
 describe('canonicalize and codegen over the real block catalog', () => {
@@ -342,32 +355,34 @@ describe('canonicalize and codegen over the real block catalog', () => {
     expect(typeCheckAgainstSdk(workDir, 'table-rows', [path.join(dir, '*.ts')])).toBe('')
   }, 120_000)
 
-  it('type-checks and compiles the cookbook the CLI writes, with no error or warning', () => {
+  it('type-checks and compiles every example workflow the CLI writes, with no error or warning', () => {
     sdkTypesOnce()
     const dir = path.join(workDir, 'cookbook')
     mkdirSync(dir, { recursive: true })
     const workspaceTypes = generateWorkspaceTypes(COOKBOOK_WORKSPACE)
     writeFileSync(path.join(dir, workspaceTypes.path), workspaceTypes.text)
-    writeFileSync(path.join(dir, 'cookbook.ts'), COOKBOOK_TS)
+    for (const [file, text] of Object.entries(COOKBOOK_EXAMPLES)) {
+      writeFileSync(path.join(dir, file), text)
+    }
     expect(typeCheckAgainstSdk(workDir, 'cookbook', [path.join(dir, '*.ts')])).toBe('')
 
-    const compiled = compileWorkflow({
-      entry: { path: 'workflow.ts', text: COOKBOOK_TS },
-      files: new Map(),
-      catalog,
-      sdkMajor: catalog.sdkMajor,
-      envNames: new Set(COOKBOOK_WORKSPACE.env),
-    })
-    expect(
-      compiled.diagnostics
-        .filter(
+    const findings = Object.entries(COOKBOOK_EXAMPLES).flatMap(([file, text]) =>
+      compileWorkflow({
+        entry: { path: 'workflow.ts', text },
+        files: new Map(),
+        catalog,
+        sdkMajor: catalog.sdkMajor,
+        envNames: new Set(COOKBOOK_WORKSPACE.env),
+      })
+        .diagnostics.filter(
           (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning'
         )
         .map(
           (diagnostic) =>
-            `${diagnostic.code} ${diagnostic.blockKey ?? ''}.${diagnostic.param ?? ''}: ${diagnostic.message}`
+            `${file} ${diagnostic.code} ${diagnostic.blockKey ?? ''}.${diagnostic.param ?? ''}: ${diagnostic.message}`
         )
-    ).toEqual([])
+    )
+    expect(findings).toEqual([])
   }, 120_000)
 
   it('type-checks and compiles the workspace cookbook the CLI writes, with no error or warning', () => {
