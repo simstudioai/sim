@@ -177,13 +177,45 @@ describe('workspaces source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
-  it('counts a removed kind folder as no longer managed, not as deleted resources', async () => {
+  it('reports the files of a removed kind folder as deleted, as a get refuses to write them again', async () => {
     rmSync(join(dir, 'tables'), { recursive: true })
     mockRequest.mockResolvedValue(dryRun())
 
     await run('status')
 
+    expect(printed()).toMatchObject({
+      state: 'local',
+      local: [
+        { kind: 'table', key: 'deals', change: 'deleted' },
+        { kind: 'table', key: 'leads', change: 'deleted' },
+      ],
+    })
+
+    await run('status', '--only', 'workflows')
     expect(printed()).toMatchObject({ state: 'clean', local: [] })
+  })
+
+  it('reports a binary file the CLI wrote that is missing now as deleted', async () => {
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        version: 1,
+        files: {
+          ...Object.fromEntries(Object.entries(GOT).map(([path, text]) => [path, digest(text)])),
+          'files/notes.bin': createHash('sha256').update(NOTES).digest('hex'),
+        },
+      })
+    )
+    mkdirSync(join(dir, 'files'), { recursive: true })
+    write('files/.gitkeep', '')
+    mockRequest.mockResolvedValue(dryRun())
+
+    await run('status')
+
+    expect(printed()).toMatchObject({
+      state: 'local',
+      local: [{ kind: 'file', key: 'notes.bin', change: 'deleted' }],
+    })
   })
 
   it('sends every workflow folder whole, so the dry run compares it with the stored workflow', async () => {

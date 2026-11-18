@@ -66,8 +66,9 @@ interface LocalWorkspace {
 
 /**
  * Reads the directory with every workflow folder whole, and the files that differ from what the
- * CLI last wrote: a recorded file is deleted only when its kind's folder (or root file) is still
- * there, since removing the folder stops managing the kind rather than deleting its resources.
+ * CLI last wrote. A recorded file that is missing is deleted, as a get counts it (a get refuses to
+ * write it again), whether or not its kind's folder is still there; `--only` limits both sides to
+ * its kinds.
  */
 async function readLocalWorkspace(
   dir: string,
@@ -80,10 +81,9 @@ async function readLocalWorkspace(
   const current: Record<string, string> = {}
   for (const [path, text] of Object.entries(submission.files)) current[path] = digest(text)
   for (const blob of submission.blobs) current[blob.path] = blob.sha256
-  const managed = new Set(submission.kinds)
   const changed = changedFiles(current, written.digests, (path) => {
     const kind = kindOfPath(path)
-    return kind !== null && managed.has(kind)
+    return kind !== null && (!only || only.includes(kind))
   })
   return { submission, written, changed, readFrom }
 }
