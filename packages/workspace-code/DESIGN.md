@@ -264,6 +264,54 @@ removed rather than kept beside staging: the CLI and server move together, and a
 that still sends `content` in the manifest is refused by the contract (`blobs[].content` is not
 a field).
 
+**One correlation id per apply.** An apply that writes mints an `applyId` and runs its writes
+inside `withAuditCorrelation` (`@sim/audit`): every audit entry a child use case records then
+carries it as `metadata.correlationId` (a rolled-up entry too, keyed by it), and so does the
+apply's own roll-up. The id is in the response, and the CLI prints it.
+
+**Deleting a deployed workflow.** A workflow delete counts the live triggers its deployment serves
+(`liveTriggerCounts`, `kinds/deployment/triggers.ts`) as its destructive counts, as an undeploy
+does: their webhook URLs and schedules go with the workflow, and a workflow created in its place
+gets new ones. An update never moves them: block identity comes from the folder's lock, and
+`webhookId`/`triggerPath` are copied from the stored block (`packages/workflow-code/DESIGN.md`); a
+block retyped or deleted while live warns `W_APPLY_TRIGGER_REMOVED`.
+
+## Promotion
+
+`sim workspaces source apply --to <workspace>` applies a directory read from one workspace (dev)
+to another (prod) without rebinding the directory. The CLI reads the target as a get would
+(`GET /source` for the managed kinds, no blob downloads) and composes the submission with
+`promotionSubmission` (`src/promote.ts`): the directory's text with every workflow folder whole,
+each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's folder of the same key
+(or dropped, so the key is created), and the target's root base, narrowed to the keys the
+directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
+so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
+its id and block ids through the target's lock), an unbound one of the same name is adopted, a
+missing one created, a change in the target between the read and the apply is `E_APPLY_STALE`, and
+secrets and credentials bind by name and key to the target's own. The answer is not saved: the
+directory stays bound to the workspace it was read from. Without `--to`, the CLI refuses a
+directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
+applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
+apply to an empty target survives (a second is `E_APPLY_NO_BASE` for everything it created).
+
+## Git and the CLI's files
+
+Everything a get writes is meant to be committed: the base files are what an apply compares with
+from any clone, and `.sim/written.json` is what tells a removed blob from one no get downloaded
+(`SOURCE_BLOBS_NOT_FETCHED`). The generated `.gitignore` lists only what a command holds while it
+runs (`.sim/downloads/`, `.sim/command.lock/`, `.sim-staging-*`), and `.gitattributes` marks
+`files/**` and `knowledge/*/docs/**` `-text` after the LF lines, since a commit that rewrote a
+blob's line endings would change its hash. In a fresh clone `check` downloads the block catalog
+once (the cache lives in the CLI's config directory, not the repository). Every text file is read
+with CRLF folded to LF and a byte-order mark dropped, so a Windows checkout reads as unchanged.
+
+One command at a time per directory: `get`, `apply` and `check` hold `.sim/command.lock` (a
+folder, created atomically, recording the pid and host). A second command meanwhile exits 10
+(`SOURCE_DIR_BUSY`) with nothing read or written; a lock whose process on this host is gone (or
+that never recorded an owner within a minute) is taken over. Each file moves into place by a
+rename, and the record files last, but a set of renames is not atomic: without the lock, two
+commands' files and records could interleave and a later apply would send stale text as an edit.
+
 ## Limits
 
 `WORKSPACE_SOURCE_LIMITS` (`src/limits.ts`) is shared by get and apply: a get leaves out what an

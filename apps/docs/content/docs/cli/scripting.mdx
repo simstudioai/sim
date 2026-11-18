@@ -313,6 +313,47 @@ esac
 exit "$status"
 ```
 
+## Workspace source in CI
+
+Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors and `5` when the workspace changed since the committed base; `check` downloads the block catalog once on a fresh runner.
+
+```yaml title=".github/workflows/sim-workspace.yml"
+on:
+  pull_request:
+    paths: ['workspace/**']
+  push:
+    branches: [main]
+    paths: ['workspace/**']
+
+concurrency: sim-workspace
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: sim workspaces source check --dir workspace
+      - run: sim workspaces source apply --dir workspace --dry-run
+      - if: github.event_name == 'push'
+        run: sim workspaces source apply --dir workspace --yes
+```
+
+A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory: commit them back, or run `sim workspaces source get --dir workspace` on a branch and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace, so retry; the `concurrency` key keeps two runs of this job from overlapping.
+
+To promote the same directory to a second workspace, add a step with `--to`:
+
+```bash
+sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
 ## Related docs
 
 - [Output formats](/cli/output)

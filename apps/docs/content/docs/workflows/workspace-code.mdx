@@ -65,6 +65,22 @@ The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resou
 - A resource the directory never managed is kept, and the apply names it in a warning.
 - Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
 - Rows, connector-synced documents and run history are never part of the directory.
+- A delete cannot be undone by applying an older copy of the directory, such as a reverted commit. The resource stays deleted, and its rows, documents, run history, webhook URLs and schedules are gone. The dry run marks each change that deletes data and counts them as `destructive`.
+
+## Promote to another workspace
+
+Apply a directory read from one workspace (dev) to another (prod) with `--to`:
+
+```bash
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry-run
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory is not changed and stays bound to the workspace it was read from. Without `--to`, an apply refuses a directory read from another workspace.
+
+## Git and CI
+
+Commit the whole directory, including `.sim/`: its base files are what an apply compares with, from any clone. The generated `.gitignore` leaves out only temporary files. A fresh clone can run `check`, `apply --dry-run` and `apply` with nothing else. See [Workspace source in CI](/cli/scripting#workspace-source-in-ci) for a GitHub Actions setup.
 
 ## Good to know
 
