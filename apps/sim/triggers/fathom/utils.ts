@@ -97,10 +97,12 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     recorded_by: {
       type: 'object',
       description: 'Recorder details',
-      name: { type: 'string', description: 'Name of the recorder' },
-      email: { type: 'string', description: 'Email of the recorder' },
-      email_domain: { type: 'string', description: 'Email domain of the recorder' },
-      team: { type: 'string', description: 'Recorder team name, or null' },
+      properties: {
+        name: { type: 'string', description: 'Name of the recorder' },
+        email: { type: 'string', description: 'Email of the recorder' },
+        email_domain: { type: 'string', description: 'Email domain of the recorder' },
+        team: { type: 'string', description: 'Recorder team name, or null' },
+      },
     },
     calendar_invitees: {
       type: 'array',
@@ -109,8 +111,10 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     default_summary: {
       type: 'object',
       description: 'Meeting summary',
-      template_name: { type: 'string', description: 'Summary template name' },
-      markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
+      properties: {
+        template_name: { type: 'string', description: 'Summary template name' },
+        markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
+      },
     },
     transcript: {
       type: 'array',

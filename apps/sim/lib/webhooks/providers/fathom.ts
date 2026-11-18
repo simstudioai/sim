@@ -15,6 +15,25 @@ import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Fathom')
 
+/** Best-effort removal of a webhook Sim registered but cannot keep, so it does not keep firing. */
+async function deleteOrphanedFathomWebhook(
+  apiKey: string,
+  fathomWebhookId: string,
+  requestId: string
+): Promise<void> {
+  if (!validateAlphanumericId(fathomWebhookId, 'Fathom webhook ID', 100).isValid) return
+  try {
+    await outboundFetch(`https://api.fathom.ai/external/v1/webhooks/${fathomWebhookId}`, {
+      method: 'DELETE',
+      headers: { 'X-Api-Key': apiKey },
+    })
+  } catch (error) {
+    logger.warn('Failed to remove orphaned Fathom webhook; it may still be active', error, {
+      requestId,
+    })
+  }
+}
+
 export const fathomHandler: WebhookProviderHandler = {
   /**
    * Fathom signs deliveries with the Standard Webhooks scheme using the secret
@@ -131,9 +150,16 @@ export const fathomHandler: WebhookProviderHandler = {
       })
 
       const signingSecret =
-        typeof responseBody.secret === 'string' && responseBody.secret.trim()
-          ? responseBody.secret
-          : undefined
+        typeof responseBody.secret === 'string' ? responseBody.secret.trim() : ''
+      if (!signingSecret) {
+        logger.error(`Fathom webhook creation returned no signing secret for ${webhook.id}.`, {
+          requestId,
+        })
+        await deleteOrphanedFathomWebhook(apiKey, String(responseBody.id), requestId)
+        throw new Error(
+          'Fathom created the webhook but did not return a signing secret, so deliveries could not be verified. Please try again.'
+        )
+      }
 
       return { providerConfigUpdates: { externalId: responseBody.id, signingSecret } }
     } catch (error: unknown) {

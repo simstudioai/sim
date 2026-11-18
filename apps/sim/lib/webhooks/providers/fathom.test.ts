@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 
 const SECRET_BYTES = Buffer.from('fathom-test-secret-key-padding!!!!!!')
@@ -66,5 +66,52 @@ describe('Fathom webhook provider verifyAuth', () => {
     })
 
     expect(res ?? null).toBeNull()
+  })
+})
+
+describe('Fathom webhook provider createSubscription', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  it('stores the signing secret Fathom returns', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'ikEoQ4bVoq4JYUmc', secret: SIGNING_SECRET }),
+    })
+
+    const result = await fathomHandler.createSubscription?.({
+      webhook: { id: 'wh_1', path: 'p1', providerConfig: { apiKey: 'fathom_key' } },
+      requestId: 'fathom-sub1',
+    } as never)
+
+    expect(result?.providerConfigUpdates).toEqual({
+      externalId: 'ikEoQ4bVoq4JYUmc',
+      signingSecret: SIGNING_SECRET,
+    })
+  })
+
+  it('deletes the webhook and fails when the response omits the signing secret', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'ikEoQ4bVoq4JYUmc' }),
+    })
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 204 })
+
+    await expect(
+      fathomHandler.createSubscription?.({
+        webhook: { id: 'wh_2', path: 'p2', providerConfig: { apiKey: 'fathom_key' } },
+        requestId: 'fathom-sub2',
+      } as never)
+    ).rejects.toThrow(/signing secret/)
+
+    const [url, init] = fetchMock.mock.calls[1]
+    expect(init.method).toBe('DELETE')
+    expect(url).toBe('https://api.fathom.ai/external/v1/webhooks/ikEoQ4bVoq4JYUmc')
   })
 })
