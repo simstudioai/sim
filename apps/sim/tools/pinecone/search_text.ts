@@ -136,7 +136,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     },
     method: 'POST',
     url: (params) =>
-      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true })}/search`,
+      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true, stripTabsAndNewlines: true })}/search`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/json',

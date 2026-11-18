@@ -59,7 +59,7 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
   request: {
     method: 'POST',
     url: (params) =>
-      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true })}/points`,
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true, stripTabsAndNewlines: true })}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

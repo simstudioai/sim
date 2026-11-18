@@ -39,6 +39,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
       return `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
         allowSeparators: true,
         preserveWhitespace: true,
+        stripTabsAndNewlines: true,
       })}/threads?limit=${limit}`
     },
     method: 'GET',
