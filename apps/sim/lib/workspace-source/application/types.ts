@@ -114,6 +114,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
     key: string
     /** The part of the resource the reference names: an MCP server's tool. */
     member?: string
+    /**
+     * The resource's id, for a kind keyed otherwise than a workflow names it (a workspace file,
+     * keyed by its path): the plan finds that kind's change by id and names it by its key.
+     */
+    id?: string
   }>
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource

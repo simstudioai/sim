@@ -1524,20 +1524,57 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'a workflow name edited in source refuses the apply, located at the header, pointing at settings',
+    'a workflow name and description edited in source rename the workflow, and a get reads them back unchanged',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
       const name = await storedName(seeded.workflowId)
+
+      const renamed = edit(
+        edit(source.files, `'${name}'`, "'Renamed in source'"),
+        '{ variables:',
+        "{ description: 'Scores leads', variables:"
+      )
+      const dryRun = await apply(source, renamed, { dryRun: true })
+      expect(dryRun.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+      expect(await storedName(seeded.workflowId)).toBe(name)
+      const result = await apply(source, renamed)
+
+      expect(result.workflowName).toBe('Renamed in source')
+      const [row] = await db
+        .select({ name: workflow.name, description: workflow.description })
+        .from(workflow)
+        .where(eq(workflow.id, seeded.workflowId))
+      expect(row).toEqual({ name: 'Renamed in source', description: 'Scores leads' })
+      const reread = await getSource(seeded.workflowId)
+      expect(reread.base.fingerprint).toBe(result.base.fingerprint)
+      expect(reread.files['workflow.ts']).toContain(
+        "'Renamed in source',\n  { description: 'Scores leads',"
+      )
+      const again = await apply(reread, reread.files)
+      expect(again.applied).toBe(false)
+      expect(again.wroteSourceMeta).toBe(false)
+    }
+  )
+
+  check(
+    'a workflow renamed in source to a name its folder holds is refused at the header',
+    async () => {
+      const seeded = await seedWorkflow()
+      const other = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const taken = await storedName(other.workflowId)
       const before = await snapshot(seeded.workflowId)
 
       const error = await expectRejected(
-        apply(source, edit(source.files, `'${name}'`, "'Renamed in source'")),
-        'E_APPLY_META_CHANGED'
+        apply(source, edit(source.files, `'${name}'`, `'${taken}'`)),
+        'E_NAME_TAKEN'
       )
-      const refusal = error.diagnostics.find((d) => d.code === 'E_APPLY_META_CHANGED')
-      expect(refusal?.hint).toContain('through its settings')
-      expect(refusal?.file).toBe('workflow.ts')
+      expect(error.diagnostics.find((d) => d.code === 'E_NAME_TAKEN')).toMatchObject({
+        file: 'workflow.ts',
+        line: expect.any(Number),
+      })
       expect(await storedName(seeded.workflowId)).toBe(name)
       expect(await snapshot(seeded.workflowId)).toEqual(before)
     }

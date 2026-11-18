@@ -528,12 +528,15 @@ describe('knowledge bases as workspace source', () => {
   )
 
   check(
-    'replacing a document shows the re-embed count, uploads it, and keeps the others',
+    'replacing a document shows the re-embed count, uploads it with its tag values, and keeps the others',
     async () => {
       const { workspaceId, read, dir } = await setUp()
       const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
       const [refunds, shipping] = await docs(stored.id)
-      await db.update(document).set({ tag1: 'billing' }).where(eq(document.id, refunds.id))
+      await db
+        .update(document)
+        .set({ tag1: 'billing', number1: 3, boolean1: true })
+        .where(eq(document.id, refunds.id))
       const edited: Directory = {
         files: dir.files,
         docs: {
@@ -555,7 +558,7 @@ describe('knowledge bases as workspace source', () => {
       expect(
         dryRun.diagnostics.find((finding) => finding.code === 'I_KB_REEMBED')?.message
       ).toContain('(0 new, 1 replaced)')
-      expect(codes(dryRun.diagnostics, 'warning')).toEqual(['W_KB_DOC_TAGS'])
+      expect(codes(dryRun.diagnostics, 'warning')).toEqual([])
 
       const result = await apply(workspaceId, edited, { base: read.base })
 
@@ -564,6 +567,11 @@ describe('knowledge bases as workspace source', () => {
       expect(after.map((doc) => doc.filename)).toEqual(['refunds.md', 'shipping.txt'])
       expect(after[0].id).not.toBe(refunds.id)
       expect(after[1].id).toBe(shipping.id)
+      const [replaced] = await db
+        .select({ tag1: document.tag1, number1: document.number1, boolean1: document.boolean1 })
+        .from(document)
+        .where(eq(document.id, after[0].id))
+      expect(replaced).toEqual({ tag1: 'billing', number1: 3, boolean1: true })
       expect(result.base.resources['knowledge-base:policies']?.blobs?.['refunds.md']).toMatchObject(
         { id: after[0].id, sha256: sha256Hex(edited.docs['knowledge/policies/docs/refunds.md']) }
       )

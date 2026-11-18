@@ -98,7 +98,16 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
     const claimed = new Map<string, string>()
     const changes: ToolChange[] = []
     for (const [key, decl] of desired) {
-      const change = planNamed(tools, key, decl, stored, ctx, toolDeclarationPath(key), claimed)
+      const change = planNamed(
+        tools,
+        key,
+        decl,
+        stored,
+        desired,
+        ctx,
+        toolDeclarationPath(key),
+        claimed
+      )
       try {
         if (writtenFields(change).includes('schema')) assertValidCustomToolDeclaration(decl.schema)
       } catch (error) {

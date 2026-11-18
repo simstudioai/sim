@@ -20,6 +20,7 @@ import {
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
 import {
+  keyRenamedChange,
   kindFinding,
   missingFolderFinding,
   nameHolder,
@@ -89,6 +90,7 @@ async function planTable(
   key: string,
   decl: TableDecl,
   stored: StoredSet<StoredTableState>,
+  desired: ReadonlyMap<string, TableDecl>,
   ctx: PlanContext,
   folders: ReadonlySet<string>
 ): Promise<TableChange> {
@@ -117,7 +119,11 @@ async function planTable(
   switch (planned.action) {
     case 'create': {
       const holder = nameHolder(stored, decl.name, { fold: true })
-      if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
+      if (holder) {
+        const renamed = keyRenamedChange(change, holder, desired, ctx)
+        if (renamed) return renamed
+        change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
+      }
       return {
         ...change,
         action: 'create',
@@ -286,7 +292,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
     const changes: TableChange[] = []
     const declaredNames = new Map<string, string>()
     for (const [key, decl] of desired) {
-      const change = await planTable(key, decl, stored, ctx, folders)
+      const change = await planTable(key, decl, stored, desired, ctx, folders)
       refuseDeclaredTwice(declaredNames, change, decl.name.toLowerCase(), decl.name)
       changes.push(change)
     }
@@ -299,6 +305,10 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
         declared: changes,
         fingerprint: (resource, entry) => storedFingerprint(resource.state, entry.columns),
         counts: (resource) => ({ rows: resource.state.table.rowCount }),
+        locked: ({ state }) =>
+          state.table.locks.deleteLocked
+            ? `Table "${state.table.name}" is delete-locked.`
+            : undefined,
         detail: (_resource, entry) => (entry.columns ? { bindings: entry.columns } : undefined),
       }
     )

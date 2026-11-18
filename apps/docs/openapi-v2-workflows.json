@@ -18673,7 +18673,7 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_APPLY_META_CHANGED"
+                        "E_NAME_TAKEN"
                       ],
                       "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
                     },
@@ -18780,7 +18780,7 @@
               },
               "applied": {
                 "type": "boolean",
-                "description": "True only when the draft was written; false on a dry run and on a no-op."
+                "description": "True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op."
               },
               "diff": {
                 "type": "object",
@@ -18788,6 +18788,14 @@
                   "noop": {
                     "type": "boolean",
                     "description": "True when the source matches the saved draft."
+                  },
+                  "meta": {
+                    "description": "The workflow name and description fields the source changes.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["name", "description"]
+                    }
                   },
                   "blocks": {
                     "type": "object",
@@ -19089,7 +19097,7 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_APPLY_META_CHANGED"
+                        "E_NAME_TAKEN"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -19713,7 +19721,7 @@
               },
               "applied": {
                 "type": "boolean",
-                "description": "True only when the draft was written; false on a dry run and on a no-op."
+                "description": "True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op."
               },
               "diff": {
                 "type": "object",
@@ -19721,6 +19729,14 @@
                   "noop": {
                     "type": "boolean",
                     "description": "True when the source matches the saved draft."
+                  },
+                  "meta": {
+                    "description": "The workflow name and description fields the source changes.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["name", "description"]
+                    }
                   },
                   "blocks": {
                     "type": "object",
@@ -20022,7 +20038,7 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_APPLY_META_CHANGED"
+                        "E_NAME_TAKEN"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -24852,7 +24868,6 @@
                         "E_KB_DOC_EMPTY",
                         "E_KB_CHUNKING",
                         "E_KB_FOLDER",
-                        "W_KB_DOC_TAGS",
                         "W_KB_DOC_UNCHECKED",
                         "W_KB_DOC_FAILED",
                         "I_KB_REEMBED",
@@ -24886,6 +24901,8 @@
                         "I_SERVER_DELETED",
                         "I_SERVER_MOVED",
                         "I_KEY_REBOUND",
+                        "E_KEY_RENAMED",
+                        "I_FINDINGS_TRUNCATED",
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
@@ -25018,8 +25035,7 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE",
-                        "E_APPLY_META_CHANGED"
+                        "E_APPLY_BLOCK_DELETE"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -25395,7 +25411,6 @@
                       "E_KB_DOC_EMPTY",
                       "E_KB_CHUNKING",
                       "E_KB_FOLDER",
-                      "W_KB_DOC_TAGS",
                       "W_KB_DOC_UNCHECKED",
                       "W_KB_DOC_FAILED",
                       "I_KB_REEMBED",
@@ -25429,6 +25444,8 @@
                       "I_SERVER_DELETED",
                       "I_SERVER_MOVED",
                       "I_KEY_REBOUND",
+                      "E_KEY_RENAMED",
+                      "I_FINDINGS_TRUNCATED",
                       "E_SYNTAX",
                       "E_SDK_HEADER",
                       "E_SDK_MAJOR",
@@ -25561,8 +25578,7 @@
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
                       "E_APPLY_INVALID_SCHEDULE",
-                      "E_APPLY_BLOCK_DELETE",
-                      "E_APPLY_META_CHANGED"
+                      "E_APPLY_BLOCK_DELETE"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -25764,7 +25780,6 @@
                         "E_KB_DOC_EMPTY",
                         "E_KB_CHUNKING",
                         "E_KB_FOLDER",
-                        "W_KB_DOC_TAGS",
                         "W_KB_DOC_UNCHECKED",
                         "W_KB_DOC_FAILED",
                         "I_KB_REEMBED",
@@ -25798,6 +25813,8 @@
                         "I_SERVER_DELETED",
                         "I_SERVER_MOVED",
                         "I_KEY_REBOUND",
+                        "E_KEY_RENAMED",
+                        "I_FINDINGS_TRUNCATED",
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
@@ -25930,8 +25947,7 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE",
-                        "E_APPLY_META_CHANGED"
+                        "E_APPLY_BLOCK_DELETE"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },

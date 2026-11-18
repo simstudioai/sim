@@ -755,6 +755,7 @@ export type ApplyWorkflowSourceResponse = {
     applied: boolean
     diff: {
       noop: boolean
+      meta?: Array<'name' | 'description'>
       blocks: {
         added: Array<{
           id: string
@@ -923,7 +924,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1208,7 +1209,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -1242,6 +1242,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -1375,7 +1377,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
       message: string
     }
     needBlobs: Array<string>
@@ -1459,7 +1460,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -1493,6 +1493,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -1626,7 +1628,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -4994,6 +4995,7 @@ export type CreateWorkflowFromSourceResponse = {
     applied: boolean
     diff: {
       noop: boolean
+      meta?: Array<'name' | 'description'>
       blocks: {
         added: Array<{
           id: string
@@ -5162,7 +5164,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10157,7 +10159,7 @@ export type GetWorkflowSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10640,7 +10642,6 @@ export type GetWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -10674,6 +10675,8 @@ export type GetWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -10807,7 +10810,6 @@ export type GetWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
-        | 'E_APPLY_META_CHANGED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string

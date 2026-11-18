@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { workflowBlocks } from '@sim/db/schema'
+import { workflow, workflowBlocks } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import {
   type BlockCatalog,
@@ -28,7 +28,7 @@ import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkspaceKind } from '@sim/workspace-code'
-import { and, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
@@ -57,6 +57,7 @@ import type {
   WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
+import { workflowNameExistsInFolder } from '@/lib/workflows/orchestration'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
@@ -222,8 +223,13 @@ function withoutPendingReferences(
 
 /** Everything a commit (or a dry run) writes and reports, once every check passed. */
 export interface SourcePlan {
-  /** The workflow's name and description: the stored ones, or a created workflow's. */
+  /**
+   * The workflow's name and description after the write: the source's (a stored workflow's
+   * differ from what is stored where `metaChanged` says), or a created workflow's.
+   */
   meta: CanonicalWorkflowMeta
+  /** The name and description fields the write changes on a stored workflow. */
+  metaChanged: Array<keyof CanonicalWorkflowMeta>
   /** The graph is unchanged; only source meta may differ. Never true for a create. */
   noop: boolean
   blocks: Record<string, BlockState>
@@ -337,6 +343,16 @@ function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowL
     blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
   }
   return { version: 1, blocks, variables: identity.variables }
+}
+
+/** The folder workflow `workflowId` sits in (`null` at the root), for a rename's name check. */
+async function workflowFolderId(workflowId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ folderId: workflow.folderId })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1)
+  return row?.folderId ?? null
 }
 
 /**
@@ -513,10 +529,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     }
   }
 
-  /** The source's name and description never change a stored workflow, so they are not diffed. */
-  const ignoredMeta = isNew
+  /**
+   * The name and description the source gives a stored workflow, where they differ from the
+   * stored ones: the write renames or redescribes the workflow (the graph diff never sees them).
+   */
+  const metaChanged = isNew
     ? []
-    : META_FIELDS.filter((field) => compiledWorkflow.meta[field] !== meta[field])
+    : META_FIELDS.filter(
+        (field) => (compiledWorkflow.meta[field] ?? null) !== (meta[field] ?? null)
+      )
+  const storedMeta = meta
+  if (metaChanged.length > 0) {
+    meta = {
+      name: compiledWorkflow.meta.name,
+      description: compiledWorkflow.meta.description ?? null,
+    }
+  }
   /**
    * What the write stores against what is stored: the materialized CWM, not the compiled one,
    * so a field source never prints (a forEach loop's empty while condition, a pair's stored
@@ -530,15 +558,20 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const notes: string[] = []
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
-  if (ignoredMeta.length > 0) {
-    const changed = ignoredMeta
-      .map((field) => `${field} ${JSON.stringify(compiledWorkflow.meta[field] ?? '')}`)
-      .join(' and ')
+  if (
+    metaChanged.includes('name') &&
+    (await workflowNameExistsInFolder({
+      workspaceId: scope.workspaceId,
+      name: meta.name,
+      folderId: await workflowFolderId(scope.workflowId),
+      excludeWorkflowId: scope.workflowId,
+    }))
+  ) {
     sourceRefusals.push({
-      code: 'E_APPLY_META_CHANGED',
+      code: 'E_NAME_TAKEN',
       severity: 'error',
-      message: `The source gives the workflow the ${changed}, but an apply never renames or redescribes a workflow, so the edit would be lost.`,
-      hint: `Write workflow(${JSON.stringify(meta.name)}, ...) as stored, and rename or describe the workflow through its settings (or the workflows API); then get the source again.`,
+      message: `Another workflow in this workflow's folder is named ${JSON.stringify(meta.name)}.`,
+      hint: `Choose another name, or keep workflow(${JSON.stringify(storedMeta.name)}, ...).`,
       ...(headerSpan ? { span: headerSpan } : {}),
     })
   }
@@ -662,7 +695,14 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
         variables === undefined ? state.variables : (parseWorkflowVariables(variables) ?? {}),
       diagnostics,
       notes,
-      diff: summarizeDiff(canonicalDiff, storedCanonical.identity, materialized.identity, noop),
+      diff: summarizeDiff(
+        canonicalDiff,
+        storedCanonical.identity,
+        materialized.identity,
+        noop,
+        metaChanged
+      ),
+      metaChanged,
       mintedIds,
       identity: materialized.identity,
       lock: lockAfter,

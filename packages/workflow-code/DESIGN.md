@@ -73,9 +73,11 @@ materialize. There is no separate draft type: compile returns a CWM, and ids bin
 materialize.
 
 - `meta`: the workflow row's `name` and `description` (`WorkflowState` does not carry them).
-  Apply never writes them to an existing workflow; a source that changes them is refused with
-  `E_APPLY_META_CHANGED` (rename through the workflow's settings), so the edit is never dropped
-  silently.
+  A source that changes them renames or redescribes the workflow: the graph diff never sees them,
+  the write applies them through the workflow update use case after the graph commit (whose
+  fingerprint check they would otherwise move), and a name another workflow in the folder holds
+  is `E_NAME_TAKEN` at the header. The fingerprint covers them, so a rename on the server since
+  the read is a stale 409 as any other change.
 - `blocks[key]`: `name`, `type` (including legacy and `custom_block_<slug>`), `parent`, `enabled`,
   `locked`, `triggerMode`, `advancedMode` (semantic: it changes what serializes),
   `errorPort` (`errorEnabled || has an error edge`), `retry` (raw `BlockRetryConfig`), `params`,
@@ -447,7 +449,8 @@ deploy is separate.
    - deleted blocks: an apply that removes a block the source no longer declares is
      `E_APPLY_BLOCK_DELETE` (naming them) unless the caller passes `allowDelete` (`--allow-delete`,
      which a workspace apply passes through), as a workspace apply refuses a resource delete;
-   - a changed name or description is `E_APPLY_META_CHANGED`;
+   - a changed name another workflow in the folder holds is `E_NAME_TAKEN` (a changed name or
+     description is otherwise written, as a rename);
    - schedules (`code/apply/schedules.ts`): an added or changed enabled schedule whose timing deploy
      would refuse (`validateScheduleBlock`: a malformed cron, an unknown timezone, an out-of-range
      interval) is `E_APPLY_INVALID_SCHEDULE`; a draft still missing a field is left to deploy;

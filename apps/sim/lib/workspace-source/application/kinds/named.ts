@@ -17,6 +17,7 @@ import {
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  keyRenamedChange,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -87,6 +88,7 @@ export function planNamed<D, S>(
   key: string,
   decl: D,
   stored: StoredSet<S>,
+  desired: ReadonlyMap<string, D>,
   ctx: PlanContext,
   file: string,
   claimed: Map<string, string>
@@ -112,13 +114,17 @@ export function planNamed<D, S>(
   const planned = settle(resolution, change, (record) => baseOf(named, record))
   if ('settled' in planned) return planned.settled
   switch (planned.action) {
-    case 'create':
+    case 'create': {
+      const holder = nameHolder(stored, name)
+      const renamed = holder && keyRenamedChange(change, holder, desired, ctx, file)
+      if (renamed) return renamed
       holderOf()
       return {
         ...change,
         action: 'create',
         pending: pendingOf({ ...change, action: 'create' }, { name }),
       }
+    }
     case 'adopt':
     case 'update': {
       const { id, state } = planned.stored

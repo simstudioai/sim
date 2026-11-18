@@ -22,6 +22,7 @@ import {
   admitKnowledgeDocumentUpload,
   admitWorkspaceKnowledgeDocumentUpload,
   deleteKnowledgeDocument,
+  updateKnowledgeDocument,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { listKnowledgeFolders } from '@/lib/knowledge/application/folders'
@@ -38,6 +39,7 @@ import { isSupportedExtension, SUPPORTED_MIME_TYPES } from '@/lib/uploads/utils/
 import { admitOnce } from '@/lib/workspace-source/application/context'
 import { isRefusal, refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
+  keyRenamedChange,
   kindFinding,
   missingFolderFinding,
   nameHolder,
@@ -160,6 +162,7 @@ async function planKnowledgeBase(
   key: string,
   decl: KnowledgeBaseDecl,
   stored: StoredSet<StoredKnowledgeState>,
+  desired: ReadonlyMap<string, KnowledgeBaseDecl>,
   ctx: PlanContext,
   folders: ReadonlySet<string>,
   configured: () => ReturnType<typeof getConfiguredKbEmbedding>
@@ -228,6 +231,9 @@ async function planKnowledgeBase(
   if ('settled' in planned) return planned.settled
   switch (planned.action) {
     case 'create': {
+      const holder = nameHolder(stored, decl.name)
+      const renamed = holder && keyRenamedChange(change, holder, desired, ctx)
+      if (renamed) return renamed
       change.diagnostics.push(...nameTaken(key, decl.name, stored))
       const embedding = await embeddingFinding(key, decl, configured)
       if (embedding) change.diagnostics.push(embedding)
@@ -348,8 +354,43 @@ async function retire(
 }
 
 /**
- * Uploads each carried document and deletes the document it replaces only once its replacement
- * is stored. Returns the new documents' hashes by id.
+ * Gives a replacement the tag values of the document it replaces, through the document update.
+ * When that fails, the replacement is deleted again, so the old document stays whole.
+ */
+async function carryTags(
+  ctx: ApplyContext,
+  knowledgeBaseId: string,
+  old: StoredDoc,
+  replacementId: string
+): Promise<void> {
+  if (Object.keys(old.tags).length === 0) return
+  try {
+    await updateKnowledgeDocument.execute({
+      principal: ctx.principal,
+      input: {
+        knowledgeBaseId,
+        documentId: replacementId,
+        assertedWorkspaceId: ctx.workspace.workspaceId,
+        updates: old.tags,
+      },
+    })
+  } catch (error) {
+    try {
+      await deleteDoc(ctx, knowledgeBaseId, replacementId)
+    } catch (rollbackError) {
+      logger.error('Failed to remove a replacement document after its tags failed to carry', {
+        knowledgeBaseId,
+        documentId: replacementId,
+        error: getErrorMessage(rollbackError),
+      })
+    }
+    throw error
+  }
+}
+
+/**
+ * Uploads each carried document; a replacement takes the tag values of the document it replaces,
+ * which is deleted only once its replacement is stored. Returns the new documents' hashes by id.
  */
 async function uploadDocs(
   ctx: ApplyContext,
@@ -373,7 +414,10 @@ async function uploadDocs(
       },
     })
     hashes.set(document.id, upload.doc.sha256)
-    if (upload.replaces) await retire(ctx, knowledgeBaseId, upload.replaces, document.id)
+    if (upload.replaces) {
+      await carryTags(ctx, knowledgeBaseId, upload.replaces, document.id)
+      await retire(ctx, knowledgeBaseId, upload.replaces, document.id)
+    }
   }
   return hashes
 }
@@ -486,7 +530,7 @@ export const knowledgeAdapter: KindAdapter<KnowledgeBaseDecl, StoredKnowledgeSta
         return embedding
       }
       for (const [key, decl] of desired) {
-        const change = await planKnowledgeBase(key, decl, stored, ctx, folders, configured)
+        const change = await planKnowledgeBase(key, decl, stored, desired, ctx, folders, configured)
         refuseDeclaredTwice(declaredNames, change, decl.name)
         changes.push(change)
       }

@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  folder,
   user,
   userTableDefinitions,
   userTableRows,
@@ -1850,4 +1851,175 @@ export default workflow('Notes', {}, () => {
     })
     expect(again.plan.map((change) => change.action)).toEqual(['noop'])
   })
+
+  check(
+    'refuses at plan time deleting a delete-locked table or a locked workflow, writing nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'tables/stale.ts': LEADS.replace("name: 'leads'", "name: 'stale'"),
+        'workflows/old/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Old'"),
+        'workflows/filed/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Filed'"),
+      })
+      const read = await get(workspaceId)
+      const id = (address: keyof typeof read.base.resources) =>
+        read.base.resources[address]?.id ?? ''
+      await db
+        .update(userTableDefinitions)
+        .set({ deleteLocked: true })
+        .where(eq(userTableDefinitions.id, id('table:stale')))
+      await db
+        .update(workflow)
+        .set({ locked: true })
+        .where(eq(workflow.id, id('workflow:old')))
+      const folderId = generateId()
+      await db.insert(folder).values({
+        id: folderId,
+        resourceType: 'workflow',
+        name: 'Locked',
+        userId: ownerId,
+        workspaceId,
+        locked: true,
+      })
+      await db
+        .update(workflow)
+        .set({ folderId })
+        .where(eq(workflow.id, id('workflow:filed')))
+      const files = {
+        ...Object.fromEntries(
+          Object.entries(read.files).filter(
+            ([path]) =>
+              path !== 'tables/stale.ts' &&
+              !path.startsWith('workflows/old/') &&
+              !path.startsWith('workflows/filed/')
+          )
+        ),
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(
+          'status:',
+          'notes: column.string(),\n    status:'
+        ),
+      }
+      const before = await tableSnapshot(workspaceId)
+
+      const dryRun = await apply(workspaceId, files, {
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+      expect(
+        dryRun.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+          .sort()
+      ).toEqual([
+        'E_APPLY_LOCKED table:stale',
+        'E_APPLY_LOCKED workflow:filed',
+        'E_APPLY_LOCKED workflow:old',
+      ])
+      const locked = await refusal(
+        apply(workspaceId, files, { base: read.base, allowDelete: true })
+      )
+      expect(locked.code).toBe('locked')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+      expect((await workflows(workspaceId)).length).toBe(3)
+    }
+  )
+
+  check('refuses at plan time a retype to unique whose converted values collide', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const withCode = read.files['tables/leads.ts'].replace(
+      'status:',
+      'code: column.string(),\n    status:'
+    )
+    const added = await apply(
+      workspaceId,
+      { ...read.files, 'tables/leads.ts': withCode },
+      { base: read.base }
+    )
+    expect(added.failed).toBeUndefined()
+    await insertRow(workspaceId, { email: 'a@x.io', code: '1' })
+    await insertRow(workspaceId, { email: 'b@x.io', code: '01' })
+    const again = await get(workspaceId)
+    const files = {
+      ...again.files,
+      'tables/leads.ts': again.files['tables/leads.ts'].replace(
+        'code: column.string()',
+        'code: column.number({ unique: true })'
+      ),
+    }
+    const before = await tableSnapshot(workspaceId)
+
+    const dryRun = await apply(workspaceId, files, { base: again.base, dryRun: true })
+    const refusalFinding = dryRun.diagnostics.find((finding) => finding.severity === 'error')
+    expect(refusalFinding).toMatchObject({ code: 'E_APPLY_REFUSED', kind: 'table', key: 'leads' })
+    expect(refusalFinding?.message).toContain('equal once converted')
+    await refusal(apply(workspaceId, files, { base: again.base }))
+    expect(await tableSnapshot(workspaceId)).toEqual(before)
+  })
+
+  check('refuses adding a required column to a table that has rows', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    await insertRow(workspaceId, { email: 'a@x.io' })
+    await insertRow(workspaceId, { email: 'b@x.io' })
+    // The rows go in raw, so the table's stored row count is set as a row write keeps it.
+    await db
+      .update(userTableDefinitions)
+      .set({ rowCount: 2 })
+      .where(eq(userTableDefinitions.workspaceId, workspaceId))
+    const files = {
+      ...read.files,
+      'tables/leads.ts': read.files['tables/leads.ts'].replace(
+        'status:',
+        'owner: column.string({ required: true }),\n    status:'
+      ),
+    }
+    const before = await tableSnapshot(workspaceId)
+
+    const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+
+    expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+    expect(refused.diagnostics[0]?.message).toContain('2 row(s)')
+    expect(await tableSnapshot(workspaceId)).toEqual(before)
+  })
+
+  check(
+    'renames a workflow its folder renames, and refuses a name another workflow holds',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+      })
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const renamedTo = (name: string) => ({
+        ...read.files,
+        [entry]: read.files[entry].replace("workflow('Ingest'", `workflow('${name}'`),
+      })
+
+      const taken = await refusal(apply(workspaceId, renamedTo('Intake'), { base: read.base }))
+      expect(taken.diagnostics.find((finding) => finding.severity === 'error')).toMatchObject({
+        code: 'E_NAME_TAKEN',
+        kind: 'workflow',
+        key: 'ingest',
+        file: entry,
+      })
+
+      const result = await apply(workspaceId, renamedTo('Ingest v2'), { base: read.base })
+      expect(result.failed).toBeUndefined()
+      expect(result.applied).toMatchObject([
+        { kind: 'workflow', key: 'ingest', action: 'update', fields: ['name'] },
+      ])
+      expect((await workflows(workspaceId)).map((stored) => stored.name).sort()).toEqual([
+        'Ingest v2',
+        'Intake',
+      ])
+      const again = await get(workspaceId)
+      const noop = await apply(workspaceId, again.files, { base: again.base })
+      expect(noop.applied).toEqual([])
+    }
+  )
 })

@@ -487,6 +487,6 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
 | `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. |
-| `E_APPLY_META_CHANGED` | The `workflow('…')` name or description differs from the stored one; rename through settings. |
+| `E_NAME_TAKEN` | The `workflow('…')` name renames the workflow to one another workflow in its folder holds. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |
 | `W_TABLE_UNKNOWN_COLUMN` | A table row write whose data names a key that is not a column of the table; the run drops it. The hint names the nearest column. |

@@ -126,6 +126,10 @@ const blockRefSchema = z
 const sourceDiffSchema = z
   .object({
     noop: z.boolean().describe('True when the source matches the saved draft.'),
+    meta: z
+      .array(z.enum(['name', 'description']))
+      .optional()
+      .describe('The workflow name and description fields the source changes.'),
     blocks: z
       .object({
         added: z.array(blockRefSchema).describe('New blocks.'),
@@ -178,7 +182,9 @@ const applyWorkflowSourceDataSchema = z
     dryRun: z.boolean().describe('True when nothing was written because `dryRun` was set.'),
     applied: z
       .boolean()
-      .describe('True only when the draft was written; false on a dry run and on a no-op.'),
+      .describe(
+        'True when the draft was written or the workflow renamed or redescribed; false on a dry run and on a no-op.'
+      ),
     diff: sourceDiffSchema,
     diagnostics: z
       .array(sourceDiagnosticSchema)

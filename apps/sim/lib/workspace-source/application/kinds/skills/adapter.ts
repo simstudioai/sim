@@ -93,7 +93,7 @@ export const skillAdapter: KindAdapter<SkillDecl, SkillDecl, NamedPlan> = {
     const claimed = new Map<string, string>()
     const changes: SkillChange[] = []
     for (const [key, decl] of desired) {
-      const change = planNamed(skills, key, decl, stored, ctx, skillPath(key), claimed)
+      const change = planNamed(skills, key, decl, stored, desired, ctx, skillPath(key), claimed)
       checkFields(change, decl)
       changes.push(change)
     }

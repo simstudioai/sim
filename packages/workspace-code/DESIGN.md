@@ -67,6 +67,12 @@ no source has named yet can be **adopted** by a declaration of the same name. A 
 only after it succeeds (`claimKey`), so a failed write leaves the key free and the next apply
 adopts the resource.
 
+A key never changes: a declaration whose file was renamed (the base read the same resource under
+the old key, which the directory no longer declares) is `E_KEY_RENAMED`, and the resource is not
+deleted. A workflow still names a workspace file by its resource key (`file('report-pdf')`), not
+its path: a file an apply creates claims the key a get would first allocate it, so a workflow of
+the same apply resolves it.
+
 ## Fingerprints and the three-way rule
 
 A resource's fingerprint is `fingerprintOf(canonical(decl))` = `rf1:` + SHA-256 of the canonical
@@ -106,7 +112,12 @@ pipeline (`applyWorkflowSource`, `createWorkflowFromSource`), so compile, gates,
 and audit are a single apply's. It deviates on purpose (see the header of
 `kinds/workflow/adapter.ts`): an edited folder is checked against its own `.sim/base.json`, and a
 folder sent unchanged (`isUnchanged`) is a no-op with no drift check, because telling whether a
-workflow drifted means canonicalizing every stored workflow on every apply.
+workflow drifted means canonicalizing every stored workflow on every apply. When several folders
+are sent whole (a directory without the CLI's bookkeeping), one batched read finds those that print
+exactly as their stored workflows at their base's fingerprint, and those are no-ops too, never
+evaluated. Every new folder gets its workflow id at plan time, so new folders that run each other
+resolve in any order, cycles included. A folder's `workflow('…')` name and description rename the
+workflow.
 
 ### The MCP server kind
 
@@ -160,7 +171,12 @@ no deployment file covers warns `W_DEPLOYED_DRAFT_CHANGED`. MCP publishing is no
 `planWorkspaceSource` (`application/plan.ts`) writes nothing: read the base, parse every managed
 kind's files, load what is stored, let each kind plan in apply order (so a dry run of a later kind
 resolves keys an earlier kind creates), check references across kinds, authorize every change, and
-cap the plan. Any error refuses the whole apply before the first write.
+cap the plan. Any error refuses the whole apply before the first write, so the plan refuses what
+a write would refuse: a delete of a locked resource (`E_APPLY_LOCKED`), of one a stored workflow
+still uses (`E_PLAN_REF_DELETED` for a declared caller, `W_RESOURCE_IN_USE` for one outside the
+directory, workflows included), and a table change whose data breaks a new column rule. A plan
+reports at most 1000 findings, errors first, then warnings, then infos, and an info counts the
+rest, so cutting findings never refuses a plan.
 
 `applyWorkspaceSource` (`application/apply-workspace-source.ts`) then writes each change through
 its use case, deletes last and in reverse order. A change whose plan recorded a fingerprint

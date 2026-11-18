@@ -144,8 +144,6 @@ const KNOWLEDGE_CODES = [
   'E_KB_CHUNKING',
   /** A knowledge base folder that does not exist in the workspace. */
   'E_KB_FOLDER',
-  /** Replacing a document drops the tag values the stored one holds. */
-  'W_KB_DOC_TAGS',
   /** A stored document whose bytes this request had no budget left to download and compare. */
   'W_KB_DOC_UNCHECKED',
   /** Documents whose indexing failed: search does not find them until they are indexed again. */
@@ -226,6 +224,10 @@ const PLAN_CODES = [
   'I_SERVER_MOVED',
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
   'I_KEY_REBOUND',
+  /** A declaration under a new key for a resource the base read under another: keys never move. */
+  'E_KEY_RENAMED',
+  /** The plan had more findings than one answer reports; this one counts those left out. */
+  'I_FINDINGS_TRUNCATED',
 ] as const
 
 /** Every code a workspace source finding can carry, as a value: the wire contracts' enum. */

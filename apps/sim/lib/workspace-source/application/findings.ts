@@ -249,6 +249,44 @@ export function nameTakenFinding(
 }
 
 /**
+ * A declaration under a new key whose name `holder` holds, when `holder` is the resource the
+ * base read under another key the directory no longer declares: the declaration's file was
+ * renamed, and a key never changes (workflows name the resource by it). Returns the change that
+ * refuses it as `E_KEY_RENAMED`, targeting the resource so the plan never deletes it as
+ * undeclared; `undefined` when `holder` is no such resource.
+ */
+export function keyRenamedChange<D, P>(
+  change: PlannedChange<D, P>,
+  holder: StoredResource<unknown>,
+  desired: ReadonlyMap<string, unknown>,
+  ctx: PlanContext,
+  file?: string
+): PlannedChange<D, P> | undefined {
+  const { kind, key } = change
+  if (!holder.key || desired.has(holder.key)) return undefined
+  if (ctx.base?.resources[resourceAddress(kind, holder.key)]?.id !== holder.id) return undefined
+  const noun = WORKSPACE_KIND_SPECS[kind].noun
+  return {
+    ...change,
+    action: 'noop',
+    storedId: holder.id,
+    diagnostics: [
+      ...change.diagnostics,
+      kindFinding(
+        kind,
+        key,
+        'E_KEY_RENAMED',
+        `${where(kind, key)} declares the ${noun} "${holder.name}", which this directory read as ${where(kind, holder.key)}; a ${noun}'s key never changes, since workflows name it by its key.`,
+        {
+          hint: `Rename it back to ${where(kind, holder.key)}; to rename the ${noun}, change its name there. A new key with a new name creates a new ${noun}.`,
+          ...(file ? { file } : {}),
+        }
+      ),
+    ],
+  }
+}
+
+/**
  * The stored resource other than `self` that holds `name`; `fold` compares names
  * case-insensitively, as table names are.
  */
@@ -301,6 +339,11 @@ interface UndeclaredOptions<S, P> {
   counts?: (resource: StoredResource<S>) => Record<string, number>
   /** The plan data the kind's delete carries out. */
   detail?: (resource: StoredResource<S>, base: BaseResource) => P | undefined
+  /**
+   * Why the resource is locked against deletion (`Table "x" is delete-locked.`), if it is: the
+   * delete is refused at plan time, as the delete use case would refuse it mid-apply.
+   */
+  locked?: (resource: StoredResource<S>) => string | undefined
 }
 
 /**
@@ -336,6 +379,7 @@ export function planUndeclared<S, D, P>(
         continue
       }
       const detail = options.detail?.(resource, entry)
+      const locked = options.locked?.(resource)
       changes.push({
         kind,
         key,
@@ -347,7 +391,13 @@ export function planUndeclared<S, D, P>(
         },
         serverFingerprint,
         ...(detail !== undefined ? { detail } : {}),
-        diagnostics: [],
+        diagnostics: locked
+          ? [
+              kindFinding(kind, key, 'E_APPLY_LOCKED', locked, {
+                hint: 'Unlock it, or restore its declaration to keep it.',
+              }),
+            ]
+          : [],
       })
       continue
     }
