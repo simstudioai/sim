@@ -376,7 +376,10 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
     body: renderMembers(members, '  ').join('\n'),
   }
   const outputRef = `${outputName}${outputGeneric ? genericArgs : ''}`
-  const outputType = plan?.outputExtension ? `${outputRef} & ${plan.outputExtension}` : outputRef
+  // A declared output replaces a fixed one of the same name, as the runtime assigns it over.
+  const outputType = plan?.outputExtension
+    ? `Omit<${outputRef}, keyof ${plan.outputExtension}> & ${plan.outputExtension}`
+    : outputRef
   const method = entry.path[entry.path.length - 1]
   const label = entry.builder.operation ? operationLabel(block, entry.builder.operation) : undefined
   const summary = [

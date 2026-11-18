@@ -1,5 +1,7 @@
 // @sim-sdk 1
 // Each `@ts-expect-error` must see an error, or the type-check fails with "unused directive".
+
+import type { Ref } from '@sim/workflow-sdk'
 import {
   agent,
   condition,
@@ -116,6 +118,12 @@ export default workflow('Rejected', {}, () => {
       messages: [{ role: 'user', content: t`${p.currentItem.email}` }],
     })
   })
+
+  // A declared input field replaces the built-in output of the same name, as at run time.
+  const counted = trigger.start('Counted', { inputFormat: { input: 'number' } })
+  counted.input satisfies Ref<number>
+  // @ts-expect-error `input` is the declared number, not the built-in string
+  counted.input satisfies Ref<string>
 
   // An operation that does not exist.
   // @ts-expect-error `sendMesage` is not a Slack operation
