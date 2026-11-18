@@ -30,6 +30,45 @@ export const RESPONSE_BLOCK_TYPE = 'response'
 export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
 
 /**
+ * The SDK's tagged templates (`js\`...\``), each a core export. The printer's `Tag` and the
+ * compiler's template check both read this list.
+ */
+export const TEMPLATE_TAGS = [
+  't',
+  'js',
+  'py',
+  'sh',
+  'json',
+  'md',
+] as const satisfies readonly SdkCoreExport[]
+
+export type TemplateTag = (typeof TEMPLATE_TAGS)[number]
+
+/** Whether a name is one of the {@link TEMPLATE_TAGS}. */
+export function isTemplateTag(name: string): name is TemplateTag {
+  return TEMPLATE_TAGS.some((tag) => tag === name)
+}
+
+/**
+ * The keys of a block call's `meta` argument (`BlockMeta` in `core.d.ts`, which the SDK's tests
+ * hold to exactly this list): what the printer writes there and the compiler reads.
+ */
+export const BLOCK_META_KEYS = [
+  'key',
+  'disabled',
+  'locked',
+  'advancedMode',
+  'triggerMode',
+  'errorPort',
+  'retry',
+  'branches',
+  'extra',
+  'subflowData',
+] as const
+
+export type BlockMetaKey = (typeof BLOCK_META_KEYS)[number]
+
+/**
  * Resource kinds with a call form, and the SDK function each prints as (`table('orders')`). A
  * kind without one prints as `raw(<the node>)`, which compiles back to the same node.
  */
@@ -108,7 +147,8 @@ const SDK_CORE = {
   workflow: { mergeable: true },
 } as const satisfies Record<string, SdkCoreExportTraits>
 
-type SdkCoreExport = keyof typeof SDK_CORE
+/** The name of one SDK core export. */
+export type SdkCoreExport = keyof typeof SDK_CORE
 
 const SDK_CORE_ENTRIES = Object.entries(SDK_CORE) as Array<[SdkCoreExport, SdkCoreExportTraits]>
 

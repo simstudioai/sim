@@ -36,17 +36,18 @@ import {
   type ValueSite,
 } from './values'
 
-const TOOL_OPTIONS = [
-  'operation',
-  'toolId',
-  'title',
-  'usageControl',
-  'usageControlExpression',
-  'modes',
-  'customTool',
-  'operationPolicy',
-  'extra',
-]
+/** The options of a tool written through its builder: every {@link CanonicalTool} field but its type and params. */
+const TOOL_OPTIONS = Object.keys({
+  operation: true,
+  toolId: true,
+  title: true,
+  usageControl: true,
+  usageControlExpression: true,
+  modes: true,
+  customTool: true,
+  operationPolicy: true,
+  extra: true,
+} satisfies Record<Exclude<keyof CanonicalTool, 'type' | 'params'>, true>)
 
 type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
 

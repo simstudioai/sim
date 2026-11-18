@@ -22,7 +22,7 @@ import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
 import { getOwn, setOwn } from '../records'
-import { GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
+import { type BlockMetaKey, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
 import { type AttachedComments, anchors, withComments } from './comments'
 import type { PrintContext } from './context'
 import { createPrintContext, type PrintInput } from './context'
@@ -74,26 +74,20 @@ function metaProperties(
   }
 ): Property[] {
   const meta: Property[] = []
+  const add = (key: BlockMetaKey, value: Expr) => meta.push({ key, value })
   const yes: Expr = { doc: 'true', shape: 'literal', depth: 1 }
-  if (needsKeyOverride(block)) meta.push({ key: 'key', value: ctx.values.string(block.key) })
-  if (!block.enabled) meta.push({ key: 'disabled', value: yes })
-  if (block.locked) meta.push({ key: 'locked', value: yes })
-  if (block.advancedMode) meta.push({ key: 'advancedMode', value: yes })
+  if (needsKeyOverride(block)) add('key', ctx.values.string(block.key))
+  if (!block.enabled) add('disabled', yes)
+  if (block.locked) add('locked', yes)
+  if (block.advancedMode) add('advancedMode', yes)
   if (fields.triggerMode !== undefined) {
-    meta.push({
-      key: 'triggerMode',
-      value: { doc: String(fields.triggerMode), shape: 'literal', depth: 1 },
-    })
+    add('triggerMode', { doc: String(fields.triggerMode), shape: 'literal', depth: 1 })
   }
-  if (block.errorPort && !hasErrorEdge(ctx, block.key)) meta.push({ key: 'errorPort', value: yes })
-  if (block.retry) meta.push({ key: 'retry', value: ctx.values.json({ ...block.retry }) })
-  if (fields.branches && fields.branches.length > 0) {
-    meta.push({ key: 'branches', value: objectExpr(fields.branches) })
-  }
-  if (fields.extra.length > 0) meta.push({ key: 'extra', value: objectExpr(fields.extra) })
-  if (fields.subflowData) {
-    meta.push({ key: 'subflowData', value: ctx.values.json(fields.subflowData) })
-  }
+  if (block.errorPort && !hasErrorEdge(ctx, block.key)) add('errorPort', yes)
+  if (block.retry) add('retry', ctx.values.json({ ...block.retry }))
+  if (fields.branches && fields.branches.length > 0) add('branches', objectExpr(fields.branches))
+  if (fields.extra.length > 0) add('extra', objectExpr(fields.extra))
+  if (fields.subflowData) add('subflowData', ctx.values.json(fields.subflowData))
   return meta
 }
 

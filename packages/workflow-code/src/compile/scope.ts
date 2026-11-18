@@ -19,6 +19,7 @@ import type { ListOptions } from './comments'
 import {
   type BlockDecl,
   type CompileContext,
+  EDGE_METHODS,
   lookup,
   type ResolvedBuilder,
   rangeOf,
@@ -28,8 +29,6 @@ import {
 } from './context'
 import { HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
-
-const EDGE_METHODS = new Set(['to', 'onError'])
 
 type CallClass =
   | { kind: 'builder'; builder: ResolvedBuilder; path: string }

@@ -48,6 +48,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
+import { BLOCK_META_KEYS } from '../sdk'
 import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
@@ -55,6 +56,7 @@ import {
   type BlockDecl,
   type CompileContext,
   catalogBlockOf,
+  EDGE_METHODS,
   type ResolvedBuilder,
   rangeOf,
   recordSpan,
@@ -87,20 +89,6 @@ interface CompiledBlock {
   /** Repo-relative path of the function-code file, when the code came from `codeFile()`. */
   codeFile?: string
 }
-
-const META_KEYS = [
-  'key',
-  'disabled',
-  'locked',
-  'advancedMode',
-  'triggerMode',
-  'errorPort',
-  'retry',
-  'branches',
-  'extra',
-  'subflowData',
-]
-const EDGE_METHOD_NAMES = new Set(['to', 'onError'])
 
 interface CompiledMeta {
   enabled: boolean
@@ -269,7 +257,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
           ctx,
           property,
           `${key} is not a block meta field.`,
-          `Meta fields are ${META_KEYS.join(', ')}.`,
+          `Meta fields are ${BLOCK_META_KEYS.join(', ')}.`,
           decl.key
         )
     }
@@ -468,7 +456,7 @@ function compileBranchRows(
       refused.add(key)
       continue
     }
-    if (outputs.has(key) || EDGE_METHOD_NAMES.has(key)) {
+    if (outputs.has(key) || EDGE_METHODS.has(key)) {
       ctx.reporter.report(
         'E_BRANCH_KEY_COLLIDES',
         `The branch ${key} collides with ${outputs.has(key) ? 'an output' : 'an edge method'} of this block.`,

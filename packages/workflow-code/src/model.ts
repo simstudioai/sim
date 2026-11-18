@@ -9,7 +9,11 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import type { PortableResourceKind } from '@sim/workflow-types/resources'
+import {
+  type PortableResourceKind,
+  WORKFLOW_RESOURCE_KINDS,
+  type WorkflowResourceKind,
+} from '@sim/workflow-types/resources'
 import type { BlockRetryConfig, Variable } from '@sim/workflow-types/workflow'
 
 /**
@@ -58,6 +62,19 @@ export type ParamMode = 'basic' | 'advanced'
  * server's `ResourceKeyResolver`.
  */
 export type ResourceKind = Exclude<PortableResourceKind, 'env-var'>
+
+/** Every {@link ResourceKind}, derived from the shared vocabulary so it cannot drift from it. */
+const RESOURCE_KINDS: readonly ResourceKind[] = [
+  ...WORKFLOW_RESOURCE_KINDS.filter(
+    (kind): kind is Exclude<WorkflowResourceKind, 'env-var'> => kind !== 'env-var'
+  ),
+  'workflow',
+]
+
+/** Whether a value names a {@link ResourceKind}. */
+export function isResourceKind(value: unknown): value is ResourceKind {
+  return typeof value === 'string' && RESOURCE_KINDS.some((kind) => kind === value)
+}
 
 /** A workflow variable referenced by internal id (variables-input `variableId`). */
 export interface VarNode {

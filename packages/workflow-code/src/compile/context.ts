@@ -28,6 +28,9 @@ import { didYouMean } from './hints'
 import type { CompileLimits } from './parse'
 import type { Range, Reporter } from './report'
 
+/** The wiring methods on a block reference: `a.to(b)` and `a.onError(b)`. */
+export const EDGE_METHODS: ReadonlySet<string> = new Set(['to', 'onError'])
+
 /** How a block call was resolved against the SDK surface and the catalog. */
 export type ResolvedBuilder =
   | {

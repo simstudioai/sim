@@ -8,14 +8,14 @@
 import type { CatalogSubBlock } from '../catalog/types'
 import { type BlockKey, isSimNode, type Json, type SimNode, type Value } from '../model'
 import { getOwn, parseJsonContainer } from '../records'
-import { SDK_RESOURCE_CALLS } from '../sdk'
+import { SDK_RESOURCE_CALLS, type TemplateTag } from '../sdk'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
 import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
 import { arrayExpr, callExpr, type Expr, objectExpr, type Property, pathDepth } from './syntax'
 
 /** The template tag a string field prints with; `t` prints untagged when it holds no refs. */
-export type Tag = 't' | 'js' | 'py' | 'sh' | 'json' | 'md'
+export type Tag = TemplateTag
 
 export interface FieldContext {
   tag: Tag
