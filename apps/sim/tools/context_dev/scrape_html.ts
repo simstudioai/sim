@@ -78,7 +78,7 @@ export const contextDevScrapeHtmlTool: ToolConfig<
       appendParam(url.searchParams, 'includeFrames', params.includeFrames)
       appendParam(url.searchParams, 'maxAgeMs', params.maxAgeMs)
       appendParam(url.searchParams, 'waitForMs', params.waitForMs)
-      appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+      appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
       return url.toString()
     },
     headers: (params) => contextDevHeaders(params.apiKey),

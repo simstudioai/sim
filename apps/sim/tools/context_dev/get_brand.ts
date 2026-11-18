@@ -68,7 +68,7 @@ export const contextDevGetBrandTool: ToolConfig<ContextDevGetBrandParams, Contex
         appendParam(url.searchParams, 'force_language', params.forceLanguage)
         appendParam(url.searchParams, 'maxSpeed', params.maxSpeed)
         appendParam(url.searchParams, 'maxAgeMs', params.maxAgeMs)
-        appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+        appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
         return url.toString()
       },
       headers: (params) => contextDevHeaders(params.apiKey),

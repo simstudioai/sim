@@ -38,7 +38,11 @@ Convert web pages to Markdown or HTML, including SEO metadata, Open Graph tags, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `markdown` | string | Page content in markdown format |
-| `html` | string | Raw HTML content of the page |
+| `html` | string | Processed HTML content of the page |
+| `rawHtml` | string | Unmodified HTML of the page, when the rawHtml format is requested |
+| `summary` | string | Summary of the page, when the summary format is requested |
+| `links` | array | Links found on the page, when the links format is requested |
+| `screenshot` | string | Screenshot URL of the page, when the screenshot format is requested \(expires after 24 hours\) |
 | `metadata` | object | Page metadata including SEO and Open Graph information |
 |   ↳ `title` | string | Page title |
 |   ↳ `description` | string | Page meta description |
