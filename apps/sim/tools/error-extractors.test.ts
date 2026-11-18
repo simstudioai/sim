@@ -458,3 +458,22 @@ describe('Error Extractors', () => {
     })
   })
 })
+
+describe('tavily-errors', () => {
+  it('caps a plain-text or HTML error body instead of dumping a proxy page', () => {
+    const page = `<html><body>${'Bad gateway '.repeat(200)}</body></html>`
+    const message = extractErrorMessage({ status: 502, data: page }, ErrorExtractorId.TAVILY_ERRORS)
+    expect(message.length).toBe(501)
+    expect(message.endsWith('…')).toBe(true)
+    expect(page.startsWith(message.slice(0, -1))).toBe(true)
+  })
+
+  it('keeps a short plain-text error whole', () => {
+    expect(
+      extractErrorMessage(
+        { status: 401, data: ' Unauthorized: missing key ' },
+        ErrorExtractorId.TAVILY_ERRORS
+      )
+    ).toBe('Unauthorized: missing key')
+  })
+})

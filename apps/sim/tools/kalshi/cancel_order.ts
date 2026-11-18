@@ -1,8 +1,22 @@
-import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+/**
+ * Cancel Order (V2): Kalshi removed `DELETE /portfolio/orders/{id}` (410 `deprecated_v1_order_endpoint`).
+ * With no `exchange_index` or `market_ticker` it routes to shard 0, as the removed endpoint did.
+ */
+function cancelOrderPath(orderId: string): string {
+  return `/portfolio/events/orders/${safeUrlPathSegment(orderId, 'orderId')}`
+}
+
+/** Kalshi's V2 cancel returns `reduced_by` as a fixed-point count string ("10.00"). */
+function reducedByCount(reducedBy: unknown): number {
+  const count = Number(reducedBy)
+  return Number.isFinite(count) ? count : 0
+}
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
@@ -11,7 +25,7 @@ export interface KalshiCancelOrderParams extends KalshiAuthParams {
 export interface KalshiCancelOrderResponse {
   success: boolean
   output: {
-    order: KalshiOrder
+    order: { order_id: string | null; client_order_id: string | null }
     reducedBy: number
   }
 }
@@ -46,13 +60,15 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     },
 
     request: {
-      url: (params) =>
-        buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
+      url: (params) => buildKalshiUrl(cancelOrderPath(params.orderId)),
       method: 'DELETE',
-      headers: (params) => {
-        const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
-        return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
-      },
+      headers: (params) =>
+        buildKalshiAuthHeaders(
+          params.keyId,
+          params.privateKey,
+          'DELETE',
+          `/trade-api/v2${cancelOrderPath(params.orderId)}`
+        ),
     },
 
     transformResponse: async (response: Response) => {
@@ -62,11 +78,15 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         handleKalshiError(data, 'cancel_order')
       }
 
+      // V2 returns only the order's identity, not the full order object.
       return {
         success: true,
         output: {
-          order: data.order,
-          reducedBy: data.reduced_by || 0,
+          order: {
+            order_id: data.order_id ?? null,
+            client_order_id: data.client_order_id ?? null,
+          },
+          reducedBy: reducedByCount(data.reduced_by),
         },
       }
     },
@@ -74,7 +94,8 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     outputs: {
       order: {
         type: 'object',
-        description: 'The canceled order object',
+        description:
+          'The canceled order: order_id and client_order_id (Kalshi no longer returns the full order on cancel)',
       },
       reducedBy: {
         type: 'number',
@@ -91,14 +112,14 @@ export interface KalshiCancelOrderV2Response {
   success: boolean
   output: {
     order: {
-      order_id: string
+      order_id: string | null
       user_id: string | null
       client_order_id: string | null
-      ticker: string
-      side: string
-      action: string
-      type: string
-      status: string
+      ticker: string | null
+      side: string | null
+      action: string | null
+      type: string | null
+      status: string | null
       yes_price: number | null
       no_price: number | null
       yes_price_dollars: string | null
@@ -162,13 +183,15 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
+    url: (params) => buildKalshiUrl(cancelOrderPath(params.orderId)),
     method: 'DELETE',
-    headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
-      return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
-    },
+    headers: (params) =>
+      buildKalshiAuthHeaders(
+        params.keyId,
+        params.privateKey,
+        'DELETE',
+        `/trade-api/v2${cancelOrderPath(params.orderId)}`
+      ),
   },
 
   transformResponse: async (response: Response) => {
@@ -178,48 +201,47 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       handleKalshiError(data, 'cancel_order_v2')
     }
 
-    const order = data.order || {}
-
+    // V2 returns only the order's identity, so the other order fields are unknown here.
     return {
       success: true,
       output: {
         order: {
-          order_id: order.order_id ?? null,
-          user_id: order.user_id ?? null,
-          client_order_id: order.client_order_id ?? null,
-          ticker: order.ticker ?? null,
-          side: order.side ?? null,
-          action: order.action ?? null,
-          type: order.type ?? null,
-          status: order.status ?? null,
-          yes_price: order.yes_price ?? null,
-          no_price: order.no_price ?? null,
-          yes_price_dollars: order.yes_price_dollars ?? null,
-          no_price_dollars: order.no_price_dollars ?? null,
-          fill_count: order.fill_count ?? null,
-          fill_count_fp: order.fill_count_fp ?? null,
-          remaining_count: order.remaining_count ?? null,
-          remaining_count_fp: order.remaining_count_fp ?? null,
-          initial_count: order.initial_count ?? null,
-          initial_count_fp: order.initial_count_fp ?? null,
-          taker_fees: order.taker_fees ?? null,
-          maker_fees: order.maker_fees ?? null,
-          taker_fees_dollars: order.taker_fees_dollars ?? null,
-          maker_fees_dollars: order.maker_fees_dollars ?? null,
-          taker_fill_cost: order.taker_fill_cost ?? null,
-          maker_fill_cost: order.maker_fill_cost ?? null,
-          taker_fill_cost_dollars: order.taker_fill_cost_dollars ?? null,
-          maker_fill_cost_dollars: order.maker_fill_cost_dollars ?? null,
-          queue_position: order.queue_position ?? null,
-          expiration_time: order.expiration_time ?? null,
-          created_time: order.created_time ?? null,
-          last_update_time: order.last_update_time ?? null,
-          self_trade_prevention_type: order.self_trade_prevention_type ?? null,
-          order_group_id: order.order_group_id ?? null,
-          cancel_order_on_pause: order.cancel_order_on_pause ?? null,
+          order_id: data.order_id ?? null,
+          user_id: null,
+          client_order_id: data.client_order_id ?? null,
+          ticker: null,
+          side: null,
+          action: null,
+          type: null,
+          status: null,
+          yes_price: null,
+          no_price: null,
+          yes_price_dollars: null,
+          no_price_dollars: null,
+          fill_count: null,
+          fill_count_fp: null,
+          remaining_count: null,
+          remaining_count_fp: null,
+          initial_count: null,
+          initial_count_fp: null,
+          taker_fees: null,
+          maker_fees: null,
+          taker_fees_dollars: null,
+          maker_fees_dollars: null,
+          taker_fill_cost: null,
+          maker_fill_cost: null,
+          taker_fill_cost_dollars: null,
+          maker_fill_cost_dollars: null,
+          queue_position: null,
+          expiration_time: null,
+          created_time: null,
+          last_update_time: null,
+          self_trade_prevention_type: null,
+          order_group_id: null,
+          cancel_order_on_pause: null,
         },
-        reduced_by: data.reduced_by ?? 0,
-        reduced_by_fp: data.reduced_by_fp ?? null,
+        reduced_by: reducedByCount(data.reduced_by),
+        reduced_by_fp: typeof data.reduced_by === 'string' ? data.reduced_by : null,
       },
     }
   },
@@ -227,7 +249,8 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   outputs: {
     order: {
       type: 'object',
-      description: 'The canceled order object with full API response fields',
+      description:
+        'The canceled order. Kalshi now returns only order_id and client_order_id on cancel, so the other fields are null',
       properties: {
         order_id: { type: 'string', description: 'Order ID' },
         user_id: { type: 'string', description: 'User ID' },

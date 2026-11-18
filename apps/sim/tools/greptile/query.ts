@@ -6,7 +6,7 @@ export const queryTool: ToolConfig<GreptileQueryParams, GreptileQueryResponse> =
   id: 'greptile_query',
   name: 'Greptile Query',
   description:
-    'Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions.',
+    'Retired: Greptile removed the POST /v2/query endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.',
   version: '1.0.0',
 
   params: {

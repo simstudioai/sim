@@ -67,6 +67,18 @@ describe('vercel_create_project nodeVersion', () => {
     expect(body).not.toHaveProperty('nodeVersion')
   })
 
+  it('rejects an unsupported nodeVersion before creating the project', () => {
+    const body = vercelCreateProjectTool.request.body
+    if (!body) throw new Error('body missing')
+    expect(() => body({ ...params, nodeVersion: '22' })).toThrow(/Invalid Node.js version "22"/)
+    expect(() => body({ ...params, nodeVersion: 'v20.x' })).toThrow(/Invalid Node.js version/)
+    for (const unset of ['', '  ', null, undefined]) {
+      expect(() =>
+        body({ ...params, nodeVersion: unset as unknown as string | undefined })
+      ).not.toThrow()
+    }
+  })
+
   it('applies nodeVersion with a PATCH to the created project', async () => {
     const boundary = vercelUpdateBoundary(
       new Response(

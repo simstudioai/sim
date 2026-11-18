@@ -3,6 +3,19 @@ import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { VercelCreateProjectParams, VercelCreateProjectResponse } from '@/tools/vercel/types'
 
+/** The `nodeVersion` values Vercel's update-project endpoint accepts (openapi.vercel.sh). */
+const VERCEL_NODE_VERSIONS = [
+  '26.x',
+  '24.x',
+  '22.x',
+  '20.x',
+  '18.x',
+  '16.x',
+  '14.x',
+  '12.x',
+  '10.x',
+]
+
 export const vercelCreateProjectTool: ToolConfig<
   VercelCreateProjectParams,
   VercelCreateProjectResponse
@@ -102,6 +115,14 @@ export const vercelCreateProjectTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: VercelCreateProjectParams) => {
+      // Checked before the create call: the version is applied by a follow-up update, and an
+      // invalid one would fail only after the project already exists.
+      const nodeVersion = params.nodeVersion == null ? '' : String(params.nodeVersion).trim()
+      if (nodeVersion && !VERCEL_NODE_VERSIONS.includes(nodeVersion)) {
+        throw new Error(
+          `Invalid Node.js version "${nodeVersion}". Use one of: ${VERCEL_NODE_VERSIONS.join(', ')}`
+        )
+      }
       const body: Record<string, unknown> = { name: params.name.trim() }
       if (params.framework) body.framework = params.framework.trim()
       if (params.gitRepository) body.gitRepository = params.gitRepository

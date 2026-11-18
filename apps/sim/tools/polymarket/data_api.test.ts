@@ -108,6 +108,27 @@ describe('Polymarket Data API v2', () => {
     expect(result?.output.positions.map((position) => position.asset)).toEqual(['open'])
   })
 
+  it('applies redeemable and mergeable filters an agent sends as JSON booleans', async () => {
+    const url = requestUrl(polymarketGetPositionsTool, {
+      user: '0xabc',
+      redeemable: true as unknown as string,
+    })
+    expect(url.searchParams.get('status')).toBe('REDEEMABLE')
+
+    const body = {
+      data: [
+        { token_id: 'open', redeemable: false, mergeable: false },
+        { token_id: 'mergeable', redeemable: false, mergeable: true },
+      ],
+      pagination: { has_more: false, next_cursor: null },
+    }
+    const result = await polymarketGetPositionsTool.transformResponse?.(
+      new Response(JSON.stringify(body), { status: 200 }),
+      { user: '0xabc', mergeable: false as unknown as string }
+    )
+    expect(result?.output.positions.map((position) => position.asset)).toEqual(['open'])
+  })
+
   it('skips an untouched (null) or empty start/end and accepts a numeric string', () => {
     const url = requestUrl(polymarketGetActivityTool, {
       user: '0xabc',

@@ -15,6 +15,28 @@ import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Fathom')
 
+/**
+ * Deletes a Fathom webhook. A `404` counts as deleted, since the webhook is already gone.
+ *
+ * @returns The HTTP status of a failed delete, or `undefined` once the webhook is gone.
+ */
+async function deleteFathomWebhook(
+  apiKey: string,
+  fathomWebhookId: string
+): Promise<number | undefined> {
+  const response = await outboundFetch(
+    `https://api.fathom.ai/external/v1/webhooks/${fathomWebhookId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+  return !response.ok && response.status !== 404 ? response.status : undefined
+}
+
 /** Best-effort removal of a webhook Sim registered but cannot keep, so it does not keep firing. */
 async function deleteOrphanedFathomWebhook(
   apiKey: string,
@@ -23,14 +45,11 @@ async function deleteOrphanedFathomWebhook(
 ): Promise<void> {
   if (!validateAlphanumericId(fathomWebhookId, 'Fathom webhook ID', 100).isValid) return
   try {
-    const response = await outboundFetch(
-      `https://api.fathom.ai/external/v1/webhooks/${fathomWebhookId}`,
-      { method: 'DELETE', headers: { 'X-Api-Key': apiKey } }
-    )
-    if (!response.ok && response.status !== 404) {
+    const failedStatus = await deleteFathomWebhook(apiKey, fathomWebhookId)
+    if (failedStatus !== undefined) {
       logger.warn('Failed to remove orphaned Fathom webhook; it may still be active', {
         requestId,
-        status: response.status,
+        status: failedStatus,
       })
     }
   } catch (error) {
@@ -216,21 +235,13 @@ export const fathomHandler: WebhookProviderHandler = {
         return
       }
 
-      const fathomApiUrl = `https://api.fathom.ai/external/v1/webhooks/${externalId}`
+      const failedStatus = await deleteFathomWebhook(apiKey, externalId)
 
-      const fathomResponse = await outboundFetch(fathomApiUrl, {
-        method: 'DELETE',
-        headers: {
-          'X-Api-Key': apiKey,
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!fathomResponse.ok && fathomResponse.status !== 404) {
-        logger.warn(`Failed to delete Fathom webhook (non-fatal): ${fathomResponse.status}`, {
+      if (failedStatus !== undefined) {
+        logger.warn(`Failed to delete Fathom webhook (non-fatal): ${failedStatus}`, {
           requestId,
         })
-        if (ctx.strict) throw new Error(`Failed to delete Fathom webhook: ${fathomResponse.status}`)
+        if (ctx.strict) throw new Error(`Failed to delete Fathom webhook: ${failedStatus}`)
       } else {
         logger.info(`Successfully deleted Fathom webhook ${externalId}`, { requestId })
       }

@@ -112,3 +112,21 @@ describe('elasticsearch_create_index request body', () => {
     expect(body.mappings).toEqual({ properties: { title: { type: 'text' } } })
   })
 })
+
+describe('elasticsearch index path segment', () => {
+  it('encodes a date-math index name, which contains a slash, as Elasticsearch documents it', () => {
+    const url = searchTool.request.url
+    if (typeof url !== 'function') throw new Error('searchTool.request.url is not a function')
+    expect(url({ ...CONNECTION, index: '<logs-{now/d}>' } as ElasticsearchSearchParams)).toBe(
+      'https://es.example.com/%3Clogs-%7Bnow%2Fd%7D%3E/_search'
+    )
+  })
+
+  it('still rejects a dot-segment index name', () => {
+    const url = searchTool.request.url
+    if (typeof url !== 'function') throw new Error('searchTool.request.url is not a function')
+    expect(() => url({ ...CONNECTION, index: '..' } as ElasticsearchSearchParams)).toThrow(
+      /path traversal/
+    )
+  })
+})

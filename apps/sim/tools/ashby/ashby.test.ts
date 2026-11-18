@@ -267,8 +267,7 @@ describe('ashby request bodies', () => {
   })
 
   it('get_job sends the job.info spelling of the unpublished posting IDs flag', () => {
-    // job.info rejects unknown keys (additionalProperties: false), so the
-    // singular `includeUnpublishedJobPostingIds` never reached Ashby as intended.
+    // job.info rejects unknown keys (additionalProperties: false).
     const body = requestBody(getJobTool, {
       apiKey: 'k',
       jobId: ' j ',

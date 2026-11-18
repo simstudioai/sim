@@ -796,7 +796,7 @@ Cancel an existing order on Kalshi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The canceled order object with full API response fields |
+| `order` | object | The canceled order. Kalshi now returns only order_id and client_order_id on cancel, so the other fields are null |
 |   ↳ `order_id` | string | Order ID |
 |   ↳ `user_id` | string | User ID |
 |   ↳ `client_order_id` | string | Client order ID |

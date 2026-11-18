@@ -2,20 +2,12 @@ import { isPlainRecord } from '@sim/utils/object'
 import { DsPyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import { failToolCallOnError, mapperOperation } from '@/blocks/utils'
+import { failToolCallOnError, mapperOperation, parseOptionalJsonInput } from '@/blocks/utils'
 
 /** Predict's Additional Inputs: a JSON object as text from the canvas, or an object from an agent. */
 function parseAdditionalInputs(value: unknown): Record<string, unknown> | undefined {
-  if (value === undefined || value === null) return undefined
-  if (typeof value === 'string' && !value.trim()) return undefined
-  let parsed: unknown = value
-  if (typeof value === 'string') {
-    try {
-      parsed = JSON.parse(value)
-    } catch {
-      throw new Error('Additional Inputs must be valid JSON')
-    }
-  }
+  const parsed = parseOptionalJsonInput(value, 'Additional Inputs')
+  if (parsed === undefined) return undefined
   if (!isPlainRecord(parsed)) {
     throw new Error('Additional Inputs must be a JSON object')
   }

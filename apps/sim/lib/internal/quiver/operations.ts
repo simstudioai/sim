@@ -22,6 +22,8 @@ import type { QuiverSvgResponse } from '@/tools/quiver/types'
 
 const logger = createLogger('QuiverOperations')
 
+const RETIRED_QUIVER_MODEL_SET: ReadonlySet<string> = new Set(RETIRED_QUIVER_MODELS)
+
 export interface QuiverOperationContext {
   headers: Headers
   requestId: string
@@ -34,7 +36,7 @@ type ApiImage = { url: string } | { base64: string }
 export type QuiverSvgOutput = QuiverSvgResponse & { success: true }
 
 function resolveModel(model: string): string {
-  return (RETIRED_QUIVER_MODELS as readonly string[]).includes(model) ? 'arrow-2' : model
+  return RETIRED_QUIVER_MODEL_SET.has(model) ? 'arrow-2' : model
 }
 
 /** Arrow 2 Telos rejects these sampling fields with a 400 even when they hold the default. */

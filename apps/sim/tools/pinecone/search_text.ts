@@ -17,22 +17,23 @@ function parseRerank(
   return parsed as Record<string, unknown>
 }
 
+/** The rerank query text, given as a string or as `{ text }`; `undefined` for any other shape. */
+function rerankQueryText(query: unknown): string | undefined {
+  if (typeof query === 'string') return query
+  if (query === null || typeof query !== 'object' || Array.isArray(query)) return undefined
+  const text = (query as Record<string, unknown>).text
+  return typeof text === 'string' ? text : undefined
+}
+
 function selectRerankModelInput(
   value: PineconeSearchTextParams['rerank']
 ): Record<string, unknown> | undefined {
   const rerank = parseRerank(value)
   if (!rerank) return undefined
   const query = rerank.query
-  if (typeof query === 'string') return { query }
-  if (
-    query === null ||
-    typeof query !== 'object' ||
-    Array.isArray(query) ||
-    typeof (query as Record<string, unknown>).text !== 'string'
-  ) {
-    return undefined
-  }
-  return { query: { text: (query as Record<string, unknown>).text } }
+  const text = rerankQueryText(query)
+  if (text === undefined) return undefined
+  return typeof query === 'string' ? { query } : { query: { text } }
 }
 
 function rebuildRerank(original: PineconeSearchTextParams['rerank'], projected: unknown): unknown {
@@ -71,7 +72,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     },
     namespace: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Namespace to search in (e.g., "documents", "embeddings")',
     },
@@ -135,7 +136,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     },
     method: 'POST',
     url: (params) =>
-      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace ?? '', 'namespace', { allowSeparators: true, preserveWhitespace: true })}/search`,
+      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true })}/search`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/json',
@@ -166,15 +167,9 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
 
       if (params.rerank) {
         const { query: rerankQuery, ...rerank } = parseRerank(params.rerank) ?? {}
-        const queryText =
-          rerankQuery !== null && typeof rerankQuery === 'object' && !Array.isArray(rerankQuery)
-            ? (rerankQuery as Record<string, unknown>).text
-            : rerankQuery
+        const queryText = rerankQueryText(rerankQuery)
         // Pinecone takes `rerank.query` as a string and reranks against the search query when unset.
-        body.rerank =
-          typeof queryText === 'string' && queryText.trim()
-            ? { ...rerank, query: queryText }
-            : rerank
+        body.rerank = queryText?.trim() ? { ...rerank, query: queryText } : rerank
       }
 
       return body

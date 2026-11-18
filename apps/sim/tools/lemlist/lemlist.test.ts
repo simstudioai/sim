@@ -44,6 +44,18 @@ describe('Lemlist Get Activities type filter', () => {
       'emailsOpened'
     )
   })
+
+  it('sends the prefixed Interested and Not Interested types Lemlist accepts', () => {
+    const url = getActivitiesTool.request.url as (params: {
+      apiKey: string
+      type: string
+    }) => string
+    const sentType = (type: string) =>
+      new URL(url({ apiKey: 'key', type })).searchParams.get('type')
+
+    expect(sentType('interested')).toBe('emailsInterested')
+    expect(sentType('notInterested')).toBe('emailsNotInterested')
+  })
 })
 
 describe('Lemlist Send Email recipient', () => {

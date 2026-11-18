@@ -15,8 +15,8 @@ export interface PolymarketGetPositionsParams {
   market?: string
   eventId?: string
   sizeThreshold?: string
-  redeemable?: string
-  mergeable?: string
+  redeemable?: string | boolean
+  mergeable?: string | boolean
   sortBy?: string
   sortDirection?: string
   title?: string
@@ -40,8 +40,8 @@ const V1_POSITION_SORTS: Record<string, string> = {
 
 /** v2 selects redeemable or mergeable positions through `status` instead of boolean filters. */
 function positionStatus(params: PolymarketGetPositionsParams): string | undefined {
-  const redeemable = params.redeemable === 'true'
-  const mergeable = params.mergeable === 'true'
+  const redeemable = String(params.redeemable) === 'true'
+  const mergeable = String(params.mergeable) === 'true'
   if (redeemable && mergeable) {
     throw new Error('Filter for redeemable or mergeable positions, not both.')
   }
@@ -202,8 +202,8 @@ export const polymarketGetPositionsTool: ToolConfig<
     // v2 has no "not redeemable" or "not mergeable" status, so those filters apply to this page.
     const positions = allPositions.filter(
       (position) =>
-        !(params?.redeemable === 'false' && position.redeemable) &&
-        !(params?.mergeable === 'false' && position.mergeable)
+        !(String(params?.redeemable) === 'false' && position.redeemable) &&
+        !(String(params?.mergeable) === 'false' && position.mergeable)
     )
 
     return {
