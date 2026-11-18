@@ -113,6 +113,7 @@ export const createDashboardTool: ToolConfig<
       }
 
       let panels: unknown = params.panels || []
+      if (typeof panels === 'string' && !panels.trim()) panels = []
       if (typeof panels === 'string') {
         try {
           panels = JSON.parse(panels)

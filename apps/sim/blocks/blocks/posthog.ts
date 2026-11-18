@@ -1564,7 +1564,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
         if (params.offset) result.offset = Number(params.offset)
-        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
+        if (params.rolloutPercentage != null && params.rolloutPercentage !== '') {
+          result.rolloutPercentage = Number(params.rolloutPercentage)
+        }
         if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
 
         return result

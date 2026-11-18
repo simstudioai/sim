@@ -33,6 +33,21 @@ interface CreateFeatureFlagResponse {
   flag: FeatureFlag
 }
 
+/**
+ * A rollout percentage the caller actually set: a number, or numeric text from a tool call,
+ * within 0-100. An empty field arrives as `null` or `''`, and PostHog reads a null rollout as
+ * 100%, so anything else yields `undefined` and no release condition is sent.
+ */
+function parseRolloutPercentage(value: unknown): number | undefined {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim()
+        ? Number(value)
+        : Number.NaN
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : undefined
+}
+
 export const createFeatureFlagTool: ToolConfig<
   CreateFeatureFlagParams,
   ToolResponse & { output: CreateFeatureFlagResponse }
@@ -142,15 +157,16 @@ export const createFeatureFlagTool: ToolConfig<
         body.ensure_experience_continuity = params.ensureExperienceContinuity
       }
 
-      if (params.rolloutPercentage !== undefined) {
+      const rolloutPercentage = parseRolloutPercentage(params.rolloutPercentage)
+      if (rolloutPercentage !== undefined) {
         if (body.filters === undefined) {
           body.filters = {
-            groups: [{ properties: [], rollout_percentage: params.rolloutPercentage }],
+            groups: [{ properties: [], rollout_percentage: rolloutPercentage }],
           }
         } else if (Array.isArray(body.filters?.groups)) {
           for (const group of body.filters.groups) {
             if (group && group.rollout_percentage === undefined) {
-              group.rollout_percentage = params.rolloutPercentage
+              group.rollout_percentage = rolloutPercentage
             }
           }
         }

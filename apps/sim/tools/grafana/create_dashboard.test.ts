@@ -21,6 +21,10 @@ describe('grafana create dashboard panels', () => {
     )
   })
 
+  it('creates an empty dashboard for blank panels', () => {
+    expect(buildBody({ ...baseParams, panels: '   ' }).dashboard.panels).toEqual([])
+  })
+
   it('refuses panels JSON that is not an array', () => {
     expect(() => buildBody({ ...baseParams, panels: '{"type": "timeseries"}' })).toThrow(
       'panels must be a JSON array'

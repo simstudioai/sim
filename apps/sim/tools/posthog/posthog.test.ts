@@ -43,3 +43,32 @@ describe('posthog delete person', () => {
     expect(result?.success).toBe(true)
   })
 })
+
+describe('posthog create feature flag rollout', () => {
+  const buildBody = (rolloutPercentage: unknown) => {
+    const body = posthogTools.posthogCreateFeatureFlagTool.request.body
+    if (!body) throw new Error('create feature flag has no request body')
+    return body({
+      projectId: '1',
+      region: 'us',
+      apiKey: 'test-key',
+      name: 'Beta',
+      key: 'beta',
+      rolloutPercentage: rolloutPercentage as number,
+    }) as { filters?: { groups: { rollout_percentage: number }[] } }
+  }
+
+  it.each([null, '', '   ', 'abc', 150])('sends no release condition for %j', (value) => {
+    expect(buildBody(value).filters).toBeUndefined()
+  })
+
+  it.each([
+    ['30', 30],
+    [30, 30],
+    [0, 0],
+  ])('releases the flag to %j percent', (value, expected) => {
+    expect(buildBody(value).filters?.groups).toEqual([
+      { properties: [], rollout_percentage: expected },
+    ])
+  })
+})
