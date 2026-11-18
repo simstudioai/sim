@@ -55,8 +55,9 @@ the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base rec
 files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again
 into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is
-too large; 8 the apply stopped part-way: what was written is saved into the directory, and
-applying again continues.`
+too large; 8 the apply stopped part-way (a resource failed, or a later round stayed rate limited):
+what was written is saved into the directory, and applying again continues; 9 rate limited (HTTP
+429) after the CLI's retries, before anything was written: wait a minute and apply again.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',

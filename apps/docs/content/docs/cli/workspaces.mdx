@@ -706,7 +706,7 @@ sim workspaces source get [options]
 
 </CommandTable>
 
-Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds.
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest.
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
 
@@ -730,7 +730,7 @@ sim workspaces source apply [options]
 
 </CommandTable>
 
-Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way: what was written is saved into the directory, and applying again continues.
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved into the directory, and applying again continues; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again.
 
 API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
 

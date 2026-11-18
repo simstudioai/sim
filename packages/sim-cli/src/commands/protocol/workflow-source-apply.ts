@@ -38,13 +38,15 @@ const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow or its folder is locked; 7 the source is too large.`
+6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after
+the CLI's retries, so nothing was written: wait a minute and run it again.`
 
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
 printed as file:line:column with its frame and hint), the workflow name is taken
 (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source
-is too large.`
+is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a
+minute and run it again.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]

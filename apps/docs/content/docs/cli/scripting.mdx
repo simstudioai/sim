@@ -112,7 +112,7 @@ Run the next command only when the cursor is non-null. `--limit` applies to each
 
 Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API errors as `{error:{code,message,details?}}`. Display formats use `Error:` plus any supplied code/details. Configuration and argument-parser errors, run-wait outcome messages, and unexpected stack traces can remain text. Do not assume every stderr stream is a single JSON document.
 
-Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. Other outcomes are command-specific:
+Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. The CLI resends a read, and a source apply or dry run, that the API answers `429` (rate limited), waiting at least its `Retry-After`; a request still limited after those retries, or a write the CLI does not resend, exits 9 with nothing more sent, so wait a minute and run it again. Other outcomes are command-specific:
 
 | Code | `sim whoami` |
 | --- | --- |
@@ -142,6 +142,7 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
 | `6` | The workflow is locked (`423`) |
 | `7` | The source is over the size limits (`413`) |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
