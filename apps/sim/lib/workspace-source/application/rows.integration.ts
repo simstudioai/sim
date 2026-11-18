@@ -282,6 +282,39 @@ describe('table rows as workspace source', () => {
     expect((await storedRows(workspaceId))[1]).toMatchObject({ code: 'solo', seats: 3 })
   })
 
+  check("swaps two managed rows' values in a unique column that is not the key", async () => {
+    const workspaceId = await newWorkspace()
+    const withEmail = MANAGED.replace(
+      "    tier: column.select({ options: ['basic', 'pro'] }),\n",
+      "    tier: column.select({ options: ['basic', 'pro'] }),\n    email: column.string({ unique: true }),\n"
+    )
+    const rows = (solo: string, team: string) =>
+      `{"code":"solo","email":"${solo}"}\n{"code":"team","email":"${team}"}\n`
+    const created = await apply(workspaceId, {
+      'tables/plans.ts': withEmail,
+      'tables/plans.rows.jsonl': rows('solo@example.test', 'team@example.test'),
+    })
+    expect(created.failed).toBeUndefined()
+    const before = await rowIdentities(workspaceId)
+
+    const swapped = await apply(
+      workspaceId,
+      {
+        ...created.files,
+        'tables/plans.rows.jsonl': rows('team@example.test', 'solo@example.test'),
+      },
+      { base: created.base }
+    )
+
+    expect(swapped.failed).toBeUndefined()
+    expect(await storedRows(workspaceId)).toEqual([
+      { code: 'solo', email: 'team@example.test' },
+      { code: 'team', email: 'solo@example.test' },
+    ])
+    const after = await rowIdentities(workspaceId)
+    expect([after.solo.id, after.team.id]).toEqual([before.solo.id, before.team.id])
+  })
+
   check('a no-op reapply writes nothing, with or without the base', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)

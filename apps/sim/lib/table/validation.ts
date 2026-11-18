@@ -439,6 +439,9 @@ export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): stri
  * Only queries for specific conflicting values instead of loading all rows.
  * This reduces memory usage from O(n) to O(1) where n is the number of rows.
  *
+ * `exclude` names the rows whose stored values are not conflicts: the row being
+ * written, or the rows of a batch whose final values the caller compares itself.
+ *
  * Pass a transaction as `executor` when running inside an open tx so the
  * lookup runs on the transaction's connection and observes its uncommitted
  * writes; otherwise the default `db` connection only observes committed state.
@@ -447,7 +450,7 @@ export async function checkUniqueConstraintsDb(
   tableId: string,
   data: RowData,
   schema: TableSchema,
-  excludeRowId?: string,
+  exclude?: string | ReadonlySet<string>,
   executor: UniqueCheckExecutor = db
 ): Promise<ValidationResult> {
   const errors: string[] = []
@@ -488,19 +491,24 @@ export async function checkUniqueConstraintsDb(
     for (const condition of conditions) {
       const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
 
-      const whereClause = excludeRowId
-        ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
-        : baseCondition
+      const whereClause =
+        typeof exclude === 'string'
+          ? and(baseCondition, sql`${userTableRows.id} != ${exclude}`)
+          : baseCondition
 
-      const conflictingRow = await ex
+      // Of any `excluded.size + 1` matches at least one lies outside the set, so this limit
+      // finds a conflict whenever one exists without sending the set to the database.
+      const excluded = typeof exclude === 'string' ? undefined : exclude
+      const matches = await ex
         .select({ id: userTableRows.id, position: userTableRows.position })
         .from(userTableRows)
         .where(whereClause)
-        .limit(1)
+        .limit((excluded?.size ?? 0) + 1)
+      const conflict = matches.find((row) => !excluded?.has(row.id))
 
-      if (conflictingRow.length > 0) {
+      if (conflict) {
         errors.push(
-          `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].position + 1}`
+          `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflict.position + 1}`
         )
       }
     }

@@ -679,6 +679,87 @@ describe('table row writes against real PostgreSQL', () => {
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(0)
     })
 
+    it("swaps two rows' values in one batch update", async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      await batchUpdateRows(
+        {
+          tableId: table.id,
+          workspaceId,
+          updates: [
+            { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+            { rowId: `${table.id}-b`, data: { email: 'a@example.test' } },
+          ],
+          capabilityGovernedUserId: null,
+        },
+        table,
+        'unique-batch-swap'
+      )
+
+      const rows = await control<{ id: string; email: string }[]>`
+        SELECT id, data->>'email' AS email FROM user_table_rows WHERE table_id = ${table.id}
+        ORDER BY id`
+      expect(rows).toEqual([
+        { id: `${table.id}-a`, email: 'b@example.test' },
+        { id: `${table.id}-b`, email: 'a@example.test' },
+      ])
+    })
+
+    it('refuses a batch update writing a value a row outside the batch holds', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+        { id: `${table.id}-c`, data: { email: 'c@example.test' }, orderKey: 'a2' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+              { rowId: `${table.id}-b`, data: { email: 'c@example.test' } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-outside'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { email: 'c@example.test' })).toBe(1)
+    })
+
+    it('refuses a batch update writing the value of a batch row that keeps it', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test', score: 1 }, orderKey: 'a1' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+              { rowId: `${table.id}-b`, data: { score: 2 } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-kept'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { email: 'b@example.test' })).toBe(1)
+    })
+
     it('rejects a batch update that writes one JSON value to two rows in different key orders', async () => {
       const table = await createTable([{ id: 'meta', name: 'meta', type: 'json', unique: true }])
       await seedRows(table.id, [

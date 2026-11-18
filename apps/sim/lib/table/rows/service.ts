@@ -2671,9 +2671,10 @@ interface MergedRowUpdate {
 /**
  * The unique columns each update of a batch changes, for its value locks and unique check. Like
  * `updateRow`, an update checks only the unique columns it changes: a value it leaves alone is the
- * one already stored, and updates that change none cost nothing here. The DB check runs before any
- * write and the value locks are deduplicated, so two updates writing the same value would both pass
- * it; they are rejected here instead, keyed like the locks.
+ * one already stored, and updates that change none cost nothing here. The DB check compares only
+ * against rows outside the batch, so the batch's rows are compared here by their final values,
+ * keyed like the locks: two rows may trade values, but no two may end holding one value. A pair
+ * neither of which changes the column is left alone, as the single-row write leaves it.
  */
 function planBatchUpdateUniqueChecks(
   schema: TableSchema,
@@ -2683,24 +2684,32 @@ function planBatchUpdateUniqueChecks(
   const uniqueChecks: Array<{ rowId: string; mergedData: RowData; columns: ColumnDefinition[] }> =
     []
   if (uniqueColumns.length === 0) return uniqueChecks
-  const firstWriter = new Map<string, string>()
   for (const { rowId, changedColumnIds, mergedData } of updates) {
     const changed = new Set(changedColumnIds)
     const columns = uniqueColumns.filter((column) => changed.has(getColumnId(column)))
-    if (columns.length === 0) continue
-    uniqueChecks.push({ rowId, mergedData, columns })
-    for (const column of columns) {
-      const value = mergedData[getColumnId(column)]
+    if (columns.length > 0) uniqueChecks.push({ rowId, mergedData, columns })
+  }
+  if (uniqueChecks.length === 0) return uniqueChecks
+  for (const column of uniqueColumns) {
+    const columnId = getColumnId(column)
+    const holders = new Map<string, { rowId: string; changed: boolean }>()
+    for (const { rowId, changedColumnIds, mergedData } of updates) {
+      const value = mergedData[columnId]
       if (value === null || value === undefined) continue
-      const key = `${getColumnId(column)}:${uniqueValueKey(value, column)}`
-      const otherRowId = firstWriter.get(key)
-      if (otherRowId !== undefined && otherRowId !== rowId) {
-        throw new OrchestrationError(
-          'validation',
-          `Row ${rowId}: Column "${column.name}" must be unique. Value "${String(value)}" duplicates row ${otherRowId} in batch`
-        )
+      const changed = changedColumnIds.includes(columnId)
+      const key = uniqueValueKey(value, column)
+      const holder = holders.get(key)
+      if (holder === undefined) {
+        holders.set(key, { rowId, changed })
+        continue
       }
-      firstWriter.set(key, rowId)
+      if (holder.rowId === rowId || !(changed || holder.changed)) continue
+      const writer = changed ? rowId : holder.rowId
+      const other = changed ? holder.rowId : rowId
+      throw new OrchestrationError(
+        'validation',
+        `Row ${writer}: Column "${column.name}" must be unique. Value "${String(value)}" duplicates row ${other} in batch`
+      )
     }
   }
   return uniqueChecks
@@ -2895,12 +2904,13 @@ export async function batchUpdateRowsWithTx(
           )
         )
       )
+      const batchRowIds: ReadonlySet<string> = new Set(rowIds)
       for (const { rowId, mergedData, columns } of uniqueChecks) {
         const uniqueValidation = await checkUniqueConstraintsDb(
           data.tableId,
           mergedData,
           { ...live.schema, columns },
-          rowId,
+          batchRowIds,
           trx
         )
         if (!uniqueValidation.valid) {
