@@ -733,6 +733,7 @@ export type ApplyWorkflowSourceBody = {
     variables: Record<string, string>
   }
   base: {
+    version?: 1
     workflowId: string
     workspaceId: string
     fingerprint: string
@@ -832,6 +833,7 @@ export type ApplyWorkflowSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      version: 1
       workflowId: string
       workspaceId: string
       fingerprint: string
@@ -4443,6 +4445,7 @@ export type CreateWorkflowFromSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      version: 1
       workflowId: string
       workspaceId: string
       fingerprint: string
@@ -9226,6 +9229,7 @@ export type GetWorkflowSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      version: 1
       workflowId: string
       workspaceId: string
       fingerprint: string

@@ -63,11 +63,13 @@ export {
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
+  type DefinedField,
   isJson,
   isNonEmptyString,
   jsonInput,
   type LockExtensionKey,
   type LockIdentity,
+  parseSourceBase,
   parseWorkflowLock,
   pointerSegment,
   readExtensions,

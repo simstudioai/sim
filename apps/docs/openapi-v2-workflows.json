@@ -5990,6 +5990,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "version": 1,
                           "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -6099,6 +6100,7 @@
                       "variables": {}
                     },
                     "base": {
+                      "version": 1,
                       "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                       "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -6173,6 +6175,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "version": 1,
                           "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -6354,6 +6357,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "version": 1,
                           "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -18449,6 +18453,12 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "version": {
+                    "default": 1,
+                    "description": "Base format version; a base written before it existed reads as 1.",
+                    "type": "number",
+                    "const": 1
+                  },
                   "workflowId": {
                     "type": "string",
                     "minLength": 1,
@@ -18469,8 +18479,10 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
-                "additionalProperties": false,
+                "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
               "canonicalHash": {
@@ -18568,6 +18580,7 @@
                 "variables": {}
               },
               "base": {
+                "version": 1,
                 "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -18998,6 +19011,12 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "version": {
+                    "default": 1,
+                    "description": "Base format version; a base written before it existed reads as 1.",
+                    "type": "number",
+                    "const": 1
+                  },
                   "workflowId": {
                     "type": "string",
                     "minLength": 1,
@@ -19018,8 +19037,10 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
-                "additionalProperties": false,
+                "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
                 "description": "Where the saved (or, on a dry run, would-be) draft was read: the next apply’s `base`."
               },
               "mintedIds": {
@@ -19108,6 +19129,7 @@
                 "variables": {}
               },
               "base": {
+                "version": 1,
                 "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -19279,6 +19301,12 @@
           "base": {
             "type": "object",
             "properties": {
+              "version": {
+                "default": 1,
+                "description": "Base format version; a base written before it existed reads as 1.",
+                "type": "number",
+                "const": 1
+              },
               "workflowId": {
                 "type": "string",
                 "minLength": 1,
@@ -19300,7 +19328,9 @@
               }
             },
             "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
-            "additionalProperties": false,
+            "additionalProperties": {
+              "description": "An `x-` extension field, kept verbatim."
+            },
             "description": "Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow."
           },
           "provenance": {
@@ -19350,6 +19380,7 @@
               "variables": {}
             },
             "base": {
+              "version": 1,
               "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
@@ -19775,6 +19806,12 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "version": {
+                    "default": 1,
+                    "description": "Base format version; a base written before it existed reads as 1.",
+                    "type": "number",
+                    "const": 1
+                  },
                   "workflowId": {
                     "type": "string",
                     "minLength": 1,
@@ -19795,8 +19832,10 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
-                "additionalProperties": false,
+                "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
                 "description": "Where the saved (or, on a dry run, would-be) draft was read: the next apply’s `base`."
               },
               "mintedIds": {
@@ -19890,6 +19929,7 @@
                 "variables": {}
               },
               "base": {
+                "version": 1,
                 "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",

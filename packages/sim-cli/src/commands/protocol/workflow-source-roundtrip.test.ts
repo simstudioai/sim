@@ -74,7 +74,13 @@ const LOCK = lockFor('functions/score.js')
 const FILES = { 'workflow.ts': WORKFLOW_TS, 'functions/score.js': 'return 1\n' }
 
 function baseFor(workflowId: string, fingerprint: string) {
-  return { workflowId, workspaceId: WORKSPACE_ID, fingerprint, catalogHash: CATALOG.hash }
+  return {
+    version: 1,
+    workflowId,
+    workspaceId: WORKSPACE_ID,
+    fingerprint,
+    catalogHash: CATALOG.hash,
+  }
 }
 
 function sourceResponse(files: Record<string, string> = FILES, lock: unknown = LOCK) {
@@ -313,13 +319,22 @@ describe('the source directory never reaches outside --dir', () => {
       join(dir, 'workflow.ts'),
       `${WORKFLOW_TS}const leak = fn('Leak', { code: codeFile('../secret.js') })\n`
     )
-    const lock = lockFor('functions/score.js', secret)
-    writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
 
     await apply()
 
     expect(Object.keys(applyBodies[0].files).sort()).toEqual(['functions/score.js', 'workflow.ts'])
     expect(JSON.stringify(applyBodies[0])).not.toContain('SECRET')
+  })
+
+  it('refuses a lock naming a code file outside the directory before sending anything', async () => {
+    await get()
+    writeFileSync(join(root, 'secret.js'), 'SECRET')
+    const lock = lockFor('functions/score.js', join(root, 'secret.js'))
+    writeFileSync(join(dir, '.sim/lock.json'), JSON.stringify(lock))
+
+    await expect(apply()).rejects.toThrow('is not a valid lock')
+
+    expect(applyBodies).toEqual([])
   })
 
   it('refuses a write-back the server names outside the directory, writing nothing', async () => {

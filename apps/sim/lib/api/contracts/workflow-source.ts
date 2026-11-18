@@ -1,3 +1,9 @@
+import type {
+  DefinedField,
+  SourceBase,
+  WorkflowLockBlock,
+  WorkflowLockV1,
+} from '@sim/workflow-code'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -5,8 +11,8 @@ import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 /**
  * Workflow source: a stored draft printed as TypeScript against the workflow SDK, with its
  * identity lock. The shapes mirror `@sim/workflow-code`'s
- * `WorkflowLockV1` and `SourceBase`, which own them; the internal route (the canvas Code tab) and
- * the v2 route share these schemas.
+ * `WorkflowLockV1` and `SourceBase`, which own them (each shape is checked against its type, see
+ * {@link ShapeOf}); the internal route (the canvas Code tab) and the v2 route share these schemas.
  */
 
 export const workflowSourceQuerySchema = z
@@ -23,6 +29,13 @@ export const workflowSourceQuerySchema = z
   .strict()
 
 const EXTENSION_PREFIX = 'x-'
+
+/**
+ * A zod shape holding exactly the fields `@sim/workflow-code` defines on `T` (its `x-` extensions
+ * aside), each producing the type `T` gives it: a field the package adds, drops or retypes is a
+ * type error here, so the contract never drifts from the parser that owns the format.
+ */
+type ShapeOf<T> = { [K in DefinedField<T>]-?: z.ZodType<T[K]> }
 
 /**
  * A lock object that tolerates and keeps `x-` extension fields (data a newer writer
@@ -59,7 +72,9 @@ const lockLayoutSchema = withExtensions({
   h: z.number().optional().describe('Container height.'),
   height: z.number().optional().describe('Stored block height.'),
   horizontalHandles: z.boolean().optional().describe('Handles on the left and right.'),
-}).describe('Stored canvas geometry; applied only to new blocks.')
+} satisfies ShapeOf<NonNullable<WorkflowLockBlock['layout']>>).describe(
+  'Stored canvas geometry; applied only to new blocks.'
+)
 
 const lockBlockSchema = withExtensions({
   id: z.string().describe('Block id.'),
@@ -87,32 +102,37 @@ const lockBlockSchema = withExtensions({
   order: z.number().int().describe('Declaration-order tie-break.'),
   layout: lockLayoutSchema.optional(),
   codeFile: z.string().optional().describe('Path of the block’s function-code file.'),
-}).describe('One block’s identity.')
+} satisfies ShapeOf<WorkflowLockBlock>).describe('One block’s identity.')
 
 export const workflowLockSchema = withExtensions({
   version: z.literal(1).describe('Lock format version.'),
   blocks: z.record(z.string(), lockBlockSchema).describe('Block key → identity.'),
   variables: z.record(z.string(), z.string()).describe('Variable key → variable id.'),
-}).describe('Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.')
+} satisfies ShapeOf<WorkflowLockV1>).describe(
+  'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.'
+)
 
-export const sourceBaseSchema = z
-  .object({
-    workflowId: z
-      .string()
-      .min(1, 'base.workflowId cannot be empty')
-      .describe('Workflow the source was read from; an apply to another workflow is refused.'),
-    workspaceId: z.string().describe('Workspace the workflow belongs to.'),
-    fingerprint: z
-      .string()
-      .min(1, 'base.fingerprint cannot be empty')
-      .max(256, 'base.fingerprint is too long')
-      .describe(
-        'Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it.'
-      ),
-    catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
-  })
-  .strict()
-  .describe('Freshness facts for the lock in this environment (`.sim/base.json`).')
+export const sourceBaseSchema = withExtensions({
+  version: z
+    .literal(1)
+    .default(1)
+    .describe('Base format version; a base written before it existed reads as 1.'),
+  workflowId: z
+    .string()
+    .min(1, 'base.workflowId cannot be empty')
+    .describe('Workflow the source was read from; an apply to another workflow is refused.'),
+  workspaceId: z.string().describe('Workspace the workflow belongs to.'),
+  fingerprint: z
+    .string()
+    .min(1, 'base.fingerprint cannot be empty')
+    .max(256, 'base.fingerprint is too long')
+    .describe(
+      'Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it.'
+    ),
+  catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
+} satisfies ShapeOf<SourceBase>).describe(
+  'Freshness facts for the lock in this environment (`.sim/base.json`).'
+)
 
 export const sourceReadDiagnosticSchema = z
   .object({
