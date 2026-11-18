@@ -58,7 +58,7 @@ export const contextDevScrapeStyleguideTool: ToolConfig<
       const url = new URL(`${CONTEXT_DEV_BASE_URL}/web/styleguide`)
       appendParam(url.searchParams, 'domain', params.domain)
       appendParam(url.searchParams, 'maxAgeMs', params.maxAgeMs)
-      appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+      appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
       return url.toString()
     },
     headers: (params) => contextDevHeaders(params.apiKey),

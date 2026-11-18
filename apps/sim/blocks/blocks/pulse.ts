@@ -17,6 +17,12 @@ const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
 const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
 
+/** A positive chunk size from the canvas's text field or the number an Agent tool call sends. */
+function parseChunkSize(value: unknown): number | undefined {
+  const size = typeof value === 'number' ? value : Number.parseInt(String(value ?? '').trim(), 10)
+  return Number.isInteger(size) && size > 0 ? size : undefined
+}
+
 export const PulseBlock: BlockConfig = {
   type: 'pulse',
   name: 'Pulse',
@@ -112,11 +118,9 @@ export const PulseBlock: BlockConfig = {
           parameters.chunking = params.chunking.trim()
         }
 
-        if (params.chunkSize && params.chunkSize.trim() !== '') {
-          const size = Number.parseInt(params.chunkSize.trim(), 10)
-          if (!Number.isNaN(size) && size > 0) {
-            parameters.chunkSize = size
-          }
+        const chunkSize = parseChunkSize(params.chunkSize)
+        if (chunkSize !== undefined) {
+          parameters.chunkSize = chunkSize
         }
 
         return parameters
@@ -140,6 +144,10 @@ export const PulseBlock: BlockConfig = {
     markdown: { type: 'string', description: 'Extracted content in markdown format' },
     page_count: { type: 'number', description: 'Number of pages in the document' },
     job_id: { type: 'string', description: 'Unique job identifier' },
+    extraction_id: {
+      type: 'string',
+      description: 'Persisted extraction ID, for use with Pulse split and schema steps',
+    },
     'plan-info': { type: 'json', description: 'Plan usage information' },
     bounding_boxes: { type: 'json', description: 'Bounding box layout information' },
     extraction_url: { type: 'string', description: 'URL for extraction results (large documents)' },
@@ -203,11 +211,9 @@ function pulseV2ToolParams(params: BlockToolParams, credentials: { apiKey?: stri
     parameters.chunking = params.chunking.trim()
   }
 
-  if (params.chunkSize && params.chunkSize.trim() !== '') {
-    const size = Number.parseInt(params.chunkSize.trim(), 10)
-    if (!Number.isNaN(size) && size > 0) {
-      parameters.chunkSize = size
-    }
+  const chunkSize = parseChunkSize(params.chunkSize)
+  if (chunkSize !== undefined) {
+    parameters.chunkSize = chunkSize
   }
 
   return parameters

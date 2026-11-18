@@ -146,7 +146,11 @@ export const ExtendBlock: BlockConfig = {
     id: { type: 'string', description: 'Unique identifier for the parser run' },
     status: { type: 'string', description: 'Processing status' },
     chunks: { type: 'json', description: 'Parsed document content chunks' },
-    blocks: { type: 'json', description: 'Block-level document elements' },
+    blocks: {
+      type: 'json',
+      description:
+        'Top-level block elements; Extend returns blocks inside each chunk (chunks[].blocks)',
+    },
     pageCount: { type: 'number', description: 'Number of pages processed' },
     creditsUsed: { type: 'number', description: 'API credits consumed' },
   },
