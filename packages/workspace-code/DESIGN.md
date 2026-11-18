@@ -142,10 +142,16 @@ apart from the declarations').
   `--allow-delete`. The server marks a managed table in its metadata (`sourceRows`, by key column id),
   so a get prints the declaration's `rows` and the rows file.
 
-Every rows write is the table's one reshape (`reshapeTableUseCase`, `replaceRows` and
-`sourceRows`): columns, the managed mark and the rows commit in one transaction, the rows by
-replacing every stored row. Cells of columns source does not declare (a workflow group's outputs)
-are carried over from the stored row with the same key; their run state is not.
+Every rows write is the table's one reshape (`reshapeTableUseCase`, `rows` and `sourceRows`):
+columns, the managed mark and the rows commit in one transaction. Managed rows are a keyed diff
+(`writeKeyedRowsWithTx`, `apps/sim/lib/table/rows/keyed-write.ts`) through the row service's
+transaction-bound writers: stored rows whose key the file no longer lists are deleted (a renamed key
+is a delete and an insert), rows whose declared cells changed are patched, leaving other columns'
+cells (a workflow group's outputs) alone, and new keys are inserted. An unchanged row is never
+written, so its id, `updated_at`, run state and provenance stay and no table trigger fires for it;
+the triggers of the rows written fire once the reshape commits. A column added `required` is added
+optional, filled by the rows, then made required in the same transaction, so a directory can add a
+required column and its values in one apply.
 
 ### The MCP server kind
 

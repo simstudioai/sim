@@ -14,10 +14,12 @@ import {
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
+import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { getTableById } from '@/lib/table/service'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import { tableAdapter } from '@/lib/workspace-source/application/kinds/table/adapter'
@@ -32,6 +34,8 @@ import {
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+// The trigger module is mocked so each check sees exactly which row events an apply fires.
+vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
 const ownerId = generateId()
 const readerId = generateId()
@@ -111,6 +115,35 @@ async function storedRows(workspaceId: string) {
       )
     )
     .sort((a, b) => compareStrings(String(a.code), String(b.code)))
+}
+
+/** Each stored row's id and update time, by its `code`. */
+async function rowIdentities(workspaceId: string) {
+  const table = await storedTable(workspaceId)
+  const codeId = table.schema.columns.find((column) => column.name === 'code')?.id ?? ''
+  const rows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data, updatedAt: userTableRows.updatedAt })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, table.id))
+  return Object.fromEntries(
+    rows.map((row) => [
+      String((row.data as Record<string, unknown>)[codeId]),
+      { id: row.id, updatedAt: row.updatedAt.getTime() },
+    ])
+  )
+}
+
+/** The table's live row version, which every row write moves. */
+async function version(workspaceId: string) {
+  return (await readCurrentRowsVersion((await storedTable(workspaceId)).id)) ?? -1
+}
+
+/** The row events the table trigger was fired with since the last reset: event and row count. */
+function firedEvents() {
+  return tableTriggerMockFns.mockFireTableTrigger.mock.calls.map((call) => [
+    call[3],
+    (call[4] as unknown[]).length,
+  ])
 }
 
 /** Changes one stored cell behind the directory's back, as another client's row write would. */
@@ -219,6 +252,109 @@ describe('table rows as workspace source', () => {
       expect(await storedRows(workspaceId)).toEqual([{ code: 'solo', seats: 2, tier: 'basic' }])
     }
   )
+
+  check('writes only the row whose declared cells changed, keeping every row id', async () => {
+    const workspaceId = await newWorkspace()
+    const three = `${ROWS}{"code":"duo","seats":2}\n`
+    const created = await apply(workspaceId, {
+      'tables/plans.ts': MANAGED,
+      'tables/plans.rows.jsonl': three,
+    })
+    expect(created.failed).toBeUndefined()
+    const before = await rowIdentities(workspaceId)
+    const versionBefore = await version(workspaceId)
+    tableTriggerMockFns.mockFireTableTrigger.mockClear()
+
+    const result = await apply(
+      workspaceId,
+      { ...created.files, 'tables/plans.rows.jsonl': three.replace('"seats":1', '"seats":3') },
+      { base: created.base }
+    )
+
+    expect(result.failed).toBeUndefined()
+    const after = await rowIdentities(workspaceId)
+    expect(Object.keys(after).sort()).toEqual(['duo', 'solo', 'team'])
+    for (const code of ['duo', 'team']) expect(after[code]).toEqual(before[code])
+    expect(after.solo.id).toBe(before.solo.id)
+    expect(after.solo.updatedAt).toBeGreaterThan(before.solo.updatedAt)
+    expect(firedEvents()).toEqual([['update', 1]])
+    expect(await version(workspaceId)).toBe(versionBefore + 1)
+    expect((await storedRows(workspaceId))[1]).toMatchObject({ code: 'solo', seats: 3 })
+  })
+
+  check('a no-op reapply writes nothing, with or without the base', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await managedPlans(workspaceId)
+    const before = await rowIdentities(workspaceId)
+    const versionBefore = await version(workspaceId)
+    tableTriggerMockFns.mockFireTableTrigger.mockClear()
+
+    expect((await apply(workspaceId, read.files, { base: read.base })).applied).toEqual([])
+    expect((await apply(workspaceId, read.files)).applied).toEqual([])
+
+    expect(await rowIdentities(workspaceId)).toEqual(before)
+    expect(await version(workspaceId)).toBe(versionBefore)
+    expect(firedEvents()).toEqual([])
+  })
+
+  check('a key rename is a delete and an insert, gated by allow-delete', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await managedPlans(workspaceId)
+    const before = await rowIdentities(workspaceId)
+    const renamed = {
+      ...read.files,
+      'tables/plans.rows.jsonl': ROWS.replace('"code":"solo"', '"code":"single"'),
+    }
+
+    const refused = await refusal(apply(workspaceId, renamed, { base: read.base }))
+    expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+    expect(await rowIdentities(workspaceId)).toEqual(before)
+
+    tableTriggerMockFns.mockFireTableTrigger.mockClear()
+    const result = await apply(workspaceId, renamed, { base: read.base, allowDelete: true })
+    expect(result.failed).toBeUndefined()
+    const after = await rowIdentities(workspaceId)
+    expect(Object.keys(after).sort()).toEqual(['single', 'team'])
+    expect(after.team).toEqual(before.team)
+    expect(after.single.id).not.toBe(before.solo.id)
+    expect(firedEvents()).toEqual([
+      ['delete', 1],
+      ['insert', 1],
+    ])
+  })
+
+  check('adds a required column and the values that fill it in one apply', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await managedPlans(workspaceId)
+    const files = {
+      'tables/plans.ts': read.files['tables/plans.ts'].replace(
+        '    seats: column.number(),',
+        '    seats: column.number(),\n    owner: column.string({ required: true }),'
+      ),
+      'tables/plans.rows.jsonl':
+        '{"code":"solo","seats":1,"owner":"ana","tier":"basic"}\n{"code":"team","seats":10,"owner":"bo","tier":"pro"}\n',
+    }
+    const before = await rowIdentities(workspaceId)
+
+    const result = await apply(workspaceId, files, { base: read.base })
+
+    expect(result.failed).toBeUndefined()
+    const table = await storedTable(workspaceId)
+    expect(table.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    expect((await storedRows(workspaceId)).map((row) => row.owner)).toEqual(['ana', 'bo'])
+    const after = await rowIdentities(workspaceId)
+    expect([after.solo.id, after.team.id]).toEqual([before.solo.id, before.team.id])
+
+    // A row the file leaves without a value still refuses the required column.
+    const unfilled = {
+      'tables/plans.ts': files['tables/plans.ts'].replace('owner:', 'manager:'),
+      'tables/plans.rows.jsonl': files['tables/plans.rows.jsonl']
+        .replace('"owner":"ana"', '"manager":"ana"')
+        .replace(',"owner":"bo"', ''),
+    }
+    const refused = await refusal(apply(workspaceId, unfilled, { base: result.base }))
+    expect(codes(refused.diagnostics)).toContain('E_APPLY_REFUSED')
+  })
 
   check('refuses rows edited here that the server changed since the base', async () => {
     const workspaceId = await newWorkspace()

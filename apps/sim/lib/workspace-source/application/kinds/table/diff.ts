@@ -215,6 +215,16 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((item, index) => item === b[index])
 }
 
+/** A rows-file cell that holds no value, as a required column counts it. */
+function isEmptyCell(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
+
 /**
  * Plans the changes from `stored` to `decl`, counting what they lose: cells of a dropped column
  * and cells a removed select option takes a selection from. It refuses what the column write
@@ -282,8 +292,12 @@ export async function diffTable(
     if (!current) {
       changes.columns.push({ op: 'add', key: columnKey, column: target })
       changes.fields.push(`columns.${columnKey} (add)`)
-      // A new column is empty in every row, so a required one would hold rows that break it.
-      if (target.required && table.rowCount > 0) {
+      // A new column is empty in every row, so a required one would hold rows that break it,
+      // unless managed rows fill it in every row they keep (the reshape adds it optional, writes
+      // them, then makes it required).
+      const filled =
+        decl.rows?.mode === 'managed' && decl.rows.data.every((row) => !isEmptyCell(row[columnKey]))
+      if (target.required && table.rowCount > 0 && !filled) {
         report(
           'E_APPLY_REFUSED',
           `Column "${target.name}" cannot be added as required: the table's ${table.rowCount} row(s) would have no value.`,

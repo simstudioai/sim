@@ -482,28 +482,72 @@ export async function deleteOrderedRowsByIds(params: {
   let index = 0
   while (index < rowIds.length) {
     const candidates = rowIds.slice(index, index + batchSize)
-    const { rows, plan } = await db.transaction(async (trx) => {
+    const { rows, consumedCount } = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      const plan = await planLockedDeleteSnapshotBatch(trx, tableId, workspaceId, candidates)
-      const rows = await trx
-        .delete(userTableRows)
-        .where(
-          and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, workspaceId),
-            inArray(userTableRows.id, plan.rowIds)
-          )
-        )
-        .returning({ id: userTableRows.id, data: userTableRows.data })
-      return { rows, plan }
+      return deleteSnapshotBatch(trx, tableId, workspaceId, candidates)
     })
-    index += plan.consumedCount
-    warnForOversizedLegacySnapshot(plan.oversizedRow)
-    const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
-    deletedIds.push(...deletedRows.map((row) => row.id))
-    await onDeleted?.(deletedRows)
+    index += consumedCount
+    deletedIds.push(...rows.map((row) => row.id))
+    await onDeleted?.(rows)
   }
   return deletedIds
+}
+
+/** Deletes one bounded snapshot batch of `candidates`, returning the deleted rows' snapshots. */
+async function deleteSnapshotBatch(
+  trx: DbTransaction,
+  tableId: string,
+  workspaceId: string,
+  candidates: string[]
+): Promise<{ rows: Array<{ id: string; data: RowData }>; consumedCount: number }> {
+  const plan = await planLockedDeleteSnapshotBatch(trx, tableId, workspaceId, candidates)
+  const rows = await trx
+    .delete(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        inArray(userTableRows.id, plan.rowIds)
+      )
+    )
+    .returning({ id: userTableRows.id, data: userTableRows.data })
+  warnForOversizedLegacySnapshot(plan.oversizedRow)
+  return {
+    rows: rows.map((row) => ({ id: row.id, data: row.data as RowData })),
+    consumedCount: plan.consumedCount,
+  }
+}
+
+/**
+ * Transaction-bound variant of `deleteOrderedRowsByIds`: every snapshot batch in the caller's
+ * transaction, so the deletes commit with its other writes. Returns the deleted rows' snapshots
+ * for the caller's post-commit triggers.
+ */
+export async function deleteOrderedRowsByIdsWithTx(
+  trx: DbTransaction,
+  params: {
+    tableId: string
+    workspaceId: string
+    rowIds: string[]
+    /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
+    proof: MutationProof<'delete'>
+  }
+): Promise<Array<{ id: string; data: RowData }>> {
+  const { tableId, workspaceId, rowIds } = params
+  const batchSize = getDeleteSnapshotBatchSize()
+  const deleted: Array<{ id: string; data: RowData }> = []
+  let index = 0
+  while (index < rowIds.length) {
+    const batch = await deleteSnapshotBatch(
+      trx,
+      tableId,
+      workspaceId,
+      rowIds.slice(index, index + batchSize)
+    )
+    index += batch.consumedCount
+    deleted.push(...batch.rows)
+  }
+  return deleted
 }
 
 /**

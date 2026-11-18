@@ -1,13 +1,12 @@
 /**
  * A table's rows as workspace source (`tables/<key>.rows.jsonl`): reading the stored rows through
- * the row listing use case as the cells a rows file holds, and building the rows a reshape
- * replaces the table's with. Rows are written only by `reshapeTableUseCase`, so a managed table's
- * columns, rows and managed marker commit together.
+ * the row listing use case as the cells a rows file holds, and building the rows a reshape writes.
+ * Rows are written only by `reshapeTableUseCase`, which writes only the rows that differ, so a
+ * managed table's columns, rows and managed marker commit together.
  */
 import type { Json } from '@sim/workflow-code'
 import type { BaseRows } from '@sim/workspace-code'
 import {
-  rowKeyText,
   type TableRowCells,
   type TableRowsDecl,
   tableRowsFingerprint,
@@ -26,8 +25,6 @@ import type { SourceContext } from '@/lib/workspace-source/application/types'
 export interface StoredRows {
   /** Each row's source cells, keyed by column key. */
   data: TableRowCells[]
-  /** The cells of columns source does not declare (a workflow group's outputs), by row key text. */
-  carried: Map<string, RowData>
   /** The table's row version when the rows were read. */
   version: number
 }
@@ -45,15 +42,14 @@ function sourceCell(column: ColumnDefinition, value: unknown): Json {
 }
 
 /**
- * Reads every row of `table`: the cells of each column `keyById` names (column id → column key),
- * and the rest by row key, so a replace keeps a workflow group's outputs. The version is read
- * first, so rows written while the listing pages read as a server change on the next apply.
+ * Reads every row of `table`: the cells of each column `keyById` names (column id → column key).
+ * The version is read first, so rows written while the listing pages read as a server change on
+ * the next apply.
  */
 export async function readStoredRows(
   ctx: SourceContext,
   table: TableDefinition,
-  keyById: ReadonlyMap<string, string>,
-  rowKey: string
+  keyById: ReadonlyMap<string, string>
 ): Promise<StoredRows> {
   if (table.rowCount > WORKSPACE_SOURCE_LIMITS.maxTableRows) {
     throw new OrchestrationError(
@@ -64,7 +60,6 @@ export async function readStoredRows(
   const version = await rowsVersion(ctx, table.id)
   const columnsById = new Map(table.schema.columns.map((column) => [getColumnId(column), column]))
   const data: TableRowCells[] = []
-  const carried = new Map<string, RowData>()
   let cursor: string | undefined
   do {
     const page = await listTableRows.execute({
@@ -78,21 +73,16 @@ export async function readStoredRows(
     })
     for (const row of page.rows) {
       const cells: TableRowCells = {}
-      const rest: RowData = {}
       for (const [columnId, value] of Object.entries(row.data)) {
         const column = columnsById.get(columnId)
-        if (!column) continue
         const key = keyById.get(columnId)
-        if (key === undefined) rest[column.name] = value
-        else cells[key] = sourceCell(column, value)
+        if (column && key !== undefined) cells[key] = sourceCell(column, value)
       }
       data.push(cells)
-      const text = rowKeyText(cells[rowKey])
-      if (text !== undefined && Object.keys(rest).length > 0) carried.set(text, rest)
     }
     cursor = page.nextCursor ?? undefined
   } while (cursor)
-  return { data, carried, version }
+  return { data, version }
 }
 
 /** The base entry of managed rows read or written as `rows`. */
@@ -101,22 +91,14 @@ export function baseRows(rows: TableRowsDecl, version: number): BaseRows | undef
   return fingerprint ? { fingerprint, version } : undefined
 }
 
-/**
- * The rows a reshape replaces the table's with, keyed by stored column name: each declared row's
- * cells, plus what `carried` kept of the stored row with the same key.
- */
-export function replacementRows(
-  rows: TableRowsDecl,
-  nameByKey: ReadonlyMap<string, string>,
-  carried?: ReadonlyMap<string, RowData>
-): RowData[] {
+/** Declared rows keyed by stored column name, as a reshape writes them. */
+export function namedRows(rows: TableRowsDecl, nameByKey: ReadonlyMap<string, string>): RowData[] {
   return rows.data.map((row) => {
     const named: RowData = {}
     for (const [key, value] of Object.entries(row)) {
       const name = nameByKey.get(key)
       if (name !== undefined && value !== null) named[name] = value
     }
-    const kept = rows.key !== undefined ? carried?.get(rowKeyText(row[rows.key]) ?? '') : undefined
-    return kept ? { ...kept, ...named } : named
+    return named
   })
 }

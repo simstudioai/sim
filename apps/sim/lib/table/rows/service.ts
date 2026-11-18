@@ -60,6 +60,7 @@ import {
   type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
+  deleteOrderedRowsByIdsWithTx,
   insertOrderedRow,
   nextRowPosition,
   resolveBatchInsertOrderKeys,
@@ -2726,6 +2727,30 @@ export async function batchUpdateRows(
   if (data.updates.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
   }
+  const { result, dispatch } = await db.transaction((trx) =>
+    batchUpdateRowsWithTx(trx, data, table, requestId, { ...options, lockSchema: true })
+  )
+  dispatch()
+  return result
+}
+
+/**
+ * Transaction-bound variant of `batchUpdateRows`: reads, validates and writes the patches inside
+ * the caller's transaction, and returns the triggers and workflow-group dispatch to run once it
+ * commits (they read through the global connection, so firing inside the transaction sees
+ * nothing). Validates against `table` unless it passes `lockSchema`, so a caller that does not
+ * reads `table` under the table's schema lock in this transaction.
+ */
+export async function batchUpdateRowsWithTx(
+  trx: DbTransaction,
+  data: BatchUpdateByIdData,
+  table: TableDefinition,
+  requestId: string,
+  options: BatchUpdateRowsOptions & TxRowWriteOptions = {}
+): Promise<{ result: BulkOperationResult; dispatch: () => void }> {
+  if (data.updates.length === 0) {
+    return { result: { affectedCount: 0, affectedRowIds: [] }, dispatch: () => {} }
+  }
 
   // Doubles as the workflow-output backfill write path, which passes
   // `computedWrite` so a rebuild keeps working on an update-locked table.
@@ -2735,8 +2760,11 @@ export async function batchUpdateRows(
     { computedWrite: options.computedWrite }
   )
 
+  const live = options.lockSchema
+    ? await lockLiveTableSchema(trx, table, { statementMs: 60_000 })
+    : table
   const rowIds = data.updates.map((u) => u.rowId)
-  const existingRows = await db
+  const existingRows = await trx
     .select({
       id: userTableRows.id,
       data: userTableRows.data,
@@ -2751,7 +2779,7 @@ export async function batchUpdateRows(
     )
 
   const executionsByRow = await loadExecutionsByRow(
-    db,
+    trx,
     existingRows.map((r) => r.id)
   )
 
@@ -2820,11 +2848,9 @@ export async function batchUpdateRows(
   let uniqueChecks = planBatchUpdateUniqueChecks(table.schema, mergedUpdates)
 
   const now = new Date()
-  let written = table
+  const written = live
 
-  const affectedRowIds = await db.transaction(async (trx) => {
-    const live = await lockLiveTableSchema(trx, table, { statementMs: 60_000 })
-    written = live
+  const affectedRowIds = await (async () => {
     if (live !== table) {
       for (const [index, update] of mergedUpdates.entries()) {
         const request = data.updates[index]
@@ -2918,7 +2944,7 @@ export async function batchUpdateRows(
         return { value: affectedRowIds, affectedRowIds }
       },
     })
-  })
+  })()
 
   logger.info(`Batch updated ${affectedRowIds.length} rows in table ${data.tableId}`, { requestId })
 
@@ -2938,69 +2964,68 @@ export async function batchUpdateRows(
       createdAt: now,
       updatedAt: now,
     }))
-  if (updatedRowsForTrigger.length > 0) {
-    void fireTableTrigger(
-      data.tableId,
-      table.workspaceId,
-      table.name,
-      'update',
-      updatedRowsForTrigger,
-      oldRowsForTrigger,
-      written.schema,
-      requestId
+  const dispatch = () => {
+    if (updatedRowsForTrigger.length > 0) {
+      void fireTableTrigger(
+        data.tableId,
+        table.workspaceId,
+        table.name,
+        'update',
+        updatedRowsForTrigger,
+        oldRowsForTrigger,
+        written.schema,
+        requestId
+      )
+    }
+    // Per-row cancel+rerun for in-flight downstream groups whose deps just
+    // changed — same orchestration as single-row `updateRow`. Without this,
+    // batch updates would leave running workflows reading stale dep values.
+    // Each row needs its own cancel + manual-incomplete dispatch because
+    // `cancelWorkflowGroupRuns`'s `groupIds` filter is per-row.
+    const rowsWithInFlightDownstream = mergedUpdates.filter(
+      (update) => affectedRowIdSet.has(update.rowId) && update.inFlightDownstreamGroups.length > 0
     )
-  }
-  // Per-row cancel+rerun for in-flight downstream groups whose deps just
-  // changed — same orchestration as single-row `updateRow`. Without this,
-  // batch updates would leave running workflows reading stale dep values.
-  // Each row needs its own cancel + manual-incomplete dispatch because
-  // `cancelWorkflowGroupRuns`'s `groupIds` filter is per-row.
-  const rowsWithInFlightDownstream = mergedUpdates.filter(
-    (update) => affectedRowIdSet.has(update.rowId) && update.inFlightDownstreamGroups.length > 0
-  )
-  if (rowsWithInFlightDownstream.length > 0) {
-    void (async () => {
-      try {
-        for (const { rowId, inFlightDownstreamGroups } of rowsWithInFlightDownstream) {
-          await cancelWorkflowGroupRuns(data.tableId, rowId, {
-            groupIds: inFlightDownstreamGroups,
-          })
-          await runWorkflowColumn({
-            tableId: data.tableId,
-            workspaceId: data.workspaceId,
-            mode: 'incomplete',
-            isManualRun: true,
-            rowIds: [rowId],
-            groupIds: inFlightDownstreamGroups,
+    if (rowsWithInFlightDownstream.length > 0) {
+      void (async () => {
+        try {
+          for (const { rowId, inFlightDownstreamGroups } of rowsWithInFlightDownstream) {
+            await cancelWorkflowGroupRuns(data.tableId, rowId, {
+              groupIds: inFlightDownstreamGroups,
+            })
+            await runWorkflowColumn({
+              tableId: data.tableId,
+              workspaceId: data.workspaceId,
+              mode: 'incomplete',
+              isManualRun: true,
+              rowIds: [rowId],
+              groupIds: inFlightDownstreamGroups,
+              requestId,
+              triggeredByUserId: data.actorUserId,
+              capabilityGovernedUserId: data.capabilityGovernedUserId,
+            })
+          }
+        } catch (err) {
+          logger.error('cancel+rerun for in-flight downstream groups (batch) failed:', err, {
             requestId,
-            triggeredByUserId: data.actorUserId,
-            capabilityGovernedUserId: data.capabilityGovernedUserId,
           })
         }
-      } catch (err) {
-        logger.error('cancel+rerun for in-flight downstream groups (batch) failed:', err, {
-          requestId,
-        })
-      }
-    })()
-  }
-  if (updatedRowsForTrigger.length > 0) {
-    void runWorkflowColumn({
-      tableId: table.id,
-      workspaceId: table.workspaceId,
-      rowIds: updatedRowsForTrigger.map((r) => r.id),
-      mode: 'new',
-      isManualRun: false,
-      requestId,
-      triggeredByUserId: data.actorUserId,
-      capabilityGovernedUserId: data.capabilityGovernedUserId,
-    }).catch((err) => logger.error('auto-dispatch (batchUpdateRows) failed:', err, { requestId }))
+      })()
+    }
+    if (updatedRowsForTrigger.length > 0) {
+      void runWorkflowColumn({
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        rowIds: updatedRowsForTrigger.map((r) => r.id),
+        mode: 'new',
+        isManualRun: false,
+        requestId,
+        triggeredByUserId: data.actorUserId,
+        capabilityGovernedUserId: data.capabilityGovernedUserId,
+      }).catch((err) => logger.error('auto-dispatch (batchUpdateRows) failed:', err, { requestId }))
+    }
   }
 
-  return {
-    affectedCount: affectedRowIds.length,
-    affectedRowIds,
-  }
+  return { result: { affectedCount: affectedRowIds.length, affectedRowIds }, dispatch }
 }
 
 /**
@@ -3090,6 +3115,30 @@ export async function deleteRowsByFilter(
   return {
     affectedCount: deletedRowIds.length,
     affectedRowIds: deletedRowIds,
+  }
+}
+
+/**
+ * Transaction-bound variant of `deleteRowsByIds`: deletes the rows in the caller's transaction and
+ * returns the delete triggers to fire once it commits.
+ */
+export async function deleteRowsByIdsWithTx(
+  trx: DbTransaction,
+  table: TableDefinition,
+  rowIds: string[],
+  requestId: string
+): Promise<{ deletedRowIds: string[]; dispatch: () => void }> {
+  const proof = assertRowDelete(table)
+  const deleted = await deleteOrderedRowsByIdsWithTx(trx, {
+    tableId: table.id,
+    workspaceId: table.workspaceId,
+    rowIds: Array.from(new Set(rowIds)),
+    proof,
+  })
+  logger.info(`Deleted ${deleted.length} rows by ID from table ${table.id}`, { requestId })
+  return {
+    deletedRowIds: deleted.map((row) => row.id),
+    dispatch: () => void dispatchDeleteTriggers(table, deleted, requestId),
   }
 }
 

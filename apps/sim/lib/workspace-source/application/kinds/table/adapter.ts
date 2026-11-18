@@ -3,14 +3,16 @@
  * columns, and opts its rows in with `rows` (`tables/<key>.rows.jsonl`). Every write goes through
  * the table use cases (`createTableUseCase`, `reshapeTableUseCase`, `deleteTableUseCase`), so
  * their authorization, locks, audit and schema-change signals apply; an update or adopt is one
- * reshape, which also replaces the rows, so columns, rows and the managed mark commit whole or not
+ * reshape, which also writes the rows, so columns, rows and the managed mark commit whole or not
  * at all.
  *
  * Managed rows follow the three-way rule on their own fingerprint (`base.rows`): rows the
  * directory did not change are not read; changed ones are compared with the stored rows, which
  * are written only when the server's still match the base (else `E_APPLY_STALE`), and the apply
- * refuses a row version that moved since the plan. Removing a stored row needs `--allow-delete`.
- * Seed rows are written into a table the apply creates, or adopts while it holds no rows.
+ * refuses a row version that moved since the plan. The reshape writes only the rows that differ,
+ * matched by the key column (`writeKeyedRowsWithTx`): an unchanged row keeps its id and run state
+ * and fires no trigger. Removing a stored row needs `--allow-delete`. Seed rows are inserted into
+ * a table the apply creates, or adopts while it holds no rows.
  */
 import { setOwn } from '@sim/workflow-code'
 import {
@@ -30,14 +32,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { tableFolderPathForId } from '@/lib/table/application/folder-paths'
-import { type ReshapeTableInput, reshapeTableUseCase } from '@/lib/table/application/reshape'
+import {
+  type ReshapeRows,
+  type ReshapeTableInput,
+  reshapeTableUseCase,
+} from '@/lib/table/application/reshape'
 import {
   createTableUseCase,
   deleteTableUseCase,
   listTableDefinitionsUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
-import type { RowData } from '@/lib/table/types'
 import {
   keyRenamedChange,
   kindFinding,
@@ -57,8 +62,8 @@ import {
 } from '@/lib/workspace-source/application/kinds/table/diff'
 import {
   baseRows,
+  namedRows,
   readStoredRows,
-  replacementRows,
   rowsVersion,
 } from '@/lib/workspace-source/application/kinds/table/rows'
 import {
@@ -80,8 +85,8 @@ import type {
 
 /** What the apply does to a table's rows, decided at plan time. */
 interface RowsPlan {
-  /** Rows (by column name) that replace the table's; absent leaves the rows alone. */
-  replace?: RowData[]
+  /** The rows the reshape writes (only those that differ); absent leaves the rows alone. */
+  write?: ReshapeRows
   /** The managed mark to set, by key column name, or `null` to clear it; absent leaves it. */
   mark?: { mode: 'managed'; keyColumn: string } | null
   /** The row version the plan read the stored rows at; the apply refuses one that moved. */
@@ -150,14 +155,32 @@ function markOf(decl: TableDecl): { mode: 'managed'; keyColumn: string } | null 
     : null
 }
 
+/** The reshape write of `decl`'s rows: a keyed diff for managed rows, inserts for seed rows. */
+function rowsWrite(decl: TableDecl, allowDelete: boolean): ReshapeRows | undefined {
+  const rows = decl.rows
+  if (!rows) return undefined
+  const named = namedRows(rows, namesByKey(decl))
+  const mark = markOf(decl)
+  return rows.mode === 'managed' && mark
+    ? {
+        mode: 'managed',
+        keyColumn: mark.keyColumn,
+        rows: named,
+        columns: [...namesByKey(decl).values()],
+        allowDelete,
+      }
+    : { mode: 'seed', rows: named }
+}
+
 /** The rows of a table the apply creates: every declared row, and the managed mark. */
 function createRows(decl: TableDecl): RowsOutcome {
   const rows = decl.rows
   if (!rows) return { fields: [], removed: 0, diagnostics: [] }
   const mark = markOf(decl)
+  const write = rows.data.length > 0 ? rowsWrite(decl, false) : undefined
   return {
     plan: {
-      ...(rows.data.length > 0 ? { replace: replacementRows(rows, namesByKey(decl)) } : {}),
+      ...(write ? { write } : {}),
       ...(mark ? { mark } : {}),
     },
     fields: rows.data.length > 0 ? [`rows (${rows.mode} ${rows.data.length})`] : [],
@@ -188,7 +211,10 @@ async function planRows(
     }
     if (rows?.mode === 'seed' && rows.data.length > 0 && !entry) {
       if (state.table.rowCount === 0) {
-        outcome.plan = { ...outcome.plan, replace: replacementRows(rows, namesByKey(decl)) }
+        outcome.plan = {
+          ...outcome.plan,
+          write: { mode: 'seed', rows: namedRows(rows, namesByKey(decl)) },
+        }
         outcome.fields.push(`rows (seed ${rows.data.length})`)
       } else {
         outcome.diagnostics.push(
@@ -208,7 +234,7 @@ async function planRows(
   const marked = storedKey === rows.key
   if (based && based.fingerprint === local && marked) return outcome
   const rowKey = rows.key ?? ''
-  const stored = await readStoredRows(ctx, state.table, keyById, rowKey)
+  const stored = await readStoredRows(ctx, state.table, keyById)
   const server = tableRowsFingerprint({ ...rows, data: stored.data })
   if (server === local) {
     if (!marked) outcome.plan = { mark: markOf(decl), version: stored.version }
@@ -241,7 +267,7 @@ async function planRows(
     )
   }
   outcome.plan = {
-    replace: replacementRows(rows, namesByKey(decl), stored.carried),
+    write: rowsWrite(decl, ctx.allowDelete),
     ...(marked ? {} : { mark: markOf(decl) }),
     version: stored.version,
   }
@@ -496,7 +522,7 @@ async function rowsToPrint(
 ) {
   const { decl: storedDecl, keyById } = tableAsDecl(state, bindings)
   const rowKey = storedDecl.rows?.key
-  if (rowKey !== undefined) return readStoredRows(ctx, state.table, keyById, rowKey)
+  if (rowKey !== undefined) return readStoredRows(ctx, state.table, keyById)
   return decl?.rows?.mode === 'seed' ? { seed: decl.rows } : undefined
 }
 
@@ -512,7 +538,7 @@ function reshapeInput(
   const workspaceId = ctx.workspace.workspaceId
   const rows = plan?.rows
   const rowsInput = {
-    ...(rows?.replace ? { replaceRows: rows.replace } : {}),
+    ...(rows?.write ? { rows: rows.write } : {}),
     ...(rows?.mark !== undefined ? { sourceRows: rows.mark } : {}),
   }
   if (!plan?.changes) return { tableId, workspaceId, ...rowsInput }
@@ -637,7 +663,7 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
         },
       })
       const rows = change.detail?.rows
-      if (rows?.replace || rows?.mark) {
+      if (rows?.write || rows?.mark) {
         await reshapeTableUseCase.execute({
           principal,
           input: reshapeInput(ctx, table.id, { rows }),
