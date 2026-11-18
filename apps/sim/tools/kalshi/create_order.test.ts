@@ -128,6 +128,24 @@ describe('Kalshi create order on the V2 event-order endpoint', () => {
     ).toBe(true)
   })
 
+  it('keeps every legacy order key on the v1 create output', async () => {
+    const result = await kalshiCreateOrderTool.transformResponse?.(
+      Response.json(CREATE_V2_RESPONSE_EXAMPLE, { status: 201 }),
+      { ...BASE, count: '10', yesPrice: '56' }
+    )
+    expect(result?.output.order).toMatchObject({
+      order_id: CREATE_V2_RESPONSE_EXAMPLE.order_id,
+      ticker: 'HIGHNY-24JAN01-T60',
+      count: 10,
+      remaining_count: 10,
+      event_ticker: null,
+      status: null,
+      yes_price: null,
+      expiration_time: null,
+      taker_fees: null,
+    })
+  })
+
   it('maps the CreateOrderV2Response example onto the order outputs', async () => {
     const params = { ...BASE, side: 'no', action: 'buy', noPrice: '44' }
     const result = await kalshiCreateOrderV2Tool.transformResponse?.(

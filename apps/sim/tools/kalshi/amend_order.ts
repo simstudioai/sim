@@ -6,6 +6,7 @@ import {
   kalshiAmendNeedsCurrentOrder,
   kalshiAmendParamsFromOrder,
   kalshiCountNumber,
+  kalshiLegacyOrder,
   kalshiOrderPath,
   kalshiOrderReadPath,
   kalshiWrittenOrder,
@@ -211,7 +212,7 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
     return {
       success: true,
       output: {
-        order: amendedOrder(data, params),
+        order: kalshiLegacyOrder(amendedOrder(data, params)),
       },
     }
   },

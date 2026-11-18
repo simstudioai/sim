@@ -1,6 +1,7 @@
 import {
   buildKalshiCreateOrderBody,
   kalshiCountNumber,
+  kalshiLegacyOrder,
   kalshiOrderPath,
   kalshiWrittenOrder,
 } from '@/tools/kalshi/orders'
@@ -32,7 +33,7 @@ export interface KalshiCreateOrderParams extends KalshiAuthParams {
 export interface KalshiCreateOrderResponse {
   success: boolean
   output: {
-    order: KalshiCreatedOrder
+    order: Record<string, unknown>
   }
 }
 
@@ -208,7 +209,10 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
       return {
         success: true,
         output: {
-          order: createdOrder(data, params),
+          order: kalshiLegacyOrder({
+            ...createdOrder(data, params),
+            count: kalshiCountNumber(buildKalshiCreateOrderBody(params).count),
+          }),
         },
       }
     },

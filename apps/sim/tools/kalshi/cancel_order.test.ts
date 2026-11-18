@@ -139,13 +139,15 @@ describe('Kalshi cancel order routes to the order shard by ticker', () => {
       Response.json(CANCEL_V2_EXAMPLE),
       params
     )
-    expect(v1?.output).toEqual({
-      order: {
-        order_id: ORDER_ID,
-        client_order_id: CANCEL_V2_EXAMPLE.client_order_id,
-        ticker: TICKER,
-      },
-      reducedBy: 10,
+    expect(v1?.output.reducedBy).toBe(10)
+    expect(v1?.output.order).toMatchObject({
+      order_id: ORDER_ID,
+      client_order_id: CANCEL_V2_EXAMPLE.client_order_id,
+      ticker: TICKER,
+      // Keys the legacy order object had stay present, as null, so saved references resolve.
+      event_ticker: null,
+      status: null,
+      count: null,
     })
 
     const v2 = await kalshiCancelOrderV2Tool.transformResponse?.(

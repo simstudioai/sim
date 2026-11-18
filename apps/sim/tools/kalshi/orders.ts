@@ -327,3 +327,36 @@ export function kalshiWrittenOrder(
       typeof body.cancel_order_on_pause === 'boolean' ? body.cancel_order_on_pause : null,
   }
 }
+
+/** Every key of the order object the legacy write endpoints returned (`KalshiOrder`). */
+const LEGACY_ORDER_KEYS = [
+  'order_id',
+  'ticker',
+  'event_ticker',
+  'status',
+  'side',
+  'type',
+  'yes_price',
+  'no_price',
+  'action',
+  'count',
+  'remaining_count',
+  'created_time',
+  'expiration_time',
+  'place_count',
+  'decrease_count',
+  'maker_fill_count',
+  'taker_fill_count',
+  'taker_fees',
+] as const
+
+/**
+ * The legacy `order` output for a V2 write: every key the removed endpoints returned stays present,
+ * as `null` when Kalshi's V2 response no longer reports it, so a saved reference resolves to null
+ * rather than disappearing.
+ */
+export function kalshiLegacyOrder(order: Record<string, unknown>): Record<string, unknown> {
+  const legacy: Record<string, unknown> = {}
+  for (const key of LEGACY_ORDER_KEYS) legacy[key] = null
+  return { ...legacy, ...order }
+}

@@ -1,6 +1,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
-import { kalshiCountNumber, kalshiOrderPath, kalshiOrderReadPath } from '@/tools/kalshi/orders'
+import {
+  kalshiCountNumber,
+  kalshiLegacyOrder,
+  kalshiOrderPath,
+  kalshiOrderReadPath,
+} from '@/tools/kalshi/orders'
 import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -80,7 +85,7 @@ export interface KalshiCancelOrderResponse {
   success: boolean
   error?: string
   output: {
-    order: { order_id: string | null; client_order_id: string | null; ticker: string | null }
+    order: Record<string, unknown>
     reducedBy: number
   }
 }
@@ -131,7 +136,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, 'cancel_order')
+        handleKalshiError(data, params && cancelNeedsTicker(params) ? 'order read' : 'cancel_order')
       }
 
       // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.
@@ -139,11 +144,11 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         return {
           success: true,
           output: {
-            order: {
+            order: kalshiLegacyOrder({
               order_id: params.orderId,
               client_order_id: null,
               ticker: readOrderTicker(data),
-            },
+            }),
             reducedBy: 0,
           },
         }
@@ -153,11 +158,11 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
       return {
         success: true,
         output: {
-          order: {
+          order: kalshiLegacyOrder({
             order_id: data.order_id ?? null,
             client_order_id: data.client_order_id ?? null,
             ticker: params?.ticker?.trim() || null,
-          },
+          }),
           reducedBy: kalshiCountNumber(data.reduced_by) ?? 0,
         },
       }
@@ -283,7 +288,10 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, 'cancel_order_v2')
+      handleKalshiError(
+        data,
+        params && cancelNeedsTicker(params) ? 'order read' : 'cancel_order_v2'
+      )
     }
 
     // The order read that precedes a cancel with no ticker: postProcess cancels with its ticker.

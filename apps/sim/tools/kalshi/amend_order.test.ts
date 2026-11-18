@@ -126,6 +126,23 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
     expect(request.body).toMatchObject({ side: 'ask', price: '0.5700', count: '8.00' })
   })
 
+  it('keeps every legacy order key on the v1 amend output', async () => {
+    const params = { ...BASE, count: '8', yesPrice: '57' }
+    const result = await kalshiAmendOrderTool.transformResponse?.(
+      Response.json(AMEND_V2_RESPONSE_EXAMPLE),
+      params
+    )
+    expect(result?.output.order).toMatchObject({
+      order_id: ORDER_ID,
+      count: 8,
+      remaining_count: 8,
+      event_ticker: null,
+      status: null,
+      created_time: null,
+      place_count: null,
+    })
+  })
+
   it.each([
     ['kalshi_amend_order', kalshiAmendOrderTool],
     ['kalshi_amend_order_v2', kalshiAmendOrderV2Tool],
