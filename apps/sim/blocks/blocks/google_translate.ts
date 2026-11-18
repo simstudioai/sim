@@ -200,6 +200,19 @@ export const GoogleTranslateBlock: BlockConfig = {
       value: () => '',
     },
     {
+      id: 'format',
+      title: 'Text Format',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'text' },
+      options: [
+        { label: 'Default (HTML)', id: '' },
+        { label: 'Plain text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -219,6 +232,7 @@ export const GoogleTranslateBlock: BlockConfig = {
     text: { type: 'string', description: 'Text to translate or detect language of' },
     target: { type: 'string', description: 'Target language code' },
     source: { type: 'string', description: 'Source language code (optional, auto-detected)' },
+    format: { type: 'string', description: 'Text format: text (plain) or html (default)' },
     apiKey: { type: 'string', description: 'Google Cloud API key' },
   },
   outputs: {

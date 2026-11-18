@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryCreateDatasetResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryCreateDatasetTool: ToolConfig<
   GoogleBigQueryCreateDatasetParams,
@@ -59,7 +60,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/datasets`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
