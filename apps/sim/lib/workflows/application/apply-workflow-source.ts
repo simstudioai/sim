@@ -130,9 +130,14 @@ interface ApplyWorkflowSourceResult {
   mintedIds: Record<string, string>
   /**
    * Every resource the submitted source names by key, as the compiler read it; empty when the
-   * source was refused before it compiled.
+   * source did not compile.
    */
   references: ResourceKeyRef[]
+  /**
+   * Every env name the submitted source reads, as the compiler read it; empty when the source did
+   * not compile.
+   */
+  envReferences: string[]
   notes: string[]
   needsRedeployment: boolean
   sdkMajor: number
@@ -363,6 +368,7 @@ async function runSourceApply(
             | 'workflowName'
             | 'mintedIds'
             | 'references'
+            | 'envReferences'
             | 'notes'
             | 'wroteSourceMeta'
             | 'sourceMetaChanged'
@@ -375,6 +381,7 @@ async function runSourceApply(
       dryRun,
       mintedIds: {},
       references: [],
+      envReferences: [],
       notes: [],
       wroteSourceMeta: false,
       sourceMetaChanged: false,
@@ -397,12 +404,15 @@ async function runSourceApply(
      * echoes the caller's own base fingerprint, so applying its response after a stale or
      * mismatched read still fails the freshness check rather than overwriting the newer draft.
      */
-    const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
+    const refuse = (
+      diagnostics: WorkflowSourceDiagnostic[],
+      compiledReferences?: Pick<ApplyWorkflowSourceResult, 'references' | 'envReferences'>
+    ) => {
       if (!dryRun) throw new WorkflowSourceRejectedError(diagnostics)
       const fingerprint = target.kind === 'existing' ? target.base.fingerprint : baseFingerprint
       return result(
         { files: input.files, lock: input.lock, fingerprint },
-        { applied: false, diff: emptyDiffSummary(), diagnostics }
+        { applied: false, diff: emptyDiffSummary(), diagnostics, ...compiledReferences }
       )
     }
 
@@ -444,7 +454,9 @@ async function runSourceApply(
       ...(target.kind === 'existing' ? { base: target.base } : {}),
       ...(target.kind === 'new' ? { create: target.create } : {}),
     })
-    if ('refused' in evaluation) return refuse(evaluation.refused)
+    if ('refused' in evaluation) {
+      return refuse(evaluation.refused, evaluation.compiledReferences)
+    }
     const { plan } = evaluation
     const { diff, diagnostics, mintedIds } = plan
     /** The function files the submission named, kept so a write never renames the author's. */
@@ -500,6 +512,7 @@ async function runSourceApply(
         diff,
         diagnostics,
         references: plan.references,
+        envReferences: plan.envReferences,
         notes: plan.notes,
         wroteSourceMeta,
         sourceMetaChanged,
@@ -521,6 +534,7 @@ async function runSourceApply(
         diagnostics,
         mintedIds,
         references: plan.references,
+        envReferences: plan.envReferences,
         notes: [...plan.notes, ...preview.warnings],
       })
     }
@@ -546,6 +560,7 @@ async function runSourceApply(
       diagnostics,
       mintedIds,
       references: plan.references,
+      envReferences: plan.envReferences,
       workflowName: committed.name,
       notes: [...plan.notes, ...committed.warnings],
     })

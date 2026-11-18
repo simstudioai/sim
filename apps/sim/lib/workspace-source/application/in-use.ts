@@ -76,9 +76,12 @@ export async function checkDeletesInUse(
   unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
   workspaceId: string
 ): Promise<void> {
+  // A workflow delete is checked by the workflow kind; a credential delete only unbinds its key,
+  // which leaves every stored workflow using the credential working.
   const deleting = changes.filter(
     (change) =>
       change.kind !== 'workflow' &&
+      change.kind !== 'credential' &&
       change.storedId !== undefined &&
       (change.action === 'delete' ||
         change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'))

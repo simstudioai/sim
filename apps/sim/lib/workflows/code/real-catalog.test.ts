@@ -383,12 +383,15 @@ describe('canonicalize and codegen over the real block catalog', () => {
       knowledgeBases: ['policies'],
       skills: ['tone'],
       customTools: ['lookup-order'],
-      env: ['ANTHROPIC_API_KEY'],
+      secretDeclarations: ['ANTHROPIC_API_KEY'],
+      credentialDeclarations: ['slack'],
     })
     write(`.sim/sdk/${workspaceTypes.path}`, workspaceTypes.text)
     expect(
       typeCheckAgainstSdk(workDir, 'workspace-cookbook', [
         path.join(dir, '.sim/sdk/*.d.ts'),
+        path.join(dir, 'secrets.ts'),
+        path.join(dir, 'credentials.ts'),
         path.join(dir, 'tables/*.ts'),
         path.join(dir, 'tools/*.ts'),
         path.join(dir, 'knowledge/*/knowledge.ts'),

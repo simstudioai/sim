@@ -111,13 +111,18 @@ type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
 
 /**
  * The resources a compiled workflow names that a workspace directory declares by the same key: a
- * kind whose source key is its resource key (a workspace file's source key is its path).
+ * kind whose source key is its resource key (a workspace file's source key is its path), and each
+ * secret it reads by name (`env.NAME`).
  */
-function sourceRefs(references: readonly ResourceKeyRef[]): NonNullable<WorkflowChange['refs']> {
+function sourceRefs(
+  references: readonly ResourceKeyRef[],
+  envReferences: readonly string[]
+): NonNullable<WorkflowChange['refs']> {
   const refs = new Map<string, { kind: WorkspaceKind; key: string }>()
   for (const { kind, key } of references) {
     if (isWorkspaceKind(kind) && isResourceKeyed(kind)) refs.set(`${kind}:${key}`, { kind, key })
   }
+  for (const name of envReferences) refs.set(`secret:${name}`, { kind: 'secret', key: name })
   return [...refs.values()]
 }
 
@@ -252,7 +257,7 @@ async function planWorkflow(
         action: result.diff.noop && !metaOnly ? 'noop' : 'update',
         storedId: existing.id,
         fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
-        refs: sourceRefs(result.references),
+        refs: sourceRefs(result.references, result.envReferences),
         detail: { lock: read.lock, base },
       }
     }
@@ -266,7 +271,7 @@ async function planWorkflow(
       action: 'create',
       pending: pendingOf({ ...change, action: 'create' }),
       fields: diffFields(result.diff),
-      refs: sourceRefs(result.references),
+      refs: sourceRefs(result.references, result.envReferences),
     }
   } catch (error) {
     change.diagnostics.push(refusalDiagnostic(error, { kind: 'workflow', key }))

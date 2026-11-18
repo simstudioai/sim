@@ -114,6 +114,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         unread.add(kind)
         continue
       }
+      const readResources: typeof stored.unbound = []
       for (const [key, resource] of stored.bound) {
         try {
           const read = await adapter.read(resource, ctx)
@@ -126,11 +127,14 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
           result.blobs.push(...read.blobs)
           result.base.resources[resourceAddress(kind, key)] = read.base
           result.diagnostics.push(...(read.diagnostics ?? []))
+          readResources.push(resource)
         } catch (error) {
           const finding = refusalDiagnostic(error, { kind, key })
           result.skipped.push({ kind, key, reason: finding.message })
         }
       }
+      // A kind one root file declares whole prints that file once, from every resource read.
+      if (adapter.printAll) Object.assign(result.files, adapter.printAll(readResources))
     }
     result.kinds = kinds.filter((kind) => !unread.has(kind))
     return result

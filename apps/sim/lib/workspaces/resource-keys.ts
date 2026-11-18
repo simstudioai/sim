@@ -449,8 +449,9 @@ export type ResourceKeyClaim = 'bound' | 'kept' | 'rebound'
  * created (`origin: 'created'`) or an unbound one it adopted by name (`'adopted'`). A key still
  * bound to a deleted or archived resource moves to the new one (`'rebound'`), so deleting a
  * declared resource and applying again re-creates it under the same key. A key held by another
- * live resource throws {@link ResourceKeyTakenError}. A key the resource held before (allocated
- * by a get) is replaced, since the source now names it. Runs in one transaction.
+ * live resource throws {@link ResourceKeyTakenError}, unless `takeFrom` names that resource: then
+ * the key moves off it (a source that rebinds a key on purpose). A key the resource held before
+ * (allocated by a get) is replaced, since the source now names it. Runs in one transaction.
  */
 export async function claimResourceKey(input: {
   workspaceId: string
@@ -459,6 +460,8 @@ export async function claimResourceKey(input: {
   resourceId: string
   origin: 'created' | 'adopted'
   createdBy: string | null
+  /** The live resource the key may be moved off; any other live holder still refuses. */
+  takeFrom?: string
 }): Promise<ResourceKeyClaim> {
   const { workspaceId, kind, key, resourceId } = input
   return db.transaction(async (tx) => {
@@ -474,7 +477,7 @@ export async function claimResourceKey(input: {
       )
       .for('update')
     if (holder?.resourceId === resourceId) return 'kept'
-    if (holder) {
+    if (holder && holder.resourceId !== input.takeFrom) {
       const live = await loadLiveResources(tx, workspaceId, kind, [holder.resourceId])
       if (live.length > 0) throw new ResourceKeyTakenError(kind, key, holder.resourceId)
     }
@@ -509,4 +512,29 @@ export async function claimResourceKey(input: {
     })
     return 'bound'
   })
+}
+
+/**
+ * Unbinds `key` from `resourceId`, for a source that stops naming the resource by it; a key bound
+ * to anything else is left as it is. Returns whether a binding was removed. The resource itself
+ * is untouched, and a later get allocates it a key again.
+ */
+export async function releaseResourceKey(input: {
+  workspaceId: string
+  kind: ResourceKind
+  key: string
+  resourceId: string
+}): Promise<boolean> {
+  const removed = await db
+    .delete(workspaceResourceKey)
+    .where(
+      and(
+        eq(workspaceResourceKey.workspaceId, input.workspaceId),
+        eq(workspaceResourceKey.kind, input.kind),
+        eq(workspaceResourceKey.key, input.key),
+        eq(workspaceResourceKey.resourceId, input.resourceId)
+      )
+    )
+    .returning({ id: workspaceResourceKey.id })
+  return removed.length > 0
 }
