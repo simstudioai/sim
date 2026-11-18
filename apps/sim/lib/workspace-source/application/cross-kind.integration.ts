@@ -727,7 +727,7 @@ export default workflow('Answer', {}, () => {
       refused.diagnostics
         .filter((finding) => finding.severity === 'error')
         .map((finding) => `${finding.code} ${finding.file}`)
-    ).toEqual(['E_BLOB_CONTENT files/notes.txt', 'E_BLOB_CONTENT tables/leads.ts'])
+    ).toEqual(['E_BLOB_MANIFEST files/notes.txt', 'E_BLOB_MANIFEST tables/leads.ts'])
   })
 
   check(

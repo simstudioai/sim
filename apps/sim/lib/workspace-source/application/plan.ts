@@ -96,7 +96,7 @@ function readBlobs(
   const byPath = new Map<string, BlobEntry>()
   for (const blob of blobs) {
     const refuse = (message: string) =>
-      diagnostics.push(finding('E_BLOB_CONTENT', message, { file: blob.path }))
+      diagnostics.push(finding('E_BLOB_MANIFEST', message, { file: blob.path }))
     if (!isBlobPath(blob.path)) {
       refuse(`${blob.path} is sent as a binary file, but no binary file lives at that path.`)
       continue

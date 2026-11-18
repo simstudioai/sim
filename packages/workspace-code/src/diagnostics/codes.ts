@@ -26,11 +26,8 @@ const DECLARATION_CODES = [
   'E_DECL_UNKNOWN_FIELD',
   /** A path inside a kind's folder that no resource owns. */
   'E_DECL_UNKNOWN_FILE',
-  /**
-   * A binary file sent with bytes that do not match the hash or size the directory declared, or
-   * listed twice or at a path that holds no binary file: the apply writes nothing.
-   */
-  'E_BLOB_CONTENT',
+  /** A blob manifest entry listed twice, or at a path that holds no binary file: the apply writes nothing. */
+  'E_BLOB_MANIFEST',
   /**
    * A binary file a write needs whose bytes are not staged (or were staged at another size): the
    * apply writes nothing. Stage it, then apply again.
