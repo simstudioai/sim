@@ -33,6 +33,7 @@ import type {
   PlannedChange,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+import { acquireApplyLease } from '@/lib/workspace-source/lease/store'
 import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -180,7 +181,9 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
  * workspace cannot satisfy, which alone are not written, then writes each change through the use
  * case that owns it, in apply order with deletes last and in reverse. The writes commit one by one, so a
  * failure stops the apply and reports what was written before it (`failed`); re-running the same
- * directory converges. Each child use case audits its own write; this records one roll-up.
+ * directory converges. The write phase holds the workspace's apply lease, so a second apply
+ * meanwhile is refused with nothing written (`SOURCE_BUSY`); a dry run takes no lease. Each child
+ * use case audits its own write; this records one roll-up.
  */
 export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
   operation: workspaceSourceOperations.apply,
@@ -225,21 +228,29 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         base.resources[resourceAddress(change.kind, change.key)] = change.base
       }
     }
-    for (const change of writeOrder(plan.changes)) {
-      try {
-        const written = await write(change, writeCtx)
-        const address = resourceAddress(change.kind, change.key)
-        if (written.base) base.resources[address] = written.base
-        else delete base.resources[address]
-        Object.assign(result.files, written.text)
-        result.diagnostics.push(...(written.diagnostics ?? []))
-        result.applied.push(summarize(change, written.id))
-      } catch (error) {
-        const failure = failureOf(error, change)
-        result.failed = failure.failed
-        result.diagnostics.push(...failure.diagnostics)
-        break
+    // One apply writes a workspace at a time: each write's re-check and write are separate
+    // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved.
+    const lease = await acquireApplyLease(context.workspaceId)
+    try {
+      for (const change of writeOrder(plan.changes)) {
+        try {
+          await lease.confirm()
+          const written = await write(change, writeCtx)
+          const address = resourceAddress(change.kind, change.key)
+          if (written.base) base.resources[address] = written.base
+          else delete base.resources[address]
+          Object.assign(result.files, written.text)
+          result.diagnostics.push(...(written.diagnostics ?? []))
+          result.applied.push(summarize(change, written.id))
+        } catch (error) {
+          const failure = failureOf(error, change)
+          result.failed = failure.failed
+          result.diagnostics.push(...failure.diagnostics)
+          break
+        }
       }
+    } finally {
+      await lease.release()
     }
     result.base = base
     logger.info('Applied workspace source', {

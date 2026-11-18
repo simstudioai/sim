@@ -10,6 +10,7 @@ import { type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
 import { embedStore } from '../../embed-context'
 import {
+  SOURCE_BUSY_EXIT_CODE,
   SOURCE_LOCKED_EXIT_CODE,
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
@@ -138,13 +139,22 @@ export async function confirm(question: string): Promise<boolean> {
   }
 }
 
+/** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
+const CONFLICT_EXIT_CODES: Readonly<Record<string, number>> = {
+  SOURCE_STALE: SOURCE_STALE_EXIT_CODE,
+  SOURCE_BUSY: SOURCE_BUSY_EXIT_CODE,
+}
+
 /**
  * The exit status of a refused write. A `409` is stale only when the server says so
- * (`SOURCE_STALE`): a name another workflow holds (`SOURCE_NAME_TAKEN`) or any other conflict
- * cannot be fixed by reading the workflow again, so it exits 1.
+ * (`SOURCE_STALE`), and busy when another workspace apply is writing (`SOURCE_BUSY`): a name
+ * another workflow holds (`SOURCE_NAME_TAKEN`) or any other conflict cannot be fixed by reading
+ * the workflow again or waiting, so it exits 1.
  */
 function refusalExitCode(error: SimApiError, detailCode: unknown): number {
-  if (error.status === 409) return detailCode === 'SOURCE_STALE' ? SOURCE_STALE_EXIT_CODE : 1
+  if (error.status === 409) {
+    return typeof detailCode === 'string' ? (CONFLICT_EXIT_CODES[detailCode] ?? 1) : 1
+  }
   return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
 }
 

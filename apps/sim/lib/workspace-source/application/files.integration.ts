@@ -66,6 +66,7 @@ import {
   sourceWorkspaces,
   stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
+import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
 let storageRoot = ''
@@ -508,7 +509,7 @@ describe('workspace source files', () => {
   )
 
   check(
-    'two applies by one caller sharing a staged blob: the one that finishes first never takes the bytes the other still has to write',
+    'two applies by one caller sharing a staged blob: the second, refused while the first writes, still finds the bytes once it finished',
     async () => {
       const workspaceId = await newWorkspace()
       const shared = Buffer.from('bytes both applies write')
@@ -518,24 +519,27 @@ describe('workspace source files', () => {
       }
       const second: Record<string, Buffer> = { 'files/second/shared.txt': shared }
       const create = createWorkspaceFileBufferByPath.execute
-      let interleaved: ReturnType<typeof apply> | undefined
+      let refused: unknown = null
       // The first apply pauses at its first write, after it planned with the shared blob; the
-      // second apply runs to completion meanwhile.
+      // second apply, which staged the same bytes, is refused meanwhile.
       const paused = vi
         .spyOn(createWorkspaceFileBufferByPath, 'execute')
         .mockImplementationOnce(async (...args) => {
-          interleaved = apply(workspaceId, second)
-          await interleaved
+          refused = await apply(workspaceId, second).then(
+            () => null,
+            (error: unknown) => error
+          )
           return create(...args)
         })
 
       const result = await apply(workspaceId, first).finally(() => paused.mockRestore())
-      if (!interleaved) throw new Error('The second apply never ran')
-      const other = await interleaved
-
-      expect(other.failed).toBeUndefined()
+      expect(refused).toBeInstanceOf(WorkspaceSourceBusyError)
       expect(result.failed).toBeUndefined()
       expect(summary(result.applied)).toEqual(['create first/lead.txt', 'create first/shared.txt'])
+
+      // Sending no bytes: the first apply finishing left the shared blob staged.
+      const other = await apply(workspaceId, second, { send: [] })
+      expect(other.failed).toBeUndefined()
       expect((await storedFiles(workspaceId)).map((file) => file.name).sort()).toEqual([
         'lead.txt',
         'shared.txt',

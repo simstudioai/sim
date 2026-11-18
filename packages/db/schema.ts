@@ -2815,6 +2815,20 @@ export const workspaceSourceStagedBlob = pgTable(
 )
 
 /**
+ * The workspace source apply writing a workspace now, at most one per workspace: the apply holds
+ * the row (`token`) for its whole write phase and renews `expires_at` while it writes. A second
+ * apply finds it held and is refused; a lease past `expires_at` (its process died) is taken over.
+ */
+export const workspaceSourceApplyLease = pgTable('workspace_source_apply_lease', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  acquiredAt: timestamp('acquired_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+})
+
+/**
  * The user's stored dependent-field re-picks for an edge: a (target workflow, target block,
  * subblock) -> selected value mapping (a Gmail label, a KB document, a sheet tab). The sync
  * modal reads and writes this, and every promote applies it verbatim - it is the single

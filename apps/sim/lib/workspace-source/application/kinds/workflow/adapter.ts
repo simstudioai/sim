@@ -29,6 +29,7 @@ import {
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import {
   type BaseResource,
   fingerprintOf,
@@ -219,6 +220,16 @@ function sourceRefs(
     refs.set(JSON.stringify(['secret', name, null]), { kind: 'secret', key: name })
   }
   return [...refs.values()]
+}
+
+/** The evaluated graph's blocks, id to normalized name, as a change's `blocks`. */
+function blocksOf(evaluated: EvaluatedSource | undefined): Pick<WorkflowChange, 'blocks'> {
+  if (!evaluated) return {}
+  const blocks = Object.values(evaluated.plan.blocks).map((block): [string, string] => [
+    block.id,
+    normalizeWorkflowBlockName(block.name),
+  ])
+  return { blocks: new Map(blocks) }
 }
 
 /** A workflow pipeline finding, pinned to its file in the workspace directory. */
@@ -436,6 +447,7 @@ async function planUpdate(
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
     refs: sourceRefs(result.references, result.envReferences, result.evaluated),
+    ...blocksOf(result.evaluated),
     detail: {
       update: { lock: read.lock, base: update.base, allowDelete: ctx.allowDelete },
       created: pending.filter((entry) => entry.kind === 'workflow'),
@@ -479,6 +491,7 @@ async function planCreate(
       pending: created,
       fields: diffFields(result.diff),
       refs: sourceRefs(result.references, result.envReferences, result.evaluated),
+      ...blocksOf(result.evaluated),
       detail: {
         workflowId: created.id,
         created: pending.filter((entry) => entry.kind === 'workflow'),

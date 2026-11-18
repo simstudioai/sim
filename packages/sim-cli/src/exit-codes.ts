@@ -34,3 +34,10 @@ export const SOURCE_PARTIAL_EXIT_CODE = 8
  * run the command again.
  */
 export const RATE_LIMITED_EXIT_CODE = 9
+
+/**
+ * A `workspaces source apply` refused because another apply is writing the workspace (`409` with
+ * `SOURCE_BUSY`): nothing of this one was written. Wait for the other apply to finish, then apply
+ * again; a write the other one made to a resource this directory changes then exits 5.
+ */
+export const SOURCE_BUSY_EXIT_CODE = 10

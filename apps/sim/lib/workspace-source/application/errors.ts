@@ -54,8 +54,9 @@ export class ResourceChangedError extends OrchestrationError {
 
 /**
  * Refuses a write to a resource whose fingerprint (`current`, read just before the write) moved
- * since the plan recorded it, so a document added or a tool edited in the UI between the plan and
- * the write is never lost silently.
+ * since the plan recorded it. Another apply cannot move it in between (the write phase holds the
+ * workspace's apply lease), but a UI edit can still land between this re-read and the write: only
+ * files (`expectedRevision`) and workflows (re-checked under the row lock) close that gap.
  */
 export function assertUnchanged(change: PlannedChange, current: string): void {
   if (change.serverFingerprint !== undefined && current !== change.serverFingerprint) {

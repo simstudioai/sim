@@ -222,6 +222,18 @@ failure stops the apply and reports what was written before it (`failed`); the C
 progress back into the directory and exits 8 (`SOURCE_PARTIAL_EXIT_CODE`). Re-running the same
 directory converges.
 
+**One apply at a time.** A write's re-read and the write itself are separate statements, and a
+knowledge base's write spans many transactions (one per document), so the write phase holds a
+per-workspace lease row (`workspace_source_apply_lease`, `lib/workspace-source/lease/store.ts`).
+A second apply meanwhile is refused with nothing written: `409` with `details.code`
+`SOURCE_BUSY`, CLI exit 10 (`SOURCE_BUSY_EXIT_CODE`). A dry run takes no lease. It is a row, not a
+Postgres advisory lock: a transaction lock cannot span the write phase's transactions, and a
+session lock does not survive PgBouncer transaction pooling. The apply renews it while it writes
+and checks it is still held before each write; a process that dies stops renewing, and the lease
+lapses after two minutes. The lease orders applies, not UI edits: a UI write between a re-read and
+the write is still caught only where the child use case takes a precondition (a file's
+`expectedRevision`, a workflow's fingerprint under its row lock).
+
 **Staged blobs.** Blob bytes never travel in an apply. A client first asks which of the blobs it
 will send it has not staged (`POST /source/blobs/missing`, by SHA-256 and size), uploads only
 those (`POST /source/blobs`, multipart, one part per blob named by its hash, at most

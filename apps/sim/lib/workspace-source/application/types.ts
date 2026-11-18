@@ -125,6 +125,13 @@ export interface PlannedChange<D = unknown, P = unknown> {
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
   /**
+   * A workflow change's blocks as its write leaves the graph, block id to normalized name, from
+   * the plan's evaluation: a later kind checks the blocks it names (a chat's outputs) against the
+   * edited graph, not the stored one. Absent when the workflow did not evaluate (its own errors
+   * refuse).
+   */
+  blocks?: ReadonlyMap<string, string>
+  /**
    * Set by a reference kind on its own change when the declared reference cannot be satisfied:
    * every change whose `refs` name it is held back.
    */

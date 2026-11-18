@@ -66,7 +66,8 @@ saved into the directory, and applying again continues. An apply a resource refu
 (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1;
 9 rate limited (HTTP 429) after the CLI's retries,
 before anything was written: wait a minute and apply again (binary files already uploaded are
-not sent again).`
+not sent again); 10 another apply is writing the workspace (SOURCE_BUSY): nothing was written,
+apply again once it finished.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
