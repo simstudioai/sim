@@ -291,6 +291,13 @@ export interface OrchestratorOptions {
    */
   clientToolPickupExpected?: boolean
   /**
+   * Whether a chat view is reading this turn's stream right now: the send's own response, or a
+   * reader re-attached through the reconnect route. Answers true when it cannot tell. With no
+   * view, a workflow tool waits only a short grace for one to attach before running server-side.
+   * Absent on legs that cannot tell, which keep the full grace.
+   */
+  hasClientViewer?: () => Promise<boolean>
+  /**
    * The turn's desktop claims local reads (`read_local_file`, user-local VFS reads) through
    * authorize before reading, so they are persisted pending and fail fast when nothing picks them
    * up. Absent for older desktops, and on a recovered leg, where local reads keep the established

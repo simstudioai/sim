@@ -298,37 +298,54 @@ describe('workspaces source apply', () => {
     expect(request).toHaveBeenCalledTimes(1)
   })
 
-  it('reuses a recorded blob digest while the file keeps its size and modification time', async () => {
-    const file = join(dir, 'files/a.bin')
-    write('files/a.bin', Buffer.from([1, 2, 3]))
-    utimesSync(file, 1000, 1000)
-    const held = createHash('sha256')
-      .update(Buffer.from([1, 2, 3]))
-      .digest('hex')
-    const base = {
-      ...BASE,
-      resources: {
-        'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: held } } },
-      },
-    }
-    request.mockResolvedValue(answer({ base }))
-    await apply('--yes')
+  describe('the recorded blob digest', () => {
+    const file = () => join(dir, 'files/a.bin')
+    const sha = (bytes: number[]) => createHash('sha256').update(Buffer.from(bytes)).digest('hex')
+    /** The SHA-256 the last request named for the blob; a dry run sends it without the bytes. */
     const sentDigest = () => request.mock.lastCall?.[1].body.blobs?.[0]?.sha256
 
-    // Same size and modification time: the recorded digest stands, the file is not read.
-    write('files/a.bin', Buffer.from([7, 8, 9]))
-    utimesSync(file, 1000, 1000)
-    await apply('--yes')
-    expect(sentDigest()).toBe(held)
+    /** Applies `files/a.bin` once, so `.sim/written.json` records its digest and stat. */
+    async function applyOnce(): Promise<void> {
+      write('files/a.bin', Buffer.from([1, 2, 3]))
+      utimesSync(file(), 1000, 1000)
+      const held = sha([1, 2, 3])
+      const base = {
+        ...BASE,
+        resources: {
+          'file:a.bin': {
+            id: 'f1',
+            blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: held } },
+          },
+        },
+      }
+      request.mockResolvedValue(answer({ base }))
+      await apply('--yes')
+      const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
+      expect(written.files['files/a.bin']).toBe(held)
+      expect(written.stats['files/a.bin']).toBeDefined()
+    }
 
-    // A new modification time: the file is read again.
-    utimesSync(file, 2000, 2000)
-    await apply('--yes')
-    expect(sentDigest()).toBe(
-      createHash('sha256')
-        .update(Buffer.from([7, 8, 9]))
-        .digest('hex')
-    )
+    it('stands while the file is untouched, so the file is not read', async () => {
+      await applyOnce()
+      const path = join(dir, '.sim/written.json')
+      const written = JSON.parse(readFileSync(path, 'utf8'))
+      const recorded = 'f'.repeat(64)
+      writeFileSync(path, JSON.stringify({ ...written, files: { 'files/a.bin': recorded } }))
+
+      await apply('--dry-run')
+
+      expect(sentDigest()).toBe(recorded)
+    })
+
+    it('is read again after a same-size rewrite that put its modification time back', async () => {
+      await applyOnce()
+      write('files/a.bin', Buffer.from([7, 8, 9]))
+      utimesSync(file(), 1000, 1000)
+
+      await apply('--dry-run')
+
+      expect(sentDigest()).toBe(sha([7, 8, 9]))
+    })
   })
 
   it('names the way back when a write ends without an answer, but not for a refusal', async () => {

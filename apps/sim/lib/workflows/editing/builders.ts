@@ -7,27 +7,22 @@ import {
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
 } from '@sim/workflow-types/workflow'
-import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
-import {
-  createToolAccessGate,
-  isOperationAllowed,
-  MODEL_SUBBLOCK_ID,
-  OPERATION_SUBBLOCK_ID,
-  type SeedValueGate,
-} from '@/lib/permission-groups/operation-access'
+import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
-import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
+import {
+  checkRetrySetting,
+  createFieldValueGate,
+  createSeededValueGate,
+  isToolInputField,
+  partitionToolEntries,
+} from '@/lib/workflows/editing/gates'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { overlayVisibility } from '@/blocks/visibility/context'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
@@ -66,16 +61,15 @@ export function resolveBlockRetryUpdate(
 }
 
 /**
- * Applies a requested retry policy to a block, or records why it could not be.
- *
- * Eligibility is checked with the same predicate the executor uses, so a policy
- * the runtime would ignore (triggers, human-in-the-loop, sentinels) is reported
- * back instead of being written as dead configuration.
+ * Applies a requested retry policy to a block, or records why it could not be: the `retry` gates
+ * of `BLOCK_GATES` decide, so a policy the runtime would ignore is reported back instead of
+ * being written as dead configuration.
  */
 export function applyBlockRetry(
   block: any,
   requested: unknown,
-  context: { operationType: string; blockId: string; skippedItems?: SkippedItem[] }
+  context: { operationType: string; blockId: string; skippedItems?: SkippedItem[] },
+  permissionConfig: PermissionGroupConfig | null = null
 ): void {
   if (requested === null) {
     block.retry = undefined
@@ -83,21 +77,17 @@ export function applyBlockRetry(
   }
   if (typeof requested !== 'object' || Array.isArray(requested)) return
 
-  if (
-    !isRetryEligibleBlock({
+  const refusal = checkRetrySetting(
+    {
+      blockId: context.blockId,
       blockType: block.type,
-      category: getBlock(block.type)?.category,
       triggerMode: block.triggerMode,
-    })
-  ) {
-    if (context.skippedItems) {
-      logSkippedItem(context.skippedItems, {
-        type: 'retry_not_supported',
-        operationType: context.operationType,
-        blockId: context.blockId,
-        reason: `Block "${context.blockId}" (${block.type}) cannot retry - triggers, human-in-the-loop, and container blocks always run once`,
-      })
-    }
+      operationType: context.operationType,
+    },
+    { permissionConfig }
+  )
+  if (refusal) {
+    if (context.skippedItems) logSkippedItem(context.skippedItems, refusal)
     return
   }
 
@@ -207,11 +197,12 @@ export function createBlockFromParams(
   // Block-level setting like `enabled`, not a subBlock input — the executor
   // reads it from block state when wrapping the run, never from the tool params.
   if (params.retry !== undefined) {
-    applyBlockRetry(blockState, params.retry, {
-      operationType: 'add',
-      blockId,
-      skippedItems,
-    })
+    applyBlockRetry(
+      blockState,
+      params.retry,
+      { operationType: 'add', blockId, skippedItems },
+      permissionConfig ?? null
+    )
   }
 
   // Add validated inputs as subBlocks
@@ -236,15 +227,11 @@ export function createBlockFromParams(
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
-      // Special handling for tools - normalize and filter disallowed
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig ?? null,
-          blockId,
-          skippedItems ?? []
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId, blockType: params.type, key, value, sanitizedValue },
+        permissionConfig ?? null,
+        skippedItems ?? []
+      )
 
       // Special handling for responseFormat - normalize to ensure consistent format
       if (key === 'responseFormat' && value) {
@@ -870,8 +857,7 @@ export function applyTriggerConfigToBlockSubblocks(
 }
 
 /**
- * Filters out tools that are not allowed by the permission group config
- * Returns both the allowed tools and any skipped tool items for logging
+ * Drops the tool entries a `tool_entry` gate of `BLOCK_GATES` refuses, recording each refusal.
  */
 export function filterDisallowedTools(
   tools: any[],
@@ -879,76 +865,32 @@ export function filterDisallowedTools(
   blockId: string,
   skippedItems: SkippedItem[]
 ): any[] {
-  const deploymentAvailableTools: any[] = []
+  const { kept, refused } = partitionToolEntries(tools, blockId, { permissionConfig })
+  for (const item of refused) logSkippedItem(skippedItems, item)
+  return kept
+}
 
-  for (const tool of tools) {
-    if (
-      typeof tool?.type === 'string' &&
-      getBlock(tool.type) &&
-      !isIntegrationDeploymentAvailableForVisibility(tool.type, overlayVisibility())
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Tool block type "${tool.type}" is unavailable in this deployment - tool not added`,
-        details: { toolType: tool.type },
-      })
-      continue
-    }
-    deploymentAvailableTools.push(tool)
-  }
-
-  if (!permissionConfig) return deploymentAvailableTools
-
-  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
-  const allowedTools: any[] = []
-  for (const tool of deploymentAvailableTools) {
-    if (tool.type === 'custom-tool' && capabilityDeniedBy('custom_tools.use', permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Custom tool "${tool.title || tool.customToolId || 'unknown'}" is not allowed by permission group - tool not added`,
-        details: { toolType: 'custom-tool', toolId: tool.customToolId },
-      })
-      continue
-    }
-    if (
-      (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
-      capabilityDeniedBy('mcp_tools.use', permissionConfig)
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
-        details: { toolType: tool.type, serverId: tool.params?.serverId },
-      })
-      continue
-    }
-    /* An integration tool entry names a block and (when the block exposes more
-       than one) the operation to run, which is what the group's `deniedTools`
-       denylist is written against. Passing `''` for an absent operation is the
-       single-tool case, where the resolver returns the block's only tool
-       without consulting it. */
-    if (
-      typeof tool?.type === 'string' &&
-      !isOperationAllowed(getBlock(tool.type), tool.operation ?? '', isToolAllowed)
-    ) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType: 'add',
-        blockId,
-        reason: `Tool "${tool.type}${tool.operation ? `.${tool.operation}` : ''}" is blocked by access control - tool not added`,
-        details: { toolType: tool.type, operation: tool.operation },
-      })
-      continue
-    }
-    allowedTools.push(tool)
-  }
-
-  return allowedTools
+/**
+ * The value a `tool-input` field is written with: an agent's `tools` normalized, and in every such
+ * field (a human in the loop's `notification` as well) the entries a tool-entry gate refuses
+ * dropped. Any other field keeps `sanitizedValue`.
+ */
+export function gateToolInputValue(
+  input: {
+    blockId: string
+    blockType: string
+    key: string
+    value: unknown
+    sanitizedValue: unknown
+  },
+  permissionConfig: PermissionGroupConfig | null,
+  skippedItems: SkippedItem[]
+): unknown {
+  const { blockId, blockType, key, value, sanitizedValue } = input
+  if (!Array.isArray(value) || !isToolInputField(blockType, key)) return sanitizedValue
+  const entries = key === 'tools' ? normalizeTools(value) : sanitizedValue
+  if (!Array.isArray(entries)) return sanitizedValue
+  return filterDisallowedTools(entries, permissionConfig, blockId, skippedItems)
 }
 
 /** Decides whether one subBlock input may be written. Records its own skips. */
@@ -966,81 +908,28 @@ export interface SubBlockInputGateContext {
 }
 
 /**
- * Builds the permission gate for one block's subBlock writes.
+ * Builds the gate for one block's subBlock writes from the `field` gates of `BLOCK_GATES`.
  *
- * Two fields are gated, because they are the two that name something the group
- * has a policy about: `operation` decides which concrete tool id the block runs,
- * and `model` names a model id. Every other input passes through untouched.
+ * A denied value is dropped from the write and reported rather than failing the whole operation,
+ * matching {@link filterDisallowedTools}: the block still lands, and the model reads the skip
+ * reason and picks a value it may use. An edit therefore leaves whatever the block already had,
+ * never clearing a value the caller is allowed to keep.
  *
- * A denied value is dropped from the write and reported rather than failing the
- * whole operation, matching {@link filterDisallowedTools}: the block still
- * lands, and the model reads the skip reason and picks a value it may use. An
- * edit therefore leaves whatever the block already had, never clearing a value
- * the caller is allowed to keep.
- *
- * Built once per block rather than per input so the denylist is indexed once,
- * and so every path that writes subBlocks — including the trigger-config
- * fan-out, which never passes through input validation — can share one gate.
+ * Built once per block rather than per input so a denylist is indexed once, and so every path that
+ * writes subBlocks, including the trigger-config fan-out that never passes through input
+ * validation, shares one gate.
  */
 export function createSubBlockInputGate(context: SubBlockInputGateContext): SubBlockInputGate {
   const { blockType, permissionConfig, blockId, operationType, skippedItems } = context
-  if (!permissionConfig) return ALLOW_ALL_INPUTS
-
-  const isValueAllowed = createSeededValueGate(blockType, permissionConfig)
-
+  const check = createFieldValueGate(
+    { blockId, blockType, operationType },
+    { permissionConfig: permissionConfig ?? null }
+  )
   return (key: string, value: unknown) => {
-    if (typeof value !== 'string') return true
-    if (isValueAllowed(key, value)) return true
-
-    if (key === OPERATION_SUBBLOCK_ID) {
-      logSkippedItem(skippedItems, {
-        type: 'tool_not_allowed',
-        operationType,
-        blockId,
-        reason: `Operation "${value}" on block type "${blockType}" is blocked by access control - operation not set`,
-        details: { blockType, operation: value },
-      })
-    } else {
-      logSkippedItem(skippedItems, {
-        type: 'model_not_allowed',
-        operationType,
-        blockId,
-        reason: `Model "${value}" is blocked by access control - model not set`,
-        details: { blockType, model: value },
-      })
-    }
+    const refusal = check(key, value)
+    if (!refusal) return true
+    logSkippedItem(skippedItems, refusal)
     return false
-  }
-}
-
-/** Shared allow-everything seed gate, so the unrestricted case allocates nothing. */
-const ALLOW_ALL_SEEDS: SeedValueGate = () => true
-
-/**
- * The silent form of the permission gate: whether a string may be written to
- * `operation` or `model`, with nothing recorded when it may not.
- *
- * {@link createSubBlockInputGate} answers the same question for values the
- * caller sent and reports a denial as a skip. A block's declared defaults go
- * through this one instead — the editor's `isSeededValueAllowed` — because a
- * default the group denies is simply not seeded; it is not an operation the
- * caller asked for, so a skip would charge them for it.
- */
-export function createSeededValueGate(
-  blockType: string,
-  permissionConfig: PermissionGroupConfig | null | undefined
-): SeedValueGate {
-  if (!permissionConfig) return ALLOW_ALL_SEEDS
-
-  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
-  const isModelUsable = createModelAccessGate(permissionConfig)
-
-  return (key: string, value: string) => {
-    if (key === OPERATION_SUBBLOCK_ID) {
-      return isOperationAllowed(getBlock(blockType), value, isToolAllowed)
-    }
-    if (key === MODEL_SUBBLOCK_ID) return isModelUsable(value)
-    return true
   }
 }
 

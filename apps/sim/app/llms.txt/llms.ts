@@ -39,7 +39,7 @@ const SOLUTIONS = [
 
 /** Link lines both `/llms.txt` and the homepage's Markdown (`/index.md`) list. */
 export const PRICING_LINE = linkLine('Pricing', '/pricing', 'Free, Pro, Max, and Enterprise plans')
-export const DOCS_LINE = linkLine('Documentation', DOCS_URL, 'Guides, SDKs, and API reference')
+export const DOCS_LINE = linkLine('Documentation', DOCS_URL, 'Guides, CLI, and API reference')
 export const GITHUB_LINE = linkLine(
   'GitHub',
   'https://github.com/simstudioai/sim',

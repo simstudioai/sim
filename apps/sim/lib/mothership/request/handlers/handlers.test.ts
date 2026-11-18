@@ -9,6 +9,7 @@ import {
   mothershipClientToolWaiterMockFns,
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { sleep } from '@sim/utils/helpers'
+import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
@@ -1361,6 +1362,109 @@ describe('sse-handlers tool lifecycle', () => {
     // Exactly one result, from the sim path — no client-flavored duplicate on top.
     expect(workflowResults).toHaveLength(1)
     expect(workflowResults[0].payload.executor).toBe(MothershipStreamV1ToolExecutor.sim)
+  })
+
+  describe('workflow tool pickup grace', () => {
+    /** Dispatches a workflow call whose browser wait only ends when the server takes it over. */
+    async function dispatchUnpickedWorkflowCall(
+      toolCallId: string,
+      hasClientViewer: () => Promise<boolean>
+    ) {
+      waitForWorkflowToolCompletion.mockImplementationOnce((params: unknown) => {
+        const abortSignal = toRecord(params).abortSignal
+        return new Promise((resolve) => {
+          if (abortSignal instanceof AbortSignal) {
+            abortSignal.addEventListener('abort', () => resolve(null))
+          }
+        })
+      })
+      claimWorkflowToolExecution.mockResolvedValueOnce({ toolCallId })
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId,
+            toolName: 'run_workflow',
+            arguments: { workflowId: 'workflow-1' },
+            executor: MothershipStreamV1ToolExecutor.client,
+            mode: MothershipStreamV1ToolMode.async,
+            phase: MothershipStreamV1ToolPhase.call,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: true, hasClientViewer }
+      )
+    }
+
+    it('runs a call no chat view is reading on the server after the short grace', async () => {
+      vi.useFakeTimers()
+      try {
+        await dispatchUnpickedWorkflowCall('tool-no-viewer', async () => false)
+        await vi.advanceTimersByTimeAsync(5_000)
+        expect(claimWorkflowToolExecution).toHaveBeenCalledWith(
+          'tool-no-viewer',
+          expect.any(String),
+          'sim'
+        )
+
+        await Promise.allSettled(context.pendingToolPromises.values())
+        expect(executeTool.mock.calls.at(-1)?.[0]).toBe('run_workflow')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('gives a view that re-attached during the short grace the rest of the full grace', async () => {
+      vi.useFakeTimers()
+      try {
+        let attached = false
+        await dispatchUnpickedWorkflowCall('tool-reattached', async () => attached)
+        // A reload: the send's response dropped, and the view re-attaches two seconds later.
+        await vi.advanceTimersByTimeAsync(2_000)
+        attached = true
+        await vi.advanceTimersByTimeAsync(27_000)
+        expect(claimWorkflowToolExecution).not.toHaveBeenCalledWith(
+          'tool-reattached',
+          expect.any(String),
+          'sim'
+        )
+
+        await vi.advanceTimersByTimeAsync(1_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+        expect(claimWorkflowToolExecution).toHaveBeenCalledWith(
+          'tool-reattached',
+          expect.any(String),
+          'sim'
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps waiting the full grace for a call a chat view is reading', async () => {
+      vi.useFakeTimers()
+      try {
+        await dispatchUnpickedWorkflowCall('tool-viewer', async () => true)
+        await vi.advanceTimersByTimeAsync(29_000)
+        expect(claimWorkflowToolExecution).not.toHaveBeenCalledWith(
+          'tool-viewer',
+          expect.any(String),
+          'sim'
+        )
+
+        await vi.advanceTimersByTimeAsync(1_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+        expect(claimWorkflowToolExecution).toHaveBeenCalledWith(
+          'tool-viewer',
+          expect.any(String),
+          'sim'
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   it('claims and runs the same workflow when the call omits an explicit workflowId', async () => {

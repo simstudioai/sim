@@ -78,6 +78,40 @@ describe('raceWorkflowToolClientPickup', () => {
     expect(params.runOnServer).not.toHaveBeenCalled()
   })
 
+  it('returns a browser result that lands while the grace extension is still being checked', async () => {
+    let finish!: (completion: unknown) => void
+    waitForWorkflowToolCompletion.mockImplementation(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const params = baseParams({ graceMs: 5_000, extendGrace: () => new Promise(() => {}) })
+
+    const promise = raceWorkflowToolClientPickup(params as never)
+    await vi.advanceTimersByTimeAsync(5_000)
+    finish({ status: 'success', data: { ok: true } })
+    const outcome = await promise
+
+    expect(outcome.winner).toBe('client')
+    expect(outcome.completion).toEqual({ status: 'success', data: { ok: true } })
+    expect(claimWorkflowToolExecution).not.toHaveBeenCalled()
+  })
+
+  it('counts a slow extension check toward the extension', async () => {
+    pendingUntilAborted()
+    claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })
+    const params = baseParams({
+      graceMs: 5_000,
+      extendGrace: () => new Promise((resolve) => setTimeout(() => resolve(25_000), 4_000)),
+    })
+
+    const promise = raceWorkflowToolClientPickup(params as never)
+    await vi.advanceTimersByTimeAsync(29_000)
+    expect(claimWorkflowToolExecution).toHaveBeenCalledTimes(0)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await promise
+
+    expect(claimWorkflowToolExecution).toHaveBeenCalledTimes(1)
+  })
+
   it('runs the tool server-side when the grace elapses and the claim is won', async () => {
     pendingUntilAborted()
     claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })

@@ -294,7 +294,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             error,
             dryRun
               ? undefined
-              : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it was, and \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date (the server holds your edits, so nothing is lost); otherwise apply again.`
+              : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edits, \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
           )
         }
       }

@@ -21,6 +21,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import {
   type BlockCatalog,
+  type CatalogSubBlock,
   canonicalize,
   catalogBlock,
   type ResourceKeyResolver,
@@ -321,6 +322,16 @@ function effectiveModeMaps(
   return maps
 }
 
+/** A switch's `'true'`/`'false'` or a slider's decimal text, as the value it spells. */
+function typedLegacyText(declared: CatalogSubBlock | undefined, value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  if (declared?.valueKind === 'boolean' && (value === 'true' || value === 'false')) {
+    return value === 'true'
+  }
+  if (declared?.valueKind === 'number' && /^-?\d+(\.\d+)?$/.test(value)) return Number(value)
+  return value
+}
+
 /**
  * A state without what a lockless write with no prev cannot know and what never changes what runs:
  * item ids and editor flags canonicalize drops (inputFormat field ids live in the lock's `items`;
@@ -331,7 +342,8 @@ function effectiveModeMaps(
  * read as the default `source` / `target` handles. Stored `canonicalModes` are replaced by the
  * effective modes: a stale entry for a pair the block no longer has, or an explicit entry equal to
  * inference, selects nothing different. Reference prefixes compare normalized, as canonicalize
- * writes them. O2 compares through this: its candidate is written with no lock and no prev.
+ * writes them. A switch or slider holding its legacy text (`'true'`, `'0.7'`) reads as the boolean or
+ * number it spells: a lockless write has no prev text to keep. O2 compares through this: its candidate is written with no lock and no prev.
  */
 export function withoutLockHeldState(state: WorkflowState, catalog: BlockCatalog): WorkflowState {
   const modes = effectiveModeMaps(state, catalog)
@@ -343,7 +355,8 @@ export function withoutLockHeldState(state: WorkflowState, catalog: BlockCatalog
       const declared = catalogBlock(catalog, block.type)?.subBlocks.find((s) => s.id === subBlockId)
       const keys = declared?.structured ? DROPPED_ITEM_KEYS[declared.structured] : undefined
       if (!declared?.structured) {
-        subBlocks[subBlockId] = subBlock
+        const value = typedLegacyText(declared, subBlock.value)
+        subBlocks[subBlockId] = { ...subBlock, value: value as typeof subBlock.value }
         continue
       }
       let value = decodedStructured(subBlock.value)

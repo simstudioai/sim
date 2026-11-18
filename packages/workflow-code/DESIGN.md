@@ -88,7 +88,10 @@ materialize.
   `conditions`/`routes` (lifted into `branches`). A stored `null` is absent; `''` is kept.
 - The CWM is **encoding-free**: whether a subBlock held native JSON or JSON text is not recorded,
   so equality, hashes, diffs and the fingerprint never see it. Materialize picks the encoding:
-  prev's raw encoding, else the catalog `storage`.
+  prev's raw encoding, else the catalog `storage`. A switch's or slider's legacy text (`'true'`,
+  `'0.7'`, `'1.0'`: what registry defaults once seeded) is an encoding the same way: the CWM holds
+  the boolean or number, and an unchanged value keeps prev's text. A switch or slider another
+  field's condition reads keeps its text, since visibility compares strictly.
 - `Value` is JSON plus `SimNode`s, the internal-id sites lifted to keys:
   `{ $sim: 'var', key }`, `{ $sim: 'resource', kind, key }`, `{ $sim: 'unresolved', kind, id }`
   (an id the resolver could not map, kept verbatim with `W_CANON_UNRESOLVED_ID`),
@@ -457,9 +460,14 @@ deploy is separate.
    - locked blocks (`code/apply/locked.ts`): any change to a locked block or a child of a locked
      container is `E_APPLY_LOCKED_BLOCK`, admins included;
    - the editing engine's per-user gates on added and changed blocks (`code/apply/gates.ts`):
-     block, model and tool allowlists, edge and subflow scope, required params, duplicate triggers,
-     single-instance blocks, credentials the user cannot reach, sandbox plan; a hosted key that
-     does not apply is dropped with `W_APPLY_HOSTED_KEY_DROPPED`;
+     `BLOCK_GATES` (`editing/gates.ts`) is the one list the engine and source both run, by subject
+     (block placement, retry policy, field value, tool entry), so a gate added there applies to
+     both: the engine withholds the refused subject, source refuses the apply. Block types
+     (registry, deployment, allowlist, sunset), duplicate triggers and single-instance blocks,
+     retry eligibility, model and operation access, tool entries; then, through the engine's own
+     functions, credentials the user cannot reach, the copilot tool-binding contract, enablement
+     under a disabled container, and the sandbox plan. A hosted key that does not apply is dropped
+     with `W_APPLY_HOSTED_KEY_DROPPED`;
    - `addable: false` types added or retyped (`E_APPLY_TYPE_NOT_ADDABLE`);
    - live effects (`code/apply/live-triggers.ts`): deleting or retyping a block with a live
      webhook, schedule, chat output or MCP tool warns `W_APPLY_TRIGGER_REMOVED`;

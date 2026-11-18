@@ -16,11 +16,15 @@ import type { Value } from './model'
 
 /** `text` with every reference and `{{ENV}}` token blanked to one space. */
 function withoutReferences(text: string): string {
-  let rest = text
-  for (const token of findWorkflowReferenceTokens(text).reverse()) {
-    rest = `${rest.slice(0, token.start)} ${rest.slice(token.end)}`
+  const parts: string[] = []
+  let at = 0
+  for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.start < at) continue
+    parts.push(text.slice(at, token.start), ' ')
+    at = token.end
   }
-  return rest
+  parts.push(text.slice(at))
+  return parts.join('')
 }
 
 /**

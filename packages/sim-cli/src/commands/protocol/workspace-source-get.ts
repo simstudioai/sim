@@ -1,4 +1,4 @@
-import { mkdir, realpath, rename, rm, rmdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rename, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
@@ -19,6 +19,7 @@ import type { Command } from 'commander'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
+import { removeStagingOnSignal } from './files-get'
 import { printProtocolResult } from './result'
 import {
   editedFiles,
@@ -194,67 +195,82 @@ async function writeWorkspaceSource(
     ),
   })
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
-  // hash of one listed without it and `.sim/written.json` the stat of each; they land inside the
-  // directory so each moves into place by a rename, which keeps that stat.
+  // hash of one listed without it; they land inside the directory so each moves into place by a
+  // rename.
   const downloads = join(await downloadsRoot(dir), SOURCE_DOWNLOADS_DIR)
   const downloaded = new Map<string, FetchedBlob>()
-  if (stale.length > 0) {
-    await mkdir(downloads, { recursive: true })
-    try {
-      await mapWithConcurrency(stale, FILE_CONCURRENCY, async (blob) => {
-        downloaded.set(blob.path, await fetchBlob(client, blob, downloads))
-      })
-    } catch (error) {
-      throw await keepDownloads(error, downloads, [...downloaded.values()], stale.length)
+  // This get's partial downloads, removed on every way out, an interrupt included; a verified
+  // download kept for the next get sits beside it in `downloads`.
+  let partial: string | null = null
+  const disposeSignalCleanup = removeStagingOnSignal(() => partial)
+  try {
+    if (stale.length > 0) {
+      await mkdir(downloads, { recursive: true })
+      const folder = await mkdtemp(join(downloads, PARTIAL_PREFIX))
+      partial = folder
+      try {
+        await mapWithConcurrency(stale, FILE_CONCURRENCY, async (blob) => {
+          downloaded.set(blob.path, await fetchBlob(client, blob, downloads, folder))
+        })
+      } catch (error) {
+        throw await keepDownloads(error, downloads, folder, [...downloaded.values()], stale.length)
+      }
     }
-  }
-  const hashed = new Map(
-    stale.flatMap((blob) => {
-      const sha256 = downloaded.get(blob.path)?.sha256
-      return blob.sha256 === undefined && sha256 ? [[blob.path, sha256] as const] : []
+    const hashed = new Map(
+      stale.flatMap((blob) => {
+        const sha256 = downloaded.get(blob.path)?.sha256
+        return blob.sha256 === undefined && sha256 ? [[blob.path, sha256] as const] : []
+      })
+    )
+    const kept = {
+      ...Object.fromEntries(
+        Object.entries(written.digests).filter(
+          ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
+        )
+      ),
+      ...Object.fromEntries(
+        source.blobs.map((blob) => [
+          blob.path,
+          blob.sha256 ?? downloaded.get(blob.path)?.sha256 ?? '',
+        ])
+      ),
+    }
+    const record = writtenRecord(
+      source.files,
+      kept,
+      new Map([...recordedStats(written), ...digests])
+    )
+    const skipped = skippedFile(await mergedSkipped(dir, source))
+    const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
+    const write: Array<readonly [string, string]> = [
+      ...Object.entries(source.files),
+      ...source.kinds.flatMap((kind) => {
+        const marker = keepFile(kind)
+        return marker === null ? [] : [[marker, ''] as const]
+      }),
+      [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
+      [SOURCE_WRITTEN_FILE, writtenFile(record)],
+      ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
+      ...tree.change.write,
+    ]
+    await updateSourceDir(dir, {
+      write,
+      fetch: [...downloaded].map(
+        ([path, { file }]) => [path, (staged: string) => rename(file, staged)] as const
+      ),
+      remove: [
+        ...gone,
+        ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),
+        ...(tree.change.remove ?? []),
+      ],
     })
-  )
-  const kept = {
-    ...Object.fromEntries(
-      Object.entries(written.digests).filter(
-        ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
-      )
-    ),
-    ...Object.fromEntries(
-      source.blobs.map((blob) => [
-        blob.path,
-        blob.sha256 ?? downloaded.get(blob.path)?.sha256 ?? '',
-      ])
-    ),
+    await rm(downloads, { recursive: true, force: true })
+    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
+    return { written: summary.files, removed: gone.size, guide: summary.guide }
+  } finally {
+    if (partial) await rm(partial, { recursive: true, force: true })
+    disposeSignalCleanup()
   }
-  const record = writtenRecord(
-    source.files,
-    kept,
-    new Map([...recordedStats(written), ...digests, ...downloaded])
-  )
-  const skipped = skippedFile(await mergedSkipped(dir, source))
-  const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
-  const write: Array<readonly [string, string]> = [
-    ...Object.entries(source.files),
-    ...source.kinds.flatMap((kind) => {
-      const marker = keepFile(kind)
-      return marker === null ? [] : [[marker, ''] as const]
-    }),
-    [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-    [SOURCE_WRITTEN_FILE, writtenFile(record)],
-    ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
-    ...tree.change.write,
-  ]
-  await updateSourceDir(dir, {
-    write,
-    fetch: [...downloaded].map(
-      ([path, { file }]) => [path, (staged: string) => rename(file, staged)] as const
-    ),
-    remove: [...gone, ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]), ...(tree.change.remove ?? [])],
-  })
-  await rm(downloads, { recursive: true, force: true })
-  const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
-  return { written: summary.files, removed: gone.size, guide: summary.guide }
 }
 
 /**
@@ -262,6 +278,9 @@ async function writeWorkspaceSource(
  * there, so the next one downloads only the rest; the one that completes removes the folder.
  */
 const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
+
+/** The prefix of a get's own folder in the downloads folder, for the downloads no get reuses. */
+const PARTIAL_PREFIX = '.partial-'
 
 /** The directory, resolved, so the downloads folder sits on the file system its renames stay on. */
 async function downloadsRoot(dir: string): Promise<string> {
@@ -276,12 +295,11 @@ async function downloadsRoot(dir: string): Promise<string> {
 async function keepDownloads(
   error: unknown,
   downloads: string,
+  partial: string,
   fetched: readonly FetchedBlob[],
   listed: number
 ): Promise<unknown> {
-  await Promise.all(
-    fetched.filter((blob) => !blob.kept).map((blob) => rm(blob.file, { force: true }))
-  )
+  await rm(partial, { recursive: true, force: true })
   const kept = fetched.filter((blob) => blob.kept).length
   if (kept === 0) await rmdir(downloads).catch(() => {})
   if (!(error instanceof SimApiError) || kept === 0) return error

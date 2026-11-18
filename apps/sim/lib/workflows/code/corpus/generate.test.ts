@@ -43,7 +43,11 @@ function valueProblems(corpusCase: CorpusCase): string[] {
       const results = declarations.map((declared) =>
         validateValueForSubBlockType(declared, subBlock.value, id, block.type, block.id)
       )
-      if (!results.some((result) => result.valid)) {
+      const legacyText =
+        corpusCase.storedQuirk === 'legacy-scalar-text' &&
+        typeof subBlock.value === 'string' &&
+        declarations.some((declared) => declared.type === 'switch' || declared.type === 'slider')
+      if (!legacyText && !results.some((result) => result.valid)) {
         problems.push(`${block.type}.${id}: ${results[0]?.error?.error}`)
       }
     }

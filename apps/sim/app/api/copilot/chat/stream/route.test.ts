@@ -31,6 +31,7 @@ vi.mock('@/lib/mothership/request/session', () => ({
   readEvents,
   readFilePreviewSessions,
   findReplayGap,
+  holdStreamViewer: async () => () => {},
   readRingPosition: async () => ({ requestedAfterSeq: 0, oldestSeq: 0, latestSeq: 0 }),
   ringCanServe: () => true,
   replayGapTerminal: async () => ({ gapDetected: true, envelopes: [] }),

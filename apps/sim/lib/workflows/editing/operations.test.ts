@@ -120,6 +120,11 @@ const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
       },
     ],
   },
+  human_in_the_loop: {
+    type: 'human_in_the_loop',
+    name: 'Human in the Loop',
+    subBlocks: [{ id: 'notification', type: 'tool-input' }],
+  },
   table: {
     type: 'table',
     name: 'Table (Legacy)',
@@ -1008,6 +1013,79 @@ describe('sunset block types', () => {
   })
 })
 
+describe('nestedNodes placement', () => {
+  const loopId = '88888888-8888-4888-8888-888888888888'
+  const agentId = '99999999-9999-4999-8999-999999999999'
+  const slackId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const unknownId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const agentOnly = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['agent'] }
+  const children = {
+    [agentId]: { type: 'agent', name: 'Inner agent' },
+    [slackId]: { type: 'slack', name: 'Inner slack' },
+    [unknownId]: { type: 'not_a_block', name: 'Inner unknown' },
+  }
+
+  function expectOnlyAgentPlaced(result: ReturnType<typeof applyOperationsToWorkflowState>) {
+    expect(result.state.blocks[agentId]).toBeDefined()
+    expect(result.state.blocks[slackId]).toBeUndefined()
+    expect(result.state.blocks[unknownId]).toBeUndefined()
+    expect(result.skippedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'block_not_allowed',
+          operationType: 'add_nested_node',
+          blockId: slackId,
+        }),
+        expect.objectContaining({
+          type: 'invalid_block_type',
+          operationType: 'add_nested_node',
+          blockId: unknownId,
+        }),
+      ])
+    )
+  }
+
+  it('holds a child of a new container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      { blocks: {}, edges: [], loops: {}, parallels: {} },
+      [
+        {
+          operation_type: 'add',
+          block_id: loopId,
+          params: { type: 'loop', name: 'Each', nestedNodes: children },
+        },
+      ],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+
+  it('holds a new child merged into a stored container to the gates of a top-level add', () => {
+    const result = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [loopId]: {
+            id: loopId,
+            type: 'loop',
+            name: 'Each',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [{ operation_type: 'edit', block_id: loopId, params: { nestedNodes: children } }],
+      agentOnly
+    )
+    expectOnlyAgentPlaced(result)
+  })
+})
+
 describe('permission-group tool access', () => {
   const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
 
@@ -1043,6 +1121,58 @@ describe('permission-group tool access', () => {
         details: { blockType: 'slack', operation: 'canvas' },
       })
     )
+  })
+
+  it('drops a denied tool from a human in the loop notification, on add and on edit', () => {
+    const addedId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    const storedId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    const send = { type: 'slack', operation: 'send', title: 'Notify' }
+    const canvas = { type: 'slack', operation: 'canvas', title: 'Post' }
+    const workflow = emptyWorkflow()
+    workflow.blocks[storedId] = {
+      id: storedId,
+      type: 'human_in_the_loop',
+      name: 'Stored approval',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks: { notification: { id: 'notification', type: 'tool-input', value: [] } },
+      outputs: {},
+      data: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      workflow,
+      [
+        {
+          operation_type: 'add',
+          block_id: addedId,
+          params: {
+            type: 'human_in_the_loop',
+            name: 'Approval',
+            inputs: { notification: [send, canvas] },
+          },
+        },
+        {
+          operation_type: 'edit',
+          block_id: storedId,
+          params: { inputs: { notification: [send, canvas] } },
+        },
+      ],
+      denyCanvas
+    )
+
+    expect(state.blocks[addedId].subBlocks.notification.value).toEqual([send])
+    expect(state.blocks[storedId].subBlocks.notification.value).toEqual([send])
+    expect(skippedItems.filter((item) => item.type === 'tool_not_allowed')).toEqual([
+      expect.objectContaining({
+        blockId: addedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+      expect.objectContaining({
+        blockId: storedId,
+        details: expect.objectContaining({ operation: 'canvas' }),
+      }),
+    ])
   })
 
   it('leaves an existing operation untouched when an edit names a denied one', () => {
