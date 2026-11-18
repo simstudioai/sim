@@ -49,6 +49,31 @@ const indexer = vi.hoisted(() => ({
   release: () => {},
   dispatched: [] as Array<{ documentId: string; lane: string }>,
 }))
+/**
+ * A write landing between two pages of a document listing: `afterPage` runs once, after the
+ * first page of more than one document is admitted (the step every page of the document list
+ * runs after it reads its rows), with that page's ids.
+ */
+const listing = vi.hoisted(() => ({
+  afterPage: null as ((ids: string[]) => Promise<void>) | null,
+}))
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/knowledge/application/admit-knowledge-content')>()
+  return {
+    ...actual,
+    admitKnowledgeDocuments: async (...args: Parameters<typeof actual.admitKnowledgeDocuments>) => {
+      const admitted = await actual.admitKnowledgeDocuments(...args)
+      const afterPage = listing.afterPage
+      const [, documents] = args
+      if (afterPage && documents.length > 1) {
+        listing.afterPage = null
+        await afterPage(documents.map((doc) => doc.id))
+      }
+      return admitted
+    },
+  }
+})
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -93,7 +118,7 @@ vi.mock('@/lib/knowledge/embeddings', async (importOriginal) => {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteKnowledgeDocument,
-  listKnowledgeDocuments,
+  listKnowledgeDocumentsAfter,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { createKnowledgeFolder } from '@/lib/knowledge/application/folders'
@@ -492,21 +517,14 @@ describe('knowledge bases as workspace source', () => {
     async () => {
       const workspaceId = await newWorkspace()
       const created = await apply(workspaceId, POLICIES)
-      const list = listKnowledgeDocuments.execute
+      const list = listKnowledgeDocumentsAfter.execute
       // The list admits each document after it pages, so a page of withheld documents comes back
-      // empty while later pages still hold readable ones.
+      // empty, with a cursor, while later pages still hold readable ones.
       const withheld = vi
-        .spyOn(listKnowledgeDocuments, 'execute')
+        .spyOn(listKnowledgeDocumentsAfter, 'execute')
         .mockImplementation(async (args) => {
-          const offset = args.input.offset ?? 0
-          if (offset === 0) {
-            const page = await list(args)
-            return { ...page, documents: [], pagination: { ...page.pagination, hasMore: true } }
-          }
-          return list({
-            ...args,
-            input: { ...args.input, offset: offset - (args.input.limit ?? 0) },
-          })
+          if (args.input.after === null) return { documents: [], next: '' }
+          return list(args)
         })
 
       const read = await get(workspaceId).finally(() => withheld.mockRestore())
@@ -519,6 +537,49 @@ describe('knowledge bases as workspace source', () => {
       )
     }
   )
+
+  check('a document deleted while a get lists the documents never hides another one', async () => {
+    const workspaceId = await newWorkspace()
+    const { knowledgeBase: created } = await createKnowledgeBase.execute({
+      principal: owner,
+      input: { workspaceId, name: 'Many' },
+    })
+    // More documents than one page of the list holds, so the listing spans pages.
+    const uploadedAt = new Date()
+    const rows = Array.from({ length: 1_050 }, (_, index) => {
+      const name = `doc-${String(index).padStart(4, '0')}.md`
+      return {
+        id: generateId(),
+        knowledgeBaseId: created.id,
+        filename: name,
+        fileUrl: `https://storage.invalid/${name}`,
+        fileSize: 10,
+        fileSha256: sha256Hex(Buffer.from(name)),
+        mimeType: 'text/markdown',
+        processingStatus: 'completed',
+        uploadedAt,
+      }
+    })
+    for (let from = 0; from < rows.length; from += 500) {
+      await db.insert(document).values(rows.slice(from, from + 500))
+    }
+    // Someone deletes a document the listing already passed, between its first two pages.
+    listing.afterPage = async (ids) => {
+      await db.update(document).set({ deletedAt: new Date() }).where(eq(document.id, ids[0]))
+    }
+
+    const read = await get(workspaceId).finally(() => {
+      listing.afterPage = null
+    })
+
+    const live = await db
+      .select({ filename: document.filename })
+      .from(document)
+      .where(and(eq(document.knowledgeBaseId, created.id), isNull(document.deletedAt)))
+    expect(live).toHaveLength(rows.length - 1)
+    const listed = new Set(read.blobs.map(({ path }) => path.slice(path.lastIndexOf('/') + 1)))
+    expect(live.filter(({ filename }) => !listed.has(filename))).toEqual([])
+  })
 
   check(
     'replacing a document shows the re-embed count, uploads it with its tag values, and keeps the others',
