@@ -114,21 +114,36 @@ function refusalExitCode(error: SimApiError, detailCode: unknown): number {
   return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
 }
 
+/** Statuses a gateway answers when it gave up waiting for the server, which may still write. */
+const LOST_ANSWER_STATUSES = new Set([502, 504])
+
+/**
+ * Whether a write failed without the server's answer (a timeout, a dropped connection, a gateway
+ * that gave up), so it may or may not have been stored.
+ */
+function answerLost(error: SimApiError): boolean {
+  return (error.status === 0 && error.code === null) || LOST_ANSWER_STATUSES.has(error.status)
+}
+
 /**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
- * the exit status a script branches on.
+ * the exit status a script branches on. `ifAnswerLost` is the next step for a write whose answer
+ * never came back, appended to its message.
  */
-export function printRefusal(error: unknown): never {
+export function printRefusal(error: unknown, ifAnswerLost?: string): never {
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
   if (printed) printDiagnostics(diagnostics)
   const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
+  const hint = nameTaken
+    ? 'Pass --name to create it under another name, or apply to that workflow.'
+    : ifAnswerLost && answerLost(error)
+      ? ifAnswerLost
+      : null
   throw new SimApiError(
-    nameTaken
-      ? `${error.message} Pass --name to create it under another name, or apply to that workflow.`
-      : error.message,
+    hint ? `${error.message} ${hint}` : error.message,
     error.status,
     error.code,
     printed ? undefined : error.details,

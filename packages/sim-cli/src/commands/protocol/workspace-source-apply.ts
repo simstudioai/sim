@@ -19,13 +19,16 @@ import { printProtocolResult } from './result'
 import {
   orphanedCodeFiles,
   readSourceJson,
-  readWrittenDigests,
+  readWritten,
+  recordedStats,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
+  type Written,
+  writtenFile,
   writtenRecord,
 } from './source-dir'
 import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
-import { appliedBlobDigests, assertBlobsFetched } from './workspace-source-blobs'
+import { appliedBlobDigests, assertBlobsFetched, blobsToCarry } from './workspace-source-blobs'
 import {
   assertWorkspacePaths,
   blobContent,
@@ -155,26 +158,34 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
 
 /**
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
- * their digests in `.sim/written.json`, beside the digests of the blobs the server now holds.
- * The function files a written workflow no longer uses are removed, from disk and the record.
+ * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
+ * blobs the server now holds. The function files a written workflow no longer uses are removed,
+ * from disk and the record. Returns the record it wrote, for the next round to read.
  */
 async function saveApplied(
   dir: string,
   data: ApplyData,
-  submission: WorkspaceSubmission
-): Promise<void> {
+  submission: WorkspaceSubmission,
+  written: Written
+): Promise<Written> {
   assertWorkspacePaths(Object.keys(data.files))
   const orphaned = await orphanedWorkflowFiles(dir, data.files)
-  const kept = { ...(await readWrittenDigests(dir)), ...appliedBlobDigests(submission, data.base) }
+  const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
   for (const path of orphaned) delete kept[path]
+  const record = writtenRecord(
+    data.files,
+    kept,
+    new Map([...recordedStats(written), ...submission.hashed])
+  )
   await updateSourceDir(dir, {
     write: [
       ...Object.entries(data.files),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenRecord(data.files, kept)],
+      [SOURCE_WRITTEN_FILE, writtenFile(record)],
     ],
     remove: orphaned,
   })
+  return record
 }
 
 /**
@@ -247,18 +258,24 @@ export function attachWorkspaceSourceApply(source: Command): void {
           )
           return response.data
         } catch (error) {
-          return printRefusal(error)
+          return printRefusal(
+            error,
+            dryRun
+              ? undefined
+              : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it was, and \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date (the server holds your edits, so nothing is lost); otherwise apply again.`
+          )
         }
       }
 
-      let submission = await readWorkspaceDir(options.dir, only, workspaceId)
+      let written = await readWritten(options.dir)
+      let submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
       assertBaseWorkspace(
         options.dir,
         submission.base,
         workspaceId,
         profile.sources.workspaceId === 'flag'
       )
-      await assertBlobsFetched(options.dir, submission)
+      assertBlobsFetched(options.dir, submission, written.digests)
       if (submission.ignored.length > 0) {
         printError(
           `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
@@ -267,7 +284,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       // A later round repeats findings the preview and earlier rounds already showed.
       const printed = new Set<string>()
       let preview: ApplyData | null = null
-      if (options.dryRun || !options.yes || submission.blobs.length > 0) {
+      if (options.dryRun || !options.yes) {
         preview = await send(submission, true)
         printPlan(preview.plan)
         printNewDiagnostics(preview.diagnostics, printed)
@@ -294,11 +311,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
         return send(submission, false, blobs)
       }
-      let wanted = new Set(preview?.needBlobs ?? [])
+      // Without a preview, the first round carries the blobs the base does not hold as they are.
+      let wanted = preview ? new Set(preview.needBlobs) : blobsToCarry(submission)
       let data = await writeRound(wanted)
       for (;;) {
         printNewDiagnostics(data.diagnostics, printed)
-        await saveApplied(options.dir, data, submission)
+        written = await saveApplied(options.dir, data, submission, written)
         if (data.failed || data.remainingBlobs.length === 0) break
         const next = new Set(data.remainingBlobs)
         if (next.size >= wanted.size && [...next].every((path) => wanted.has(path))) {
@@ -309,7 +327,14 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
         wanted = next
         // Blobs hashed for the first round stand; a round re-reads only what it sends.
-        submission = await readWorkspaceDir(options.dir, only, workspaceId, submission.blobs)
+        const reread = await readWorkspaceDir(
+          options.dir,
+          only,
+          workspaceId,
+          written,
+          submission.blobs
+        )
+        submission = { ...reread, hashed: new Map([...submission.hashed, ...reread.hashed]) }
         data = await writeRound(wanted)
       }
       if (data.failed) {

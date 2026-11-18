@@ -7,12 +7,14 @@ import {
   rmSync,
   truncateSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
@@ -208,12 +210,23 @@ describe('workspaces source apply', () => {
     })
   })
 
-  it('sends blob content in rounds, only for the paths the server asks for', async () => {
+  it('carries the blobs the base does not hold in the first round, then what the server asks for', async () => {
     write('files/a.bin', Buffer.from([1, 2, 3]))
     write('files/b.bin', Buffer.from([4, 5]))
+    const sha256 = createHash('sha256')
+      .update(Buffer.from([1, 2, 3]))
+      .digest('hex')
+    write(
+      '.sim/base.json',
+      JSON.stringify({
+        ...BASE,
+        resources: {
+          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256 } } },
+        },
+      })
+    )
     request
-      .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin', 'files/b.bin'] }))
-      .mockResolvedValueOnce(answer({ remainingBlobs: ['files/b.bin'] }))
+      .mockResolvedValueOnce(answer({ remainingBlobs: ['files/a.bin'] }))
       .mockResolvedValueOnce(answer())
 
     await apply('--yes')
@@ -221,18 +234,59 @@ describe('workspaces source apply', () => {
     const sent = bodies().map((body) =>
       (body.blobs ?? []).filter((blob) => blob.content !== undefined).map((blob) => blob.path)
     )
-    expect(sent).toEqual([[], ['files/a.bin', 'files/b.bin'], ['files/b.bin']])
-    expect(request).toHaveBeenCalledTimes(3)
+    expect(sent).toEqual([['files/b.bin'], ['files/a.bin']])
+    expect(request.mock.calls.every((call) => call[1].query === undefined)).toBe(true)
   })
 
   it('stops when a round makes no progress instead of looping', async () => {
     write('files/a.bin', Buffer.from([1]))
-    request
-      .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin'] }))
-      .mockResolvedValue(answer({ remainingBlobs: ['files/a.bin'] }))
+    request.mockResolvedValue(answer({ remainingBlobs: ['files/a.bin'] }))
 
     await expect(apply('--yes')).rejects.toThrow(/did not accept the binary files/)
-    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses a recorded blob digest while the file keeps its size and modification time', async () => {
+    const file = join(dir, 'files/a.bin')
+    write('files/a.bin', Buffer.from([1, 2, 3]))
+    utimesSync(file, 1000, 1000)
+    const held = createHash('sha256')
+      .update(Buffer.from([1, 2, 3]))
+      .digest('hex')
+    const base = {
+      ...BASE,
+      resources: {
+        'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: held } } },
+      },
+    }
+    request.mockResolvedValue(answer({ base }))
+    await apply('--yes')
+    const sentDigest = () => request.mock.lastCall?.[1].body.blobs?.[0]?.sha256
+
+    // Same size and modification time: the recorded digest stands, the file is not read.
+    write('files/a.bin', Buffer.from([7, 8, 9]))
+    utimesSync(file, 1000, 1000)
+    await apply('--yes')
+    expect(sentDigest()).toBe(held)
+
+    // A new modification time: the file is read again.
+    utimesSync(file, 2000, 2000)
+    await apply('--yes')
+    expect(sentDigest()).toBe(
+      createHash('sha256')
+        .update(Buffer.from([7, 8, 9]))
+        .digest('hex')
+    )
+  })
+
+  it('names the way back when a write ends without an answer, but not for a refusal', async () => {
+    request.mockRejectedValueOnce(
+      new SimApiError('https://sim.test did not answer within 3600s.', 0)
+    )
+    await expect(apply('--yes')).rejects.toThrow(`sim workspaces source get --dir ${dir} --force`)
+
+    request.mockRejectedValueOnce(new SimApiError('Refused.', 400, 'BAD_REQUEST'))
+    await expect(apply('--yes')).rejects.toThrow(/^Refused\.$/)
   })
 
   it('refuses a server answer naming a path outside the kind folders', async () => {
@@ -306,10 +360,7 @@ describe('workspaces source apply', () => {
         },
       },
     }
-    const needBlobs = ['files/a.txt', 'files/b.txt', 'knowledge/docs/docs/guide.md']
-    request
-      .mockResolvedValueOnce(answer({ dryRun: true, needBlobs }))
-      .mockResolvedValue(answer({ base: after }))
+    request.mockResolvedValue(answer({ base: after }))
 
     await apply('--yes')
 

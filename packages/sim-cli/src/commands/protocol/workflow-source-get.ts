@@ -65,14 +65,14 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 
 ## Edit loop (run from this directory)
 
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`bunx tsc -p .\` type-checks locally (the directory has no \`package.json\`, so \`tsc\` itself may not be installed; \`bunx\` fetches it).
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`bunx tsc -p .\` type-checks locally (the directory has no \`package.json\`, so \`tsc\` itself may not be installed; \`bunx\` fetches it). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 2. \`sim workflows source apply <workflowId> --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
 3. \`sim workflows source apply <workflowId> --dir . --yes\`: saves the draft (never deploys) and rewrites this directory from what was stored.
-4. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`.
+4. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means that apply was saved: run \`sim workflows source get <workflowId> --dir . --force\`, nothing is lost.
 
 Lines starting \`note:\` explain something the write did differently than the source says (a renamed workflow keeps its stored name, for example); read them.
 
-A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
+A new workflow: \`sim workflows source create --dir <new dir>\` (without \`--dry-run\` or \`--yes\`) on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`. To fork a workflow, copy its directory, delete the copy's \`.sim/\` and run \`sim workflows source create --dir <copy> --name <new name> --yes\`.
 
 ## File shape
 

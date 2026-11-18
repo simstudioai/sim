@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rename, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rename, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -21,12 +21,15 @@ import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   editedFiles,
-  inBatches,
+  inPool,
   readSourceJson,
   readSourceText,
-  readWrittenDigests,
+  readWritten,
+  recordedStats,
   SOURCE_WRITTEN_FILE,
+  type StatDigest,
   updateSourceDir,
+  writtenFile,
   writtenRecord,
 } from './source-dir'
 import {
@@ -140,21 +143,24 @@ async function writeWorkspaceSource(
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
-  const written = await readWrittenDigests(dir)
+  const written = await readWritten(dir)
   const { paths: onDisk } = await kindFolders(dir, source.kinds)
   const gone = new Set(
     onDisk.filter(
       (path) =>
-        !Object.hasOwn(source.files, path) && !blobs.has(path) && Object.hasOwn(written, path)
+        !Object.hasOwn(source.files, path) &&
+        !blobs.has(path) &&
+        Object.hasOwn(written.digests, path)
     )
   )
   // One read of each listed or removed blob, shared by the stale and edit checks.
-  const digests = await blobDigests(dir, [
-    ...blobs.keys(),
-    ...[...gone].filter((path) => isBlobPath(path)),
-  ])
+  const digests = await blobDigests(
+    dir,
+    [...blobs.keys(), ...[...gone].filter((path) => isBlobPath(path))],
+    written
+  )
   const stale = source.blobs.filter(
-    (blob) => blob.sha256 === undefined || digests.get(blob.path) !== blob.sha256
+    (blob) => blob.sha256 === undefined || digests.get(blob.path)?.sha256 !== blob.sha256
   )
   if (!force) {
     const touched = new Map<string, string | null>(Object.entries(source.files))
@@ -163,8 +169,8 @@ async function writeWorkspaceSource(
     )
     for (const path of gone) (isBlobPath(path) ? touchedBlobs : touched).set(path, null)
     const edited = [
-      ...(await editedFiles(dir, touched)),
-      ...(await editedBlobs(dir, touchedBlobs, digests)),
+      ...(await editedFiles(dir, touched, written.digests)),
+      ...editedBlobs(touchedBlobs, digests, written.digests),
     ]
     if (edited.length > 0) {
       throw new SimApiError(
@@ -180,55 +186,61 @@ async function writeWorkspaceSource(
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
-  // Hashless blobs download (and hash) before anything moves into place, so the base and
-  // `.sim/written.json` can record their hashes; they land inside the directory so each moves
-  // into place by a rename, not a copy.
-  const hashless = stale.filter((blob) => blob.sha256 === undefined)
-  const scratch = hashless.length > 0 ? await downloadDir(dir) : null
+  // Stale blobs download (and hash) before anything moves into place, so the base can record the
+  // hash of one listed without it and `.sim/written.json` the stat of each; they land inside the
+  // directory so each moves into place by a rename, which keeps that stat.
+  const scratch = stale.length > 0 ? await downloadDir(dir) : null
   try {
-    const hashed = new Map<string, string>()
-    const scratchFile = new Map<string, string>()
+    const downloaded = new Map<string, StatDigest & { file: string }>()
     if (scratch) {
-      await inBatches(
-        hashless.map((blob, index) => [blob, join(scratch, String(index))] as const),
+      await inPool(
+        stale.map((blob, index) => [blob, join(scratch, String(index))] as const),
         async ([blob, file]) => {
-          hashed.set(blob.path, await downloadBlob(client, blob, file))
-          scratchFile.set(blob.path, file)
+          const sha256 = await downloadBlob(client, blob, file)
+          const { size, mtimeMs } = await stat(file)
+          downloaded.set(blob.path, { sha256, size, mtimeMs, file })
         }
       )
     }
+    const hashed = new Map(
+      stale.flatMap((blob) => {
+        const sha256 = downloaded.get(blob.path)?.sha256
+        return blob.sha256 === undefined && sha256 ? [[blob.path, sha256] as const] : []
+      })
+    )
     const kept = {
       ...Object.fromEntries(
-        Object.entries(written).filter(
+        Object.entries(written.digests).filter(
           ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
         )
       ),
       ...Object.fromEntries(
-        source.blobs.map((blob) => [blob.path, blob.sha256 ?? hashed.get(blob.path) ?? ''])
+        source.blobs.map((blob) => [
+          blob.path,
+          blob.sha256 ?? downloaded.get(blob.path)?.sha256 ?? '',
+        ])
       ),
     }
+    const record = writtenRecord(
+      source.files,
+      kept,
+      new Map([...recordedStats(written), ...digests, ...downloaded])
+    )
     const skipped = skippedFile(await mergedSkipped(dir, source))
     const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
     const write: Array<readonly [string, string]> = [
       ...Object.entries(source.files),
       ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
       [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenRecord(source.files, kept)],
+      [SOURCE_WRITTEN_FILE, writtenFile(record)],
       ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
       ...tree.change.write,
     ]
     await updateSourceDir(dir, {
       write,
-      fetch: stale.map((blob) => {
-        const fetched = scratchFile.get(blob.path)
-        return [
-          blob.path,
-          (file: string) =>
-            fetched
-              ? rename(fetched, file)
-              : downloadBlob(client, blob, file).then(() => undefined),
-        ] as const
-      }),
+      fetch: [...downloaded].map(
+        ([path, { file }]) => [path, (staged: string) => rename(file, staged)] as const
+      ),
       remove: [
         ...gone,
         ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),

@@ -19,14 +19,15 @@ import { SimApiError } from '../../http/client'
 import {
   checkedPath,
   digest,
-  inBatches,
+  inPool,
   listSourceFiles,
   readSourceText,
-  readWrittenDigests,
   SOURCE_SDK_DIR,
+  type StatDigest,
+  type Written,
 } from './source-dir'
 import { type LocalDeclarations, type SourceTreeProfile, TSCONFIG_MARKER } from './source-tree'
-import { hashFile } from './workspace-source-blobs'
+import { statDigest } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
 const WORKSPACE_SDK_DIR = `${SOURCE_SDK_DIR}/workspace`
@@ -86,7 +87,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop (run from this directory)
 
-1. Edit the files. \`bunx tsc -p .\` type-checks them.
+1. Edit the files. \`bunx tsc -p .\` type-checks them, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
@@ -96,6 +97,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 - A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document and a removed workspace file.
 - A resource the server holds that this directory never managed is kept, and named in a warning.
 - Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
+- To fork a workflow, copy its folder to a new key and delete the copy's \`.sim/\`: without it the copy is created as a new workflow, while with it the copy still names the original.
 - Renaming a workflow folder renames the key, not a delete. A resource a workflow still uses cannot be deleted.
 
 ## Good to know
@@ -109,7 +111,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply was written: run \`sim workspaces source get --dir . --force\`, nothing is lost); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `
@@ -190,20 +192,25 @@ export interface WorkspaceSubmission {
   base?: ApplyWorkspaceSourceBody['base']
   /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
   ignored: string[]
+  /** The blobs this read hashed or reused a recorded digest for, with their stats. */
+  hashed: ReadonlyMap<string, StatDigest>
 }
 
 /**
  * Reads the directory for an apply to `workspaceId`. A workflow folder whose every file is as the
  * CLI last wrote it is sent as `unchangedFiles` says (its base alone when it was read from
  * `workspaceId`), so an apply sends only the workflows that were edited, and a copy to another
- * workspace still sends every workflow it creates. Blobs are hashed as streams, and one over the
- * size limit is refused (exit 7) before it is read; a blob `known` already lists (an earlier round
- * of the same apply hashed it) is not read again.
+ * workspace still sends every workflow it creates. `written` is `.sim/written.json` as the command
+ * read it. Blobs are hashed as streams (reusing the digest `written` records for one whose size and
+ * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
+ * read; a blob `known` already lists (an earlier round of the same apply hashed it) is not read
+ * again.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
+  written: Written,
   known: readonly BlobEntry[] = []
 ): Promise<WorkspaceSubmission> {
   const {
@@ -215,18 +222,17 @@ export async function readWorkspaceDir(
     APPLY_ORDER.filter((kind) => !only || only.includes(kind))
   )
   const textPaths = paths.filter((path) => !isBlobPath(path))
-  const texts = await inBatches(textPaths, (path) => readSourceText(dir, path))
+  const texts = await inPool(textPaths, (path) => readSourceText(dir, path))
   const files: Record<string, string> = {}
   textPaths.forEach((path, index) => {
     const text = texts[index]
     if (text !== null) files[path] = text
   })
-  const written = await readWrittenDigests(dir)
   const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
   const folders = KIND_LAYOUTS.workflow.group(workflowPaths).groups
   // Files per workflow folder that `.sim/written.json` records.
   const recorded = new Map<string, number>()
-  for (const path of Object.keys(written)) {
+  for (const path of Object.keys(written.digests)) {
     if (kindOfPath(path) !== 'workflow') continue
     const folder = path.split('/', 2).join('/')
     recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
@@ -234,7 +240,7 @@ export async function readWorkspaceDir(
   for (const [key, folderPaths] of folders) {
     const unchanged =
       recorded.get(workflowFolder(key)) === folderPaths.length &&
-      folderPaths.every((path) => written[path] === digest(files[path]))
+      folderPaths.every((path) => written.digests[path] === digest(files[path]))
     if (!unchanged) continue
     const sent = unchangedFiles(
       key,
@@ -245,12 +251,14 @@ export async function readWorkspaceDir(
   }
   const root = await realpath(dir)
   const verified = new Set<string>()
-  const hashed = new Map(known.map((blob) => [blob.path, blob]))
-  const blobs = await inBatches(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const listed = hashed.get(path)
-    if (listed) return listed
+  const listed = new Map(known.map((blob) => [blob.path, blob]))
+  const hashed = new Map<string, StatDigest>()
+  const blobs = await inPool(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
+    const entry = listed.get(path)
+    if (entry) return entry
     const file = await checkedPath(root, path, verified)
-    const { size } = await stat(file)
+    const current = await stat(file)
+    const { size } = current
     if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
       throw new SimApiError(
         `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
@@ -260,7 +268,9 @@ export async function readWorkspaceDir(
         SOURCE_TOO_LARGE_EXIT_CODE
       )
     }
-    return { path, ...(await hashFile(file)) }
+    const digested = await statDigest(file, path, current, written)
+    hashed.set(path, digested)
+    return { path, sha256: digested.sha256, size: digested.size }
   })
   const baseText = await readSourceText(dir, WORKSPACE_BASE_FILE)
   let base: ApplyWorkspaceSourceBody['base']
@@ -271,7 +281,7 @@ export async function readWorkspaceDir(
       throw new SimApiError(`${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON.`, 0)
     }
   }
-  return { kinds, files, blobs, ignored, ...(base ? { base } : {}) }
+  return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }
 }
 
 /**

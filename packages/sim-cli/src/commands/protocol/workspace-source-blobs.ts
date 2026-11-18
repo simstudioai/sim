@@ -6,7 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { realpath } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
@@ -30,7 +30,14 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
-import { checkedPath, inBatches, isMissing, readWrittenDigests } from './source-dir'
+import {
+  checkedPath,
+  type FileStat,
+  inPool,
+  isMissing,
+  type StatDigest,
+  type Written,
+} from './source-dir'
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
@@ -76,7 +83,7 @@ function downloadOf(href: string): BlobDownload | null {
 }
 
 /** SHA-256 and size of `file`, read as a stream so a large file costs constant memory. */
-export async function hashFile(file: string): Promise<{ sha256: string; size: number }> {
+async function hashFile(file: string): Promise<{ sha256: string; size: number }> {
   const hash = createHash('sha256')
   let size = 0
   for await (const chunk of createReadStream(file)) {
@@ -87,14 +94,38 @@ export async function hashFile(file: string): Promise<{ sha256: string; size: nu
 }
 
 /**
- * SHA-256 of each of `paths` in the directory, read under one resolved root; a path with no file
- * is left out.
+ * The SHA-256 and size of the blob at `file` (the directory's `path`), with the modification time
+ * of `current`, its stat taken before any read. The digest `written` records is reused while the
+ * file's size and modification time are the ones recorded with it; otherwise the file is read.
+ */
+export async function statDigest(
+  file: string,
+  path: string,
+  current: FileStat,
+  written: Written
+): Promise<StatDigest> {
+  const recorded = written.stats[path]
+  const sha256 = written.digests[path]
+  if (
+    sha256 !== undefined &&
+    recorded?.size === current.size &&
+    recorded.mtimeMs === current.mtimeMs
+  ) {
+    return { sha256, size: current.size, mtimeMs: current.mtimeMs }
+  }
+  return { ...(await hashFile(file)), mtimeMs: current.mtimeMs }
+}
+
+/**
+ * The digest of each of `paths` in the directory (see {@link statDigest}), read under one
+ * resolved root; a path with no file is left out.
  */
 export async function blobDigests(
   dir: string,
-  paths: readonly string[]
-): Promise<Map<string, string>> {
-  const digests = new Map<string, string>()
+  paths: readonly string[],
+  written: Written
+): Promise<Map<string, StatDigest>> {
+  const digests = new Map<string, StatDigest>()
   let root: string
   try {
     root = await realpath(dir)
@@ -103,9 +134,10 @@ export async function blobDigests(
     throw error
   }
   const verified = new Set<string>()
-  await inBatches([...paths], async (path) => {
+  await inPool(paths, async (path) => {
     try {
-      digests.set(path, (await hashFile(await checkedPath(root, path, verified))).sha256)
+      const file = await checkedPath(root, path, verified)
+      digests.set(path, await statDigest(file, path, await stat(file), written))
     } catch (error) {
       if (!isMissing(error)) throw error
     }
@@ -116,16 +148,15 @@ export async function blobDigests(
 /**
  * The blobs among `touched` (path → the SHA-256 about to be written, or `null` for a removal)
  * whose bytes on disk (`digests`, from {@link blobDigests}) are neither what the CLI last wrote
- * there nor what it is about to write.
+ * there (`written`) nor what it is about to write.
  */
-export async function editedBlobs(
-  dir: string,
+export function editedBlobs(
   touched: ReadonlyMap<string, string | null>,
-  digests: ReadonlyMap<string, string>
-): Promise<string[]> {
-  const written = await readWrittenDigests(dir)
+  digests: ReadonlyMap<string, StatDigest>,
+  written: Written['digests']
+): string[] {
   return [...touched].flatMap(([path, next]) => {
-    const current = digests.get(path)
+    const current = digests.get(path)?.sha256
     if (current === undefined || current === next) return []
     return written[path] !== current ? [path] : []
   })
@@ -298,21 +329,37 @@ export function appliedBlobDigests(
 }
 
 /**
+ * The submitted blobs whose bytes the server needs: new since the get, or changed (the base
+ * records another SHA-256 for their path). An apply carries them in its first round instead of
+ * asking a dry run; a blob the server needs beyond them comes back in `remainingBlobs`.
+ */
+export function blobsToCarry(submission: {
+  kinds: readonly WorkspaceKind[]
+  blobs: ReadonlyArray<BlobEntry>
+  base?: unknown
+}): Set<string> {
+  const held = baseBlobDigests(submission.base, submission.kinds)
+  return new Set(
+    submission.blobs.filter((blob) => held.get(blob.path) !== blob.sha256).map((blob) => blob.path)
+  )
+}
+
+/**
  * Refuses an apply whose base records blobs the directory never held: missing on disk and absent
  * from `.sim/written.json`, so no get downloaded them and no one removed them. Sent as they are,
  * every one of them would read as deleted. A blob the CLI wrote and the user then removed is
  * recorded, so its delete still goes through.
  */
-export async function assertBlobsFetched(
+export function assertBlobsFetched(
   dir: string,
   submission: {
     kinds: readonly WorkspaceKind[]
     blobs: ReadonlyArray<{ path: string }>
     base?: unknown
-  }
-): Promise<void> {
+  },
+  written: Written['digests']
+): void {
   const local = new Set(submission.blobs.map((blob) => blob.path))
-  const written = await readWrittenDigests(dir)
   const missing = [...baseBlobDigests(submission.base, submission.kinds).keys()].filter(
     (path) => !local.has(path) && !Object.hasOwn(written, path)
   )
