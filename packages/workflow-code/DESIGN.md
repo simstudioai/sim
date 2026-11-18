@@ -457,9 +457,14 @@ deploy is separate.
    - locked blocks (`code/apply/locked.ts`): any change to a locked block or a child of a locked
      container is `E_APPLY_LOCKED_BLOCK`, admins included;
    - the editing engine's per-user gates on added and changed blocks (`code/apply/gates.ts`):
-     block, model and tool allowlists, edge and subflow scope, required params, duplicate triggers,
-     single-instance blocks, credentials the user cannot reach, sandbox plan; a hosted key that
-     does not apply is dropped with `W_APPLY_HOSTED_KEY_DROPPED`;
+     `BLOCK_GATES` (`editing/gates.ts`) is the one list the engine and source both run, by subject
+     (block placement, retry policy, field value, tool entry), so a gate added there applies to
+     both: the engine withholds the refused subject, source refuses the apply. Block types
+     (registry, deployment, allowlist, sunset), duplicate triggers and single-instance blocks,
+     retry eligibility, model and operation access, tool entries; then, through the engine's own
+     functions, credentials the user cannot reach, the copilot tool-binding contract, enablement
+     under a disabled container, and the sandbox plan. A hosted key that does not apply is dropped
+     with `W_APPLY_HOSTED_KEY_DROPPED`;
    - `addable: false` types added or retyped (`E_APPLY_TYPE_NOT_ADDABLE`);
    - live effects (`code/apply/live-triggers.ts`): deleting or retyping a block with a live
      webhook, schedule, chat output or MCP tool warns `W_APPLY_TRIGGER_REMOVED`;
