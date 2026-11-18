@@ -157,6 +157,16 @@ const SLACK_PAGE_SIZE = 20
  * against the member's RTS rate limit of about 10 calls a minute.
  */
 const MAX_SLACK_SEARCH_PAGES = 3
+/**
+ * Slack's `after:`/`before:` day modifiers are exclusive and read in the member's own zone
+ * (UTC-12 to UTC+14), so each is widened by two days; the exact `after`/`before` timestamps sent
+ * alongside still bound the results.
+ */
+const DAY_MODIFIER_MARGIN_MS = 2 * 86_400_000
+
+/** The UTC day, as `YYYY-MM-DD`, of an instant shifted by `offsetMs`. */
+const utcDay = (iso: string, offsetMs: number) =>
+  new Date(Date.parse(iso) + offsetMs).toISOString().slice(0, 10)
 
 /**
  * A search across every source reads one page, so Slack shares the result list with the other
@@ -221,12 +231,8 @@ async function searchSlackPage(
     .map(([type]) => type)
   const dates = nativeDateBounds(input)
   const dateModifiers = [
-    dates.start
-      ? `after:${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}`
-      : '',
-    dates.end
-      ? `before:${new Date(Date.parse(dates.end) + 86400000).toISOString().slice(0, 10)}`
-      : '',
+    dates.start ? `after:${utcDay(dates.start, -DAY_MODIFIER_MARGIN_MS)}` : '',
+    dates.end ? `before:${utcDay(dates.end, DAY_MODIFIER_MARGIN_MS)}` : '',
   ]
     .filter(Boolean)
     .join(' ')
