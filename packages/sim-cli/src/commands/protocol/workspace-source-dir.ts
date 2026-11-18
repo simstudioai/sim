@@ -103,9 +103,11 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop (run from this directory)
 
-1. Edit the files. \`${typecheckCommand()}\` type-checks them with the TypeScript release the declarations are built for, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is. \`tsconfig.json\` checks only the blocks the workflows used at the last get, which keeps it fast: a builder from another block fails with \`has no exported member\`, so check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\` (every current block) until the next get. \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations.
-2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
-3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
+1. Edit the files.
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+3. \`${typecheckCommand()}\` type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+4. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
+5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
 ## Deletes
 

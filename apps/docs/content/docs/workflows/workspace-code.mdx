@@ -49,9 +49,12 @@ const log = table.insertRow('Log Question', {
 
 ```bash
 sim workspaces source get --dir ./my-workspace
+sim workspaces source check --dir ./my-workspace
 sim workspaces source apply --dir ./my-workspace --dry-run
 sim workspaces source apply --dir ./my-workspace --yes
 ```
+
+`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, custom tool, MCP server or workflow key, or a table row write naming a column the table does not declare, is reported, and an env name `secrets.ts` lacks is a warning. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
 
