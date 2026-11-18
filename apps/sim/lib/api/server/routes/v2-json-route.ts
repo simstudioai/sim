@@ -170,6 +170,17 @@ const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
 }
 
 /**
+ * Reading a workspace as source: each get loads every resource of the kinds it asks for, prints
+ * up to a directory's worth of text and may download stored bytes to hash them, so it costs far
+ * more than the row reads the generic budget is sized for.
+ */
+const V2_SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 10,
+  refillRate: 5,
+  refillIntervalMs: 60_000,
+}
+
+/**
  * Staging the binary files of a workspace source apply: each request carries up to 24 MB, so a
  * 1 GB directory stages in about 45 requests. Its own bucket, so staging never spends the
  * applies that follow it.
@@ -202,6 +213,12 @@ export const v2RateLimits = {
         V2_SOURCE_WRITE_RATE_LIMIT,
         cost
       )
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_READ_RATE_LIMIT}, for reading a workspace as source. */
+  sourceRead: {
+    async enforce(request, auth) {
+      return enforceV2Buckets(request, auth, 'workspaces.source.read', V2_SOURCE_READ_RATE_LIMIT, 1)
     },
   } satisfies V2RateLimitPolicy,
   /** {@link V2_SOURCE_BLOB_STAGE_RATE_LIMIT}, shared by staging and asking what is staged. */

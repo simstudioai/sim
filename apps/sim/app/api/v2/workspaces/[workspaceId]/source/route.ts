@@ -6,6 +6,7 @@ import {
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import {
   v2WorkspaceSourceErrorPolicy,
+  withSourceSlot,
   workspaceApplyRateCost,
 } from '@/lib/workspace-source/api/route-policies'
 import { applyWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -18,7 +19,8 @@ export const revalidate = 0
 /**
  * GET /api/v2/workspaces/[workspaceId]/source — the workspace as a source directory: declaration
  * files, workflow folders, binary files by hash, and the base. Unaudited. `headSafe: false`
- * because the first read of a resource with no key allocates one. Answers 403 while the
+ * because the first read of a resource with no key allocates one. Draws on its own source-read
+ * budget; a server already running as many gets as it allows answers 429. Answers 403 while the
  * `workflow-code` flag is off.
  */
 export const GET = defineV2JsonRoute({
@@ -26,13 +28,13 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   headSafe: false,
   operation: workspaceSourceOperations.read,
-  rateLimit: v2RateLimits.publicApi,
+  rateLimit: v2RateLimits.sourceRead,
   errorPolicy: v2WorkspaceSourceErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: params.workspaceId,
     ...(query.kinds ? { kinds: query.kinds } : {}),
   }),
-  useCase: readWorkspaceSource,
+  useCase: withSourceSlot(readWorkspaceSource, 'read'),
   present: (source) => ({ data: source }),
 })
 
@@ -40,7 +42,8 @@ export const GET = defineV2JsonRoute({
  * POST /api/v2/workspaces/[workspaceId]/source — applies a workspace source directory. Any error
  * in the plan writes nothing (400, 409 stale, 423 locked, 413 over a limit); a dry run answers
  * 200 with its findings. A write that fails mid-apply answers 200 with `failed` and what was
- * written before it. Draws on the source-write budget, one unit for each workflow it evaluates.
+ * written before it. Draws on the source-write budget (see `workspaceApplyRateCost`); a server
+ * already running as many applies as it allows answers 429.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkspaceSourceContract,
@@ -60,7 +63,7 @@ export const POST = defineV2JsonRoute({
     ...(body.provenance ? { provenance: body.provenance } : {}),
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),
-  rateLimitCost: (input) => workspaceApplyRateCost(input.files),
-  useCase: applyWorkspaceSource,
+  rateLimitCost: (input) => workspaceApplyRateCost(input.files, input.blobs),
+  useCase: withSourceSlot(applyWorkspaceSource, 'apply'),
   present: (result) => ({ data: result }),
 })
