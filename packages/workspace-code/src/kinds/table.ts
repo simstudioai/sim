@@ -42,7 +42,7 @@ import {
 } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration } from '../declaration/read'
-import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
@@ -301,13 +301,13 @@ function parseTable(
   const file = tablePath(key)
   const source = text[file] ?? ''
   const read = readDeclaration(file, source, { callee: CALLEE, calls })
+  const resource = resourceOf('table', key)
   const diagnostics: WorkspaceDiagnostic[] = read.diagnostics.map((finding) => ({
     ...finding,
-    kind: 'table',
-    key,
+    ...resource,
   }))
   if (read.value === undefined) return { diagnostics }
-  const report = fieldReporter(source, read.spans, diagnostics, { kind: 'table', key })
+  const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
   const { name, columns, rows, ...rest } = readFields(fields, value, '', report)
@@ -319,8 +319,7 @@ function parseTable(
         'E_TABLE_ROWS',
         `${rowsFile} is not part of source: ${file} declares no \`rows\`.`,
         {
-          kind: 'table',
-          key,
+          ...resource,
           span: wholeFile(rowsFile),
           hint: "Add `rows: { mode: 'managed', key: '<column>' }` (or `{ mode: 'seed' }`), or delete the file.",
         }

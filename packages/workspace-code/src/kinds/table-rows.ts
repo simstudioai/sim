@@ -25,6 +25,7 @@ import {
   diagnostic,
   findingLimitReached,
   MAX_FINDINGS_PER_FILE,
+  resourceOf,
   type WorkspaceDiagnostic,
   wholeFile,
 } from '../diagnostics'
@@ -93,11 +94,11 @@ export function parseTableRows(
 ): { data: TableRowCells[]; diagnostics: WorkspaceDiagnostic[] } {
   const file = tableRowsPath(key)
   const diagnostics: WorkspaceDiagnostic[] = []
+  const resource = resourceOf('table', key)
   const report = (message: string, span = wholeFile(file), hint?: string) =>
     diagnostics.push(
       diagnostic('E_TABLE_ROWS', message, {
-        kind: 'table',
-        key,
+        ...resource,
         span,
         ...(hint ? { hint } : {}),
       })
@@ -112,7 +113,7 @@ export function parseTableRows(
     offset += line.length + 1
     if (line.trim() === '') continue
     if (diagnostics.length >= MAX_FINDINGS_PER_FILE) {
-      diagnostics.push(findingLimitReached({ kind: 'table', key, span: wholeFile(file) }))
+      diagnostics.push(findingLimitReached({ ...resource, span: wholeFile(file) }))
       break
     }
     const span = lineSpan(file, index + 1, start, start + line.length)

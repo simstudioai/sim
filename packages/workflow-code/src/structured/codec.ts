@@ -1,8 +1,9 @@
 /**
- * The contract every structured subBlock kind (`CatalogSubBlock.structured`) meets: one hook per
- * stage that treats the kind's value specially. `structured/index.ts` holds one codec per kind in
- * a total record, so a new kind does not type-check until each stage's hook is chosen. A stage that
- * needs nothing special uses the plain hook named for it here.
+ * The contract every structured subBlock kind whose value stays a param meets: one hook per stage
+ * that treats the kind's value specially, each one called by that stage. `structured/index.ts`
+ * holds one codec per such kind in a total record, so a new kind does not type-check until each
+ * stage's hook is chosen. A stage that needs nothing special uses the plain hook named for it here.
+ * The kinds lifted into their own model shape (`tools`, `branches`) have no codec.
  */
 
 import type { Node } from '@babel/types'

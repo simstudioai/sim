@@ -47,7 +47,7 @@ import {
 } from '../declaration/fields'
 import { call, envRef, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, isDeclarationEnvRef, readDeclaration } from '../declaration/read'
-import type { WorkspaceDiagnostic } from '../diagnostics'
+import { resourceOf, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
@@ -304,7 +304,7 @@ function parseDeployment(
   text: Readonly<Record<string, string>>
 ): { decl?: DeploymentDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = deploymentDeclarationPath(key)
-  const resource = { kind: 'deployment', key }
+  const resource = resourceOf('deployment', key)
   const source = text[file] ?? ''
   const read = readDeclaration(file, source, {
     callee: CALLEE,

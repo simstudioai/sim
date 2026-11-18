@@ -34,7 +34,7 @@ import {
 } from '../declaration/fields'
 import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
-import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { type BlobEntry, isWellFormedBlob, KIND_DIRS, type KindCodec } from '../kind'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { filePathProblem, foldedFileKey } from './files'
@@ -278,7 +278,7 @@ function parseKnowledgeBase(
   blobs: readonly BlobEntry[]
 ): { decl?: KnowledgeBaseDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = knowledgeDeclarationPath(key)
-  const resource = { kind: 'knowledge-base', key }
+  const resource = resourceOf('knowledge-base', key)
   const source = text[file]
   if (source === undefined) {
     return {

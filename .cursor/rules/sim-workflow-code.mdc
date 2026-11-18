@@ -85,9 +85,12 @@ opaque type: it works, with weaker SDK typing.
 3. `mapSubBlock` in `packages/workflow-sdk/src/codegen/map-subblock.ts` (a `never` arm).
 4. `getSubBlockValueShape` in `apps/sim/tools/param-shape.ts`, which defaults to `string`.
 5. `packages/workflow-code/src/compile/catalog.test-helpers.ts` restates the rule flags for package tests.
-6. A **structured** value (`CatalogStructuredKind`): each stage dispatches by kind, and an unknown
-   kind passes through as JSON with no error. Update `canonicalize/params.ts`, `print/printer.ts`,
-   `compile/blocks.ts`, `materialize/params.ts` and `json-fields.ts`, and add corpus coverage.
+6. A **structured** value (`CatalogStructuredKind`): add an entry to `STRUCTURED_CODECS`
+   (`packages/workflow-code/src/structured/index.ts`); the record is total over the kinds, so tsc
+   fails until the kind has a codec, and `StructuredCodec` (`structured/codec.ts`) lists the hook
+   each stage calls. Add corpus coverage. Only a kind lifted out of the param value into its own
+   model shape (`tools`, `branches`, the `LIFTED_STRUCTURED_KINDS`) skips the record and has its
+   own stage modules.
 7. A **selector to a workspace resource**: the resource kind (`WORKFLOW_RESOURCE_KINDS`), its live
    loader in `lib/workspaces/resource-keys.ts`, the SDK `*Ref` type in `core.d.ts`, and the
    manifest (`lib/workflows/application/read-source-resources.ts`,
@@ -146,12 +149,17 @@ env reference, never a value, and a literal secret in source is refused (`E_MCP_
 
 ### A field on an existing kind
 
-Add it to the declaration type, the kind's allowed-field list (`KNOWLEDGE_FIELDS`,
-`TABLE_FIELDS`, …), the reader, the printer **and `canonical()`**, plus the server's stored →
-declaration mapping and diff, and the SDK `.d.ts`. A field missing from `canonical()` makes an edit
-fingerprint as unchanged and silently drops it; the kind's test fixture must set the field so the
-"reads back every declaration it prints" test covers it. A default mirrored from `apps/sim`
-(`DEFAULT_CHUNKING`) must match the server's, or every undeclared resource reads as changed.
+Add it to the declaration type and to the kind's field table (`DeclFields`,
+`declaration/field-table.ts`: `KNOWLEDGE_FIELDS`, `MCP_FIELDS`, `SECRET_FIELDS`, …). The table is
+typed over every field of the declaration, so tsc fails until the field has an entry, and that one
+entry is how the kind reads, prints and fingerprints it. Then the server's stored → declaration
+mapping and diff, and the SDK `.d.ts`. Custom tools and skills are the exception: their fingerprint
+walks a `CanonicalFields` table, but the reader and printer handle each field by hand, so a new
+field there needs the reader, the printer **and** the table. A field left out of the fingerprint
+makes an edit fingerprint as unchanged and silently drops it; the kind's test fixture must set the
+field so the "reads back every declaration it prints" test covers it. A default mirrored from
+`apps/sim` (`DEFAULT_CHUNKING`) must match the server's, or every undeclared resource reads as
+changed.
 
 ## Formats and versions
 

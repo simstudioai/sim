@@ -1407,12 +1407,16 @@ sim workflows source check [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+| `--strict` | No | Fail on those warnings in every block, not only the blocks the edit added. |
+| `--no-strict` | No | Never fail on a warning. |
 
 </CommandTable>
 
-Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring); the dry run still checks what only the server knows (resource keys, credentials, stored values, deployment), so run it before applying.
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring). In a workflow folder of a workspace directory (workflows/&lt;key&gt;), it reads the workspace's .sim/base.json and also checks env names, resource keys and table columns against what the directory declares. The dry run still checks what only the server knows (stored values, deployment), so run it before applying. A check also adds the blocks the source now uses to the CLI's tsconfig.json, so tsc type-checks a block the edit added.
 
-Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run `sim workflows source get` once).
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once).
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
 
 ### List the tables, knowledge bases, credentials, workflows, skills, custom tools and env names source can name
 

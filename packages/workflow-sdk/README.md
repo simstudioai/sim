@@ -2,15 +2,15 @@
 
 Types for Sim workflows written as TypeScript. A workflow file imports from this package, but
 **nothing in it runs**: the server compiles the file statically, and every runtime export throws
-`SimSdkNotExecutable`. The full grammar is
-[`packages/workflow-code/src/compile/SYNTAX.md`](../workflow-code/src/compile/SYNTAX.md).
+`SimSdkNotExecutable`. The guide is [docs.sim.ai/workflows/code](https://docs.sim.ai/workflows/code);
+in the Sim repository the full grammar is `packages/workflow-code/src/compile/SYNTAX.md`.
 
 ## Edit loop
 
 ```bash
 sim workflows source get <workflowId> --dir ./wf   # 1. write the source tree
 # 2. edit ./wf/workflow.ts (and ./wf/functions/*)
-sim workflows source check --dir ./wf              #    optional: compile locally, no request
+sim workflows source check --dir ./wf              #    compile locally, no request; exit 0 to go on
 sim workflows source apply --dir ./wf --dry-run    # 3. check on the server; writes nothing
 sim workflows source apply --dir ./wf --yes        # 4. save the draft
 ```
@@ -20,12 +20,18 @@ have the CLI confirm the directory holds that workflow.
 
 1. **Get** writes `workflow.ts`, function files, the lock, the base and the types.
 2. **Edit** `workflow.ts`. Declare blocks with `const x = builder('Name', params)` and wire them
-   with `x.to(y)`. `bunx -p typescript@7.0.2 tsc -p ./wf` type-checks locally with the TypeScript
-   release the declarations are built for. `tsconfig.json` includes only the blocks the workflow
-   uses (fast); `tsconfig.full.json` includes every current block, for a builder from a block the
-   workflow does not use yet (`has no exported member` under `tsconfig.json`).
-   `sim workflows source check --dir ./wf` compiles with the server's compiler against the cached
-   catalog, without a request; the dry run still checks what only the server knows.
+   with `x.to(y)`. Then run `sim workflows source check --dir ./wf`: it compiles with the server's
+   compiler against the cached catalog, without a request, in milliseconds, and catches what `tsc`
+   cannot (duplicate names, cycles, literal secrets). It exits 1 on errors and on a missing
+   required field, an unknown option or output path, a wrong value kind or a literal secret in a
+   block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
+   warning). It also adds the blocks the source now uses to `tsconfig.json`. Then
+   `bunx -p typescript@7.0.2 tsc -p ./wf` type-checks with the TypeScript release the
+   declarations are built for. `tsconfig.json` includes only the blocks the source used at the
+   last check, get or apply (fast); `tsconfig.full.json` includes every current block. In a
+   workspace directory, `sim workspaces source check --dir .` checks every workflow against the
+   directory's own secrets, credentials, resource keys and table columns, and
+   `sim workflows source check` run in a `workflows/<key>` folder does the same for one.
 3. **Dry run** compiles and runs every server check. Fix each error it prints, then run it again
    until it exits 0.
 4. **Apply** saves the draft. It rewrites `./wf` from what was stored, in canonical form (normalized
@@ -88,7 +94,7 @@ workflow.ts:56:7 error E_UNKNOWN_PARAM: Slack has no param chanel.
 - The API returns the same findings in `data.diagnostics` (`error.details.diagnostics` on a
   refusal) with `code`, `severity`, `message`, `hint`, `file`, `line`, `column` and `frame`.
 
-Every code and its meaning: SYNTAX.md "Diagnostics".
+Every code and its meaning: the "Diagnostics" table of `SYNTAX.md` in the Sim repository.
 
 ## Exit codes
 
@@ -145,7 +151,7 @@ files are stored verbatim. One file per block; imports between function files ar
 | `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
 | `cookbook/examples/*.ts` | The examples the CLI writes into `.sim/examples/`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles each against the real catalog (its `COOKBOOK_WORKSPACE` lists the resources they name). |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
-| `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts` and `INDEX.md`, deterministic, sorted by path), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
+| `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts` and the `.sim/sdk/INDEX.md` builder list, deterministic, sorted by path), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
 | `test/negative` | Code each generated type must reject. |
 

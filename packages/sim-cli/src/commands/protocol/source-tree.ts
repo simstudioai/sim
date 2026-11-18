@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import {
@@ -187,6 +188,7 @@ function workspaceManifestFrom({
 /** What a workspace directory declares itself, typed beside the stored resources. */
 export type LocalDeclarations = Pick<
   WorkspaceManifest,
+  | 'declarationModules'
   | 'secretDeclarations'
   | 'credentialDeclarations'
   | 'tableDeclarations'
@@ -221,6 +223,7 @@ export async function loadWorkspaceTypes(
     ]
     return generateWorkspaceTypes({
       ...stored,
+      ...(local.declarationModules ? { declarationModules: local.declarationModules } : {}),
       ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
       ...(local.mcpServerDeclarations
         ? { mcpServerDeclarations: local.mcpServerDeclarations }
@@ -238,8 +241,9 @@ export async function loadWorkspaceTypes(
     if (!(error instanceof SimApiError) || (error.status !== 403 && error.status !== 404)) {
       throw error
     }
-    const declared = Object.values(local).some(
-      (keys) => keys !== undefined && Object.keys(keys).length > 0
+    const declared = Object.entries(local).some(
+      ([list, keys]) =>
+        list !== 'declarationModules' && keys !== undefined && Object.keys(keys).length > 0
     )
     return declared ? generateWorkspaceTypes(local).text : null
   }
@@ -375,15 +379,20 @@ function tsconfigWrites(
 }
 
 /**
- * Rewrites the CLI's tsconfig files after an apply, which keeps the declarations but may have
- * added a block `tsconfig.json` should now include. It reads the workspace's cached catalog, so
- * it costs no request; without one nothing changes until the next get.
+ * Rewrites the CLI's tsconfig files for the source `use` names: after an apply, which keeps the
+ * declarations but may have added a block `tsconfig.json` should now include, and on a check, so
+ * a block the edit added type-checks before anything is applied. `incremental` (a check) keeps
+ * the blocks the files include now, since a check scans only the source text and not the
+ * server's block types, and rewrites only files that exist. It reads the workspace's cached
+ * catalog, so it costs no request; without one nothing changes until the next get. A file whose
+ * text would not change is not rewritten.
  */
 export async function refreshTsconfigs(
   dir: string,
   workspaceId: string,
   profile: Pick<SourceTreeProfile, 'tsconfig'>,
-  use: SourceTreeUse
+  use: SourceTreeUse,
+  options: { incremental?: boolean } = {}
 ): Promise<void> {
   const catalog = cachedCatalog(workspaceId)
   if (!catalog) return
@@ -392,11 +401,40 @@ export async function refreshTsconfigs(
     readSourceText(dir, TSCONFIG_FULL_FILE),
     readSourceText(dir, WORKSPACE_TYPES_FILE),
   ])
-  const { write } = tsconfigWrites(catalog, workspaceTypes !== null, profile, use, {
-    tsconfig,
-    full,
+  const kept = options.incremental ? includedBlockTypes(tsconfig) : []
+  const { write } = tsconfigWrites(
+    catalog,
+    workspaceTypes !== null,
+    profile,
+    { ...use, blockTypes: [...(use.blockTypes ?? []), ...kept] },
+    { tsconfig, full }
+  )
+  const current: Record<string, string | null> = {
+    [TSCONFIG_FILE]: tsconfig,
+    [TSCONFIG_FULL_FILE]: full,
+  }
+  const changed = write.filter(
+    ([path, text]) => current[path] !== text && (!options.incremental || current[path] !== null)
+  )
+  if (changed.length > 0) await updateSourceDir(dir, { write: changed })
+}
+
+const INCLUDED_BLOCK = new RegExp(`^${escapeRegExp(SDK_DIR)}/blocks/(.+)\\.d\\.ts$`)
+
+/** The block types a CLI-written `tsconfig.json` includes; none for any other text. */
+function includedBlockTypes(tsconfig: string | null): string[] {
+  if (tsconfig === null || !tsconfig.startsWith(TSCONFIG_MARKER)) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(tsconfig.slice(TSCONFIG_MARKER.length))
+  } catch {
+    return []
+  }
+  const include = isRecordLike(parsed) && Array.isArray(parsed.include) ? parsed.include : []
+  return include.flatMap((entry) => {
+    const type = typeof entry === 'string' ? INCLUDED_BLOCK.exec(entry)?.[1] : undefined
+    return type === undefined ? [] : [type]
   })
-  await updateSourceDir(dir, { write })
 }
 
 /** What a tree write type-checks: the source texts it scans for builders, and known block types. */

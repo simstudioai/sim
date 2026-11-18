@@ -18,8 +18,8 @@ import type {
   CanonicalParam,
   CanonicalVariable,
   CanonicalWorkflow,
-  LoopSpec,
-  ParallelSpec,
+  LoopType,
+  ParallelType,
   SubBlockId,
   VarKey,
 } from '../model'
@@ -27,6 +27,9 @@ import type { AddCommentItem, CommentCollector } from './comments'
 import { didYouMean } from './hints'
 import type { CompileLimits } from './parse'
 import type { Range, Reporter } from './report'
+
+/** The wiring methods on a block reference: `a.to(b)` and `a.onError(b)`. */
+export const EDGE_METHODS: ReadonlySet<string> = new Set(['to', 'onError'])
 
 /** How a block call was resolved against the SDK surface and the catalog. */
 export type ResolvedBuilder =
@@ -38,12 +41,12 @@ export type ResolvedBuilder =
       block: CatalogBlock | undefined
     }
   | { kind: 'generic'; type: string; block: CatalogBlock | undefined }
-  | { kind: 'container'; container: 'loop'; method: LoopSpec['loopType'] }
+  | { kind: 'container'; container: 'loop'; method: LoopType }
   | {
       kind: 'container'
       container: 'parallel'
       /** `null` for the bare `parallel(...)` form, which leaves `parallelType` unset. */
-      method: NonNullable<ParallelSpec['parallelType']> | null
+      method: ParallelType | null
     }
   /**
    * `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims

@@ -18,7 +18,7 @@
  * (`Authorization`, `Cookie`, or a name with `key`, `token`, `secret`, `auth`, …) holds env
  * references (`env.NAME`, or `{{NAME}}` in its text after a scheme such as `Bearer`) or
  * `stored()`, which keeps the value the server holds. The server's id derives from its URL, so a
- * changed `url` replaces the server.
+ * `url` with another host or path replaces the server; a new query string updates it in place.
  */
 import type { EnvRef } from '@sim/workflow-sdk'
 
@@ -40,7 +40,7 @@ export interface McpServerDeclaration {
   /** The display name; the key when left out. */
   name?: string
   description?: string
-  /** An `http://` or `https://` URL. Changing it replaces the server. */
+  /** An `http://` or `https://` URL. A new host or path replaces the server; a new query does not. */
   url: string
   transport?: 'streamable-http'
   headers?: { [name: string]: McpHeaderValue }

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { typecheckSdkDirectory } from '../../test/typecheck-project'
 import { generateWorkspaceTypes } from './workspace'
 
+/** The modules a workspace directory declares, as the CLI lays it out. */
+const declarationModules = { tables: 'tables', credentials: 'credentials', secrets: 'secrets' }
+
 const LEADS = `// @sim-sdk 1
 import { column, defineTable } from '@sim/workflow-sdk/workspace'
 
@@ -23,7 +26,10 @@ export default defineTable({
 function typecheckWorkspace(check: string, extra: Record<string, string> = {}): string {
   return typecheckSdkDirectory(
     {
-      '.sim/sdk/workspace.d.ts': generateWorkspaceTypes({ tableDeclarations: ['leads'] }).text,
+      '.sim/sdk/workspace.d.ts': generateWorkspaceTypes({
+        declarationModules,
+        tableDeclarations: ['leads'],
+      }).text,
       'tables/leads.ts': LEADS,
       'workflows/w/check.ts': check,
       ...extra,
@@ -119,6 +125,7 @@ export default defineSecrets({ OPENAI_API_KEY: { description: 'Model access' } }
     const output = typecheckSdkDirectory(
       {
         '.sim/sdk/workspace.d.ts': generateWorkspaceTypes({
+          declarationModules,
           credentials: { stored: { provider: 'notion' }, slack: { provider: 'github' } },
           credentialDeclarations: ['slack'],
           env: ['STORED_NAME'],

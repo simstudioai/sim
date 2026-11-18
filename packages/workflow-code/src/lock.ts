@@ -128,8 +128,14 @@ const DRIVE_PATH = /^[A-Za-z]:/
 /** The fields of `T` that are not `x-` extensions. */
 export type DefinedField<T> = Exclude<keyof T, LockExtensionKey>
 
-/** The defined field names of `T`: listing one too few or one too many is a type error. */
-function fieldNames<T>(fields: { readonly [K in DefinedField<T>]-?: true }): readonly string[] {
+/**
+ * The defined field names of `T`, for a versioned-JSON validator's allowed-field list: listing one
+ * too few or one too many is a type error, so a field added to `T` fails to compile until its
+ * validator learns it.
+ */
+export function fieldNames<T>(
+  fields: { readonly [K in DefinedField<T>]-?: true }
+): readonly string[] {
   return Object.keys(fields)
 }
 

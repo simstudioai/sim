@@ -1,21 +1,21 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
+import { BLOCK_META_KEYS, type BlockMetaKey, SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import type {
   BlockRetryConfig as StoredBlockRetryConfig,
   VariableType as StoredVariableType,
 } from '@sim/workflow-types/workflow'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import type { BlockRetryConfig, VariableType } from './core'
+import type { BlockMeta, BlockRetryConfig, VariableType } from './core'
 import * as runtimeModule from './runtime'
 import { SimSdkNotExecutable } from './runtime'
 
 const runtime: Record<string, unknown> = { ...runtimeModule }
 
+const CORE = readFileSync(path.join(import.meta.dirname, 'core.d.ts'), 'utf8')
+
 const coreValueExports = [
-  ...readFileSync(path.join(import.meta.dirname, 'core.d.ts'), 'utf8').matchAll(
-    /^export declare (?:function|const|namespace) ([A-Za-z_$][\w$]*)/gm
-  ),
+  ...CORE.matchAll(/^export declare (?:function|const|namespace) ([A-Za-z_$][\w$]*)/gm),
 ].map((match) => match[1])
 
 describe('the SDK value surface', () => {
@@ -35,6 +35,13 @@ describe('the SDK value surface', () => {
       expect(() => value('x')).toThrow(SimSdkNotExecutable)
       expect(() => Reflect.get(value, 'anything')).toThrow(SimSdkNotExecutable)
     }
+  })
+
+  it('BlockMeta declares exactly the meta keys the printer writes and the compiler reads', () => {
+    expectTypeOf<keyof BlockMeta>().toEqualTypeOf<BlockMetaKey>()
+    const declared = /^export interface BlockMeta \{\n([\s\S]*?)^\}/m.exec(CORE)?.[1] ?? ''
+    const keys = [...declared.matchAll(/^ {2}(\w+)\?:/gm)].map((match) => match[1])
+    expect(keys.sort()).toEqual([...BLOCK_META_KEYS].sort())
   })
 
   it('BlockMeta.retry declares exactly the stored retry fields', () => {

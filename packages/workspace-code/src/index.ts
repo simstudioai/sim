@@ -22,7 +22,6 @@ export {
   APPLY_ORDER,
   type BlobEntry,
   budgetOfPath,
-  type FileKind,
   isFileKind,
   isWorkspaceKind,
   KIND_DIRS,

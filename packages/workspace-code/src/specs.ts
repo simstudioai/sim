@@ -8,10 +8,18 @@ import type { ResourceKind } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS, type WorkspaceKind } from './kind'
 
+/**
+ * How a kind's keys are spelled: a resource key (`isResourceKey`), a path under the kind's folder
+ * (`isFileKey`), or a secret name (`isSecretName`).
+ */
+export type KeyShape = 'resource' | 'path' | 'secret-name'
+
 /** One kind, as the directory's tooling and messages describe it. */
 interface WorkspaceKindSpec {
   /** How findings and messages name one resource of the kind. */
   noun: string
+  /** How its keys are spelled, which a base address's key is validated against. */
+  keyShape: KeyShape
   /**
    * The resource kind its keys are recorded under in the workspace's key table
    * (`workspace_resource_key.kind`): the one a workflow names it by, and a write claims. `null` for
@@ -43,6 +51,7 @@ interface WorkspaceKindSpec {
 export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKindSpec } = {
   secret: {
     noun: 'secret',
+    keyShape: 'secret-name',
     resourceKind: null,
     typeChecked: [KIND_DIRS.secret],
     manifestKey: 'secretDeclarations',
@@ -50,6 +59,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   credential: {
     noun: 'credential',
+    keyShape: 'resource',
     resourceKind: 'credential',
     typeChecked: [KIND_DIRS.credential],
     manifestKey: 'credentialDeclarations',
@@ -57,6 +67,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   'custom-tool': {
     noun: 'custom tool',
+    keyShape: 'resource',
     resourceKind: 'custom-tool',
     typeChecked: [`${KIND_DIRS['custom-tool']}/*.ts`],
     manifestKey: 'customTools',
@@ -64,6 +75,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   skill: {
     noun: 'skill',
+    keyShape: 'resource',
     resourceKind: 'skill',
     typeChecked: [],
     manifestKey: 'skills',
@@ -71,6 +83,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   'mcp-server': {
     noun: 'MCP server',
+    keyShape: 'resource',
     resourceKind: 'mcp-server',
     typeChecked: [`${KIND_DIRS['mcp-server']}/*.ts`],
     manifestKey: 'mcpServerDeclarations',
@@ -78,6 +91,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   table: {
     noun: 'table',
+    keyShape: 'resource',
     resourceKind: 'table',
     typeChecked: [`${KIND_DIRS.table}/*.ts`],
     manifestKey: 'tableDeclarations',
@@ -85,6 +99,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   'knowledge-base': {
     noun: 'knowledge base',
+    keyShape: 'resource',
     resourceKind: 'knowledge-base',
     typeChecked: [`${KIND_DIRS['knowledge-base']}/*/knowledge.ts`],
     manifestKey: 'knowledgeBases',
@@ -92,6 +107,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   file: {
     noun: 'file',
+    keyShape: 'path',
     resourceKind: null,
     typeChecked: [],
     manifestKey: null,
@@ -99,6 +115,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   workflow: {
     noun: 'workflow',
+    keyShape: 'resource',
     resourceKind: 'workflow',
     typeChecked: [`${KIND_DIRS.workflow}/*/${SOURCE_ENTRY_FILE}`],
     manifestKey: 'workflows',
@@ -106,6 +123,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   deployment: {
     noun: 'deployment',
+    keyShape: 'resource',
     resourceKind: null,
     typeChecked: [`${KIND_DIRS.deployment}/*.ts`],
     manifestKey: null,
