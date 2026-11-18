@@ -128,7 +128,12 @@ export const vercelCreateProjectTool: ToolConfig<
       teamId: params.teamId,
       slug: params.slug,
     })
-    if (update.success) return result
+    if (update.success) {
+      const updatedAt = update.output?.updatedAt
+      return typeof updatedAt === 'number'
+        ? { ...result, output: { ...result.output, updatedAt } }
+        : result
+    }
 
     return {
       ...result,

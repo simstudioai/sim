@@ -89,16 +89,23 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
                 description:
                   'Absolute artifact path on the agent filesystem; pass it to Download Artifact',
               },
-              sizeBytes: { type: 'number', description: 'File size in bytes', optional: true },
+              sizeBytes: {
+                type: 'number',
+                description: 'File size in bytes',
+                optional: true,
+                nullable: true,
+              },
               updatedAt: {
                 type: 'string',
                 description: 'ISO 8601 time the artifact was last updated',
+                nullable: true,
                 optional: true,
               },
               path: { type: 'string', description: 'Artifact file path (same as absolutePath)' },
               size: {
                 type: 'number',
                 description: 'File size in bytes (same as sizeBytes)',
+                nullable: true,
                 optional: true,
               },
             },
@@ -148,16 +155,23 @@ export const listArtifactsV2Tool: ToolConfig<ListArtifactsParams, ListArtifactsV
             description:
               'Absolute artifact path on the agent filesystem; pass it to Download Artifact',
           },
-          sizeBytes: { type: 'number', description: 'File size in bytes', optional: true },
+          sizeBytes: {
+            type: 'number',
+            description: 'File size in bytes',
+            optional: true,
+            nullable: true,
+          },
           updatedAt: {
             type: 'string',
             description: 'ISO 8601 time the artifact was last updated',
+            nullable: true,
             optional: true,
           },
           path: { type: 'string', description: 'Artifact file path (same as absolutePath)' },
           size: {
             type: 'number',
             description: 'File size in bytes (same as sizeBytes)',
+            nullable: true,
             optional: true,
           },
         },
