@@ -111,13 +111,13 @@ export const POST = withRouteHandler(
           runId: result.executionId,
           workflowId,
           status: result.status as 'completed' | 'failed' | 'paused' | 'cancelled',
-          output: result.output ?? null,
-          // Resume has no request body to name selectors in, so selection never applies here.
-          blockOutputs: null,
           error: result.structuredError,
           startedAt: result.metadata?.startTime,
           endedAt: result.metadata?.endTime,
           durationMs: result.metadata?.duration,
+          output: result.output ?? null,
+          // Resume has no request body to name selectors in, so selection never applies here.
+          blockOutputs: null,
         },
         { headers }
       )
