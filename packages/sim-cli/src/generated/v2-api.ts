@@ -1053,10 +1053,14 @@ export type ApplyWorkspaceSourceBody = {
       }
     >
   }
-  kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+  kinds: Array<
+    'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow' | 'deployment'
+  >
   options?: {
     allowDelete?: boolean
-    only?: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    only?: Array<
+      'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow' | 'deployment'
+    >
   }
   provenance?: {
     client: 'cli' | 'api'
@@ -1069,7 +1073,14 @@ export type ApplyWorkspaceSourceResponse = {
     workspaceId: string
     dryRun: boolean
     plan: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1080,7 +1091,14 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
     }>
     applied: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1091,7 +1109,14 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
     }>
     failed?: {
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
       key: string
       code:
         | 'E_DECL_SYNTAX'
@@ -1140,6 +1165,12 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'
@@ -1362,6 +1393,12 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'
@@ -10379,7 +10416,9 @@ export type GetWorkspaceSourceQuery = {
 export type GetWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    kinds: Array<
+      'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow' | 'deployment'
+    >
     files: Record<string, string>
     blobs: Array<{
       path: string
@@ -10416,7 +10455,14 @@ export type GetWorkspaceSourceResponse = {
       >
     }
     skipped: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
       key: string
       reason: string
     }>
@@ -10468,6 +10514,12 @@ export type GetWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'

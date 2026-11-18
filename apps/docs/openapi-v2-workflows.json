@@ -24490,7 +24490,15 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "enum": [
+                    "custom-tool",
+                    "skill",
+                    "table",
+                    "knowledge-base",
+                    "file",
+                    "workflow",
+                    "deployment"
+                  ],
                   "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 },
                 "description": "The kinds read; the directory manages exactly these."
@@ -24666,7 +24674,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -24738,6 +24747,12 @@
                         "I_KB_PROCESSING",
                         "I_KB_DOCS_UNHASHED",
                         "I_KB_UNMANAGED_DOCS",
+                        "E_DEPLOY_WORKFLOW",
+                        "E_DEPLOY_SECRET",
+                        "E_DEPLOY_CHAT_OUTPUT",
+                        "E_DEPLOY_PINNED_CHAT",
+                        "W_DEPLOYED_DRAFT_CHANGED",
+                        "I_DEPLOY_DRAFT_NOT_LIVE",
                         "E_APPLY_STALE",
                         "E_APPLY_NO_BASE",
                         "E_APPLY_FORBIDDEN",
@@ -25038,7 +25053,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -25106,7 +25122,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -25167,7 +25184,15 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                    "enum": [
+                      "custom-tool",
+                      "skill",
+                      "table",
+                      "knowledge-base",
+                      "file",
+                      "workflow",
+                      "deployment"
+                    ],
                     "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                   },
                   "key": {
@@ -25223,6 +25248,12 @@
                       "I_KB_PROCESSING",
                       "I_KB_DOCS_UNHASHED",
                       "I_KB_UNMANAGED_DOCS",
+                      "E_DEPLOY_WORKFLOW",
+                      "E_DEPLOY_SECRET",
+                      "E_DEPLOY_CHAT_OUTPUT",
+                      "E_DEPLOY_PINNED_CHAT",
+                      "W_DEPLOYED_DRAFT_CHANGED",
+                      "I_DEPLOY_DRAFT_NOT_LIVE",
                       "E_APPLY_STALE",
                       "E_APPLY_NO_BASE",
                       "E_APPLY_FORBIDDEN",
@@ -25563,6 +25594,12 @@
                         "I_KB_PROCESSING",
                         "I_KB_DOCS_UNHASHED",
                         "I_KB_UNMANAGED_DOCS",
+                        "E_DEPLOY_WORKFLOW",
+                        "E_DEPLOY_SECRET",
+                        "E_DEPLOY_CHAT_OUTPUT",
+                        "E_DEPLOY_PINNED_CHAT",
+                        "W_DEPLOYED_DRAFT_CHANGED",
+                        "I_DEPLOY_DRAFT_NOT_LIVE",
                         "E_APPLY_STALE",
                         "E_APPLY_NO_BASE",
                         "E_APPLY_FORBIDDEN",
@@ -26000,11 +26037,19 @@
             "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
           },
           "kinds": {
-            "maxItems": 6,
+            "maxItems": 7,
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+              "enum": [
+                "custom-tool",
+                "skill",
+                "table",
+                "knowledge-base",
+                "file",
+                "workflow",
+                "deployment"
+              ],
               "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
             },
             "description": "The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent."
@@ -26022,7 +26067,15 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "enum": [
+                    "custom-tool",
+                    "skill",
+                    "table",
+                    "knowledge-base",
+                    "file",
+                    "workflow",
+                    "deployment"
+                  ],
                   "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 }
               }
