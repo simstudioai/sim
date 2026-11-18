@@ -240,6 +240,9 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     }
 
     const jobId = result.output.jobId
+    if (!jobId) {
+      return { ...result, success: false, error: 'Firecrawl did not return a crawl job ID to poll' }
+    }
     const signal = context?.signal
     logger.info(`Firecrawl crawl job ${jobId} created, polling for completion...`)
 
@@ -248,14 +251,17 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
         signal?.throwIfAborted()
-        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          signal,
-        })
+        const statusResponse = await outboundFetch(
+          `https://api.firecrawl.dev/v2/crawl/${encodeURIComponent(jobId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal,
+          }
+        )
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get crawl status: ${statusResponse.statusText}`)

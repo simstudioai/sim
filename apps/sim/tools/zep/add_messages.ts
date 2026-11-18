@@ -105,6 +105,7 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
       `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
         allowSeparators: true,
         preserveWhitespace: true,
+        stripTabsAndNewlines: true,
       })}/messages`,
     method: 'POST',
     headers: (params) => ({
