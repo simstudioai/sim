@@ -109,18 +109,29 @@ function namesFromFiles(files: Iterable<[string, string]>): { blocks: Record<str
   return { blocks }
 }
 
-/** Every `.json` path under {@link NAMES_DIR} at `revision`, with its text. */
+/**
+ * Every `.json` path under {@link NAMES_DIR} at `revision`, with its text, read in one
+ * `git cat-file --batch` call rather than a process per block.
+ */
 function readTreeFiles(revision: string): Array<[string, string]> {
   const listing = git(['ls-tree', '-r', '--name-only', revision, '--', `${NAMES_DIR}/`])
   if (listing === null) throw new Error(`Cannot list ${NAMES_DIR} at ${revision}.`)
-  return listing
-    .split('\n')
-    .filter((file) => file.endsWith('.json'))
-    .map((file) => {
-      const text = git(['show', `${revision}:${file}`])
-      if (text === null) throw new Error(`Cannot read ${file} at ${revision}.`)
-      return [file, text]
-    })
+  const files = listing.split('\n').filter((file) => file.endsWith('.json'))
+  if (files.length === 0) return []
+  const output = execFileSync('git', ['cat-file', '--batch'], {
+    cwd: ROOT,
+    input: files.map((file) => `${revision}:${file}\n`).join(''),
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  let offset = 0
+  return files.map((file) => {
+    const headerEnd = output.indexOf(0x0a, offset)
+    const [, type, size] = output.subarray(offset, headerEnd).toString('utf8').split(' ')
+    if (type !== 'blob') throw new Error(`Cannot read ${file} at ${revision}.`)
+    const start = headerEnd + 1
+    offset = start + Number(size) + 1
+    return [file, output.subarray(start, start + Number(size)).toString('utf8')]
+  })
 }
 
 /**
