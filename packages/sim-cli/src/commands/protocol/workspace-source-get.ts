@@ -21,7 +21,7 @@ import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   editedFiles,
-  inBatches,
+  inPool,
   readSourceJson,
   readSourceText,
   readWrittenDigests,
@@ -189,7 +189,7 @@ async function writeWorkspaceSource(
     const hashed = new Map<string, string>()
     const scratchFile = new Map<string, string>()
     if (scratch) {
-      await inBatches(
+      await inPool(
         hashless.map((blob, index) => [blob, join(scratch, String(index))] as const),
         async ([blob, file]) => {
           hashed.set(blob.path, await downloadBlob(client, blob, file))

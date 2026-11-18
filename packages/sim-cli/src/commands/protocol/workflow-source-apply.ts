@@ -19,7 +19,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
-  inBatches,
+  inPool,
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
@@ -168,7 +168,7 @@ async function readSourceFiles(
   const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   const paths = codeFilePaths(entry, lock)
-  const texts = await inBatches(paths, (path) => readSourceText(directory, path))
+  const texts = await inPool(paths, (path) => readSourceText(directory, path))
   paths.forEach((path, index) => {
     const text = texts[index]
     if (text !== null) files[path] = text

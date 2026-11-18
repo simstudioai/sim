@@ -25,7 +25,6 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
-import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   CODE_FILE_EXTENSIONS,
@@ -263,19 +262,51 @@ export interface SourceDirChange {
   remove?: readonly string[]
 }
 
-/** `run` over `items`, at most `WRITE_CONCURRENCY` at a time; results in `items` order. */
-export async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = []
-  for (const batch of chunkArray(items, WRITE_CONCURRENCY)) {
-    results.push(...(await Promise.all(batch.map(run))))
+/**
+ * `run` over `items` with at most `WRITE_CONCURRENCY` in flight, each slot taking the next item as
+ * soon as it frees (one slow download never holds the others back); results in `items` order. After
+ * a failure no further item starts, and the first failure is thrown once the running ones settle.
+ */
+export async function inPool<T, R>(
+  items: readonly T[],
+  run: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  let failed = false
+  const slot = async (): Promise<void> => {
+    while (!failed && next < items.length) {
+      const index = next++
+      try {
+        results[index] = await run(items[index])
+      } catch (error) {
+        failed = true
+        throw error
+      }
+    }
   }
+  const slots = Array.from({ length: Math.min(WRITE_CONCURRENCY, items.length) }, slot)
+  const settled = await Promise.allSettled(slots)
+  for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason
   return results
+}
+
+/**
+ * The files that record what the directory was read from: each workflow's lock, base and
+ * `.sim/written.json`, and the workspace base. They move into place only after every other file,
+ * so a write cut short leaves the old records beside whatever text did land: the next apply is
+ * refused as stale, never sent as if the old text were current.
+ */
+const RECORD_FILES = [SOURCE_BASE_FILE, SOURCE_LOCK_FILE, SOURCE_WRITTEN_FILE]
+
+function isRecordFile(path: string): boolean {
+  return RECORD_FILES.some((file) => path === file || path.endsWith(`/${file}`))
 }
 
 /**
  * Applies a change to the source directory, creating it when absent. Every target is checked
  * before anything is touched; the files are written to a staging directory inside it, then the
- * removals run and each file is renamed into place, never through a link.
+ * removals run and each file is renamed into place, never through a link, the record files last.
  */
 export async function updateSourceDir(dir: string, change: SourceDirChange): Promise<void> {
   const fetches = change.fetch ?? []
@@ -320,14 +351,14 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
     staging = stagingDir
     const indexes = writes.map((_, index) => index)
     const staged = (index: number) => join(stagingDir, String(index))
-    await inBatches(indexes, (index) =>
+    await inPool(indexes, (index) =>
       index < change.write.length
         ? writeFile(staged(index), change.write[index][1], { flag: 'wx' })
         : fetches[index - change.write.length][1](staged(index))
     )
     for (const target of removals) await rm(target, { recursive: true, force: true })
     const parents = new Map<string, Promise<unknown>>()
-    await inBatches(indexes, async (index) => {
+    const moveIntoPlace = async (index: number) => {
       const parent = dirname(targets[index])
       let created = parents.get(parent)
       if (!created) {
@@ -336,7 +367,15 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
       }
       await created
       await rename(staged(index), targets[index])
-    })
+    }
+    await inPool(
+      indexes.filter((index) => !isRecordFile(writes[index])),
+      moveIntoPlace
+    )
+    await inPool(
+      indexes.filter((index) => isRecordFile(writes[index])),
+      moveIntoPlace
+    )
   } finally {
     if (staging) await rm(staging, { recursive: true, force: true })
     disposeSignalCleanup()
@@ -392,7 +431,7 @@ export async function editedFiles(
 ): Promise<string[]> {
   const written = await readWrittenDigests(dir)
   const entries = [...touched]
-  const texts = await inBatches(entries, ([path]) => readSourceText(dir, path))
+  const texts = await inPool(entries, ([path]) => readSourceText(dir, path))
   return entries.flatMap(([path, next], index) => {
     const current = texts[index]
     if (current === null || (next !== null && current === normalizeSourceText(next))) return []

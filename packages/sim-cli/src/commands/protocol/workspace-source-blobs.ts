@@ -30,7 +30,7 @@ import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
-import { checkedPath, inBatches, isMissing, readWrittenDigests } from './source-dir'
+import { checkedPath, inPool, isMissing, readWrittenDigests } from './source-dir'
 
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 type ListedBlob = WorkspaceSource['blobs'][number]
@@ -103,7 +103,7 @@ export async function blobDigests(
     throw error
   }
   const verified = new Set<string>()
-  await inBatches([...paths], async (path) => {
+  await inPool([...paths], async (path) => {
     try {
       digests.set(path, (await hashFile(await checkedPath(root, path, verified))).sha256)
     } catch (error) {

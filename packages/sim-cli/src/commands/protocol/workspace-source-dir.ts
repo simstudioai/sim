@@ -19,7 +19,7 @@ import { SimApiError } from '../../http/client'
 import {
   checkedPath,
   digest,
-  inBatches,
+  inPool,
   listSourceFiles,
   readSourceText,
   readWrittenDigests,
@@ -215,7 +215,7 @@ export async function readWorkspaceDir(
     APPLY_ORDER.filter((kind) => !only || only.includes(kind))
   )
   const textPaths = paths.filter((path) => !isBlobPath(path))
-  const texts = await inBatches(textPaths, (path) => readSourceText(dir, path))
+  const texts = await inPool(textPaths, (path) => readSourceText(dir, path))
   const files: Record<string, string> = {}
   textPaths.forEach((path, index) => {
     const text = texts[index]
@@ -246,7 +246,7 @@ export async function readWorkspaceDir(
   const root = await realpath(dir)
   const verified = new Set<string>()
   const hashed = new Map(known.map((blob) => [blob.path, blob]))
-  const blobs = await inBatches(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
+  const blobs = await inPool(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
     const listed = hashed.get(path)
     if (listed) return listed
     const file = await checkedPath(root, path, verified)
