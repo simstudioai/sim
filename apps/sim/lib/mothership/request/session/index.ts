@@ -83,4 +83,5 @@ export {
 } from './run-replay'
 export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
 export type { StreamBatchEvent } from './types'
+export { hasStreamViewer, holdStreamViewer } from './viewer'
 export { StreamWriter, type StreamWriterOptions } from './writer'
