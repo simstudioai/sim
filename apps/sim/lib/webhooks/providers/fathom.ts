@@ -44,7 +44,8 @@ export const fathomHandler: WebhookProviderHandler = {
   /**
    * Fathom signs deliveries with the Standard Webhooks scheme using the secret
    * returned when Sim registers the webhook. Rows registered before Sim stored
-   * that secret have none and keep being accepted until they are redeployed.
+   * that secret have none and keep being accepted until the trigger's settings
+   * change or it is re-created, which registers a new webhook and stores its secret.
    */
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
     const signingSecret = providerConfig.signingSecret as string | undefined

@@ -97,6 +97,7 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     recorded_by: {
       type: 'object',
       description: 'Recorder details',
+      open: true,
       properties: {
         name: { type: 'string', description: 'Name of the recorder' },
         email: { type: 'string', description: 'Email of the recorder' },
@@ -111,6 +112,7 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     default_summary: {
       type: 'object',
       description: 'Meeting summary',
+      open: true,
       properties: {
         template_name: { type: 'string', description: 'Summary template name' },
         markdown_formatted: { type: 'string', description: 'Markdown-formatted summary' },
