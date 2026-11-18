@@ -24,6 +24,21 @@ export function defineKnowledgeBase(): never {
   return notExecutable('defineKnowledgeBase')
 }
 
+export function defineDeployment(): never {
+  return notExecutable('defineDeployment')
+}
+
+export function stored(): never {
+  return notExecutable('stored')
+}
+
+export const env = new Proxy(
+  {},
+  {
+    get: (_target, property) => notExecutable(`env.${String(property)}`),
+  }
+)
+
 export const column = new Proxy(
   {},
   {
