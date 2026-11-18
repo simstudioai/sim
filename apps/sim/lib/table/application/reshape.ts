@@ -15,7 +15,7 @@ import {
   type UpdateTableColumnInput,
 } from '@/lib/table/application/columns'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
-import { throwTableOperationFailure } from '@/lib/table/application/errors'
+import { TableRowsChangedError, throwTableOperationFailure } from '@/lib/table/application/errors'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
   type AppliedTableUpdate,
@@ -31,6 +31,7 @@ import { columnTypeById } from '@/lib/table/column-types'
 import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { writeKeyedRowsWithTx } from '@/lib/table/rows/keyed-write'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { batchInsertRowsWithTx, dispatchAfterBatchInsert } from '@/lib/table/rows/service'
@@ -72,6 +73,12 @@ export interface ReshapeTableInput {
    * reshape leaves the columns (`null` clears the mark); absent leaves it alone.
    */
   sourceRows?: { mode: 'managed'; keyColumn: string } | null
+  /**
+   * The row version the caller read the rows at. Checked under the table's lock before anything
+   * changes: a row written since refuses the reshape (`TableRowsChangedError`), so `rows`
+   * never overwrites or deletes an edit the caller did not see.
+   */
+  expectedRowsVersion?: number
 }
 
 /** The rows a reshape writes; see {@link ReshapeTableInput.rows}. */
@@ -299,6 +306,14 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
     const result = await withTableWriteTx(
       context.table.id,
       async (locked, tx) => {
+        // Row writes hold the schema lock shared until they commit, so under it the version is final.
+        if (
+          input.expectedRowsVersion !== undefined &&
+          (await readCurrentRowsVersion(locked.id, workspaceId, tx.trx)) !==
+            input.expectedRowsVersion
+        ) {
+          throw new TableRowsChangedError(locked.name)
+        }
         const options = { expectedWorkspaceId: workspaceId, tx }
         const progress: TableFieldsProgress = { current: locked, applied: [], changed: [] }
         if (input.table) await writeTableFields(progress, input.table, resolution?.folderId, tx)
