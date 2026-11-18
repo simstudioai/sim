@@ -8,6 +8,12 @@
 import { describe, expect, it } from 'vitest'
 import { fingerprintOf } from '../fingerprint'
 import type { KindCodec } from '../kind'
+import {
+  type ChatCustomizationsDecl,
+  type ChatDecl,
+  type DeploymentDecl,
+  deploymentCodec,
+} from './deployment'
 import { type FileDecl, fileCodec } from './files'
 import { type KnowledgeBaseDecl, type KnowledgeChunkingDecl, knowledgeCodec } from './knowledge'
 import { type SkillDecl, skillCodec } from './skills'
@@ -175,6 +181,55 @@ describe('every declared field reaches the fingerprint', () => {
 
     expect(
       unfingerprinted(fingerprintBy(fileCodec), base, { sha256: 'b'.repeat(64), size: 1 }, ['size'])
+    ).toEqual([])
+  })
+
+  it('deployment', () => {
+    const customizations: ChatCustomizationsDecl = {
+      primaryColor: '#000000',
+      welcomeMessage: 'Hello',
+      imageUrl: 'https://example.com/a.png',
+    }
+    const chat: ChatDecl = {
+      identifier: 'support',
+      title: 'Support',
+      description: 'Ask us',
+      auth: { password: { env: 'CHAT_PASSWORD' } },
+      outputs: [{ block: 'Answer', path: 'content' }],
+      customizations,
+      includeThinking: false,
+      includeToolCalls: false,
+    }
+    const base: DeploymentDecl = { live: 'draft', api: { public: false }, chat }
+    const fingerprint = fingerprintBy(deploymentCodec)
+
+    expect(
+      unfingerprinted(
+        fingerprint,
+        base,
+        { live: 'pinned', api: { public: true }, chat: { ...chat, title: 'Help' } },
+        // What an apply does about the draft, read on every apply, not stored state.
+        ['live']
+      )
+    ).toEqual([])
+    expect(
+      unfingerprinted((value) => fingerprint({ ...base, chat: value }), chat, {
+        identifier: 'help',
+        title: 'Help',
+        description: 'Ask',
+        auth: { password: 'stored' },
+        outputs: [{ block: 'Answer', path: 'tokens' }],
+        customizations: { ...customizations, welcomeMessage: 'Hi' },
+        includeThinking: true,
+        includeToolCalls: true,
+      })
+    ).toEqual([])
+    expect(
+      unfingerprinted(
+        (value) => fingerprint({ ...base, chat: { ...chat, customizations: value } }),
+        customizations,
+        { primaryColor: '#ffffff', welcomeMessage: 'Hey', imageUrl: 'https://example.com/b.png' }
+      )
     ).toEqual([])
   })
 })

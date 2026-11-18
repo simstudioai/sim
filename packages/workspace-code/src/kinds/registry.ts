@@ -6,6 +6,8 @@
  */
 import type { KindCodec, KindLayout, WorkspaceKind } from '../kind'
 import { kindOfPath } from '../layout'
+import { WORKSPACE_KIND_SPECS } from '../specs'
+import { deploymentCodec } from './deployment'
 import { fileCodec } from './files'
 import { knowledgeCodec } from './knowledge'
 import { skillCodec } from './skills'
@@ -21,6 +23,7 @@ export const KIND_LAYOUTS: { readonly [K in WorkspaceKind]: KindLayout } = {
   'knowledge-base': knowledgeCodec,
   file: fileCodec,
   workflow: workflowCodec,
+  deployment: deploymentCodec,
 }
 
 /**
@@ -46,7 +49,10 @@ export function isBlobPath(path: string): boolean {
   return kind !== null && KIND_LAYOUTS[kind].isBlob?.(path) === true
 }
 
-/** Whether a kind's keys are resource keys, the keys a workflow names a resource by. */
+/**
+ * Whether a kind's keys are its own resource keys, the keys a workflow names a resource by and a
+ * write claims (see `WORKSPACE_KIND_SPECS[kind].resourceKind`).
+ */
 export function isResourceKeyed(kind: WorkspaceKind): boolean {
-  return (KIND_LAYOUTS[kind].keys ?? 'resource') === 'resource'
+  return WORKSPACE_KIND_SPECS[kind].resourceKind !== null
 }

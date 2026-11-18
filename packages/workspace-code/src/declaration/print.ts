@@ -6,7 +6,14 @@
  */
 import { compareStrings } from '@sim/utils/string'
 import { type Json, printKey, quoteString } from '@sim/workflow-code'
-import { CALL_KEY, DECLARATION_SDK_MAJOR, isDeclarationCall, WORKSPACE_SDK_MODULE } from './read'
+import {
+  CALL_KEY,
+  DECLARATION_SDK_MAJOR,
+  ENV_KEY,
+  isDeclarationCall,
+  isDeclarationEnvRef,
+  WORKSPACE_SDK_MODULE,
+} from './read'
 
 /** Lines no longer than this print a short, flat object or array on one line. */
 const INLINE_WIDTH = 80
@@ -21,12 +28,18 @@ export function call(name: string, ...args: Json[]): Json {
   return { [CALL_KEY]: name, args }
 }
 
+/** An `env.NAME` node for {@link printDeclaration}. */
+export function envRef(name: string): Json {
+  return { [ENV_KEY]: name }
+}
+
 function isScalar(value: Json): value is string | number | boolean | null {
   return value === null || typeof value !== 'object'
 }
 
 function printInline(value: Json): string | null {
   if (isScalar(value)) return printScalar(value)
+  if (isDeclarationEnvRef(value)) return `env.${value.$env}`
   if (isDeclarationCall(value)) {
     const args = value.args.map(printInline)
     return args.every((arg) => arg !== null) ? `${value.$call}(${args.join(', ')})` : null
@@ -38,7 +51,10 @@ function printInline(value: Json): string | null {
   const entries = Object.entries(value)
   if (entries.length === 0) return '{}'
   if (
-    !entries.every(([, item]) => isScalar(item) || (Array.isArray(item) && item.every(isScalar)))
+    !entries.every(
+      ([, item]) =>
+        isScalar(item) || isDeclarationEnvRef(item) || (Array.isArray(item) && item.every(isScalar))
+    )
   ) {
     return null
   }
@@ -80,7 +96,9 @@ function printValue(value: Json, indent: string, column: number): string {
 
 /** Every helper root a value calls (`column` for `column.string`). */
 function helperRoots(value: Json, roots: Set<string>): Set<string> {
-  if (isDeclarationCall(value)) {
+  if (isDeclarationEnvRef(value)) {
+    roots.add('env')
+  } else if (isDeclarationCall(value)) {
     roots.add(value.$call.split('.')[0])
     for (const arg of value.args) helperRoots(arg, roots)
   } else if (Array.isArray(value)) {

@@ -1,11 +1,12 @@
-import type { Json, ResourceKind } from '@sim/workflow-code'
+import type { Json } from '@sim/workflow-code'
 import type { WorkspaceDiagnostic } from './diagnostics'
 
 /**
  * Every kind a workspace source directory can declare, in the order an apply writes them: a
  * resource exists before anything that references it (a workflow names tables, tools and skills).
- * Deletes run in the reverse order. Each is spelled as the resource kind a workflow references it
- * by (`ResourceKind`, from `PortableResourceKind`), so resource keys and source agree on one name.
+ * Deletes run in the reverse order. A kind a workflow references by key is spelled as that resource
+ * kind (`WORKSPACE_KIND_SPECS[kind].resourceKind`), so resource keys and source agree on one name.
+ * Deployments come last: one publishes a workflow as the apply left it.
  */
 export const APPLY_ORDER = [
   'custom-tool',
@@ -14,7 +15,8 @@ export const APPLY_ORDER = [
   'knowledge-base',
   'file',
   'workflow',
-] as const satisfies readonly ResourceKind[]
+  'deployment',
+] as const
 
 /** A resource kind a workspace source directory can declare. */
 export type WorkspaceKind = (typeof APPLY_ORDER)[number]
@@ -27,6 +29,7 @@ export const KIND_DIRS = {
   'knowledge-base': 'knowledge',
   file: 'files',
   workflow: 'workflows',
+  deployment: 'deployments',
 } as const satisfies Record<WorkspaceKind, string>
 
 /** Whether `value` names a kind, as `--only` and the API's `kinds` spell it. */

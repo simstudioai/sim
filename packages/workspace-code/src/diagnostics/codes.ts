@@ -126,6 +126,25 @@ const KNOWLEDGE_CODES = [
   'I_KB_UNMANAGED_DOCS',
 ] as const
 
+/** Deployments. */
+const DEPLOYMENT_CODES = [
+  /** `deployments/<key>.ts` names no workflow this workspace holds or this directory declares. */
+  'E_DEPLOY_WORKFLOW',
+  /**
+   * A chat password written as a value instead of `env.NAME`, an unset variable, or `stored()`
+   * where no password is stored.
+   */
+  'E_DEPLOY_SECRET',
+  /** A chat output names a block the workflow does not have. */
+  'E_DEPLOY_CHAT_OUTPUT',
+  /** A chat change on a pinned deployment whose draft differs: deploying a chat publishes it. */
+  'E_DEPLOY_PINNED_CHAT',
+  /** An apply edits a deployed workflow that no `live: 'draft'` deployment republishes. */
+  'W_DEPLOYED_DRAFT_CHANGED',
+  /** A pinned deployment's draft differs from its live version, which keeps running. */
+  'I_DEPLOY_DRAFT_NOT_LIVE',
+] as const
+
 /** Plan and apply. */
 const PLAN_CODES = [
   /** The resource changed on the server since the directory was read (HTTP 409). */
@@ -178,6 +197,7 @@ export const WORKSPACE_DIAGNOSTIC_CODES = [
   ...SKILL_CODES,
   ...FILE_CODES,
   ...KNOWLEDGE_CODES,
+  ...DEPLOYMENT_CODES,
   ...PLAN_CODES,
 ] as const
 export type WorkspaceDiagnosticCode = (typeof WORKSPACE_DIAGNOSTIC_CODES)[number]
