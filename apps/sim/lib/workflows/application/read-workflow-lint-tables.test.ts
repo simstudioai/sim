@@ -236,6 +236,64 @@ describe('standalone table diagnostics against the actual Table block', () => {
     expect(result.tableFieldIssues).toEqual([])
   })
 
+  it('checks literal row keys around bare references that resolve to JSON at runtime', async () => {
+    setGraph(
+      block('write', {
+        operation: 'insert_row',
+        data: '{"name": <start.name>, "missing": <start.count>, "note": "<3 {{SUFFIX}}", "env": {{N}}}',
+      })
+    )
+    const result = await lint()
+    expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+    expect(
+      result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+    ).toEqual([
+      expect.objectContaining({
+        blockId: 'write',
+        field: 'data',
+        value: ['missing', 'note', 'env'],
+      }),
+    ])
+  })
+
+  it('checks literal filter fields around a bare reference value', async () => {
+    setGraph(block('query', { filter: '{"name": <start.name>, "other": {"$gt": <start.n>}}' }))
+    const result = await lint()
+    expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+    expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+  })
+
+  it.each([
+    ['data', 'insert_row', '<start.row>', 'Table row "write".data is not a static object'],
+    [
+      'rows',
+      'batch_insert_rows',
+      '<start.rows>',
+      'Table rows in block "write" are not a static array',
+    ],
+    ['rows', 'batch_insert_rows', '[<start.first>, {"name":"Ada"}]', 'Table row "write".rows[0]'],
+  ])(
+    'notes a %s value that is a bare reference instead of a failed check (%s, %s)',
+    async (field, operation, value, note) => {
+      setGraph(block('write', { operation, [field]: value }))
+      const result = await lint()
+      expect(result.notes.filter((entry) => entry.includes('could not complete'))).toEqual([])
+      expect(result.notes).toEqual(expect.arrayContaining([expect.stringContaining(note)]))
+    }
+  )
+
+  it('still reports malformed literal JSON that contains a reference', async () => {
+    setGraph(block('write', { operation: 'insert_row', data: '{"name": <start.name>,}' }))
+    const result = await lint()
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'Table input checks in block "write" could not complete before runtime: Invalid JSON in Row Data'
+        ),
+      ])
+    )
+  })
+
   it('reports a query object whose entire value requires runtime resolution', async () => {
     setGraph(block('query', { filter: '"<start.filter>"' }))
     const result = await lint()

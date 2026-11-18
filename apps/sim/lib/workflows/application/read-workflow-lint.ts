@@ -1,6 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { CursorKey } from '@/lib/api/list-query'
 import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { PrincipalForOperation } from '@/lib/core/application/workspace-operation'
@@ -254,6 +255,42 @@ function hasRuntimeReference(value: string): boolean {
   return createReferencePattern().test(value) || createEnvVarPattern().test(value)
 }
 
+/**
+ * Outside Function code a reference resolves to JSON text (objects, numbers, booleans), so
+ * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
+ * Quoting each reference written outside a JSON string lets the Table block's own parser read the
+ * literal parts, and the quoted references then reach the existing runtime-resolution notes.
+ * Only this lint-local copy is rewritten; references to string outputs left unquoted are reported
+ * separately by `collectUnquotedJsonStringReferences`.
+ */
+function quoteBareReferenceParams(params: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? quoteBareReferences(value) : value,
+    ])
+  )
+}
+
+function quoteBareReferences(json: string): string {
+  const tokens = findWorkflowReferenceTokens(json)
+  if (tokens.length === 0) return json
+  let result = ''
+  let cursor = 0
+  let inString = false
+  for (const token of tokens) {
+    for (let index = cursor; index < token.start; index++) {
+      const char = json[index]
+      if (inString && char === '\\') index++
+      else if (char === '"') inString = !inString
+    }
+    result += json.slice(cursor, token.start)
+    result += inString ? token.value : JSON.stringify(token.value)
+    cursor = token.end
+  }
+  return result + json.slice(cursor)
+}
+
 /** Read each active table once; column checks consume the Table block's own pure input transform. */
 async function readTableDiagnostics(
   graph: ReadWorkflowGraphResult,
@@ -320,7 +357,7 @@ async function readTableDiagnostics(
     if (!transform) throw new Error('Table input normalization is unavailable')
     let normalized: Record<string, unknown>
     try {
-      normalized = transform(params)
+      normalized = transform(quoteBareReferenceParams(params))
     } catch (error) {
       result.notes.push(
         `Table input checks in block "${block.name || blockId}" could not complete before runtime: ${getErrorMessage(error)}`
