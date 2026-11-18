@@ -643,6 +643,32 @@ describe('workspaces source get', () => {
     expect(typecheck(uses('tnoe'))).toContain('"tnoe"')
   })
 
+  it('keeps the block types workflows on disk use when a get refreshes only tables', async () => {
+    const notifying = [
+      '// @sim-sdk 1',
+      "import { slack, trigger, workflow } from '@sim/workflow-sdk'",
+      "export default workflow('Notify', {}, () => {",
+      "  const start = trigger.start('Start', {})",
+      "  const post = slack.sendMessage('Post', { destinationType: 'channel', channel: 'ops', text: 'hi' })",
+      '  start.to(post)',
+      '})',
+      '',
+    ].join('\n')
+    serve(
+      { 'tables/leads.ts': LEADS, 'workflows/notify/workflow.ts': notifying },
+      { kinds: ['table', 'workflow'] }
+    )
+    await get()
+    const tsconfig = readFileSync(join(dir, 'tsconfig.json'), 'utf8')
+    expect(tsconfig).toContain('.sim/sdk/blocks/slack_v2.d.ts')
+
+    serve({ 'tables/leads.ts': LEADS }, { kinds: ['table'] })
+    await get('--only', 'tables')
+
+    expect(readFileSync(join(dir, 'tsconfig.json'), 'utf8')).toBe(tsconfig)
+    expect(readFileSync(join(dir, 'workflows/notify/workflow.ts'), 'utf8')).toBe(notifying)
+  })
+
   it('exits 7 when the server refuses the workspace as too large', async () => {
     request.mockRejectedValue(new SimApiError('too many files', 413, 'PAYLOAD_TOO_LARGE'))
 
