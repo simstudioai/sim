@@ -382,10 +382,32 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   }
 }
 
-/** `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized. */
+/** A file's size and modification time when its digest was taken. */
+export interface FileStat {
+  size: number
+  mtimeMs: number
+}
+
+/** A blob's SHA-256 with the stat of the file it was read from. */
+export interface StatDigest extends FileStat {
+  sha256: string
+}
+
+/**
+ * `.sim/written.json`: each source file's digest as the CLI last wrote it, normalized, and for a
+ * blob the stat its digest was taken at, so a later command reuses the digest of an untouched blob
+ * instead of reading it again.
+ */
 interface WrittenRecord {
   version: 1
   files: Record<string, string>
+  stats?: Record<string, FileStat>
+}
+
+/** `.sim/written.json` as one command reads it, once. */
+export interface Written {
+  digests: Record<string, string>
+  stats: Record<string, FileStat>
 }
 
 /** The digest of `text` as `readSourceText` would read it back. */
@@ -394,28 +416,59 @@ export function digest(text: string): string {
 }
 
 /**
- * `.sim/written.json` for `files` as they are about to be written, keeping the `kept` digests of
- * files this write leaves as they are.
+ * What `.sim/written.json` records for `files` as they are about to be written, keeping the `kept`
+ * digests of files this write leaves as they are. A blob's stat is recorded only beside the digest
+ * it was taken with.
  */
 export function writtenRecord(
   files: Record<string, string>,
-  kept: Record<string, string> = {}
-): string {
+  kept: Record<string, string> = {},
+  stats: ReadonlyMap<string, StatDigest> = new Map()
+): Written {
+  const digests: Record<string, string> = {
+    ...kept,
+    ...Object.fromEntries(Object.entries(files).map(([path, text]) => [path, digest(text)])),
+  }
+  const recorded = [...stats].flatMap(([path, { sha256, size, mtimeMs }]) =>
+    digests[path] === sha256 ? [[path, { size, mtimeMs }] as const] : []
+  )
+  return { digests, stats: Object.fromEntries(recorded) }
+}
+
+/** The text of `.sim/written.json` for `written`. */
+export function writtenFile(written: Written): string {
   const record: WrittenRecord = {
     version: 1,
-    files: {
-      ...kept,
-      ...Object.fromEntries(Object.entries(files).map(([path, text]) => [path, digest(text)])),
-    },
+    files: written.digests,
+    ...(Object.keys(written.stats).length > 0 ? { stats: written.stats } : {}),
   }
   return `${JSON.stringify(record, null, 2)}\n`
 }
 
-/** The digests the CLI recorded for its last write, empty when it recorded none. */
-export async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
-  const files = toRecord(toRecord(await readSourceJson(dir, SOURCE_WRITTEN_FILE)).files)
-  return Object.fromEntries(
-    Object.entries(files).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+/** What the CLI recorded for its last write, empty when it recorded nothing. */
+export async function readWritten(dir: string): Promise<Written> {
+  const record = toRecord(await readSourceJson(dir, SOURCE_WRITTEN_FILE))
+  const digests = Object.fromEntries(
+    Object.entries(toRecord(record.files)).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string'
+    )
+  )
+  const stats: Record<string, FileStat> = {}
+  for (const [path, stat] of Object.entries(toRecord(record.stats))) {
+    const { size, mtimeMs } = toRecord(stat)
+    if (typeof size === 'number' && typeof mtimeMs === 'number') stats[path] = { size, mtimeMs }
+  }
+  return { digests, stats }
+}
+
+/** The blob digests `written` holds with their stats, to carry into the next record. */
+export function recordedStats(written: Written): Map<string, StatDigest> {
+  return new Map(
+    Object.entries(written.stats).flatMap(([path, stat]) =>
+      Object.hasOwn(written.digests, path)
+        ? [[path, { ...stat, sha256: written.digests[path] }] as const]
+        : []
+    )
   )
 }
 
@@ -427,9 +480,9 @@ export async function readWrittenDigests(dir: string): Promise<Record<string, st
  */
 export async function editedFiles(
   dir: string,
-  touched: ReadonlyMap<string, string | null>
+  touched: ReadonlyMap<string, string | null>,
+  written: Written['digests']
 ): Promise<string[]> {
-  const written = await readWrittenDigests(dir)
   const entries = [...touched]
   const texts = await inPool(entries, ([path]) => readSourceText(dir, path))
   return entries.flatMap(([path, next], index) => {
@@ -452,7 +505,7 @@ export async function locallyEditedFiles(
   for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
     touched.set(path, null)
   }
-  return editedFiles(dir, touched)
+  return editedFiles(dir, touched, (await readWritten(dir)).digests)
 }
 
 /**
@@ -515,7 +568,7 @@ export async function writeBack(
     ...Object.entries(answer.files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
-    [SOURCE_WRITTEN_FILE, writtenRecord(answer.files)] as const,
+    [SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const,
     ...extra.write,
   ]
   await updateSourceDir(dir, {

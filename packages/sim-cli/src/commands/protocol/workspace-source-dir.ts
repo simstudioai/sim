@@ -22,11 +22,12 @@ import {
   inPool,
   listSourceFiles,
   readSourceText,
-  readWrittenDigests,
   SOURCE_SDK_DIR,
+  type StatDigest,
+  type Written,
 } from './source-dir'
 import { type LocalDeclarations, type SourceTreeProfile, TSCONFIG_MARKER } from './source-tree'
-import { hashFile } from './workspace-source-blobs'
+import { statDigest } from './workspace-source-blobs'
 
 /** Where the workspace declaration SDK is written: `@sim/workflow-sdk/workspace` resolves here. */
 const WORKSPACE_SDK_DIR = `${SOURCE_SDK_DIR}/workspace`
@@ -190,20 +191,25 @@ export interface WorkspaceSubmission {
   base?: ApplyWorkspaceSourceBody['base']
   /** Files under a kind folder that are not sent: hidden names and unsupported characters. */
   ignored: string[]
+  /** The blobs this read hashed or reused a recorded digest for, with their stats. */
+  hashed: ReadonlyMap<string, StatDigest>
 }
 
 /**
  * Reads the directory for an apply to `workspaceId`. A workflow folder whose every file is as the
  * CLI last wrote it is sent as `unchangedFiles` says (its base alone when it was read from
  * `workspaceId`), so an apply sends only the workflows that were edited, and a copy to another
- * workspace still sends every workflow it creates. Blobs are hashed as streams, and one over the
- * size limit is refused (exit 7) before it is read; a blob `known` already lists (an earlier round
- * of the same apply hashed it) is not read again.
+ * workspace still sends every workflow it creates. `written` is `.sim/written.json` as the command
+ * read it. Blobs are hashed as streams (reusing the digest `written` records for one whose size and
+ * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
+ * read; a blob `known` already lists (an earlier round of the same apply hashed it) is not read
+ * again.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
+  written: Written,
   known: readonly BlobEntry[] = []
 ): Promise<WorkspaceSubmission> {
   const {
@@ -221,12 +227,11 @@ export async function readWorkspaceDir(
     const text = texts[index]
     if (text !== null) files[path] = text
   })
-  const written = await readWrittenDigests(dir)
   const workflowPaths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
   const folders = KIND_LAYOUTS.workflow.group(workflowPaths).groups
   // Files per workflow folder that `.sim/written.json` records.
   const recorded = new Map<string, number>()
-  for (const path of Object.keys(written)) {
+  for (const path of Object.keys(written.digests)) {
     if (kindOfPath(path) !== 'workflow') continue
     const folder = path.split('/', 2).join('/')
     recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
@@ -234,7 +239,7 @@ export async function readWorkspaceDir(
   for (const [key, folderPaths] of folders) {
     const unchanged =
       recorded.get(workflowFolder(key)) === folderPaths.length &&
-      folderPaths.every((path) => written[path] === digest(files[path]))
+      folderPaths.every((path) => written.digests[path] === digest(files[path]))
     if (!unchanged) continue
     const sent = unchangedFiles(
       key,
@@ -245,12 +250,14 @@ export async function readWorkspaceDir(
   }
   const root = await realpath(dir)
   const verified = new Set<string>()
-  const hashed = new Map(known.map((blob) => [blob.path, blob]))
+  const listed = new Map(known.map((blob) => [blob.path, blob]))
+  const hashed = new Map<string, StatDigest>()
   const blobs = await inPool(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const listed = hashed.get(path)
-    if (listed) return listed
+    const entry = listed.get(path)
+    if (entry) return entry
     const file = await checkedPath(root, path, verified)
-    const { size } = await stat(file)
+    const current = await stat(file)
+    const { size } = current
     if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
       throw new SimApiError(
         `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
@@ -260,7 +267,9 @@ export async function readWorkspaceDir(
         SOURCE_TOO_LARGE_EXIT_CODE
       )
     }
-    return { path, ...(await hashFile(file)) }
+    const digested = await statDigest(file, path, current, written)
+    hashed.set(path, digested)
+    return { path, sha256: digested.sha256, size: digested.size }
   })
   const baseText = await readSourceText(dir, WORKSPACE_BASE_FILE)
   let base: ApplyWorkspaceSourceBody['base']
@@ -271,7 +280,7 @@ export async function readWorkspaceDir(
       throw new SimApiError(`${WORKSPACE_BASE_FILE} in ${dir} is not valid JSON.`, 0)
     }
   }
-  return { kinds, files, blobs, ignored, ...(base ? { base } : {}) }
+  return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }
 }
 
 /**

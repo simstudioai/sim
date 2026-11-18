@@ -280,7 +280,9 @@ describe('workspaces source get', () => {
       mkdirSync(join(dir, 'files'), { recursive: true })
       symlinkSync(outside, join(dir, 'files/report.bin'))
 
-      await expect(blobDigests(dir, ['files/report.bin'])).rejects.toMatchObject({
+      await expect(
+        blobDigests(dir, ['files/report.bin'], { digests: {}, stats: {} })
+      ).rejects.toMatchObject({
         code: 'SOURCE_SYMLINK',
       })
       await expect(blobContent(dir, 'files/report.bin')).rejects.toMatchObject({
