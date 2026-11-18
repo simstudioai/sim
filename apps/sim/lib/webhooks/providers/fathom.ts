@@ -152,8 +152,9 @@ export const fathomHandler: WebhookProviderHandler = {
       const signingSecret =
         typeof responseBody.secret === 'string' ? responseBody.secret.trim() : ''
       if (!signingSecret) {
-        logger.error(`Fathom webhook creation returned no signing secret for ${webhook.id}.`, {
+        logger.error('Fathom webhook creation returned no signing secret', {
           requestId,
+          webhookId: webhook.id,
         })
         await deleteOrphanedFathomWebhook(apiKey, String(responseBody.id), requestId)
         throw new Error(
