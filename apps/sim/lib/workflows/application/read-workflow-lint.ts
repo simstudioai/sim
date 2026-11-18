@@ -256,20 +256,41 @@ function hasRuntimeReference(value: string): boolean {
 }
 
 /**
- * Outside Function code a reference resolves to JSON text (objects, numbers, booleans), so
+ * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
  * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
- * Quoting each reference written outside a JSON string lets the Table block's own parser read the
- * literal parts, and the quoted references then reach the existing runtime-resolution notes.
- * Only this lint-local copy is rewritten; references to string outputs left unquoted are reported
- * separately by `collectUnquotedJsonStringReferences`.
+ * Quoting each reference written outside a JSON string lets the Table block's own transform read
+ * the literal parts, and the quoted references then reach the existing runtime-resolution notes.
+ * When the transform's shape validation rejects a quoted reference (a filter `in` list, a
+ * whole-field filter), the fields that only parse once quoted are left out and returned as
+ * `runtimeFields`; malformed literal JSON still throws. Only this lint-local copy is rewritten;
+ * references to string outputs left unquoted are reported by `collectUnquotedJsonStringReferences`.
  */
-function quoteBareReferenceParams(params: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(params).map(([key, value]) => [
-      key,
-      typeof value === 'string' ? quoteBareReferences(value) : value,
-    ])
-  )
+function normalizeTableInputs(
+  transform: (params: Record<string, unknown>) => Record<string, unknown>,
+  params: Record<string, unknown>
+): { normalized: Record<string, unknown>; runtimeFields: string[] } {
+  const quoted: Record<string, unknown> = {}
+  const runtimeFields: string[] = []
+  for (const [key, value] of Object.entries(params)) {
+    quoted[key] = typeof value === 'string' ? quoteBareReferences(value) : value
+    if (quoted[key] !== value && parsesAsJson(quoted[key])) runtimeFields.push(key)
+  }
+  try {
+    return { normalized: transform(quoted), runtimeFields: [] }
+  } catch (error) {
+    if (runtimeFields.length === 0) throw error
+    for (const key of runtimeFields) delete quoted[key]
+    return { normalized: transform(quoted), runtimeFields }
+  }
+}
+
+function parsesAsJson(value: unknown): boolean {
+  try {
+    JSON.parse(String(value))
+    return true
+  } catch {
+    return false
+  }
 }
 
 function quoteBareReferences(json: string): string {
@@ -357,7 +378,13 @@ async function readTableDiagnostics(
     if (!transform) throw new Error('Table input normalization is unavailable')
     let normalized: Record<string, unknown>
     try {
-      normalized = transform(quoteBareReferenceParams(params))
+      const inputs = normalizeTableInputs(transform, params)
+      normalized = inputs.normalized
+      if (inputs.runtimeFields.length > 0) {
+        result.notes.push(
+          `Table inputs in block "${block.name || blockId}" depend on references resolved at runtime and were not checked: ${inputs.runtimeFields.join(', ')}.`
+        )
+      }
     } catch (error) {
       result.notes.push(
         `Table input checks in block "${block.name || blockId}" could not complete before runtime: ${getErrorMessage(error)}`

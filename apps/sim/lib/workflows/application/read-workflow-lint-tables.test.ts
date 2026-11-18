@@ -41,6 +41,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 
 const mocks = {
   snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
@@ -256,11 +257,49 @@ describe('standalone table diagnostics against the actual Table block', () => {
     ])
   })
 
-  it('checks literal filter fields around a bare reference value', async () => {
-    setGraph(block('query', { filter: '{"name": <start.name>, "other": {"$gt": <start.n>}}' }))
-    const result = await lint()
-    expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
-    expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+  describe('with the registered TableV2Block predicate grammar', () => {
+    beforeEach(() => {
+      mockGetBlock.mockImplementation((type: string) =>
+        type === 'table_v2' ? TableV2Block : undefined
+      )
+    })
+
+    it('checks literal predicate fields around a bare reference value', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"name","op":"eq","value":<start.name>},{"field":"other","op":"gt","value":<start.n>}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+    })
+
+    it.each([
+      ['an in-list', '{"field":"name","op":"in","value":<start.names>}'],
+      ['a whole-field', '<start.filter>'],
+    ])(
+      'notes %s filter reference as runtime-resolved and still checks literal row data',
+      async (_shape, filter) => {
+        setGraph(
+          block('write', {
+            operation: 'update_rows_by_filter',
+            bulkFilterMode: 'json',
+            filter,
+            data: '{"name":"Ada","missing":1}',
+          })
+        )
+        const result = await lint()
+        expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+        expect(result.notes).toContain(
+          'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+        )
+        expect(
+          result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+        ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+      }
+    )
   })
 
   it.each([
