@@ -893,9 +893,10 @@ def redact_batch(req: RedactBatchRequest) -> dict[str, list[str]]:
             ).text
         )
     logger.info(
-        "redact_batch lang=%s texts=%d entities=%s nlp=%s spans=%d duration_ms=%.1f",
+        "redact_batch lang=%s texts=%d chars=%d entities=%s nlp=%s spans=%d duration_ms=%.1f",
         req.language,
         len(req.texts),
+        sum(map(len, req.texts)),
         len(entities) if entities else "all",
         "skip" if _regex_only(entities, req.score_threshold) else "full",
         total_spans,

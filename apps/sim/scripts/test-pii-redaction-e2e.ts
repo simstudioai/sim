@@ -18,6 +18,9 @@ import { getErrorMessage } from '@sim/utils/errors'
  * - Presidio masks names and an email on both sides of a long unbroken run of
  *   brackets in place, within seconds; spaCy's own tokenizer needs time quadratic
  *   in such a run's length.
+ * - Presidio masks every one of thousands of emails in one text within seconds;
+ *   Presidio before 2.2.365 compared every match with every other one when removing
+ *   duplicates and resolving overlaps.
  * - A persisted log holding a 5M-character base64 PDF and a 3M-character text that
  *   names a person at the end: the PDF becomes the binary marker without reaching
  *   Presidio, the name is masked by real NER, and no request fails.
@@ -35,6 +38,8 @@ if (!reportPath) throw new Error('PII_E2E_REPORT_PATH must be explicitly provide
 const SPACY_MAX_LENGTH = 1_000_000
 /** Where Presidio's first NER window ends (`NER_WINDOW_CHARS` in apps/pii/server.py). */
 const FIRST_NER_WINDOW_END = 100_000
+/** Matches in one text: past the pairwise-comparison cost of Presidio before 2.2.365. */
+const MANY_MATCHES = 15_000
 
 const FILLER = 'The quarterly report covers revenue, costs, and the hiring plan.\n'
 const NAME_SENTENCE = 'Please send questions to Ada Lovelace before Friday.'
@@ -142,6 +147,31 @@ async function main(): Promise<void> {
   const pdfBase64 = pdfBytes.toString('base64')
   const longText = `${FILLER.repeat(Math.ceil(3_000_000 / FILLER.length))}${NAME_SENTENCE}`
 
+  /**
+   * Masks one text with a `/redact_batch` request sent straight to Presidio. A
+   * `timeoutMs` makes a request that runs longer fail its check.
+   */
+  const redactWithPresidio = async (
+    request: { text: string } & Record<string, unknown>,
+    timeoutMs?: number
+  ): Promise<string> => {
+    const { text, ...options } = request
+    const response = await realFetch(new URL('/redact_batch', presidioUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ texts: [text], language: 'en', ...options }),
+      signal: timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs),
+    })
+    const body = await response.text()
+    assert.equal(
+      response.status,
+      200,
+      `Presidio answered ${response.status}: ${body.slice(0, 200)}`
+    )
+    const [masked] = (JSON.parse(body) as { texts: string[] }).texts
+    return masked
+  }
+
   await check('Presidio masks a text longer than one NER pass allows', async () => {
     const prose = (length: number) =>
       FILLER.repeat(Math.ceil(length / FILLER.length)).slice(0, length)
@@ -153,23 +183,11 @@ async function main(): Promise<void> {
       'badge EMP 123456 issued\n' +
       prose(SPACY_MAX_LENGTH) +
       NAME_SENTENCE
-    const response = await realFetch(new URL('/redact_batch', presidioUrl), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        texts: [text],
-        language: 'en',
-        entities: ['PERSON'],
-        patterns: [{ regex: 'EMP\\s+\\d{6}', replacement: 'EMPLOYEE_ID', name: 'Employee ID' }],
-      }),
+    const masked = await redactWithPresidio({
+      text,
+      entities: ['PERSON'],
+      patterns: [{ regex: 'EMP\\s+\\d{6}', replacement: 'EMPLOYEE_ID', name: 'Employee ID' }],
     })
-    const body = await response.text()
-    assert.equal(
-      response.status,
-      200,
-      `Presidio answered ${response.status}: ${body.slice(0, 200)}`
-    )
-    const [masked] = (JSON.parse(body) as { texts: string[] }).texts
     assert(
       masked.includes(`${lead}<PERSON> before Friday.`),
       'The name across the first NER window edge was not masked as one <PERSON> span'
@@ -184,23 +202,7 @@ async function main(): Promise<void> {
     const run = `${'['.repeat(20_000)}${']'.repeat(20_000)}`
     const after = '   　Write to ada@example.com today.\n'
     const text = `${NAME_SENTENCE} ${run}${after}${NAME_SENTENCE}`
-    const response = await realFetch(new URL('/redact_batch', presidioUrl), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        texts: [text],
-        language: 'en',
-        entities: ['PERSON', 'EMAIL_ADDRESS'],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    })
-    const body = await response.text()
-    assert.equal(
-      response.status,
-      200,
-      `Presidio answered ${response.status}: ${body.slice(0, 200)}`
-    )
-    const [masked] = (JSON.parse(body) as { texts: string[] }).texts
+    const masked = await redactWithPresidio({ text, entities: ['PERSON', 'EMAIL_ADDRESS'] }, 30_000)
     const maskedSentence = 'Please send questions to <PERSON> before Friday.'
     assert.equal(
       masked,
@@ -208,6 +210,18 @@ async function main(): Promise<void> {
       'PII around the run was not masked in place'
     )
     return { textChars: text.length }
+  })
+
+  await check('Presidio masks a text with thousands of matches within seconds', async () => {
+    const rows = Array.from({ length: MANY_MATCHES }, (_, i) => `row ${i}: ada${i}@example.com\n`)
+    const text = rows.join('')
+    const masked = await redactWithPresidio({ text, entities: ['EMAIL_ADDRESS'] }, 30_000)
+    assert.equal(
+      masked,
+      rows.map((_, i) => `row ${i}: <EMAIL_ADDRESS>\n`).join(''),
+      'An email was not masked in place'
+    )
+    return { textChars: text.length, matches: MANY_MATCHES }
   })
 
   await check('A persisted log replaces the PDF and masks the long text', async () => {
