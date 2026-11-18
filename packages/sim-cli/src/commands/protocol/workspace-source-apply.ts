@@ -1,16 +1,11 @@
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
+import { APPLY_ORDER, KIND_DIRS } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
-import {
-  SOURCE_LOCKED_EXIT_CODE,
-  SOURCE_PARTIAL_EXIT_CODE,
-  SOURCE_STALE_EXIT_CODE,
-  SOURCE_TOO_LARGE_EXIT_CODE,
-} from '../../exit-codes'
+import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody, ApplyWorkspaceSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
@@ -26,7 +21,13 @@ import {
   writtenFile,
   writtenRecord,
 } from './source-dir'
-import { confirm, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
+import {
+  confirm,
+  printNewDiagnostics,
+  printRefusal,
+  refusedExitCode,
+  requireConsent,
+} from './source-ui'
 import {
   appliedBlobDigests,
   assertBlobsFetched,
@@ -58,10 +59,12 @@ secret the workspace has no value for or a declared credential key nothing binds
 was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than
 the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary
 files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
-5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again
-into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is
-too large; 8 the apply stopped part-way (a resource failed): what was written is saved into the
-directory, and applying again continues; 9 rate limited (HTTP 429) after the CLI's retries,
+5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE:
+get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the
+directory is too large; 8 the apply stopped part-way on a server failure: what was written is
+saved into the directory, and applying again continues. An apply a resource refused part-way
+(stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1;
+9 rate limited (HTTP 429) after the CLI's retries,
 before anything was written: wait a minute and apply again (binary files already uploaded are
 not sent again).`
 
@@ -73,21 +76,16 @@ const SYMBOLS: Record<Change['action'], string> = {
   noop: ' ',
 }
 
-/** The exit code of each refusal class, as a commit's refusal maps to it: 5, 6, 7, else 1. */
-const REFUSAL_EXIT_CODES: Record<RefusalClass, number> = {
-  conflict: SOURCE_STALE_EXIT_CODE,
-  locked: SOURCE_LOCKED_EXIT_CODE,
-  payload_too_large: SOURCE_TOO_LARGE_EXIT_CODE,
-  validation: 1,
-}
-
-/** The exit status of a dry run that found errors: the status a commit's refusal maps to. */
-function refusedExitCode(diagnostics: ApplyData['diagnostics']): number {
-  return REFUSAL_EXIT_CODES[
-    refusalClass(
-      diagnostics.filter((finding) => finding.severity === 'error').map((finding) => finding.code)
-    )
-  ]
+/**
+ * The exit status of an apply that stopped part-way: a server failure (`E_APPLY_FAILED`) is 8,
+ * since applying again continues; a write refused part-way exits as a commit refused for the
+ * same finding would (a resource changed or deleted since the plan 5, locked 6, too large 7,
+ * else 1), since applying again would only refuse again.
+ */
+function failedExitCode(failed: NonNullable<ApplyData['failed']>): number {
+  return failed.code === 'E_APPLY_FAILED'
+    ? SOURCE_PARTIAL_EXIT_CODE
+    : refusedExitCode([{ code: failed.code, severity: 'error' }])
 }
 
 /** Whether `finding` is about a change the plan holds back, which refuses nothing else. */
@@ -371,7 +369,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       }
       if (data.failed) {
         printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
-        setSoftExitCode(SOURCE_PARTIAL_EXIT_CODE)
+        setSoftExitCode(failedExitCode(data.failed))
       }
       printProtocolResult(profile.output, summarize(data))
     })

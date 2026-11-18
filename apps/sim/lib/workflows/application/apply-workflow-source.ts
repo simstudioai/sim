@@ -24,6 +24,7 @@ import {
   withCatalogBlockScope,
 } from '@/lib/catalog/application/context'
 import { principalAuditSource } from '@/lib/core/application'
+import type { DbTransaction } from '@/lib/db/types'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -164,6 +165,12 @@ export interface CreateWorkflowFromSourceInput extends SourceSubmission {
   description?: string | null
   /** Containing folder path; the workspace root when omitted. */
   folderPath?: string
+  /**
+   * Runs inside the create's transaction once the workflow and its graph are written, so what it
+   * writes (a workspace source apply binding the folder's key) commits or rolls back with the
+   * workflow. In-process only, never on a wire contract.
+   */
+  withinCreate?: (tx: DbTransaction, workflowId: string) => Promise<void>
 }
 
 interface ApplyWorkflowSourceResult {
@@ -224,6 +231,7 @@ type SourceApplyTarget =
       workflowId: string
       create: { name?: string; description?: string | null }
       folderId: string | null
+      withinCreate?: CreateWorkflowFromSourceInput['withinCreate']
     }
 
 /**
@@ -312,6 +320,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
             ...(input.description !== undefined ? { description: input.description } : {}),
           },
           folderId,
+          ...(input.withinCreate ? { withinCreate: input.withinCreate } : {}),
         }
       )
     } catch (error) {
@@ -690,7 +699,12 @@ async function runSourceApply(
 
     const committed =
       target.kind === 'new'
-        ? await commitSourceCreate({ scope, plan, folderId: target.folderId })
+        ? await commitSourceCreate({
+            scope,
+            plan,
+            folderId: target.folderId,
+            ...(target.withinCreate ? { withinCreate: target.withinCreate } : {}),
+          })
         : {
             ...(await commitSourceReplace({
               scope,

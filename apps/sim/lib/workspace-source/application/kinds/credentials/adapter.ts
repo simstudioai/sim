@@ -2,9 +2,9 @@
  * Credentials as workspace source: `credentials.ts` binds each key a workflow names
  * (`credential('slack')`) to one of this workspace's saved credentials, by provider, never by
  * token. A reference kind: an apply never creates, changes or deletes a credential; it only binds
- * and unbinds keys (`workspace_resource_key`), and lists credentials through
- * `listWorkspaceCredentials`, so the caller binds only what their credential listing shows (a
- * workspace API key, the shared ones).
+ * and unbinds keys, through `bindCredentialKey` and `releaseCredentialKey` (write, audited), and
+ * lists credentials through `listWorkspaceCredentials`, so the caller binds only what their
+ * credential listing shows (a workspace API key, the shared ones), which each bind re-checks.
  *
  * For each declared key, in key order:
  * - bound to a credential that fits (the declared provider, and `name` when declared): a no-op;
@@ -32,8 +32,12 @@ import {
 } from '@sim/workspace-code/kinds/credentials'
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
 import type { CursorKey } from '@/lib/api/list-query'
+import {
+  bindCredentialKey,
+  releaseCredentialKey,
+} from '@/lib/credentials/application/credential-keys'
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
-import { kindFinding, where } from '@/lib/workspace-source/application/findings'
+import { kindFinding, reboundFinding, where } from '@/lib/workspace-source/application/findings'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
@@ -42,7 +46,7 @@ import type {
   StoredResource,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
-import { claimResourceKey, releaseResourceKey, resolveIds } from '@/lib/workspaces/resource-keys'
+import { resolveIds } from '@/lib/workspaces/resource-keys'
 
 /** A stored credential as source sees it: the provider it is for, never a token. */
 interface StoredCredential {
@@ -283,50 +287,53 @@ export const credentialAdapter: KindAdapter<CredentialsDecl, StoredCredential, C
   },
 
   async authorize(change, ctx) {
-    // Binding a key changes no credential: the caller may bind what their listing shows, which
-    // the plan already read through `listWorkspaceCredentials`; re-check that it still admits them.
     if (change.action === 'noop') return
-    await listWorkspaceCredentials.authorize({
+    const workspaceId = ctx.workspace.workspaceId
+    const credentialId = change.storedId ?? ''
+    if (change.action === 'delete') {
+      await releaseCredentialKey.authorize({
+        principal: ctx.principal,
+        input: { workspaceId, key: change.key, credentialId },
+      })
+      return
+    }
+    await bindCredentialKey.authorize({
       principal: ctx.principal,
-      input: {
-        workspaceId: ctx.workspace.workspaceId,
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
-        limit: 1,
-      },
+      input: { workspaceId, key: change.key, credentialId },
     })
   },
 
   async apply(change, ctx) {
+    const { principal } = ctx
     const { workspaceId } = ctx.workspace
     const credentialId = change.storedId
     if (!credentialId) throw new Error('A credential binding needs the credential id')
     if (change.action === 'delete') {
-      await releaseResourceKey({
-        workspaceId,
-        kind: 'credential',
-        key: change.key,
-        resourceId: credentialId,
+      await releaseCredentialKey.execute({
+        principal,
+        input: { workspaceId, key: change.key, credentialId },
       })
       return { id: credentialId, text: {} }
     }
-    if (change.action === 'update') {
-      await claimResourceKey({
-        workspaceId,
-        kind: 'credential',
-        key: change.key,
-        resourceId: credentialId,
-        origin: 'adopted',
-        createdBy: ctx.createdBy,
-        ...(change.detail?.boundTo ? { takeFrom: change.detail.boundTo } : {}),
-      })
-    }
     const entry = change.detail?.entry
     if (!entry) throw new Error('A credential binding needs its declaration')
+    const bound = await bindCredentialKey.execute({
+      principal,
+      input: {
+        workspaceId,
+        key: change.key,
+        credentialId,
+        ...(change.detail?.boundTo ? { takeFrom: change.detail.boundTo } : {}),
+      },
+    })
     return {
       id: credentialId,
       base: { id: credentialId, fingerprint: credentialFingerprint(entry) },
       text: {},
+      ...(change.action === 'adopt' && bound.claim === 'rebound'
+        ? { diagnostics: [reboundFinding('credential', change.key)] }
+        : {}),
+      keyClaimed: true,
     }
   },
 

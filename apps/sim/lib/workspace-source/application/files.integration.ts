@@ -19,6 +19,7 @@ import {
   user,
   workspaceFiles,
   workspaceFileVersion,
+  workspaceResourceKey,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -57,6 +58,7 @@ import { findMissingSourceBlobs } from '@/lib/workspace-source/application/stage
 import {
   blobManifest,
   codes,
+  failKeyClaims,
   type ManifestBlob,
   refusal,
   sourceChecks,
@@ -922,6 +924,32 @@ export default workflow('Reader', {}, () => {
           .filter((finding) => finding.severity === 'error')
           .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
       ).toEqual(['E_PLAN_REF_DELETED workflow:reader'])
+    }
+  )
+  check(
+    'a file create whose key claim fails leaves no file behind, so applying again creates and keys it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = { 'files/claim-crash.pdf': Buffer.from('%PDF-1.4 a claim') }
+      const restore = await failKeyClaims('claim-crash-pdf')
+      const crashed = await apply(workspaceId, files).finally(restore)
+
+      expect(crashed.failed).toMatchObject({ kind: 'file', key: 'claim-crash.pdf' })
+      expect(await storedFiles(workspaceId)).toEqual([])
+
+      const again = await apply(workspaceId, files)
+      expect(again.failed).toBeUndefined()
+      const [binding] = await db
+        .select({ resourceId: workspaceResourceKey.resourceId })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'file'),
+            eq(workspaceResourceKey.key, 'claim-crash-pdf')
+          )
+        )
+      expect(binding?.resourceId).toBe(fileId(again.base, 'claim-crash.pdf'))
     }
   )
 })

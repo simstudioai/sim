@@ -767,6 +767,9 @@ export async function commitFileCreateInTx(
   return inserted
 }
 
+/** Writes that commit with a new workspace file: run in its create transaction, given its id. */
+export type WorkspaceFileCreateHook = (tx: DbTransaction, fileId: string) => Promise<void>
+
 /**
  * Upload a file to workspace-scoped storage
  */
@@ -782,6 +785,11 @@ export async function uploadWorkspaceFile(
     exactName?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
+    /**
+     * Runs inside the create's transaction once the file row is inserted, so what it writes
+     * commits or rolls back with the file.
+     */
+    withinCreate?: WorkspaceFileCreateHook
   }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
@@ -859,6 +867,7 @@ export async function uploadWorkspaceFile(
           secretProvenance: options?.secretProvenance,
         })
         const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
+        await options?.withinCreate?.(tx, inserted.id)
         return { inserted, updatedUsage: usage, billing: accounting.billing }
       })
 

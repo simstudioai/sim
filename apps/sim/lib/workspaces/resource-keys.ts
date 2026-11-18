@@ -17,7 +17,7 @@ import { compareStrings, slugify } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 /**
@@ -263,6 +263,30 @@ export async function readKeysByResource(
   return new Map(rows.map((row) => [row.resourceId, row.key]))
 }
 
+/**
+ * The resource `key` is bound to, live or not, or null when it is free; locks the binding for the
+ * rest of `tx`, so what a claim or release in it replaces is what this read.
+ */
+export async function lockKeyHolder(
+  tx: DbTransaction,
+  workspaceId: string,
+  kind: ResourceKind,
+  key: string
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ resourceId: workspaceResourceKey.resourceId })
+    .from(workspaceResourceKey)
+    .where(
+      and(
+        eq(workspaceResourceKey.workspaceId, workspaceId),
+        eq(workspaceResourceKey.kind, kind),
+        eq(workspaceResourceKey.key, key)
+      )
+    )
+    .for('update')
+  return row?.resourceId ?? null
+}
+
 async function readTakenKeys(
   executor: DbOrTx,
   workspaceId: string,
@@ -483,7 +507,8 @@ export type ResourceKeyClaim = 'bound' | 'kept' | 'rebound'
  * declared resource and applying again re-creates it under the same key. A key held by another
  * live resource throws {@link ResourceKeyTakenError}, unless `takeFrom` names that resource: then
  * the key moves off it (a source that rebinds a key on purpose). A key the resource held before
- * (allocated by a get) is replaced, since the source now names it. Runs in one transaction.
+ * (allocated by a get) is replaced, since the source now names it. Runs in one transaction: `tx`
+ * when given, so the claim commits or rolls back with the write that made the resource.
  */
 export async function claimResourceKey(input: {
   workspaceId: string
@@ -494,9 +519,11 @@ export async function claimResourceKey(input: {
   createdBy: string | null
   /** The live resource the key may be moved off; any other live holder still refuses. */
   takeFrom?: string
+  /** The transaction to claim in, instead of a transaction of its own. */
+  tx?: DbTransaction
 }): Promise<ResourceKeyClaim> {
   const { workspaceId, kind, key, resourceId } = input
-  return db.transaction(async (tx) => {
+  const claim = async (tx: DbTransaction): Promise<ResourceKeyClaim> => {
     const [holder] = await tx
       .select({ id: workspaceResourceKey.id, resourceId: workspaceResourceKey.resourceId })
       .from(workspaceResourceKey)
@@ -543,7 +570,8 @@ export async function claimResourceKey(input: {
       updatedAt: now,
     })
     return 'bound'
-  })
+  }
+  return input.tx ? claim(input.tx) : db.transaction(claim)
 }
 
 /**

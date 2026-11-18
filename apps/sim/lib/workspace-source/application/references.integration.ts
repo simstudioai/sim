@@ -5,7 +5,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { credential, user, workflow, workspaceResourceKey } from '@sim/db/schema'
+import { auditLog, credential, user, workflow, workspaceResourceKey } from '@sim/db/schema'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -16,6 +16,10 @@ import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
+import {
+  bindCredentialKey,
+  releaseCredentialKey,
+} from '@/lib/credentials/application/credential-keys'
 import { setSecretUseCase } from '@/lib/secrets/application/use-cases'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -33,8 +37,10 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 const ownerId = generateId()
 const readerId = generateId()
+const writerId = generateId()
 const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const reader = createSessionPrincipal({ userId: readerId, sessionId: generateId() })
+const writer = createSessionPrincipal({ userId: writerId, sessionId: generateId() })
 const { check, writeReport } = sourceChecks(
   'WORKSPACE_SOURCE_REFERENCES_REPORT_PATH',
   'workspace-source-references.json'
@@ -246,7 +252,7 @@ beforeAll(async () => {
   )
   const now = new Date()
   await db.insert(user).values(
-    [ownerId, readerId].map((id) => ({
+    [ownerId, readerId, writerId].map((id) => ({
       id,
       name: 'Workspace source references fixture',
       email: `${id}@workspace-source-references.invalid`,
@@ -260,7 +266,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await writeReport()
   await workspaces.cleanup()
-  await db.delete(user).where(inArray(user.id, [ownerId, readerId]))
+  await db.delete(user).where(inArray(user.id, [ownerId, readerId, writerId]))
 })
 
 describe('workspace source: secrets and credentials', () => {
@@ -515,6 +521,102 @@ export default defineCredentials({})
     const [kept] = await db.select().from(credential).where(eq(credential.id, slackId))
     expect(kept?.displayName).toBe('Acme Slack')
   })
+
+  check(
+    'binding, rebinding and releasing a credential key each record who moved it where',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const acmeId = await addSlackCredential(workspaceId, 'Acme Slack')
+      const opsId = await addSlackCredential(workspaceId, 'Ops Slack')
+      const picking = (name: string) => ({
+        'credentials.ts': CREDENTIALS(`{ provider: 'slack', name: '${name}' }`),
+      })
+      const bound = await apply(workspaceId, picking('Acme Slack'))
+      const rebound = await apply(workspaceId, picking('Ops Slack'), { base: bound.base })
+      expect(actions(rebound.applied)).toEqual(['update credential:slack'])
+      const released = await apply(
+        workspaceId,
+        {
+          'credentials.ts': `// @sim-sdk 1
+import { defineCredentials } from '@sim/workflow-sdk/workspace'
+
+export default defineCredentials({})
+`,
+        },
+        { base: rebound.base, allowDelete: true }
+      )
+      expect(actions(released.applied)).toEqual(['delete credential:slack'])
+
+      await vi.waitFor(async () => {
+        const rows = await db
+          .select({
+            action: auditLog.action,
+            actorId: auditLog.actorId,
+            resourceId: auditLog.resourceId,
+            metadata: auditLog.metadata,
+          })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.workspaceId, workspaceId),
+              inArray(auditLog.action, ['credential_key.bound', 'credential_key.released'])
+            )
+          )
+          .orderBy(auditLog.createdAt)
+        expect(rows).toMatchObject([
+          {
+            action: 'credential_key.bound',
+            actorId: ownerId,
+            resourceId: acmeId,
+            metadata: { key: 'slack', credentialId: acmeId, previousCredentialId: null },
+          },
+          {
+            action: 'credential_key.bound',
+            actorId: ownerId,
+            resourceId: opsId,
+            metadata: { key: 'slack', credentialId: opsId, previousCredentialId: acmeId },
+          },
+          {
+            action: 'credential_key.released',
+            actorId: ownerId,
+            resourceId: opsId,
+            metadata: { key: 'slack', credentialId: opsId },
+          },
+        ])
+      })
+    }
+  )
+
+  check(
+    'a credential key binds only for a writer, and only to a credential the writer sees',
+    async () => {
+      const workspaceId = await workspaces.create({
+        name: 'Workspace source references',
+        ownerId,
+        members: [
+          { userId: readerId, permission: 'read' },
+          { userId: writerId, permission: 'write' },
+        ],
+      })
+      const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
+      const input = { workspaceId, key: 'slack', credentialId: slackId }
+
+      await expect(bindCredentialKey.execute({ principal: reader, input })).rejects.toMatchObject({
+        code: 'forbidden',
+      })
+      // A shared credential a writer holds no membership of is not theirs to bind or release.
+      await expect(bindCredentialKey.execute({ principal: writer, input })).rejects.toMatchObject({
+        code: 'not_found',
+      })
+      expect(await boundKey(workspaceId, 'slack')).toBeUndefined()
+
+      await bindCredentialKey.execute({ principal: owner, input })
+      await expect(
+        releaseCredentialKey.execute({ principal: writer, input })
+      ).rejects.toMatchObject({ code: 'not_found' })
+      expect(await boundKey(workspaceId, 'slack')).toBe(slackId)
+    }
+  )
 
   check('a get prints both files, and applying them back changes nothing', async () => {
     const workspaceId = await newWorkspace()

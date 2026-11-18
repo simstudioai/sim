@@ -18,7 +18,7 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
-import { finding } from '@/lib/workspace-source/application/findings'
+import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -106,7 +106,11 @@ function writeOrder(changes: PlannedChange[]): PlannedChange[] {
   ]
 }
 
-/** A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. */
+/**
+ * A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. A resource
+ * the change found when planning that is gone by its write (deleted since) is stale, like one that
+ * changed: getting the directory again shows what the server holds now.
+ */
 function failureOf(
   error: unknown,
   change: PlannedChange
@@ -119,6 +123,13 @@ function failureOf(
     return {
       failed: { ...resource, code: 'E_APPLY_REFUSED', message: error.message },
       diagnostics: error.diagnostics,
+    }
+  }
+  if (isRefusal(error) && error.code === 'not_found' && change.action !== 'create') {
+    const message = `${change.kind} ${change.key} was deleted on the server while this apply ran.`
+    return {
+      failed: { ...resource, code: 'E_APPLY_STALE', message },
+      diagnostics: [finding('E_APPLY_STALE', message, { hint: GET_HINT, ...resource })],
     }
   }
   if (isRefusal(error)) {
@@ -140,7 +151,9 @@ function failureOf(
  * Writes one change the way every kind's write is enveloped: an update, adopt or delete whose
  * plan recorded the resource's fingerprint first re-reads it and refuses one that moved since
  * (`E_APPLY_STALE`), and a write that binds a source key claims it only once it succeeded, so a
- * failed write leaves the key free and the next apply adopts the resource by name.
+ * failed write leaves the key free and the next apply adopts the resource by name. A write no
+ * later apply could adopt (a workflow create) claims its key in its own transaction instead
+ * (`keyClaimed`).
  */
 async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
   const adapter = KIND_ADAPTERS[change.kind]
@@ -154,7 +167,7 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
     (adapter.keys === 'every-write'
       ? change.action !== 'delete'
       : change.action === 'create' || change.action === 'adopt')
-  if (!claims) return written
+  if (!claims || written.keyClaimed) return written
   const claimed = await claimKey(change, ctx, written.id)
   return claimed.length > 0
     ? { ...written, diagnostics: [...(written.diagnostics ?? []), ...claimed] }
