@@ -34,6 +34,7 @@ import {
 } from '@/lib/workspace-source/application/findings'
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { warnDeployedDraftChanges } from '@/lib/workspace-source/application/kinds/deployment/adapter'
+import { refuseDeletingEveryWorkflow } from '@/lib/workspace-source/application/kinds/workflow/adapter'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
@@ -384,8 +385,10 @@ export async function planWorkspaceSource(
   }
 
   resolveRefsById(changes)
-  // Holds first: a held workflow keeps its stored references, which the delete checks then read.
+  // Holds first: a held workflow keeps its stored references and creates nothing, which the
+  // delete checks then read.
   holdUnavailable(changes)
+  await refuseDeletingEveryWorkflow(changes, workspaceId)
   await warnDeployedDraftChanges(changes, ctx)
   await checkDeletesInUse(changes, unchanged, workspaceId)
   for (const kind of APPLY_ORDER) {

@@ -347,6 +347,25 @@ describe('workspace source: secrets and credentials', () => {
   )
 
   check(
+    'refuses deleting the last workflow when the create replacing it is held back',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, { 'workflows/plain/workflow.ts': PLAIN })
+      expect(created.failed).toBeUndefined()
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { 'secrets.ts': SECRETS(), 'workflows/ask/workflow.ts': ASK },
+          { base: created.base, allowDelete: true }
+        )
+      )
+      expect(findings(refused.diagnostics)).toContain('E_APPLY_REFUSED workflow:plain')
+      expect(await liveWorkflowNames(workspaceId)).toEqual(['Plain'])
+    }
+  )
+
+  check(
     'a description edit updates the secret; a server edit since the base is stale',
     async () => {
       const workspaceId = await newWorkspace()
