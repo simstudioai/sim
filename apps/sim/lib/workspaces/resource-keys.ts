@@ -64,9 +64,13 @@ type LiveResourceLoader = (
 
 /**
  * Reads the live resources among `ids` in one workspace: archived, deleted and foreign rows are
- * left out. A kind without a loader has no workspace table to check and never resolves.
+ * left out. Every kind is listed, so a new one fails to compile until it has a loader; `null`
+ * marks a kind with no workspace table to check, whose keys never resolve.
  */
-const LIVE_RESOURCE_LOADERS: Partial<Record<ResourceKind, LiveResourceLoader>> = {
+const LIVE_RESOURCE_LOADERS: Record<ResourceKind, LiveResourceLoader | null> = {
+  'knowledge-document': null,
+  'custom-block': null,
+  sandbox: null,
   table: (executor, workspaceId, ids) =>
     executor
       .select({

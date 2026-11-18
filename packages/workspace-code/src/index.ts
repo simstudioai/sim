@@ -26,3 +26,4 @@ export {
   type PrintedDeclaration,
   type WorkspaceKind,
 } from './kind'
+export { WORKSPACE_KIND_SPECS } from './specs'

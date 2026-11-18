@@ -12,11 +12,11 @@ import {
   type KindCodec,
   type ResourceFingerprint,
   resourceAddress,
+  WORKSPACE_KIND_SPECS,
   type WorkspaceKind,
 } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  NOUNS,
   nameHolder,
   nameTakenFinding,
   planUndeclared,
@@ -195,15 +195,17 @@ export async function applyNamed<D extends object, S>(
   writes: NamedWrites<D, S>
 ): Promise<AppliedResource> {
   if (change.action === 'delete') {
-    if (!change.storedId) throw new Error(`A ${NOUNS[named.kind]} delete needs the stored id`)
+    if (!change.storedId)
+      throw new Error(`A ${WORKSPACE_KIND_SPECS[named.kind].noun} delete needs the stored id`)
     await writes.remove(change.storedId)
     return { id: change.storedId, text: {} }
   }
   const decl = change.decl
-  if (!decl) throw new Error(`A ${NOUNS[named.kind]} write needs its declaration`)
+  if (!decl)
+    throw new Error(`A ${WORKSPACE_KIND_SPECS[named.kind].noun} write needs its declaration`)
   if (change.action === 'create') return writtenRecord(named, change.key, await writes.create(decl))
   const id = change.storedId
-  if (!id) throw new Error(`A ${NOUNS[named.kind]} update needs the stored id`)
+  if (!id) throw new Error(`A ${WORKSPACE_KIND_SPECS[named.kind].noun} update needs the stored id`)
   const changed = writtenFields(change)
   const fields = Object.fromEntries(
     Object.entries(decl).filter(([field]) => changed.includes(field))
@@ -238,7 +240,7 @@ export function readRecord<D, S>(named: NamedKind<D, S>, record: StoredResource<
   if (!parsed.decl || fingerprintOf(named.codec.canonical(parsed.decl)) !== fingerprint) {
     throw new OrchestrationError(
       'validation',
-      `This ${NOUNS[named.kind]} holds a value source files cannot express, so it is left out.`
+      `This ${WORKSPACE_KIND_SPECS[named.kind].noun} holds a value source files cannot express, so it is left out.`
     )
   }
   return { text: printed.text, blobs: [], base: { id: record.id, fingerprint } }
