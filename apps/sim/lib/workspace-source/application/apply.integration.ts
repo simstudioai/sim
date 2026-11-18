@@ -1300,6 +1300,31 @@ export default workflow('Notes', {}, () => {
     }
   )
 
+  check('moves a one-per-table column type from one column to another in one apply', async () => {
+    const workspaceId = await newWorkspace()
+    const declare = (ttl: 'a' | 'b') => ({
+      'tables/pairs.ts': PAIRS.replace(
+        'a: column.string(),\n    b: column.string(),',
+        ttl === 'a'
+          ? 'a: column.ttl(),\n    b: column.string(),'
+          : 'a: column.string(),\n    b: column.ttl(),'
+      ),
+    })
+    const types = async () =>
+      (await storedTable(workspaceId)).schema.columns.map((column) => [column.name, column.type])
+    const created = await apply(workspaceId, declare('b'), { kinds: ['table'], only: ['table'] })
+    expect(created.failed).toBeUndefined()
+
+    const moved = await apply(workspaceId, declare('a'), { base: created.base, only: ['table'] })
+    const back = await apply(workspaceId, declare('b'), { base: moved.base, only: ['table'] })
+
+    expect([moved.failed, back.failed]).toEqual([undefined, undefined])
+    expect(await types()).toEqual([
+      ['a', 'string'],
+      ['b', 'ttl'],
+    ])
+  })
+
   check(
     'an adopt whose changes fail leaves the table unbound and unchanged, and a re-run adopts it',
     async () => {
