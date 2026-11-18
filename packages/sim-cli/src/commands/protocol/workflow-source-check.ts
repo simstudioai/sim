@@ -44,6 +44,7 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
   'W_UNKNOWN_OPTION',
   'W_UNKNOWN_OUTPUT_PATH',
   'W_VALUE_KIND',
+  'W_OUT_OF_RANGE',
   'W_LITERAL_SECRET',
   'W_TABLE_UNKNOWN_COLUMN',
 ])
