@@ -498,6 +498,14 @@ describe('standalone table diagnostics against the actual Table block', () => {
     )
   })
 
+  it('reports a filter group made only of references as not checked', async () => {
+    setGraph(block('query', { filter: '{"all":[<start.a>,<start.b>]}' }))
+    const result = await lint()
+    expect(result.notes).toContain(
+      'Table filter in block "query" is not a static query object; its column references were not checked.'
+    )
+  })
+
   it('does not treat dynamic field names as missing columns', async () => {
     setGraph(block('query', { sort: '{"<start.column>":"asc"}' }))
     const result = await lint()

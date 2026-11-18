@@ -295,8 +295,9 @@ function normalizeTableInputs(
  * with the same text is never mistaken for one. A quoted reference fits row values and most
  * filter values; the value of an `in`/`nin` condition must be a list, so it becomes a one-item
  * list, and a condition or group made only of references has no literal part, so it is left out
- * of an `all`/`any` group that keeps a literal member. `runtimeOnly` marks a field whose whole
- * value is such a reference or group.
+ * of an `all`/`any` group that keeps a literal member. A field whose whole value is such a
+ * reference or group has nothing to check before runtime, so its text becomes one JSON string,
+ * the same shape a whole-field reference takes, and `runtimeOnly` marks it.
  */
 function withReferencePlaceholders(json: string): { value: string; runtimeOnly: boolean } {
   const nonce = generateShortId()
@@ -340,7 +341,8 @@ function withReferencePlaceholders(json: string): { value: string; runtimeOnly: 
       })
     )
   }
-  return { value: JSON.stringify(adapt(parsed)), runtimeOnly: isDynamic(parsed) }
+  if (isDynamic(parsed)) return { value: JSON.stringify(json), runtimeOnly: true }
+  return { value: JSON.stringify(adapt(parsed)), runtimeOnly: false }
 }
 
 function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {
