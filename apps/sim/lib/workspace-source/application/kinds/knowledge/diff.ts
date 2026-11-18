@@ -10,10 +10,10 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BaseResource } from '@sim/workspace-code'
 import {
-  DEFAULT_CHUNKING,
   type KnowledgeBaseDecl,
   type KnowledgeChunkingDecl,
   type KnowledgeDocDecl,
+  resolvedChunking,
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
@@ -69,15 +69,7 @@ const KIND = 'knowledge-base'
 
 /** The full chunking settings a declaration resolves to. */
 export function chunkingConfig(chunking: KnowledgeChunkingDecl | undefined): ChunkingConfig {
-  return {
-    maxSize: chunking?.maxSize ?? DEFAULT_CHUNKING.maxSize,
-    minSize: chunking?.minSize ?? DEFAULT_CHUNKING.minSize,
-    overlap: chunking?.overlap ?? DEFAULT_CHUNKING.overlap,
-    ...(chunking?.strategy !== undefined ? { strategy: chunking.strategy } : {}),
-    ...(chunking?.strategyOptions !== undefined
-      ? { strategyOptions: chunking.strategyOptions }
-      : {}),
-  }
+  return resolvedChunking(chunking)
 }
 
 /**

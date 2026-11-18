@@ -98,11 +98,16 @@ export interface TableDecl {
   columns: Record<string, TableColumnDecl>
 }
 
-/** Table and column names (`NAME_PATTERN` in apps/sim/lib/table/constants). */
-const TABLE_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
-const MAX_TABLE_NAME_LENGTH = 128
-const MAX_COLUMN_NAME_LENGTH = 50
-const MAX_DESCRIPTION_LENGTH = 500
+/**
+ * Table and column name and description rules. Mirrors `NAME_PATTERN` and `TABLE_LIMITS`
+ * (apps/sim/lib/table/constants), which an apps/sim test holds this equal to.
+ */
+export const TABLE_TEXT_RULES = {
+  namePattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
+  maxTableName: 128,
+  maxColumnName: 50,
+  maxDescription: 500,
+} as const
 const CURRENCY_CODE = /^[A-Za-z]{3}$/
 
 /**
@@ -147,7 +152,7 @@ export function isDeclarableColumnKey(name: string): boolean {
  */
 export function suffixedColumnKey(name: string, suffix: number): string {
   const tail = `_${suffix}`
-  return `${name.slice(0, MAX_COLUMN_NAME_LENGTH - tail.length)}${tail}`
+  return `${name.slice(0, TABLE_TEXT_RULES.maxColumnName - tail.length)}${tail}`
 }
 
 /** The declaration file of table `key`. */
@@ -265,12 +270,12 @@ function readColumn(
 }
 
 function checkColumnName(name: string, pointer: string, report: FieldReport): void {
-  if (!TABLE_NAME_PATTERN.test(name) || name.length > MAX_COLUMN_NAME_LENGTH) {
+  if (!TABLE_TEXT_RULES.namePattern.test(name) || name.length > TABLE_TEXT_RULES.maxColumnName) {
     report(
       'E_TABLE_COLUMN_NAME',
       pointer,
       `"${name}" is not a valid column name.`,
-      `A column name starts with a letter or \`_\`, holds letters, digits and \`_\`, and is at most ${MAX_COLUMN_NAME_LENGTH} characters.`
+      `A column name starts with a letter or \`_\`, holds letters, digits and \`_\`, and is at most ${TABLE_TEXT_RULES.maxColumnName} characters.`
     )
   }
 }
@@ -362,9 +367,9 @@ const tableNameField: DeclField<string | undefined> = {
   read(value, field, pointer, report) {
     const name = readStringField(value, field, pointer, report, {
       required: true,
-      maxLength: MAX_TABLE_NAME_LENGTH,
+      maxLength: TABLE_TEXT_RULES.maxTableName,
     })
-    if (name !== undefined && !TABLE_NAME_PATTERN.test(name)) {
+    if (name !== undefined && !TABLE_TEXT_RULES.namePattern.test(name)) {
       report(
         'E_DECL_SHAPE',
         fieldPointer(pointer, field),
@@ -436,7 +441,7 @@ export function createTableCodec(catalog: TableColumnCatalog): KindCodec<TableDe
   const fields: DeclFields<TableDecl> = {
     name: tableNameField,
     description: stringField(
-      { maxLength: MAX_DESCRIPTION_LENGTH },
+      { maxLength: TABLE_TEXT_RULES.maxDescription },
       (description) => description || null
     ),
     folder: folderField('/reports'),

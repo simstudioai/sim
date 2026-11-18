@@ -40,9 +40,20 @@ import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { filePathProblem, foldedFileKey } from './files'
 import { groupByFolder } from './group'
 
-/** Chunking strategies (`ChunkingStrategy` in apps/sim/lib/chunkers/types). */
-const CHUNKING_STRATEGIES = ['auto', 'text', 'regex', 'recursive', 'sentence', 'token'] as const
-const RECURSIVE_RECIPES = ['plain', 'markdown', 'code'] as const
+/**
+ * Chunking strategies. Mirrors `ChunkingStrategy` (apps/sim/lib/chunkers/types), which an apps/sim
+ * test holds this equal to, as it does every mirrored constant here.
+ */
+export const CHUNKING_STRATEGIES = [
+  'auto',
+  'text',
+  'regex',
+  'recursive',
+  'sentence',
+  'token',
+] as const
+/** Recursive chunking recipes. Mirrors `RecursiveRecipe` (apps/sim/lib/chunkers/types). */
+export const RECURSIVE_RECIPES = ['plain', 'markdown', 'code'] as const
 
 /** How a knowledge base splits its documents into chunks. */
 export interface KnowledgeChunkingDecl {
@@ -88,7 +99,7 @@ export interface KnowledgeBaseDecl {
 export const DEFAULT_CHUNKING = { maxSize: 1024, minSize: 100, overlap: 200 } as const
 
 /** Mirrors `KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH` (apps/sim/lib/knowledge/constants). */
-const MAX_DESCRIPTION_LENGTH = 10_000
+export const KNOWLEDGE_DESCRIPTION_MAX_LENGTH = 10_000
 
 const CALLEE = 'defineKnowledgeBase'
 const DECLARATION_FILE = 'knowledge.ts'
@@ -112,21 +123,19 @@ export function isKnowledgeDocName(name: string): boolean {
   return !name.includes('/') && filePathProblem(name) === null
 }
 
-/** A chunk size: a whole number, fingerprinted as `fallback` when not declared. */
-function sizeField(fallback: number): DeclField<number | undefined> {
-  return {
-    read(value, field, pointer, report) {
-      const raw = value[field]
-      if (raw === undefined) return undefined
-      if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0) {
-        report('E_DECL_SHAPE', fieldPointer(pointer, field), `"${field}" must be a whole number.`)
-        return undefined
-      }
-      return raw
-    },
-    print: asDeclared,
-    canonical: (size) => size ?? fallback,
-  }
+/** A chunk size: a whole number. */
+const sizeField: DeclField<number | undefined> = {
+  read(value, field, pointer, report) {
+    const raw = value[field]
+    if (raw === undefined) return undefined
+    if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 0) {
+      report('E_DECL_SHAPE', fieldPointer(pointer, field), `"${field}" must be a whole number.`)
+      return undefined
+    }
+    return raw
+  },
+  print: asDeclared,
+  canonical: asDeclared,
 }
 
 /** One of `allowed`, fingerprinted as declared or as `null` when not. */
@@ -176,9 +185,9 @@ const STRATEGY_OPTION_FIELDS: DeclFields<StrategyOptionsDecl> = {
 }
 
 const CHUNKING_FIELDS: DeclFields<KnowledgeChunkingDecl> = {
-  maxSize: sizeField(DEFAULT_CHUNKING.maxSize),
-  minSize: sizeField(DEFAULT_CHUNKING.minSize),
-  overlap: sizeField(DEFAULT_CHUNKING.overlap),
+  maxSize: sizeField,
+  minSize: sizeField,
+  overlap: sizeField,
   strategy: enumField(CHUNKING_STRATEGIES),
   strategyOptions: objectField(STRATEGY_OPTION_FIELDS, (options) => {
     const canonical = canonicalFields(STRATEGY_OPTION_FIELDS, options ?? {})
@@ -193,7 +202,7 @@ const CHUNKING_FIELDS: DeclFields<KnowledgeChunkingDecl> = {
 const KNOWLEDGE_FIELDS: DeclFields<Omit<KnowledgeBaseDecl, 'docs'>> = {
   name: stringField({ required: true }),
   description: stringField(
-    { maxLength: MAX_DESCRIPTION_LENGTH },
+    { maxLength: KNOWLEDGE_DESCRIPTION_MAX_LENGTH },
     (description) => description || null
   ),
   folder: folderField('/support'),
@@ -338,9 +347,26 @@ function groupKnowledge(paths: readonly string[]) {
   return grouped
 }
 
-/** The chunking a declaration resolves to: undeclared sizes are the defaults. */
-export function canonicalChunking(chunking: Partial<KnowledgeChunkingDecl> | undefined): Json {
-  return canonicalFields(CHUNKING_FIELDS, chunking ?? {})
+/**
+ * The chunking a knowledge base gets from a declaration: what it declares, with each undeclared
+ * size the default. An apply creates and updates with it, and the fingerprint is taken of it, so
+ * an undeclared and a spelled-out default agree.
+ */
+export function resolvedChunking(
+  chunking: KnowledgeChunkingDecl | undefined
+): KnowledgeChunkingDecl &
+  Pick<Required<KnowledgeChunkingDecl>, 'maxSize' | 'minSize' | 'overlap'> {
+  return {
+    ...chunking,
+    maxSize: chunking?.maxSize ?? DEFAULT_CHUNKING.maxSize,
+    minSize: chunking?.minSize ?? DEFAULT_CHUNKING.minSize,
+    overlap: chunking?.overlap ?? DEFAULT_CHUNKING.overlap,
+  }
+}
+
+/** The canonical JSON of the chunking a declaration resolves to ({@link resolvedChunking}). */
+export function canonicalChunking(chunking: KnowledgeChunkingDecl | undefined): Json {
+  return canonicalFields(CHUNKING_FIELDS, resolvedChunking(chunking))
 }
 
 /** A document's path, `knowledge/<key>/docs/<name>`: the kind's only binary files. */
