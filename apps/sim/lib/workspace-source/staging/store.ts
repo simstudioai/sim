@@ -109,13 +109,13 @@ export function assertStagingFits(
   if (usage.count + adding.count > maxStagedBlobs) {
     throw new OrchestrationError(
       'payload_too_large',
-      `Staging ${adding.count} more binary files would hold ${usage.count + adding.count}, over the ${maxStagedBlobs}-file limit. Apply what is staged first, or wait for it to expire.`
+      `Staging ${adding.count} more binary files would hold ${usage.count + adding.count}, over the ${maxStagedBlobs}-file limit. Staged files expire a day after their last use.`
     )
   }
   if (usage.bytes + adding.bytes > maxStagedBytes) {
     throw new OrchestrationError(
       'payload_too_large',
-      `Staging ${adding.bytes} more bytes would hold ${usage.bytes + adding.bytes}, over the ${maxStagedBytes}-byte limit. Apply what is staged first, or wait for it to expire.`
+      `Staging ${adding.bytes} more bytes would hold ${usage.bytes + adding.bytes}, over the ${maxStagedBytes}-byte limit. Staged files expire a day after their last use.`
     )
   }
 }
@@ -232,19 +232,6 @@ export async function readStagedBlob(blob: StagedBlob): Promise<Buffer> {
     throw new Error('A staged blob no longer matches its SHA-256')
   }
   return bytes
-}
-
-/** Removes the staged blobs among `hashes` (rows, then objects): an apply consumed them. */
-export async function releaseStagedBlobs(
-  target: StagingScope,
-  hashes: readonly string[]
-): Promise<void> {
-  if (hashes.length === 0) return
-  const removed = await db
-    .delete(workspaceSourceStagedBlob)
-    .where(and(inScope(target), inArray(workspaceSourceStagedBlob.sha256, [...new Set(hashes)])))
-    .returning({ storageKey: workspaceSourceStagedBlob.storageKey })
-  await removeObjects(removed.map((row) => row.storageKey))
 }
 
 /**

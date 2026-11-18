@@ -26,7 +26,6 @@ import {
   type WorkspaceSourceSubmission,
 } from '@/lib/workspace-source/application/plan'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
-import { stagingScopeOf } from '@/lib/workspace-source/application/stage-blobs'
 import type {
   AppliedResource,
   ApplyContext,
@@ -34,7 +33,7 @@ import type {
   PlannedChange,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { readStagedBlob, releaseStagedBlobs } from '@/lib/workspace-source/staging/store'
+import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('ApplyWorkspaceSource')
@@ -228,13 +227,6 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         result.diagnostics.push(...failure.diagnostics)
         break
       }
-    }
-    // Staged bytes the apply wrote are released; after a failure they stay for the retry.
-    if (!result.failed) {
-      await releaseStagedBlobs(
-        stagingScopeOf(principal, context.workspaceId),
-        [...plan.staged.values()].map((blob) => blob.sha256)
-      )
     }
     result.base = base
     logger.info('Applied workspace source', {

@@ -52,6 +52,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
+import { createWorkspaceFileBufferByPath } from '@/lib/workspace-files/application/write-workspace-file-by-path'
 import { findMissingSourceBlobs } from '@/lib/workspace-source/application/stage-blobs'
 import {
   blobManifest,
@@ -456,7 +457,8 @@ describe('workspace source files', () => {
       ).toEqual(['E_BLOB_MISSING files/big/c.bin'])
       expect(await storedFiles(workspaceId)).toEqual(before)
 
-      // The resumed upload asks first: only c.bin is missing, so only c.bin is sent.
+      // The resumed upload asks first: only c.bin is missing (notes.txt stays staged from the
+      // set-up apply), so only c.bin is sent.
       const missing = await withPermissionGroupScope(() =>
         findMissingSourceBlobs.execute({
           principal: owner,
@@ -464,8 +466,7 @@ describe('workspace source files', () => {
         })
       )
       const c = manifest.find((blob) => blob.path === 'files/big/c.bin')
-      const notes = manifest.find((blob) => blob.path === 'files/notes.txt')
-      expect(missing.missing.sort()).toEqual([c?.sha256, notes?.sha256].sort())
+      expect(missing.missing).toEqual([c?.sha256])
       await stageBlobsAs(owner, workspaceId, [
         { sha256: c?.sha256 ?? '', content: directory['files/big/c.bin'].toString('base64') },
       ])
@@ -489,18 +490,54 @@ describe('workspace source files', () => {
         'c.bin',
         'notes.txt',
       ])
-      // What the apply wrote is released from staging.
+      // What the apply wrote stays staged until it expires, so applying it again uploads nothing.
       const after = await withPermissionGroupScope(() =>
         findMissingSourceBlobs.execute({
           principal: owner,
           input: { workspaceId, blobs: manifest.map(({ sha256, size }) => ({ sha256, size })) },
         })
       )
-      expect(after.missing).toHaveLength(manifest.length)
+      expect(after.missing).toEqual([])
 
       const settled = await apply(workspaceId, directory, { base: applied.base, dryRun: true })
       expect(settled.plan.every((change) => change.action === 'noop')).toBe(true)
       expect(settled.needBlobs).toEqual([])
+    }
+  )
+
+  check(
+    'two applies by one caller sharing a staged blob: the one that finishes first never takes the bytes the other still has to write',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const shared = Buffer.from('bytes both applies write')
+      const first: Record<string, Buffer> = {
+        'files/first/lead.txt': Buffer.from('written before the pause'),
+        'files/first/shared.txt': shared,
+      }
+      const second: Record<string, Buffer> = { 'files/second/shared.txt': shared }
+      const create = createWorkspaceFileBufferByPath.execute
+      let interleaved: Promise<unknown> | null = null
+      // The first apply pauses at its first write, after it planned with the shared blob; the
+      // second apply runs to completion meanwhile.
+      const paused = vi
+        .spyOn(createWorkspaceFileBufferByPath, 'execute')
+        .mockImplementationOnce(async (...args) => {
+          interleaved = apply(workspaceId, second)
+          await interleaved
+          return create(...args)
+        })
+
+      const result = await apply(workspaceId, first).finally(() => paused.mockRestore())
+      const other = (await interleaved) as Awaited<ReturnType<typeof apply>>
+
+      expect(other.failed).toBeUndefined()
+      expect(result.failed).toBeUndefined()
+      expect(summary(result.applied)).toEqual(['create first/lead.txt', 'create first/shared.txt'])
+      expect((await storedFiles(workspaceId)).map((file) => file.name).sort()).toEqual([
+        'lead.txt',
+        'shared.txt',
+        'shared.txt',
+      ])
     }
   )
 

@@ -197,9 +197,12 @@ against its hash before staging it, so a staged blob is verified bytes. The plan
 blobs its writes need against the staging area once, before any write: a missing one (never
 staged, expired, or staged at another size) refuses the whole apply with `E_BLOB_MISSING`, and a
 dry run lists such paths in `needBlobs` instead. Writes then read each blob from staging one at a
-time (rechecking its hash), and a complete apply releases what it consumed; after a failure the
-staged blobs stay, so the retry uploads nothing. The server plans once per apply, whatever the
-directory's size.
+time (rechecking its hash). An apply never deletes what it read: staged blobs are reclaimed only
+by expiry, a day after their last use (staging, asking for, or planning with them). Deleting them
+when an apply finished would take bytes from a concurrent apply by the same caller that planned
+with the same blob and has not written it yet, and no point in an apply can tell that no other one
+still needs them; leaving them also means a retry, or the next apply of the same bytes, uploads
+nothing. The server plans once per apply, whatever the directory's size.
 
 Staging (`apps/sim/lib/workspace-source/staging/store.ts`, use cases in
 `application/stage-blobs.ts`) is scoped to the workspace and the caller (a person's credentials
