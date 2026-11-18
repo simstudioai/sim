@@ -269,15 +269,18 @@ export interface FetchedBlob {
 /**
  * The listed blob's bytes in `downloads`: the copy a failed get kept there when it still matches
  * the listing (one that does not is discarded), else a fresh download, which is kept under its
- * name once verified. A download cut short leaves nothing behind.
+ * name once verified. The download streams into `partial`, this get's own folder inside
+ * `downloads`, as does a verified blob no later get could reuse, so removing that one folder (on an
+ * interrupt too) leaves only the kept copies behind.
  */
 export async function fetchBlob(
   client: OperationClient<'downloadFile' | 'downloadKnowledgeDocument'>,
   blob: ListedBlob,
-  downloads: string
+  downloads: string,
+  partial: string
 ): Promise<FetchedBlob> {
   const name = keptName(blob)
-  const file = join(downloads, name ?? `${generateShortId()}.bin`)
+  const file = name === null ? join(partial, `${generateShortId()}.bin`) : join(downloads, name)
   if (name !== null) {
     try {
       const kept = await hashFile(file)
@@ -289,7 +292,7 @@ export async function fetchBlob(
       if (!isMissing(error)) throw error
     }
   }
-  const part = `${file}.${generateShortId()}.part`
+  const part = join(partial, `${generateShortId()}.part`)
   let sha256: string
   try {
     sha256 = await downloadBlob(client, blob, part)

@@ -351,6 +351,50 @@ describe('workspaces source get', () => {
         expect(readFileSync(join(dir, 'files/copy-of-a.bin'))).toEqual(bytesOf('a.bin'))
       })
 
+      it('removes its partial downloads on an interrupt and keeps the verified ones', async () => {
+        serve({}, { kinds: ['file'], blobs: ['a.bin', 'b.bin'].map((name) => listedNamed(name)) })
+        let cut: (error: Error) => void = () => {}
+        requestRaw.mockImplementation(async (path: string) => {
+          const name = path.slice('/api/v2/files/file_'.length)
+          if (name === 'a.bin') return new Response(bytesOf(name))
+          const half = bytesOf(name).subarray(0, 4)
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(half)
+                cut = (error) => controller.error(error)
+              },
+            })
+          )
+        })
+        // The real handler re-raises the signal, which would end the test runner with it.
+        const kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
+        const downloadsDir = join(dir, '.sim/downloads')
+        const entries = () =>
+          existsSync(downloadsDir) ? readdirSync(downloadsDir, { recursive: true }).map(String) : []
+
+        /** The verified downloads kept for the next get: named by a hex digest, at the top. */
+        const keptCopies = () => entries().filter((entry) => /^[0-9a-f]{64}$/.test(entry))
+
+        const running = get()
+        try {
+          await vi.waitFor(() => {
+            expect(entries().some((entry) => entry.endsWith('.part'))).toBe(true)
+            expect(keptCopies()).toHaveLength(1)
+          })
+          process.emit('SIGINT')
+
+          expect(kill).toHaveBeenCalledWith(process.pid, 'SIGINT')
+          expect(entries().some((entry) => entry.endsWith('.part'))).toBe(false)
+          expect(keptCopies()).toHaveLength(1)
+          expect(readFileSync(join(downloadsDir, keptCopies()[0]))).toEqual(bytesOf('a.bin'))
+        } finally {
+          cut(new Error('interrupted'))
+          await running.catch(() => {})
+          kill.mockRestore()
+        }
+      })
+
       it('never reuses a download listed with neither a hash nor a revision', async () => {
         const blobs = NAMES.map((name) => listedNamed(name, { sha256: undefined }))
         serve({}, { kinds: ['file'], blobs })
