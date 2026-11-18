@@ -90,7 +90,8 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
       },
     },
     method: 'POST',
-    url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/upsert`,
+    url: (params) =>
+      `${params.indexHost}/records/namespaces/${encodeURIComponent(params.namespace.trim())}/upsert`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/x-ndjson',

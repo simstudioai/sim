@@ -42,7 +42,8 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
 
   request: {
     method: 'PUT',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${encodeURIComponent(params.collection)}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

@@ -57,7 +57,8 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
 
   request: {
     method: 'POST',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${encodeURIComponent(params.collection)}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

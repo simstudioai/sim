@@ -22,6 +22,7 @@ function selectRerankModelInput(
   const rerank = parseRerank(value)
   if (!rerank) return undefined
   const query = rerank.query
+  if (typeof query === 'string') return { query }
   if (
     query === null ||
     typeof query !== 'object' ||
@@ -132,7 +133,8 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       },
     },
     method: 'POST',
-    url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
+    url: (params) =>
+      `${params.indexHost}/records/namespaces/${encodeURIComponent(params.namespace?.trim() || '__default__')}/search`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/json',
@@ -162,11 +164,13 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       }
 
       if (params.rerank) {
-        body.rerank = typeof params.rerank === 'string' ? JSON.parse(params.rerank) : params.rerank
-        // If rerank query is not specified, use the search query
-        if (!body.rerank.query) {
-          body.rerank.query = { text: params.searchQuery }
-        }
+        const rerank = parseRerank(params.rerank)
+        const rerankQuery = rerank?.query
+        // Pinecone takes `rerank.query` as a string and falls back to the search query when unset.
+        body.rerank =
+          rerankQuery !== null && typeof rerankQuery === 'object' && !Array.isArray(rerankQuery)
+            ? { ...rerank, query: (rerankQuery as Record<string, unknown>).text }
+            : rerank
       }
 
       return body
