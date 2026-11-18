@@ -6,6 +6,7 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { toRecord } from '@sim/utils/object'
 import {
   SDK_GUIDE_FILE,
   SOURCE_COMPILER_OPTIONS,
@@ -44,6 +45,7 @@ import {
   digest,
   FILE_CONCURRENCY,
   listSourceFiles,
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR,
   type StatDigest,
@@ -344,6 +346,26 @@ export async function kindFolders(
     }
   }
   return { present, paths, ignored }
+}
+
+/**
+ * Refuses a directory a workspace command would find nothing in, so a mistyped `--dir` or a
+ * workflow folder fails instead of passing with nothing checked or applied.
+ */
+export async function assertWorkspaceDir(dir: string): Promise<void> {
+  const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
+  if (typeof base.workflowId === 'string') {
+    throw new SimApiError(
+      `${dir} is a workflow source directory: use \`sim workflows source\` (check, apply) with --dir ${dir}.`,
+      0
+    )
+  }
+  const { present } = await kindFolders(dir, APPLY_ORDER)
+  if (present.length > 0) return
+  throw new SimApiError(
+    `${dir} holds no workspace source (no kind folder such as ${KIND_DIRS.workflow}/ or ${KIND_DIRS.table}/). Point --dir at a directory \`sim workspaces source get\` wrote, or write one with \`sim workspaces source get --dir ${dir}\`.`,
+    0
+  )
 }
 
 /**

@@ -121,4 +121,31 @@ describe('sim workspaces source check', () => {
       message: expect.stringContaining('sim workspaces source get'),
     })
   })
+
+  it('refuses a directory that holds no workspace source instead of checking nothing', async () => {
+    const error = await check('--dir', join(dir, 'typo')).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining('holds no workspace source'),
+    })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses a workflow folder, naming the workflow check', async () => {
+    writeFile('workflows/first/workflow.ts', insertWorkflow())
+    writeFile(
+      'workflows/first/.sim/base.json',
+      JSON.stringify({ workflowId: 'wf_first', workspaceId: WORKSPACE_ID })
+    )
+
+    const error = await check('--dir', join(dir, 'workflows/first')).catch(
+      (caught: unknown) => caught
+    )
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining(
+        'is a workflow source directory: use `sim workflows source`'
+      ),
+    })
+  })
 })

@@ -126,6 +126,16 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('refuses a directory holding no workspace source before sending anything', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    rmSync(join(dir, 'workflows'), { recursive: true })
+
+    const error = await apply('--yes').catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ message: expect.stringContaining('holds no workspace source') })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('sends a workflow folder whole only when it was edited since the CLI wrote it', async () => {
     write(
       '.sim/written.json',

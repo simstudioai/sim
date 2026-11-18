@@ -35,6 +35,7 @@ import {
   stageBlobs,
 } from './workspace-source-blobs'
 import {
+  assertWorkspaceDir,
   assertWorkspacePaths,
   readWorkspaceDir,
   type WorkspaceSubmission,
@@ -258,6 +259,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
+      await assertWorkspaceDir(options.dir)
       const { client, profile } = connect()
       const workspaceId = client.requireWorkspace()
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {

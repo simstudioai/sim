@@ -387,6 +387,16 @@ export function attachWorkflowSourceCheck(source: Command): void {
     .action(async (options: { dir: string } & StrictOptions, command: Command) => {
       const profile = profileFrom(command)
       const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
+      if (
+        typeof base.workspaceId === 'string' &&
+        base.workflowId === undefined &&
+        (await readSourceText(options.dir, SOURCE_ENTRY_FILE)) === null
+      ) {
+        throw new SimApiError(
+          `${options.dir} is a workspace source directory: check it with \`sim workspaces source check --dir ${options.dir}\`.`,
+          0
+        )
+      }
       const workspace = await workspaceRootOf(options.dir)
       const workspaceId =
         typeof base.workspaceId === 'string'

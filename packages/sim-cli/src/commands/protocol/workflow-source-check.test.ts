@@ -237,6 +237,18 @@ describe('sim workflows source check', () => {
     expect((error as SimApiError).message).toContain('sim workflows source get')
   })
 
+  it('points a workspace root at the workspace check', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    writeWorkflowFolder('notify', workspaceWorkflow())
+
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).message).toContain(
+      `is a workspace source directory: check it with \`sim workspaces source check --dir ${dir}\``
+    )
+  })
+
   it('reads the workspace root .sim/base.json from a new workflow folder that has none', async () => {
     cacheCatalog()
     writeWorkspace()
