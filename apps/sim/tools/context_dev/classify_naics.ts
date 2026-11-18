@@ -65,7 +65,7 @@ export const contextDevClassifyNaicsTool: ToolConfig<
       appendParam(url.searchParams, 'input', params.input)
       appendParam(url.searchParams, 'minResults', params.minResults)
       appendParam(url.searchParams, 'maxResults', params.maxResults)
-      appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+      appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
       return url.toString()
     },
     headers: (params) => contextDevHeaders(params.apiKey),

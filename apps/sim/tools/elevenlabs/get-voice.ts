@@ -1,6 +1,7 @@
 import type { ElevenLabsGetVoiceParams, ElevenLabsGetVoiceResponse } from '@/tools/elevenlabs/types'
 import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const elevenLabsGetVoiceTool: ToolConfig<
   ElevenLabsGetVoiceParams,
@@ -28,7 +29,8 @@ export const elevenLabsGetVoiceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.elevenlabs.io/v1/voices/${params.voiceId.trim()}`,
+    url: (params) =>
+      `https://api.elevenlabs.io/v1/voices/${safeUrlPathSegment(params.voiceId, 'voiceId')}`,
     method: 'GET',
     headers: (params) => ({
       'xi-api-key': params.apiKey,

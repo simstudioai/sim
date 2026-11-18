@@ -13,6 +13,7 @@ import {
   workflowExecutionRef,
 } from '@/tools/temporal/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const queryWorkflowTool: ToolConfig<
   TemporalQueryWorkflowParams,
@@ -72,7 +73,7 @@ export const queryWorkflowTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/query/${encodeURIComponent(params.queryType.trim())}`,
+      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/query/${safeUrlPathSegment(params.queryType, 'queryType', { allowSeparators: true })}`,
     method: 'POST',
     headers: (params) => temporalRequestHeaders(params),
     body: (params) => {

@@ -25,7 +25,8 @@ const organizationAvailabilityOperation = defineOrganizationOperation({
   principalKinds: ['session'],
 })
 
-const workspaceAvailability = defineAuthorizedWorkspaceUseCase({
+/** Whether the permission group governing this workspace lets its chats use computer use. */
+export const workspaceComputerUseAvailability = defineAuthorizedWorkspaceUseCase({
   operation: workspaceAvailabilityOperation,
   resolveContext: ({ input }: { input: { workspaceId: string } }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
@@ -40,7 +41,8 @@ const workspaceAvailability = defineAuthorizedWorkspaceUseCase({
     )),
 })
 
-const organizationAvailability = defineAuthorizedOrganizationUseCase({
+/** Whether this organization's default permission group lets its chats use computer use. */
+export const organizationComputerUseAvailability = defineAuthorizedOrganizationUseCase({
   operation: organizationAvailabilityOperation,
   execute: async ({ input }: { input: { organizationId: string } }) =>
     // permission-group-enforced: computer_use.use — an availability read answers false rather than 403
@@ -59,6 +61,6 @@ export function isComputerUseAvailableFor(
   owner: ComputerUseOwner
 ): Promise<boolean> {
   return 'organizationId' in owner
-    ? organizationAvailability.execute({ principal, input: owner })
-    : workspaceAvailability.execute({ principal, input: owner })
+    ? organizationComputerUseAvailability.execute({ principal, input: owner })
+    : workspaceComputerUseAvailability.execute({ principal, input: owner })
 }

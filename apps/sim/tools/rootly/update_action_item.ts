@@ -2,8 +2,10 @@ import type {
   RootlyUpdateActionItemParams,
   RootlyUpdateActionItemResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyUpdateActionItemTool: ToolConfig<
   RootlyUpdateActionItemParams,
@@ -73,7 +75,8 @@ export const rootlyUpdateActionItemTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/action_items/${params.actionItemId.trim()}`,
+    url: (params) =>
+      `https://api.rootly.com/v1/action_items/${safeUrlPathSegment(params.actionItemId, 'actionItemId')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -92,7 +95,7 @@ export const rootlyUpdateActionItemTool: ToolConfig<
       }
       if (params.dueDate) attributes.due_date = params.dueDate
       return {
-        data: { type: 'incident_action_items', id: params.actionItemId.trim(), attributes },
+        data: { type: 'incident_action_items', id: String(params.actionItemId).trim(), attributes },
       }
     },
   },
@@ -103,7 +106,7 @@ export const rootlyUpdateActionItemTool: ToolConfig<
       return {
         success: false,
         output: { actionItem: {} as RootlyUpdateActionItemResponse['output']['actionItem'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

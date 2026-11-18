@@ -4,6 +4,7 @@ import type {
   PineconeSearchTextParams,
 } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function parseRerank(
   value: PineconeSearchTextParams['rerank']
@@ -22,6 +23,7 @@ function selectRerankModelInput(
   const rerank = parseRerank(value)
   if (!rerank) return undefined
   const query = rerank.query
+  if (typeof query === 'string') return { query }
   if (
     query === null ||
     typeof query !== 'object' ||
@@ -132,7 +134,8 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       },
     },
     method: 'POST',
-    url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
+    url: (params) =>
+      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace ?? '', 'namespace', { allowSeparators: true, preserveWhitespace: true })}/search`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/json',
@@ -162,11 +165,16 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       }
 
       if (params.rerank) {
-        body.rerank = typeof params.rerank === 'string' ? JSON.parse(params.rerank) : params.rerank
-        // If rerank query is not specified, use the search query
-        if (!body.rerank.query) {
-          body.rerank.query = { text: params.searchQuery }
-        }
+        const { query: rerankQuery, ...rerank } = parseRerank(params.rerank) ?? {}
+        const queryText =
+          rerankQuery !== null && typeof rerankQuery === 'object' && !Array.isArray(rerankQuery)
+            ? (rerankQuery as Record<string, unknown>).text
+            : rerankQuery
+        // Pinecone takes `rerank.query` as a string and reranks against the search query when unset.
+        body.rerank =
+          typeof queryText === 'string' && queryText.trim()
+            ? { ...rerank, query: queryText }
+            : rerank
       }
 
       return body

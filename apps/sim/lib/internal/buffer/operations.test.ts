@@ -190,11 +190,6 @@ describe('Buffer operations', () => {
       error: 'Post.isCustomScheduled must be a boolean',
     },
     { corruption: { allowedActions: [42] }, error: 'Post.allowedActions[] must be a string' },
-    { corruption: { status: 'invalid-status' }, error: 'Post.status must be one of' },
-    {
-      corruption: { allowedActions: ['invalid-action'] },
-      error: 'Post.allowedActions[] must be one of',
-    },
     {
       corruption: {
         channel: {

@@ -4,6 +4,12 @@ import { sleep } from '@sim/utils/helpers'
 import { z } from 'zod'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   BrowserUseRunTaskParams,
@@ -101,6 +107,25 @@ async function fetchBrowserUse(
   return response
 }
 
+function readBrowserUseJson(response: Response, signal?: AbortSignal): Promise<unknown> {
+  return readResponseJsonWithLimit(response, {
+    maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+    label: 'Browser Use response',
+    signal,
+  })
+}
+
+function readBrowserUseErrorText(response: Response, signal?: AbortSignal): Promise<string> {
+  return readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: 'Browser Use error response',
+    signal,
+  }).catch(() => {
+    signal?.throwIfAborted()
+    return response.statusText
+  })
+}
+
 async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
   if (!signal) {
     await sleep(POLL_INTERVAL_MS)
@@ -135,12 +160,12 @@ async function createSessionWithProfile(
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorText = await readBrowserUseErrorText(response, signal)
       logger.error(`Failed to create session with profile: ${errorText}`)
       return { error: `Failed to create session with profile: ${response.statusText}` }
     }
 
-    const parsed = createSessionResponseSchema.safeParse(await response.json())
+    const parsed = createSessionResponseSchema.safeParse(await readBrowserUseJson(response, signal))
     signal?.throwIfAborted()
     if (!parsed.success) {
       logger.error('BrowserUse returned an invalid create-session response')
@@ -186,7 +211,9 @@ async function fetchSessionLiveUrl(
     if (!response.ok) {
       return { liveUrl: null, publicShareUrl: null }
     }
-    const parsed = sessionDetailsResponseSchema.safeParse(await response.json())
+    const parsed = sessionDetailsResponseSchema.safeParse(
+      await readBrowserUseJson(response, signal)
+    )
     signal?.throwIfAborted()
     if (!parsed.success) {
       logger.warn(`BrowserUse returned an invalid session response for ${sessionId}`)
@@ -291,7 +318,7 @@ async function fetchTaskStatus(
       return { ok: false, error: `HTTP ${response.status}: ${response.statusText}` }
     }
 
-    const parsed = taskStatusResponseSchema.safeParse(await response.json())
+    const parsed = taskStatusResponseSchema.safeParse(await readBrowserUseJson(response, signal))
     signal?.throwIfAborted()
     if (!parsed.success) {
       return { ok: false, error: 'BrowserUse returned an invalid task-status response' }
@@ -455,7 +482,7 @@ async function createShareUrl(
       return null
     }
 
-    const parsed = shareResponseSchema.safeParse(await response.json())
+    const parsed = shareResponseSchema.safeParse(await readBrowserUseJson(response, signal))
     signal?.throwIfAborted()
     if (!parsed.success) {
       logger.warn(`BrowserUse returned an invalid share response for session ${sessionId}`)
@@ -510,7 +537,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorText = await readBrowserUseErrorText(response, signal)
       logger.error(`Failed to create task: ${errorText}`)
       return {
         success: false,
@@ -519,7 +546,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
       }
     }
 
-    const parsed = createTaskResponseSchema.safeParse(await response.json())
+    const parsed = createTaskResponseSchema.safeParse(await readBrowserUseJson(response, signal))
     signal?.throwIfAborted()
     if (!parsed.success) {
       logger.error('BrowserUse returned an invalid create-task response')

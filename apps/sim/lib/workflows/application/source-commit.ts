@@ -22,7 +22,7 @@ import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { requireMutableFolder } from '@/lib/workflows/application/mutability'
 import {
   WorkflowSourceNameTakenError,
@@ -351,6 +351,8 @@ export async function commitSourceCreate(args: {
   scope: CommitScope
   plan: SourcePlan
   folderId: string | null
+  /** Runs last inside the create's transaction, so its writes commit with the workflow's. */
+  withinCreate?: (tx: DbTransaction, workflowId: string) => Promise<void>
 }): Promise<CommittedGraph & { name: string }> {
   const { scope, plan } = args
   const { workspaceId, subjectUserId } = scope
@@ -381,6 +383,7 @@ export async function commitSourceCreate(args: {
           .where(eq(workflowTable.id, workflowId))
       }
       await writeWorkflowSourceMeta(tx, workflowId, plan.sourceMeta)
+      await args.withinCreate?.(tx, workflowId)
     },
   })
   if (!transition.success && transition.conflict === 'name') {

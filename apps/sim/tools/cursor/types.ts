@@ -186,9 +186,14 @@ export interface ListArtifactsParams extends BaseCursorParams {
   agentId: string
 }
 
-interface ArtifactMetadata {
+export interface ArtifactMetadata {
+  absolutePath: string
+  sizeBytes: number | null
+  updatedAt: string | null
+  /** Same as `absolutePath`; kept for workflows that read the original output name. */
   path: string
-  size?: number
+  /** Same as `sizeBytes`; kept for workflows that read the original output name. */
+  size: number | null
 }
 
 export interface ListArtifactsResponse extends ToolResponse {

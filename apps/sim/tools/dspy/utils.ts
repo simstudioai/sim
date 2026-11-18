@@ -26,3 +26,12 @@ export function parseTrajectory(trajectory: Record<string, unknown>): DSPyTrajec
 
   return steps
 }
+
+/**
+ * The DSPy server URL for an endpoint path (default `/predict`). A path typed without its
+ * leading slash still lands on that path instead of being appended to the host name.
+ */
+export function buildDSPyUrl(baseUrl: string, endpoint?: string): string {
+  const path = endpoint?.trim() || '/predict'
+  return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}

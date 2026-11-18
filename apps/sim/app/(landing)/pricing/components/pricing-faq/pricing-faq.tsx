@@ -62,6 +62,7 @@ const PRICING_FAQ_JSON_LD = {
 export function PricingFAQ() {
   return (
     <section
+      id='faq'
       aria-labelledby='pricing-faq-heading'
       className='mx-auto w-full max-w-[720px] px-6 pt-4 pb-16'
     >

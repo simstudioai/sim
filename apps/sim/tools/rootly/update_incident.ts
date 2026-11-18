@@ -1,6 +1,8 @@
 import type { RootlyUpdateIncidentParams, RootlyUpdateIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyUpdateIncidentTool: ToolConfig<
   RootlyUpdateIncidentParams,
@@ -120,7 +122,8 @@ export const rootlyUpdateIncidentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}`,
+    url: (params) =>
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -163,7 +166,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       if (params.groupIds) {
         attributes.group_ids = params.groupIds.split(',').map((s: string) => s.trim())
       }
-      return { data: { type: 'incidents', id: params.incidentId.trim(), attributes } }
+      return { data: { type: 'incidents', id: String(params.incidentId).trim(), attributes } }
     },
   },
 
@@ -173,7 +176,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       return {
         success: false,
         output: { incident: {} as RootlyUpdateIncidentResponse['output']['incident'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

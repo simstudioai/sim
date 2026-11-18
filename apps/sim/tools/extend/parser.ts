@@ -165,7 +165,8 @@ export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParse
     },
     blocks: {
       type: 'json',
-      description: 'Block-level document elements with type and content',
+      description:
+        'Top-level block elements; Extend returns blocks inside each chunk (chunks[].blocks), so this is usually empty',
     },
     pageCount: {
       type: 'number',

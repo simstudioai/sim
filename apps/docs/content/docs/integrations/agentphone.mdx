@@ -338,7 +338,7 @@ Retrieve current usage statistics for the AgentPhone account
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `plan` | json | Plan name and limits \(name, limits: numbers/messagesPerMonth/voiceMinutesPerMonth/maxCallDurationMinutes/concurrentCalls\) |
+| `plan` | json | Plan name and limits \(name, limits: numbers/messagesPerMonth/voiceMinutesPerMonth/maxCallDurationMinutes/concurrentCalls\). The current AgentPhone usage API no longer returns a plan, so these values are empty. |
 | `numbers` | json | Phone number usage \(used, limit, remaining\) |
 | `stats` | json | Usage stats: totalMessages, messagesLast24h/7d/30d, totalCalls, callsLast24h/7d/30d, totalWebhookDeliveries, successfulWebhookDeliveries, failedWebhookDeliveries |
 | `periodStart` | string | Billing period start |

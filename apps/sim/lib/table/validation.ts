@@ -546,6 +546,63 @@ type UniqueCheckExecutor = Pick<typeof db, 'select' | 'execute'>
  */
 const UNIQUE_PROBE_GROUP_SIZE = 25
 
+/** Row errors keyed by the batch row index they belong to. */
+type BatchRowErrors = Array<{ row: number; errors: string[] }>
+
+/**
+ * Scans a batch for values of `uniqueColumns` that an earlier row of the batch already holds,
+ * returning those rows' errors and every distinct value per column id (for the database probe).
+ */
+function scanBatchUniqueValues(
+  rows: RowData[],
+  uniqueColumns: ColumnDefinition[]
+): {
+  rowErrors: BatchRowErrors
+  valuesByColumn: Map<string, { values: Set<string>; column: ColumnDefinition }>
+} {
+  const rowErrors: BatchRowErrors = []
+  // Keyed by the stable column id (the row-data storage key); each value maps to its first row.
+  const firstRows = new Map<string, Map<string, number>>()
+  const valuesByColumn = new Map<string, { values: Set<string>; column: ColumnDefinition }>()
+  for (const column of uniqueColumns) {
+    firstRows.set(getColumnId(column), new Map())
+    valuesByColumn.set(getColumnId(column), { values: new Set(), column })
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const currentRowErrors: string[] = []
+    for (const column of uniqueColumns) {
+      const key = getColumnId(column)
+      const value = cellOf(rows[i], key)
+      const seen = firstRows.get(key)
+      if (value === null || value === undefined || !seen) continue
+
+      const normalizedValue = uniqueValueKey(value, column)
+      const firstRowIndex = seen.get(normalizedValue)
+      if (firstRowIndex !== undefined) {
+        currentRowErrors.push(
+          `Column "${column.name}" must be unique. Value "${value}" duplicates row ${firstRowIndex + 1} in batch`
+        )
+      } else {
+        seen.set(normalizedValue, i)
+        valuesByColumn.get(key)?.values.add(normalizedValue)
+      }
+    }
+    if (currentRowErrors.length > 0) rowErrors.push({ row: i, errors: currentRowErrors })
+  }
+  return { rowErrors, valuesByColumn }
+}
+
+/**
+ * The rows of a batch that repeat a unique column's value an earlier row of the batch holds,
+ * compared as the unique check compares them. Needs no database: for rows checked before the
+ * table that will hold them exists.
+ */
+export function findBatchUniqueDuplicates(rows: RowData[], schema: TableSchema): BatchRowErrors {
+  const uniqueColumns = getUniqueColumns(schema)
+  return uniqueColumns.length === 0 ? [] : scanBatchUniqueValues(rows, uniqueColumns).rowErrors
+}
+
 /**
  * Checks unique constraints for a batch of rows using targeted database queries.
  * Validates both against existing database rows and within the batch itself.
@@ -561,55 +618,11 @@ export async function checkBatchUniqueConstraintsDb(
   executor: UniqueCheckExecutor = db
 ): Promise<{ valid: boolean; errors: Array<{ row: number; errors: string[] }> }> {
   const uniqueColumns = getUniqueColumns(schema)
-  const rowErrors: Array<{ row: number; errors: string[] }> = []
-
   if (uniqueColumns.length === 0) {
     return { valid: true, errors: [] }
   }
 
-  // Build a set of all unique values for each column to check against DB.
-  // Keyed by the stable column id (the row-data storage key).
-  const valuesByColumn = new Map<string, { values: Set<string>; column: ColumnDefinition }>()
-
-  for (const column of uniqueColumns) {
-    valuesByColumn.set(getColumnId(column), { values: new Set(), column })
-  }
-
-  // Collect all unique values from the batch and check for duplicates within the batch
-  const batchValueMap = new Map<string, Map<string, number>>() // columnId -> (normalizedValue -> firstRowIndex)
-
-  for (const column of uniqueColumns) {
-    batchValueMap.set(getColumnId(column), new Map())
-  }
-
-  for (let i = 0; i < rows.length; i++) {
-    const rowData = rows[i]
-    const currentRowErrors: string[] = []
-
-    for (const column of uniqueColumns) {
-      const key = getColumnId(column)
-      const value = cellOf(rowData, key)
-      if (value === null || value === undefined) continue
-
-      const normalizedValue = uniqueValueKey(value, column)
-
-      // Check for duplicate within batch
-      const columnValueMap = batchValueMap.get(key)!
-      if (columnValueMap.has(normalizedValue)) {
-        const firstRowIndex = columnValueMap.get(normalizedValue)!
-        currentRowErrors.push(
-          `Column "${column.name}" must be unique. Value "${value}" duplicates row ${firstRowIndex + 1} in batch`
-        )
-      } else {
-        columnValueMap.set(normalizedValue, i)
-        valuesByColumn.get(key)!.values.add(normalizedValue)
-      }
-    }
-
-    if (currentRowErrors.length > 0) {
-      rowErrors.push({ row: i, errors: currentRowErrors })
-    }
-  }
+  const { rowErrors, valuesByColumn } = scanBatchUniqueValues(rows, uniqueColumns)
 
   // Now check against database for all unique values at once. Tenant-bounded
   // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)

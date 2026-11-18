@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -130,8 +132,9 @@ export const brightDataDiscoverTool: ToolConfig<
     }
   },
 
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     if (!result.success) return result
+    const signal = context?.signal
 
     const taskId = result.output.taskId
     if (!taskId) {
@@ -148,6 +151,7 @@ export const brightDataDiscoverTool: ToolConfig<
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
+        signal?.throwIfAborted()
         const pollResponse = await outboundFetch(
           `https://api.brightdata.com/discover?task_id=${encodeURIComponent(taskId)}`,
           {
@@ -155,6 +159,7 @@ export const brightDataDiscoverTool: ToolConfig<
             headers: {
               Authorization: `Bearer ${params.apiKey}`,
             },
+            signal,
           }
         )
 
@@ -166,7 +171,11 @@ export const brightDataDiscoverTool: ToolConfig<
           }
         }
 
-        const data = await pollResponse.json()
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(pollResponse, {
+          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+          label: 'Bright Data discover results',
+          signal,
+        })
         logger.info(`Bright Data Discover task ${taskId} status: ${data.status}`)
 
         if (data.status === 'done') {
@@ -198,7 +207,7 @@ export const brightDataDiscoverTool: ToolConfig<
           }
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error) {
         logger.error('Error polling for discover task:', {

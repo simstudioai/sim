@@ -1,4 +1,5 @@
 import { truncate } from '@sim/utils/string'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Identity reported to the Temporal server on write operations so they are
@@ -52,7 +53,7 @@ export interface TemporalRawHistoryEvent {
  */
 export function temporalNamespaceUrl(serverUrl: string, namespace: string): string {
   const base = serverUrl.trim().replace(/\/+$/, '')
-  return `${base}/api/v1/namespaces/${encodeURIComponent(namespace.trim())}`
+  return `${base}/api/v1/namespaces/${safeUrlPathSegment(namespace, 'namespace', { allowSeparators: true })}`
 }
 
 /**
@@ -64,7 +65,7 @@ export function temporalWorkflowUrl(
   namespace: string,
   workflowId: string
 ): string {
-  return `${temporalNamespaceUrl(serverUrl, namespace)}/workflows/${encodeURIComponent(workflowId.trim())}`
+  return `${temporalNamespaceUrl(serverUrl, namespace)}/workflows/${safeUrlPathSegment(workflowId, 'workflowId', { allowSeparators: true })}`
 }
 
 /**
@@ -76,7 +77,7 @@ export function temporalScheduleUrl(
   namespace: string,
   scheduleId: string
 ): string {
-  return `${temporalNamespaceUrl(serverUrl, namespace)}/schedules/${encodeURIComponent(scheduleId.trim())}`
+  return `${temporalNamespaceUrl(serverUrl, namespace)}/schedules/${safeUrlPathSegment(scheduleId, 'scheduleId', { allowSeparators: true })}`
 }
 
 /**

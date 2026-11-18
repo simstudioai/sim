@@ -22,8 +22,9 @@ export const SOURCE_LOCKED_EXIT_CODE = 6
 export const SOURCE_TOO_LARGE_EXIT_CODE = 7
 
 /**
- * `workspaces source apply` stopped part-way: the changes before the failed one were written and
- * saved back into the directory, the rest were not attempted. Applying again continues.
+ * `workspaces source apply` stopped part-way on a server failure (`E_APPLY_FAILED`): the changes
+ * before the failed one were written and saved back into the directory, the rest were not
+ * attempted. Applying again continues. A write refused part-way exits as that refusal instead.
  */
 export const SOURCE_PARTIAL_EXIT_CODE = 8
 

@@ -9,6 +9,24 @@ import {
 } from '@/tools/exa/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Content options every search type except Lite accepts: summaries, subpages, extras, and freshness. */
+function addNonLiteContents(contents: Record<string, unknown>, params: ExaSearchParams): void {
+  if (params.summaryQuery) {
+    contents.summary = { query: params.summaryQuery }
+  } else if (String(params.summary) === 'true') {
+    contents.summary = true
+  }
+
+  if (params.subpages) contents.subpages = Number(params.subpages)
+  const subpageTarget = parseCommaList(params.subpageTarget)
+  if (subpageTarget) contents.subpageTarget = subpageTarget
+
+  const extras = buildExtras(params)
+  if (extras) contents.extras = extras
+
+  applyFreshness(contents, params)
+}
+
 export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   id: 'exa_search',
   name: 'Exa Search',
@@ -34,7 +52,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search type: "instant", "fast", "auto", "deep-lite", "deep", or "deep-reasoning". Default: "auto"',
+        'Search type: "auto", "lite", "deep-lite", or "deep" ("instant", "fast", and "deep-reasoning" are legacy). Default: "auto"',
     },
     includeDomains: {
       type: 'string',
@@ -231,12 +249,6 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
 
       if (params.startPublishedDate) body.startPublishedDate = params.startPublishedDate
       if (params.endPublishedDate) body.endPublishedDate = params.endPublishedDate
-      if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
-      if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
-
-      const outputSchema = parseJsonSchema(params.outputSchema, 'outputSchema')
-      if (outputSchema) body.outputSchema = outputSchema
-      if (params.systemPrompt) body.systemPrompt = params.systemPrompt
 
       /**
        * On `/search` the content options are nested under `contents` — unlike
@@ -244,23 +256,23 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
        */
       const contents: Record<string, any> = {}
 
-      if (params.text !== undefined) contents.text = params.text
-      if (params.highlights !== undefined) contents.highlights = params.highlights
+      if (params.text != null) contents.text = params.text
+      if (params.highlights != null) contents.highlights = params.highlights
 
-      if (params.summaryQuery) {
-        contents.summary = { query: params.summaryQuery }
-      } else if (params.summary !== undefined) {
-        contents.summary = params.summary
+      /**
+       * Lite rejects every parameter outside query, filters, and text/highlights contents,
+       * so the options other search types accept are only added for them.
+       */
+      if (params.type !== 'lite') {
+        if (params.startCrawlDate) body.startCrawlDate = params.startCrawlDate
+        if (params.endCrawlDate) body.endCrawlDate = params.endCrawlDate
+
+        const outputSchema = parseJsonSchema(params.outputSchema, 'outputSchema')
+        if (outputSchema) body.outputSchema = outputSchema
+        if (params.systemPrompt) body.systemPrompt = params.systemPrompt
+
+        addNonLiteContents(contents, params)
       }
-
-      if (params.subpages) contents.subpages = Number(params.subpages)
-      const subpageTarget = parseCommaList(params.subpageTarget)
-      if (subpageTarget) contents.subpageTarget = subpageTarget
-
-      const extras = buildExtras(params)
-      if (extras) contents.extras = extras
-
-      applyFreshness(contents, params)
 
       if (Object.keys(contents).length > 0) {
         body.contents = contents

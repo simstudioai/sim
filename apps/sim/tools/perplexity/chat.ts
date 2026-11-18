@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { PerplexityChatParams, PerplexityChatResponse } from '@/tools/perplexity/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -210,6 +211,14 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       output: {
         content: data.choices[0].message.content,
         model: data.model,
+        citations: data.citations ?? [],
+        search_results: (data.search_results ?? []).map((result: Record<string, unknown>) => ({
+          title: String(result.title ?? ''),
+          url: String(result.url ?? ''),
+          date: toStringOrNull(result.date),
+          last_updated: toStringOrNull(result.last_updated),
+          snippet: String(result.snippet ?? ''),
+        })),
         usage: {
           prompt_tokens: data.usage.prompt_tokens,
           completion_tokens: data.usage.completion_tokens,
@@ -231,6 +240,25 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   outputs: {
     content: { type: 'string', description: 'Generated text content' },
     model: { type: 'string', description: 'Model used for generation' },
+    citations: {
+      type: 'array',
+      description: 'URLs of the sources the answer cites',
+      items: { type: 'string', description: 'Source URL' },
+    },
+    search_results: {
+      type: 'array',
+      description: 'Search results the answer was grounded in',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Title of the result page' },
+          url: { type: 'string', description: 'URL of the result page' },
+          date: { type: 'string', description: 'Publication date', nullable: true },
+          last_updated: { type: 'string', description: 'Last update date', nullable: true },
+          snippet: { type: 'string', description: 'Text snippet from the page' },
+        },
+      },
+    },
     usage: {
       type: 'object',
       description: 'Token usage information',

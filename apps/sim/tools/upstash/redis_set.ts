@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisSetParams, UpstashRedisSetResponse } from '@/tools/upstash/types'
+import { upstashInteger, upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisSetTool: ToolConfig<UpstashRedisSetParams, UpstashRedisSetResponse> = {
   id: 'upstash_redis_set',
@@ -45,9 +46,9 @@ export const upstashRedisSetTool: ToolConfig<UpstashRedisSetParams, UpstashRedis
 
   request: {
     url: (params) => {
-      const base = `${params.restUrl}/set/${encodeURIComponent(params.key)}`
+      const base = `${params.restUrl}/set/${upstashPathSegment(params.key, 'key')}`
       if (params.ex) {
-        return `${base}?EX=${params.ex}`
+        return `${base}?EX=${upstashInteger(params.ex, 'ex')}`
       }
       return base
     },

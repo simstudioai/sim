@@ -38,7 +38,8 @@ export const googleTranslateTool: ToolConfig<GoogleTranslateParams, GoogleTransl
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Format of the text: "text" for plain text, "html" for HTML content',
+      description:
+        'Format of the text: "text" for plain text, "html" for HTML content. Defaults to "html", which returns characters such as apostrophes as HTML entities',
     },
   },
 

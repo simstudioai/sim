@@ -119,6 +119,10 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       output: {
         markdown: data.data.markdown,
         html: data.data.html,
+        rawHtml: data.data.rawHtml,
+        summary: data.data.summary,
+        links: data.data.links,
+        screenshot: data.data.screenshot,
         metadata: data.data.metadata,
         creditsUsed: data.creditsUsed,
       },
@@ -127,7 +131,29 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
 
   outputs: {
     markdown: { type: 'string', description: 'Page content in markdown format' },
-    html: { type: 'string', description: 'Raw HTML content of the page', optional: true },
+    html: { type: 'string', description: 'Processed HTML content of the page', optional: true },
+    rawHtml: {
+      type: 'string',
+      description: 'Unmodified HTML of the page, when the rawHtml format is requested',
+      optional: true,
+    },
+    summary: {
+      type: 'string',
+      description: 'Summary of the page, when the summary format is requested',
+      optional: true,
+    },
+    links: {
+      type: 'array',
+      description: 'Links found on the page, when the links format is requested',
+      items: { type: 'string', description: 'Link URL' },
+      optional: true,
+    },
+    screenshot: {
+      type: 'string',
+      description:
+        'Screenshot URL of the page, when the screenshot format is requested (expires after 24 hours)',
+      optional: true,
+    },
     metadata: {
       type: 'object',
       description: 'Page metadata including SEO and Open Graph information',

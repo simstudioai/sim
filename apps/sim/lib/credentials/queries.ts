@@ -144,6 +144,8 @@ export async function listVisibleWorkspaceCredentials(params: {
   workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
   types?: CredentialRow['type'][]
   providerId?: string
+  /** Only these credentials, of those visible. */
+  ids?: readonly string[]
   /** Case-insensitive substring match on the credential display name. */
   search?: string
   sortBy?: V2CredentialSortBy
@@ -184,6 +186,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+  if (params.ids) whereClauses.push(inArray(credential.id, [...params.ids]))
   const ownedEnvSecretsClause = params.ownedEnvSecretsOnly
     ? or(
         eq(credential.type, 'env_workspace'),
@@ -269,6 +272,8 @@ export async function listWorkspacePrincipalCredentials(params: {
   workspaceId: string
   types: Array<'oauth' | 'service_account'>
   providerId?: string
+  /** Only these credentials, of those listed. */
+  ids?: readonly string[]
   search?: string
   sortBy?: V2CredentialSortBy
   sortOrder?: ListSortOrder
@@ -288,6 +293,7 @@ export async function listWorkspacePrincipalCredentials(params: {
 
   const whereClauses = [eq(credential.workspaceId, workspaceId), inArray(credential.type, types)]
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+  if (params.ids) whereClauses.push(inArray(credential.id, [...params.ids]))
 
   const keys = CREDENTIAL_SORTS[sortBy]
   const after = resumeKeyset(keys, params.cursorKeys, sortOrder)

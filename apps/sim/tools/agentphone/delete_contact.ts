@@ -4,6 +4,7 @@ import type {
 } from '@/tools/agentphone/types'
 import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneDeleteContactTool: ToolConfig<
   AgentPhoneDeleteContactParams,
@@ -31,7 +32,8 @@ export const agentphoneDeleteContactTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/contacts/${params.contactId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -39,7 +41,7 @@ export const agentphoneDeleteContactTool: ToolConfig<
   },
 
   transformResponse: async (response, params): Promise<AgentPhoneDeleteContactResult> => {
-    const contactId = params?.contactId?.trim() ?? ''
+    const contactId = String(params?.contactId ?? '').trim()
 
     if (!response.ok) {
       let errorMessage = 'Failed to delete contact'

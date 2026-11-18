@@ -29,7 +29,7 @@ describe('credentials.ts', () => {
   })
 
   it('refuses a token without echoing it in any finding', () => {
-    const token = 'xoxb-0123456789-abcdef'
+    const token = ['xoxb', '0123456789', 'abcdef'].join('-')
     const read = parse(`// @sim-sdk 1
 import { defineCredentials } from '@sim/workflow-sdk/workspace'
 

@@ -1,6 +1,7 @@
 import type { PolymarketMarket } from '@/tools/polymarket/types'
 import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface PolymarketGetMarketParams {
   marketId?: string // Market ID
@@ -43,9 +44,9 @@ export const polymarketGetMarketTool: ToolConfig<
   request: {
     url: (params) => {
       if (params.slug) {
-        return buildGammaUrl(`/markets/slug/${params.slug.trim()}`)
+        return buildGammaUrl(`/markets/slug/${safeUrlPathSegment(params.slug, 'slug')}`)
       }
-      return buildGammaUrl(`/markets/${params.marketId?.trim()}`)
+      return buildGammaUrl(`/markets/${safeUrlPathSegment(params.marketId ?? '', 'marketId')}`)
     },
     method: 'GET',
     headers: () => ({

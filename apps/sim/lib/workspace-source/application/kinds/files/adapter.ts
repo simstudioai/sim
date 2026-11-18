@@ -24,6 +24,7 @@ import {
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import type { DbTransaction } from '@/lib/db/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { encodeVfsPathSegments, normalizeDisplaySegment } from '@/lib/vfs/path'
@@ -431,14 +432,16 @@ async function keyCreates(ctx: PlanContext, files: FileChange[]): Promise<void> 
 }
 
 /**
- * Binds `resourceKey` to a file this apply created. A key some other live file took since the plan
- * leaves the file without it: the file is written, and a workflow naming the key fails its own
- * write, which reports why.
+ * Binds `resourceKey` to a file this apply creates, inside the create's transaction `tx`, so a
+ * claim that fails undoes the create rather than leaving a file no later apply keys. A key some
+ * other live file took since the plan leaves the file without it: the file is written, and a
+ * workflow naming the key fails its own write, which reports why.
  */
 async function claimFileKey(
   ctx: SourceContext,
   resourceKey: string,
-  fileId: string
+  fileId: string,
+  tx: DbTransaction
 ): Promise<void> {
   try {
     await claimResourceKey({
@@ -448,6 +451,7 @@ async function claimFileKey(
       resourceId: fileId,
       origin: 'created',
       createdBy: ctx.createdBy,
+      tx,
     })
   } catch (error) {
     if (!(error instanceof ResourceKeyTakenError)) throw error
@@ -580,6 +584,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const { content, sha256 } = await contentOf(change, ctx)
     if (change.action === 'create') {
       const segments = change.key.split('/')
+      const resourceKey = change.detail?.resourceKey
       const created = await createWorkspaceFileBufferByPath.execute({
         principal,
         input: {
@@ -589,10 +594,11 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
           contentType: resolveEffectiveMimeType(undefined, segments[segments.length - 1] ?? ''),
           mode: 'create',
           exactName: true,
+          ...(resourceKey
+            ? { withinCreate: (tx, fileId) => claimFileKey(ctx, resourceKey, fileId, tx) }
+            : {}),
         },
       })
-      const resourceKey = change.detail?.resourceKey
-      if (resourceKey) await claimFileKey(ctx, resourceKey, created.id)
       return written(ctx, change.key, created.id, sha256)
     }
     const fileId = change.storedId

@@ -2,7 +2,11 @@ import type {
   GoogleAppsheetEditParams,
   GoogleAppsheetEditResponse,
 } from '@/tools/google_appsheet/types'
-import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
+import {
+  appsheetResponseRows,
+  buildAppsheetActionUrl,
+  readAppsheetResponseBody,
+} from '@/tools/google_appsheet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAppsheetEditRowsTool: ToolConfig<
@@ -70,7 +74,7 @@ export const googleAppsheetEditRowsTool: ToolConfig<
       throw new Error(data.error?.message || data.message || 'Failed to edit AppSheet rows')
     }
 
-    const rows = data.Rows ?? data.rows ?? []
+    const rows = appsheetResponseRows(data)
 
     return {
       success: true,

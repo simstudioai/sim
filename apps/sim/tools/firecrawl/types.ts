@@ -350,6 +350,7 @@ export interface ScrapeResponse extends ToolResponse {
     markdown: string
     html?: string
     rawHtml?: string
+    summary?: string
     links?: string[]
     screenshot?: string
     metadata: {
@@ -393,6 +394,18 @@ export interface SearchResponse extends ToolResponse {
     }>
     creditsUsed?: number
   }
+}
+
+/** Body of a Firecrawl async job poll; `data` holds the job's pages or its extracted object. */
+export interface FirecrawlJobStatusBody<TData> {
+  status?: string
+  error?: string
+  data?: TData
+  total?: number
+  completed?: number
+  creditsUsed?: number
+  expiresAt?: string
+  sources?: string[]
 }
 
 export interface FirecrawlCrawlResponse extends ToolResponse {

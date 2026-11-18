@@ -10,6 +10,35 @@ function executionParams(params: Record<string, unknown>) {
   return { ...serialized, ...mapParams(serialized) }
 }
 
+/** Executes `operation` with every field it shows seeded the way an API-built block seeds it. */
+function seededExecutionParams(operation: string) {
+  const params: Record<string, unknown> = { operation }
+  for (const subBlock of PostHogBlock.subBlocks) {
+    const condition = typeof subBlock.condition === 'function' ? undefined : subBlock.condition
+    const shown = condition?.field === 'operation' && [condition.value].flat().includes(operation)
+    const seeded = shown ? subBlock.value?.({ operation }) : undefined
+    if (seeded !== undefined) params[subBlock.id] = seeded
+  }
+  return executionParams(params)
+}
+
+describe('PostHogBlock create-only defaults', () => {
+  it('sends the create defaults on create', () => {
+    expect(seededExecutionParams('posthog_create_feature_flag')).toMatchObject({
+      active: true,
+      ensureExperienceContinuity: false,
+    })
+    expect(seededExecutionParams('posthog_create_cohort')).toMatchObject({ is_static: false })
+  })
+
+  it('leaves an untouched field out of an update, so it keeps what PostHog stores', () => {
+    const flag = seededExecutionParams('posthog_update_feature_flag')
+    expect([flag.active, flag.ensureExperienceContinuity]).toEqual([undefined, undefined])
+    const cohort = seededExecutionParams('posthog_update_cohort')
+    expect([cohort.isStatic, cohort.is_static]).toEqual([undefined, undefined])
+  })
+})
+
 describe('PostHogBlock switch values', () => {
   it('sends the text form older workflows store as the same booleans as the real form', () => {
     for (const [stored, expected] of [

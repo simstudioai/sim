@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { refusalClass, type WorkspaceKind } from '@sim/workspace-code'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeBaseConflictError } from '@/lib/knowledge/service'
+import { TableRowsChangedError } from '@/lib/table/application/errors'
 import { TableConflictError } from '@/lib/table/service'
 import {
   WorkspaceFileFolderConflictError,
@@ -88,7 +89,8 @@ export function isRefusal(error: unknown): error is OrchestrationError {
 }
 
 /**
- * A child use case's refusal as a finding about one resource: forbidden is `E_APPLY_FORBIDDEN`,
+ * A child use case's refusal as a finding about one resource: a resource (or a table's rows)
+ * changed since the plan read it is `E_APPLY_STALE`, forbidden is `E_APPLY_FORBIDDEN`,
  * locked `E_APPLY_LOCKED`, over a size limit `E_LIMIT_EXCEEDED` (so the refusal stays a `413`),
  * a taken key or a name a use case reports taken `E_NAME_TAKEN`, any
  * other expected failure (another conflict included) `E_APPLY_REFUSED` with its message.
@@ -99,7 +101,11 @@ export function refusalDiagnostic(
   error: unknown,
   resource: { kind: WorkspaceKind; key?: string }
 ): WorkspaceSourceDiagnostic {
-  if (error instanceof ResourceChangedError || error instanceof WorkflowSourceStaleError) {
+  if (
+    error instanceof ResourceChangedError ||
+    error instanceof WorkflowSourceStaleError ||
+    error instanceof TableRowsChangedError
+  ) {
     return finding('E_APPLY_STALE', getErrorMessage(error), { hint: GET_HINT, ...resource })
   }
   if (error instanceof ResourceKeyTakenError || isNameTaken(error)) {

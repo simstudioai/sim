@@ -446,15 +446,22 @@ export const CrowdStrikeBlock: BlockConfig = {
       },
     },
     {
+      /**
+       * Leads with "No change" because the editor seeds an empty dropdown with
+       * its first option: an update that only comments, tags, or assigns must
+       * not also send `update_status`.
+       */
       id: 'updateStatus',
       title: 'Status',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'New', id: 'new' },
         { label: 'In Progress', id: 'in_progress' },
         { label: 'Reopened', id: 'reopened' },
         { label: 'Closed', id: 'closed' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'crowdstrike_update_alerts' },
     },
     {

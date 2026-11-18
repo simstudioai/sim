@@ -20,6 +20,7 @@ import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 
 const logger = createLogger('TableRowChanges')
@@ -44,13 +45,15 @@ const currentRowsVersionSql = sql<number>`(user_table_definitions.rows_version +
 
 /**
  * The table's live `rows_version`, or `null` when no such table exists (in `workspaceId`, when
- * given). Always reads the primary.
+ * given). Always reads the primary; pass the caller's transaction as `executor` to read it there,
+ * under the locks that transaction holds.
  */
 export async function readCurrentRowsVersion(
   tableId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  executor: DbOrTx = db
 ): Promise<number | null> {
-  const [row] = await db
+  const [row] = await executor
     .select({ rowsVersion: currentRowsVersionSql })
     .from(userTableDefinitions)
     .where(

@@ -310,6 +310,7 @@ export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
 interface GrafanaAnnotation {
   id: number | null
   alertId: number | null
+  alertUID: string | null
   dashboardId: number | null
   dashboardUID: string | null
   panelId: number | null
@@ -339,6 +340,7 @@ export interface GrafanaListAnnotationsParams extends GrafanaBaseParams {
   dashboardUid?: string
   panelId?: number
   alertId?: number
+  alertUid?: string
   userId?: number
   tags?: string
   type?: string

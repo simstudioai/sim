@@ -6,6 +6,7 @@ import {
   contextDevJsonHeaders,
   extractCreditMetadata,
   parseContextDevResponse,
+  timeoutOpts,
 } from '@/tools/context_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -104,7 +105,7 @@ export const contextDevExtractTool: ToolConfig<ContextDevExtractParams, ContextD
         if (params.maxDepth != null) body.maxDepth = params.maxDepth
         if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
         if (params.stopAfterMs != null) body.stopAfterMs = params.stopAfterMs
-        if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+        body.timeoutOpts = timeoutOpts(params.timeoutMS)
         return body
       },
     },

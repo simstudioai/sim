@@ -8,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listEnrolmentsTool: ToolConfig<
   ThriveListEnrolmentsParams,
@@ -80,7 +81,7 @@ export const listEnrolmentsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `${getThriveBaseUrl(params.host, 'v1')}/assignments/${encodeURIComponent(params.assignmentId)}/enrolments`
+        `${getThriveBaseUrl(params.host, 'v1')}/assignments/${safeUrlPathSegment(params.assignmentId, 'assignmentId')}/enrolments`
       )
       appendThriveQuery(url, 'updatedAtFrom', params.updatedAtFrom)
       appendThriveQuery(url, 'updatedAtTo', params.updatedAtTo)

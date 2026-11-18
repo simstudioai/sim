@@ -3,6 +3,7 @@ import type { ThriveContentResponse, ThriveGetContentParams } from '@/tools/thri
 import { THRIVE_CONTENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getContentTool: ToolConfig<ThriveGetContentParams, ThriveContentResponse> = {
   id: 'thrive_get_content',
@@ -40,7 +41,7 @@ export const getContentTool: ToolConfig<ThriveGetContentParams, ThriveContentRes
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/contents/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/contents/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

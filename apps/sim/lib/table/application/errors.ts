@@ -13,6 +13,14 @@ export class TableOperationError extends OrchestrationError {
   }
 }
 
+/** A reshape's rows changed since the caller read them at its `expectedRowsVersion`. */
+export class TableRowsChangedError extends OrchestrationError {
+  constructor(tableName: string) {
+    super('conflict', `The rows of table "${tableName}" changed since they were read.`)
+    this.name = 'TableRowsChangedError'
+  }
+}
+
 export function throwTableOperationFailure(
   outcome: {
     success: boolean

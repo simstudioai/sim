@@ -3,6 +3,7 @@ import type { ThriveGetUserByIdParams, ThriveUserResponse } from '@/tools/thrive
 import { THRIVE_USER_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResponse> = {
   id: 'thrive_get_user_by_id',
@@ -39,7 +40,8 @@ export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResp
   },
 
   request: {
-    url: (params) => `${getThriveBaseUrl(params.host, 'v1')}/user/${encodeURIComponent(params.id)}`,
+    url: (params) =>
+      `${getThriveBaseUrl(params.host, 'v1')}/users/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

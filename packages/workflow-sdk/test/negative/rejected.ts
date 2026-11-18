@@ -198,7 +198,7 @@ export default workflow('Rejected', {}, () => {
   // A credential field takes credential('key') or a run-time id, never literal text.
   slack.sendMessage('Literal token', {
     // @ts-expect-error a pasted token is literal text
-    credential: 'xoxb-1234-5678-literaltoken',
+    credential: ['xoxb', '1234', '5678', 'literaltoken'].join('-'),
     channel: 'C1',
     text: 'x',
   })

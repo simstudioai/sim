@@ -1,4 +1,3 @@
-import { toError } from '@sim/utils/errors'
 import { ReductoIcon } from '@/components/icons'
 import {
   AuthMode,
@@ -17,6 +16,30 @@ import {
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
 const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
+
+/**
+ * Page numbers from the canvas's comma-separated text, or the array an Agent tool call sends.
+ * Returns `undefined` when no page is given.
+ */
+function parsePages(value: unknown): number[] | undefined {
+  const entries = Array.isArray(value)
+    ? value.map((page) => String(page).trim())
+    : typeof value === 'string' || typeof value === 'number'
+      ? String(value)
+          .split(',')
+          .map((page) => page.trim())
+      : []
+  const pages = entries
+    .filter((page) => page.length > 0)
+    .map((page) => {
+      const num = Number.parseInt(page, 10)
+      if (Number.isNaN(num) || num < 0) {
+        throw new Error(`Page number format error: Invalid page number: ${page}`)
+      }
+      return num
+    })
+  return pages.length > 0 ? pages : undefined
+}
 
 export const ReductoBlock: BlockConfig = {
   type: 'reducto',
@@ -103,32 +126,9 @@ export const ReductoBlock: BlockConfig = {
           parameters.filePath = documentInput.trim()
         }
 
-        let pagesArray: number[] | undefined
-        if (params.pages && params.pages.trim() !== '') {
-          try {
-            pagesArray = params.pages
-              .split(',')
-              .map((p: string) => p.trim())
-              .filter((p: string) => p.length > 0)
-              .map((p: string) => {
-                const num = Number.parseInt(p, 10)
-                if (Number.isNaN(num) || num < 0) {
-                  throw new Error(`Invalid page number: ${p}`)
-                }
-                return num
-              })
-
-            if (pagesArray && pagesArray.length === 0) {
-              pagesArray = undefined
-            }
-          } catch (error: unknown) {
-            const errorMessage = toError(error).message
-            throw new Error(`Page number format error: ${errorMessage}`)
-          }
-        }
-
-        if (pagesArray && pagesArray.length > 0) {
-          parameters.pages = pagesArray
+        const pages = parsePages(params.pages)
+        if (pages) {
+          parameters.pages = pages
         }
 
         if (params.tableOutputFormat) {
@@ -198,32 +198,9 @@ function reductoV2ToolParams(params: BlockToolParams, credentials: { apiKey?: st
   }
   parameters.file = fileInput
 
-  let pagesArray: number[] | undefined
-  if (params.pages && params.pages.trim() !== '') {
-    try {
-      pagesArray = params.pages
-        .split(',')
-        .map((p: string) => p.trim())
-        .filter((p: string) => p.length > 0)
-        .map((p: string) => {
-          const num = Number.parseInt(p, 10)
-          if (Number.isNaN(num) || num < 0) {
-            throw new Error(`Invalid page number: ${p}`)
-          }
-          return num
-        })
-
-      if (pagesArray && pagesArray.length === 0) {
-        pagesArray = undefined
-      }
-    } catch (error: unknown) {
-      const errorMessage = toError(error).message
-      throw new Error(`Page number format error: ${errorMessage}`)
-    }
-  }
-
-  if (pagesArray && pagesArray.length > 0) {
-    parameters.pages = pagesArray
+  const pages = parsePages(params.pages)
+  if (pages) {
+    parameters.pages = pages
   }
 
   if (params.tableOutputFormat) {

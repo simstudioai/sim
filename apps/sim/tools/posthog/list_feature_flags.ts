@@ -1,5 +1,5 @@
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface ListFeatureFlagsParams {
   projectId: string
@@ -31,7 +31,10 @@ interface ListFeatureFlagsResponse {
   previous: string | null
 }
 
-export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatureFlagsResponse> = {
+export const listFeatureFlagsTool: ToolConfig<
+  ListFeatureFlagsParams,
+  ToolResponse & { output: ListFeatureFlagsResponse }
+> = {
   id: 'posthog_list_feature_flags',
   name: 'PostHog List Feature Flags',
   description: 'List all feature flags in a PostHog project',
@@ -99,10 +102,13 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
     const data = await response.json()
 
     return {
-      results: data.results,
-      count: data.count,
-      next: data.next ?? null,
-      previous: data.previous ?? null,
+      success: true,
+      output: {
+        results: data.results,
+        count: data.count,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+      },
     }
   },
 

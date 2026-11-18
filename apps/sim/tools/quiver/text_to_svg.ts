@@ -32,7 +32,7 @@ export const quiverTextToSvgTool = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use for SVG generation (e.g., "arrow-preview")',
+      description: 'The model to use for SVG generation (e.g., "arrow-2")',
     },
     instructions: {
       type: 'string',
@@ -56,25 +56,28 @@ export const quiverTextToSvgTool = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sampling temperature (0-2, default 1)',
+      description:
+        'Sampling temperature (0-2, default 1). Not sent for Arrow 2 Telos, which rejects it',
     },
     top_p: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Nucleus sampling probability (0-1, default 1)',
+      description:
+        'Nucleus sampling probability (0-1, default 1). Not sent for Arrow 2 Telos, which rejects it',
     },
     max_output_tokens: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum output tokens (1-131072)',
+      description: 'Maximum output tokens (1-65536)',
     },
     presence_penalty: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Token penalty for prior output (-2 to 2, default 0)',
+      description:
+        'Token penalty for prior output (-2 to 2, default 0). Not sent for Arrow 2 Telos, which rejects it',
     },
   },
 

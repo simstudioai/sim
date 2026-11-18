@@ -265,7 +265,9 @@ Trigger workflow when new meeting content is ready in Fathom
 | --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
+| `meeting_type` | string | Meeting type name, or null when none is assigned |
 | `recording_id` | number | Unique recording ID |
+| `meeting_url` | string | Underlying video call URL \(Zoom, Meet, Teams\), or null |
 | `url` | string | URL to view the meeting in Fathom |
 | `share_url` | string | Shareable URL for the meeting |
 | `created_at` | string | ISO 8601 creation timestamp |
@@ -275,9 +277,12 @@ Trigger workflow when new meeting content is ready in Fathom
 | `recording_end_time` | string | Recording end time |
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
 | `recorded_by` | object | Recorder details |
 |   ↳ `name` | string | Name of the recorder |
 |   ↳ `email` | string | Email of the recorder |
+|   ↳ `email_domain` | string | Email domain of the recorder |
+|   ↳ `team` | string | Recorder team name, or null |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
 |   ↳ `template_name` | string | Summary template name |
@@ -311,7 +316,9 @@ Generic webhook trigger for all Fathom events
 | --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
+| `meeting_type` | string | Meeting type name, or null when none is assigned |
 | `recording_id` | number | Unique recording ID |
+| `meeting_url` | string | Underlying video call URL \(Zoom, Meet, Teams\), or null |
 | `url` | string | URL to view the meeting in Fathom |
 | `share_url` | string | Shareable URL for the meeting |
 | `created_at` | string | ISO 8601 creation timestamp |
@@ -321,9 +328,12 @@ Generic webhook trigger for all Fathom events
 | `recording_end_time` | string | Recording end time |
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
 | `recorded_by` | object | Recorder details |
 |   ↳ `name` | string | Name of the recorder |
 |   ↳ `email` | string | Email of the recorder |
+|   ↳ `email_domain` | string | Email domain of the recorder |
+|   ↳ `team` | string | Recorder team name, or null |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
 |   ↳ `template_name` | string | Summary template name |

@@ -27,12 +27,14 @@ import * as tableUseCases from '@/lib/table/application/tables'
 import * as columnService from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
+import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   codes,
+  failKeyClaims,
   refusal,
   sourceChecks,
   sourceRunner,
@@ -2015,6 +2017,85 @@ export default workflow('Notes', {}, () => {
       const again = await get(workspaceId)
       const noop = await apply(workspaceId, again.files, { base: again.base })
       expect(noop.applied).toEqual([])
+    }
+  )
+  check(
+    'a workflow create whose key claim fails leaves no workflow behind, so applying again creates it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/claim-crash/workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Claim Crash', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`,
+      }
+      const restore = await failKeyClaims('claim-crash')
+      const crashed = await apply(workspaceId, files, { kinds: ['workflow'] }).finally(restore)
+
+      expect(crashed.failed).toMatchObject({ kind: 'workflow', key: 'claim-crash' })
+      expect(crashed.applied).toEqual([])
+      expect(await workflows(workspaceId)).toEqual([])
+
+      const again = await apply(workspaceId, files, { kinds: ['workflow'] })
+      expect(again.failed).toBeUndefined()
+      const [created] = await workflows(workspaceId)
+      expect(created?.name).toBe('Claim Crash')
+      const [binding] = await db
+        .select({ resourceId: workspaceResourceKey.resourceId })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'workflow'),
+            eq(workspaceResourceKey.key, 'claim-crash')
+          )
+        )
+      expect(binding?.resourceId).toBe(created?.id)
+    }
+  )
+  check(
+    'a workflow deleted between the plan and its write stops the apply as stale, not refused',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, {
+        ...STARTER,
+        'workflows/other/workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Other', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`,
+      })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const ingestId = read.base.resources['workflow:ingest']?.id ?? ''
+      const authorize = applyWorkflowSource.authorize
+      const racing = vi.spyOn(applyWorkflowSource, 'authorize').mockImplementation(async (args) => {
+        const admitted = await authorize(args)
+        await deleteWorkflow.execute({ principal: owner, input: { workflowId: ingestId } })
+        return admitted
+      })
+
+      const result = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          [entry]: read.files[entry].replace("workflow('Ingest'", "workflow('Intake'"),
+        },
+        { base: read.base }
+      ).finally(() => racing.mockRestore())
+
+      expect(result.failed).toMatchObject({
+        kind: 'workflow',
+        key: 'ingest',
+        code: 'E_APPLY_STALE',
+      })
+      expect(codes(result.diagnostics)).toEqual(['E_APPLY_STALE'])
     }
   )
 })

@@ -13,7 +13,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkspaceKind } from '@sim/workspace-code'
-import { inArray } from 'drizzle-orm'
+import { inArray, sql } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
@@ -216,4 +216,30 @@ export function blobManifest(
     size: bytes.byteLength,
     ...(carry(path) ? { content: bytes.toString('base64') } : {}),
   }))
+}
+
+/**
+ * Makes Postgres refuse every write binding the source key `key` (a `workspace_resource_key`
+ * insert or update), as a key claim that fails after its resource's write would: a crash or a
+ * transient database error between the two. Returns the function that lifts the failure.
+ */
+export async function failKeyClaims(key: string): Promise<() => Promise<void>> {
+  if (!/^[a-z0-9-]+$/.test(key)) throw new Error(`Not a source key: ${key}`)
+  const name = `fail_key_claim_${key.replaceAll('-', '_')}`
+  await db.execute(
+    sql.raw(`CREATE OR REPLACE FUNCTION ${name}() RETURNS trigger AS $$
+BEGIN
+  IF NEW.key = '${key}' THEN RAISE EXCEPTION 'injected key claim failure'; END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql`)
+  )
+  await db.execute(
+    sql.raw(
+      `CREATE TRIGGER ${name} BEFORE INSERT OR UPDATE ON workspace_resource_key FOR EACH ROW EXECUTE FUNCTION ${name}()`
+    )
+  )
+  return async () => {
+    await db.execute(sql.raw(`DROP TRIGGER IF EXISTS ${name} ON workspace_resource_key`))
+    await db.execute(sql.raw(`DROP FUNCTION IF EXISTS ${name}()`))
+  }
 }

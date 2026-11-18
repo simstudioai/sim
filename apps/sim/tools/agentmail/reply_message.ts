@@ -1,6 +1,7 @@
 import type { ReplyMessageParams, ReplyMessageResult } from '@/tools/agentmail/types'
 import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMessageResult> = {
   id: 'agentmail_reply_message',
@@ -69,7 +70,7 @@ export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMess
   request: {
     url: (params) => {
       const endpoint = params.replyAll ? 'reply-all' : 'reply'
-      return `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages/${params.messageId.trim()}/${endpoint}`
+      return `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}/${endpoint}`
     },
     method: 'POST',
     headers: (params) => ({

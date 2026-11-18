@@ -13,6 +13,7 @@ import {
 } from '@/tools/emailbison/utils'
 import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateCampaignTool: ToolConfig<
   EmailBisonUpdateCampaignParams,
@@ -88,7 +89,11 @@ export const updateCampaignTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      emailBisonUrl(`/api/campaigns/${params.campaignId}/update`, {}, params.apiBaseUrl),
+      emailBisonUrl(
+        `/api/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/update`,
+        {},
+        params.apiBaseUrl
+      ),
     method: 'PATCH',
     headers: emailBisonHeaders,
     body: (params) =>

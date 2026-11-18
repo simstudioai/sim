@@ -10,6 +10,7 @@ import {
   contextDevJsonHeaders,
   extractCreditMetadata,
   parseContextDevResponse,
+  timeoutOpts,
 } from '@/tools/context_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,7 +66,7 @@ export const contextDevExtractProductsTool: ToolConfig<
       const body: Record<string, any> = { domain: params.domain }
       if (params.maxProducts != null) body.maxProducts = params.maxProducts
       if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      body.timeoutOpts = timeoutOpts(params.timeoutMS)
       return body
     },
   },
