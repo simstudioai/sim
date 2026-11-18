@@ -1,17 +1,22 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BLOCK_OPERATIONS, BLOCKS_OPERATIONS } from '@sim/realtime-protocol/constants'
-import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { useQueryClient } from '@tanstack/react-query'
+import type { editor } from 'monaco-editor'
 import {
   MonacoEditor,
   TEXT_EDITOR_OPTIONS,
   useMonacoTheme,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/monaco-editor'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
+import {
+  registerSourceLanguage,
+  SOURCE_LANGUAGE_ID,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/code/source-language'
+import { minimalTextEdit } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/code/text-edit'
 import { subscribeToDraftChanges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
-import { useWorkflowSource, workflowSourceKeys } from '@/hooks/queries/workflow-source'
+import { useWorkflowSourceText, workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { QueuedOperation } from '@/stores/operation-queue/types'
 
@@ -82,6 +87,33 @@ function useRefreshWhenDraftSettles(workflowId: string | null) {
   }, [workflowId, queryClient])
 }
 
+/**
+ * Brings the editor's model to `text` with the one edit that differs, so a refresh keeps the
+ * scroll position, cursor and tokens of every unchanged line. Replacing the value instead (what
+ * the `value` prop does for a read-only editor) would jump to line 1 and re-tokenize the file.
+ */
+function useSyncedModelText(view: editor.IStandaloneCodeEditor | null, text: string) {
+  useEffect(() => {
+    const model = view?.getModel()
+    if (!model) return
+    const edit = minimalTextEdit(model.getValue(), text)
+    if (!edit) return
+    const start = model.getPositionAt(edit.start)
+    const end = model.getPositionAt(edit.end)
+    model.applyEdits([
+      {
+        range: {
+          startLineNumber: start.lineNumber,
+          startColumn: start.column,
+          endLineNumber: end.lineNumber,
+          endColumn: end.column,
+        },
+        text: edit.text,
+      },
+    ])
+  }, [view, text])
+}
+
 interface CodeProps {
   /** Fetches only while the tab is showing. */
   isActive: boolean
@@ -91,10 +123,16 @@ interface CodeProps {
 export function Code({ isActive }: CodeProps) {
   const { workflowId } = useWorkflowScope()
   const monacoTheme = useMonacoTheme()
-  const { data, error, isPending } = useWorkflowSource(workflowId ?? undefined, {
+  const [view, setView] = useState<editor.IStandaloneCodeEditor | null>(null)
+  const {
+    data: text,
+    error,
+    isPending,
+  } = useWorkflowSourceText(workflowId ?? undefined, {
     enabled: isActive,
   })
   useRefreshWhenDraftSettles(workflowId)
+  useSyncedModelText(view, text ?? '')
 
   // A failed refresh replaces the code rather than leaving a stale copy that no longer matches the draft.
   if (error) {
@@ -113,10 +151,12 @@ export function Code({ isActive }: CodeProps) {
 
   return (
     <MonacoEditor
-      value={data.files[SOURCE_ENTRY_FILE] ?? ''}
-      language='typescript'
+      defaultValue={text}
+      language={SOURCE_LANGUAGE_ID}
       theme={monacoTheme}
       options={CODE_VIEW_OPTIONS}
+      beforeMount={registerSourceLanguage}
+      onMount={setView}
       className='h-full'
     />
   )
