@@ -26,9 +26,9 @@ const logger = createLogger('PiiMaskClient')
 const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 
 /**
- * Attempts per chunk for transient failures (network errors, timeouts, 408/429/5xx),
- * the 3-attempt default of the AWS SDK standard retry mode and the OpenAI and
- * Anthropic SDKs. A large payload fans out into many chunk requests, so one blip (a
+ * Attempts per chunk for transient failures (network errors, timeouts, and the
+ * statuses in {@link RETRYABLE_STATUSES}), the 3-attempt default of the AWS SDK
+ * standard retry mode and the OpenAI and Anthropic SDKs. A large payload fans out into many chunk requests, so one blip (a
  * dropped connection, a Presidio worker restart, a request queued behind a busy
  * fleet) must not fail the whole redaction. The budget stays small because every
  * retry re-runs the chunk's full NER pass, so a chunk that fails on its own input (a
@@ -36,7 +36,7 @@ const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
  * Without a `Retry-After`, the jittered backoff spans about 1.5s; an outage
  * (502/503/504) that outlasts it falls to the caller's fail-safe, which with
  * {@link MaskPIIBatchOptions.failedChunkPlaceholder} also scrubs chunks not yet sent.
- * Other 4xx and shape mismatches throw immediately.
+ * Any other status and shape mismatches throw immediately.
  */
 const MAX_CHUNK_ATTEMPTS = 3
 
