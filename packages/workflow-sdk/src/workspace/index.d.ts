@@ -3,8 +3,10 @@
  * declaration files of a workspace source directory (`tables/<key>.ts`, …). Like the workflow
  * SDK, nothing here runs: the server reads each file statically.
  */
+export * from './credentials'
 export * from './file'
 export * from './knowledge'
+export * from './secrets'
 export * from './skill'
 export * from './table'
 export * from './tool'
