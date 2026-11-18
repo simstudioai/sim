@@ -850,6 +850,23 @@ export default workflow('Answer', {}, () => {
       )
       expect(writes(again)).toEqual([])
       expect(findings(again.diagnostics, 'error')).toEqual([])
+
+      const deleting = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: read.files,
+            base: read.base,
+            kinds: ['skill'],
+            allowDelete: true,
+          },
+        })
+      )
+      expect(writes(deleting)).toEqual([])
+      expect(
+        deleting.diagnostics.filter((finding) => finding.code === 'W_UNDECLARED')
+      ).toHaveLength(read.skipped.length)
     }
   )
 
@@ -926,6 +943,23 @@ export default workflow('Big', {}, () => {
       )
       expect(writes(again)).toEqual([])
       expect(findings(again.diagnostics, 'error')).toEqual([])
+
+      const deleting = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: Object.fromEntries(printed.filter(([path]) => path.includes('/.sim/'))),
+            base: read.base,
+            kinds: ['workflow'],
+            allowDelete: true,
+          },
+        })
+      )
+      expect(writes(deleting)).toEqual([])
+      expect(
+        deleting.diagnostics.filter((finding) => finding.code === 'W_UNDECLARED')
+      ).toHaveLength(read.skipped.length)
     }
   )
 
