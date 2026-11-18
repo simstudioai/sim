@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -272,6 +273,95 @@ describe('workspaces source get', () => {
       expect(existsSync(join(dir, 'files/report.bin'))).toBe(false)
       expect(existsSync(join(dir, 'tables/leads.ts'))).toBe(false)
       expect(existsSync(join(dir, '.sim/base.json'))).toBe(false)
+    })
+
+    describe('a download that fails part-way', () => {
+      const bytesOf = (name: string) => Buffer.from(`bytes of ${name}`)
+      const listedNamed = (name: string, overrides: object = {}) => ({
+        path: `files/${name}`,
+        sha256: createHash('sha256').update(bytesOf(name)).digest('hex'),
+        size: bytesOf(name).length,
+        id: `file_${name}`,
+        href: `/api/v2/files/file_${name}?workspaceId=ws_local`,
+        ...overrides,
+      })
+      const NAMES = ['a.bin', 'b.bin', 'c.bin']
+      const limited = () =>
+        new SimApiError('API rate limit exceeded', 429, 'RATE_LIMITED', undefined, 9)
+      /** Answers each download with its bytes, except `failing`, which is refused as rate limited. */
+      const downloads = (failing: string | null) =>
+        requestRaw.mockImplementation(async (path: string) => {
+          const name = path.slice('/api/v2/files/file_'.length)
+          if (name === failing) throw limited()
+          return new Response(bytesOf(name))
+        })
+      const fetchedNames = () =>
+        requestRaw.mock.calls.map(([path]) => String(path).slice('/api/v2/files/file_'.length))
+
+      it('keeps the blobs it downloaded, and a rerun downloads only the rest', async () => {
+        serve({}, { kinds: ['file'], blobs: NAMES.map((name) => listedNamed(name)) })
+        downloads('c.bin')
+
+        await expect(get()).rejects.toMatchObject({
+          status: 429,
+          exitCode: 9,
+          message: expect.stringMatching(/2 of 3 binary files .* run the get again/),
+        })
+        expect(existsSync(join(dir, 'files/a.bin'))).toBe(false)
+        expect(existsSync(join(dir, '.sim/base.json'))).toBe(false)
+
+        requestRaw.mockClear()
+        downloads(null)
+        await get()
+
+        expect(fetchedNames()).toEqual(['c.bin'])
+        for (const name of NAMES) {
+          expect(readFileSync(join(dir, `files/${name}`))).toEqual(bytesOf(name))
+        }
+        expect(existsSync(join(dir, '.sim/downloads'))).toBe(false)
+      })
+
+      it('downloads a kept blob again when its bytes no longer match the listing', async () => {
+        serve({}, { kinds: ['file'], blobs: NAMES.map((name) => listedNamed(name)) })
+        downloads('c.bin')
+        await expect(get()).rejects.toMatchObject({ status: 429 })
+        const keptA = readdirSync(join(dir, '.sim/downloads')).find((name) =>
+          readFileSync(join(dir, '.sim/downloads', name)).equals(bytesOf('a.bin'))
+        )
+        writeFileSync(join(dir, '.sim/downloads', String(keptA)), 'bytes of a.biN')
+
+        requestRaw.mockClear()
+        downloads(null)
+        await get()
+
+        expect(fetchedNames().sort()).toEqual(['a.bin', 'c.bin'])
+        expect(readFileSync(join(dir, 'files/a.bin'))).toEqual(bytesOf('a.bin'))
+      })
+
+      it('writes two paths listed with the same bytes', async () => {
+        const twin = { ...listedNamed('a.bin'), path: 'files/copy-of-a.bin' }
+        serve({}, { kinds: ['file'], blobs: [listedNamed('a.bin'), twin] })
+        downloads(null)
+
+        await get()
+
+        expect(readFileSync(join(dir, 'files/a.bin'))).toEqual(bytesOf('a.bin'))
+        expect(readFileSync(join(dir, 'files/copy-of-a.bin'))).toEqual(bytesOf('a.bin'))
+      })
+
+      it('never reuses a download listed with neither a hash nor a revision', async () => {
+        const blobs = NAMES.map((name) => listedNamed(name, { sha256: undefined }))
+        serve({}, { kinds: ['file'], blobs })
+        downloads('c.bin')
+        await expect(get()).rejects.toMatchObject({ status: 429 })
+
+        requestRaw.mockClear()
+        downloads(null)
+        await get()
+
+        expect(fetchedNames().sort()).toEqual(NAMES)
+        expect(existsSync(join(dir, '.sim/downloads'))).toBe(false)
+      })
     })
 
     it('refuses to read a blob through a symbolic link out of the directory', async () => {
