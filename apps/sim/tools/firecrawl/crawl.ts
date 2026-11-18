@@ -3,9 +3,8 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { escapeRegExp } from '@sim/utils/string'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import { cancelFirecrawlJob, readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import {
   applyFirecrawlFormatModelInput,
   applyFirecrawlScrapeOptionsModelInput,
@@ -262,13 +261,9 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
           throw new Error(`Failed to get crawl status: ${statusResponse.statusText}`)
         }
 
-        const crawlData = await readResponseJsonWithLimit<
+        const crawlData = await readFirecrawlJobStatus<
           FirecrawlJobStatusBody<FirecrawlCrawlResponse['output']['pages']>
-        >(statusResponse, {
-          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
-          label: 'Firecrawl job status',
-          signal,
-        })
+        >(statusResponse, signal)
         logger.info(`Firecrawl crawl job ${jobId} status: ${crawlData.status}`)
 
         if (crawlData.status === 'completed') {
@@ -294,6 +289,8 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
+        if (signal?.aborted)
+          await cancelFirecrawlJob(`crawl/${encodeURIComponent(jobId)}`, params.apiKey)
         logger.error('Error polling for crawl job status:', {
           message: error.message || 'Unknown error',
           jobId,

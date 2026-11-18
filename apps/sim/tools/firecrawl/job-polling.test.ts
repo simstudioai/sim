@@ -1,0 +1,54 @@
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { crawlTool } from '@/tools/firecrawl/crawl'
+import type { FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
+
+const fetchMock = vi.fn()
+const started = (): FirecrawlCrawlResponse => ({
+  success: true,
+  output: { jobId: 'job-1', pages: [], total: 0 },
+})
+const params = { apiKey: 'fc-key', url: 'https://example.com' }
+const executeTool = vi.fn()
+
+function pollCrawl(signal?: AbortSignal) {
+  if (!crawlTool.postProcess) throw new Error('crawlTool has no postProcess')
+  return crawlTool.postProcess(started(), params, executeTool, { signal })
+}
+
+describe('Firecrawl crawl polling', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  it('returns a completed crawl whose status body is over 10 MiB', async () => {
+    const markdown = '文'.repeat(4 * 1024 * 1024)
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: 'completed',
+        total: 1,
+        creditsUsed: 1,
+        data: [{ markdown, metadata: { title: 'Page', sourceURL: 'https://example.com' } }],
+      })
+    )
+
+    const result = await pollCrawl()
+
+    expect(result.success).toBe(true)
+    expect(result.output.pages[0].markdown).toHaveLength(markdown.length)
+  })
+
+  it('cancels the Firecrawl job when the workflow run is cancelled', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, status: 'cancelled' }))
+    const controller = new AbortController()
+    controller.abort()
+
+    const result = await pollCrawl(controller.signal)
+
+    expect(result.success).toBe(false)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.firecrawl.dev/v2/crawl/job-1',
+      expect.objectContaining({ method: 'DELETE' })
+    )
+  })
+})

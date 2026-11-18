@@ -9,7 +9,9 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { submitPulseParse } from '@/lib/internal/pulse/client'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 
 function requestTo(url: string) {
   const call = mockSecureFetchWithPinnedIP.mock.calls.find(([target]) => target === url)
@@ -43,5 +45,34 @@ describe('submitPulseParse large results', () => {
     await submitPulseParse('pulse-key', new FormData())
 
     expect(requestTo(resultUrl).headers).toEqual({})
+  })
+
+  it('does not send the API key to the Pulse host over plain HTTP', async () => {
+    const resultUrl = 'http://api.runpulse.com/results/job-1'
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(jsonResponse({ is_url: true, url: resultUrl, extraction_id: 'ext-1' }))
+      .mockResolvedValueOnce(jsonResponse({ markdown: '# Report' }))
+
+    await submitPulseParse('pulse-key', new FormData())
+
+    expect(requestTo(resultUrl).headers).toEqual({})
+  })
+
+  it('fails with a clear error when the full result is too large to return', async () => {
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        jsonResponse({ is_url: true, url: 'https://api.runpulse.com/results/job-1' })
+      )
+      .mockRejectedValueOnce(
+        new PayloadSizeLimitError({
+          label: 'response body',
+          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+        })
+      )
+
+    await expect(submitPulseParse('pulse-key', new FormData())).rejects.toMatchObject({
+      status: 413,
+      body: { success: false, error: expect.stringContaining('too large') },
+    })
   })
 })

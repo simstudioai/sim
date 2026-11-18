@@ -7,9 +7,11 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { PulseOperationError } from '@/lib/internal/pulse/errors'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 
 const logger = createLogger('PulseClient')
 const PULSE_API_HOST = 'api.runpulse.com'
@@ -34,23 +36,32 @@ async function downloadLargeResult(
       error: 'Pulse returned an invalid result URL',
     })
   }
-  const isPulseHost = new URL(url).hostname === PULSE_API_HOST
-  const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
-    profile: 'contentFetch',
-    method: 'GET',
-    headers: isPulseHost ? { 'x-api-key': apiKey } : {},
-    maxResponseBytes: DEFAULT_MAX_RESPONSE_BYTES,
-    signal,
-  })
-  signal?.throwIfAborted()
-  if (!response.ok) {
-    logger.error('Pulse large result download failed', { status: response.status })
-    throw new PulseOperationError(response.status, {
+  const target = new URL(url)
+  const isPulseHost = target.protocol === 'https:' && target.hostname === PULSE_API_HOST
+  try {
+    const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+      profile: 'contentFetch',
+      method: 'GET',
+      headers: isPulseHost ? { 'x-api-key': apiKey } : {},
+      maxResponseBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      signal,
+    })
+    signal?.throwIfAborted()
+    if (!response.ok) {
+      logger.error('Pulse large result download failed', { status: response.status })
+      throw new PulseOperationError(response.status, {
+        success: false,
+        error: `Failed to download the Pulse result: ${response.statusText}`,
+      })
+    }
+    return await response.json()
+  } catch (error) {
+    if (!isPayloadSizeLimitError(error)) throw error
+    throw new PulseOperationError(413, {
       success: false,
-      error: `Failed to download the Pulse result: ${response.statusText}`,
+      error: `The Pulse result is too large to return (over ${MAX_TOOL_RESPONSE_BODY_BYTES / (1024 * 1024)} MiB). Request fewer pages.`,
     })
   }
-  return response.json()
 }
 
 export async function submitPulseParse(

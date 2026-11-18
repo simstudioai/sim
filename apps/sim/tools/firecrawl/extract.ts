@@ -2,9 +2,8 @@ import { createLogger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import { readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import {
   applyFirecrawlScrapeOptionsModelInput,
   selectFirecrawlScrapeOptionsModelInput,
@@ -193,13 +192,9 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           throw new Error(`Failed to get extract status: ${statusResponse.statusText}`)
         }
 
-        const extractData = await readResponseJsonWithLimit<
+        const extractData = await readFirecrawlJobStatus<
           FirecrawlJobStatusBody<ExtractResponse['output']['data']>
-        >(statusResponse, {
-          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
-          label: 'Firecrawl job status',
-          signal,
-        })
+        >(statusResponse, signal)
         logger.info(`Firecrawl extract job ${jobId} status: ${extractData.status}`)
 
         if (extractData.status === 'completed') {

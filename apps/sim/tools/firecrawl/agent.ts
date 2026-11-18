@@ -2,8 +2,7 @@ import { createLogger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
+import { cancelFirecrawlJob, readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import type { AgentParams, AgentResponse, FirecrawlJobStatusBody } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -137,13 +136,9 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
           throw new Error(`Failed to get agent status: ${statusResponse.statusText}`)
         }
 
-        const agentData = await readResponseJsonWithLimit<
+        const agentData = await readFirecrawlJobStatus<
           FirecrawlJobStatusBody<AgentResponse['output']['data']>
-        >(statusResponse, {
-          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
-          label: 'Firecrawl job status',
-          signal,
-        })
+        >(statusResponse, signal)
         logger.info(`Firecrawl agent job ${jobId} status: ${agentData.status}`)
 
         if (agentData.status === 'completed') {
@@ -170,6 +165,8 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
+        if (signal?.aborted)
+          await cancelFirecrawlJob(`agent/${encodeURIComponent(jobId)}`, params.apiKey)
         logger.error('Error polling for agent job status:', {
           message: error.message || 'Unknown error',
           jobId,

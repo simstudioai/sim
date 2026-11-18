@@ -2,9 +2,8 @@ import { createLogger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import { cancelFirecrawlJob, readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import {
   applyFirecrawlFormatModelInput,
   applyFirecrawlScrapeOptionsModelInput,
@@ -218,13 +217,9 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
             throw new Error(`Failed to get batch scrape status: ${statusResponse.statusText}`)
           }
 
-          const batchData = await readResponseJsonWithLimit<
+          const batchData = await readFirecrawlJobStatus<
             FirecrawlJobStatusBody<FirecrawlBatchScrapeResponse['output']['pages']>
-          >(statusResponse, {
-            maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
-            label: 'Firecrawl job status',
-            signal,
-          })
+          >(statusResponse, signal)
           logger.info(`Firecrawl batch scrape job ${jobId} status: ${batchData.status}`)
 
           if (batchData.status === 'completed') {
@@ -253,6 +248,8 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
           await interruptibleSleep(POLL_INTERVAL_MS, signal)
           elapsedTime += POLL_INTERVAL_MS
         } catch (error: any) {
+          if (signal?.aborted)
+            await cancelFirecrawlJob(`batch/scrape/${encodeURIComponent(jobId)}`, params.apiKey)
           logger.error('Error polling for batch scrape job status:', {
             message: error.message || 'Unknown error',
             jobId,
