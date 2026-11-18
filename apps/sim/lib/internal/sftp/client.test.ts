@@ -158,6 +158,17 @@ describe('SFTP client boundary', () => {
     expect(isPathSafe('/reports/100%/%2e%2e%2fsecret')).toBe(false)
   })
 
+  it.each(['/data/..', '..', '/data/%2e%2e', 'data\\..\\etc'])(
+    'rejects the parent segment in %j',
+    (path) => {
+      expect(isPathSafe(path)).toBe(false)
+    }
+  )
+
+  it.each(['/data/..hidden', '/data/v1..v2/report.csv', '/data/.'])('accepts %j', (path) => {
+    expect(isPathSafe(path)).toBe(true)
+  })
+
   it('keeps a double-encoded upload name inside the target directory', () => {
     const destination = joinRemotePath('/uploads', sanitizeFileName('%252e%252e%252fsecret.txt'))
     expect(destination).toBe('/uploads/%2e%2e%2fsecret.txt')

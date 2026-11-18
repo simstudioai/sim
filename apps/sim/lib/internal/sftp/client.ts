@@ -281,12 +281,12 @@ export function sanitizeFileName(fileName: string): string {
   return sanitized || 'unnamed_file'
 }
 
+/** Rejects a `..` segment anywhere in the path, including a trailing one, raw or percent-decoded. */
 export function isPathSafe(path: string): boolean {
-  const normalizedPath = path.replace(/\\/g, '/')
-  if (normalizedPath.includes('../') || normalizedPath.includes('..\\')) return false
-  const decoded = decodeRemotePath(normalizedPath)
-  if (decoded.includes('../') || decoded.includes('..\\')) return false
-  return !normalizedPath.includes('\0')
+  const hasParentSegment = (value: string) =>
+    value.split(/[/\\]/).some((segment) => segment === '..')
+  if (hasParentSegment(path) || hasParentSegment(decodeRemotePath(path))) return false
+  return !path.includes('\0')
 }
 
 export function parsePermissions(mode: number): string {
