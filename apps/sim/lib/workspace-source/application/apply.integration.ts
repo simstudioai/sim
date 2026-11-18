@@ -1964,11 +1964,6 @@ export default workflow('Notes', {}, () => {
     const read = await setUp(workspaceId)
     await insertRow(workspaceId, { email: 'a@x.io' })
     await insertRow(workspaceId, { email: 'b@x.io' })
-    // The rows go in raw, so the table's stored row count is set as a row write keeps it.
-    await db
-      .update(userTableDefinitions)
-      .set({ rowCount: 2 })
-      .where(eq(userTableDefinitions.workspaceId, workspaceId))
     const files = {
       ...read.files,
       'tables/leads.ts': read.files['tables/leads.ts'].replace(
