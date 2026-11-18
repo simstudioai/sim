@@ -56,6 +56,7 @@ import {
   type PendingResource,
   type SourcePlan,
 } from '@/lib/workflows/application/source-evaluate'
+import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
@@ -171,7 +172,7 @@ interface ApplyWorkflowSourceResult {
   workflowName: string
   workspaceId: string
   dryRun: boolean
-  /** True only when a graph was written. */
+  /** True when the apply wrote a graph, or renamed or redescribed the workflow. */
   applied: boolean
   /** True when source meta was stored: with a graph write, or alone for a graph no-op. */
   wroteSourceMeta: boolean
@@ -328,6 +329,31 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
     ])
   },
 })
+
+/**
+ * Gives a stored workflow the name and description its source declares, through the workflow
+ * update use case (its authorization, lock and folder name checks, audit and notifications),
+ * after the graph write: the graph's commit checks the fingerprint the source was read at, which
+ * the rename changes. Returns whether it renamed anything.
+ */
+async function renameAsPlanned(
+  principal: Principal,
+  workflowId: string,
+  plan: SourcePlan
+): Promise<boolean> {
+  if (plan.metaChanged.length === 0) return false
+  await updateWorkflow.execute({
+    principal,
+    input: {
+      workflowId,
+      ...(plan.metaChanged.includes('name') ? { name: plan.meta.name } : {}),
+      ...(plan.metaChanged.includes('description')
+        ? { description: plan.meta.description ?? null }
+        : {}),
+    },
+  })
+  return true
+}
 
 function analyticsFacts(
   principal: Principal,
@@ -582,11 +608,19 @@ async function runSourceApply(
     }
 
     if (plan.noop) {
-      const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
+      // The stored graph under the name and description the write leaves it with.
+      const lockless =
+        plan.metaChanged.length > 0
+          ? {
+              ...storedCanonical.canonical,
+              workflow: { ...storedCanonical.canonical.workflow, meta: plan.meta },
+            }
+          : storedCanonical.canonical
+      const printed = print(stored.state, plan.sourceMeta, lockless)
       /** Unchanged source meta prints the same text, so only changed meta prints the "before". */
       const before = isEqual(plan.sourceMeta, storedSourceMeta)
         ? printed
-        : print(stored.state, storedSourceMeta, storedCanonical.canonical)
+        : print(stored.state, storedSourceMeta, lockless)
       const sourceMetaChanged =
         !isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)
       const wroteSourceMeta = sourceMetaChanged && !dryRun
@@ -599,8 +633,10 @@ async function runSourceApply(
           catalog,
         })
       }
+      const renamed = !dryRun && (await renameAsPlanned(principal, context.workflowId, plan))
       return result(evaluated, printed, {
-        applied: false,
+        applied: renamed,
+        ...(renamed ? { workflowName: plan.meta.name } : {}),
         diff,
         diagnostics,
         references: plan.references,
@@ -670,6 +706,9 @@ async function runSourceApply(
             })),
             name: stored.meta.name,
           }
+    if (!isNew && (await renameAsPlanned(principal, context.workflowId, plan))) {
+      committed.name = plan.meta.name
+    }
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
     return result(evaluated, printWritten(committed.state), {
       applied: true,

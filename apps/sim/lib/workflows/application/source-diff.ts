@@ -16,19 +16,26 @@ export interface SourceDiffSummary {
   }
   edges: { added: number; removed: number }
   variables: { added: string[]; removed: string[]; modified: string[] }
+  /** The workflow's name and description fields the source changes (a stored workflow's). */
+  meta?: Array<'name' | 'description'>
 }
 
-/** The canonical diff by stored id and source key; `noop` is whether the graph is unchanged. */
+/**
+ * The canonical diff by stored id and source key; `noop` is whether the graph is unchanged and
+ * `meta` (the name and description fields the source changes) is empty.
+ */
 export function summarizeDiff(
   diff: CanonicalDiff,
   baseIdentity: LockIdentity,
   targetIdentity: LockIdentity,
-  noop: boolean
+  noop: boolean,
+  meta: ReadonlyArray<'name' | 'description'> = []
 ): SourceDiffSummary {
   const targetId = (key: string) => targetIdentity.blocks[key]?.id ?? ''
   const baseId = (key: string) => baseIdentity.blocks[key]?.id ?? ''
   return {
-    noop,
+    noop: noop && meta.length === 0,
+    ...(meta.length > 0 ? { meta: [...meta] } : {}),
     blocks: {
       added: diff.blocks.added.map((key) => ({ id: targetId(key), key })),
       removed: diff.blocks.removed.map((key) => ({ id: baseId(key), key })),

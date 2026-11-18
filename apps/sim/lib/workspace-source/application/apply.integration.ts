@@ -1984,4 +1984,42 @@ export default workflow('Notes', {}, () => {
     expect(refused.diagnostics[0]?.message).toContain('2 row(s)')
     expect(await tableSnapshot(workspaceId)).toEqual(before)
   })
+
+  check(
+    'renames a workflow its folder renames, and refuses a name another workflow holds',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+      })
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const renamedTo = (name: string) => ({
+        ...read.files,
+        [entry]: read.files[entry].replace("workflow('Ingest'", `workflow('${name}'`),
+      })
+
+      const taken = await refusal(apply(workspaceId, renamedTo('Intake'), { base: read.base }))
+      expect(taken.diagnostics.find((finding) => finding.severity === 'error')).toMatchObject({
+        code: 'E_NAME_TAKEN',
+        kind: 'workflow',
+        key: 'ingest',
+        file: entry,
+      })
+
+      const result = await apply(workspaceId, renamedTo('Ingest v2'), { base: read.base })
+      expect(result.failed).toBeUndefined()
+      expect(result.applied).toMatchObject([
+        { kind: 'workflow', key: 'ingest', action: 'update', fields: ['name'] },
+      ])
+      expect((await workflows(workspaceId)).map((stored) => stored.name).sort()).toEqual([
+        'Ingest v2',
+        'Intake',
+      ])
+      const again = await get(workspaceId)
+      const noop = await apply(workspaceId, again.files, { base: again.base })
+      expect(noop.applied).toEqual([])
+    }
+  )
 })

@@ -14,6 +14,9 @@
  *   on every apply, the cost the unchanged folder exists to avoid; no cheaper stored token tracks
  *   it (the row's `updatedAt` also moves on a drag or a resize, which source never shows). The
  *   change is never lost: the next get prints it, and an edit of the folder is refused as stale.
+ *   Folders sent whole that print exactly as their stored workflows are found by one batched read
+ *   (`foldersAsStored`) and are no-ops the same way.
+ * - New folders get their workflow ids at plan time, so folders that run each other resolve.
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -226,7 +229,7 @@ function inFolder(
 /** `blocks +2 -1 ~3, connections +1`: what a workflow apply changes, for the plan display. */
 function diffFields(diff: SourceDiffSummary): string[] {
   const { blocks, edges, variables } = diff
-  const fields: string[] = []
+  const fields: string[] = [...(diff.meta ?? [])]
   if (blocks.added.length > 0) fields.push(`blocks +${blocks.added.length}`)
   if (blocks.removed.length > 0) fields.push(`blocks -${blocks.removed.length}`)
   if (blocks.renamed.length > 0) fields.push(`blocks renamed ${blocks.renamed.length}`)

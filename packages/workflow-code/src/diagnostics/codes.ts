@@ -413,8 +413,8 @@ const APPLY_DIAGNOSTIC_CODES = [
    * `allowDelete` (`--allow-delete`).
    */
   'E_APPLY_BLOCK_DELETE',
-  /** The source's workflow name or description differs from the stored one, which apply never changes. */
-  'E_APPLY_META_CHANGED',
+  /** The source renames the workflow to a name another workflow in its folder holds. */
+  'E_NAME_TAKEN',
 ] as const
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 
