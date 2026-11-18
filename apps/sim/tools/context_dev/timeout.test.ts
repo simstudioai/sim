@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { contextDevExtractTool } from '@/tools/context_dev/extract'
 import { contextDevGetBrandTool } from '@/tools/context_dev/get_brand'
+import type { ContextDevExtractParams } from '@/tools/context_dev/types'
 
 /**
  * Context.dev replaced `timeoutMS` with `timeoutOpts.milliseconds`; its extract and search bodies
@@ -17,6 +18,18 @@ describe('Context.dev request timeout', () => {
 
     expect(body).toMatchObject({ timeoutOpts: { milliseconds: 30000 } })
     expect(body).not.toHaveProperty('timeoutMS')
+  })
+
+  it.each([[''], [null]])('omits the timeout when the field is untouched (%j)', (timeoutMS) => {
+    const params: Record<string, unknown> = {
+      apiKey: 'key',
+      url: 'https://example.com',
+      schema: { type: 'object' },
+      timeoutMS,
+    }
+    const body = contextDevExtractTool.request.body?.(params as ContextDevExtractParams)
+
+    expect(JSON.parse(JSON.stringify(body))).not.toHaveProperty('timeoutOpts')
   })
 
   it('sends the timeout as a timeoutOpts deep-object query parameter', () => {
