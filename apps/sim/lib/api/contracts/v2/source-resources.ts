@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { columnTypeSchema } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
@@ -34,9 +35,9 @@ const sourceResourcesSchema = z
               .array(
                 z.object({
                   name: z.string().describe('Column name, as row data names it.'),
-                  type: z
-                    .string()
-                    .describe('Column type, e.g. `string`, `number`, `boolean`, `json`, `select`.'),
+                  type: columnTypeSchema.describe(
+                    'Column type, e.g. `string`, `number`, `boolean`, `json`, `select`.'
+                  ),
                   options: z
                     .array(z.string())
                     .optional()

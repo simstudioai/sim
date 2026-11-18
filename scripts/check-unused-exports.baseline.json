@@ -1497,7 +1497,6 @@
   "apps/sim/lib/api/contracts/knowledge/base.ts#bulkDeleteKnowledgeItemsBodySchema",
   "apps/sim/lib/api/contracts/knowledge/base.ts#bulkMoveKnowledgeItemsBodySchema",
   "apps/sim/lib/api/contracts/knowledge/base.ts#chunkingStrategyOptionsSchema",
-  "apps/sim/lib/api/contracts/knowledge/base.ts#chunkingStrategySchema",
   "apps/sim/lib/api/contracts/knowledge/base.ts#exportKnowledgeBaseQuerySchema",
   "apps/sim/lib/api/contracts/knowledge/base.ts#knowledgeScopeSchema",
   "apps/sim/lib/api/contracts/knowledge/base.ts#listKnowledgeBasesQuerySchema",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseWorkflowLock } from './lock'
+import { parseSourceBase, parseWorkflowLock } from './lock'
 
 function validLock(): Record<string, unknown> {
   return {
@@ -209,5 +209,35 @@ describe('parseWorkflowLock', () => {
     const blocks = lock.blocks as Record<string, Record<string, unknown>>
     blocks['a/b~2'] = { id: 'blk-ab', parent: null, ident: 'ab', order: 'x' }
     expect(codesFor(lock)).toEqual(['E_LOCK_SHAPE /blocks/a~1b~02/order'])
+  })
+})
+
+describe('parseSourceBase', () => {
+  const base = { workflowId: 'wf-1', workspaceId: 'ws-1', fingerprint: 'sf1:a', catalogHash: 'c' }
+
+  it('reads a base written before it carried a version as version 1', () => {
+    expect(parseSourceBase(JSON.stringify(base))).toEqual({ base: { version: 1, ...base } })
+  })
+
+  it('refuses a version this build cannot read', () => {
+    expect(parseSourceBase({ ...base, version: 2 })).toEqual({
+      problem: 'Unsupported base version; expected 1.',
+    })
+  })
+
+  it('keeps an x- extension and refuses any other unknown field', () => {
+    expect(parseSourceBase({ ...base, 'x-tool': { pinned: true } })).toEqual({
+      base: { version: 1, ...base, 'x-tool': { pinned: true } },
+    })
+    expect(parseSourceBase({ ...base, branch: 'main' })).toEqual({
+      problem: 'Unknown base field "branch".',
+    })
+  })
+
+  it('names every missing or malformed field at once', () => {
+    expect(parseSourceBase({ workspaceId: 1, fingerprint: 'x'.repeat(257) })).toEqual({
+      problem:
+        '"workflowId" must be a non-empty string. "workspaceId" must be a string. "fingerprint" must be a non-empty string of at most 256 characters. "catalogHash" must be a string.',
+    })
   })
 })

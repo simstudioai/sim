@@ -5,168 +5,182 @@
  */
 
 /** Declaration files and the directory layout. */
-type DeclarationCode =
+const DECLARATION_CODES = [
   /** A Babel parse error, re-coded. */
-  | 'E_DECL_SYNTAX'
+  'E_DECL_SYNTAX',
   /** The first line is not `// @sim-sdk 1`. */
-  | 'E_DECL_HEADER'
+  'E_DECL_HEADER',
   /** An import from anything but `@sim/workflow-sdk/workspace`, or a non-named import. */
-  | 'E_DECL_IMPORT'
+  'E_DECL_IMPORT',
   /** Not exactly one `export default defineX({ … })` with the kind's `defineX`. */
-  | 'E_DECL_EXPORT'
+  'E_DECL_EXPORT',
   /** A construct outside the declaration grammar: JSON literals, the kind's helper calls. */
-  | 'E_DECL_UNSUPPORTED'
+  'E_DECL_UNSUPPORTED',
   /** An object key declared twice. */
-  | 'E_DECL_DUPLICATE_KEY'
+  'E_DECL_DUPLICATE_KEY',
   /** A required field is missing, or a field has the wrong type. */
-  | 'E_DECL_SHAPE'
+  'E_DECL_SHAPE',
   /** A field the kind does not define. */
-  | 'E_DECL_UNKNOWN_FIELD'
+  'E_DECL_UNKNOWN_FIELD',
   /** A path inside a kind's folder that no resource owns. */
-  | 'E_DECL_UNKNOWN_FILE'
+  'E_DECL_UNKNOWN_FILE',
   /**
    * A binary file sent with bytes that do not match the hash or size the directory declared, or
    * listed twice or at a path that holds no binary file: the apply writes nothing.
    */
-  | 'E_BLOB_CONTENT'
+  'E_BLOB_CONTENT',
   /** A size, count or nesting limit exceeded (a file, a round's blobs, a kind, findings). */
-  | 'E_LIMIT_EXCEEDED'
+  'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
-  | 'E_KEY_INVALID'
+  'E_KEY_INVALID',
+] as const
 
 /** `.sim/base.json`. */
-type BaseCode = 'E_BASE_JSON' | 'E_BASE_VERSION' | 'E_BASE_SHAPE' | 'E_BASE_UNKNOWN_FIELD'
+const BASE_CODES = [
+  'E_BASE_JSON',
+  'E_BASE_VERSION',
+  'E_BASE_SHAPE',
+  'E_BASE_UNKNOWN_FIELD',
+] as const
 
 /** Tables. */
-type TableCode =
+const TABLE_CODES = [
   /** A column key or name outside the table name pattern. */
-  | 'E_TABLE_COLUMN_NAME'
+  'E_TABLE_COLUMN_NAME',
   /** Two columns resolve to one name. */
-  | 'E_TABLE_DUPLICATE_COLUMN'
+  'E_TABLE_DUPLICATE_COLUMN',
   /** More columns than a table may hold. */
-  | 'E_TABLE_TOO_MANY_COLUMNS'
+  'E_TABLE_TOO_MANY_COLUMNS',
   /** A select column without options, an option declared twice, or options on another type. */
-  | 'E_TABLE_OPTIONS'
+  'E_TABLE_OPTIONS',
   /** A type change the stored cells cannot convert to. */
-  | 'E_TABLE_TYPE_CONVERSION'
+  'E_TABLE_TYPE_CONVERSION',
   /** A table folder that does not exist in the workspace. */
-  | 'E_TABLE_FOLDER'
+  'E_TABLE_FOLDER',
   /** A column dropped and one of the same type added: probably a rename, which loses the cells. */
-  | 'W_LIKELY_RENAME'
+  'W_LIKELY_RENAME',
+] as const
 
 /** Custom tools. */
-type ToolCode =
+const TOOL_CODES = [
   /** The schema is not a function declaration a custom tool may store. */
-  | 'E_TOOL_SCHEMA'
+  'E_TOOL_SCHEMA',
   /**
    * `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not
    * parse.
    */
-  | 'E_TOOL_CODE'
+  'E_TOOL_CODE',
+] as const
 
 /** Skills. */
-type SkillCode =
+const SKILL_CODES = [
   /** `skills/<key>.md` does not open with a frontmatter block of `name` and `description`. */
-  'E_SKILL_FRONTMATTER'
+  'E_SKILL_FRONTMATTER',
+] as const
 
 /** Workspace files. */
-type FileCode =
+const FILE_CODES = [
   /** A path no workspace file may have: a dot or empty segment, a reserved name or character. */
-  | 'E_FILE_PATH'
+  'E_FILE_PATH',
   /** Two paths that differ only in letter case, or a path that is both a file and a folder. */
-  | 'E_FILE_PATH_COLLISION'
+  'E_FILE_PATH_COLLISION',
   /** A name the server would store differently (trimmed, whitespace collapsed, NFC). */
-  | 'E_FILE_NAME'
+  'E_FILE_NAME',
   /** A file over the per-blob cap: a get skips it and an apply never writes it. */
-  | 'E_FILE_TOO_LARGE'
+  'E_FILE_TOO_LARGE',
   /** A workspace file sent as text, or listed without a valid SHA-256 and size. */
-  | 'E_FILE_CONTENT'
+  'E_FILE_CONTENT',
+] as const
 
 /** Knowledge bases. */
-type KnowledgeCode =
+const KNOWLEDGE_CODES = [
   /** A declared embedding model that differs from the stored one: it is fixed at creation. */
-  | 'E_KB_EMBEDDING_IMMUTABLE'
+  'E_KB_EMBEDDING_IMMUTABLE',
   /** A new knowledge base declares a model this server does not create knowledge bases with. */
-  | 'E_KB_EMBEDDING_MODEL'
+  'E_KB_EMBEDDING_MODEL',
   /** The server holds several documents under one declared file name. */
-  | 'E_KB_DOC_AMBIGUOUS'
+  'E_KB_DOC_AMBIGUOUS',
   /** A document file name or type the knowledge base cannot hold. */
-  | 'E_KB_DOC_NAME'
+  'E_KB_DOC_NAME',
   /** An empty document, which a knowledge base cannot index. */
-  | 'E_KB_DOC_EMPTY'
+  'E_KB_DOC_EMPTY',
   /** Chunking settings outside what a knowledge base accepts. */
-  | 'E_KB_CHUNKING'
+  'E_KB_CHUNKING',
   /** A knowledge base folder that does not exist in the workspace. */
-  | 'E_KB_FOLDER'
+  'E_KB_FOLDER',
   /** Replacing a document drops the tag values the stored one holds. */
-  | 'W_KB_DOC_TAGS'
+  'W_KB_DOC_TAGS',
   /** A stored document whose bytes this request had no budget left to download and compare. */
-  | 'W_KB_DOC_UNCHECKED'
+  'W_KB_DOC_UNCHECKED',
   /** Documents whose indexing failed: search does not find them until they are indexed again. */
-  | 'W_KB_DOC_FAILED'
+  'W_KB_DOC_FAILED',
   /** How many documents the apply indexes (embeds) after it writes them. */
-  | 'I_KB_REEMBED'
+  'I_KB_REEMBED',
   /** Changed chunking applies to documents indexed from now on; stored ones keep their chunks. */
-  | 'I_KB_CHUNKING'
+  'I_KB_CHUNKING',
   /** Documents still waiting to be indexed or being indexed: search finds them once that ends. */
-  | 'I_KB_PROCESSING'
+  'I_KB_PROCESSING',
   /** Documents a get lists without a hash: it had no budget left to download them. */
-  | 'I_KB_DOCS_UNHASHED'
+  'I_KB_DOCS_UNHASHED',
   /** Documents source leaves alone: connector-synced, too large, or not a plain file name. */
-  | 'I_KB_UNMANAGED_DOCS'
+  'I_KB_UNMANAGED_DOCS',
+] as const
 
 /** Plan and apply. */
-type PlanCode =
+const PLAN_CODES = [
   /** The resource changed on the server since the directory was read (HTTP 409). */
-  | 'E_APPLY_STALE'
+  'E_APPLY_STALE',
   /** The server holds the resource but the directory has no base for it: get it first. */
-  | 'E_APPLY_NO_BASE'
+  'E_APPLY_NO_BASE',
   /** The caller may not make this change. */
-  | 'E_APPLY_FORBIDDEN'
+  'E_APPLY_FORBIDDEN',
   /** The change deletes a resource or data and `--allow-delete` was not given. */
-  | 'E_APPLY_DELETE_NOT_ALLOWED'
+  'E_APPLY_DELETE_NOT_ALLOWED',
   /** The resource is locked against this change (HTTP 423). */
-  | 'E_APPLY_LOCKED'
+  'E_APPLY_LOCKED',
   /** A change a child operation refused, with its message. */
-  | 'E_APPLY_REFUSED'
+  'E_APPLY_REFUSED',
   /** A write failed for a reason that is not the source's (logged on the server). */
-  | 'E_APPLY_FAILED'
+  'E_APPLY_FAILED',
   /** The apply would make more changes or touch more workflows than one request may. */
-  | 'E_PLAN_TOO_LARGE'
+  'E_PLAN_TOO_LARGE',
   /** A declared resource references one this apply deletes. */
-  | 'E_PLAN_REF_DELETED'
+  'E_PLAN_REF_DELETED',
   /** A resource this apply deletes is still used by stored workflows. */
-  | 'W_RESOURCE_IN_USE'
+  'W_RESOURCE_IN_USE',
   /** Another resource of the kind holds this name or key. */
-  | 'E_NAME_TAKEN'
+  'E_NAME_TAKEN',
   /** A workflow folder sent without its files whose base names no workflow of this workspace. */
-  | 'E_WORKFLOW_FILES_MISSING'
+  'E_WORKFLOW_FILES_MISSING',
   /**
    * A resource the server holds that the directory does not declare (kept without
    * `--allow-delete`).
    */
-  | 'W_UNDECLARED'
+  'W_UNDECLARED',
   /** The directory's base was read from another workspace: every resource is created anew. */
-  | 'W_BASE_OTHER_WORKSPACE'
+  'W_BASE_OTHER_WORKSPACE',
   /** The server changed a resource the directory leaves as it was; the next get shows it. */
-  | 'I_SERVER_CHANGED'
+  'I_SERVER_CHANGED',
   /** The server deleted a resource the directory leaves as it was; it is not created again. */
-  | 'I_SERVER_DELETED'
+  'I_SERVER_DELETED',
   /** The server moved a resource the directory leaves as it was; it is not created again. */
-  | 'I_SERVER_MOVED'
+  'I_SERVER_MOVED',
   /** A key bound to a deleted resource was bound to the one this apply wrote. */
-  | 'I_KEY_REBOUND'
+  'I_KEY_REBOUND',
+] as const
 
-/** Every code a workspace source finding can carry. */
-export type WorkspaceDiagnosticCode =
-  | DeclarationCode
-  | BaseCode
-  | TableCode
-  | ToolCode
-  | SkillCode
-  | FileCode
-  | KnowledgeCode
-  | PlanCode
+/** Every code a workspace source finding can carry, as a value: the wire contracts' enum. */
+export const WORKSPACE_DIAGNOSTIC_CODES = [
+  ...DECLARATION_CODES,
+  ...BASE_CODES,
+  ...TABLE_CODES,
+  ...TOOL_CODES,
+  ...SKILL_CODES,
+  ...FILE_CODES,
+  ...KNOWLEDGE_CODES,
+  ...PLAN_CODES,
+] as const
+export type WorkspaceDiagnosticCode = (typeof WORKSPACE_DIAGNOSTIC_CODES)[number]
 
 /** How a finding weighs: an error refuses, a warning and an info only report. */
 export type DiagnosticSeverity = 'error' | 'warning' | 'info'

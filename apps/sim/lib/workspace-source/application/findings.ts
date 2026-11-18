@@ -7,6 +7,7 @@ import {
   KIND_DIRS,
   resourceAddress,
   severityOf,
+  WORKSPACE_KIND_SPECS,
   type WorkspaceDiagnosticCode,
   type WorkspaceKind,
 } from '@sim/workspace-code'
@@ -39,16 +40,6 @@ export const GET_HINT =
 /** `tables/leads`: how a finding names a resource. */
 export function where(kind: WorkspaceKind, key: string): string {
   return `${KIND_DIRS[kind]}/${key}`
-}
-
-/** How findings name one resource of a kind. */
-export const NOUNS: Record<WorkspaceKind, string> = {
-  table: 'table',
-  'custom-tool': 'custom tool',
-  skill: 'skill',
-  'knowledge-base': 'knowledge base',
-  file: 'file',
-  workflow: 'workflow',
 }
 
 /**
@@ -118,7 +109,9 @@ export function missingFolderFinding(
     key,
     kind === 'table' ? 'E_TABLE_FOLDER' : 'E_KB_FOLDER',
     `The folder ${folder} does not exist in this workspace.`,
-    { hint: `Create the folder first, or drop \`folder\` to keep the ${NOUNS[kind]} at the root.` }
+    {
+      hint: `Create the folder first, or drop \`folder\` to keep the ${WORKSPACE_KIND_SPECS[kind].noun} at the root.`,
+    }
   )
 }
 
@@ -209,7 +202,7 @@ export function nameTakenFinding(
   holder: NameHolder,
   file?: string
 ): WorkspaceSourceDiagnostic {
-  const noun = NOUNS[kind]
+  const noun = WORKSPACE_KIND_SPECS[kind].noun
   const held =
     'declaredBy' in holder
       ? `${where(kind, holder.declaredBy)}, declared in this directory too`
@@ -315,7 +308,10 @@ export function planUndeclared<S, D, P>(
         key,
         action: 'delete',
         storedId: resource.id,
-        destructive: { what: NOUNS[kind], counts: options.counts?.(resource) ?? {} },
+        destructive: {
+          what: WORKSPACE_KIND_SPECS[kind].noun,
+          counts: options.counts?.(resource) ?? {},
+        },
         serverFingerprint,
         ...(detail !== undefined ? { detail } : {}),
         diagnostics: [],

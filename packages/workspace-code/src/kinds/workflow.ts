@@ -4,8 +4,7 @@
  * `.sim/base.json`), so it also applies on its own with `sim workflows source apply`. The
  * workflow pipeline compiles and diffs it; this codec only carries the files.
  */
-import { isRecordLike } from '@sim/utils/object'
-import { type SourceBase, setOwn } from '@sim/workflow-code'
+import { parseSourceBase, type SourceBase, setOwn } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { diagnostic, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
@@ -20,8 +19,8 @@ export interface WorkflowDecl {
   files: Record<string, string>
   /** `.sim/lock.json`, as JSON; the workflow pipeline validates it. */
   lock?: unknown
-  /** `.sim/base.json`, as JSON: where the workflow was read. */
-  base?: unknown
+  /** `.sim/base.json`: where the workflow was read. */
+  base?: SourceBase
 }
 
 /** The folder of workflow `key`. */
@@ -29,25 +28,9 @@ export function workflowFolder(key: string): string {
   return `${KIND_DIRS.workflow}/${key}`
 }
 
-/** `value` as a workflow folder's base (`SourceBase`: where the workflow was read), or `null`. */
-function sourceBaseOf(base: unknown): SourceBase | null {
-  return isRecordLike(base) &&
-    typeof base.workflowId === 'string' &&
-    typeof base.workspaceId === 'string' &&
-    typeof base.fingerprint === 'string' &&
-    typeof base.catalogHash === 'string'
-    ? {
-        workflowId: base.workflowId,
-        workspaceId: base.workspaceId,
-        fingerprint: base.fingerprint,
-        catalogHash: base.catalogHash,
-      }
-    : null
-}
-
-/** A workflow folder's base, when it is one (`SourceBase`: where the workflow was read). */
+/** A workflow folder's base, when it has one (`SourceBase`: where the workflow was read). */
 export function workflowSourceBase(decl: WorkflowDecl): SourceBase | null {
-  return sourceBaseOf(decl.base)
+  return decl.base ?? null
 }
 
 /**
@@ -65,11 +48,10 @@ export function unchangedFiles(
   const basePath = `${workflowFolder(key)}/${SOURCE_BASE_FILE}`
   const baseText = text[basePath]
   if (baseText === undefined) return { ...text }
-  let base: SourceBase | null = null
-  try {
-    base = sourceBaseOf(JSON.parse(baseText))
-  } catch {}
-  return base?.workspaceId === workspaceId ? { [basePath]: baseText } : { ...text }
+  const base = parseSourceBase(baseText)
+  return 'base' in base && base.base.workspaceId === workspaceId
+    ? { [basePath]: baseText }
+    : { ...text }
 }
 
 function json(value: unknown): string {
@@ -87,12 +69,23 @@ export const workflowCodec: KindCodec<WorkflowDecl> = {
     const diagnostics: WorkspaceDiagnostic[] = []
     for (const [path, content] of Object.entries(text)) {
       const relative = path.slice(folder.length)
-      if (relative === SOURCE_LOCK_FILE || relative === SOURCE_BASE_FILE) {
+      if (relative === SOURCE_LOCK_FILE) {
         try {
-          decl[relative === SOURCE_LOCK_FILE ? 'lock' : 'base'] = JSON.parse(content)
+          decl.lock = JSON.parse(content)
         } catch {
           diagnostics.push(
             diagnostic('E_DECL_SHAPE', `${path} is not valid JSON.`, { kind: 'workflow', key })
+          )
+        }
+      } else if (relative === SOURCE_BASE_FILE) {
+        const base = parseSourceBase(content)
+        if ('base' in base) decl.base = base.base
+        else {
+          diagnostics.push(
+            diagnostic('E_DECL_SHAPE', `${path} is not a workflow base. ${base.problem}`, {
+              kind: 'workflow',
+              key,
+            })
           )
         }
       } else if (!relative.startsWith('.sim/')) {

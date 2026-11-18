@@ -24,6 +24,7 @@ import {
 } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
+import type { WorkspaceKind } from '@sim/workspace-code'
 import { and, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
@@ -148,12 +149,23 @@ function withPendingResources(
   })
 }
 
+/**
+ * The lint reference kind an unresolved id of each workspace source kind reports as. Every kind an
+ * enclosing apply can create is listed, so a new one fails to compile until it is mapped.
+ */
+const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind']> = {
+  'custom-tool': 'custom-tool',
+  skill: 'skill',
+  table: 'resource',
+  'knowledge-base': 'resource',
+  file: 'resource',
+  workflow: 'resource',
+}
+
 /** Unresolved reference kinds whose ids an enclosing apply may create. */
-const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> = new Set([
-  'resource',
-  'custom-tool',
-  'skill',
-])
+const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> = new Set(
+  Object.values(PENDABLE_REFERENCE_OF)
+)
 
 /**
  * `lint` without the unresolved resource references that name only ids an enclosing apply has yet

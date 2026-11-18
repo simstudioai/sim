@@ -1,5 +1,5 @@
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { isRecordLike } from '@sim/utils/object'
+import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
@@ -66,7 +66,6 @@ function refusedExitCode(diagnostics: Diagnostic[]): number {
   if (codes.has('E_APPLY_STALE')) return SOURCE_STALE_EXIT_CODE
   return 1
 }
-type SourceLock = ApplyWorkflowSourceBody['lock']
 type SourceBase = ApplyWorkflowSourceBody['base']
 
 interface SourceWriteOptions {
@@ -98,7 +97,7 @@ async function readJson(directory: string, path: string, hint: string): Promise<
  * directory. Only those are sent, so a reference to any other file never uploads it; the server
  * reports a referenced file that is missing or of another kind.
  */
-function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
+function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
   const candidates = lockCodeFiles(lock)
   for (const literal of codeFileReferences(entry)) {
     const path = sourceRelativePath(literal)
@@ -144,20 +143,35 @@ const GET_HINT = 'Write the directory with `sim workflows source get` first.'
  * workflow and applied to another would replace that workflow's draft with a stranger's source.
  */
 async function readBase(directory: string, workflowId: string): Promise<SourceBase> {
-  const base = await readJson(directory, BASE_FILE, GET_HINT)
-  if (!isRecordLike(base) || typeof base.fingerprint !== 'string') {
-    throw new SimApiError(`${BASE_FILE} in ${directory} has no fingerprint. ${GET_HINT}`, 0)
+  const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
+  if ('problem' in parsed) {
+    throw new SimApiError(
+      `${BASE_FILE} in ${directory} is not a base: ${parsed.problem} ${GET_HINT}`,
+      0
+    )
   }
+  const { base } = parsed
   if (base.workflowId !== workflowId) {
     throw new SimApiError(
-      typeof base.workflowId === 'string'
-        ? `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`
-        : `${BASE_FILE} in ${directory} names no workflow. ${GET_HINT}`,
+      `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`,
       0,
       'SOURCE_WORKFLOW_MISMATCH'
     )
   }
-  return base as SourceBase
+  return base
+}
+
+/** The directory's lock, refused with every problem the lock parser finds. */
+async function readLock(directory: string): Promise<WorkflowLockV1> {
+  const parsed = parseWorkflowLock(await readJson(directory, LOCK_FILE, GET_HINT))
+  if (parsed.lock) return parsed.lock
+  const problems = parsed.diagnostics.map(
+    (finding) => `${finding.path === '' ? '' : `${finding.path}: `}${finding.message}`
+  )
+  throw new SimApiError(
+    `${LOCK_FILE} in ${directory} is not a valid lock: ${problems.join('; ')}`,
+    0
+  )
 }
 
 /**
@@ -166,7 +180,7 @@ async function readBase(directory: string, workflowId: string): Promise<SourceBa
  */
 async function readSourceFiles(
   directory: string,
-  lock: SourceLock | null
+  lock: WorkflowLockV1 | null
 ): Promise<Record<string, string>> {
   const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
@@ -274,7 +288,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     .action(async (workflowId: string, options: SourceWriteOptions) => {
       requireConsent(options, 'writes the workflow draft', 'apply')
       const { client, profile } = connectApply()
-      const lock = (await readJson(options.dir, LOCK_FILE, GET_HINT)) as SourceLock
+      const lock = await readLock(options.dir)
       const base = await readBase(options.dir, workflowId)
       const files = await readSourceFiles(options.dir, lock)
       await runSourceWrite({

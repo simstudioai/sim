@@ -20,12 +20,21 @@
  */
 import type { Json } from '@sim/workflow-code'
 import {
-  checkKnownFields,
+  asDeclared,
+  booleanField,
+  canonicalFields,
+  type DeclField,
+  type DeclFields,
+  folderField,
+  printFields,
+  readFields,
+  stringField,
+} from '../declaration/field-table'
+import {
   type FieldReport,
   fieldPointer,
   fieldReporter,
   readBooleanField,
-  readFolderField,
   readObject,
   readStringField,
 } from '../declaration/fields'
@@ -89,11 +98,16 @@ export interface TableDecl {
   columns: Record<string, TableColumnDecl>
 }
 
-/** Table and column names (`NAME_PATTERN` in apps/sim/lib/table/constants). */
-const TABLE_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
-const MAX_TABLE_NAME_LENGTH = 128
-const MAX_COLUMN_NAME_LENGTH = 50
-const MAX_DESCRIPTION_LENGTH = 500
+/**
+ * Table and column name and description rules. Mirrors `NAME_PATTERN` and `TABLE_LIMITS`
+ * (apps/sim/lib/table/constants), which an apps/sim test holds this equal to.
+ */
+export const TABLE_TEXT_RULES = {
+  namePattern: /^[A-Za-z_][A-Za-z0-9_]*$/,
+  maxTableName: 128,
+  maxColumnName: 50,
+  maxDescription: 500,
+} as const
 const CURRENCY_CODE = /^[A-Za-z]{3}$/
 
 /**
@@ -111,8 +125,18 @@ function isSupportedCurrencyCode(code: string): boolean {
 }
 
 const CALLEE = 'defineTable'
-const TABLE_FIELDS = ['name', 'description', 'folder', 'columns']
-const COLUMN_FIELDS = ['name', 'required', 'unique']
+
+/**
+ * The options every column type takes; the catalog adds the type-specific ones
+ * ({@link TABLE_COLUMN_METADATA_KEYS}). Required and unique are off by default, so the fingerprint
+ * spells them out and `required: false` and its absence agree. A column's `name` is fingerprinted
+ * as the stored name it resolves to ({@link columnName}), which needs its key.
+ */
+const COLUMN_FIELDS: DeclFields<Omit<TableColumnDecl, 'type' | TableColumnMetadataKey>> = {
+  name: { ...stringField(), canonical: null },
+  required: booleanField((required) => required === true),
+  unique: booleanField((unique) => unique === true),
+}
 
 /**
  * Whether a stored column's name can key it in a declaration: the declaration reader refuses a
@@ -128,7 +152,7 @@ export function isDeclarableColumnKey(name: string): boolean {
  */
 export function suffixedColumnKey(name: string, suffix: number): string {
   const tail = `_${suffix}`
-  return `${name.slice(0, MAX_COLUMN_NAME_LENGTH - tail.length)}${tail}`
+  return `${name.slice(0, TABLE_TEXT_RULES.maxColumnName - tail.length)}${tail}`
 }
 
 /** The declaration file of table `key`. */
@@ -221,21 +245,17 @@ function readColumn(
     report('E_DECL_SHAPE', pointer, `column.${type}() takes at most one options object.`)
     return undefined
   }
-  const column: TableColumnDecl = { type }
   const optionsPointer = `${pointer}/args/0`
   const options =
     value.args.length === 0
       ? {}
       : readObject(value.args[0], optionsPointer, report, `column.${type}() options`)
   if (!options) return undefined
-  checkKnownFields(options, [...COLUMN_FIELDS, ...descriptor.owns], optionsPointer, report)
-  const name = readStringField(options, 'name', optionsPointer, report)
-  if (name !== undefined) column.name = name
-  const required = readBooleanField(options, 'required', optionsPointer, report)
-  if (required !== undefined) column.required = required
-  const unique = readBooleanField(options, 'unique', optionsPointer, report)
-  if (unique !== undefined) column.unique = unique
-  if (unique && !descriptor.unique) {
+  const column: TableColumnDecl = {
+    type,
+    ...readFields(COLUMN_FIELDS, options, optionsPointer, report, descriptor.owns),
+  }
+  if (column.unique && !descriptor.unique) {
     report(
       'E_DECL_SHAPE',
       fieldPointer(optionsPointer, 'unique'),
@@ -250,12 +270,12 @@ function readColumn(
 }
 
 function checkColumnName(name: string, pointer: string, report: FieldReport): void {
-  if (!TABLE_NAME_PATTERN.test(name) || name.length > MAX_COLUMN_NAME_LENGTH) {
+  if (!TABLE_TEXT_RULES.namePattern.test(name) || name.length > TABLE_TEXT_RULES.maxColumnName) {
     report(
       'E_TABLE_COLUMN_NAME',
       pointer,
       `"${name}" is not a valid column name.`,
-      `A column name starts with a letter or \`_\`, holds letters, digits and \`_\`, and is at most ${MAX_COLUMN_NAME_LENGTH} characters.`
+      `A column name starts with a letter or \`_\`, holds letters, digits and \`_\`, and is at most ${TABLE_TEXT_RULES.maxColumnName} characters.`
     )
   }
 }
@@ -263,7 +283,7 @@ function checkColumnName(name: string, pointer: string, report: FieldReport): vo
 function parseTable(
   key: string,
   text: Readonly<Record<string, string>>,
-  catalog: TableColumnCatalog,
+  fields: DeclFields<TableDecl>,
   calls: ReadonlySet<string>
 ): { decl?: TableDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = tablePath(key)
@@ -274,89 +294,97 @@ function parseTable(
   const report = fieldReporter(source, read.spans, diagnostics, { kind: 'table', key })
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
-  checkKnownFields(value, TABLE_FIELDS, '', report)
-  const name = readStringField(value, 'name', '', report, {
-    required: true,
-    maxLength: MAX_TABLE_NAME_LENGTH,
-  })
-  if (name !== undefined && !TABLE_NAME_PATTERN.test(name)) {
-    report(
-      'E_DECL_SHAPE',
-      '/name',
-      `"${name}" is not a valid table name.`,
-      'A table name starts with a letter or `_` and holds letters, digits and `_`.'
-    )
-  }
-  const description = readStringField(value, 'description', '', report, {
-    maxLength: MAX_DESCRIPTION_LENGTH,
-  })
-  const folder = readFolderField(value, report, '/reports')
-  const columns: Record<string, TableColumnDecl> = {}
-  const rawColumns =
-    value.columns === undefined
-      ? undefined
-      : readObject(value.columns, '/columns', report, 'columns')
-  if (value.columns === undefined) report('E_DECL_SHAPE', '', '"columns" is required.')
-  if (rawColumns) {
-    const entries = Object.entries(rawColumns)
-    if (entries.length === 0)
-      report('E_DECL_SHAPE', '/columns', 'A table needs at least one column.')
-    if (entries.length > WORKSPACE_SOURCE_LIMITS.maxColumns) {
-      report(
-        'E_TABLE_TOO_MANY_COLUMNS',
-        '/columns',
-        `A table holds at most ${WORKSPACE_SOURCE_LIMITS.maxColumns} columns.`
-      )
-    }
-    const seen = new Map<string, string>()
-    for (const [columnKey, raw] of entries) {
-      const pointer = fieldPointer('/columns', columnKey)
-      checkColumnName(columnKey, pointer, report)
-      const column = readColumn(columnKey, raw, pointer, report, catalog)
-      if (!column) continue
-      const stored = columnName(columnKey, column)
-      if (column.name !== undefined) checkColumnName(column.name, `${pointer}/args/0/name`, report)
-      const folded = stored.toLowerCase()
-      const previous = seen.get(folded)
-      if (previous !== undefined) {
-        report(
-          'E_TABLE_DUPLICATE_COLUMN',
-          pointer,
-          `Columns "${previous}" and "${columnKey}" share the name "${stored}".`
-        )
-      }
-      seen.set(folded, columnKey)
-      columns[columnKey] = column
-    }
-    for (const [type, { maxPerTable: max }] of Object.entries(catalog.types)) {
-      const keys = Object.keys(columns).filter((columnKey) => columns[columnKey].type === type)
-      if (max === undefined || keys.length <= max) continue
-      report(
-        'E_DECL_SHAPE',
-        fieldPointer('/columns', keys[max]),
-        `A table holds at most ${max} ${type} column(s); ${keys.join(', ')} are all ${type}.`
-      )
-    }
-  }
-  if (diagnostics.some((finding) => finding.severity === 'error') || name === undefined) {
+  const { name, columns, ...rest } = readFields(fields, value, '', report)
+  if (
+    diagnostics.some((finding) => finding.severity === 'error') ||
+    name === undefined ||
+    columns === undefined
+  ) {
     return { diagnostics }
   }
-  return {
-    decl: {
-      name,
-      ...(description !== undefined ? { description } : {}),
-      ...(folder !== undefined ? { folder } : {}),
-      columns,
-    },
-    diagnostics,
+  return { decl: { name, ...rest, columns }, diagnostics }
+}
+
+/** Reads `columns`: each column, then the checks across them (shared names, per-type limits). */
+function readColumns(
+  value: Record<string, Json>,
+  pointer: string,
+  report: FieldReport,
+  catalog: TableColumnCatalog
+): Record<string, TableColumnDecl> | undefined {
+  const at = fieldPointer(pointer, 'columns')
+  if (value.columns === undefined) {
+    report('E_DECL_SHAPE', pointer, '"columns" is required.')
+    return undefined
   }
+  const rawColumns = readObject(value.columns, at, report, 'columns')
+  if (!rawColumns) return undefined
+  const columns: Record<string, TableColumnDecl> = {}
+  const entries = Object.entries(rawColumns)
+  if (entries.length === 0) report('E_DECL_SHAPE', at, 'A table needs at least one column.')
+  if (entries.length > WORKSPACE_SOURCE_LIMITS.maxColumns) {
+    report(
+      'E_TABLE_TOO_MANY_COLUMNS',
+      at,
+      `A table holds at most ${WORKSPACE_SOURCE_LIMITS.maxColumns} columns.`
+    )
+  }
+  const seen = new Map<string, string>()
+  for (const [columnKey, raw] of entries) {
+    const columnPointer = fieldPointer(at, columnKey)
+    checkColumnName(columnKey, columnPointer, report)
+    const column = readColumn(columnKey, raw, columnPointer, report, catalog)
+    if (!column) continue
+    const stored = columnName(columnKey, column)
+    if (column.name !== undefined)
+      checkColumnName(column.name, `${columnPointer}/args/0/name`, report)
+    const folded = stored.toLowerCase()
+    const previous = seen.get(folded)
+    if (previous !== undefined) {
+      report(
+        'E_TABLE_DUPLICATE_COLUMN',
+        pointer,
+        `Columns "${previous}" and "${columnKey}" share the name "${stored}".`
+      )
+    }
+    seen.set(folded, columnKey)
+    columns[columnKey] = column
+  }
+  for (const [type, { maxPerTable: max }] of Object.entries(catalog.types)) {
+    const keys = Object.keys(columns).filter((columnKey) => columns[columnKey].type === type)
+    if (max === undefined || keys.length <= max) continue
+    report(
+      'E_DECL_SHAPE',
+      fieldPointer(at, keys[max]),
+      `A table holds at most ${max} ${type} column(s); ${keys.join(', ')} are all ${type}.`
+    )
+  }
+  return columns
+}
+
+/** A table's `name`: required, within the length limit, and a valid table name. */
+const tableNameField: DeclField<string | undefined> = {
+  read(value, field, pointer, report) {
+    const name = readStringField(value, field, pointer, report, {
+      required: true,
+      maxLength: TABLE_TEXT_RULES.maxTableName,
+    })
+    if (name !== undefined && !TABLE_TEXT_RULES.namePattern.test(name)) {
+      report(
+        'E_DECL_SHAPE',
+        fieldPointer(pointer, field),
+        `"${name}" is not a valid table name.`,
+        'A table name starts with a letter or `_` and holds letters, digits and `_`.'
+      )
+    }
+    return name
+  },
+  print: asDeclared,
+  canonical: asDeclared,
 }
 
 function printColumn(column: TableColumnDecl): Json {
-  const options: Record<string, Json> = {}
-  if (column.name !== undefined) options.name = column.name
-  if (column.required !== undefined) options.required = column.required
-  if (column.unique !== undefined) options.unique = column.unique
+  const options = printFields(COLUMN_FIELDS, column)
   for (const key of TABLE_COLUMN_METADATA_KEYS) {
     const value = column[key]
     if (value !== undefined) options[key] = value
@@ -391,39 +419,41 @@ export function createTableCodec(catalog: TableColumnCatalog): KindCodec<TableDe
       : undefined
     const canonical: Record<string, Json> = {
       type: column.type,
+      ...canonicalFields(COLUMN_FIELDS, column),
       name: columnName(key, column),
-      required: column.required === true,
-      unique: column.unique === true,
     }
     for (const owned of descriptor?.owns ?? []) {
       canonical[owned] = column[owned] ?? descriptor?.defaults?.[owned] ?? ABSENT[owned]
     }
     return canonical
   }
+  const columnsField: DeclField<Record<string, TableColumnDecl> | undefined> = {
+    read: (value, _field, pointer, report) => readColumns(value, pointer, report, catalog),
+    print: (columns = {}) =>
+      Object.fromEntries(
+        Object.entries(columns).map(([key, column]) => [key, printColumn(column)])
+      ),
+    canonical: (columns = {}) =>
+      Object.fromEntries(
+        Object.entries(columns).map(([key, column]) => [key, canonicalColumn(key, column)])
+      ),
+  }
+  const fields: DeclFields<TableDecl> = {
+    name: tableNameField,
+    description: stringField(
+      { maxLength: TABLE_TEXT_RULES.maxDescription },
+      (description) => description || null
+    ),
+    folder: folderField('/reports'),
+    columns: columnsField,
+  }
   return {
     ...tableLayout,
-    parse: (key, text) => parseTable(key, text, catalog, calls),
-    print(key, decl) {
-      const value: Record<string, Json> = { name: decl.name }
-      if (decl.description !== undefined) value.description = decl.description
-      if (decl.folder !== undefined) value.folder = decl.folder
-      value.columns = Object.fromEntries(
-        Object.entries(decl.columns).map(([columnKey, column]) => [columnKey, printColumn(column)])
-      )
-      return {
-        text: {
-          [tablePath(key)]: printDeclaration(CALLEE, value),
-        },
-        blobs: [],
-      }
-    },
-    canonical: (decl) => ({
-      name: decl.name,
-      description: decl.description || null,
-      folder: decl.folder ?? '/',
-      columns: Object.fromEntries(
-        Object.entries(decl.columns).map(([key, column]) => [key, canonicalColumn(key, column)])
-      ),
+    parse: (key, text) => parseTable(key, text, fields, calls),
+    print: (key, decl) => ({
+      text: { [tablePath(key)]: printDeclaration(CALLEE, printFields(fields, decl)) },
+      blobs: [],
     }),
+    canonical: (decl) => canonicalFields(fields, decl),
   }
 }

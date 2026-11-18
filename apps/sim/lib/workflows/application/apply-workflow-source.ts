@@ -382,6 +382,7 @@ async function runSourceApply(
       files: printed.files,
       lock: printed.lock,
       base: {
+        version: 1,
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         fingerprint: printed.fingerprint,

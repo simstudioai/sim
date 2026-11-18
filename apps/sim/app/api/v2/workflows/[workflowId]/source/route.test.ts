@@ -70,6 +70,7 @@ const source = {
     variables: {},
   },
   base: {
+    version: 1 as const,
     workflowId: WORKFLOW_ID,
     workspaceId: WORKSPACE_ID,
     fingerprint: FINGERPRINT,

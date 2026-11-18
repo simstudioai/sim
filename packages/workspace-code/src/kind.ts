@@ -1,10 +1,11 @@
-import type { Json } from '@sim/workflow-code'
+import type { Json, ResourceKind } from '@sim/workflow-code'
 import type { WorkspaceDiagnostic } from './diagnostics'
 
 /**
  * Every kind a workspace source directory can declare, in the order an apply writes them: a
  * resource exists before anything that references it (a workflow names tables, tools and skills).
- * Deletes run in the reverse order.
+ * Deletes run in the reverse order. Each is spelled as the resource kind a workflow references it
+ * by (`ResourceKind`, from `PortableResourceKind`), so resource keys and source agree on one name.
  */
 export const APPLY_ORDER = [
   'custom-tool',
@@ -13,7 +14,7 @@ export const APPLY_ORDER = [
   'knowledge-base',
   'file',
   'workflow',
-] as const
+] as const satisfies readonly ResourceKind[]
 
 /** A resource kind a workspace source directory can declare. */
 export type WorkspaceKind = (typeof APPLY_ORDER)[number]

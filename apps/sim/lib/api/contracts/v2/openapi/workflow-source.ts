@@ -31,6 +31,7 @@ const WORKFLOW_SOURCE_EXAMPLE = {
     variables: {},
   },
   base: {
+    version: 1,
     workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
     workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
     fingerprint: FINGERPRINT,

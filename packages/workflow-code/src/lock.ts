@@ -10,7 +10,10 @@
  *
  * Version policy: adding an optional field does not bump `version`. Validators learn a field
  * before writers emit it; until every reader knows a field, data goes under an `x-` key, which
- * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it.
+ * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it,
+ * and the new format adds its step to {@link upgradeWorkflowLock} or {@link upgradeSourceBase}:
+ * every reader goes through them, so a file written in any version this build reads parses as
+ * the current one.
  */
 
 import { isRecordLike } from '@sim/utils/object'
@@ -21,7 +24,11 @@ import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
-/** `sf1:` + lowercase hex SHA-256. */
+/**
+ * `sf1:` + lowercase hex SHA-256 (`sourceFingerprint`). Checkouts in the field hold it in their
+ * base, so a change to canonicalize's output or to the hashing is a format change: it bumps the
+ * prefix (`sf2:`) and accepts the old one for a release. `equivalence/pinned.test.ts` pins it.
+ */
 export type SourceFingerprint = `sf1:${string}`
 
 /** An extension field: tolerated and preserved by every validator, never interpreted. */
@@ -98,6 +105,9 @@ export interface WorkflowLockV1 {
 
 /** One environment's freshness facts for a lock, `.sim/base.json` (see the module comment). */
 export interface SourceBase {
+  [extension: LockExtensionKey]: Json
+  /** Base format version; a base written before it existed reads as 1. */
+  version: 1
   /** The workflow the source was read from; apply refuses a base read from another workflow. */
   workflowId: string
   workspaceId: string
@@ -115,10 +125,44 @@ type ParseWorkflowLockResult =
 
 const DRIVE_PATH = /^[A-Za-z]:/
 
-const LOCK_FIELDS = ['version', 'blocks', 'variables']
-const BLOCK_FIELDS = ['id', 'parent', 'branches', 'items', 'ident', 'order', 'layout', 'codeFile']
-const LAYOUT_FIELDS = ['x', 'y', 'w', 'h', 'height', 'horizontalHandles']
-const ITEM_FIELDS = ['name', 'id']
+/** The fields of `T` that are not `x-` extensions. */
+export type DefinedField<T> = Exclude<keyof T, LockExtensionKey>
+
+/** The defined field names of `T`: listing one too few or one too many is a type error. */
+function fieldNames<T>(fields: { readonly [K in DefinedField<T>]-?: true }): readonly string[] {
+  return Object.keys(fields)
+}
+
+const LOCK_FIELDS = fieldNames<WorkflowLockV1>({ version: true, blocks: true, variables: true })
+const BLOCK_FIELDS = fieldNames<WorkflowLockBlock>({
+  id: true,
+  parent: true,
+  branches: true,
+  items: true,
+  ident: true,
+  order: true,
+  layout: true,
+  codeFile: true,
+})
+const LAYOUT_FIELDS = fieldNames<LockLayout>({
+  x: true,
+  y: true,
+  w: true,
+  h: true,
+  height: true,
+  horizontalHandles: true,
+})
+const ITEM_FIELDS = fieldNames<LockItem>({ name: true, id: true })
+const BASE_FIELDS = fieldNames<SourceBase>({
+  version: true,
+  workflowId: true,
+  workspaceId: true,
+  fingerprint: true,
+  catalogHash: true,
+})
+
+/** The longest `fingerprint` a base may carry. */
+const MAX_BASE_FINGERPRINT_LENGTH = 256
 
 type JsonObject = Record<string, unknown>
 
@@ -459,10 +503,77 @@ class LockReader {
 }
 
 /**
- * Validates a lock, given as parsed JSON or as JSON text. Every problem is reported at once, each
- * with an RFC 6901 `path`; a lock with any problem is rejected whole. Unknown fields are errors,
- * so a typo never silently drops identity, except `x-` extension fields, which are preserved. A
- * version other than 1 stops validation there.
+ * A lock object of any version this build reads, as the current version (1) holds it, or `null`
+ * for a version it cannot read. The one seam a lock format change goes through: v1 is current,
+ * so it passes through unchanged.
+ */
+function upgradeWorkflowLock(
+  json: Record<string, unknown>
+): (Record<string, unknown> & { version: 1 }) | null {
+  return json.version === 1 ? { ...json, version: 1 } : null
+}
+
+/**
+ * A base object of any version this build reads, as the current version (1) holds it, or `null`
+ * for a version it cannot read. A base written before `version` existed is version 1.
+ */
+function upgradeSourceBase(
+  json: Record<string, unknown>
+): (Record<string, unknown> & { version: 1 }) | null {
+  return json.version === undefined || json.version === 1 ? { ...json, version: 1 } : null
+}
+
+/**
+ * Validates a source base (`.sim/base.json`), given as parsed JSON or as JSON text, through
+ * {@link upgradeSourceBase}. Unknown fields are refused except `x-` extensions, which are kept.
+ */
+export function parseSourceBase(input: unknown): { base: SourceBase } | { problem: string } {
+  const parsed = jsonInput(input)
+  if (!parsed || !isRecordLike(parsed.json)) return { problem: 'The base is not a JSON object.' }
+  const json = upgradeSourceBase(parsed.json)
+  if (!json) return { problem: 'Unsupported base version; expected 1.' }
+  const problems: string[] = []
+  const extensions = readExtensions(json, BASE_FIELDS, (field, problem) =>
+    problems.push(
+      problem === 'unknown'
+        ? `Unknown base field "${field}".`
+        : `Extension "${field}" must hold JSON.`
+    )
+  )
+  const workflowId = isNonEmptyString(json.workflowId) ? json.workflowId : undefined
+  const workspaceId = typeof json.workspaceId === 'string' ? json.workspaceId : undefined
+  const fingerprint =
+    isNonEmptyString(json.fingerprint) && json.fingerprint.length <= MAX_BASE_FINGERPRINT_LENGTH
+      ? json.fingerprint
+      : undefined
+  const catalogHash = typeof json.catalogHash === 'string' ? json.catalogHash : undefined
+  if (workflowId === undefined) problems.push('"workflowId" must be a non-empty string.')
+  if (workspaceId === undefined) problems.push('"workspaceId" must be a string.')
+  if (fingerprint === undefined) {
+    problems.push(
+      `"fingerprint" must be a non-empty string of at most ${MAX_BASE_FINGERPRINT_LENGTH} characters.`
+    )
+  }
+  if (catalogHash === undefined) problems.push('"catalogHash" must be a string.')
+  if (
+    problems.length > 0 ||
+    workflowId === undefined ||
+    workspaceId === undefined ||
+    fingerprint === undefined ||
+    catalogHash === undefined
+  ) {
+    return { problem: problems.join(' ') }
+  }
+  return {
+    base: { ...extensions, version: 1, workflowId, workspaceId, fingerprint, catalogHash },
+  }
+}
+
+/**
+ * Validates a lock, given as parsed JSON or as JSON text, through {@link upgradeWorkflowLock}.
+ * Every problem is reported at once, each with an RFC 6901 `path`; a lock with any problem is
+ * rejected whole. Unknown fields are errors, so a typo never silently drops identity, except `x-`
+ * extension fields, which are preserved. A version this build cannot read stops validation there.
  */
 export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const reader = new LockReader()
@@ -471,12 +582,12 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     reader.report('E_LOCK_JSON', [], 'The lock is not valid JSON.')
     return { diagnostics: reader.diagnostics }
   }
-  const { json } = parsed
-  if (!isRecordLike(json)) {
+  if (!isRecordLike(parsed.json)) {
     reader.report('E_LOCK_SHAPE', [], 'The lock must be a JSON object.')
     return { diagnostics: reader.diagnostics }
   }
-  if (json.version !== 1) {
+  const json = upgradeWorkflowLock(parsed.json)
+  if (!json) {
     reader.report('E_LOCK_VERSION', ['version'], 'Unsupported lock version; expected 1.')
     return { diagnostics: reader.diagnostics }
   }

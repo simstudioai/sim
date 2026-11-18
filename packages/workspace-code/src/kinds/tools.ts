@@ -23,6 +23,7 @@
  * a `<block.output>` token) prints inline as a string, so every stored tool reads back unchanged.
  */
 import { checkCodeFileBijection, fromCodeFile, type Json } from '@sim/workflow-code'
+import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/field-table'
 import { checkKnownFields, fieldReporter, readObject, readStringField } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
@@ -42,7 +43,15 @@ export interface ToolDecl {
 
 const CALLEE = 'defineTool'
 const CODE_FILE_CALL = 'codeFile'
-const TOOL_FIELDS = ['title', 'schema', 'code']
+/**
+ * What each field of a tool adds to its fingerprint, all as declared; its keys are the fields
+ * `defineTool()` takes.
+ */
+const TOOL_FIELDS: CanonicalFields<ToolDecl> = {
+  title: asDeclared,
+  schema: asDeclared,
+  code: asDeclared,
+}
 const CODE_EXTENSION = '.js'
 
 /** `tools/<key>.ts`. */
@@ -157,7 +166,7 @@ function parseTool(
   const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
-  checkKnownFields(value, TOOL_FIELDS, '', report)
+  checkKnownFields(value, Object.keys(TOOL_FIELDS), '', report)
   const title = readStringField(value, 'title', '', report, { required: true })
   let schema: Record<string, Json> | undefined
   if (value.schema === undefined) report('E_DECL_SHAPE', '', '"schema" is required.')
@@ -228,5 +237,5 @@ export const toolCodec: KindCodec<ToolDecl> = {
       blobs: [],
     }
   },
-  canonical: (decl) => ({ title: decl.title, schema: decl.schema, code: decl.code }),
+  canonical: (decl) => canonicalOf(TOOL_FIELDS, decl),
 }

@@ -1,5 +1,11 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { codeFrame, type DiagnosticFields, LineIndex, type SourceSpan } from '@sim/workflow-code'
+import {
+  codeFrame,
+  type DiagnosticCode,
+  type DiagnosticFields,
+  LineIndex,
+  type SourceSpan,
+} from '@sim/workflow-code'
 import {
   type DiagnosticSeverity,
   type SeverityOfCode,
@@ -100,7 +106,8 @@ export function wholeFile(file: string): SourceSpan {
  * diagnostics travel.
  */
 export interface FlatDiagnostic {
-  code: string
+  /** A workspace code, or a workflow folder's own (the workflow pipeline's codes). */
+  code: WorkspaceDiagnosticCode | DiagnosticCode
   severity: DiagnosticSeverity
   message: string
   hint?: string

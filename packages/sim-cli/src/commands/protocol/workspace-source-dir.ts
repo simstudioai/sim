@@ -7,9 +7,14 @@
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
-import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
+import {
+  APPLY_ORDER,
+  type BlobEntry,
+  KIND_DIRS,
+  WORKSPACE_KIND_SPECS,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
@@ -53,10 +58,7 @@ const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
       },
     },
     include: [
-      `${KIND_DIRS.table}/*.ts`,
-      `${KIND_DIRS['custom-tool']}/*.ts`,
-      `${KIND_DIRS['knowledge-base']}/*/knowledge.ts`,
-      `${KIND_DIRS.workflow}/*/${SOURCE_ENTRY_FILE}`,
+      ...APPLY_ORDER.flatMap((kind) => WORKSPACE_KIND_SPECS[kind].typeChecked),
       `${SOURCE_SDK_DIR}/**/*.d.ts`,
     ],
   },
@@ -75,12 +77,7 @@ This directory is a Sim workspace written as files. The server reads every file 
 
 A resource's key is its file or folder name, and a workflow names it by that key.
 
-- \`tables/<key>.ts\`: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows are never part of source. A workflow: \`table('<key>')\`.
-- \`knowledge/<key>/knowledge.ts\` (\`defineKnowledgeBase({ name, description?, folder?, chunking?, embeddingModel? })\`) and \`knowledge/<key>/docs/\`, one file per document, flat. A workflow: \`knowledgeBase('<key>')\`. Connector-synced documents are never part of source.
-- \`files/<path>\`: every file is one workspace file at that folder path; no declaration.
-- \`tools/<key>.ts\` (\`defineTool({ title, schema, code: codeFile('./<key>.js') })\`) and its code in \`tools/<key>.js\`, where each schema parameter is a variable. A workflow: \`customTool('<key>')\`.
-- \`skills/<key>.md\`: a frontmatter block of \`name\` and \`description\`, then the content. A workflow: \`skills: [skill('<key>')]\` on an agent.
-- \`workflows/<key>/\`: one workflow each, exactly a \`sim workflows source get --dir\` directory (\`workflow.ts\`, \`functions/*\`, \`.sim/lock.json\`, \`.sim/base.json\`).
+${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
 
 One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held and this directory declared at the last get, so \`tsc\` flags a key added since then until it is applied and read again (\`sim workspaces source get --dir .\`); the dry run is the authority for it.
 
@@ -131,21 +128,22 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
 }
 
 /**
- * The keys a directory's files declare, by kind, grouped by each kind's codec: its tables (typed
- * from their declarations), and its knowledge base, skill, custom tool and workflow keys.
- * `workspace.d.ts` types them beside the stored resources.
+ * The keys a directory's files declare, grouped by each kind's codec, under the manifest list each
+ * kind's spec names: its tables (typed from their declarations), and its knowledge base, skill,
+ * custom tool and workflow keys. `workspace.d.ts` types them beside the stored resources.
  */
 export function localDeclarations(paths: readonly string[]): LocalDeclarations {
-  const keys = (kind: WorkspaceKind) => [
-    ...KIND_LAYOUTS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
-  ]
-  return {
-    tableDeclarations: keys('table'),
-    knowledgeBases: keys('knowledge-base'),
-    skills: keys('skill'),
-    customTools: keys('custom-tool'),
-    workflows: Object.fromEntries(keys('workflow').map((key) => [key, {}])),
+  const declared: LocalDeclarations = {}
+  for (const kind of APPLY_ORDER) {
+    const list = WORKSPACE_KIND_SPECS[kind].manifestKey
+    if (list === null) continue
+    const keys = [
+      ...KIND_LAYOUTS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
+    ]
+    if (list === 'workflows') declared.workflows = Object.fromEntries(keys.map((key) => [key, {}]))
+    else declared[list] = keys
   }
+  return declared
 }
 
 /** Refuses a server answer naming a path outside every kind folder, before anything is written. */

@@ -1,4 +1,6 @@
+import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
 import { APPLY_ORDER } from '@sim/workspace-code'
+import { WORKSPACE_DIAGNOSTIC_CODES } from '@sim/workspace-code/diagnostics/codes'
 import { isWorkspaceSourcePath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { z } from 'zod'
@@ -52,9 +54,14 @@ const sha256Schema = z
   .regex(/^[0-9a-f]{64}$/, 'sha256 must be 64 lowercase hex digits')
   .describe('SHA-256 of the bytes, lowercase hex.')
 
+/** A workspace finding's code, or a workflow folder's own (the workflow pipeline's codes). */
+const diagnosticCodeSchema = z.enum([...WORKSPACE_DIAGNOSTIC_CODES, ...DIAGNOSTIC_CODES])
+
 const diagnosticSchema = z
   .object({
-    code: z.string().describe('Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`.'),
+    code: diagnosticCodeSchema.describe(
+      'Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`.'
+    ),
     severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
     message: z.string().describe('What was found.'),
     hint: z.string().optional().describe('How to address it.'),
@@ -283,7 +290,7 @@ const applyDataSchema = z
       .object({
         kind: kindSchema,
         key: z.string().describe('Resource key.'),
-        code: z.string().describe('Diagnostic code.'),
+        code: diagnosticCodeSchema.describe('Diagnostic code.'),
         message: z.string().describe('What failed.'),
       })
       .optional()
