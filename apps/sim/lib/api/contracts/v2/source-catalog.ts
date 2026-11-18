@@ -184,6 +184,10 @@ const catalogSubBlockSchema = z
     columns: z.array(z.string()).optional().describe('Table column headers.'),
     selectorKey: z.string().optional().describe('Selector that lists the options.'),
     serviceId: z.string().optional().describe('OAuth service the field binds.'),
+    credentialProviders: z
+      .array(z.string())
+      .optional()
+      .describe('Provider ids of the saved credentials the field accepts.'),
     valueKind: z
       .enum([
         'string',

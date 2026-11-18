@@ -61,6 +61,13 @@ function dropdownType(subBlock: CatalogSubBlock): string {
   return options ? item : 'Value<string>'
 }
 
+/** A saved credential, narrowed to the providers the field accepts when the catalog names them. */
+function credentialType(subBlock: CatalogSubBlock): string {
+  const providers = subBlock.credentialProviders
+  if (!providers || providers.length === 0) return 'CredentialRef'
+  return `CredentialRef<CredentialKeyFor<${union(providers.map((id) => literal(id)))}>>`
+}
+
 /** Maps one subBlock to its param type, or `null` when it is never written in source. */
 export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
   const type: SubBlockType = subBlock.type
@@ -98,7 +105,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     }
     case 'oauth-input':
       return {
-        type: 'CredentialRef',
+        type: credentialType(subBlock),
         doc: [...doc, ...(subBlock.serviceId ? [`Service: \`${subBlock.serviceId}\`.`] : [])],
       }
     case 'channel-selector':
@@ -122,8 +129,10 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
       return { type: 'TableRef', doc }
     case 'workflow-selector':
       return { type: 'WorkflowRef', doc }
-    case 'file-upload':
-      return { type: subBlock.multiple ? 'UploadedFile | UploadedFile[]' : 'UploadedFile', doc }
+    case 'file-upload': {
+      const uploaded = subBlock.multiple ? 'UploadedFile | UploadedFile[]' : 'UploadedFile'
+      return { type: `${uploaded} | RefTo<SimFile | SimFile[]>`, doc }
+    }
     case 'tool-input':
       return { type: 'Tool[]', doc }
     case 'skill-input':

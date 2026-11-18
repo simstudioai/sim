@@ -163,6 +163,12 @@ export interface CatalogSubBlock {
   columns?: string[]
   selectorKey?: string
   serviceId?: string
+  /**
+   * The credential providers an `oauth-input` with a `serviceId` accepts: the OAuth service's
+   * provider id, its service-account provider and any further provider ids it is reachable
+   * through, as saved credentials record them.
+   */
+  credentialProviders?: string[]
   valueKind: CatalogValueKind
   /** Set iff `valueKind` is `resource`. */
   resourceKind?: ResourceKind

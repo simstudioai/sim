@@ -15,6 +15,7 @@ import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
+import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { UNIFIED_START_OUTPUTS } from '@/lib/workflows/blocks/start-outputs'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
@@ -367,7 +368,25 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   if (subBlock.columns) projected.columns = [...subBlock.columns]
   assign(projected, 'selectorKey', subBlock.selectorKey)
   assign(projected, 'serviceId', subBlock.serviceId)
+  if (subBlock.type === 'oauth-input' && subBlock.serviceId) {
+    projected.credentialProviders = credentialProviders(subBlock.serviceId)
+  }
   return projected
+}
+
+/**
+ * The provider ids of the credentials a picker for `serviceId` lists, the way the credential
+ * selector resolves them (`getProviderIdFromServiceId`, which falls back to the service id).
+ */
+function credentialProviders(serviceId: string): string[] {
+  const service = getServiceConfigByServiceId(serviceId)
+  if (!service) return [serviceId]
+  const ids = [
+    service.providerId,
+    service.serviceAccountProviderId,
+    ...(service.additionalProviderIds ?? []),
+  ]
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string'))]
 }
 
 function primitiveType(type: unknown): PrimitiveValueType {

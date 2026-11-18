@@ -1484,7 +1484,11 @@
             "bedrock/cohere.command-r-v1:0": false
           },
           "required": true,
-          "serviceId": "vertex-ai"
+          "serviceId": "vertex-ai",
+          "credentialProviders": [
+            "vertex-ai",
+            "google-service-account"
+          ]
         },
         {
           "id": "vertexManualCredential",
@@ -3867,7 +3871,11 @@
             "open-mistral-nemo": false
           },
           "required": true,
-          "serviceId": "aws"
+          "serviceId": "aws",
+          "credentialProviders": [
+            "aws",
+            "aws-service-account"
+          ]
         },
         {
           "id": "bedrockManualCredential",
@@ -7828,7 +7836,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "action",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "manualCredential",
@@ -8668,7 +8680,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "labelIds",
@@ -9175,7 +9191,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "action",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "manualCredential",
@@ -9791,7 +9811,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "spreadsheetId",
@@ -12634,7 +12658,11 @@
             "bedrock/cohere.command-r-v1:0": false
           },
           "required": true,
-          "serviceId": "vertex-ai"
+          "serviceId": "vertex-ai",
+          "credentialProviders": [
+            "vertex-ai",
+            "google-service-account"
+          ]
         },
         {
           "id": "vertexManualCredential",
@@ -14993,7 +15021,11 @@
             "open-mistral-nemo": false
           },
           "required": true,
-          "serviceId": "aws"
+          "serviceId": "aws",
+          "credentialProviders": [
+            "aws",
+            "aws-service-account"
+          ]
         },
         {
           "id": "bedrockManualCredential",
@@ -17130,7 +17162,11 @@
             "unfurl_links": false
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualCredential",
@@ -27562,7 +27598,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualAgentBotCredential",
@@ -27816,7 +27856,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualListBotCredential",
@@ -28225,7 +28269,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualApiBotCredential",
@@ -28302,7 +28350,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualApiOAuthCredential",
@@ -30446,7 +30498,11 @@
           "canonicalParamId": "botCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualBotCredential",
@@ -32309,7 +32365,11 @@
           "mode": "trigger",
           "canonicalParamId": "oauthCredential",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "labelIds",
@@ -32508,7 +32568,11 @@
           "mode": "trigger",
           "canonicalParamId": "oauthCredential",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "spreadsheetId",
@@ -32799,7 +32863,11 @@
           "mode": "trigger",
           "canonicalParamId": "botCredential",
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualBotCredential",

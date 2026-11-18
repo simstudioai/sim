@@ -4,6 +4,7 @@
 import type { Ref } from '@sim/workflow-sdk'
 import {
   agent,
+  childWorkflow,
   condition,
   credential,
   customTool,
@@ -13,6 +14,8 @@ import {
   knowledge,
   knowledgeBase,
   loop,
+  response,
+  runWorkflow,
   skill,
   slack,
   t,
@@ -100,7 +103,7 @@ export default workflow('Rejected', {}, () => {
   })
   table.updateRowsByFilter('Close', {
     tableId: table('leads'),
-    data: { status: 'closed' },
+    data: { status: 'enriched' },
     // @ts-expect-error a predicate names its column as `field`, not `column`
     filterInput: { column: 'status', op: 'eq', value: 'open' },
   })
@@ -132,4 +135,69 @@ export default workflow('Rejected', {}, () => {
   // A param required under the pinned operation, though its registry condition is a function.
   // @ts-expect-error `credential` and `text` are required by slack.sendMessage
   slack.sendMessage('Empty', {})
+
+  // A reference whose value does not fit the param, and a whole block written into text.
+  const amounts = trigger.start('Amounts', { inputFormat: { amount: 'number', files: 'file[]' } })
+  table.queryRows('Columns', {
+    tableId: table('leads'),
+    // @ts-expect-error a number is not a list of columns
+    outputColumns: amounts.amount,
+  })
+  slack.sendMessage('Files as text', {
+    credential: credential('support-slack'),
+    channel: 'C1',
+    // @ts-expect-error a file list is not message text
+    text: amounts.files,
+  })
+  // @ts-expect-error a whole block is not text: reference one of its outputs
+  t`${amounts}`
+  // References into untyped JSON fit any param.
+  const untyped = trigger.start('Untyped', { inputFormat: { payload: 'object' } })
+  table.queryRows('Untyped columns', { tableId: table('leads'), outputColumns: untyped.payload.a })
+
+  // Cell values are checked against the column type.
+  table.insertRow('Bad score', {
+    tableId: table('leads'),
+    // @ts-expect-error `score` is a number column
+    data: { score: 'high' },
+  })
+  table.insertRow('Bad status', {
+    tableId: table('leads'),
+    // @ts-expect-error `closed` is not an option of the `status` select column
+    data: { status: 'closed' },
+  })
+  table.insertRow('Good row', {
+    tableId: table('leads'),
+    data: { email: start.subject, status: 'new', score: null },
+  })
+
+  // A credential for another provider than the block's service.
+  slack.sendMessage('Wrong credential', {
+    // @ts-expect-error `finance-gmail` is a Google credential, not a Slack one
+    credential: credential('finance-gmail'),
+    channel: 'C1',
+    text: 'x',
+  })
+  gmail.sendEmail('Wrong credential', {
+    // @ts-expect-error `support-slack` is a Slack credential, not a Gmail one
+    credential: credential('support-slack'),
+    to: 'a@b.co',
+    body: 'hi',
+  })
+
+  // Child workflow inputs are the inputs its start block declares.
+  runWorkflow('Hand off', {
+    workflowId: childWorkflow('assign-owner'),
+    // @ts-expect-error `leadz` is not an input of assign-owner
+    inputMapping: { leadz: [] },
+  })
+  runWorkflow('Hand off ok', {
+    workflowId: childWorkflow('assign-owner'),
+    inputMapping: { leads: leads.rows },
+  })
+
+  // A response status is a number.
+  // @ts-expect-error `two hundred` is not an HTTP status
+  response('Reply', { body: { ok: true }, status: 'two hundred' })
+  response('Reply ok', { body: { ok: true }, status: 201 })
 })
