@@ -1,16 +1,19 @@
+import { jsonResponse } from '@sim/testing'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveFileInputToUrl, mockSubmitReductoParse } = vi.hoisted(() => ({
-  mockResolveFileInputToUrl: vi.fn(),
-  mockSubmitReductoParse: vi.fn(),
-}))
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/uploads/utils/file.server', () => ({
-  resolveFileInputToUrl: mockResolveFileInputToUrl,
-}))
-vi.mock('@/lib/internal/reducto/client', () => ({
-  submitReductoParse: mockSubmitReductoParse,
-}))
+const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { executeReductoParse } from '@/lib/internal/reducto/operations'
 
@@ -19,7 +22,8 @@ const context = { headers: new Headers(), requestId: 'req-1', userId: 'user-1' }
 describe('executeReductoParse', () => {
   beforeEach(() => {
     mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example.com/doc.pdf' })
-    mockSubmitReductoParse.mockResolvedValue({ job_id: 'job-1' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(jsonResponse({ job_id: 'job-1' }))
   })
 
   it('parses only the requested pages, not every page between them', async () => {
@@ -28,10 +32,7 @@ describe('executeReductoParse', () => {
       context
     )
 
-    expect(mockSubmitReductoParse).toHaveBeenCalledWith(
-      'key',
-      expect.objectContaining({ settings: { page_range: [2, 9] } }),
-      undefined
-    )
+    const [, , request] = mockSecureFetchWithPinnedIP.mock.calls[0]
+    expect(JSON.parse(request.body).settings).toEqual({ page_range: [2, 9] })
   })
 })

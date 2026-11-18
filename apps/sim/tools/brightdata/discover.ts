@@ -151,6 +151,7 @@ export const brightDataDiscoverTool: ToolConfig<
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
+        signal?.throwIfAborted()
         const pollResponse = await outboundFetch(
           `https://api.brightdata.com/discover?task_id=${encodeURIComponent(taskId)}`,
           {
@@ -209,7 +210,6 @@ export const brightDataDiscoverTool: ToolConfig<
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error) {
-        signal?.throwIfAborted()
         logger.error('Error polling for discover task:', {
           message: toError(error).message,
           taskId,

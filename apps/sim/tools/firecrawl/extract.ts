@@ -176,6 +176,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
+        signal?.throwIfAborted()
         const statusResponse = await outboundFetch(
           `https://api.firecrawl.dev/v2/extract/${jobId}`,
           {
@@ -222,7 +223,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
-        signal?.throwIfAborted()
         logger.error('Error polling for extract job status:', {
           message: error.message || 'Unknown error',
           jobId,

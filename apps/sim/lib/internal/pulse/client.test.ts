@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import {
   inputValidationMock,
   inputValidationMockFns,
@@ -9,10 +10,6 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { submitPulseParse } from '@/lib/internal/pulse/client'
-
-function jsonResponse(body: unknown) {
-  return { ok: true, status: 200, statusText: 'OK', json: async () => body }
-}
 
 function requestTo(url: string) {
   const call = mockSecureFetchWithPinnedIP.mock.calls.find(([target]) => target === url)

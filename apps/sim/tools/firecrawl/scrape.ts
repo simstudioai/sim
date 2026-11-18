@@ -131,7 +131,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
 
   outputs: {
     markdown: { type: 'string', description: 'Page content in markdown format' },
-    html: { type: 'string', description: 'Raw HTML content of the page', optional: true },
+    html: { type: 'string', description: 'Processed HTML content of the page', optional: true },
     rawHtml: {
       type: 'string',
       description: 'Unmodified HTML of the page, when the rawHtml format is requested',

@@ -115,11 +115,15 @@ function readBrowserUseJson(response: Response, signal?: AbortSignal): Promise<u
   })
 }
 
-function readBrowserUseErrorText(response: Response): Promise<string> {
+function readBrowserUseErrorText(response: Response, signal?: AbortSignal): Promise<string> {
   return readResponseTextWithLimit(response, {
     maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
     label: 'Browser Use error response',
-  }).catch(() => response.statusText)
+    signal,
+  }).catch(() => {
+    signal?.throwIfAborted()
+    return response.statusText
+  })
 }
 
 async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
@@ -156,7 +160,7 @@ async function createSessionWithProfile(
     })
 
     if (!response.ok) {
-      const errorText = await readBrowserUseErrorText(response)
+      const errorText = await readBrowserUseErrorText(response, signal)
       logger.error(`Failed to create session with profile: ${errorText}`)
       return { error: `Failed to create session with profile: ${response.statusText}` }
     }
@@ -533,7 +537,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     })
 
     if (!response.ok) {
-      const errorText = await readBrowserUseErrorText(response)
+      const errorText = await readBrowserUseErrorText(response, signal)
       logger.error(`Failed to create task: ${errorText}`)
       return {
         success: false,

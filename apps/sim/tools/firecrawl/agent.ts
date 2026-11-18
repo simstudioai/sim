@@ -123,6 +123,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
+        signal?.throwIfAborted()
         const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
           method: 'GET',
           headers: {
@@ -169,7 +170,6 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
-        signal?.throwIfAborted()
         logger.error('Error polling for agent job status:', {
           message: error.message || 'Unknown error',
           jobId,

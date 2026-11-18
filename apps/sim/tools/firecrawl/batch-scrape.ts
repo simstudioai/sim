@@ -201,6 +201,7 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
 
       while (elapsedTime < MAX_POLL_TIME_MS) {
         try {
+          signal?.throwIfAborted()
           const statusResponse = await outboundFetch(
             `https://api.firecrawl.dev/v2/batch/scrape/${jobId}`,
             {
@@ -252,7 +253,6 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
           await interruptibleSleep(POLL_INTERVAL_MS, signal)
           elapsedTime += POLL_INTERVAL_MS
         } catch (error: any) {
-          signal?.throwIfAborted()
           logger.error('Error polling for batch scrape job status:', {
             message: error.message || 'Unknown error',
             jobId,
