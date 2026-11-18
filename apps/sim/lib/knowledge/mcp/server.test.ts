@@ -188,6 +188,7 @@ describe('live organization Search MCP', () => {
       sourceContainerName: '#release',
       sourceContainerUrl: 'https://example.slack.com/archives/C1',
       connectorType: 'slack',
+      author: null,
       content: 'Shipping Friday',
       chunkIndex: 0,
     }
@@ -199,6 +200,7 @@ describe('live organization Search MCP', () => {
       sourceDate: '2026-09-25T16:00:00Z',
       sourceContainerName: 'Team calendar',
       connectorType: 'google_calendar',
+      author: 'organizer@example.com',
       content: 'Launch review',
       chunkIndex: 0,
     }
@@ -225,6 +227,7 @@ describe('live organization Search MCP', () => {
         sourceModifiedAt: '2026-09-20T08:00:00.000Z',
         sourceDate: '2026-09-25T16:00:00Z',
         sourceContainerName: 'Team calendar',
+        author: 'organizer@example.com',
         connectorType: 'google_calendar',
       },
     ])

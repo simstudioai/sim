@@ -255,6 +255,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
               documentId: row.documentId,
               ...sourceFacts(row),
               sourceContainerUrl: row.sourceContainerUrl,
+              ...(row.author ? { author: row.author } : {}),
               ...(row.queryIndexes ? { queryIndexes: row.queryIndexes } : {}),
               connectorType: row.connectorType,
               ...(row.content && row.content !== row.documentName ? { content: row.content } : {}),
