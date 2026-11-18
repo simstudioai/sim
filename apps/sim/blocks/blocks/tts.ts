@@ -1,5 +1,6 @@
 import { TTSIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 
 /** Voice picker id, which differs by provider — first available wins. */
 const VOICE_FIELD = ['voice', 'voiceId'] as const
@@ -499,9 +500,9 @@ export const TtsBlock: BlockConfig = {
             ...baseParams,
             voiceId: params.voiceId,
             modelId: params.modelId,
-            stability: params.stability ? Number(params.stability) : undefined,
-            similarityBoost: params.similarityBoost ? Number(params.similarityBoost) : undefined,
-            style: params.style ? Number(params.style) : undefined,
+            stability: parseOptionalNumberInput(params.stability, 'Stability'),
+            similarityBoost: parseOptionalNumberInput(params.similarityBoost, 'Similarity Boost'),
+            style: parseOptionalNumberInput(params.style, 'Style'),
           }
         }
 
