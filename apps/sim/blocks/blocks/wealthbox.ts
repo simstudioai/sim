@@ -27,12 +27,12 @@ export const WealthboxBlock: BlockConfig = {
           { text: 'Write note', field: 'content', core: true },
           { text: 'on contact', field: CONTACT_FIELD },
         ],
-        read_contact: ['Read contacts', { text: ', or contact', field: CONTACT_FIELD }],
+        read_contact: [{ text: 'Read contact', field: CONTACT_FIELD, core: true }],
         write_contact: [
           { text: 'Create contact', field: 'firstName', core: true },
           { text: ', with email', field: 'emailAddress' },
         ],
-        read_task: ['Read tasks', { text: ', or task', field: 'taskId' }],
+        read_task: [{ text: 'Read task', field: 'taskId', core: true }],
         write_task: [
           { text: 'Write task', field: 'title', core: true },
           { text: 'for contact', field: CONTACT_FIELD },
@@ -109,7 +109,7 @@ export const WealthboxBlock: BlockConfig = {
       id: 'taskId',
       title: 'Task ID',
       type: 'short-input',
-      placeholder: 'Enter Task ID (optional)',
+      placeholder: 'Enter Task ID',
       condition: { field: 'operation', value: ['read_task'] },
     },
     {
@@ -228,13 +228,19 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
           }
         }
         if (operation === 'read_contact') {
+          if (!effectiveContactId && !isToolCall(context)) {
+            throw new Error('Contact ID is required for contact operations')
+          }
           return {
             ...baseParams,
             contactId: effectiveContactId,
           }
         }
         if (operation === 'read_task') {
-          if (!taskId?.trim()) return baseParams
+          if (!taskId?.trim()) {
+            if (isToolCall(context)) return baseParams
+            throw new Error('Task ID is required for task operations')
+          }
           return {
             ...baseParams,
             taskId: taskId.trim(),
@@ -243,7 +249,11 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
         if (operation === 'write_task') {
           const content = typeof params.content === 'string' ? params.content.trim() : ''
           const description = toolCallArg(context, params.description) || content || undefined
-          const taskParams = description ? { ...baseParams, description } : baseParams
+          const taskParams = {
+            ...baseParams,
+            ...(description ? { description } : {}),
+            taskId: toolCallArg(context, taskId),
+          }
           if (!contactId?.trim()) {
             if (isToolCall(context)) return taskParams
             throw new Error('Contact ID is required for this operation')

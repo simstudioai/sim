@@ -23,7 +23,11 @@ describe('Email Bison list filters use Laravel query syntax', () => {
 
     expect(params.get('filters[lead_campaign_status]')).toBe('replied')
     expect(params.getAll('filters[tag_ids][]')).toEqual(['11', '12'])
-    expect(params.get('filters[without_tags]')).toBe('0')
+    expect(params.has('filters[without_tags]')).toBe(false)
+  })
+
+  it('sends the without-tags filter as 1 only when it is on', () => {
+    expect(query(listLeadsTool, { withoutTags: true }).get('filters[without_tags]')).toBe('1')
   })
 
   it('sends every List Replies tag ID and the read flag as 1', () => {

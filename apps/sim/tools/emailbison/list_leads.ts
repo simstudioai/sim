@@ -64,7 +64,7 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
           'filters[lead_campaign_status]': params.campaignStatus,
           'filters[tag_ids]': params.tagIds,
           'filters[excluded_tag_ids]': params.excludedTagIds,
-          'filters[without_tags]': params.withoutTags,
+          'filters[without_tags]': params.withoutTags === true ? true : undefined,
         },
         params.apiBaseUrl
       ),

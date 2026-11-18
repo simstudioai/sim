@@ -50,20 +50,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (Array.isArray(data?.tasks)) {
-      const tasks = data.tasks
-      return {
-        success: true,
-        output: {
-          content: `Found ${tasks.length} tasks`,
-          tasks,
-          metadata: {
-            itemType: 'task' as const,
-            totalItems: tasks.length,
-          },
-        },
-      }
-    }
+    const listed: unknown[] | undefined = Array.isArray(data?.tasks) ? data.tasks : undefined
 
     // Format task information into readable content
     const task = data
@@ -101,10 +88,12 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       output: {
         content,
         task,
+        ...(listed ? { tasks: listed } : {}),
         metadata: {
           itemId: task.id?.toString() ?? null,
           taskId: task.id?.toString() ?? null,
           itemType: 'task' as const,
+          ...(listed ? { totalItems: listed.length } : {}),
         },
       },
     }
@@ -117,14 +106,10 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       description: 'Task data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted task information' },
-        task: {
-          type: 'object',
-          description: 'Raw task data from Wealthbox',
-          optional: true,
-        },
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
         tasks: {
           type: 'array',
-          description: 'Tasks returned when no ID is given (list request)',
+          description: 'Tasks in the returned page when no ID is given (list request)',
           optional: true,
         },
         metadata: {
@@ -135,7 +120,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
             taskId: { type: 'string', description: 'ID of the task', optional: true },
             totalItems: {
               type: 'number',
-              description: 'Number of items returned by a list request',
+              description: 'Number of items in the returned page (list requests only)',
               optional: true,
             },
             itemType: { type: 'string', description: 'Type of item (task)' },

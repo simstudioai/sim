@@ -50,20 +50,9 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (Array.isArray(data?.status_updates)) {
-      const notes = data.status_updates
-      return {
-        success: true,
-        output: {
-          content: `Found ${notes.length} notes`,
-          notes,
-          metadata: {
-            itemType: 'note' as const,
-            totalItems: notes.length,
-          },
-        },
-      }
-    }
+    const listed: unknown[] | undefined = Array.isArray(data?.status_updates)
+      ? data.status_updates
+      : undefined
 
     // Format note information into readable content
     const note = data
@@ -100,10 +89,12 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       output: {
         content,
         note,
+        ...(listed ? { notes: listed } : {}),
         metadata: {
           itemId: note.id?.toString() ?? null,
           noteId: note.id?.toString() ?? null,
           itemType: 'note' as const,
+          ...(listed ? { totalItems: listed.length } : {}),
         },
       },
     }
@@ -116,14 +107,10 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       description: 'Note data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted note information' },
-        note: {
-          type: 'object',
-          description: 'Raw note data from Wealthbox',
-          optional: true,
-        },
+        note: { type: 'object', description: 'Raw note data from Wealthbox' },
         notes: {
           type: 'array',
-          description: 'Notes returned when no ID is given (list request)',
+          description: 'Notes in the returned page when no ID is given (list request)',
           optional: true,
         },
         metadata: {
@@ -134,7 +121,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
             noteId: { type: 'string', description: 'ID of the note', optional: true },
             totalItems: {
               type: 'number',
-              description: 'Number of items returned by a list request',
+              description: 'Number of items in the returned page (list requests only)',
               optional: true,
             },
             itemType: { type: 'string', description: 'Type of item (note)' },

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
 import { formatTaskResponse, validateAndBuildTaskBody } from '@/tools/wealthbox/utils'
 
@@ -49,9 +50,9 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
 
   request: {
     url: (params) => {
-      const taskId = params.taskId?.trim()
+      const taskId = params.taskId == null ? '' : String(params.taskId).trim()
       if (taskId) {
-        return `https://api.crmworkspace.com/v1/tasks/${taskId}`
+        return `https://api.crmworkspace.com/v1/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
       }
       return 'https://api.crmworkspace.com/v1/tasks'
     },

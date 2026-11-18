@@ -50,20 +50,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (Array.isArray(data?.contacts)) {
-      const contacts = data.contacts
-      return {
-        success: true,
-        output: {
-          content: `Found ${contacts.length} contacts`,
-          contacts,
-          metadata: {
-            itemType: 'contact' as const,
-            totalItems: contacts.length,
-          },
-        },
-      }
-    }
+    const listed: unknown[] | undefined = Array.isArray(data?.contacts) ? data.contacts : undefined
 
     // Format contact information into readable content
     const contact = data
@@ -96,10 +83,12 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       output: {
         content,
         contact,
+        ...(listed ? { contacts: listed } : {}),
         metadata: {
           itemId: contact.id?.toString() ?? null,
           contactId: contact.id?.toString() ?? null,
           itemType: 'contact' as const,
+          ...(listed ? { totalItems: listed.length } : {}),
         },
       },
     }
@@ -112,14 +101,10 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       description: 'Contact data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted contact information' },
-        contact: {
-          type: 'object',
-          description: 'Raw contact data from Wealthbox',
-          optional: true,
-        },
+        contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
         contacts: {
           type: 'array',
-          description: 'Contacts returned when no ID is given (list request)',
+          description: 'Contacts in the returned page when no ID is given (list request)',
           optional: true,
         },
         metadata: {
@@ -130,7 +115,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
             contactId: { type: 'string', description: 'ID of the contact', optional: true },
             totalItems: {
               type: 'number',
-              description: 'Number of items returned by a list request',
+              description: 'Number of items in the returned page (list requests only)',
               optional: true,
             },
             itemType: { type: 'string', description: 'Type of item (contact)' },

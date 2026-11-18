@@ -62,8 +62,7 @@ describe('Lemlist Send Email recipient', () => {
       message: '<p>Hi</p>',
     })
 
-    expect(result.contactId).toBeUndefined()
-    expect(result.leadId).toBe('lea_1')
+    expect(result).toEqual(expect.objectContaining({ contactId: undefined, leadId: 'lea_1' }))
   })
 
   it('rejects a send with neither a contact nor a lead ID', () => {
