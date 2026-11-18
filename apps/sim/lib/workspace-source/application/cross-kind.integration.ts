@@ -388,6 +388,7 @@ describe('workspace source across kinds', () => {
         'create custom-tool:lookup-order',
         'create skill:tone',
         'create table:orders',
+        'create table:plans',
         'create knowledge-base:policies',
         'create file:templates/reply.md',
         'create workflow:support',
