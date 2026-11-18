@@ -109,6 +109,25 @@ describe('Kalshi create order on the V2 event-order endpoint', () => {
     expect(() => createBody({ yesPrice: '56', noPrice: '50' })).toThrow(/different prices/)
   })
 
+  it('refuses an order flag that is neither true nor false instead of dropping the restriction', () => {
+    expect(() => createBody({ yesPrice: '56', postOnly: 'ture' })).toThrow(
+      /Post Only must be true or false, got "ture"/
+    )
+    expect(() => createBody({ yesPrice: '56', reduceOnly: 'yes' })).toThrow(/Reduce Only/)
+    expect(() => createBody({ yesPrice: '56', cancelOrderOnPause: '1' })).toThrow(
+      /Cancel Order on Pause/
+    )
+    expect(
+      createBody({
+        yesPrice: '56',
+        postOnly: ' TRUE ',
+        reduceOnly: true as unknown as string,
+        cancelOrderOnPause: 'False',
+      })
+    ).toMatchObject({ post_only: true, reduce_only: true, cancel_order_on_pause: false })
+    expect(createBody({ yesPrice: '56', postOnly: '' })).not.toHaveProperty('post_only')
+  })
+
   it('posts to /portfolio/events/orders and signs that path', () => {
     const { url, headers } = kalshiCreateOrderTool.request
     if (typeof url !== 'function' || typeof headers !== 'function') {
