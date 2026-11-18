@@ -23,6 +23,7 @@ import { attachWorkflowSourceCheck } from './workflow-source-check'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 import { attachWorkspaceOperationWait } from './workspace-operation-wait'
 import { attachWorkspaceSourceApply } from './workspace-source-apply'
+import { attachWorkspaceSourceCheck } from './workspace-source-check'
 import { attachWorkspaceSourceGet } from './workspace-source-get'
 
 function group(program: Command, name: string): Command {
@@ -97,6 +98,7 @@ export function attachProtocolCommands(program: Command): void {
   const workspaceSource = group(workspaces, 'source')
   attachWorkspaceSourceGet(workspaceSource)
   attachWorkspaceSourceApply(workspaceSource)
+  attachWorkspaceSourceCheck(workspaceSource)
 
   attachLogsFollow(group(program, 'logs'))
 
