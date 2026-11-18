@@ -12,7 +12,15 @@ function mapParams(params: Record<string, unknown>, context?: { operation: strin
 function taskBody(params: Record<string, unknown>) {
   const body = wealthboxWriteTaskTool.request.body
   if (!body) throw new Error('Write task tool has no request body')
-  return body(params as Parameters<typeof body>[0])
+  const optionalString = (value: unknown) => (typeof value === 'string' ? value : undefined)
+  return body({
+    accessToken: 'token',
+    operation: 'write_task',
+    title: optionalString(params.title),
+    dueDate: optionalString(params.dueDate),
+    description: optionalString(params.description),
+    contactId: optionalString(params.contactId),
+  })
 }
 
 describe('Wealthbox Write Task', () => {
