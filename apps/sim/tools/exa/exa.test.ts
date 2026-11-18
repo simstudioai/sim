@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { agentTool } from '@/tools/exa/agent'
 import { answerTool } from '@/tools/exa/answer'
+import { findSimilarLinksTool } from '@/tools/exa/find_similar_links'
 import { getContentsTool } from '@/tools/exa/get_contents'
 import { searchTool } from '@/tools/exa/search'
 import { applyFreshness, resolveCategory } from '@/tools/exa/utils'
@@ -143,6 +144,35 @@ describe('exa_get_contents request body', () => {
 
   it('rejects neither selector', () => {
     expect(() => body({})).toThrow(/requires either urls or ids/)
+  })
+
+  it('omits untouched (null) content options but keeps an explicit false or 0', () => {
+    const untouched = body({ urls: 'https://a.com', text: null, highlights: null, subpages: null })
+    expect(untouched).not.toHaveProperty('text')
+    expect(untouched).not.toHaveProperty('highlights')
+    expect(untouched).not.toHaveProperty('subpages')
+
+    const explicit = body({ urls: 'https://a.com', text: false, highlights: false, subpages: 0 })
+    expect(explicit).toMatchObject({ text: false, highlights: false, subpages: 0 })
+  })
+})
+
+describe('exa_find_similar_links request body', () => {
+  const body = (params: Record<string, unknown>) =>
+    findSimilarLinksTool.request.body?.({
+      url: 'https://a.com',
+      apiKey: API_KEY,
+      ...params,
+    } as never) as Record<string, unknown>
+
+  it('omits untouched (null) options but keeps an explicit false', () => {
+    const untouched = body({ text: null, highlights: null, excludeSourceDomain: null })
+    expect(untouched).not.toHaveProperty('excludeSourceDomain')
+    expect(untouched).not.toHaveProperty('contents')
+
+    const explicit = body({ text: false, highlights: false, excludeSourceDomain: false })
+    expect(explicit.excludeSourceDomain).toBe(false)
+    expect(explicit.contents).toEqual({ text: false, highlights: false })
   })
 })
 

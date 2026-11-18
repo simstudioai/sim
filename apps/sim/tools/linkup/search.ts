@@ -5,6 +5,12 @@ import type {
 } from '@/tools/linkup/types'
 import type { ToolConfig } from '@/tools/types'
 
+/** Price per search by depth tier: raw `searchResults`, or an answer (any other or unset output type). */
+const LINKUP_SEARCH_COST = {
+  standard: { searchResults: 0.005, answer: 0.006 },
+  deep: { searchResults: 0.05, answer: 0.055 },
+} as const
+
 export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse> = {
   id: 'linkup_search',
   name: 'Linkup Search',
@@ -99,8 +105,9 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       getCost: (params) => {
         const depth = params.depth as string
         const outputType = params.outputType as string
-        const rawResults = outputType === 'searchResults'
-        const cost = depth === 'deep' ? (rawResults ? 0.05 : 0.055) : rawResults ? 0.005 : 0.006
+        const tier = depth === 'deep' ? 'deep' : 'standard'
+        const cost =
+          LINKUP_SEARCH_COST[tier][outputType === 'searchResults' ? 'searchResults' : 'answer']
         return { cost, metadata: { depth, outputType } }
       },
     },

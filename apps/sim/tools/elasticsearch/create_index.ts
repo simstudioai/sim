@@ -77,7 +77,7 @@ export const createIndexTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}`
     },
     method: 'PUT',
     headers: (params) => buildAuthHeaders(params),

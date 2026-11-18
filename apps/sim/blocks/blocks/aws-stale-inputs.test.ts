@@ -151,26 +151,29 @@ describe('AWS blocks keep stale subBlock values out of tool input', () => {
   })
 
   it('a blank stored limit still lets an Agent call pass its own limit', () => {
-    const sqs = SQSBlock.tools.config?.params?.(
-      {
-        ...AWS,
-        receiveVisibilityTimeout: '',
-        visibilityTimeout: 30,
-        moveTaskMaxResults: '',
-        maxResults: 5,
-      },
-      { operation: 'receive_message' }
-    )
-    expect(sqs?.visibilityTimeout).toBe(30)
-    const moveTasks = SQSBlock.tools.config?.params?.(
-      { ...AWS, moveTaskMaxResults: '', maxResults: 5 },
-      { operation: 'list_message_move_tasks' }
-    )
-    expect(moveTasks?.maxResults).toBe(5)
-    const ssm = SSMBlock.tools.config?.params?.(
-      { ...AWS, pathMaxResults: '', maxResults: 5 },
-      { operation: 'get_parameters_by_path' }
-    )
-    expect(ssm?.maxResults).toBe(5)
+    const sqsInputs = {
+      ...AWS,
+      receiveVisibilityTimeout: '',
+      visibilityTimeout: 30,
+      moveTaskMaxResults: '',
+      maxResults: 5,
+    }
+    const sqs = {
+      ...sqsInputs,
+      ...SQSBlock.tools.config?.params?.(sqsInputs, { operation: 'receive_message' }),
+    }
+    expect(sqs.visibilityTimeout).toBe(30)
+    const moveTaskInputs = { ...AWS, moveTaskMaxResults: '', maxResults: 5 }
+    const moveTasks = {
+      ...moveTaskInputs,
+      ...SQSBlock.tools.config?.params?.(moveTaskInputs, { operation: 'list_message_move_tasks' }),
+    }
+    expect(moveTasks.maxResults).toBe(5)
+    const ssmInputs = { ...AWS, pathMaxResults: '', maxResults: 5 }
+    const ssm = {
+      ...ssmInputs,
+      ...SSMBlock.tools.config?.params?.(ssmInputs, { operation: 'get_parameters_by_path' }),
+    }
+    expect(ssm.maxResults).toBe(5)
   })
 })

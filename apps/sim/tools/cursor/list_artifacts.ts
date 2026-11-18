@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import type {
   ArtifactMetadata,
   ListArtifactsParams,
@@ -10,13 +11,14 @@ import { safeUrlPathSegment } from '@/tools/url-path'
 /** Maps Cursor's `{ absolutePath, sizeBytes, updatedAt }` artifacts, also filling the original `path`/`size` names. */
 function mapArtifacts(raw: unknown): ArtifactMetadata[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((item: Record<string, unknown> | null) => {
-    const absolutePath = typeof item?.absolutePath === 'string' ? item.absolutePath : ''
-    const sizeBytes = typeof item?.sizeBytes === 'number' ? item.sizeBytes : null
+  return raw.map((entry: unknown) => {
+    const item = toRecord(entry)
+    const absolutePath = typeof item.absolutePath === 'string' ? item.absolutePath : ''
+    const sizeBytes = typeof item.sizeBytes === 'number' ? item.sizeBytes : null
     return {
       absolutePath,
       sizeBytes,
-      updatedAt: typeof item?.updatedAt === 'string' ? item.updatedAt : null,
+      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : null,
       path: absolutePath,
       size: sizeBytes,
     }

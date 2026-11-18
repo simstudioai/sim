@@ -950,6 +950,20 @@ export function toolCallArg<T>(
 }
 
 /**
+ * A block-only field's value, or, when that field is blank (`undefined`, `null` or `''`), the
+ * model's arg under the tool's own param name on a tool call (see {@link toolCallArg}).
+ */
+export function blockFieldOrToolArg(
+  context: BlockToolParamsContext | undefined,
+  blockValue: unknown,
+  toolValue: unknown
+): unknown {
+  return blockValue === undefined || blockValue === null || blockValue === ''
+    ? toolCallArg(context, toolValue)
+    : blockValue
+}
+
+/**
  * What the model is told when a block rejects a tool call's params. Deliberately static: a
  * mapper's own message can quote the value it rejected (`Invalid Limit "…"`, a JSON parse
  * snippet), and by then a model-written `{{SECRET}}` placeholder has been resolved to plaintext.

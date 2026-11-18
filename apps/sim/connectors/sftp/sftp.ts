@@ -8,6 +8,7 @@ import {
   getFileType,
   getSftp,
   isPathSafe,
+  joinRemotePath,
   readSftpFileCapped,
 } from '@/lib/internal/sftp/client'
 import { sftpConnectorMeta } from '@/connectors/sftp/meta'
@@ -255,11 +256,6 @@ function normalizeRemotePath(raw: string): string {
   const absolute = sanitized.startsWith('/') ? sanitized : `/${sanitized}`
   const trimmed = absolute.replace(/\/+$/, '')
   return trimmed === '' ? '/' : trimmed
-}
-
-/** Joins a directory and a child name into an absolute remote path. */
-function joinRemotePath(directory: string, name: string): string {
-  return directory === '/' ? `/${name}` : `${directory}/${name}`
 }
 
 /** True when `candidate` is the root path itself or lives beneath it. */

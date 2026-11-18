@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  appsheetResponseRows,
-  buildAppsheetActionUrl,
-  readAppsheetResponseBody,
-} from '@/tools/google_appsheet/utils'
+import { googleAppsheetFindRowsTool } from '@/tools/google_appsheet/find_rows'
+import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
 
 describe('buildAppsheetActionUrl', () => {
   it('defaults to the global www region when unset', () => {
@@ -50,8 +47,11 @@ describe('readAppsheetResponseBody', () => {
   })
 })
 
-describe('appsheetResponseRows', () => {
-  it('reads a bare row array body as the rows instead of an empty result', () => {
-    expect(appsheetResponseRows([{ id: '1' }, { id: '2' }])).toEqual([{ id: '1' }, { id: '2' }])
+describe('google_appsheet_find_rows response', () => {
+  it('reads a bare row array body as the rows instead of an empty result', async () => {
+    const transform = googleAppsheetFindRowsTool.transformResponse
+    if (!transform) throw new Error('find_rows has no transformResponse')
+    const result = await transform(Response.json([{ id: '1' }, { id: '2' }]))
+    expect(result.output.rows).toEqual([{ id: '1' }, { id: '2' }])
   })
 })

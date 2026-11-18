@@ -171,7 +171,7 @@ function encodeSegment(segment: string, paramName: string): string {
  * @param options.preserveWhitespace - Encode the value as given instead of
  *   trimming it, for ids where surrounding whitespace is significant (an
  *   exact-match document id). Blank values and dot segments are still rejected.
- * @returns The trimmed, percent-encoded segment, safe to interpolate.
+ * @returns The percent-encoded segment (trimmed unless `preserveWhitespace`), safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
  *   segment, contains a path separator (unless allowed), or cannot be encoded.
  */

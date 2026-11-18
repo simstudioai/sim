@@ -106,7 +106,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_search`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_search`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),

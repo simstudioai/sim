@@ -1,4 +1,4 @@
-import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedAlbumsParams {
@@ -42,22 +42,7 @@ export const spotifyRemoveSavedAlbumsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (
-    _response,
-    params,
-    context
-  ): Promise<SpotifyRemoveSavedAlbumsResponse> => {
-    if (params)
-      await sendRemainingSpotifyLibraryChunks(
-        params,
-        params.albumIds,
-        'album',
-        'DELETE',
-        {
-          maxIds: 20,
-        },
-        context?.signal
-      )
+  transformResponse: async (): Promise<SpotifyRemoveSavedAlbumsResponse> => {
     return { success: true, output: { success: true } }
   },
 

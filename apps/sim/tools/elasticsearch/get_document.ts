@@ -83,7 +83,7 @@ export const getDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc/${safeUrlPathSegment(
+      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_doc/${safeUrlPathSegment(
         params.documentId,
         'documentId',
         {
