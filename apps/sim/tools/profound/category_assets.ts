@@ -1,5 +1,6 @@
 import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ProfoundCategoryAssetsParams, ProfoundCategoryAssetsResponse } from './types'
 
 export const profoundCategoryAssetsTool: ToolConfig<
@@ -29,7 +30,7 @@ export const profoundCategoryAssetsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tryprofound.com/v1/org/categories/${encodeURIComponent(params.categoryId)}/assets`,
+      `https://api.tryprofound.com/v1/org/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}/assets`,
     method: 'GET',
     headers: (params) => ({
       'X-API-Key': params.apiKey,

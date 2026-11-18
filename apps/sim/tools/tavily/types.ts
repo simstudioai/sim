@@ -68,13 +68,6 @@ export const TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES = {
   favicon: { type: 'string', description: 'Favicon URL for the result', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Output definition for map result items
- */
-export const TAVILY_MAP_RESULT_OUTPUT_PROPERTIES = {
-  url: { type: 'string', description: 'Discovered URL' },
-} as const satisfies Record<string, OutputProperty>
-
 interface TavilySearchResult {
   title: string
   url: string
@@ -97,6 +90,7 @@ export interface TavilySearchResponse extends ToolResponse {
     images?: Array<string | TavilyImageResult>
     auto_parameters?: Record<string, unknown>
     response_time: number
+    request_id?: string
   }
 }
 
@@ -115,6 +109,7 @@ export interface TavilyExtractResponse extends ToolResponse {
       error: string
     }>
     response_time: number
+    request_id?: string
   }
 }
 
@@ -201,14 +196,10 @@ export interface TavilyMapParams {
   allow_external?: boolean
 }
 
-interface MapResult {
-  url: string
-}
-
 export interface MapResponse extends ToolResponse {
   output: {
     base_url: string
-    results: MapResult[]
+    results: string[]
     response_time: number
     request_id?: string
   }

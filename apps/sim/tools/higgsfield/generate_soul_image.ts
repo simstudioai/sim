@@ -98,6 +98,10 @@ export const higgsfieldGenerateSoulImageTool: ToolConfig<
     ...higgsfieldGenerationControlParams,
   },
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
     url: (params) => buildGenerationRequest(SOUL_ENDPOINT, params).url,
     method: 'POST',
     headers: (params) => buildGenerationRequest(SOUL_ENDPOINT, params).headers,

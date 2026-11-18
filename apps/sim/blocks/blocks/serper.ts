@@ -42,6 +42,8 @@ export const SerperBlock: BlockConfig = {
         { label: 'images', id: 'images' },
         { label: 'videos', id: 'videos' },
         { label: 'shopping', id: 'shopping' },
+        { label: 'scholar', id: 'scholar' },
+        { label: 'patents', id: 'patents' },
       ],
       value: () => 'search',
     },
@@ -105,7 +107,11 @@ export const SerperBlock: BlockConfig = {
     type: { type: 'string', description: 'Search type' },
   },
   outputs: {
-    searchResults: { type: 'json', description: 'Search results data' },
+    searchResults: {
+      type: 'json',
+      description:
+        '[{title, link, snippet, position, date, imageUrl, rating, reviews, address, source, duration, price}] — fields vary by search type',
+    },
   },
 }
 

@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyUnfollowPlaylistParams {
@@ -34,7 +35,7 @@ export const spotifyUnfollowPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/followers`,
+    url: (params) => spotifyLibraryUrl(params.playlistId, 'playlist'),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

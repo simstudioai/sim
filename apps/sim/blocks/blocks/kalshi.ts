@@ -138,7 +138,7 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Series List', id: 'get_series_list' },
         { label: 'Get Exchange Status', id: 'get_exchange_status' },
         { label: 'Get Exchange Schedule', id: 'get_exchange_schedule' },
-        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements' },
+        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements', hidden: true },
         { label: 'Create Order', id: 'create_order' },
         { label: 'Cancel Order', id: 'cancel_order' },
         { label: 'Amend Order', id: 'amend_order' },
@@ -730,6 +730,17 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
          */
         const mapField = (key: string, field: unknown) => {
           cleanParams[key] = field || toolCallArg(context, cleanParams[key])
+        }
+
+        /** Fields shown only for one operation: any other operation takes them from the model alone. */
+        const keepOnlyFor = (key: string, owner: string) => {
+          if (operation !== owner) cleanParams[key] = toolCallArg(context, cleanParams[key])
+        }
+        keepOnlyFor('minTs', 'get_fills')
+        keepOnlyFor('maxTs', 'get_fills')
+        keepOnlyFor('countFp', 'create_order')
+        if (operation === 'get_trades') {
+          cleanParams.ticker = toolCallArg(context, cleanParams.ticker)
         }
 
         if (operation === 'get_orders') {

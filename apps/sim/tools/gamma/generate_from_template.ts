@@ -2,6 +2,7 @@ import type {
   GammaGenerateFromTemplateParams,
   GammaGenerateFromTemplateResponse,
 } from '@/tools/gamma/types'
+import { gammaFolderId } from '@/tools/gamma/utils'
 import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -44,13 +45,14 @@ export const generateFromTemplateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Automatically export the generated gamma as pdf or pptx',
+      description:
+        'Automatically export the generated gamma as pdf, pptx, or png (a zip of one PNG per card). Check Status returns the download URL',
     },
     folderIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated folder IDs to store the generated gamma in',
+      description: 'ID of the folder to store the generated gamma in (Gamma accepts one folder)',
     },
     imageModel: {
       type: 'string',
@@ -86,9 +88,8 @@ export const generateFromTemplateTool: ToolConfig<
 
       if (params.themeId) body.themeId = params.themeId
       if (params.exportAs) body.exportAs = params.exportAs
-      if (params.folderIds) {
-        body.folderIds = params.folderIds.split(',').map((id: string) => id.trim())
-      }
+      const folderId = gammaFolderId(params.folderIds)
+      if (folderId) body.folderId = folderId
 
       const imageOptions: Record<string, unknown> = {}
       if (params.imageModel) imageOptions.model = params.imageModel
@@ -106,6 +107,7 @@ export const generateFromTemplateTool: ToolConfig<
       success: true,
       output: {
         generationId: data.generationId ?? '',
+        warnings: data.warnings ?? null,
       },
     }
   },
@@ -114,6 +116,11 @@ export const generateFromTemplateTool: ToolConfig<
     generationId: {
       type: 'string',
       description: 'The ID of the generation job. Use with Check Status to poll for completion.',
+    },
+    warnings: {
+      type: 'string',
+      description: 'Warnings about request options that Gamma ignored',
+      optional: true,
     },
   },
 }

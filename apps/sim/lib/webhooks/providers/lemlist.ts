@@ -55,7 +55,8 @@ export const lemlistHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
-      const lemlistApiUrl = 'https://api.lemlist.com/api/hooks'
+      const lemlistApiUrl = new URL('https://api.lemlist.com/api/hooks')
+      if (campaignId) lemlistApiUrl.searchParams.set('campaignId', String(campaignId))
 
       const requestBody: Record<string, unknown> = {
         targetUrl: notificationUrl,
@@ -69,7 +70,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         requestBody.campaignId = campaignId
       }
 
-      const lemlistResponse = await outboundFetch(lemlistApiUrl, {
+      const lemlistResponse = await outboundFetch(lemlistApiUrl.toString(), {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,

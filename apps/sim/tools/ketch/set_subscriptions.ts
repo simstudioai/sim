@@ -2,6 +2,7 @@ import type {
   KetchSetSubscriptionsParams,
   KetchSetSubscriptionsResponse,
 } from '@/tools/ketch/types'
+import { readKetchErrorMessage } from '@/tools/ketch/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const setSubscriptionsTool: ToolConfig<
@@ -78,13 +79,7 @@ export const setSubscriptionsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = `Request failed with status ${response.status}`
-      try {
-        const data = await response.json()
-        errorMessage = data.message ?? data.error ?? errorMessage
-      } catch {
-        // No JSON body in error response
-      }
+      const errorMessage = await readKetchErrorMessage(response)
       return {
         success: false,
         output: {

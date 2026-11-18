@@ -21,8 +21,8 @@ export function parseArxivXML(xmlText: string): ArxivPaper[] {
       pdfLink: extractPdfLink(entryXml),
       categories: extractCategories(entryXml),
       primaryCategory: extractXmlAttribute(entryXml, 'arxiv:primary_category', 'term') || '',
-      comment: extractXmlValue(entryXml, 'arxiv:comment'),
-      journalRef: extractXmlValue(entryXml, 'arxiv:journal_ref'),
+      comment: decodeOptional(extractXmlValue(entryXml, 'arxiv:comment')),
+      journalRef: decodeOptional(extractXmlValue(entryXml, 'arxiv:journal_ref')),
       doi: extractXmlValue(entryXml, 'arxiv:doi'),
     }
 
@@ -61,7 +61,7 @@ export function extractAuthors(entryXml: string): string[] {
   let match
 
   while ((match = authorRegex.exec(entryXml)) !== null) {
-    authors.push(match[1].trim())
+    authors.push(decodeXmlEntities(match[1].trim()))
   }
 
   return authors
@@ -86,5 +86,28 @@ export function extractCategories(entryXml: string): string[] {
 }
 
 export function cleanText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
+  return decodeXmlEntities(text.replace(/\s+/g, ' ').trim())
+}
+
+const XML_NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+}
+
+/** Decodes the XML entities the arXiv Atom feed escapes in text nodes, in a single pass. */
+function decodeXmlEntities(text: string): string {
+  return text.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[\da-fA-F]+);/g, (entity, name: string) => {
+    if (!name.startsWith('#')) return XML_NAMED_ENTITIES[name] ?? entity
+    const codePoint = name.startsWith('#x')
+      ? Number.parseInt(name.slice(2), 16)
+      : Number.parseInt(name.slice(1), 10)
+    return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity
+  })
+}
+
+function decodeOptional(text: string | undefined): string | undefined {
+  return text === undefined ? undefined : decodeXmlEntities(text)
 }

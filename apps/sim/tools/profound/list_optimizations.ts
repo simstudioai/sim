@@ -1,5 +1,6 @@
 import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ProfoundListOptimizationsParams, ProfoundListOptimizationsResponse } from './types'
 
 export const profoundListOptimizationsTool: ToolConfig<
@@ -42,7 +43,7 @@ export const profoundListOptimizationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.tryprofound.com/v1/content/${encodeURIComponent(params.assetId)}/optimization`
+        `https://api.tryprofound.com/v1/content/${safeUrlPathSegment(params.assetId, 'assetId')}/optimization`
       )
       if (params.limit != null) url.searchParams.set('limit', String(params.limit))
       if (params.offset != null) url.searchParams.set('offset', String(params.offset))

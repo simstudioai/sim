@@ -4,6 +4,7 @@ import type {
   GoogleBooksVolumeResponse,
 } from '@/tools/google_books/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBooksVolumeDetailsTool: ToolConfig<
   GoogleBooksVolumeDetailsParams,
@@ -51,7 +52,9 @@ export const googleBooksVolumeDetailsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(`https://www.googleapis.com/books/v1/volumes/${params.volumeId.trim()}`)
+      const url = new URL(
+        `https://www.googleapis.com/books/v1/volumes/${safeUrlPathSegment(params.volumeId, 'volumeId')}`
+      )
       url.searchParams.set('key', params.apiKey.trim())
 
       if (params.projection) {

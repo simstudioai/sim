@@ -1,4 +1,5 @@
 import type { RootlyListSeveritiesParams, RootlyListSeveritiesResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -61,7 +62,7 @@ export const rootlyListSeveritiesTool: ToolConfig<
       return {
         success: false,
         output: { severities: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

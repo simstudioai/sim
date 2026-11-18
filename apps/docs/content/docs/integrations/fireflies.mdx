@@ -303,6 +303,7 @@ Trigger workflow when a Fireflies meeting transcription is complete
 | `eventType` | string | The type of event \(e.g. Transcription completed, meeting.transcribed\) |
 | `clientReferenceId` | string | Custom reference ID if set during upload |
 | `timestamp` | number | Unix timestamp in milliseconds when the event was fired \(V2 webhooks\) |
+| `reprocessedAt` | number | Unix timestamp in milliseconds of the transcript or summary change that caused a resend \(V2 webhooks; absent on a meeting's first delivery\) |
 
 </ReferenceDetails>
 

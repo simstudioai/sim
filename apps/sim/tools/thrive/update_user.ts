@@ -8,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserResponse> = {
   id: 'thrive_update_user',
@@ -129,7 +130,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${encodeURIComponent(params.ref)}`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

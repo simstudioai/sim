@@ -8,6 +8,7 @@ import {
   temporalRequestHeaders,
 } from '@/tools/temporal/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const describeTaskQueueTool: ToolConfig<
   TemporalDescribeTaskQueueParams,
@@ -55,7 +56,7 @@ export const describeTaskQueueTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = `${temporalNamespaceUrl(params.serverUrl, params.namespace)}/task-queues/${encodeURIComponent(params.taskQueue.trim())}`
+      const base = `${temporalNamespaceUrl(params.serverUrl, params.namespace)}/task-queues/${safeUrlPathSegment(params.taskQueue, 'taskQueue', { allowSeparators: true })}`
       return params.taskQueueType
         ? `${base}?taskQueueType=${encodeURIComponent(params.taskQueueType)}`
         : base

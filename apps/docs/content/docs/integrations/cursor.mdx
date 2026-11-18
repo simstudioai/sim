@@ -182,7 +182,7 @@ Permanently delete a cloud agent. Returns API-aligned fields only.
 
 ### Cursor List Artifacts
 
-List generated artifact files for a cloud agent. Returns API-aligned fields only.
+List generated artifact files for a cloud agent. Returns the API fields plus `path` and `size` aliases.
 
 <ReferenceDetails>
 
@@ -197,8 +197,11 @@ List generated artifact files for a cloud agent. Returns API-aligned fields only
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `artifacts` | array | List of artifact files |
-|   ↳ `path` | string | Artifact file path |
-|   ↳ `size` | number | File size in bytes |
+|   ↳ `absolutePath` | string | Absolute artifact path on the agent filesystem; pass it to Download Artifact |
+|   ↳ `sizeBytes` | number | File size in bytes |
+|   ↳ `updatedAt` | string | ISO 8601 time the artifact was last updated |
+|   ↳ `path` | string | Artifact file path \(same as absolutePath\) |
+|   ↳ `size` | number | File size in bytes \(same as sizeBytes\) |
 
 </ReferenceDetails>
 
@@ -213,7 +216,7 @@ Download a generated artifact file from a cloud agent. Returns the file for exec
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
-| `path` | string | Yes | Absolute path of the artifact to download \(e.g., /src/index.ts\) |
+| `path` | string | Yes | Absolute artifact path from List Artifacts \(e.g., /opt/cursor/artifacts/screenshot.png\) |
 
 #### Output
 

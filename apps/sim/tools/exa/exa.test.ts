@@ -157,7 +157,55 @@ describe('exa_answer', () => {
   })
 })
 
+describe('exa_search untouched fields and Lite', () => {
+  it('omits fields a block never filled in (null) instead of sending them', () => {
+    const body = searchBody({
+      text: null,
+      highlights: null,
+      summary: null,
+      maxAgeHours: null,
+      livecrawlTimeout: null,
+    })
+    expect(body).not.toHaveProperty('contents')
+  })
+
+  it('sends only the parameters Lite accepts', () => {
+    const body = searchBody({
+      type: 'lite',
+      numResults: 5,
+      includeDomains: 'a.com',
+      text: true,
+      highlights: true,
+      summary: true,
+      summaryQuery: 'pricing',
+      subpages: 2,
+      subpageTarget: 'docs',
+      extrasLinks: 3,
+      maxAgeHours: 24,
+      livecrawlTimeout: 5000,
+      startCrawlDate: '2024-01-01',
+      outputSchema: { type: 'object', properties: {} },
+      systemPrompt: 'be brief',
+    })
+    expect(body).toEqual({
+      query: 'q',
+      type: 'lite',
+      numResults: 5,
+      includeDomains: ['a.com'],
+      contents: { text: true, highlights: true },
+    })
+  })
+})
+
 describe('exa block', () => {
+  it('leaves Max Content Age unset when the field was never filled in', () => {
+    const params = ExaBlock.tools.config?.params?.({
+      operation: 'exa_search',
+      maxAgeHours: null,
+    }) as Record<string, unknown>
+    expect(params).not.toHaveProperty('maxAgeHours')
+  })
+
   it('routes the retired research operation to the agent tool', () => {
     expect(ExaBlock.tools.config?.tool?.({ operation: 'exa_research' })).toBe('exa_agent')
   })
@@ -209,6 +257,26 @@ describe('exa_agent terminal statuses', () => {
     const result = await settle('failed', 'error')
     expect(result?.success).toBe(false)
     expect(result?.error).toMatch(/failed: error/)
+  })
+
+  it("surfaces Exa's error message for a failed run", async () => {
+    const response = new Response(
+      JSON.stringify({
+        id: 'agent_run_1',
+        status: 'failed',
+        stopReason: 'error',
+        error: { type: 'INVALID_REQUEST', code: 'INVALID_OUTPUT_SCHEMA', message: 'Bad schema' },
+      })
+    )
+    const created = await agentTool.transformResponse?.(response, { apiKey: API_KEY, query: 'q' })
+    if (!created) throw new Error('exa_agent has no transformResponse')
+    const result = await agentTool.postProcess?.(
+      created,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+    expect(result?.success).toBe(false)
+    expect(result?.error).toBe('Exa agent run failed: Bad schema')
   })
 
   it('reports a cancelled run as a failure', async () => {

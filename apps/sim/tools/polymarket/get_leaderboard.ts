@@ -1,5 +1,14 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { PolymarketLeaderboardEntry } from '@/tools/polymarket/types'
-import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
+import {
+  appendDataPagination,
+  buildDataUrl,
+  handlePolymarketError,
+  POLYMARKET_CURSOR_DESCRIPTION,
+  POLYMARKET_DATA_PAGE_OUTPUTS,
+  type PolymarketDataPage,
+  readDataPage,
+} from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PolymarketGetLeaderboardParams {
@@ -10,12 +19,35 @@ export interface PolymarketGetLeaderboardParams {
   offset?: string
   user?: string
   userName?: string
+  cursor?: string
 }
 
 export interface PolymarketGetLeaderboardResponse {
   success: boolean
-  output: {
+  output: PolymarketDataPage & {
     leaderboard: PolymarketLeaderboardEntry[]
+  }
+}
+
+/** The volume board, named `VOL` in the retired Data API v1 and `VOLUME` in v2. */
+function isVolumeBoard(orderBy: string | undefined): boolean {
+  const board = orderBy?.toUpperCase()
+  return board === 'VOL' || board === 'VOLUME'
+}
+
+function toLeaderboardEntry(
+  entry: Record<string, unknown>,
+  rank: unknown
+): PolymarketLeaderboardEntry {
+  return {
+    rank: typeof rank === 'number' || typeof rank === 'string' ? String(rank) : '',
+    proxyWallet: (entry.user_id as string) ?? '',
+    userName: (entry.user_name as string) ?? null,
+    vol: (entry.volume as number) ?? 0,
+    pnl: (entry.pnl as number) ?? 0,
+    profileImage: (entry.profile_image as string) ?? null,
+    xUsername: (entry.x_username as string) ?? null,
+    verifiedBadge: (entry.verified as boolean) ?? false,
   }
 }
 
@@ -45,48 +77,59 @@ export const polymarketGetLeaderboardTool: ToolConfig<
     orderBy: {
       type: 'string',
       required: false,
-      description: 'Order by: PNL or VOL (default: PNL)',
+      description: 'Order by: PNL or VOLUME (default: PNL)',
       visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results to return (e.g., "10"). Range: 1-50, default: 25.',
+      description: 'Number of results for the first page (e.g., "10"). Max: 1000.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description:
-        'Number of results to skip for pagination (e.g., "25"). Range: 0-1000, default: 0.',
+        'Not supported by the Polymarket Data API v2, which pages by cursor. Use cursor instead.',
       visibility: 'user-or-llm',
     },
     user: {
       type: 'string',
       required: false,
-      description: 'Filter by specific user wallet address',
+      description: "Wallet address to look up that user's rank instead of the board",
       visibility: 'user-or-llm',
     },
     userName: {
       type: 'string',
       required: false,
-      description: 'Filter by username',
+      description:
+        'Not supported by the Polymarket Data API v2. Use user with a wallet address instead.',
+      visibility: 'user-or-llm',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      description: POLYMARKET_CURSOR_DESCRIPTION,
       visibility: 'user-or-llm',
     },
   },
 
   request: {
     url: (params) => {
-      const queryParams = new URLSearchParams()
-      if (params.category) queryParams.append('category', params.category)
-      if (params.timePeriod) queryParams.append('timePeriod', params.timePeriod)
-      if (params.orderBy) queryParams.append('orderBy', params.orderBy)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.offset) queryParams.append('offset', params.offset)
-      if (params.user) queryParams.append('user', params.user)
-      if (params.userName) queryParams.append('userName', params.userName)
-      const query = queryParams.toString()
-      return query ? `${buildDataUrl('/v1/leaderboard')}?${query}` : buildDataUrl('/v1/leaderboard')
+      if (params.userName?.trim()) {
+        throw new Error(
+          'Polymarket no longer looks up the leaderboard by username. Pass the wallet address as user.'
+        )
+      }
+      const query = new URLSearchParams()
+      if (params.category) query.append('category', params.category.toLowerCase())
+      if (params.timePeriod) query.append('time_period', params.timePeriod.toLowerCase())
+      if (params.orderBy) {
+        query.append('sort_by', isVolumeBoard(params.orderBy) ? 'VOLUME' : params.orderBy)
+      }
+      if (params.user) query.append('user', params.user)
+      appendDataPagination(query, params)
+      return buildDataUrl('/leaderboard', query)
     },
     method: 'GET',
     headers: () => ({
@@ -94,30 +137,32 @@ export const polymarketGetLeaderboardTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: PolymarketGetLeaderboardParams) => {
     const data = await response.json()
 
     if (!response.ok) {
       handlePolymarketError(data, response.status, 'get_leaderboard')
     }
 
-    const entries = Array.isArray(data) ? data : []
+    if (isPlainRecord(data?.data)) {
+      const standing = data.data
+      const rank = isVolumeBoard(params?.orderBy) ? standing.rank_volume : standing.rank_pnl
+      return {
+        success: true,
+        output: {
+          leaderboard: [toLeaderboardEntry(standing, rank)],
+          nextCursor: null,
+          hasMore: false,
+        },
+      }
+    }
 
-    const leaderboard: PolymarketLeaderboardEntry[] = entries.map((entry: any) => ({
-      rank: entry.rank ?? '',
-      proxyWallet: entry.proxyWallet ?? '',
-      userName: entry.userName ?? null,
-      vol: entry.vol ?? 0,
-      pnl: entry.pnl ?? 0,
-      profileImage: entry.profileImage ?? null,
-      xUsername: entry.xUsername ?? null,
-      verifiedBadge: entry.verifiedBadge ?? false,
-    }))
-
+    const { rows, page } = readDataPage(data)
     return {
       success: true,
       output: {
-        leaderboard,
+        leaderboard: rows.map((entry) => toLeaderboardEntry(entry, entry.rank)),
+        ...page,
       },
     }
   },
@@ -140,5 +185,6 @@ export const polymarketGetLeaderboardTool: ToolConfig<
         },
       },
     },
+    ...POLYMARKET_DATA_PAGE_OUTPUTS,
   },
 }

@@ -2,6 +2,7 @@ import type { LinqAttachmentResult, LinqGetAttachmentParams } from '@/tools/linq
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqGetAttachmentTool: ToolConfig<LinqGetAttachmentParams, LinqAttachmentResult> = {
   id: 'linq_get_attachment',
@@ -27,7 +28,7 @@ export const linqGetAttachmentTool: ToolConfig<LinqGetAttachmentParams, LinqAtta
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/attachments/${encodeURIComponent(params.attachmentId.trim())}`,
+      `${LINQ_API_BASE}/attachments/${safeUrlPathSegment(params.attachmentId, 'attachmentId')}`,
     method: 'GET',
     headers: (params) => linqHeaders(params.apiKey),
   },

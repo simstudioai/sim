@@ -1,6 +1,7 @@
 import type { DeleteThreadParams, DeleteThreadResult } from '@/tools/agentmail/types'
 import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThreadResult> = {
   id: 'agentmail_delete_thread',
@@ -42,7 +43,7 @@ export const agentmailDeleteThreadTool: ToolConfig<DeleteThreadParams, DeleteThr
       const query = new URLSearchParams()
       if (params.permanent) query.set('permanent', 'true')
       const qs = query.toString()
-      return `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/threads/${params.threadId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

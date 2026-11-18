@@ -2,6 +2,7 @@ import type { LinqQueuedResult, LinqReactToMessageParams } from '@/tools/linq/ty
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqReactToMessageTool: ToolConfig<LinqReactToMessageParams, LinqQueuedResult> = {
   id: 'linq_react_to_message',
@@ -52,7 +53,7 @@ export const linqReactToMessageTool: ToolConfig<LinqReactToMessageParams, LinqQu
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/messages/${encodeURIComponent(params.messageId.trim())}/reactions`,
+      `${LINQ_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => {

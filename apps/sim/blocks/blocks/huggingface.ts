@@ -1,7 +1,7 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput, withSavedCredential } from '@/blocks/utils'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const HuggingFaceBlock: BlockConfig = {
   type: 'huggingface',
@@ -79,7 +79,7 @@ export const HuggingFaceBlock: BlockConfig = {
       type: 'slider',
       min: 0,
       max: 2,
-      value: () => 0.7,
+      value: () => '0.7',
     },
     {
       id: 'maxTokens',
@@ -107,7 +107,12 @@ export const HuggingFaceBlock: BlockConfig = {
           model: params.model,
           content: params.content,
           systemPrompt: params.systemPrompt,
-          temperature: parseOptionalNumberInput(params.temperature, 'temperature'),
+          temperature:
+            params.temperature === undefined ||
+            params.temperature === null ||
+            params.temperature === ''
+              ? undefined
+              : Number.parseFloat(params.temperature),
           maxTokens: params.maxTokens ? Number.parseInt(params.maxTokens) : undefined,
           stream: false, // Always false
         }

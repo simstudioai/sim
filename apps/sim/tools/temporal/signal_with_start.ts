@@ -13,6 +13,7 @@ import {
   toDurationString,
 } from '@/tools/temporal/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const signalWithStartTool: ToolConfig<
   TemporalSignalWithStartParams,
@@ -130,7 +131,7 @@ export const signalWithStartTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/signal-with-start/${encodeURIComponent(params.signalName.trim())}`,
+      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/signal-with-start/${safeUrlPathSegment(params.signalName, 'signalName', { allowSeparators: true })}`,
     method: 'POST',
     headers: (params) => temporalRequestHeaders(params),
     body: (params) => {

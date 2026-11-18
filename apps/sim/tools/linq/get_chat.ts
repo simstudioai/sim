@@ -2,6 +2,7 @@ import type { LinqChatResult, LinqGetChatParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqGetChatTool: ToolConfig<LinqGetChatParams, LinqChatResult> = {
   id: 'linq_get_chat',
@@ -26,7 +27,7 @@ export const linqGetChatTool: ToolConfig<LinqGetChatParams, LinqChatResult> = {
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}`,
     method: 'GET',
     headers: (params) => linqHeaders(params.apiKey),
   },

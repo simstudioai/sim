@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrCompany, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetCompanyTool: ToolConfig<QuartrGetCompanyParams, QuartrGetCompanyResponse> = {
   id: 'quartr_get_company',
@@ -33,7 +34,7 @@ export const quartrGetCompanyTool: ToolConfig<QuartrGetCompanyParams, QuartrGetC
 
   request: {
     url: (params) =>
-      buildQuartrUrl(`/companies/${encodeURIComponent(String(params.companyId).trim())}`),
+      buildQuartrUrl(`/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`),
     method: 'GET',
     headers: (params) => ({ 'x-api-key': params.apiKey }),
   },

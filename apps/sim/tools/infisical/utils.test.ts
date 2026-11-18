@@ -87,3 +87,42 @@ describe('Infisical request host', () => {
     }
   })
 })
+
+const WRITE_TOOLS = TOOLS.filter(({ operation }) =>
+  ['create_secret', 'update_secret', 'delete_secret'].includes(operation)
+)
+
+describe('Infisical secret writes under an approval policy', () => {
+  it.each(WRITE_TOOLS)(
+    '$operation reports the pending change request instead of passing it off as the secret',
+    async ({ tool }) => {
+      const approval = {
+        id: '6f0a1c43-5d0e-4a8a-9d6b-3f0d6c1f2b11',
+        policyId: '0a7d1c22-6b9f-4d3e-8f0a-2c4b5e6d7f80',
+        hasMerged: false,
+        status: 'open',
+        slug: 'quick-fox-jumps',
+        folderId: '9b8c7d6e-5f4a-3b2c-1d0e-f9a8b7c6d5e4',
+        createdAt: '2026-11-18T10:00:00.000Z',
+        updatedAt: '2026-11-18T10:00:00.000Z',
+      }
+      const result = await tool.transformResponse?.(
+        new Response(JSON.stringify({ approval }), { status: 200 })
+      )
+
+      expect(result?.success).toBe(true)
+      expect(result?.output.secret.id).toBeNull()
+      expect(result?.output.secret.createdAt).toBeNull()
+      expect(result?.output.approval).toMatchObject({ id: approval.id, status: 'open' })
+    }
+  )
+})
+
+describe('Infisical secret name path segment', () => {
+  it.each(TOOLS.filter(({ operation }) => operation !== 'list_secrets'))(
+    '$operation refuses a dot-segment secret name that would retarget the request',
+    ({ tool }) => {
+      expect(() => requestUrl(tool, { ...SECRET_PARAMS, secretName: '..' })).toThrow(/secretName/)
+    }
+  )
+})

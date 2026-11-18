@@ -477,7 +477,8 @@ Query annotations by time range, dashboard, or tags
 | `dashboardUid` | string | No | Dashboard UID to query annotations from \(e.g., abc123def\). Omit to query annotations across the organization. |
 | `dashboardId` | number | No | Legacy numeric dashboard ID filter \(prefer dashboardUid\) |
 | `panelId` | number | No | Filter by panel ID \(e.g., 1, 2\) |
-| `alertId` | number | No | Filter by alert ID |
+| `alertId` | number | No | Filter by legacy numeric alert ID |
+| `alertUid` | string | No | Filter by alert rule UID \(Grafana 11.6+\) |
 | `userId` | number | No | Filter by ID of the user who created the annotation |
 | `tags` | string | No | Comma-separated list of tags to filter by |
 | `type` | string | No | Filter by type \(alert or annotation\) |
@@ -490,6 +491,7 @@ Query annotations by time range, dashboard, or tags
 | `annotations` | array | List of annotations |
 |   ↳ `id` | number | Annotation ID |
 |   ↳ `alertId` | number | Associated alert ID \(0 if not alert-driven\) |
+|   ↳ `alertUID` | string | UID of the alert rule that created the annotation |
 |   ↳ `dashboardId` | number | Dashboard ID |
 |   ↳ `dashboardUID` | string | Dashboard UID |
 |   ↳ `panelId` | number | Panel ID within the dashboard |

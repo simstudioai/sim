@@ -1,6 +1,8 @@
 import type { RootlyDeleteIncidentParams, RootlyDeleteIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyDeleteIncidentTool: ToolConfig<
   RootlyDeleteIncidentParams,
@@ -28,7 +30,8 @@ export const rootlyDeleteIncidentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}`,
+    url: (params) =>
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -43,10 +46,9 @@ export const rootlyDeleteIncidentTool: ToolConfig<
         success: false,
         output: {
           success: false,
-          message:
-            errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          message: rootlyErrorMessage(errorData, response),
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 
