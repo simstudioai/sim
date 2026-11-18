@@ -637,7 +637,7 @@ async function runSourceApply(
       }
       return result(evaluated, printed, {
         applied: renamed,
-        ...(renamed ? { workflowName: plan.meta.name } : {}),
+        workflowName: plan.meta.name,
         diff,
         diagnostics,
         references: plan.references,

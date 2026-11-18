@@ -161,8 +161,13 @@ function readOf(
   }
 }
 
-/** A stored workflow carries nothing beyond its id and name: the pipeline reads the rest. */
-type StoredWorkflowState = null
+/**
+ * A stored workflow carries its folder beside its id and name (two workflows of one folder cannot
+ * share a name); the pipeline reads the rest.
+ */
+interface StoredWorkflowState {
+  folderId: string | null
+}
 
 /** What a write applies, decided at plan time. */
 interface WorkflowPlan {
@@ -414,7 +419,8 @@ async function planUpdate(
   change: WorkflowChange,
   update: { workflowId: string; base: SourceBase },
   ctx: PlanContext,
-  pending: readonly PendingResource[]
+  pending: readonly PendingResource[],
+  renamed: Map<string, string>
 ): Promise<WorkflowChange> {
   const { key, decl } = change
   if (!decl) return change
@@ -437,6 +443,7 @@ async function planUpdate(
     },
   })
   change.diagnostics.push(...inFolder(key, result.diagnostics))
+  if (result.diff.meta?.includes('name')) renamed.set(key, result.workflowName)
   // A graph no-op that changes only idents, order or comments still writes its source meta.
   const metaOnly = result.diff.noop && result.sourceMetaChanged
   const evaluated =
@@ -584,6 +591,40 @@ async function foldersAsStored(
   return matched
 }
 
+/** The key two workflows of one folder cannot share: the folder (`null` at the root) and the name. */
+function folderName(folderId: string | null, name: string): string {
+  return JSON.stringify([folderId, name])
+}
+
+/**
+ * Refuses a rename onto a name another write of this apply gives a workflow of the same folder (a
+ * create, which lands at the root, or another rename): each is checked only against the names
+ * stored now, so both would plan and the second write would fail part-way. `names` holds the
+ * creates' names by {@link folderName}.
+ */
+function refuseRenamesOntoOneName(
+  updates: readonly UpdateStep[],
+  renamed: ReadonlyMap<string, string>,
+  planned: ReadonlyMap<string, WorkflowChange>,
+  stored: StoredSet<StoredWorkflowState>,
+  names: Map<string, string>
+): void {
+  const folders = new Map(
+    [...stored.bound.values(), ...stored.unbound].map((workflow) => [
+      workflow.id,
+      workflow.state.folderId,
+    ])
+  )
+  for (const step of updates) {
+    const name = renamed.get(step.change.key)
+    const change = planned.get(step.change.key)
+    if (name === undefined || !change) continue
+    const folderId = folders.get(step.update.workflowId) ?? null
+    const file = `${workflowFolder(change.key)}/${SOURCE_ENTRY_FILE}`
+    refuseDeclaredTwice(names, change, folderName(folderId, name), name, file)
+  }
+}
+
 /** Runs one folder's evaluation, turning its refusal into the folder's finding. */
 async function refusing(
   change: WorkflowChange,
@@ -654,7 +695,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
     const records = workflows.map((workflow) => ({
       id: workflow.id,
       name: workflow.name,
-      state: null,
+      state: { folderId: workflow.folderId ?? null },
     }))
     return bindStored(ctx, 'workflow', records, { allocate })
   },
@@ -691,7 +732,13 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       if (!evaluated) continue
       if (evaluated.name !== undefined) {
         const file = `${workflowFolder(evaluated.change.key)}/${SOURCE_ENTRY_FILE}`
-        refuseDeclaredTwice(names, evaluated.change, evaluated.name, evaluated.name, file)
+        refuseDeclaredTwice(
+          names,
+          evaluated.change,
+          folderName(null, evaluated.name),
+          evaluated.name,
+          file
+        )
       }
       planned.set(step.change.key, evaluated.change)
     }
@@ -702,12 +749,14 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       planned.set(step.change.key, { ...step.change, storedId: step.update.workflowId })
       return false
     })
+    const renamed = new Map<string, string>()
     await mapWithConcurrency(updates, PLAN_CONCURRENCY, async (step) => {
       const change = await refusing(step.change, () =>
-        planUpdate(step.change, step.update, ctx, pending)
+        planUpdate(step.change, step.update, ctx, pending, renamed)
       )
       planned.set(change.key, change)
     })
+    refuseRenamesOntoOneName(updates, renamed, planned, stored, names)
     const changes = orderCreates(steps.map((step) => planned.get(step.change.key) ?? step.change))
     // A delete is stale when the workflow changed on the server since the base recorded it; one
     // that cannot be read now never matches, so it is refused rather than deleted unseen. A locked
