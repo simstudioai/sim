@@ -317,6 +317,12 @@ const applyDataSchema = z
       .describe(
         'Binary paths a write needs whose bytes are not staged: on a dry run, exactly what to stage before applying.'
       ),
+    applyId: z
+      .string()
+      .optional()
+      .describe(
+        'The id of an apply that wrote: every audit log entry its writes recorded carries it as `metadata.correlationId`. Absent on a dry run.'
+      ),
     files: z
       .record(z.string(), z.string())
       .describe('Files re-printed from what was saved, for every resource written.'),

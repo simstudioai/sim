@@ -25869,6 +25869,10 @@
                 },
                 "description": "Binary paths a write needs whose bytes are not staged: on a dry run, exactly what to stage before applying."
               },
+              "applyId": {
+                "description": "The id of an apply that wrote: every audit log entry its writes recorded carries it as `metadata.correlationId`. Absent on a dry run.",
+                "type": "string"
+              },
               "files": {
                 "type": "object",
                 "propertyNames": {

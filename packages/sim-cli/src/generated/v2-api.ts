@@ -1390,6 +1390,7 @@ export type ApplyWorkspaceSourceResponse = {
       message: string
     }
     needBlobs: Array<string>
+    applyId?: string
     files: Record<string, string>
     base: {
       version: 1
