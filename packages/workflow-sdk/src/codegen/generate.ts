@@ -1,12 +1,15 @@
 /**
  * `generateSdkTypes(catalog)`: the block catalog → `.d.ts` files.
  *
- * - `blocks/{type}.d.ts` per block type with builders. It augments `@sim/workflow-sdk` with the
- *   builder functions, tool forms and `SpecialBuilderTypes` entries.
- * - `operations/{type}/{operation}.d.ts` per operation builder, holding that operation's params
- *   and output types, so an agent can read one operation (about 1–2 KB) on demand.
+ * - `blocks/{type}.d.ts` per block type with builders: every builder's params and output types,
+ *   and the augmentation of `@sim/workflow-sdk` with the builder functions, tool forms and
+ *   `SpecialBuilderTypes` entries. One file per block keeps a write to a few hundred files; a
+ *   directory's `tsconfig.json` includes only the blocks its source uses (`layout.ts`).
  * - `models.d.ts`: model ids, apart so a model-list change touches one file.
- * - `index.d.ts`: imports everything; the only file that names the catalog hash.
+ * - `index.d.ts`: imports the models and every current block (not the legacy-only ones); the only
+ *   file that names the catalog hash.
+ * - `INDEX.md`: one line per builder naming its block, operation, file and params type, so an
+ *   agent finds a builder with one `grep` instead of reading declarations.
  *
  * Output is deterministic: the same catalog gives byte-identical files in path order.
  */
@@ -25,6 +28,13 @@ import {
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
 import { hasToolForm } from '@sim/workflow-code/sdk'
 import { indentLines, jsdoc, literal, pascal, union } from './emit'
+import {
+  blockTypesFile,
+  isLegacyBuilder,
+  legacyOnlyBlockTypes,
+  SDK_GUIDE_FILE,
+  SDK_INDEX_FILE,
+} from './layout'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
@@ -182,8 +192,10 @@ interface BuilderTypes {
   tool: string[] | null
   /** The `SpecialBuilderTypes` member, for core-declared builders. */
   special: string | null
-  /** Exported names, for the block file's import. */
-  exportedTypes: string[]
+  /** `Block: Operation`, the builder's one-line description. */
+  summary: string
+  /** The params type's name. */
+  paramsName: string
 }
 
 function pinnedValues(entry: BuilderEntry): Record<string, Scalar> {
@@ -438,7 +450,8 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
     signature,
     tool,
     special,
-    exportedTypes: [paramsName, outputName],
+    summary: [block.name, label].filter(Boolean).join(': '),
+    paramsName,
   }
 }
 
@@ -453,14 +466,21 @@ function coreImports(text: string): string {
 }
 
 interface NamespaceNode {
+  /** The namespace's doc comment: the block and the builders it declares here. */
+  doc: string[]
   functions: string[][]
+  /** The names of the builders declared here, for the doc comment. */
+  methods: string[]
   tools: string[][]
   children: Map<string, NamespaceNode>
 }
 
 function emptyNode(): NamespaceNode {
-  return { functions: [], tools: [], children: new Map() }
+  return { doc: [], functions: [], methods: [], tools: [], children: new Map() }
 }
+
+/** Namespaces many block files augment, which no one block's doc comment describes. */
+const SHARED_NAMESPACES: ReadonlySet<string> = new Set(['trigger', 'legacy'])
 
 function renderNamespace(node: NamespaceNode): string[] {
   const lines: string[] = []
@@ -474,15 +494,11 @@ function renderNamespace(node: NamespaceNode): string[] {
   for (const name of names) {
     const child = node.children.get(name)
     if (!child) continue
-    lines.push(`export namespace ${name} {`)
+    lines.push(...jsdoc(child.doc, ''), `export namespace ${name} {`)
     lines.push(...indentLines(renderNamespace(child), '  '))
     lines.push('}')
   }
   return lines
-}
-
-function safeFileSegment(value: string): string {
-  return value.replace(/[^A-Za-z0-9_-]/g, '_')
 }
 
 function outputSignature(output: BuilderOutput): string {
@@ -497,8 +513,8 @@ function interfaceDeclaration(name: string, output: BuilderOutput): string {
 
 /**
  * Output bodies two or more builders of one block share, declared once in the block file
- * (`SlackV2Output`, `SlackV2Output2`, ...) so per-operation files alias them instead of repeating
- * a block-wide output list.
+ * (`SlackV2Output`, `SlackV2Output2`, ...) so each builder's output aliases one instead of
+ * repeating a block-wide output list.
  */
 function sharedOutputs(
   type: string,
@@ -520,17 +536,37 @@ function sharedOutputs(
   return shared
 }
 
-function generateBlockFiles(
+/**
+ * Gives each namespace that declares builders of this block (`slack`, `legacy.gmail`,
+ * `trigger.gmail`, not the shared `trigger` or `legacy`) a doc comment listing them, so an editor
+ * hover or a `grep` of the namespace shows every operation.
+ */
+function documentNamespaces(node: NamespaceNode, blockName: string, type: string): void {
+  for (const [name, child] of node.children) {
+    if (child.methods.length > 0 && !SHARED_NAMESPACES.has(name)) {
+      child.doc = [`${blockName} (\`${type}\`) builders:`, ...child.methods]
+    }
+    documentNamespaces(child, blockName, type)
+  }
+}
+
+/** One `INDEX.md` line's facts about a builder. */
+interface IndexEntry {
+  key: string
+  type: string
+  summary: string
+  paramsName: string
+}
+
+function generateBlockFile(
   catalog: BlockCatalog,
   type: string,
-  entries: readonly BuilderEntry[]
-): SdkTypeFile[] {
-  const files: SdkTypeFile[] = []
+  entries: readonly BuilderEntry[],
+  index: IndexEntry[]
+): SdkTypeFile {
   const root = emptyNode()
   const inlineDeclarations: string[] = []
-  const operationImports: string[] = []
   const specials: string[] = []
-  const usedOperationFiles = new Set<string>()
   const built = entries.map((entry) => ({ entry, types: builderTypes(catalog, entry) }))
   const shared = sharedOutputs(
     type,
@@ -544,25 +580,7 @@ function generateBlockFiles(
     const outputDeclaration = sharedOutput
       ? `export type ${types.output.name}${types.output.typeParameters} = ${sharedOutput.name}${types.output.typeArguments}`
       : interfaceDeclaration(types.output.name, types.output)
-    const declarations = [types.params, '', outputDeclaration]
-    if (entry.builder.operation !== undefined) {
-      let base = safeFileSegment(entry.builder.operation)
-      if (usedOperationFiles.has(base)) base = `${base}.${entry.typeName}`
-      usedOperationFiles.add(base)
-      const body = declarations.join('\n')
-      const sharedImport = sharedOutput
-        ? `import type { ${sharedOutput.name} } from '../../blocks/${type}'\n`
-        : ''
-      files.push({
-        path: `operations/${type}/${base}.d.ts`,
-        text: `${header(catalog.sdkMajor)}\n${coreImports(body)}${sharedImport}\n${body}\n`,
-      })
-      operationImports.push(
-        `import type { ${types.exportedTypes.join(', ')} } from '../operations/${type}/${base}'`
-      )
-    } else {
-      inlineDeclarations.push(...declarations, '')
-    }
+    inlineDeclarations.push(types.params, '', outputDeclaration, '')
     let node = root
     for (const segment of entry.path.slice(0, -1)) {
       let child = node.children.get(segment)
@@ -572,10 +590,15 @@ function generateBlockFiles(
       }
       node = child
     }
-    if (types.signature.length > 0) node.functions.push(types.signature)
+    if (types.signature.length > 0) {
+      node.functions.push(types.signature)
+      node.methods.push(`\`${entry.path[entry.path.length - 1]}\`: ${types.summary}`)
+    }
     if (types.tool) node.tools.push(types.tool)
     if (types.special) specials.push(types.special)
+    index.push({ key: entry.key, type, summary: types.summary, paramsName: types.paramsName })
   }
+  documentNamespaces(root, catalogBlock(catalog, type)?.name ?? type, type)
   const moduleBody = renderNamespace(root)
   if (specials.length > 0) {
     moduleBody.push('interface SpecialBuilderTypes {', ...specials.map((s) => `  ${s}`), '}')
@@ -586,10 +609,8 @@ function generateBlockFiles(
     ...indentLines(moduleBody, '  '),
     '}',
   ].join('\n')
-  const imports = [coreImports(`${declarations}\n${augmentation}`).trimEnd(), ...operationImports]
-    .filter(Boolean)
-    .join('\n')
-  files.push({
+  const imports = coreImports(`${declarations}\n${augmentation}`).trimEnd()
+  return {
     path: `blocks/${type}.d.ts`,
     text: [
       header(catalog.sdkMajor),
@@ -602,8 +623,7 @@ function generateBlockFiles(
     ]
       .filter((part): part is string => part !== null)
       .join('\n'),
-  })
-  return files
+  }
 }
 
 function modelIds(catalog: BlockCatalog): string[] {
@@ -636,7 +656,54 @@ function generateModelsFile(catalog: BlockCatalog): SdkTypeFile {
   }
 }
 
-/** Generates every `.d.ts` file for a catalog, sorted by path. */
+/** The block-type → builder naming rule, shown at the top of `INDEX.md`. */
+const NAMING_RULE = [
+  'A builder is named for its service, not its block type: the current version of a block owns the',
+  'plain namespace (`gmail_v2` → `gmail.*`, `slack_v2` → `slack.*`) and older hidden versions sit',
+  'under `legacy.*` (`legacy.gmail.sendEmail`). Triggers are `trigger.*` (`trigger.gmail.poller`).',
+  'Core blocks have builders of their own in `core.d.ts`: `workflow_input` is `runWorkflow`,',
+  '`function` is `fn`, `router_v2` is `router`, `human_in_the_loop_v2` is `human`, `variables` is',
+  '`setVariables`; `loop.*` and `parallel.*` are containers. An operation as an agent tool is',
+  '`<namespace>.tool.<operation>(params)` (`slack.tool.sendMessage({ … })`).',
+]
+
+/**
+ * `INDEX.md`: one line per builder, `key — Block: Operation → file (ParamsType)`, current builders
+ * first and legacy ones in their own section, so `grep -i gmail .sim/sdk/INDEX.md` finds a builder
+ * and the params type to read.
+ */
+function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[]): SdkTypeFile {
+  const line = (entry: IndexEntry) =>
+    `- \`${entry.key}\` — ${entry.summary} → \`${blockTypesFile(entry.type)}\` (\`${entry.paramsName}\`)`
+  const sorted = [...entries].sort((a, b) => compareStrings(a.key, b.key))
+  const current = sorted.filter((entry) => !isLegacyBuilder(entry.key))
+  const legacy = sorted.filter((entry) => isLegacyBuilder(entry.key))
+  return {
+    path: SDK_GUIDE_FILE,
+    text: [
+      '# Workflow SDK builders',
+      '',
+      `Generated from block catalog ${catalog.hash} (SDK ${catalog.sdkMajor}); do not edit.`,
+      '',
+      ...NAMING_RULE,
+      '',
+      'Find a builder: `grep -i "gmail" .sim/sdk/INDEX.md`. Read its params and outputs: `grep -n -A40 "export type GmailSendEmailParams" .sim/sdk/blocks/gmail_v2.d.ts` (the output type follows as `GmailSendEmailOutput`).',
+      '',
+      '## Builders',
+      '',
+      ...current.map(line),
+      '',
+      '## Legacy builders',
+      '',
+      'Older block versions, kept so stored workflows still print. Write the current builder instead.',
+      '',
+      ...legacy.map(line),
+      '',
+    ].join('\n'),
+  }
+}
+
+/** Generates every declaration file and `INDEX.md` for a catalog, sorted by path. */
 export const generateSdkTypes: GenerateSdkTypesFn = (catalog) => {
   const byType = new Map<string, BuilderEntry[]>()
   for (const entry of builderEntries(catalog)) {
@@ -645,16 +712,19 @@ export const generateSdkTypes: GenerateSdkTypesFn = (catalog) => {
     else byType.set(entry.builder.type, [entry])
   }
   const types = [...byType.keys()].sort(compareStrings)
+  const legacyOnly = legacyOnlyBlockTypes(catalog)
+  const index: IndexEntry[] = []
   const files: SdkTypeFile[] = [generateModelsFile(catalog)]
   for (const type of types) {
-    files.push(...generateBlockFiles(catalog, type, byType.get(type) ?? []))
+    files.push(generateBlockFile(catalog, type, byType.get(type) ?? [], index))
   }
+  files.push(generateSdkIndex(catalog, index))
   files.push({
-    path: 'index.d.ts',
+    path: SDK_INDEX_FILE,
     text: [
       sdkIndexHeader(catalog),
       `import './models'`,
-      ...types.map((type) => `import './blocks/${type}'`),
+      ...types.filter((type) => !legacyOnly.has(type)).map((type) => `import './blocks/${type}'`),
       '',
       'export {}',
       '',
