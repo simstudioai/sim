@@ -895,7 +895,7 @@ export const SpotifyBlock: BlockConfig = {
       title: 'Limit',
       type: 'short-input',
       placeholder:
-        'Number of results (empty for the default; Development Mode apps allow at most 10)',
+        'Number of results (empty for the default; Search allows at most 10 for Development Mode apps)',
       condition: {
         field: 'operation',
         value: [

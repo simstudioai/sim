@@ -651,6 +651,11 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       'Tavily error bodies: FastAPI `detail` as an object with `error`, a string, or a validation array; a top-level `error`; or a plain-text body',
     examples: ['Tavily'],
     explicitOnly: true,
+    // A proxy or gateway page is capped on the retained body too, not only in the message.
+    redactData: (errorInfo) =>
+      typeof errorInfo?.data === 'string'
+        ? truncateAtCodePoint(errorInfo.data, TAVILY_MAX_TEXT_ERROR_LENGTH, '…')
+        : errorInfo?.data,
     extract: (errorInfo) => {
       const data = errorInfo?.data
       if (typeof data === 'string') {

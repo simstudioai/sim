@@ -479,7 +479,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       id: 'countAmend',
       title: 'Contracts',
       type: 'short-input',
-      placeholder: 'Updated number of contracts (optional)',
+      placeholder: 'New total contracts, filled plus resting (empty keeps the current total)',
       condition: { field: 'operation', value: ['amend_order'] },
     },
     {
@@ -488,7 +488,8 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       type: 'dropdown',
       options: [
         { label: 'Limit', id: 'limit' },
-        { label: 'Market', id: 'market' },
+        // Kalshi removed market orders (2026-02-11); kept hidden so saved blocks stay valid.
+        { label: 'Market', id: 'market', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
     },
@@ -538,6 +539,18 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         { label: 'Good Till Canceled', id: 'good_till_canceled' },
         { label: 'Fill or Kill', id: 'fill_or_kill' },
         { label: 'Immediate or Cancel', id: 'immediate_or_cancel' },
+      ],
+      condition: { field: 'operation', value: ['create_order'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'orderSelfTradePrevention',
+      title: 'Self-Trade Prevention',
+      type: 'dropdown',
+      options: [
+        { label: 'Taker at cross (default)', id: '' },
+        { label: 'Maker', id: 'maker' },
+        { label: 'Taker at cross', id: 'taker_at_cross', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
       mode: 'advanced',
@@ -712,6 +725,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           orderIdParam,
           tickerOrder,
           orderType,
+          orderSelfTradePrevention,
           countAmend,
           clientOrderIdAmend,
           ...rest
@@ -787,6 +801,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
         if (operation === 'create_order') {
           mapField('type', orderType)
+          mapField('selfTradePreventionType', orderSelfTradePrevention)
         }
 
         if (operation === 'amend_order') {

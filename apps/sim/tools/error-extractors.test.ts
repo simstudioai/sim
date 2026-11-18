@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ErrorExtractorId, type ErrorInfo, extractErrorMessage } from '@/tools/error-extractors'
+import {
+  ErrorExtractorId,
+  type ErrorInfo,
+  extractErrorMessage,
+  redactErrorData,
+} from '@/tools/error-extractors'
 
 describe('Error Extractors', () => {
   describe('extractErrorMessage', () => {
@@ -466,6 +471,14 @@ describe('tavily-errors', () => {
     expect(message.length).toBe(501)
     expect(message.endsWith('…')).toBe(true)
     expect(page.startsWith(message.slice(0, -1))).toBe(true)
+  })
+
+  it('caps the retained plain-text body as well as the message', () => {
+    const page = `<html><body>${'Bad gateway '.repeat(200)}</body></html>`
+    const retained = redactErrorData({ status: 502, data: page }, ErrorExtractorId.TAVILY_ERRORS)
+    expect(typeof retained === 'string' && retained.length).toBe(501)
+    const json = { detail: { error: 'bad key' } }
+    expect(redactErrorData({ status: 401, data: json }, ErrorExtractorId.TAVILY_ERRORS)).toBe(json)
   })
 
   it('keeps a short plain-text error whole', () => {

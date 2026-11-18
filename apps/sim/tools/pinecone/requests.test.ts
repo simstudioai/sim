@@ -36,6 +36,12 @@ describe('pinecone_fetch request', () => {
       ids: '["vec-1", "vec-2"]' as unknown as string[],
     })
     expect(jsonArray.searchParams.getAll('ids')).toEqual(['vec-1', 'vec-2'])
+
+    const numericLooking = buildUrl<PineconeFetchParams>(fetchTool, {
+      ...params,
+      ids: '1e3' as unknown as string[],
+    })
+    expect(numericLooking.searchParams.getAll('ids')).toEqual(['1e3'])
   })
 })
 
