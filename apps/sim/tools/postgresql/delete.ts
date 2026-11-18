@@ -86,10 +86,6 @@ export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDelete
         message: data.message || 'Data deleted successfully',
         rows: data.rows || [],
         rowCount: data.rowCount || 0,
-        ...(data.truncated && {
-          truncated: true,
-          truncationReason: data.truncationReason,
-        }),
       },
       error: undefined,
     }
@@ -99,16 +95,5 @@ export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDelete
     message: { type: 'string', description: 'Operation status message' },
     rows: { type: 'array', description: 'Deleted data (if RETURNING clause used)' },
     rowCount: { type: 'number', description: 'Number of rows deleted' },
-    truncated: {
-      type: 'boolean',
-      description:
-        'Present and true only when rows were dropped to stay inside the response ceilings (10,000 rows or 10 MiB). Absent means the result is complete',
-      optional: true,
-    },
-    truncationReason: {
-      type: 'string',
-      description: 'Which ceiling was hit and how to read the rest',
-      optional: true,
-    },
   },
 }

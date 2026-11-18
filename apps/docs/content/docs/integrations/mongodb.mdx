@@ -50,8 +50,6 @@ Execute find operation on MongoDB collection
 | `message` | string | Operation status message |
 | `documents` | array | Array of documents returned from the query |
 | `documentCount` | number | Number of documents returned |
-| `truncated` | boolean | Present and true only when documents were dropped to stay inside the response ceilings \(10,000 documents or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 
@@ -179,8 +177,6 @@ Execute MongoDB aggregation pipeline
 | `message` | string | Operation status message |
 | `documents` | array | Array of documents returned from aggregation |
 | `documentCount` | number | Number of documents returned |
-| `truncated` | boolean | Present and true only when documents were dropped to stay inside the response ceilings \(10,000 documents or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 

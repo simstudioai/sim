@@ -11,6 +11,7 @@ vi.mock('@/lib/internal/neo4j/client', () => ({
   createNeo4jDriver: mocks.createDriver,
 }))
 
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { executeNeo4jQuery, Neo4jOperationInputError } from '@/lib/internal/neo4j/operations'
 
 const INPUT = {
@@ -25,7 +26,7 @@ const INPUT = {
 }
 
 /** A driver `Result` streaming `count` records, recording whether the rest was discarded. */
-function streamingResult(count: number) {
+function streamingResult(count: number, value = 'Ada') {
   const updates = {
     nodesCreated: 0,
     nodesDeleted: 0,
@@ -45,7 +46,7 @@ function streamingResult(count: number) {
     counters: { updates: () => updates },
   }
   const state = { pulled: 0, discarded: false }
-  const record = { keys: ['name'], get: () => 'Ada' }
+  const record = { keys: ['name'], get: () => value }
   return {
     state,
     [Symbol.asyncIterator]: () => ({
@@ -73,18 +74,26 @@ describe('Neo4j operations', () => {
     })
   })
 
-  it('stops pulling records at the ceiling and keeps the summary', async () => {
+  it('returns every record of a result that fits the response limit', async () => {
     const result = streamingResult(20_000)
     mocks.run.mockReturnValue(result)
 
     const response = await executeNeo4jQuery(INPUT)
 
-    expect(result.state).toEqual({ pulled: 10_001, discarded: true })
-    expect(response).toMatchObject({
-      recordCount: 10_000,
-      truncated: true,
-      summary: { resultAvailableAfter: 2 },
-    })
+    expect(response).toMatchObject({ recordCount: 20_000, summary: { resultAvailableAfter: 2 } })
+    expect(result.state.discarded).toBe(false)
+  })
+
+  it('fails with the response size error and discards the rest once records cannot fit', async () => {
+    const result = streamingResult(1_000, 'x'.repeat(64 * 1024))
+    mocks.run.mockReturnValue(result)
+
+    const error = await executeNeo4jQuery(INPUT).catch((caught: unknown) => caught)
+
+    expect(isPayloadSizeLimitError(error)).toBe(true)
+    expect(error).toMatchObject({ label: 'neo4j_query response body' })
+    expect(result.state.discarded).toBe(true)
+    expect(result.state.pulled).toBeLessThan(1_000)
     expect(mocks.sessionClose).toHaveBeenCalled()
   })
 

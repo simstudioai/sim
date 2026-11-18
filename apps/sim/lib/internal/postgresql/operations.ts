@@ -15,7 +15,6 @@ import type {
   PostgresqlQueryInput,
   PostgresqlUpdateInput,
 } from '@/lib/internal/postgresql/schema'
-import { toRowsResponseBody } from '@/lib/internal/tool-operations/response-limits'
 import type { PostgresConnectionConfig } from '@/tools/postgresql/types'
 
 export class PostgresqlOperationInputError extends Error {}
@@ -36,10 +35,11 @@ async function withPostgresClient<TResult>(
 export function executePostgresqlQuery(input: PostgresqlQueryInput, signal?: AbortSignal) {
   return withPostgresClient(input, signal, async (client) => {
     const result = await queryPostgres(client, input.query, [], signal)
-    return toRowsResponseBody(
-      result,
-      `Query executed successfully. ${result.rowCount} row(s) returned.`
-    )
+    return {
+      message: `Query executed successfully. ${result.rowCount} row(s) returned.`,
+      rows: result.rows,
+      rowCount: result.rowCount,
+    }
   })
 }
 
@@ -53,40 +53,44 @@ export function executePostgresqlStatement(input: PostgresqlExecuteInput, signal
 
   return withPostgresClient(input, signal, async (client) => {
     const result = await queryPostgres(client, input.query, [], signal)
-    return toRowsResponseBody(
-      result,
-      `SQL executed successfully. ${result.rowCount} row(s) affected.`
-    )
+    return {
+      message: `SQL executed successfully. ${result.rowCount} row(s) affected.`,
+      rows: result.rows,
+      rowCount: result.rowCount,
+    }
   })
 }
 
 export function executePostgresqlInsert(input: PostgresqlInsertInput, signal?: AbortSignal) {
   return withPostgresClient(input, signal, async (client) => {
     const result = await insertPostgresRows(client, input.table, input.data, signal)
-    return toRowsResponseBody(
-      result,
-      `Data inserted successfully. ${result.rowCount} row(s) affected.`
-    )
+    return {
+      message: `Data inserted successfully. ${result.rowCount} row(s) affected.`,
+      rows: result.rows,
+      rowCount: result.rowCount,
+    }
   })
 }
 
 export function executePostgresqlUpdate(input: PostgresqlUpdateInput, signal?: AbortSignal) {
   return withPostgresClient(input, signal, async (client) => {
     const result = await updatePostgresRows(client, input.table, input.data, input.where, signal)
-    return toRowsResponseBody(
-      result,
-      `Data updated successfully. ${result.rowCount} row(s) affected.`
-    )
+    return {
+      message: `Data updated successfully. ${result.rowCount} row(s) affected.`,
+      rows: result.rows,
+      rowCount: result.rowCount,
+    }
   })
 }
 
 export function executePostgresqlDelete(input: PostgresqlDeleteInput, signal?: AbortSignal) {
   return withPostgresClient(input, signal, async (client) => {
     const result = await deletePostgresRows(client, input.table, input.where, signal)
-    return toRowsResponseBody(
-      result,
-      `Data deleted successfully. ${result.rowCount} row(s) affected.`
-    )
+    return {
+      message: `Data deleted successfully. ${result.rowCount} row(s) affected.`,
+      rows: result.rows,
+      rowCount: result.rowCount,
+    }
   })
 }
 

@@ -23,41 +23,23 @@ import type {
   MongodbQueryInput,
   MongodbUpdateInput,
 } from '@/lib/internal/mongodb/schema'
-import {
-  createResultRowsBudget,
-  resultTruncationReason,
-} from '@/lib/internal/tool-operations/response-limits'
+import { createResponseRowsBudget } from '@/lib/internal/tool-operations/response-limits'
 
 export class MongodbOperationInputError extends Error {}
 
 /**
- * Reads documents until the response budget is spent. Leaving the loop early closes the server
- * cursor, so an unbounded find or aggregation never materializes past the ceiling.
+ * Reads documents one at a time, failing with the tool response size error as soon as they cannot
+ * fit the response. Leaving the loop early closes the server cursor, so an oversized result is
+ * never read into memory in full.
  */
-async function readCappedDocuments(
-  cursor: AsyncIterable<Document>,
-  describe: (count: number) => string,
-  paginationHint: string
-) {
-  const budget = createResultRowsBudget()
+async function readDocuments(cursor: AsyncIterable<Document>, toolId: string) {
+  const budget = createResponseRowsBudget(toolId)
   const documents: Document[] = []
-  let truncated = false
   for await (const document of cursor) {
-    if (!budget.admit(document)) {
-      truncated = true
-      break
-    }
+    budget.admit(document)
     documents.push(document)
   }
-  const message = describe(documents.length)
-  if (!truncated) return { message, documents }
-  const truncationReason = resultTruncationReason(documents.length, paginationHint)
-  return {
-    message: `${message} ${truncationReason}`,
-    documents,
-    truncated: true,
-    truncationReason,
-  }
+  return documents
 }
 
 async function withMongodbClient<TResult>(
@@ -105,13 +87,13 @@ export function executeMongodbQuery(input: MongodbQueryInput, signal?: AbortSign
     }
 
     cursor = cursor.limit(input.limit || 100)
-    const result = await readCappedDocuments(
-      cursor,
-      (count) => `Found ${count} documents`,
-      'Narrow the filter, or page with $skip and $limit in an aggregation pipeline.'
-    )
+    const documents = await readDocuments(cursor, 'mongodb_query')
     signal?.throwIfAborted()
-    return { ...result, documentCount: result.documents.length }
+    return {
+      message: `Found ${documents.length} documents`,
+      documents,
+      documentCount: documents.length,
+    }
   })
 }
 
@@ -126,13 +108,16 @@ export function executeMongodbAggregation(input: MongodbExecuteInput, signal?: A
   const pipeline = JSON.parse(input.pipeline) as Document[]
 
   return withMongodbClient(input, signal, async (client) => {
-    const result = await readCappedDocuments(
+    const documents = await readDocuments(
       client.db(input.database).collection(collectionName).aggregate(pipeline, { signal }),
-      (count) => `Aggregation completed, returned ${count} documents`,
-      'Page with $skip and $limit stages to read the rest.'
+      'mongodb_execute'
     )
     signal?.throwIfAborted()
-    return { ...result, documentCount: result.documents.length }
+    return {
+      message: `Aggregation completed, returned ${documents.length} documents`,
+      documents,
+      documentCount: documents.length,
+    }
   })
 }
 

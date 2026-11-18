@@ -1,9 +1,10 @@
 import type { PostgresClient } from '@/lib/internal/postgresql/client'
 import { executePostgresQuery } from '@/lib/internal/postgresql/client'
-import {
-  type CappedRowsResult,
-  capStatementRows,
-} from '@/lib/internal/tool-operations/response-limits'
+
+export interface PostgresRowsResult {
+  rows: unknown[]
+  rowCount: number
+}
 
 export interface PostgresIntrospectionResult {
   tables: Array<{
@@ -74,17 +75,16 @@ export async function queryPostgres(
   query: string,
   params: unknown[] = [],
   signal?: AbortSignal
-): Promise<CappedRowsResult> {
+): Promise<PostgresRowsResult> {
   type PostgresParameters = NonNullable<Parameters<PostgresClient['unsafe']>[1]>
   const result = await executePostgresQuery(
     client.unsafe(query, params as PostgresParameters),
     signal
   )
-  return capStatementRows(
-    result,
-    result.count ?? result.length ?? 0,
-    'A write statement still ran in full; page a SELECT with LIMIT and OFFSET to read the rest.'
-  )
+  return {
+    rows: result,
+    rowCount: result.count ?? result.length ?? 0,
+  }
 }
 
 export function validatePostgresQuery(query: string): { isValid: boolean; error?: string } {
@@ -118,7 +118,7 @@ export async function insertPostgresRows(
   table: string,
   data: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<CappedRowsResult> {
+): Promise<PostgresRowsResult> {
   const sanitizedTable = sanitizePostgresIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((column) => sanitizePostgresIdentifier(column))
@@ -135,7 +135,7 @@ export async function updatePostgresRows(
   data: Record<string, unknown>,
   where: string,
   signal?: AbortSignal
-): Promise<CappedRowsResult> {
+): Promise<PostgresRowsResult> {
   validateWhereClause(where)
 
   const sanitizedTable = sanitizePostgresIdentifier(table)
@@ -153,7 +153,7 @@ export async function deletePostgresRows(
   table: string,
   where: string,
   signal?: AbortSignal
-): Promise<CappedRowsResult> {
+): Promise<PostgresRowsResult> {
   validateWhereClause(where)
 
   const sanitizedTable = sanitizePostgresIdentifier(table)

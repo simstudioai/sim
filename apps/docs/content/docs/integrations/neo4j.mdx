@@ -46,8 +46,6 @@ Execute MATCH queries to read nodes and relationships from Neo4j graph database.
 | `records` | array | Array of records returned from the query |
 | `recordCount` | number | Number of records returned |
 | `summary` | json | Query execution summary with timing and counters |
-| `truncated` | boolean | Present and true only when records were dropped to stay inside the response ceilings \(10,000 records or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 
@@ -191,8 +189,6 @@ Execute arbitrary Cypher queries on Neo4j graph database for complex operations
 | `records` | array | Array of records returned from the query |
 | `recordCount` | number | Number of records returned |
 | `summary` | json | Execution summary with timing and counters |
-| `truncated` | boolean | Present and true only when records were dropped to stay inside the response ceilings \(10,000 records or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 

@@ -51,8 +51,6 @@ Execute SELECT query on MySQL database
 | `message` | string | Operation status message |
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
-| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings \(10,000 rows or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 
@@ -145,8 +143,6 @@ Execute raw SQL query on MySQL database
 | `message` | string | Operation status message |
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows affected |
-| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings \(10,000 rows or 10 MiB\). Absent means the result is complete |
-| `truncationReason` | string | Which ceiling was hit and how to read the rest |
 
 </ReferenceDetails>
 

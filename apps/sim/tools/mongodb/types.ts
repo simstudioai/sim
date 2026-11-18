@@ -68,8 +68,6 @@ interface MongoDBBaseResponse extends ToolResponse {
     message: string
     documents?: unknown[]
     documentCount: number
-    truncated?: boolean
-    truncationReason?: string
     insertedId?: string
     insertedIds?: string[]
     modifiedCount?: number

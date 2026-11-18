@@ -11,10 +11,7 @@ import type {
 } from '@/lib/api/contracts/tools/databases/neo4j'
 import { createNeo4jDriver } from '@/lib/internal/neo4j/client'
 import { convertNeo4jValue } from '@/lib/internal/neo4j/values'
-import {
-  createResultRowsBudget,
-  resultTruncationReason,
-} from '@/lib/internal/tool-operations/response-limits'
+import { createResponseRowsBudget } from '@/lib/internal/tool-operations/response-limits'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
 
 const logger = createLogger('Neo4jOperations')
@@ -56,26 +53,28 @@ function projectRecord(record: Neo4jRecord): Record<string, unknown> {
 }
 
 /**
- * Streams records until the response budget is spent. Returning the iterator early discards the
- * rest on the server (the statement still completes, so the summary counters stay accurate)
- * instead of buffering every record in memory.
+ * Streams the records, failing with the tool response size error as soon as they cannot fit the
+ * response. Returning the iterator early tells the server to discard the rest, so an oversized
+ * result is never buffered in full. `delete` returns no records, so it only waits for the summary.
  */
-async function readCappedRecords(result: Result) {
-  const budget = createResultRowsBudget()
+async function readResult(result: Result, kind: StatementKind) {
+  if (kind === 'delete') return { records: [], summary: await result.summary() }
+  const budget = createResponseRowsBudget(`neo4j_${kind}`)
   const records: Array<Record<string, unknown>> = []
   const iterator = result[Symbol.asyncIterator]()
-  let next = await iterator.next()
-  while (!next.done) {
-    const projected = projectRecord(next.value)
-    if (!budget.admit(projected)) {
-      const rest = await iterator.return?.()
-      if (!rest?.done) throw new Error('Neo4j result ended without a summary')
-      return { records, summary: rest.value, truncated: true }
+  try {
+    let next = await iterator.next()
+    while (!next.done) {
+      const projected = projectRecord(next.value)
+      budget.admit(projected)
+      records.push(projected)
+      next = await iterator.next()
     }
-    records.push(projected)
-    next = await iterator.next()
+    return { records, summary: next.value }
+  } catch (error) {
+    await iterator.return?.().catch(() => undefined)
+    throw error
   }
-  return { records, summary: next.value, truncated: false }
 }
 
 function projectSummary(summary: ResultSummary) {
@@ -101,40 +100,45 @@ function projectSummary(summary: ResultSummary) {
 
 function statementResponse(
   kind: StatementKind,
-  read: Awaited<ReturnType<typeof readCappedRecords>>
+  { records, summary: resultSummary }: Awaited<ReturnType<typeof readResult>>
 ) {
-  const { records } = read
-  const summary = projectSummary(read.summary)
-  const truncationReason = read.truncated
-    ? resultTruncationReason(
-        records.length,
-        kind === 'query'
-          ? 'Page with SKIP and LIMIT to read the rest.'
-          : 'A write statement still ran in full; page a read with SKIP and LIMIT to read the rest.'
-      )
-    : undefined
-  const withRecords = (message: string) => ({
-    message: truncationReason ? `${message} ${truncationReason}` : message,
-    records,
-    recordCount: records.length,
-    summary,
-    ...(truncationReason && { truncated: true, truncationReason }),
-  })
+  const summary = projectSummary(resultSummary)
   switch (kind) {
     case 'query':
-      return withRecords(`Found ${records.length} records`)
+      return {
+        message: `Found ${records.length} records`,
+        records,
+        recordCount: records.length,
+        summary,
+      }
     case 'execute':
-      return withRecords(`Query executed successfully, returned ${records.length} records`)
+      return {
+        message: `Query executed successfully, returned ${records.length} records`,
+        records,
+        recordCount: records.length,
+        summary,
+      }
     case 'create':
-      return withRecords(
-        `Created ${summary.counters.nodesCreated} nodes and ${summary.counters.relationshipsCreated} relationships`
-      )
+      return {
+        message: `Created ${summary.counters.nodesCreated} nodes and ${summary.counters.relationshipsCreated} relationships`,
+        records,
+        recordCount: records.length,
+        summary,
+      }
     case 'update':
-      return withRecords(`Updated ${summary.counters.propertiesSet} properties`)
+      return {
+        message: `Updated ${summary.counters.propertiesSet} properties`,
+        records,
+        recordCount: records.length,
+        summary,
+      }
     case 'merge':
-      return withRecords(
-        `Merge completed: ${summary.counters.nodesCreated} nodes created, ${summary.counters.relationshipsCreated} relationships created`
-      )
+      return {
+        message: `Merge completed: ${summary.counters.nodesCreated} nodes created, ${summary.counters.relationshipsCreated} relationships created`,
+        records,
+        recordCount: records.length,
+        summary,
+      }
     case 'delete':
       return {
         message: `Deleted ${summary.counters.nodesDeleted} nodes and ${summary.counters.relationshipsDeleted} relationships`,
@@ -150,9 +154,9 @@ async function executeStatement(input: StatementInput, kind: StatementKind, sign
   const session = driver.session({ database: input.database })
   const unbindAbort = bindSessionAbort(session, signal)
   try {
-    const read = await readCappedRecords(session.run(input.cypherQuery, input.parameters ?? {}))
+    const result = await readResult(session.run(input.cypherQuery, input.parameters ?? {}), kind)
     signal?.throwIfAborted()
-    return statementResponse(kind, read)
+    return statementResponse(kind, result)
   } finally {
     unbindAbort()
     await session.close().catch(() => undefined)

@@ -1,9 +1,10 @@
 import type mysql from 'mysql2/promise'
 import { executeMysqlCommand } from '@/lib/internal/mysql/client'
-import {
-  type CappedRowsResult,
-  capStatementRows,
-} from '@/lib/internal/tool-operations/response-limits'
+
+export interface MysqlRowsResult {
+  rows: unknown[]
+  rowCount: number
+}
 
 export interface MysqlIntrospectionResult {
   tables: Array<{
@@ -75,11 +76,14 @@ export async function queryMysql(
   query: string,
   values?: unknown[],
   signal?: AbortSignal
-): Promise<CappedRowsResult> {
+): Promise<MysqlRowsResult> {
   const result = await executeMysqlCommand(connection, query, values, signal)
 
   if (Array.isArray(result)) {
-    return capStatementRows(result, result.length, 'Page with LIMIT and OFFSET to read the rest.')
+    return {
+      rows: result,
+      rowCount: result.length,
+    }
   }
 
   return {

@@ -412,14 +412,6 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       type: 'number',
       description: 'Number of rows affected by the operation',
     },
-    truncated: {
-      type: 'boolean',
-      description: 'True when the result hit a row or byte ceiling and rows were dropped',
-    },
-    truncationReason: {
-      type: 'string',
-      description: 'Explanation of the ceiling that truncated the result',
-    },
   },
 }
 

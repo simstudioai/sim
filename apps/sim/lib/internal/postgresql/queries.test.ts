@@ -12,7 +12,6 @@ import type { PostgresClient } from '@/lib/internal/postgresql/client'
 import {
   deletePostgresRows,
   insertPostgresRows,
-  queryPostgres,
   sanitizePostgresIdentifier,
   updatePostgresRows,
   validatePostgresQuery,
@@ -45,21 +44,6 @@ describe('PostgreSQL queries', () => {
       ['person@example.com', true]
     )
     expect(mockExecutePostgresQuery).toHaveBeenCalledWith(pendingQuery, controller.signal)
-  })
-
-  it('caps a large SELECT and keeps the full row count', async () => {
-    const rows = Object.assign(
-      Array.from({ length: 10_001 }, (_, id) => ({ id })),
-      { count: 10_001 }
-    )
-    mockExecutePostgresQuery.mockResolvedValue(rows)
-
-    const result = await queryPostgres(mockClient, 'SELECT id FROM users')
-
-    expect(result.rows).toHaveLength(10_000)
-    expect(result.rowCount).toBe(10_001)
-    expect(result.truncated).toBe(true)
-    expect(result.truncationReason).toContain('LIMIT and OFFSET')
   })
 
   it('builds parameterized UPDATE values while preserving the existing WHERE syntax', async () => {

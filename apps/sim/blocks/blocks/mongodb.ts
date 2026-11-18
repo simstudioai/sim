@@ -959,14 +959,6 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
       type: 'number',
       description: 'Number of documents affected by the operation',
     },
-    truncated: {
-      type: 'boolean',
-      description: 'True when the result hit a row or byte ceiling and documents were dropped',
-    },
-    truncationReason: {
-      type: 'string',
-      description: 'Explanation of the ceiling that truncated the result',
-    },
     insertedId: {
       type: 'string',
       description: 'ID of the inserted document (single insert)',
