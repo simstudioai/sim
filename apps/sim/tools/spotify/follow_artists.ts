@@ -44,11 +44,18 @@ export const spotifyFollowArtistsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyFollowArtistsResponse> => {
+  transformResponse: async (_response, params, context): Promise<SpotifyFollowArtistsResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.artistIds, 'artist', 'PUT', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.artistIds,
+        'artist',
+        'PUT',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return {
       success: true,
       output: { success: true },

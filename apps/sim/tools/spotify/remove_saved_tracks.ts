@@ -44,11 +44,22 @@ export const spotifyRemoveSavedTracksTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedTracksResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyRemoveSavedTracksResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.trackIds, 'track', 'DELETE', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.trackIds,
+        'track',
+        'DELETE',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return {
       success: true,
       output: { success: true },

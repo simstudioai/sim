@@ -66,29 +66,35 @@ export function spotifyLibraryUrl(
 /**
  * Sends the chunks after the first one (which the tool's own request already sent) and returns
  * their `/contains` results in order, so a run with more than 40 IDs handles all of them. Throws
- * on the first rejected chunk, naming the IDs that were not handled.
+ * on the first rejected chunk, naming the IDs that were not handled, and stops before the next
+ * chunk once the run is cancelled.
  */
 export async function sendRemainingSpotifyLibraryChunks(
   params: { accessToken: string },
   ids: string,
   type: SpotifyLibraryItemType,
   method: 'PUT' | 'DELETE' | 'GET',
-  options: SpotifyLibraryOptions = {}
+  options: SpotifyLibraryOptions = {},
+  signal?: AbortSignal
 ): Promise<boolean[]> {
   const results: boolean[] = []
+  const total = splitSpotifyLibraryIds(ids, options.maxIds).length
   const urls = spotifyLibraryUrls(ids, type, options).slice(1)
   for (const [index, url] of urls.entries()) {
+    signal?.throwIfAborted()
     const response = await outboundFetch(url, {
       method,
       headers: { Authorization: `Bearer ${params.accessToken}` },
+      signal,
     })
     if (!response.ok) {
       const first = (index + 1) * SPOTIFY_LIBRARY_CHUNK_SIZE + 1
+      const last = Math.min(first + SPOTIFY_LIBRARY_CHUNK_SIZE - 1, total)
       const body = (await response.json().catch(() => null)) as {
         error?: { message?: string }
       } | null
       throw new Error(
-        `Spotify rejected IDs ${first}-${first + SPOTIFY_LIBRARY_CHUNK_SIZE - 1}: ${
+        `Spotify rejected IDs ${first}-${last}: ${
           body?.error?.message ?? `HTTP ${response.status}`
         }`
       )

@@ -43,14 +43,25 @@ export const spotifyCheckSavedAudiobooksTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckSavedAudiobooksResponse> => {
+  transformResponse: async (
+    response,
+    params,
+    context
+  ): Promise<SpotifyCheckSavedAudiobooksResponse> => {
     const results: boolean[] = [
       ...(await response.json()),
       ...(params
-        ? await sendRemainingSpotifyLibraryChunks(params, params.audiobookIds, 'audiobook', 'GET', {
-            contains: true,
-            maxIds: 50,
-          })
+        ? await sendRemainingSpotifyLibraryChunks(
+            params,
+            params.audiobookIds,
+            'audiobook',
+            'GET',
+            {
+              contains: true,
+              maxIds: 50,
+            },
+            context?.signal
+          )
         : []),
     ]
     return { success: true, output: { results } }

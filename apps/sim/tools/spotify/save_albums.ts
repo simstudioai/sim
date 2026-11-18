@@ -40,11 +40,18 @@ export const spotifySaveAlbumsTool: ToolConfig<SpotifySaveAlbumsParams, SpotifyS
       }),
     },
 
-    transformResponse: async (_response, params): Promise<SpotifySaveAlbumsResponse> => {
+    transformResponse: async (_response, params, context): Promise<SpotifySaveAlbumsResponse> => {
       if (params)
-        await sendRemainingSpotifyLibraryChunks(params, params.albumIds, 'album', 'PUT', {
-          maxIds: 20,
-        })
+        await sendRemainingSpotifyLibraryChunks(
+          params,
+          params.albumIds,
+          'album',
+          'PUT',
+          {
+            maxIds: 20,
+          },
+          context?.signal
+        )
       return { success: true, output: { success: true } }
     },
 

@@ -41,14 +41,25 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckSavedTracksResponse> => {
+  transformResponse: async (
+    response,
+    params,
+    context
+  ): Promise<SpotifyCheckSavedTracksResponse> => {
     const data: boolean[] = [
       ...(await response.json()),
       ...(params
-        ? await sendRemainingSpotifyLibraryChunks(params, params.trackIds, 'track', 'GET', {
-            contains: true,
-            maxIds: 50,
-          })
+        ? await sendRemainingSpotifyLibraryChunks(
+            params,
+            params.trackIds,
+            'track',
+            'GET',
+            {
+              contains: true,
+              maxIds: 50,
+            },
+            context?.signal
+          )
         : []),
     ]
     const ids = splitSpotifyLibraryIds(params?.trackIds || '', 50)

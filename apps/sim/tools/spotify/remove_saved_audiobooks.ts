@@ -42,11 +42,22 @@ export const spotifyRemoveSavedAudiobooksTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedAudiobooksResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyRemoveSavedAudiobooksResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.audiobookIds, 'audiobook', 'DELETE', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.audiobookIds,
+        'audiobook',
+        'DELETE',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

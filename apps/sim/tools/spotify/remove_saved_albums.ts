@@ -42,11 +42,22 @@ export const spotifyRemoveSavedAlbumsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedAlbumsResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyRemoveSavedAlbumsResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.albumIds, 'album', 'DELETE', {
-        maxIds: 20,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.albumIds,
+        'album',
+        'DELETE',
+        {
+          maxIds: 20,
+        },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

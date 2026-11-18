@@ -42,14 +42,25 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckSavedAlbumsResponse> => {
+  transformResponse: async (
+    response,
+    params,
+    context
+  ): Promise<SpotifyCheckSavedAlbumsResponse> => {
     const results: boolean[] = [
       ...(await response.json()),
       ...(params
-        ? await sendRemainingSpotifyLibraryChunks(params, params.albumIds, 'album', 'GET', {
-            contains: true,
-            maxIds: 20,
-          })
+        ? await sendRemainingSpotifyLibraryChunks(
+            params,
+            params.albumIds,
+            'album',
+            'GET',
+            {
+              contains: true,
+              maxIds: 20,
+            },
+            context?.signal
+          )
         : []),
     ]
     return { success: true, output: { results } }

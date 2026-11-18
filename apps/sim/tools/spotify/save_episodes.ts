@@ -42,11 +42,18 @@ export const spotifySaveEpisodesTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifySaveEpisodesResponse> => {
+  transformResponse: async (_response, params, context): Promise<SpotifySaveEpisodesResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.episodeIds, 'episode', 'PUT', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.episodeIds,
+        'episode',
+        'PUT',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

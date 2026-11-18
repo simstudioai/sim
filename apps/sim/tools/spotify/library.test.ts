@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { spotifyCheckSavedTracksTool } from '@/tools/spotify/check_saved_tracks'
 import { spotifyRemoveSavedTracksTool } from '@/tools/spotify/remove_saved_tracks'
 
@@ -15,10 +15,6 @@ describe('Spotify library tools with more IDs than one /me/library request takes
   beforeEach(() => {
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('checks all 45 tracks across two /me/library/contains requests, in order', async () => {

@@ -43,14 +43,25 @@ export const spotifyCheckSavedEpisodesTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckSavedEpisodesResponse> => {
+  transformResponse: async (
+    response,
+    params,
+    context
+  ): Promise<SpotifyCheckSavedEpisodesResponse> => {
     const results: boolean[] = [
       ...(await response.json()),
       ...(params
-        ? await sendRemainingSpotifyLibraryChunks(params, params.episodeIds, 'episode', 'GET', {
-            contains: true,
-            maxIds: 50,
-          })
+        ? await sendRemainingSpotifyLibraryChunks(
+            params,
+            params.episodeIds,
+            'episode',
+            'GET',
+            {
+              contains: true,
+              maxIds: 50,
+            },
+            context?.signal
+          )
         : []),
     ]
     return { success: true, output: { results } }

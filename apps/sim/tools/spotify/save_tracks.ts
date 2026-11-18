@@ -32,8 +32,16 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
       }),
     },
 
-    transformResponse: async (_response, params): Promise<SpotifySaveTracksResponse> => {
-      if (params) await sendRemainingSpotifyLibraryChunks(params, params.trackIds, 'track', 'PUT')
+    transformResponse: async (_response, params, context): Promise<SpotifySaveTracksResponse> => {
+      if (params)
+        await sendRemainingSpotifyLibraryChunks(
+          params,
+          params.trackIds,
+          'track',
+          'PUT',
+          {},
+          context?.signal
+        )
       return {
         success: true,
         output: {

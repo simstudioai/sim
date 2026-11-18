@@ -42,11 +42,22 @@ export const spotifyRemoveSavedEpisodesTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyRemoveSavedEpisodesResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyRemoveSavedEpisodesResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.episodeIds, 'episode', 'DELETE', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.episodeIds,
+        'episode',
+        'DELETE',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

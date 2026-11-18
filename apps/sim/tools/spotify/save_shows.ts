@@ -39,9 +39,16 @@ export const spotifySaveShowsTool: ToolConfig<SpotifySaveShowsParams, SpotifySav
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifySaveShowsResponse> => {
+  transformResponse: async (_response, params, context): Promise<SpotifySaveShowsResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.showIds, 'show', 'PUT', { maxIds: 50 })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.showIds,
+        'show',
+        'PUT',
+        { maxIds: 50 },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

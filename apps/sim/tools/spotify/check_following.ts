@@ -11,6 +11,15 @@ interface SpotifyCheckFollowingResponse extends ToolResponse {
   output: { results: boolean[] }
 }
 
+/** The library URI type for `type`, rejecting anything other than `artist` or `user`. */
+function followType(type: string): 'artist' | 'user' {
+  const normalized = String(type ?? '')
+    .trim()
+    .toLowerCase()
+  if (normalized === 'artist' || normalized === 'user') return normalized
+  throw new Error('Type must be "artist" or "user"')
+}
+
 export const spotifyCheckFollowingTool: ToolConfig<
   SpotifyCheckFollowingParams,
   SpotifyCheckFollowingResponse
@@ -43,7 +52,7 @@ export const spotifyCheckFollowingTool: ToolConfig<
 
   request: {
     url: (params) =>
-      spotifyLibraryUrl(params.ids, params.type === 'user' ? 'user' : 'artist', {
+      spotifyLibraryUrl(params.ids, followType(params.type), {
         contains: true,
         maxIds: 50,
       }),
@@ -53,16 +62,17 @@ export const spotifyCheckFollowingTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params): Promise<SpotifyCheckFollowingResponse> => {
+  transformResponse: async (response, params, context): Promise<SpotifyCheckFollowingResponse> => {
     const results: boolean[] = [
       ...(await response.json()),
       ...(params
         ? await sendRemainingSpotifyLibraryChunks(
             params,
             params.ids,
-            params.type === 'user' ? 'user' : 'artist',
+            followType(params.type),
             'GET',
-            { contains: true, maxIds: 50 }
+            { contains: true, maxIds: 50 },
+            context?.signal
           )
         : []),
     ]

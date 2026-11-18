@@ -42,11 +42,18 @@ export const spotifySaveAudiobooksTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifySaveAudiobooksResponse> => {
+  transformResponse: async (_response, params, context): Promise<SpotifySaveAudiobooksResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.audiobookIds, 'audiobook', 'PUT', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.audiobookIds,
+        'audiobook',
+        'PUT',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return { success: true, output: { success: true } }
   },
 

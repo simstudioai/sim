@@ -44,11 +44,22 @@ export const spotifyUnfollowArtistsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (_response, params): Promise<SpotifyUnfollowArtistsResponse> => {
+  transformResponse: async (
+    _response,
+    params,
+    context
+  ): Promise<SpotifyUnfollowArtistsResponse> => {
     if (params)
-      await sendRemainingSpotifyLibraryChunks(params, params.artistIds, 'artist', 'DELETE', {
-        maxIds: 50,
-      })
+      await sendRemainingSpotifyLibraryChunks(
+        params,
+        params.artistIds,
+        'artist',
+        'DELETE',
+        {
+          maxIds: 50,
+        },
+        context?.signal
+      )
     return {
       success: true,
       output: { success: true },
