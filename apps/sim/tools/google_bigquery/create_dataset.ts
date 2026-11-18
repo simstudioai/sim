@@ -69,7 +69,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         datasetReference: {
-          projectId: params.projectId.trim(),
+          projectId: String(params.projectId).trim(),
           datasetId: params.datasetId.trim(),
         },
       }

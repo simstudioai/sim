@@ -94,7 +94,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
       const body: Record<string, unknown> = {
         tableReference: {
-          projectId: params.projectId.trim(),
+          projectId: String(params.projectId).trim(),
           datasetId: params.datasetId.trim(),
           tableId: params.tableId.trim(),
         },
