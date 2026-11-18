@@ -160,9 +160,9 @@ Add it to the declaration type and to the kind's field table (`DeclFields`,
 `declaration/field-table.ts`: `KNOWLEDGE_FIELDS`, `MCP_FIELDS`, `SECRET_FIELDS`, …). The table is
 typed over every field of the declaration, so tsc fails until the field has an entry, and that one
 entry is how the kind reads, prints and fingerprints it. Then the server's stored → declaration
-mapping and diff, and the SDK `.d.ts`. Custom tools and skills are the exception: their fingerprint
-walks a `CanonicalFields` table, but the reader and printer handle each field by hand, so a new
-field there needs the reader, the printer **and** the table. A field left out of the fingerprint
+mapping and diff, and the SDK `.d.ts`. Custom tools (`TOOL_FIELDS`) and skills
+(`FRONTMATTER_FIELDS`) use the same tables; only a tool's `code` and a skill's `content` are read,
+printed and fingerprinted by hand. A field left out of the fingerprint
 makes an edit fingerprint as unchanged and silently drops it; the kind's test fixture must set the
 field so the "reads back every declaration it prints" test covers it. A default mirrored from
 `apps/sim` (`DEFAULT_CHUNKING`) must match the server's, or every undeclared resource reads as

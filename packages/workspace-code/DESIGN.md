@@ -99,9 +99,8 @@ flag passes through to each workflow folder's apply, which refuses deleting a bl
 **`canonical()` is load-bearing.** A field missing from it fingerprints an edit as equal to the
 base, so the rule calls it `noop` and drops the edit with no finding. Most kinds declare their
 fields in one `DeclFields` table (`declaration/field-table.ts`) that the reader, the printer and
-`canonical()` all walk, so tsc refuses a field without an entry. Custom tools and skills still read
-and print their fields by hand beside a `CanonicalFields` fingerprint table, so a field there needs
-the reader, the printer and the table. Either way a fixture in the kind's test must set it.
+`canonical()` all walk, so tsc refuses a field without an entry; only a tool's `code` and a
+skill's `content` are handled by hand. A fixture in the kind's test must set every field.
 
 **Changing canonical output breaks every checkout.** Any change to a kind's `canonical()` (or to
 `@sim/workflow-code` canonicalize, for workflows) changes stored fingerprints, so every directory
@@ -281,7 +280,7 @@ refusal until a migration is written.
   `packages/workflow-sdk/scripts/generate-embedded-text.ts`; the `*-text.test.ts` drift tests fail
   until it is re-run.
 - The CLI side is `packages/sim-cli/src/commands/protocol/workspace-source-*.ts`.
-  `workspace-source-dir.ts` writes the directory's `tsconfig.json` (`TSCONFIG`), the agent guide
+  `workspace-source-dir.ts` writes the directory's `tsconfig.json` (`workspaceTsconfig`), the agent guide
   (`AGENTS_GUIDE`) and the local declarations a get types (`localDeclarations`).
 - `cookbook/workspace/` in the SDK package is the example directory.
 
