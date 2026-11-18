@@ -39,7 +39,7 @@ export const TABLE_ROWS_EXTENSION = '.rows.jsonl'
 export const TABLE_ROWS_MODES = ['seed', 'managed'] as const
 
 /** `seed`: written into a new (or empty adopted) table only; `managed`: the table's rows. */
-export type TableRowsMode = (typeof TABLE_ROWS_MODES)[number]
+type TableRowsMode = (typeof TABLE_ROWS_MODES)[number]
 
 /** One row, keyed by column key; an absent column is an empty cell. */
 export type TableRowCells = Record<string, Json>

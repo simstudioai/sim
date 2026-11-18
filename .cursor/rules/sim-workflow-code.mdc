@@ -84,7 +84,7 @@ opaque type: it works, with weaker SDK typing.
 2. `TYPE_RULES` in `lib/workflows/code/catalog/value-kind.ts` (a total `Record`, so type-checked).
 3. `mapSubBlock` in `packages/workflow-sdk/src/codegen/map-subblock.ts` (a `never` arm).
 4. `getSubBlockValueShape` in `apps/sim/tools/param-shape.ts`, which defaults to `string`.
-5. `packages/workflow-code/src/compile/test-catalog.ts` restates the rule flags for package tests.
+5. `packages/workflow-code/src/compile/catalog.test-helpers.ts` restates the rule flags for package tests.
 6. A **structured** value (`CatalogStructuredKind`): each stage dispatches by kind, and an unknown
    kind passes through as JSON with no error. Update `canonicalize/params.ts`, `print/printer.ts`,
    `compile/blocks.ts`, `materialize/params.ts` and `json-fields.ts`, and add corpus coverage.
