@@ -263,6 +263,30 @@ export async function readKeysByResource(
   return new Map(rows.map((row) => [row.resourceId, row.key]))
 }
 
+/**
+ * The resource `key` is bound to, live or not, or null when it is free; locks the binding for the
+ * rest of `tx`, so what a claim or release in it replaces is what this read.
+ */
+export async function lockKeyHolder(
+  tx: DbTransaction,
+  workspaceId: string,
+  kind: ResourceKind,
+  key: string
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ resourceId: workspaceResourceKey.resourceId })
+    .from(workspaceResourceKey)
+    .where(
+      and(
+        eq(workspaceResourceKey.workspaceId, workspaceId),
+        eq(workspaceResourceKey.kind, kind),
+        eq(workspaceResourceKey.key, key)
+      )
+    )
+    .for('update')
+  return row?.resourceId ?? null
+}
+
 async function readTakenKeys(
   executor: DbOrTx,
   workspaceId: string,
