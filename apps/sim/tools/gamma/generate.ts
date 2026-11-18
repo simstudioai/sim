@@ -1,4 +1,5 @@
 import type { GammaGenerateParams, GammaGenerateResponse } from '@/tools/gamma/types'
+import { gammaFolderIds } from '@/tools/gamma/utils'
 import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -157,9 +158,8 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
       if (params.cardSplit) body.cardSplit = params.cardSplit
       if (params.additionalInstructions) body.additionalInstructions = params.additionalInstructions
       if (params.exportAs) body.exportAs = params.exportAs
-      if (params.folderIds) {
-        body.folderIds = params.folderIds.split(',').map((id: string) => id.trim())
-      }
+      const folderIds = gammaFolderIds(params.folderIds)
+      if (folderIds) body.folderIds = folderIds
 
       const textOptions: Record<string, unknown> = {}
       if (params.textAmount) textOptions.amount = params.textAmount

@@ -2,6 +2,25 @@ import { isPlainRecord } from '@sim/utils/object'
 import { DsPyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { failToolCallOnError, mapperOperation } from '@/blocks/utils'
+
+/** Predict's Additional Inputs: a JSON object as text from the canvas, or an object from an agent. */
+function parseAdditionalInputs(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string' && !value.trim()) return undefined
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new Error('Additional Inputs must be valid JSON')
+    }
+  }
+  if (!isPlainRecord(parsed)) {
+    throw new Error('Additional Inputs must be a JSON object')
+  }
+  return parsed
+}
 
 export const DSPyBlock: BlockConfig = {
   type: 'dspy',
@@ -143,24 +162,13 @@ export const DSPyBlock: BlockConfig = {
     access: ['dspy_predict', 'dspy_chain_of_thought', 'dspy_react'],
     config: {
       tool: (params) => `dspy_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const { operation, additionalInputs, maxIterations, ...rest } = params
 
-        let parsedAdditionalInputs: Record<string, unknown> | undefined
-        if (typeof additionalInputs === 'string' && additionalInputs.trim()) {
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(additionalInputs)
-          } catch {
-            throw new Error('Additional Inputs must be valid JSON')
-          }
-          if (!isPlainRecord(parsed)) {
-            throw new Error('Additional Inputs must be a JSON object')
-          }
-          parsedAdditionalInputs = parsed
-        } else if (isPlainRecord(additionalInputs)) {
-          parsedAdditionalInputs = additionalInputs
-        }
+        const parsedAdditionalInputs =
+          mapperOperation(params, context) === 'predict'
+            ? failToolCallOnError(context, () => parseAdditionalInputs(additionalInputs))
+            : undefined
 
         let parsedMaxIterations: number | undefined
         if (maxIterations) {

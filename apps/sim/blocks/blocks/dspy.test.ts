@@ -20,6 +20,21 @@ describe('DSPy block params', () => {
     )
   })
 
+  it('fails on Additional Inputs that an agent passes as an array instead of dropping them', () => {
+    expect(() =>
+      DSPyBlock.tools.config?.params?.(
+        { baseUrl: 'https://dspy.example.com', additionalInputs: ['billing'] },
+        { operation: 'predict' }
+      )
+    ).toThrow()
+  })
+
+  it('ignores stale Additional Inputs on operations that do not send them', () => {
+    expect(
+      mapParams({ operation: 'react', additionalInputs: '{"topic": ' }).additionalInputs
+    ).toBeUndefined()
+  })
+
   it('fails on Additional Inputs that are JSON but not an object', () => {
     expect(() => mapParams({ additionalInputs: '["billing"]' })).toThrow(
       'Additional Inputs must be a JSON object'

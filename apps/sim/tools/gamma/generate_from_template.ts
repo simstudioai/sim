@@ -2,6 +2,7 @@ import type {
   GammaGenerateFromTemplateParams,
   GammaGenerateFromTemplateResponse,
 } from '@/tools/gamma/types'
+import { gammaFolderIds } from '@/tools/gamma/utils'
 import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -87,9 +88,8 @@ export const generateFromTemplateTool: ToolConfig<
 
       if (params.themeId) body.themeId = params.themeId
       if (params.exportAs) body.exportAs = params.exportAs
-      if (params.folderIds) {
-        body.folderIds = params.folderIds.split(',').map((id: string) => id.trim())
-      }
+      const folderIds = gammaFolderIds(params.folderIds)
+      if (folderIds) body.folderIds = folderIds
 
       const imageOptions: Record<string, unknown> = {}
       if (params.imageModel) imageOptions.model = params.imageModel
