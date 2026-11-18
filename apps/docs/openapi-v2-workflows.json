@@ -8547,7 +8547,7 @@
       "get": {
         "operationId": "getWorkspaceSource",
         "summary": "Get workspace source",
-        "description": "Read the workspace as a source directory: one declaration file per table (`tables/<key>.ts`), per custom tool (`tools/<key>.ts`, its code in `tools/<key>.js`) and per skill (`skills/<key>.md`), one folder per knowledge base (`knowledge/<key>/`, its settings beside its documents in `docs/`) and per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), every workspace file under `files/`, the binary files (workspace files and knowledge documents) listed by hash with an `href` to download each, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A resource left out (too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget) is listed in `skipped` with why, and a kind holding more than 500 resources is left out with `E_LIMIT_EXCEEDED`. A table's rows are part of source only when its declaration opts in with `rows` (`tables/<key>.rows.jsonl`, at most 10000 rows each); environment values and credentials never are. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the workspace as a source directory: `secrets.ts` (secret names, never values) and `credentials.ts` (credential keys, never tokens), one declaration file per MCP server (`mcp/<key>.ts`), per deployment (`deployments/<workflow key>.ts`), per table (`tables/<key>.ts`), per custom tool (`tools/<key>.ts`, its code in `tools/<key>.js`) and per skill (`skills/<key>.md`), one folder per knowledge base (`knowledge/<key>/`, its settings beside its documents in `docs/`) and per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), every workspace file under `files/`, the binary files (workspace files and knowledge documents) listed by hash with an `href` to download each, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A resource left out (too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget) is listed in `skipped` with why, and a kind holding more than 500 resources is left out with `E_LIMIT_EXCEEDED`. A table's rows are part of source only when its declaration opts in with `rows` (`tables/<key>.rows.jsonl`, at most 10000 rows each); environment values and credentials never are. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workspaces.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -24855,7 +24855,7 @@
                     "workflow",
                     "deployment"
                   ],
-                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                 },
                 "description": "The kinds read; the directory manages exactly these."
               },
@@ -25056,7 +25056,7 @@
                         "workflow",
                         "deployment"
                       ],
-                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                     },
                     "key": {
                       "type": "string",
@@ -25466,7 +25466,7 @@
                         "workflow",
                         "deployment"
                       ],
-                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                     },
                     "key": {
                       "type": "string",
@@ -25543,7 +25543,7 @@
                         "workflow",
                         "deployment"
                       ],
-                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                     },
                     "key": {
                       "type": "string",
@@ -25619,7 +25619,7 @@
                       "workflow",
                       "deployment"
                     ],
-                    "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                    "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                   },
                   "key": {
                     "type": "string",
@@ -26562,7 +26562,7 @@
                 "workflow",
                 "deployment"
               ],
-              "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+              "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
             },
             "description": "The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent."
           },
@@ -26591,7 +26591,7 @@
                     "workflow",
                     "deployment"
                   ],
-                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `mcp-server`, `table`, `knowledge-base`, `file`, `workflow`, `deployment`."
                 }
               }
             },
