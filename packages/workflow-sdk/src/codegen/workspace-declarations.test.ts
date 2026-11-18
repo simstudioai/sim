@@ -72,4 +72,34 @@ export default defineKnowledgeBase({
     expect(output).toContain(`'"paragraph"' is not assignable`)
     expect(output).not.toContain('knowledge/good/knowledge.ts')
   }, 120_000)
+
+  it('type MCP tool names per server, any name for a server it could not list', () => {
+    const output = typecheckSdkDirectory(
+      {
+        '.sim/sdk/workspace.d.ts': generateWorkspaceTypes({
+          mcpServers: { github: { tools: ['create_issue', 'list_issues'] }, docs: {} },
+          mcpServerDeclarations: ['linear'],
+        }).text,
+        'mcp/linear.ts': `// @sim-sdk 1
+import { defineMcpServer, env, stored } from '@sim/workflow-sdk/workspace'
+
+export default defineMcpServer({
+  url: 'https://mcp.linear.app/mcp',
+  headers: { Authorization: env.LINEAR_TOKEN, Cookie: stored(), Accept: 'application/json' },
+})
+`,
+        'workflows/w/check.ts': `import { mcp } from '@sim/workflow-sdk'
+export const known = mcp('github').tool('create_issue')
+export const unlisted = mcp('docs').tool('anything')
+export const declared = mcp('linear').tool('anything')
+export const misspelled = mcp('github').tool('crate_issue')
+export const unknown = mcp('gitlab')
+`,
+      },
+      ['mcp/*.ts', 'workflows/*/*.ts']
+    )
+    expect(output).toContain(`'"crate_issue"' is not assignable`)
+    expect(output).toContain(`'"gitlab"' is not assignable`)
+    expect(output.split('\n').filter((line) => line.includes('error TS'))).toHaveLength(2)
+  }, 120_000)
 })
