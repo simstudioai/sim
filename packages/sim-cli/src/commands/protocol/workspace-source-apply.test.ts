@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
@@ -276,6 +277,16 @@ describe('workspaces source apply', () => {
         .update(Buffer.from([7, 8, 9]))
         .digest('hex')
     )
+  })
+
+  it('names the way back when a write ends without an answer, but not for a refusal', async () => {
+    request.mockRejectedValueOnce(
+      new SimApiError('https://sim.test did not answer within 3600s.', 0)
+    )
+    await expect(apply('--yes')).rejects.toThrow(`sim workspaces source get --dir ${dir} --force`)
+
+    request.mockRejectedValueOnce(new SimApiError('Refused.', 400, 'BAD_REQUEST'))
+    await expect(apply('--yes')).rejects.toThrow(/^Refused\.$/)
   })
 
   it('refuses a server answer naming a path outside the kind folders', async () => {

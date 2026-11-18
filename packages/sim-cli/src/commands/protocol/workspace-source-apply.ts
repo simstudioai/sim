@@ -258,7 +258,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
           )
           return response.data
         } catch (error) {
-          return printRefusal(error)
+          return printRefusal(
+            error,
+            dryRun
+              ? undefined
+              : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it was, and \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date (the server holds your edits, so nothing is lost); otherwise apply again.`
+          )
         }
       }
 

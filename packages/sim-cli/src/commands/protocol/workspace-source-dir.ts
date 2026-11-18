@@ -87,7 +87,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop (run from this directory)
 
-1. Edit the files. \`bunx tsc -p .\` type-checks them.
+1. Edit the files. \`bunx tsc -p .\` type-checks them, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
 2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
@@ -97,6 +97,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 - A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document and a removed workspace file.
 - A resource the server holds that this directory never managed is kept, and named in a warning.
 - Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
+- To fork a workflow, copy its folder to a new key and delete the copy's \`.sim/\`: without it the copy is created as a new workflow, while with it the copy still names the original.
 - Renaming a workflow folder renames the key, not a delete. A resource a workflow still uses cannot be deleted.
 
 ## Good to know
@@ -110,7 +111,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply was written: run \`sim workspaces source get --dir . --force\`, nothing is lost); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `

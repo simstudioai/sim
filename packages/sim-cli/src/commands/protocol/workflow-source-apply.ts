@@ -198,6 +198,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   output: Parameters<typeof printProtocolResult>[0]
   /** Saves a successful write into the directory; by default the files, lock and base. */
   save?: (data: SourceApplyData) => Promise<void>
+  /** The next step when the write's answer never came back, so it may have been stored. */
+  ifAnswerLost: string
 }): Promise<void> {
   const { directory, options, creating } = args
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
@@ -210,7 +212,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       })
       return response.data
     } catch (error) {
-      return printRefusal(error)
+      return printRefusal(error, dryRun ? undefined : args.ifAnswerLost)
     }
   }
   const printed = new Set<string>()
@@ -280,6 +282,7 @@ export function attachWorkflowSourceApply(source: Command): void {
         operation: 'applyWorkflowSource',
         params: { workflowId },
         body: { files, lock, base, provenance: { client: 'cli' } },
+        ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means it was, and \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date (the server holds your edit, so nothing is lost); otherwise apply again.`,
       })
     })
 }
@@ -339,6 +342,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         client,
         operation: 'createWorkflowFromSource',
         params: { workspaceId },
+        ifAnswerLost: `It may have been created. Run this command again: a SOURCE_NAME_TAKEN refusal means it was, so find its id with \`sim workflows list\` and run \`sim workflows source get <workflowId> --dir ${options.dir} --force\`.`,
         save: async (data) => {
           await writeSourceDirectory(client, options.dir, data, [])
         },
