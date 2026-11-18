@@ -209,7 +209,7 @@ const declarationsMemo = new WeakMap<
  * A block's declarations by subBlock id, in declared order: a block may declare one id more than
  * once (one copy per surface, or per operation). Built once per block.
  */
-export function declarationsById(
+function declarationsById(
   block: Pick<CatalogBlock, 'subBlocks'>
 ): ReadonlyMap<string, readonly CatalogSubBlock[]> {
   let byId = declarationsMemo.get(block.subBlocks)

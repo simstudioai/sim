@@ -121,9 +121,7 @@ const fieldTypesByParam = new WeakMap<
  * statically (not JSON, or JSON holding reference tokens). Memoized per param, since print and
  * compile ask once per reference.
  */
-export function responseFormatFieldTypes(
-  param: CanonicalParam | undefined
-): ResponseFormatFieldTypes {
+function responseFormatFieldTypes(param: CanonicalParam | undefined): ResponseFormatFieldTypes {
   const value = param?.kind === 'value' ? param.value : undefined
   if (value === undefined || value === null || value === '') return NO_FIELDS
   if (typeof value !== 'string' || !param) return null
