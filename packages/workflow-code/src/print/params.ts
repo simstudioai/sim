@@ -24,7 +24,7 @@ import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } f
 import { CODE_FILE_EXTENSIONS, SOURCE_CODE_DIR } from '../limits'
 import type { AnchorKey, CanonicalBlock, ParamMode, Value } from '../model'
 import { getOwn, setOwn } from '../records'
-import { isLiteralSecret } from '../secrets'
+import { holdsSecret } from '../secrets'
 import { structuredCodec } from '../structured'
 import { anchors } from './comments'
 import type { PrintContext } from './context'
@@ -115,7 +115,9 @@ function printParamValue(
   const param = getOwn(block.params, id)
   if (!param) return null
   if (param.kind === 'tools') return printTools(ctx, block, param.tools)
-  if (sb?.password && isLiteralSecret(param.value)) return storedSecret(ctx, block, sb.id)
+  if (holdsSecret(sb, param.value)) {
+    return storedSecret(ctx, block, sb?.id ?? id, sb?.password === true)
+  }
   if (single && sb?.type === 'code' && sb.valueKind === 'json' && typeof param.value === 'string') {
     const literal = printJsonField(ctx, block, param.value)
     if (literal) return literal

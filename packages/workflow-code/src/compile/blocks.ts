@@ -1,5 +1,6 @@
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { isBranchExtraField } from '../canonicalize/branches'
@@ -22,6 +23,7 @@ import {
   typedForBuilder,
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
+import { catalogBuildersOfType } from '../catalog/view'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
@@ -45,7 +47,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { isLiteralSecret, literalSecretFinding } from '../secrets'
+import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
 import {
@@ -57,7 +59,7 @@ import {
   recordSpan,
   unsupported,
 } from './context'
-import { didYouMean } from './hints'
+import { closest, didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
@@ -423,9 +425,10 @@ interface WrittenParam {
 function reportLiteralSecret(
   ctx: CompileContext,
   blockKey: BlockKey,
-  entry: Pick<WrittenParam, 'property' | 'param'>
+  entry: Pick<WrittenParam, 'property' | 'param'>,
+  password: boolean
 ): void {
-  const { message, hint } = literalSecretFinding(entry.param)
+  const { message, hint } = literalSecretFinding(entry.param, password)
   ctx.reporter.report('W_LITERAL_SECRET', message, rangeOf(ctx, entry.property), {
     hint,
     blockKey,
@@ -592,6 +595,11 @@ interface BlockState {
   written: WrittenParam[]
   todos: Map<string, ObjectProperty>
   /**
+   * Params an `E_UNKNOWN_PARAM` did-you-mean already names: the misspelling is the missing
+   * required value, so `W_REQUIRED_MISSING` stays quiet for them.
+   */
+  suggested: Set<string>
+  /**
    * Subblock ids written as `null` or `todo()`: stored-absent on purpose, so the editor default
    * never fills them.
    */
@@ -665,8 +673,8 @@ function keepStored(
     const param = getOwn(stored.params, member.id)
     if (param) setOwn(params, member.id, param)
     else state.unset.add(member.id)
-    if (param?.kind === 'value' && member.password && isLiteralSecret(param.value)) {
-      reportLiteralSecret(ctx, decl.key, { property, param: name })
+    if (param?.kind === 'value' && holdsSecret(member, param.value)) {
+      reportLiteralSecret(ctx, decl.key, { property, param: name }, member.password === true)
     }
   }
   const mode = field && isModalPair(field) ? getOwn(stored.modes, field.param) : undefined
@@ -806,6 +814,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     modes: {},
     written: [],
     todos: new Map(),
+    suggested: new Set(),
     unset: new Set(),
     pendingFile: null,
   }
@@ -980,6 +989,8 @@ function compileWrittenParams(
     }
     if (!field) {
       const alias = index.memberAliases.get(key)
+      const near = alias ?? closest(key, index.fields.keys())
+      if (near !== null) state.suggested.add(near)
       ctx.reporter.report(
         'E_UNKNOWN_PARAM',
         `${catalogBlock?.name ?? decl.key} has no param ${key}.`,
@@ -1284,6 +1295,95 @@ function checkScheduleTimezone(ctx: CompileContext, state: BlockState): void {
   )
 }
 
+/** How many option ids a hint lists before it stops. */
+const LISTED_OPTIONS = 12
+
+function listOptions(ids: readonly string[]): string {
+  const shown = ids.slice(0, LISTED_OPTIONS).join(', ')
+  return ids.length > LISTED_OPTIONS ? `${shown}, and ${ids.length - LISTED_OPTIONS} more` : shown
+}
+
+/**
+ * The first literal a field's value holds that none of its static options names: a dropdown's
+ * value (each element of a multi-select), or the `model` combobox's. A reference, an env token or
+ * an empty value is never checked; nor is any other combobox, which takes free text.
+ */
+function unknownOption(
+  sub: CatalogSubBlock,
+  value: Value
+): { value: string; ids: string[] } | null {
+  const options = sub.options
+  if (!Array.isArray(options) || options.length === 0) return null
+  const isModel = sub.id === 'model' && sub.type === 'combobox'
+  if (sub.type !== 'dropdown' && !isModel) return null
+  const ids = options.map((option) => option.id)
+  const known = new Set(ids)
+  const items = Array.isArray(value) ? value : [value]
+  for (const item of items) {
+    if (typeof item !== 'string' && typeof item !== 'number') continue
+    const text = String(item)
+    if (text === '' || known.has(text) || findWorkflowReferenceTokens(text).length > 0) continue
+    return { value: text, ids }
+  }
+  return null
+}
+
+/**
+ * A written option value the field does not offer. `operation` picks the tool that runs, so an
+ * unknown one is `E_UNKNOWN_OPERATION`, unless the stored block already holds it (a retired
+ * operation keeps round-tripping, as a warning). An unknown `model` is `W_UNKNOWN_MODEL` (custom
+ * and self-hosted models are free text); any other dropdown value is `W_UNKNOWN_OPTION`.
+ */
+function checkOption(
+  ctx: CompileContext,
+  state: BlockState,
+  sub: CatalogSubBlock,
+  entry: WrittenParam
+): void {
+  const unknown = unknownOption(sub, entry.value)
+  if (!unknown) return
+  const { decl } = state
+  const at = rangeOf(ctx, entry.property)
+  const near = didYouMean(unknown.value, unknown.ids)
+  const listed = `${near ? `${near} ` : ''}Options: ${listOptions(unknown.ids)}.`
+  if (sub.id === 'operation') {
+    const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
+    const storedOperation = stored ? getOwn(stored.params, 'operation') : undefined
+    const kept =
+      stored?.type === catalogBlockOf(decl)?.type &&
+      storedOperation?.kind === 'value' &&
+      storedOperation.value === unknown.value
+    ctx.reporter.report(
+      kept ? 'W_UNKNOWN_OPTION' : 'E_UNKNOWN_OPERATION',
+      `${catalogBlockOf(decl)?.name ?? decl.key} has no operation ${unknown.value}.`,
+      at,
+      { hint: listed, blockKey: decl.key, param: entry.param }
+    )
+    return
+  }
+  if (sub.id === 'model' && sub.type === 'combobox') {
+    ctx.reporter.report(
+      'W_UNKNOWN_MODEL',
+      `${unknown.value} is not a model the catalog lists; it is kept as written.`,
+      at,
+      {
+        hint:
+          near ??
+          'Use a model id from .sim/sdk/models.d.ts, or keep it for a custom or self-hosted model.',
+        blockKey: decl.key,
+        param: entry.param,
+      }
+    )
+    return
+  }
+  ctx.reporter.report(
+    'W_UNKNOWN_OPTION',
+    `${entry.param} has no option ${unknown.value}; it is kept as written.`,
+    at,
+    { hint: listed, blockKey: decl.key, param: entry.param }
+  )
+}
+
 /** Catalog warnings: visibility, required fields, value kinds. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
@@ -1313,7 +1413,10 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         param: entry.param,
       })
     }
-    if (sub.password && isLiteralSecret(entry.value)) reportLiteralSecret(ctx, decl.key, entry)
+    if (holdsSecret(sub, entry.value)) {
+      reportLiteralSecret(ctx, decl.key, entry, sub.password === true)
+    }
+    if (entry.checked) checkOption(ctx, state, sub, entry)
     if (entry.checked && !valueKindMatches(sub, entry.value)) {
       ctx.reporter.report(
         'W_VALUE_KIND',
@@ -1324,6 +1427,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
     }
   }
   for (const field of missingRequiredFields(index, values, (id) => Object.hasOwn(params, id))) {
+    if (state.suggested.has(field.name)) continue
     const todo = state.todos.get(field.name)
     ctx.reporter.report(
       'W_REQUIRED_MISSING',
@@ -1524,7 +1628,42 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
 /** Pass 2 for one declaration. `null` for declarations already reported as invalid. */
 export function compileBlock(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   if (decl.duplicate || decl.builder.kind === 'unknown') return null
+  if (decl.builder.kind !== 'container') checkLegacyType(ctx, decl)
   return decl.builder.kind === 'container'
     ? compileContainer(ctx, decl)
     : compileRegularBlock(ctx, decl)
+}
+
+/**
+ * `W_LEGACY_BLOCK_TYPE` for a new block of a legacy or deprecated type, naming its replacement and
+ * that type's builders. A block the stored workflow already holds under that type stays quiet.
+ */
+function checkLegacyType(ctx: CompileContext, decl: BlockDecl): void {
+  const block = catalogBlockOf(decl)
+  const sunset = block?.lifecycle?.sunset
+  if (!block || !sunset) return
+  const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
+  if (stored?.type === block.type) return
+  const replacement = sunset.replacedBy
+  const namespaces = replacement
+    ? [
+        ...new Set(
+          catalogBuildersOfType(ctx.catalog, replacement).map(([path]) => {
+            const [head] = path.split('.')
+            return path.includes('.') ? `${head}.*` : head
+          })
+        ),
+      ]
+    : []
+  ctx.reporter.report(
+    'W_LEGACY_BLOCK_TYPE',
+    `${block.type} is a ${sunset.status} block type${replacement ? `; ${replacement} replaces it` : ''}.`,
+    rangeOf(ctx, decl.call),
+    {
+      hint: replacement
+        ? `Use ${namespaces.length > 0 ? namespaces.join(' or ') : `block('${replacement}', …)`} instead.`
+        : 'Use a current block type instead.',
+      blockKey: decl.key,
+    }
+  )
 }

@@ -105,6 +105,26 @@ function dynamicFieldType(block: CanonicalBlock, source: string, param: string, 
 }
 
 /**
+ * The top-level fields an agent `responseFormat` declares, read as the runtime reads them
+ * (`extractFieldsFromSchema`): a JSON schema's `properties` (under `schema` or at the root), or a
+ * legacy `fields` list. `[]` when the text is empty; `null` when it cannot be read statically (not
+ * JSON, or JSON holding reference tokens), so nothing can be said about its fields.
+ */
+export function responseFormatFields(value: unknown): string[] | null {
+  if (value === undefined || value === null || value === '') return []
+  if (typeof value !== 'string') return null
+  const parsed = parseJsonContainer(value)
+  if (!parsed || Array.isArray(parsed)) return null
+  if (Array.isArray(parsed.fields)) {
+    return parsed.fields.flatMap((field) =>
+      isRecordLike(field) && typeof field.name === 'string' ? [field.name] : []
+    )
+  }
+  const schema = isRecordLike(parsed.schema) ? parsed.schema : parsed
+  return isRecordLike(schema.properties) ? Object.keys(schema.properties) : []
+}
+
+/**
  * What a stored token (`<key.path>`, `<variable.x>`, `{{ENV}}`) resolves to, as far as the catalog
  * and the workflow say: `string`, `typed` (any other declared type), or `untyped` when nothing
  * declares it (a path into untyped JSON, a loop item, an unknown block). An environment variable
@@ -125,7 +145,14 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
     return STRING_VARIABLE_TYPES.has(variable.type) ? 'string' : 'typed'
   }
   const block = scope.block(head.name)
-  if (!block || block.subflow || segments.length === 0) return 'untyped'
+  if (!block || segments.length === 0) return 'untyped'
+  // A loop or parallel's `results` is the array of every iteration's output.
+  if (block.subflow) {
+    const [first] = segments
+    return segments.length === 1 && first?.kind === 'name' && first.name === 'results'
+      ? 'typed'
+      : 'untyped'
+  }
   const declared = catalogBlock(scope.catalog, block.type)
   if (!declared) return 'untyped'
   const schemas = [declared.outputs]

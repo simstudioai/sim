@@ -92,7 +92,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 ## Deletes
 
 - A kind is managed only when its folder exists: without \`skills/\`, no skill is touched.
-- A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document and a removed workspace file.
+- A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document, a removed workspace file and a block removed from a workflow.
 - A resource the server holds that this directory never managed is kept, and named in a warning.
 - Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
 - To fork a workflow, copy its folder to a new key and delete the copy's \`.sim/\`: without it the copy is created as a new workflow, while with it the copy still names the original.

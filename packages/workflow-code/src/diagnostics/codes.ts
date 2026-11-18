@@ -117,6 +117,13 @@ const COMPILE_EDGE_CODES = [
   'E_BRANCH_ELSE_LAST',
   /** `edge(a, 'raw', b)`: an unknown handle kept verbatim. */
   'W_RAW_HANDLE',
+  /**
+   * Wiring that closes a cycle among enabled blocks (a self-loop included). The executor makes each
+   * block wait for every incoming edge, so no block on a cycle ever runs; repeat work with loop().
+   */
+  'E_EDGE_CYCLE',
+  /** A cycle the stored workflow already holds: kept so it round-trips, but none of it runs. */
+  'W_EDGE_CYCLE',
 ] as const
 
 /** Checks against the block catalog. */
@@ -134,6 +141,17 @@ const COMPILE_CATALOG_CODES = [
   'W_FIELD_NOT_APPLICABLE',
   /** Includes `todo()` placeholders. */
   'W_REQUIRED_MISSING',
+  /** A dropdown value none of its static options names; `hint` lists them, with a did-you-mean. */
+  'W_UNKNOWN_OPTION',
+  /**
+   * An `operation` the block does not offer: no tool would run. `hint` lists the operations. A
+   * retired operation the stored block already holds is `W_UNKNOWN_OPTION` instead.
+   */
+  'E_UNKNOWN_OPERATION',
+  /** A `model` the catalog does not list; kept, since custom and self-hosted models are free text. */
+  'W_UNKNOWN_MODEL',
+  /** A block of a legacy or deprecated type; `hint` names the type that replaces it. */
+  'W_LEGACY_BLOCK_TYPE',
   /**
    * A schedule created from source with no `timezone`: the editor seeds the viewer's zone, but
    * a schedule with none runs in UTC.
@@ -148,7 +166,10 @@ const COMPILE_CATALOG_CODES = [
   'W_VALUE_KIND',
   /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
   'W_TABLE_FILTER_SHAPE',
-  /** A password field holding literal text instead of an env reference (printed as `stored()`). */
+  /**
+   * A password field holding literal text instead of an env reference, or another field holding a
+   * detected credential (`secrets.ts`); printed as `stored()`.
+   */
   'W_LITERAL_SECRET',
   /**
    * A loop/parallel count or batch size the runtime replaces or clamps; kept so stored values
@@ -382,6 +403,18 @@ const APPLY_DIAGNOSTIC_CODES = [
   'W_APPLY_LINT',
   /** A table row write (insert, upsert, update) with a key that is not a column of its table. */
   'W_TABLE_UNKNOWN_COLUMN',
+  /**
+   * An added or changed schedule whose timing cannot schedule (a malformed cron expression, an
+   * unknown timezone, an out-of-range interval), checked as deploy checks it.
+   */
+  'E_APPLY_INVALID_SCHEDULE',
+  /**
+   * The apply removes blocks the source no longer declares and the caller did not pass
+   * `allowDelete` (`--allow-delete`).
+   */
+  'E_APPLY_BLOCK_DELETE',
+  /** The source's workflow name or description differs from the stored one, which apply never changes. */
+  'E_APPLY_META_CHANGED',
 ] as const
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 

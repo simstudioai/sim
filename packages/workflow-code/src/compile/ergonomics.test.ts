@@ -134,6 +134,104 @@ describe('stored()', () => {
   })
 })
 
+describe('credentials outside password fields', () => {
+  const BEARER = 'Bearer sk-proj-Abc123Def456Ghi789Jkl012'
+  const headers = (value: string) =>
+    source(
+      `  api('Call', { url: 'https://api.example.com/v1', headers: [{ cells: { Key: 'Authorization', Value: ${quoteString(value)} } }, { cells: { Key: 'Accept', Value: 'application/json' } }] })`
+    )
+  const secretParams = (text: string) =>
+    printWorkflow({
+      workflow: compiled(text),
+      catalog: TEST_CATALOG,
+      options: { functionCode: 'inline' },
+    })
+      .diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET')
+      .map((d) => d.param)
+
+  it('prints a stored Authorization bearer header as stored(), and a re-apply keeps it unchanged', () => {
+    const storedWorkflow = compiled(headers(BEARER))
+    const text = printed(storedWorkflow)
+    expect(text).toContain('headers: stored()')
+    expect(text).not.toContain('sk-proj-')
+    const reapplied = run(text, storedWorkflow)
+    expect(reapplied.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(reapplied.workflow?.blocks.call?.params.headers).toEqual(
+      storedWorkflow.blocks.call?.params.headers
+    )
+    expect(reapplied.workflow?.blocks).toEqual(storedWorkflow.blocks)
+    expect(printed(reapplied.workflow as CanonicalWorkflow)).toBe(text)
+  })
+
+  it('warns where source writes the credential literally', () => {
+    expect(
+      run(headers(BEARER)).diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET')
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    [
+      'a token in the URL query',
+      "  api('Call', { url: 'https://x.io/v1?api_key=a1b2c3d4e5f6g7h8' })",
+    ],
+    ['a password in the URL', "  api('Call', { url: 'postgres://admin:Hunter2pass@db.local/x' })"],
+    [
+      'a credential property in a JSON body',
+      "  api('Call', { url: 'https://x.io', body: { client_secret: 's3cr3t-v4lu3-9876' } })",
+    ],
+    [
+      'a GitHub token anywhere',
+      "  api('Call', { url: 'https://x.io', headers: [{ cells: { Key: 'X-Gh', Value: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' } }] })",
+    ],
+    [
+      'a token in function code',
+      "  fn('F', { code: js`const key = 'xoxb-1234567890-abcdef'\nreturn key` })",
+    ],
+  ])('detects %s', (_label, body) => {
+    expect(secretParams(source(body)).length).toBe(1)
+  })
+
+  it.each([
+    [
+      'an env reference in a bearer header',
+      "  api('Call', { url: 'https://x.io', headers: [{ cells: { Key: 'Authorization', Value: 'Bearer {{OPENAI_KEY}}' } }] })",
+    ],
+    [
+      'a block reference in a bearer header',
+      "  const s = trigger.start('S')\n  api('Call', { url: 'https://x.io', headers: [{ cells: { Key: 'Authorization', Value: t`Bearer ${s.input}` } }] })",
+    ],
+    [
+      'ordinary headers and query params',
+      "  api('Call', { url: 'https://x.io/v1/users?page=2&sort=created_at&token=', headers: [{ cells: { Key: 'Content-Type', Value: 'application/json' } }, { cells: { Key: 'X-Request-Id', Value: '3f2c9a7e-1b4d-4e8f-9c0a-7d6e5f4a3b2c' } }] })",
+    ],
+    [
+      'placeholders',
+      "  api('Call', { url: 'https://x.io', body: { api_key: 'YOUR_API_KEY', password: '********' } })",
+    ],
+    [
+      'prose about tokens',
+      "  agent('A', { model: 'gpt-4o', messages: [{ role: 'system', content: 'Explain how a Bearer token and an api_key=... query param differ, and what sk-learn does.' }] })",
+    ],
+    [
+      'a pagination token name',
+      "  api('Call', { url: 'https://x.io/items?pageToken=abc&nextToken=CAESBggBEAEYAQ' })",
+    ],
+  ])('leaves %s alone', (_label, body) => {
+    expect(secretParams(source(body))).toEqual([])
+  })
+
+  it('prints an MCP tool argument holding a credential as stored() and keeps it on apply', () => {
+    const body = (args: string) =>
+      source(`  agent('A', { model: 'm', tools: [mcp('docs').tool('search', { args: ${args} })] })`)
+    const storedWorkflow = compiled(body("{ q: 'x', apiKey: 'sk-ant-api03-AbCdEf0123456789XyZ' }"))
+    const text = printed(storedWorkflow)
+    expect(text).toContain('apiKey: stored()')
+    expect(text).not.toContain('sk-ant-')
+    const reapplied = compiled(text, storedWorkflow)
+    expect(reapplied.blocks.a?.params.tools).toEqual(storedWorkflow.blocks.a?.params.tools)
+  })
+})
+
 describe('tool params', () => {
   const tools = (params: string) =>
     source(`  agent('A', { model: 'm', tools: [mail.tool.send(${params})] })`)

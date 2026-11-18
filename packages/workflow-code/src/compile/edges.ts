@@ -7,7 +7,14 @@ import {
 import { edgeTupleKey, portKey } from '../anchors'
 import { literalText } from '../babel'
 import { catalogBlock } from '../catalog/view'
-import type { AnchorKey, BlockKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
+import type {
+  AnchorKey,
+  BlockKey,
+  CanonicalBlock,
+  CanonicalEdge,
+  CanonicalWorkflow,
+  Port,
+} from '../model'
 import { setOwn } from '../records'
 import {
   type BlockDecl,
@@ -47,6 +54,8 @@ const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as c
 /** Pass 2 of wiring: validates each edge a wiring statement denotes and collects accepted ones. */
 export class EdgeCollector {
   readonly edges: CanonicalEdge[] = []
+  /** The source node each accepted edge was written at, by index into `edges`. */
+  private readonly nodes: Node[] = []
   /** Set once wiring would exceed `limits.maxEdges`; every later edge is dropped unchecked. */
   private full = false
   private readonly seen = new Set<string>()
@@ -155,9 +164,63 @@ export class EdgeCollector {
     }
     this.seen.add(tuple)
     this.edges.push({ from: from.key, port, to: to.key })
+    this.nodes.push(node)
     const anchor = { kind: 'edges', block: from.key, port: portKey(port) } as const
     anchors.push(recordSpan(this.ctx, anchor, node))
     return true
+  }
+
+  /**
+   * Reports each cycle the accepted wiring closes among enabled blocks, a self-loop included. The
+   * executor (`executor/dag`) makes a block wait for every incoming edge from an enabled block, so
+   * no block on a cycle ever runs; a disabled block is not in the run graph and breaks a cycle.
+   * Repeating work is a loop or parallel container, whose iteration is not an edge. A cycle made
+   * only of edges the stored workflow holds is a warning, so stored state keeps round-tripping;
+   * any cycle that this source closes is an error.
+   */
+  reportCycles(stored: CanonicalWorkflow | undefined): void {
+    const enabled = (key: string) => this.blocks.get(key)?.enabled !== false
+    const outgoing = new Map<string, number[]>()
+    this.edges.forEach((edge, index) => {
+      if (!enabled(edge.from) || !enabled(edge.to)) return
+      const list = outgoing.get(edge.from)
+      if (list) list.push(index)
+      else outgoing.set(edge.from, [index])
+    })
+    const storedTuples = new Set(
+      (stored?.edges ?? []).map((edge) => edgeTupleKey(edge.from, portKey(edge.port), edge.to))
+    )
+    for (const component of stronglyConnected([...outgoing.keys()], (key) =>
+      (outgoing.get(key) ?? []).map((index) => this.edges[index]?.to ?? key)
+    )) {
+      const members = new Set(component)
+      const inside = component.flatMap((key) =>
+        (outgoing.get(key) ?? []).filter((index) => members.has(this.edges[index]?.to ?? ''))
+      )
+      if (inside.length === 0) continue
+      const fresh = inside.filter((index) => {
+        const edge = this.edges[index]
+        return edge && !storedTuples.has(edgeTupleKey(edge.from, portKey(edge.port), edge.to))
+      })
+      const at = fresh[0] ?? inside[0]
+      const edge = at === undefined ? undefined : this.edges[at]
+      const node = at === undefined ? undefined : this.nodes[at]
+      if (!edge || !node) continue
+      const names = component.map((key) => this.ctx.declsByKey.get(key)?.name ?? key)
+      const message =
+        component.length === 1
+          ? `${names[0]} is wired to itself, so it waits on its own output and never runs.`
+          : `${names.join(', ')} are wired in a cycle; each waits on the one before it, so none of them runs.`
+      this.ctx.reporter.report(
+        fresh.length > 0 ? 'E_EDGE_CYCLE' : 'W_EDGE_CYCLE',
+        message,
+        rangeOf(this.ctx, node),
+        {
+          hint: 'Remove the edge back, and repeat work with loop() or parallel() around the blocks instead.',
+          blockKey: edge.from,
+        }
+      )
+    }
   }
 
   /**
@@ -384,4 +447,66 @@ export class EdgeCollector {
   implied(container: BlockDecl, child: BlockDecl, node: Node): void {
     this.add(container, { kind: 'subflowStart' }, child, node, [])
   }
+}
+
+/**
+ * Tarjan's strongly connected components, iterative so a long chain cannot overflow the stack.
+ * Each component lists its keys; a single key is a component whether or not it has a self-loop.
+ */
+function stronglyConnected(
+  keys: readonly string[],
+  successors: (key: string) => readonly string[]
+): string[][] {
+  const index = new Map<string, number>()
+  const low = new Map<string, number>()
+  const onStack = new Set<string>()
+  const stack: string[] = []
+  const components: string[][] = []
+  let counter = 0
+  for (const root of keys) {
+    if (index.has(root)) continue
+    const work: Array<{ key: string; next: number }> = [{ key: root, next: 0 }]
+    index.set(root, counter)
+    low.set(root, counter)
+    counter++
+    stack.push(root)
+    onStack.add(root)
+    while (work.length > 0) {
+      const frame = work[work.length - 1]
+      if (!frame) break
+      const targets = successors(frame.key)
+      if (frame.next < targets.length) {
+        const target = targets[frame.next++]
+        if (target === undefined) continue
+        if (!index.has(target)) {
+          index.set(target, counter)
+          low.set(target, counter)
+          counter++
+          stack.push(target)
+          onStack.add(target)
+          work.push({ key: target, next: 0 })
+        } else if (onStack.has(target)) {
+          low.set(frame.key, Math.min(low.get(frame.key) ?? 0, index.get(target) ?? 0))
+        }
+        continue
+      }
+      work.pop()
+      const parent = work[work.length - 1]
+      if (parent) {
+        low.set(parent.key, Math.min(low.get(parent.key) ?? 0, low.get(frame.key) ?? 0))
+      }
+      if (low.get(frame.key) === index.get(frame.key)) {
+        const component: string[] = []
+        let member: string | undefined
+        do {
+          member = stack.pop()
+          if (member === undefined) break
+          onStack.delete(member)
+          component.push(member)
+        } while (member !== frame.key)
+        components.push(component.reverse())
+      }
+    }
+  }
+  return components
 }

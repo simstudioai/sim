@@ -1194,7 +1194,7 @@ describe('apply edges: identity, row lock, live triggers', () => {
       })
       const source = await getSource(seeded.workflowId)
 
-      const result = await apply(source, deleteScore(source))
+      const result = await apply(source, deleteScore(source), { allowDelete: true })
 
       expect(result.applied).toBe(true)
       expect(result.diff.blocks.removed.map((block) => block.id)).toEqual([seeded.scoreId])
@@ -1215,7 +1215,7 @@ describe('apply edges: identity, row lock, live triggers', () => {
     })
     const source = await getSource(seeded.workflowId)
 
-    const result = await apply(source, deleteScore(source))
+    const result = await apply(source, deleteScore(source), { allowDelete: true })
 
     expect(result.applied).toBe(true)
     expect(result.diagnostics.map((d) => d.code)).not.toContain('W_APPLY_TRIGGER_REMOVED')
@@ -1524,20 +1524,54 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'a workflow name edited in source is not applied and the note points at settings',
+    'a workflow name edited in source refuses the apply, located at the header, pointing at settings',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
       const name = await storedName(seeded.workflowId)
       const before = await snapshot(seeded.workflowId)
 
-      const result = await apply(source, edit(source.files, `'${name}'`, "'Renamed in source'"))
-
-      expect(result.applied).toBe(false)
-      expect(result.diff.noop).toBe(true)
-      expect(result.notes).toContainEqual(expect.stringContaining('through its settings'))
+      const error = await expectRejected(
+        apply(source, edit(source.files, `'${name}'`, "'Renamed in source'")),
+        'E_APPLY_META_CHANGED'
+      )
+      const refusal = error.diagnostics.find((d) => d.code === 'E_APPLY_META_CHANGED')
+      expect(refusal?.hint).toContain('through its settings')
+      expect(refusal?.file).toBe('workflow.ts')
       expect(await storedName(seeded.workflowId)).toBe(name)
       expect(await snapshot(seeded.workflowId)).toEqual(before)
+    }
+  )
+
+  check(
+    'removing blocks refuses the apply without allowDelete, naming them, and applies with it',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
+      const workflowId = await seedGraph([start, score])
+      const source = await getInlineSource(workflowId)
+      const before = await snapshot(workflowId)
+      const entry = source.files['workflow.ts']
+      const emptied = {
+        ...source.files,
+        'workflow.ts': entry.replace(/\(\) => \{[\s\S]*\}\)\s*$/, '() => {})\n'),
+      }
+
+      const error = await expectRejected(apply(source, emptied), 'E_APPLY_BLOCK_DELETE')
+      expect(error.diagnostics.find((d) => d.code === 'E_APPLY_BLOCK_DELETE')?.message).toBe(
+        'This apply deletes 2 blocks the source no longer declares: Start, Score.'
+      )
+      expect(await snapshot(workflowId)).toEqual(before)
+
+      const dryRun = await apply(source, emptied, { dryRun: true })
+      expect(dryRun.diagnostics.map((d) => d.code)).toContain('E_APPLY_BLOCK_DELETE')
+
+      const result = await apply(source, emptied, { allowDelete: true })
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed.map((block) => block.key).sort()).toEqual([
+        'score',
+        'start',
+      ])
     }
   )
 

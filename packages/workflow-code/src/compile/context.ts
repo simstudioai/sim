@@ -8,6 +8,7 @@ import type {
 import { encodeAnchor } from '../anchors'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
 import type { CodeFileRef } from '../code-files'
+import type { RefSegment } from '../code-files/ref-path'
 import type { SourceSpan } from '../diagnostics/frame'
 import type { JsonTree } from '../json-fields'
 import type {
@@ -149,10 +150,23 @@ export interface CompileContext {
    */
   jsonFields: JsonFieldEntry[]
   /**
+   * References into blocks whose outputs come from a `responseFormat` param, checked once every
+   * block is compiled, since the format is JSON field text written last (`checkResponseFormatRefs`).
+   */
+  responseFormatRefs: ResponseFormatRef[]
+  /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
    */
   refusedBranches: Map<BlockKey, Set<string>>
+}
+
+/** A reference path into a block whose outputs its `responseFormat` declares. */
+interface ResponseFormatRef {
+  at: Range
+  target: BlockDecl
+  segments: RefSegment[]
+  blockKey: BlockKey
 }
 
 /** A JSON code field written as a literal, and where each bare reference in it was written. */

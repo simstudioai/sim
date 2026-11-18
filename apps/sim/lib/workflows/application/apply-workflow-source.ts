@@ -146,6 +146,8 @@ export interface ApplyWorkflowSourceInput extends SourceSubmission {
    * matches the draft; a lock read in another workspace is treated as stale.
    */
   base: SourceBase
+  /** Allow removing blocks the source no longer declares (`--allow-delete`); refused otherwise. */
+  allowDelete?: boolean
 }
 
 export interface CreateWorkflowFromSourceInput extends SourceSubmission {
@@ -199,7 +201,12 @@ interface ApplyWorkflowSourceResult {
  * apply creates, with an empty graph standing in for the stored one.
  */
 type SourceApplyTarget =
-  | { kind: 'existing'; context: ActiveWorkflowApplicationContext; base: SourceBase }
+  | {
+      kind: 'existing'
+      context: ActiveWorkflowApplicationContext
+      base: SourceBase
+      allowDelete: boolean
+    }
   | {
       kind: 'new'
       workspace: ActiveWorkspaceApplicationContext
@@ -228,6 +235,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         kind: 'existing',
         context,
         base: input.base,
+        allowDelete: input.allowDelete === true,
       })
     } catch (error) {
       if (!input.dryRun) recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
@@ -518,7 +526,9 @@ async function runSourceApply(
         files: input.files,
         lock: input.lock,
         ...(input.pendingResources ? { pendingResources: input.pendingResources } : {}),
-        ...(target.kind === 'existing' ? { base: target.base } : {}),
+        ...(target.kind === 'existing'
+          ? { base: target.base, allowDelete: target.allowDelete }
+          : {}),
         ...(target.kind === 'new' ? { create: target.create } : {}),
       })
       if ('refused' in evaluation) return refuse(evaluation.refused)

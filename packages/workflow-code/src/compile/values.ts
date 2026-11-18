@@ -27,9 +27,16 @@ import {
   type RefSegment,
 } from '../code-files/ref-path'
 import { REF_ROOT } from '../code-files/to-file'
-import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
+import {
+  JsonRef,
+  type JsonTree,
+  jsonFieldText,
+  responseFormatFields,
+  valueTree,
+} from '../json-fields'
 import type {
   BlockKey,
+  CanonicalBlock,
   CanonicalParam,
   Json,
   ResourceKind,
@@ -664,6 +671,10 @@ function checkOutputPath(
     return
   }
   const block = catalogBlockOf(target)
+  if (block?.dynamicOutputs?.source === 'responseFormat') {
+    ctx.responseFormatRefs.push({ at, target, segments, blockKey })
+    return
+  }
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
@@ -674,6 +685,46 @@ function checkOutputPath(
       `${block.name} has no output ${formatStoredPath(segments)}.`,
       at,
       { blockKey }
+    )
+  }
+}
+
+/**
+ * Checks each reference into a block whose outputs a `responseFormat` param declares, once every
+ * block is compiled: the first path segment must be a field the format declares or one of the
+ * block's static outputs (`W_UNKNOWN_OUTPUT_PATH` otherwise). A format the compiler cannot read
+ * (not JSON, or holding references) leaves every path allowed; an absent one leaves the static
+ * outputs.
+ */
+export function checkResponseFormatRefs(
+  ctx: CompileContext,
+  blockOf: (key: BlockKey) => CanonicalBlock | undefined
+): void {
+  for (const { at, target, segments, blockKey } of ctx.responseFormatRefs) {
+    const block = catalogBlockOf(target)
+    const compiled = blockOf(target.key)
+    const dynamic = block?.dynamicOutputs
+    if (!block || !compiled || !dynamic) continue
+    const param = getOwn(compiled.params, dynamic.param)
+    const fields = responseFormatFields(param?.kind === 'value' ? param.value : undefined)
+    const [first] = segments
+    if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
+    const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
+    const schemas = outputSchemasFor(ctx.catalog, block, builder)
+    if (schemas.some((outputs) => outputKnown(outputs, segments))) continue
+    const known = [...fields, ...schemas.flatMap((outputs) => Object.keys(outputs))]
+    ctx.reporter.report(
+      'W_UNKNOWN_OUTPUT_PATH',
+      fields.length > 0
+        ? `${target.name} has no output ${formatStoredPath(segments)}: its responseFormat declares ${fields.join(', ')}.`
+        : `${target.name} has no output ${formatStoredPath(segments)}, and declares no responseFormat field of that name.`,
+      at,
+      {
+        hint: () =>
+          didYouMean(first.name, known) ??
+          `Add ${first.name} to the responseFormat schema's properties, or reference a field it declares.`,
+        blockKey,
+      }
     )
   }
 }

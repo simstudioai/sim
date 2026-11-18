@@ -57,6 +57,7 @@ export const POST = defineV2JsonRoute({
     base: body.base,
     ...(body.provenance ? { provenance: body.provenance } : {}),
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
+    ...(query.allowDelete !== undefined ? { allowDelete: query.allowDelete } : {}),
   }),
   useCase: applyWorkflowSource,
   present: presentSourceApply,

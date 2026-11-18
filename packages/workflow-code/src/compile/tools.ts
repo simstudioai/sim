@@ -23,7 +23,7 @@ import {
 import { deepEqual, getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE } from '../sdk'
 import { type CompileContext, lookup, rangeOf, unsupported } from './context'
-import { didYouMean, hintForNode, nodeLabel } from './hints'
+import { didYouMean, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import {
   calleePath,
   compileJsonLiteral,
@@ -157,7 +157,7 @@ function compileToolCall(
       {
         ...(path && {
           hint:
-            didYouMean(
+            suggestBuilder(
               [path.root, ...path.rest].filter((segment) => segment !== 'tool').join('.'),
               catalogBuilderPaths(ctx.catalog)
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',
@@ -505,7 +505,8 @@ function compileMcpTool(
   ctx: CompileContext,
   call: CallExpression,
   server: ResourceNode,
-  site: ValueSite
+  site: ValueSite,
+  pending: PendingStoredParam[]
 ): CanonicalTool | null {
   const [nameNode, optionsNode, ...extra] = call.arguments
   const name = nameNode ? literalText(nameNode) : null
@@ -551,6 +552,12 @@ function compileMcpTool(
             'Name the server with mcp(key) and the tool with tool(name).',
             site.decl.key
           )
+        }
+        if (isStoredCall(site, argProperty.value)) {
+          // Holds the argument's place; `resolveStoredParams` fills in the stored value.
+          setOwn(form.args, arg, null)
+          pending.push({ param: arg, key: arg, node: argProperty.value })
+          continue
         }
         const value = compileNested(ctx, argProperty.value, site)
         if (value === undefined) return null
@@ -637,7 +644,7 @@ function compileResourceTool(
   ctx: CompileContext,
   call: CallExpression,
   site: ValueSite
-): CanonicalTool | null | undefined {
+): CompiledToolCall | null | undefined {
   const { callee } = call
   if (
     callee.type !== 'MemberExpression' ||
@@ -655,9 +662,12 @@ function compileResourceTool(
   const resource = compileValue(ctx, callee.object, site)
   if (resource?.kind !== 'value' || !isToolRef(resource.value)) return null
   if (resource.value.$sim !== 'resource') return null
-  return binding.name === 'mcp'
-    ? compileMcpTool(ctx, call, resource.value, site)
-    : compileWorkflowTool(ctx, call, resource.value, site)
+  const pending: PendingStoredParam[] = []
+  const tool =
+    binding.name === 'mcp'
+      ? compileMcpTool(ctx, call, resource.value, site, pending)
+      : compileWorkflowTool(ctx, call, resource.value, site)
+  return tool ? { tool, pending } : null
 }
 
 /** A non-computed property's key: an identifier or a string literal. */
@@ -802,8 +812,8 @@ export function compileToolList(
     const resourceTool = compileResourceTool(ctx, element, site)
     if (resourceTool !== undefined) {
       if (!resourceTool) return null
-      tools.push(resourceTool)
-      calls.push(null)
+      tools.push(resourceTool.tool)
+      calls.push(resourceTool.pending.length > 0 ? resourceTool : null)
       continue
     }
     const rootName = calleePath(element.callee)?.root

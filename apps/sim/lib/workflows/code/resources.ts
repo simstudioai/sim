@@ -9,6 +9,7 @@ import { getWorkspaceEnvironmentVariableNames } from '@/lib/environment/utils'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
+  listLiveKeys,
   type ResourceIdRef,
   type ResourceKeyMap,
   type ResourceKeyRef,
@@ -184,6 +185,34 @@ export async function loadResourceKeyResolver(
     nameOf: (kind, id) => (kind === 'skill' ? (skillNames.get(id) ?? null) : null),
     isBuiltin: (kind, id) => kind === 'skill' && isBuiltinSkillId(id),
   }
+}
+
+/** How many keys of one kind an unknown-key finding lists. */
+const AVAILABLE_KEYS_LIMIT = 200
+
+/**
+ * The keys a source could name for each of `kinds` in the workspace, for an unknown-key finding's
+ * did-you-mean and list. A credential the caller cannot see is left out, as everywhere else.
+ */
+export async function loadAvailableResourceKeys(
+  workspaceId: string,
+  kinds: readonly ResourceKind[],
+  actorUserId: string | null
+): Promise<Map<ResourceKind, string[]>> {
+  const userId = actorUserId ?? undefined
+  const entries = await Promise.all(
+    [...new Set(kinds)].map(async (kind) => {
+      const rows = await listLiveKeys(workspaceId, kind, { limit: AVAILABLE_KEYS_LIMIT })
+      if (kind !== 'credential') return [kind, rows.map((row) => row.key)] as const
+      const hidden = await hiddenCredentialIds(
+        workspaceId,
+        userId,
+        rows.map((row) => row.resourceId)
+      )
+      return [kind, rows.flatMap((row) => (hidden.has(row.resourceId) ? [] : [row.key]))] as const
+    })
+  )
+  return new Map(entries)
 }
 
 /** `idsByKey` without the credential keys bound to a credential `userId` cannot see. */

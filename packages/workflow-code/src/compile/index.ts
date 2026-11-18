@@ -33,7 +33,12 @@ import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
 import { collectBody, collisionSuffix } from './scope'
-import { checkCodeFileRefs, compileJsonLiteral, objectEntries } from './values'
+import {
+  checkCodeFileRefs,
+  checkResponseFormatRefs,
+  compileJsonLiteral,
+  objectEntries,
+} from './values'
 
 /** One compile: the entry file, the code files it may read, and what the server knows. */
 export interface CompileInput {
@@ -447,6 +452,7 @@ function compileEntry(
     stored: input.stored,
     envNames: input.envNames,
     jsonFields: [],
+    responseFormatRefs: [],
     refusedBranches: new Map(),
   }
 
@@ -574,16 +580,19 @@ function compileEntry(
         `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
         ref.range,
         {
-          hint: `Write t\`\${${text.slice(ref.range.start, ref.range.end)}}\` when the value is text.`,
+          hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
           blockKey: ref.blockKey,
         }
       )
     }
   }
 
+  checkResponseFormatRefs(ctx, (key) => compiled.get(key))
+
   const edges = new EdgeCollector(ctx, compiled)
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
+  edges.reportCycles(input.stored)
   for (const edge of edges.edges) {
     const source = compiled.get(edge.from)
     if (edge.port.kind === 'error' && source) source.errorPort = true

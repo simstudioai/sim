@@ -105,6 +105,11 @@ export interface ResourceKeyResolver {
    * `W_CANON_UNRESOLVED_ID`: the id is valid, not a miss.
    */
   isBuiltin?(kind: ResourceKind, id: string): boolean
+  /**
+   * The keys a source could name for `kind`, when the caller loaded them: an unknown key's
+   * finding lists them with a did-you-mean. `undefined` when not loaded.
+   */
+  keysOf?(kind: ResourceKind): readonly string[] | undefined
 }
 
 /**

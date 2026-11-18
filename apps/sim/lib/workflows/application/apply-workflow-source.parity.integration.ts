@@ -349,6 +349,8 @@ it.each(CASES)('$name', async (testCase) => {
           files,
           lock,
           base: source.base,
+          // The engine operation deletes explicitly, as --allow-delete does for source.
+          allowDelete: true,
         },
       })
     ).then(

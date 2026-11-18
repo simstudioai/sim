@@ -137,8 +137,11 @@ type StoredWorkflowState = null
 
 /** What a write applies, decided at plan time. */
 interface WorkflowPlan {
-  /** An update's validated lock and base; a create has none. */
-  update?: { lock: WorkflowLockV1; base: SourceBase }
+  /**
+   * An update's validated lock and base, and the apply's `--allow-delete`, which also lets the
+   * workflow's apply delete its blocks; a create has none.
+   */
+  update?: { lock: WorkflowLockV1; base: SourceBase; allowDelete: boolean }
   /**
    * The plan's evaluation, which the write commits without evaluating again; absent when it
    * resolved a resource this apply creates first, whose stand-in id the write must replace.
@@ -357,6 +360,7 @@ async function planUpdate(
       files: decl.files,
       lock: read.lock,
       base: update.base,
+      allowDelete: ctx.allowDelete,
       planOnly: true,
       pendingResources: pending,
       shared: ctx.shared,
@@ -373,7 +377,10 @@ async function planUpdate(
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
     refs: sourceRefs(result.references),
-    detail: { update: { lock: read.lock, base: update.base }, ...(evaluated ? { evaluated } : {}) },
+    detail: {
+      update: { lock: read.lock, base: update.base, allowDelete: ctx.allowDelete },
+      ...(evaluated ? { evaluated } : {}),
+    },
   }
 }
 

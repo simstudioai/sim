@@ -9,6 +9,7 @@ import {
   compileWorkflow,
   type Diagnostic,
   diffCanonical,
+  encodeAnchor,
   type LockIdentity,
   type MaterializeResult,
   materialize,
@@ -43,9 +44,10 @@ import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { findLiveTriggerRemovals } from '@/lib/workflows/code/apply/live-triggers'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
+import { findInvalidSchedules } from '@/lib/workflows/code/apply/schedules'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import type { StoredSource } from '@/lib/workflows/code/print-stored'
-import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import { loadAvailableResourceKeys, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import type { StoredCanonical } from '@/lib/workflows/code/stored-canonical'
 import type {
@@ -84,6 +86,12 @@ export interface SourceEvaluationInput {
   base?: SourceBase
   /** Set when the apply creates the workflow: the caller's name and description overrides. */
   create?: { name?: string; description?: string | null }
+  /**
+   * Whether the apply may remove blocks the source no longer declares (`--allow-delete`). Without
+   * it, removing any block refuses the apply with `E_APPLY_BLOCK_DELETE`, as a workspace apply
+   * refuses deleting a resource.
+   */
+  allowDelete?: boolean
   /**
    * Resources a workspace source apply creates or adopts before this workflow, by key, each with
    * a stand-in id: consulted after the stored keys, so a dry run of a workflow that names a table
@@ -393,6 +401,22 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
    * are global keys): drop it from the lock so materialize mints one, and say so.
    */
   let materialized = materializeWith(lock)
+  if (materialized.diagnostics.some((d) => d.code === 'E_MAT_UNKNOWN_RESOURCE')) {
+    // Only on a miss: list the keys the source could have named, for the finding's did-you-mean.
+    const missingKinds = compiledKeys
+      .filter(({ kind, key }) => resources.toId(kind, key) === null)
+      .map(({ kind }) => kind)
+    if (missingKinds.length > 0) {
+      const available = await loadAvailableResourceKeys(
+        scope.workspaceId,
+        missingKinds,
+        input.createdBy
+      )
+      const known = resources
+      resources = { ...known, keysOf: (kind) => available.get(kind) }
+      materialized = materializeWith(lock)
+    }
+  }
   const claimedDiagnostics: Diagnostic[] = []
   const lockSuppliedIds = materialized.entries.flatMap((entry) =>
     entry.status === 'created' && entry.idSource === 'lock' ? [entry.id] : []
@@ -453,10 +477,31 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     renamesBetween(storedCanonical.identity, materialized.identity)
   )
   const notes: string[] = []
+  const sourceRefusals: Diagnostic[] = []
+  const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
   if (ignoredMeta.length > 0) {
-    notes.push(
-      `The workflow ${ignoredMeta.join(' and ')} in the source differs from the stored one and was not changed; rename or describe the workflow through its settings.`
-    )
+    const changed = ignoredMeta
+      .map((field) => `${field} ${JSON.stringify(compiledWorkflow.meta[field] ?? '')}`)
+      .join(' and ')
+    sourceRefusals.push({
+      code: 'E_APPLY_META_CHANGED',
+      severity: 'error',
+      message: `The source gives the workflow the ${changed}, but an apply never renames or redescribes a workflow, so the edit would be lost.`,
+      hint: `Write workflow(${JSON.stringify(meta.name)}, ...) as stored, and rename or describe the workflow through its settings (or the workflows API); then get the source again.`,
+      ...(headerSpan ? { span: headerSpan } : {}),
+    })
+  }
+  const removedKeys = isNew ? [] : canonicalDiff.blocks.removed
+  if (removedKeys.length > 0 && !input.allowDelete) {
+    const names = removedKeys.map((key) => storedCanonical.workflow.blocks[key]?.name ?? key)
+    const shown = names.slice(0, 10).join(', ')
+    sourceRefusals.push({
+      code: 'E_APPLY_BLOCK_DELETE',
+      severity: 'error',
+      message: `This apply deletes ${removedKeys.length} block${removedKeys.length === 1 ? '' : 's'} the source no longer declares: ${shown}${names.length > 10 ? `, and ${names.length - 10} more` : ''}.`,
+      hint: 'Pass --allow-delete (allowDelete=true) to delete them, or declare them again to keep them.',
+      ...(headerSpan ? { span: headerSpan } : {}),
+    })
   }
 
   const storedGraph: SourceGraph = { blocks: state.blocks, edges: state.edges }
@@ -484,7 +529,9 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     ),
   ])
   const refusals: Diagnostic[] = [
+    ...sourceRefusals,
     ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff, keyOf),
+    ...findInvalidSchedules({ blocks, edges }, graphDiff, keyOf),
     ...gateDiagnostics,
     ...liveTriggerRefusals,
   ]

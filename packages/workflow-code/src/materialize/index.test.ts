@@ -226,6 +226,27 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     expect(codes(result)).toEqual(['E_MAT_UNKNOWN_RESOURCE'])
   })
 
+  it('lists the keys an unknown key could have been, with a did-you-mean, when the resolver has them', () => {
+    const state = workflowState([blockState('k1', 'knowledge', 'KB', { knowledgeBaseIds: 'kb-1' })])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.kb.params.knowledgeBaseIds = {
+        kind: 'value',
+        value: [{ $sim: 'resource', kind: 'knowledge-base', key: 'product-doc' }],
+      }
+    })
+    const keysOf = (kind: string) => (kind === 'knowledge-base' ? ['product-docs', 'support'] : [])
+    const [finding] = run(target, null, {
+      prev: state,
+      resources: { ...RESOURCES, keysOf },
+    }).diagnostics
+    expect(finding?.hint).toBe('Did you mean product-docs? Keys: product-docs, support.')
+    const [none] = run(target, null, {
+      prev: state,
+      resources: { ...RESOURCES, keysOf: () => [] },
+    }).diagnostics
+    expect(none?.hint).toBe('This workspace has no knowledge-base a source can name yet.')
+  })
+
   it('recomputes stored outputs when an edit changes what they derive from', () => {
     const state = workflowState([
       blockState('g1', 'gmail', 'Mail', { operation: 'send' }, { outputs: {} }),
