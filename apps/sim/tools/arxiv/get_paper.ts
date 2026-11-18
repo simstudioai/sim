@@ -22,6 +22,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
       const paperId = params.paperId
         .trim()
         .replace(/^.*arxiv\.org\/(?:abs|pdf)\//, '')
+        .replace(/[?#].*$/, '')
         .replace(/\.pdf$/, '')
 
       const baseUrl = 'https://export.arxiv.org/api/query'

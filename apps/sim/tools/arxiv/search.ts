@@ -2,6 +2,14 @@ import type { ArxivSearchParams, ArxivSearchResponse } from '@/tools/arxiv/types
 import { extractTotalResults, parseArxivXML } from '@/tools/arxiv/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** The `search_query` sent to arXiv: the query, prefixed with its field unless searching all fields. */
+function composeSearchQuery(params: ArxivSearchParams): string {
+  if (params.searchField && params.searchField !== 'all') {
+    return `${params.searchField}:${params.searchQuery}`
+  }
+  return params.searchQuery
+}
+
 export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   id: 'arxiv_search',
   name: 'ArXiv Search',
@@ -47,12 +55,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
 
-      // Build search query
-      let searchQuery = params.searchQuery
-      if (params.searchField && params.searchField !== 'all') {
-        searchQuery = `${params.searchField}:${params.searchQuery}`
-      }
-      searchParams.append('search_query', searchQuery)
+      searchParams.append('search_query', composeSearchQuery(params))
 
       // Add optional parameters
       if (params.maxResults) {
@@ -88,7 +91,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       output: {
         papers,
         totalResults,
-        query: params?.searchQuery ?? '',
+        query: params ? composeSearchQuery(params) : '',
       },
     }
   },
