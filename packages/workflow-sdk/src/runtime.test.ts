@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
-import type { BlockRetryConfig as StoredBlockRetryConfig } from '@sim/workflow-types/workflow'
+import type {
+  BlockRetryConfig as StoredBlockRetryConfig,
+  VariableType as StoredVariableType,
+} from '@sim/workflow-types/workflow'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import type { BlockRetryConfig } from './core'
+import type { BlockRetryConfig, VariableType } from './core'
 import * as runtimeModule from './runtime'
 import { SimSdkNotExecutable } from './runtime'
 
@@ -36,5 +39,9 @@ describe('the SDK value surface', () => {
 
   it('BlockMeta.retry declares exactly the stored retry fields', () => {
     expectTypeOf<BlockRetryConfig>().toEqualTypeOf<StoredBlockRetryConfig>()
+  })
+
+  it('VariableType declares exactly the stored variable types', () => {
+    expectTypeOf<VariableType>().toEqualTypeOf<StoredVariableType>()
   })
 })

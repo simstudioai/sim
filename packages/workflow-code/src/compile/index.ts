@@ -1,6 +1,11 @@
 import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types'
 import { compareStrings } from '@sim/utils/string'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  isVariableType,
+  normalizeWorkflowBlockName,
+  VARIABLE_TYPES,
+  type VariableType,
+} from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
 import { literalText } from '../babel'
 import type { BlockCatalog } from '../catalog/types'
@@ -73,14 +78,6 @@ export interface CompileResult {
   sdkMajor: number | null
 }
 
-const VARIABLE_TYPES: ReadonlySet<string> = new Set([
-  'string',
-  'number',
-  'boolean',
-  'object',
-  'array',
-  'plain',
-])
 const WORKFLOW_OPTIONS = ['description', 'variables']
 
 /** Module scope: the SDK's named imports. */
@@ -176,22 +173,23 @@ function compileVariables(ctx: CompileContext, node: Node): void {
       )
       continue
     }
-    let type: string | null = null
+    let type: VariableType | null = null
     let typeWritten = false
     let value: CanonicalVariable['value'] | undefined
     let valueWritten = false
     for (const [field, fieldProperty] of objectEntries(ctx, declaration)) {
       if (field === 'type') {
         typeWritten = true
-        type = literalText(fieldProperty.value)
-        if (type === null || !VARIABLE_TYPES.has(type)) {
+        const text = literalText(fieldProperty.value)
+        if (text !== null && isVariableType(text)) {
+          type = text
+        } else {
           unsupported(
             ctx,
             fieldProperty.value,
             'Unknown variable type.',
-            `Types are ${[...VARIABLE_TYPES].join(', ')}.`
+            `Types are ${VARIABLE_TYPES.join(', ')}.`
           )
-          type = null
         }
       } else if (field === 'name') {
         const text = literalText(fieldProperty.value)
@@ -231,7 +229,7 @@ function compileVariables(ctx: CompileContext, node: Node): void {
     if (!valueWritten)
       unsupported(ctx, declaration, 'A variable needs a value.', "Write value: ''.")
     if (type === null || value === undefined) continue
-    ctx.variables.set(key, { key, name, type: type as CanonicalVariable['type'], value })
+    ctx.variables.set(key, { key, name, type, value })
   }
 }
 
