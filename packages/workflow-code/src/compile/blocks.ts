@@ -52,6 +52,7 @@ import {
   type BlockDecl,
   type CompileContext,
   catalogBlockOf,
+  type ResolvedBuilder,
   rangeOf,
   recordSpan,
   unsupported,
@@ -780,6 +781,26 @@ function compileField(
 }
 
 /** Compiles a block call: `builder(name, params, meta?)` or `block(type, name, params, meta?)`. */
+/** What a regular block's builder and catalog entry fix before its params compile. */
+interface BlockShape {
+  builder: Extract<ResolvedBuilder, { kind: 'catalog' | 'generic' }>
+  catalogBlock: CatalogBlock | undefined
+  index: FieldIndex | null
+  /** Param ids the builder sets itself: its operation and fixed fields. */
+  pinned: Set<string>
+  branchField: CatalogBlock['graph']['branches']
+  /** Condition branches written as top-level params (`branchesAtTopLevel`). */
+  conditionForm: boolean
+}
+
+/** Params written in the params object, with the branches and response form they select. */
+interface WrittenParams {
+  branches: CanonicalBranches | undefined
+  /** Top-level condition branch entries, compiled into rows once every param is read. */
+  branchEntries: Array<[string, ObjectProperty]>
+  responseBody: boolean
+}
+
 function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   const builder = decl.builder
   if (builder.kind !== 'catalog' && builder.kind !== 'generic') return null
@@ -791,7 +812,6 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     unsupported(ctx, node, 'Too many arguments.', 'Pass (name, params, meta?).', decl.key)
   }
 
-  const catalogBlock = builder.block
   const meta = compileMeta(ctx, metaNode, site)
   const triggerMode =
     meta.triggerMode ?? (builder.kind === 'catalog' && builder.builder.triggerMode === true)
@@ -807,21 +827,17 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     pendingFile: null,
   }
   const { params, modes } = state
-
-  const pinned = new Set<string>()
-  if (builder.kind === 'catalog') {
-    if (builder.builder.operation !== undefined) {
-      pinned.add('operation')
-      setOwn(params, 'operation', { kind: 'value', value: builder.builder.operation })
-    }
-    for (const [id, value] of Object.entries(builder.builder.fixed ?? {})) {
-      pinned.add(id)
-      setOwn(params, id, { kind: 'value', value })
-    }
-  }
-  const index = catalogBlock ? buildFieldIndex(catalogBlock, triggerMode, pinned) : null
+  const pinned = pinParams(builder, params)
+  const catalogBlock = builder.block
   const branchField = catalogBlock?.graph.branches
-  const conditionForm = branchesAtTopLevel(branchField?.kind, builder.kind === 'catalog')
+  const shape: BlockShape = {
+    builder,
+    catalogBlock,
+    index: catalogBlock ? buildFieldIndex(catalogBlock, triggerMode, pinned) : null,
+    pinned,
+    branchField,
+    conditionForm: branchesAtTopLevel(branchField?.kind, builder.kind === 'catalog'),
+  }
 
   if (paramsNode && paramsNode.type !== 'ObjectExpression') {
     unsupported(
@@ -832,214 +848,23 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       decl.key
     )
   }
-  const paramsObject = paramsNode?.type === 'ObjectExpression' ? paramsNode : undefined
-  const branchEntries: Array<[string, ObjectProperty]> = []
-  let responseBody = false
-  let branches: CanonicalBranches | undefined = branchField
-    ? { kind: branchField.kind, rows: null }
-    : undefined
-
-  if (paramsObject) {
-    const entries = objectEntries(ctx, paramsObject, (property, key) => {
-      ctx.reporter.report(
-        conditionForm ? 'E_DUPLICATE_BRANCH_KEY' : 'E_UNSUPPORTED_SYNTAX',
-        `The key ${key} is written twice.`,
-        rangeOf(ctx, property),
-        { hint: 'Write each key once.', blockKey: decl.key }
-      )
-    })
-    const addItem = ctx.comments.list(paramsObject.start ?? 0, paramsObject.end ?? 0, {
-      owner: encodeAnchor({ kind: 'block', block: decl.key }),
-      tail: 'last-item',
-    })
-    const writtenFields = new Set<CatalogField>()
-    responseBody =
-      builder.kind === 'catalog' &&
-      usesResponseForm(
-        builder.type,
-        entries.map(([key]) => key)
-      )
-    for (const [key, property] of entries) {
-      const field = index ? fieldFor(index, key) : undefined
-      const name = field?.name ?? key
-      addItem(property, encodeAnchor({ kind: 'param', block: decl.key, param: name }))
-      recordSpan(ctx, { kind: 'param', block: decl.key, param: name }, property)
-      if (branchField && key === branchField.subBlockId) {
-        if (property.value.type !== 'ObjectExpression') {
-          unsupported(
-            ctx,
-            property.value,
-            'Branches are an object literal.',
-            'Write { if: js`...`, else: true }.',
-            decl.key
-          )
-          continue
-        }
-        const rows = objectEntries(ctx, property.value, (duplicate, name) => {
-          ctx.reporter.report(
-            'E_DUPLICATE_BRANCH_KEY',
-            `The branch ${name} is written twice.`,
-            rangeOf(ctx, duplicate),
-            { hint: 'Give each branch a unique key.', blockKey: decl.key }
-          )
-        })
-        branches = {
-          kind: branchField.kind,
-          rows:
-            property.value.properties.length === 0
-              ? null
-              : compileBranchRows(ctx, rows, branchField.kind, catalogBlock, site),
-        }
-        continue
-      }
-      if (responseBody) {
-        compileResponseParam(ctx, site, params, key, property)
-        continue
-      }
-      if (conditionForm && !field && !pinned.has(key)) {
-        branchEntries.push([key, property])
-        continue
-      }
-      if (pinned.has(key)) {
-        ctx.reporter.report(
-          'E_FIXED_PARAM',
-          `The builder already sets ${key}.`,
-          rangeOf(ctx, property),
-          { hint: `Remove ${key}; the method name pins it.`, blockKey: decl.key, param: key }
-        )
-        continue
-      }
-      if (!index) {
-        const compiled = compileValue(ctx, property.value, site)
-        if (!compiled || compiled.kind === 'absent' || compiled.kind === 'todo') continue
-        if (compiled.kind === 'stored') {
-          keepStored(ctx, state, [{ id: key }], property, null)
-          continue
-        }
-        if (compiled.kind === 'codeFile') {
-          unsupported(
-            ctx,
-            property.value,
-            'codeFile() needs a catalog block type.',
-            'Write the code inline.',
-            decl.key
-          )
-          continue
-        }
-        setOwn(params, key, { kind: 'value', value: compiled.value })
-        continue
-      }
-      if (!field) {
-        const alias = index.memberAliases.get(key)
-        ctx.reporter.report(
-          'E_UNKNOWN_PARAM',
-          `${catalogBlock?.name ?? decl.key} has no param ${key}.`,
-          rangeOf(ctx, property),
-          {
-            hint: alias
-              ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
-              : didYouMean(key, index.fields.keys()),
-            blockKey: decl.key,
-            param: key,
-          }
-        )
-        continue
-      }
-      if (writtenFields.has(field)) {
-        unsupported(
-          ctx,
-          property,
-          `${key} names the param ${field.name}, which is already written.`,
-          `Write ${field.name} once.`,
-          decl.key
-        )
-        continue
-      }
-      writtenFields.add(field)
-      compileField(ctx, state, field, property)
-    }
-  }
-  if (responseBody) setOwn(params, 'dataMode', { kind: 'value', value: 'json' })
-  if (conditionForm && branchField) {
-    branches = {
-      kind: 'condition',
-      rows:
-        branchEntries.length === 0
-          ? null
-          : compileBranchRows(ctx, branchEntries, 'condition', catalogBlock, site),
-    }
-  }
-  if (branches) {
-    applyBranchMeta(ctx, branches.rows, meta.branches, site)
-  } else if (meta.branches[0]) {
-    unsupported(
-      ctx,
-      meta.branches[0][1],
-      'This block has no branches.',
-      'Remove branches from the meta.',
-      decl.key
-    )
-  }
-
-  let codeFile: string | undefined
-  if (state.pendingFile) {
-    const languageParam = params.language
-    const omittedLanguage =
-      catalogBlock && !state.unset.has('language')
-        ? editorDefaults(catalogBlock).get('language')
-        : undefined
-    const language =
-      languageParam?.kind === 'value' && typeof languageParam.value === 'string'
-        ? languageParam.value
-        : typeof omittedLanguage === 'string'
-          ? omittedLanguage
-          : 'javascript'
-    const read = readCodeFile(ctx, state.pendingFile.compiled, language, decl)
-    if (read) {
-      setOwn(params, state.pendingFile.target, { kind: 'value', value: read.code })
-      codeFile = read.path
-    }
-  }
-
-  for (const field of index?.fields.values() ?? []) {
+  const written = compileWrittenParams(
+    ctx,
+    state,
+    shape,
+    paramsNode?.type === 'ObjectExpression' ? paramsNode : undefined
+  )
+  if (written.responseBody) setOwn(params, 'dataMode', { kind: 'value', value: 'json' })
+  const branches = compileBlockBranches(ctx, state, shape, written)
+  const codeFile = resolveCodeFile(ctx, state, catalogBlock)
+  for (const field of shape.index?.fields.values() ?? []) {
     if (isModalPair(field) && !Object.hasOwn(modes, field.param))
       setOwn(modes, field.param, 'basic')
   }
-
-  const pinnedValues: Record<string, unknown> = {}
-  for (const id of pinned) setOwn(pinnedValues, id, storedValues(params).get(id))
-  compileExtraParams(
-    ctx,
-    meta.extra,
-    state,
-    (id) => {
-      if (pinned.has(id) || id === branchField?.subBlockId) return true
-      const declarations = index?.declarations.get(id)
-      return declarations !== undefined && typedForBuilder(declarations, pinnedValues)
-    },
-    (id, property) =>
-      keepStored(ctx, state, index?.declarations.get(id) ?? [{ id }], property, null)
-  )
-  if (meta.subflowData) {
-    unsupported(
-      ctx,
-      meta.subflowData.node,
-      'Only a loop or parallel has subflowData.',
-      'Remove subflowData; apply keeps the stored block data.',
-      decl.key
-    )
-  }
+  compileMetaParams(ctx, state, shape)
   const fromSource = new Set(Object.keys(params))
-  const defaulted: SubBlockId[] = []
-  if (catalogBlock) {
-    for (const [id, value] of editorDefaults(catalogBlock)) {
-      if (Object.hasOwn(params, id) || state.unset.has(id) || pinned.has(id)) continue
-      if (id === branchField?.subBlockId) continue
-      setOwn(params, id, { kind: 'value', value })
-      defaulted.push(id)
-    }
-  }
-  if (index) checkFields(ctx, index, state)
+  const defaulted = fillEditorDefaults(state, shape)
+  if (shape.index) checkFields(ctx, shape.index, state)
   if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, state)
 
   const block: CanonicalBlock = {
@@ -1062,6 +887,272 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     keepStoredUnwrittenParams(ctx, block, catalogBlock, fromSource)
   }
   return { block, ...(codeFile !== undefined && { codeFile }) }
+}
+
+/** Sets the params a catalog builder pins (its operation and fixed fields) and returns their ids. */
+function pinParams(
+  builder: BlockShape['builder'],
+  params: Record<SubBlockId, CanonicalParam>
+): Set<string> {
+  const pinned = new Set<string>()
+  if (builder.kind !== 'catalog') return pinned
+  if (builder.builder.operation !== undefined) {
+    pinned.add('operation')
+    setOwn(params, 'operation', { kind: 'value', value: builder.builder.operation })
+  }
+  for (const [id, value] of Object.entries(builder.builder.fixed ?? {})) {
+    pinned.add(id)
+    setOwn(params, id, { kind: 'value', value })
+  }
+  return pinned
+}
+
+/** Compiles each property of the params object into a param, a branch, or a response field. */
+function compileWrittenParams(
+  ctx: CompileContext,
+  state: BlockState,
+  shape: BlockShape,
+  paramsObject: ObjectExpression | undefined
+): WrittenParams {
+  const { decl, site, params } = state
+  const { builder, catalogBlock, index, pinned, branchField, conditionForm } = shape
+  const written: WrittenParams = {
+    branches: branchField ? { kind: branchField.kind, rows: null } : undefined,
+    branchEntries: [],
+    responseBody: false,
+  }
+  if (!paramsObject) return written
+  const entries = objectEntries(ctx, paramsObject, (property, key) => {
+    ctx.reporter.report(
+      conditionForm ? 'E_DUPLICATE_BRANCH_KEY' : 'E_UNSUPPORTED_SYNTAX',
+      `The key ${key} is written twice.`,
+      rangeOf(ctx, property),
+      { hint: 'Write each key once.', blockKey: decl.key }
+    )
+  })
+  const addItem = ctx.comments.list(paramsObject.start ?? 0, paramsObject.end ?? 0, {
+    owner: encodeAnchor({ kind: 'block', block: decl.key }),
+    tail: 'last-item',
+  })
+  const writtenFields = new Set<CatalogField>()
+  written.responseBody =
+    builder.kind === 'catalog' &&
+    usesResponseForm(
+      builder.type,
+      entries.map(([key]) => key)
+    )
+  for (const [key, property] of entries) {
+    const field = index ? fieldFor(index, key) : undefined
+    const name = field?.name ?? key
+    addItem(property, encodeAnchor({ kind: 'param', block: decl.key, param: name }))
+    recordSpan(ctx, { kind: 'param', block: decl.key, param: name }, property)
+    if (branchField && key === branchField.subBlockId) {
+      if (property.value.type !== 'ObjectExpression') {
+        unsupported(
+          ctx,
+          property.value,
+          'Branches are an object literal.',
+          'Write { if: js`...`, else: true }.',
+          decl.key
+        )
+        continue
+      }
+      const rows = objectEntries(ctx, property.value, (duplicate, name) => {
+        ctx.reporter.report(
+          'E_DUPLICATE_BRANCH_KEY',
+          `The branch ${name} is written twice.`,
+          rangeOf(ctx, duplicate),
+          { hint: 'Give each branch a unique key.', blockKey: decl.key }
+        )
+      })
+      written.branches = {
+        kind: branchField.kind,
+        rows:
+          property.value.properties.length === 0
+            ? null
+            : compileBranchRows(ctx, rows, branchField.kind, catalogBlock, site),
+      }
+      continue
+    }
+    if (written.responseBody) {
+      compileResponseParam(ctx, site, params, key, property)
+      continue
+    }
+    if (conditionForm && !field && !pinned.has(key)) {
+      written.branchEntries.push([key, property])
+      continue
+    }
+    if (pinned.has(key)) {
+      ctx.reporter.report(
+        'E_FIXED_PARAM',
+        `The builder already sets ${key}.`,
+        rangeOf(ctx, property),
+        { hint: `Remove ${key}; the method name pins it.`, blockKey: decl.key, param: key }
+      )
+      continue
+    }
+    if (!index) {
+      compileUncataloguedParam(ctx, state, key, property)
+      continue
+    }
+    if (!field) {
+      const alias = index.memberAliases.get(key)
+      ctx.reporter.report(
+        'E_UNKNOWN_PARAM',
+        `${catalogBlock?.name ?? decl.key} has no param ${key}.`,
+        rangeOf(ctx, property),
+        {
+          hint: alias
+            ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
+            : didYouMean(key, index.fields.keys()),
+          blockKey: decl.key,
+          param: key,
+        }
+      )
+      continue
+    }
+    if (writtenFields.has(field)) {
+      unsupported(
+        ctx,
+        property,
+        `${key} names the param ${field.name}, which is already written.`,
+        `Write ${field.name} once.`,
+        decl.key
+      )
+      continue
+    }
+    writtenFields.add(field)
+    compileField(ctx, state, field, property)
+  }
+  return written
+}
+
+/** A param of a block type the catalog does not hold: written by its id, unchecked. */
+function compileUncataloguedParam(
+  ctx: CompileContext,
+  state: BlockState,
+  key: string,
+  property: ObjectProperty
+): void {
+  const compiled = compileValue(ctx, property.value, state.site)
+  if (!compiled || compiled.kind === 'absent' || compiled.kind === 'todo') return
+  if (compiled.kind === 'stored') {
+    keepStored(ctx, state, [{ id: key }], property, null)
+    return
+  }
+  if (compiled.kind === 'codeFile') {
+    unsupported(
+      ctx,
+      property.value,
+      'codeFile() needs a catalog block type.',
+      'Write the code inline.',
+      state.decl.key
+    )
+    return
+  }
+  setOwn(state.params, key, { kind: 'value', value: compiled.value })
+}
+
+/** The block's branches: top-level condition entries become rows, then meta branch fields apply. */
+function compileBlockBranches(
+  ctx: CompileContext,
+  state: BlockState,
+  shape: BlockShape,
+  written: WrittenParams
+): CanonicalBranches | undefined {
+  let branches = written.branches
+  if (shape.conditionForm && shape.branchField) {
+    branches = {
+      kind: 'condition',
+      rows:
+        written.branchEntries.length === 0
+          ? null
+          : compileBranchRows(
+              ctx,
+              written.branchEntries,
+              'condition',
+              shape.catalogBlock,
+              state.site
+            ),
+    }
+  }
+  if (branches) {
+    applyBranchMeta(ctx, branches.rows, state.meta.branches, state.site)
+  } else if (state.meta.branches[0]) {
+    unsupported(
+      ctx,
+      state.meta.branches[0][1],
+      'This block has no branches.',
+      'Remove branches from the meta.',
+      state.decl.key
+    )
+  }
+  return branches
+}
+
+/** Reads a pending `codeFile()` in the block's language into its param; returns the file's path. */
+function resolveCodeFile(
+  ctx: CompileContext,
+  state: BlockState,
+  catalogBlock: CatalogBlock | undefined
+): string | undefined {
+  if (!state.pendingFile) return undefined
+  const languageParam = state.params.language
+  const omittedLanguage =
+    catalogBlock && !state.unset.has('language')
+      ? editorDefaults(catalogBlock).get('language')
+      : undefined
+  const language =
+    languageParam?.kind === 'value' && typeof languageParam.value === 'string'
+      ? languageParam.value
+      : typeof omittedLanguage === 'string'
+        ? omittedLanguage
+        : 'javascript'
+  const read = readCodeFile(ctx, state.pendingFile.compiled, language, state.decl)
+  if (!read) return undefined
+  setOwn(state.params, state.pendingFile.target, { kind: 'value', value: read.code })
+  return read.path
+}
+
+/** The stored params `meta.extra` carries; a regular block has no `subflowData`. */
+function compileMetaParams(ctx: CompileContext, state: BlockState, shape: BlockShape): void {
+  const { pinned, index, branchField } = shape
+  const pinnedValues: Record<string, unknown> = {}
+  for (const id of pinned) setOwn(pinnedValues, id, storedValues(state.params).get(id))
+  compileExtraParams(
+    ctx,
+    state.meta.extra,
+    state,
+    (id) => {
+      if (pinned.has(id) || id === branchField?.subBlockId) return true
+      const declarations = index?.declarations.get(id)
+      return declarations !== undefined && typedForBuilder(declarations, pinnedValues)
+    },
+    (id, property) =>
+      keepStored(ctx, state, index?.declarations.get(id) ?? [{ id }], property, null)
+  )
+  if (state.meta.subflowData) {
+    unsupported(
+      ctx,
+      state.meta.subflowData.node,
+      'Only a loop or parallel has subflowData.',
+      'Remove subflowData; apply keeps the stored block data.',
+      state.decl.key
+    )
+  }
+}
+
+/** Fills each param source leaves out with its editor default, as canvas creation does. */
+function fillEditorDefaults(state: BlockState, shape: BlockShape): SubBlockId[] {
+  const defaulted: SubBlockId[] = []
+  if (!shape.catalogBlock) return defaulted
+  for (const [id, value] of editorDefaults(shape.catalogBlock)) {
+    if (Object.hasOwn(state.params, id) || state.unset.has(id) || shape.pinned.has(id)) continue
+    if (id === shape.branchField?.subBlockId) continue
+    setOwn(state.params, id, { kind: 'value', value })
+    defaulted.push(id)
+  }
+  return defaulted
 }
 
 /**
