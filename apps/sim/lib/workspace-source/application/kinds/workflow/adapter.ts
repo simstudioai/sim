@@ -222,13 +222,14 @@ function sourceRefs(
   return [...refs.values()]
 }
 
-/** The normalized block names the evaluated graph holds, as a change's `blockNames`. */
-function blockNamesOf(evaluated: EvaluatedSource | undefined): Pick<WorkflowChange, 'blockNames'> {
+/** The evaluated graph's blocks, id to normalized name, as a change's `blocks`. */
+function blocksOf(evaluated: EvaluatedSource | undefined): Pick<WorkflowChange, 'blocks'> {
   if (!evaluated) return {}
-  const names = Object.values(evaluated.plan.blocks).map((block) =>
-    normalizeWorkflowBlockName(block.name)
-  )
-  return { blockNames: new Set(names) }
+  const blocks = Object.values(evaluated.plan.blocks).map((block): [string, string] => [
+    block.id,
+    normalizeWorkflowBlockName(block.name),
+  ])
+  return { blocks: new Map(blocks) }
 }
 
 /** A workflow pipeline finding, pinned to its file in the workspace directory. */
@@ -446,7 +447,7 @@ async function planUpdate(
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
     refs: sourceRefs(result.references, result.envReferences, result.evaluated),
-    ...blockNamesOf(result.evaluated),
+    ...blocksOf(result.evaluated),
     detail: {
       update: { lock: read.lock, base: update.base, allowDelete: ctx.allowDelete },
       created: pending.filter((entry) => entry.kind === 'workflow'),
@@ -490,7 +491,7 @@ async function planCreate(
       pending: created,
       fields: diffFields(result.diff),
       refs: sourceRefs(result.references, result.envReferences, result.evaluated),
-      ...blockNamesOf(result.evaluated),
+      ...blocksOf(result.evaluated),
       detail: {
         workflowId: created.id,
         created: pending.filter((entry) => entry.kind === 'workflow'),

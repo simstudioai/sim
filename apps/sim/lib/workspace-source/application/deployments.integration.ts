@@ -4,6 +4,7 @@ import {
   chat,
   user,
   workflow,
+  workflowBlocks,
   workflowDeploymentVersion,
   workflowSchedule,
   workspaceEnvironment,
@@ -16,6 +17,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
+import { toArray, toRecord } from '@sim/utils/object'
 import type { WorkspaceBaseV1 } from '@sim/workspace-code'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
@@ -68,6 +70,15 @@ export default workflow('Nightly', {}, () => {
   nightly.to(answer)
 })
 `
+
+/** The nightly workflow with its Answer agent replaced by a function block of the same name. */
+const RETYPED = NIGHTLY.replace(
+  "import { agent, t, trigger, workflow } from '@sim/workflow-sdk'",
+  "import { fn, trigger, workflow } from '@sim/workflow-sdk'"
+).replace(
+  /const answer = agent\('Answer', \{[\s\S]*?\n {2}\}\)\n/,
+  "const answer = fn('Answer', { code: 'return 1' })\n"
+)
 
 function deployment(body: string, imports = 'defineDeployment'): string {
   return `// @sim-sdk 1\nimport { ${imports} } from '@sim/workflow-sdk/workspace'\n\nexport default defineDeployment(${body})\n`
@@ -136,6 +147,16 @@ async function deployState(id: string) {
     .from(chat)
     .where(and(eq(chat.workflowId, id), isNull(chat.archivedAt)))
   return { ...row, versions: versions.length, schedules: schedules.length, chat: chats[0] }
+}
+
+/** The id of the draft's block named Answer. */
+async function answerBlockId(id: string): Promise<string> {
+  const [row] = await db
+    .select({ id: workflowBlocks.id })
+    .from(workflowBlocks)
+    .where(and(eq(workflowBlocks.workflowId, id), eq(workflowBlocks.name, 'Answer')))
+  if (!row) throw new Error('No Answer block')
+  return row.id
 }
 
 /** A workspace with the nightly workflow created and deployed from source; its files and base. */
@@ -379,6 +400,39 @@ describe('workspace source: deployments', () => {
         title: 'Answers',
         outputConfigs: before.chat?.outputConfigs,
       })
+    }
+  )
+
+  check(
+    'rewrites a kept chat whose output block the edit re-creates under a new id, before it goes live',
+    async () => {
+      const answering = withChat(
+        "{ identifier: 'recreated-chat', title: 'Answers', auth: 'public', outputs: [{ block: 'Answer', path: 'content' }] }"
+      )
+      const deployed = await deployedWorkspace(answering)
+      const { workspaceId, id, base } = deployed
+      const files: Files = deployed.files
+      const before = await deployState(id)
+      const [oldOutput] = toArray(before.chat?.outputConfigs)
+      expect(await answerBlockId(id)).toEqual(toRecord(oldOutput).blockId)
+
+      // An agent retyped as a function under the same name is deleted and re-created: a new id.
+      expect(RETYPED).toContain("fn('Answer'")
+      const recreated = { ...files, [WORKFLOW]: RETYPED }
+
+      const dryRun = await apply(workspaceId, recreated, { base, allowDelete: true, dryRun: true })
+      expect(deploymentCodes(dryRun.diagnostics, 'error')).toEqual([])
+      expect(dryRun.plan.find((change) => change.kind === 'deployment')?.fields).toContain(
+        'chat outputs'
+      )
+
+      const result = await apply(workspaceId, recreated, { base, allowDelete: true })
+      expect(result.failed).toBeUndefined()
+      const newId = await answerBlockId(id)
+      expect(newId).not.toEqual(toRecord(oldOutput).blockId)
+      const after = await deployState(id)
+      expect(after.versions).toBe(2)
+      expect(after.chat?.outputConfigs).toEqual([{ blockId: newId, path: 'content' }])
     }
   )
 
