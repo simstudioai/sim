@@ -466,6 +466,23 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
+  // Before the inputs, so they are judged against the type the block will have.
+  if (params?.type !== undefined) {
+    const refusal = checkBlockPlacement(
+      {
+        blockId: block_id,
+        blockType: params.type,
+        previousType: block.type,
+        operationType: 'edit',
+        outcome: 'type change skipped',
+        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
+      },
+      { permissionConfig }
+    )
+    if (refusal) logSkippedItem(skippedItems, refusal)
+    else block.type = params.type
+  }
+
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -617,21 +634,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  if (params?.type !== undefined) {
-    const refusal = checkBlockPlacement(
-      {
-        blockId: block_id,
-        blockType: params.type,
-        previousType: block.type,
-        operationType: 'edit',
-        outcome: 'type change skipped',
-        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
-      },
-      { permissionConfig }
-    )
-    if (refusal) logSkippedItem(skippedItems, refusal)
-    else block.type = params.type
-  }
   if (params?.name !== undefined) {
     const normalizedName = normalizeName(params.name)
     if (!normalizedName) {

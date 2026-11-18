@@ -1883,6 +1883,7 @@ describe('engine type placement', () => {
   const agentId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
   const loopId = '12121212-1212-4121-8121-121212121212'
   const insertedId = '13131313-1313-4131-8131-131313131313'
+  const slackId = '14141414-1414-4141-8141-141414141414'
 
   function stored(id: string, type: string, name: string, subBlocks: Record<string, unknown> = {}) {
     return {
@@ -1951,6 +1952,39 @@ describe('engine type placement', () => {
         type: 'duplicate_trigger',
         operationType: 'edit',
         blockId: agentId,
+      }),
+    ])
+  })
+
+  it('judges the inputs of an edit that changes type against the new type', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [slackId]: stored(slackId, 'slack_v2', 'Slack', {
+            operation: { id: 'operation', type: 'dropdown', value: 'send' },
+          }),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        {
+          operation_type: 'edit',
+          block_id: slackId,
+          params: { type: 'slack', inputs: { operation: 'canvas' } },
+        },
+      ],
+      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
+    )
+
+    expect(state.blocks[slackId].type).toBe('slack')
+    expect(state.blocks[slackId].subBlocks.operation.value).toBe('send')
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'tool_not_allowed',
+        operationType: 'edit',
+        details: { blockType: 'slack', operation: 'canvas' },
       }),
     ])
   })
