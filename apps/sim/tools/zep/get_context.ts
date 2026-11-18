@@ -51,6 +51,7 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
         {
           allowSeparators: true,
           preserveWhitespace: true,
+          stripTabsAndNewlines: true,
         }
       )}/context?${queryParams.toString()}`
     },
