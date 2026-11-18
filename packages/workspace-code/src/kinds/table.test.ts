@@ -24,7 +24,7 @@ const column: fc.Arbitrary<TableColumnDecl> = fc.oneof(
       type: fc.constant('select' as const),
       options: fc.uniqueArray(
         text.filter((value) => value.length > 0),
-        { minLength: 1, maxLength: 4 }
+        { minLength: 1, maxLength: 4, selector: (value) => value.toLowerCase() }
       ),
       multiple: fc.boolean(),
       required: fc.boolean(),
