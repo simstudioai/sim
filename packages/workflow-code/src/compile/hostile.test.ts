@@ -362,12 +362,13 @@ describe('one set of limits for get and compile', () => {
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
   })
 
+  // Two linear walks of 300k nodes: ~0.5s locally, 1.8-2.4s on CI, 5.1s on one loaded runner.
   it('walks a node with more children than one call can take as arguments', () => {
     const wide = `[${'0,'.repeat(300_000)}0]`
     const entry = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n  const a = api('A', { url: 'x', body: raw(${wide}) })\n})\n`
     expect(() => run(entry, undefined, { 'workflows/f.js': 'return 1\n' })).not.toThrow()
     expect(codeFileReferences(entry)).toEqual(['./f.js'])
-  })
+  }, 15_000)
 
   it('passes a source nested within the cap', () => {
     const files = { 'workflows/hostile.ts': entryWith(nested(20)) }
