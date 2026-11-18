@@ -419,6 +419,37 @@ describe('table rows as workspace source', () => {
     ])
   })
 
+  check('refuses a row write whose version moved after the check, under the lock', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await managedPlans(workspaceId)
+    const check = tableAdapter.fingerprintNow
+    if (!check) throw new Error('The table adapter checks fingerprints before writing')
+    // The pre-write check passes, then a teammate's row edit commits before the reshape locks.
+    const moved = vi
+      .spyOn(tableAdapter, 'fingerprintNow')
+      .mockImplementation(async (change, ctx) => {
+        const fingerprint = await check.call(tableAdapter, change, ctx)
+        await editStoredSeats(workspaceId, 'team', 7)
+        return fingerprint
+      })
+    try {
+      const edited = {
+        ...read.files,
+        'tables/plans.rows.jsonl': ROWS.replace('"seats":1', '"seats":4'),
+      }
+      const result = await apply(workspaceId, edited, { base: read.base, allowDelete: true })
+      expect(moved).toHaveBeenCalledOnce()
+      expect([result.failed?.key, result.failed?.code]).toEqual(['plans', 'E_APPLY_STALE'])
+      expect(result.applied).toEqual([])
+    } finally {
+      moved.mockRestore()
+    }
+    expect(await storedRows(workspaceId)).toEqual([
+      { code: 'solo', seats: 1, tier: 'basic' },
+      { code: 'team', seats: 7, tier: 'pro' },
+    ])
+  })
+
   check('seeds a new table once, and only a new or empty one', async () => {
     const workspaceId = await newWorkspace()
     const files = { 'tables/plans.ts': SEED, 'tables/plans.rows.jsonl': ROWS }

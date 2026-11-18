@@ -528,7 +528,8 @@ async function rowsToPrint(
 
 /**
  * The reshape that carries out a planned update: fields, then drops, column updates, then adds,
- * then the rows and their managed mark.
+ * then the rows and their managed mark. Rows planned at a version are written only while the
+ * table still holds that version, checked under the reshape's lock.
  */
 function reshapeInput(
   ctx: SourceContext,
@@ -540,6 +541,7 @@ function reshapeInput(
   const rowsInput = {
     ...(rows?.write ? { rows: rows.write } : {}),
     ...(rows?.mark !== undefined ? { sourceRows: rows.mark } : {}),
+    ...(rows?.version !== undefined ? { expectedRowsVersion: rows.version } : {}),
   }
   if (!plan?.changes) return { tableId, workspaceId, ...rowsInput }
   const { table, columns } = plan.changes
