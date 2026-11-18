@@ -257,16 +257,18 @@ drops labels equal to their id, and drops a block's other option labels (except 
 dropdown's), which nothing reads; an absent label reads as its id. Titles, output descriptions,
 defaults and option ids stay because codegen and the printer read them. `expandBlockCatalog` and
 the accessors in `catalog/view.ts` (`catalogBlock`, `catalogBlockTypes`, `catalogTrigger`,
-`catalogBuilder`, `catalogBuilderPaths`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
+`catalogBuilder`, `catalogBuilderPaths`, `catalogBuildersOfType`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
 `catalog.triggers` or `catalog.builders` directly. The hash is SHA-256 over `stableStringify` of
 the core shard, deterministic because tables fill in key order; it is the ETag and
 `base.catalogHash`.
 
 Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
 param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
-`forms/` (the response `body` form and the condition `else: true`, each printed and compiled by one
-module), `structured/` (one codec per structured subBlock kind, `CatalogStructuredKind`, with its
-canonicalize, compile, print and materialize hooks, held in a record total over the kinds),
+`forms/` (the response `body` form, the condition `else: true` and the loop and parallel config
+forms, each printed and compiled by one module; the executable view also reads the container
+forms), `structured/` (one codec per structured subBlock kind whose value stays a param, with its
+canonicalize, compile, print and materialize hooks, held in a record total over those kinds; `tools`
+and `branches` are lifted into their own model shapes and have their own stage modules),
 `catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
 
 ## Canonicalize
@@ -493,6 +495,7 @@ with `buildLockFromState`, and return files, lock, base, catalog hash and diagno
 can always be applied back unchanged:
 
 - 2,000 blocks (the v2 graph cap, `MAX_WORKFLOW_GRAPH_BLOCKS`);
+- 10,000 edges (the v2 graph cap, `MAX_WORKFLOW_GRAPH_EDGES`);
 - 2,001 files: `workflow.ts` plus one code file per block, so files mode never overflows into inline
   code;
 - 4,000,000 UTF-8 bytes across every file together, the entry included. No cap applies to a single
