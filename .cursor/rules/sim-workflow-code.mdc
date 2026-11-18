@@ -34,7 +34,7 @@ server unchanged.
 
 ## Naming: "code" and "source"
 
-Both words name the same feature; the split is historical, so follow it rather than rename:
+Both words name the same feature, split by role; follow the split rather than rename:
 
 - **code** names the feature and its engines: the packages (`workflow-code`, `workspace-code`), the
   server glue folder `lib/workflows/code/`, the `workflow-code` flag, the Code tab.

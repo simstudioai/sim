@@ -255,14 +255,8 @@ Staging (`apps/sim/lib/workspace-source/staging/store.ts`, use cases in
 share one scope; a workspace API key has its own), capped per scope at `maxStagedBlobs` and
 `maxStagedBytes`, and expires a day after a blob was last staged, asked for or planned with; an
 hourly cron (`/api/cron/cleanup-source-staging`) deletes expired rows and objects. Both staging
-calls need write access, as the apply does, and draw on their own rate bucket.
-
-This replaced a round protocol in which every request resent the text, base and manifest with up
-to 24 MB of base64 blob content and the server re-planned the workspace each round. Nothing
-outside this repository spoke that protocol (workspace source never shipped with it), so it was
-removed rather than kept beside staging: the CLI and server move together, and an older CLI build
-that still sends `content` in the manifest is refused by the contract (`blobs[].content` is not
-a field).
+calls need write access, as the apply does, and draw on their own rate bucket. A manifest entry
+never carries bytes: the contract refuses `blobs[].content`.
 
 ## Limits
 
