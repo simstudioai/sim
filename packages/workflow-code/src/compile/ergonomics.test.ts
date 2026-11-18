@@ -6,6 +6,9 @@ import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 
+/** Joins a fake token from parts, so no token-shaped literal sits in the source. */
+const fake = (...parts: string[]) => parts.join('')
+
 const IMPORTS =
   "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
@@ -135,7 +138,7 @@ describe('stored()', () => {
 })
 
 describe('credentials outside password fields', () => {
-  const BEARER = 'Bearer sk-proj-Abc123Def456Ghi789Jkl012'
+  const BEARER = `Bearer ${fake('sk-proj-', 'Abc123Def456Ghi789Jkl012')}`
   const headers = (value: string) =>
     source(
       `  api('Call', { url: 'https://api.example.com/v1', headers: [{ cells: { Key: 'Authorization', Value: ${quoteString(value)} } }, { cells: { Key: 'Accept', Value: 'application/json' } }] })`
@@ -181,11 +184,11 @@ describe('credentials outside password fields', () => {
     ],
     [
       'a GitHub token anywhere',
-      "  api('Call', { url: 'https://x.io', headers: [{ cells: { Key: 'X-Gh', Value: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' } }] })",
+      `  api('Call', { url: 'https://x.io', headers: [{ cells: { Key: 'X-Gh', Value: '${fake('ghp_', 'abcdefghijklmnopqrstuvwxyz0123456789')}' } }] })`,
     ],
     [
       'a token in function code',
-      "  fn('F', { code: js`const key = 'xoxb-1234567890-abcdef'\nreturn key` })",
+      `  fn('F', { code: js\`const key = '${fake('xoxb-', '1234567890-abcdef')}'\nreturn key\` })`,
     ],
   ])('detects %s', (_label, body) => {
     expect(secretParams(source(body)).length).toBe(1)
@@ -223,7 +226,9 @@ describe('credentials outside password fields', () => {
   it('prints an MCP tool argument holding a credential as stored() and keeps it on apply', () => {
     const body = (args: string) =>
       source(`  agent('A', { model: 'm', tools: [mcp('docs').tool('search', { args: ${args} })] })`)
-    const storedWorkflow = compiled(body("{ q: 'x', apiKey: 'sk-ant-api03-AbCdEf0123456789XyZ' }"))
+    const storedWorkflow = compiled(
+      body(`{ q: 'x', apiKey: '${fake('sk-ant-', 'api03-AbCdEf0123456789XyZ')}' }`)
+    )
     const text = printed(storedWorkflow)
     expect(text).toContain('apiKey: stored()')
     expect(text).not.toContain('sk-ant-')
