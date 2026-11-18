@@ -74,7 +74,7 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     transformResponse: async () => {
       return {
         success: true,
-        message: 'Feature flag deleted successfully',
+        output: { success: true, message: 'Feature flag deleted successfully' },
       }
     },
 

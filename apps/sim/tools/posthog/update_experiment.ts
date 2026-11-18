@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface UpdateExperimentParams {
   projectId: string
@@ -35,7 +35,10 @@ interface UpdateExperimentResponse {
   experiment: Experiment
 }
 
-export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExperimentResponse> = {
+export const updateExperimentTool: ToolConfig<
+  UpdateExperimentParams,
+  ToolResponse & { output: UpdateExperimentResponse }
+> = {
   id: 'posthog_update_experiment',
   name: 'PostHog Update Experiment',
   description:
@@ -164,7 +167,10 @@ export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExpe
     const data = await response.json()
 
     return {
-      experiment: data,
+      success: true,
+      output: {
+        experiment: data,
+      },
     }
   },
 

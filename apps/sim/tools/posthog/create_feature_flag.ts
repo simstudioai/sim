@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface CreateFeatureFlagParams {
   projectId: string
@@ -33,151 +33,159 @@ interface CreateFeatureFlagResponse {
   flag: FeatureFlag
 }
 
-export const createFeatureFlagTool: ToolConfig<CreateFeatureFlagParams, CreateFeatureFlagResponse> =
-  {
-    id: 'posthog_create_feature_flag',
-    name: 'PostHog Create Feature Flag',
-    description: 'Create a new feature flag in PostHog',
-    version: '1.0.0',
-    errorExtractor: 'posthog-errors',
+export const createFeatureFlagTool: ToolConfig<
+  CreateFeatureFlagParams,
+  ToolResponse & { output: CreateFeatureFlagResponse }
+> = {
+  id: 'posthog_create_feature_flag',
+  name: 'PostHog Create Feature Flag',
+  description: 'Create a new feature flag in PostHog',
+  version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
-    params: {
-      projectId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'The PostHog project ID (e.g., "12345" or project UUID)',
-      },
-      region: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'PostHog cloud region: us or eu',
-      },
-      host: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description:
-          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
-      },
-      apiKey: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'PostHog Personal API Key',
-      },
-      name: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Feature flag name (optional - can be empty)',
-      },
-      key: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Feature flag key (unique identifier)',
-      },
-      filters: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Feature flag filters as JSON string',
-      },
-      active: {
-        type: 'boolean',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Whether the flag is active (default: true)',
-        default: true,
-      },
-      ensureExperienceContinuity: {
-        type: 'boolean',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Whether to ensure experience continuity (default: false)',
-        default: false,
-      },
-      rolloutPercentage: {
-        type: 'number',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Rollout percentage (0-100)',
-      },
+  params: {
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
-
-    request: {
-      url: (params) => {
-        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/feature_flags/`
-      },
-      method: 'POST',
-      headers: (params) => ({
-        Authorization: `Bearer ${params.apiKey}`,
-        'Content-Type': 'application/json',
-      }),
-      body: (params) => {
-        const body: Record<string, any> = {
-          name: params.name,
-          key: params.key,
-        }
-
-        if (params.filters) {
-          try {
-            body.filters = JSON.parse(params.filters)
-          } catch (error) {
-            throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
-          }
-        }
-
-        if (params.active !== undefined) {
-          body.active = params.active
-        }
-
-        if (params.ensureExperienceContinuity !== undefined) {
-          body.ensure_experience_continuity = params.ensureExperienceContinuity
-        }
-
-        if (params.rolloutPercentage !== undefined) {
-          body.rollout_percentage = params.rolloutPercentage
-        }
-
-        return body
-      },
+    region: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'PostHog cloud region: us or eu',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'PostHog Personal API Key',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Feature flag name (optional - can be empty)',
+    },
+    key: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Feature flag key (unique identifier)',
+    },
+    filters: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Feature flag filters as JSON string',
+    },
+    active: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the flag is active (default: true)',
+      default: true,
+    },
+    ensureExperienceContinuity: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to ensure experience continuity (default: false)',
+      default: false,
+    },
+    rolloutPercentage: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Percentage of users (0-100) the flag is released to. Ignored when Filters is set; put rollout_percentage in its groups instead.',
+    },
+  },
 
-    transformResponse: async (response: Response) => {
-      const data = await response.json()
-
-      return {
-        flag: data,
+  request: {
+    url: (params) => {
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
+      return `${baseUrl}/api/projects/${params.projectId}/feature_flags/`
+    },
+    method: 'POST',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => {
+      const body: Record<string, any> = {
+        name: params.name,
+        key: params.key,
       }
-    },
 
-    outputs: {
-      flag: {
-        type: 'object',
-        description: 'Created feature flag',
-        properties: {
-          id: { type: 'number', description: 'Feature flag ID' },
-          name: { type: 'string', description: 'Feature flag name' },
-          key: { type: 'string', description: 'Feature flag key' },
-          filters: { type: 'object', description: 'Feature flag filters' },
-          deleted: { type: 'boolean', description: 'Whether the flag is deleted' },
-          active: { type: 'boolean', description: 'Whether the flag is active' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          created_by: { type: 'object', description: 'Creator information' },
-          is_simple_flag: { type: 'boolean', description: 'Whether this is a simple flag' },
-          rollout_percentage: {
-            type: 'number',
-            description: 'Rollout percentage (if applicable)',
-          },
-          ensure_experience_continuity: {
-            type: 'boolean',
-            description: 'Whether to ensure experience continuity',
-          },
+      if (params.filters) {
+        try {
+          body.filters = JSON.parse(params.filters)
+        } catch (error) {
+          throw new Error(`Invalid filters JSON: ${getErrorMessage(error)}`)
+        }
+      }
+
+      if (params.active !== undefined) {
+        body.active = params.active
+      }
+
+      if (params.ensureExperienceContinuity !== undefined) {
+        body.ensure_experience_continuity = params.ensureExperienceContinuity
+      }
+
+      if (params.rolloutPercentage !== undefined && body.filters === undefined) {
+        body.filters = {
+          groups: [{ properties: [], rollout_percentage: params.rolloutPercentage }],
+        }
+      }
+
+      return body
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        flag: data,
+      },
+    }
+  },
+
+  outputs: {
+    flag: {
+      type: 'object',
+      description: 'Created feature flag',
+      properties: {
+        id: { type: 'number', description: 'Feature flag ID' },
+        name: { type: 'string', description: 'Feature flag name' },
+        key: { type: 'string', description: 'Feature flag key' },
+        filters: { type: 'object', description: 'Feature flag filters' },
+        deleted: { type: 'boolean', description: 'Whether the flag is deleted' },
+        active: { type: 'boolean', description: 'Whether the flag is active' },
+        created_at: { type: 'string', description: 'Creation timestamp' },
+        created_by: { type: 'object', description: 'Creator information' },
+        is_simple_flag: { type: 'boolean', description: 'Whether this is a simple flag' },
+        rollout_percentage: {
+          type: 'number',
+          description: 'Rollout percentage (if applicable)',
+        },
+        ensure_experience_continuity: {
+          type: 'boolean',
+          description: 'Whether to ensure experience continuity',
         },
       },
     },
-  }
+  },
+}
