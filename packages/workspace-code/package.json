@@ -30,6 +30,10 @@
       "types": "./src/limits.ts",
       "default": "./src/limits.ts"
     },
+    "./status": {
+      "types": "./src/status.ts",
+      "default": "./src/status.ts"
+    },
     "./kinds/*": {
       "types": "./src/kinds/*.ts",
       "default": "./src/kinds/*.ts"
