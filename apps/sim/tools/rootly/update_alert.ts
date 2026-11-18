@@ -106,7 +106,7 @@ export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUp
         if (params.environmentIds) {
           attributes.environment_ids = params.environmentIds.split(',').map((s: string) => s.trim())
         }
-        return { data: { type: 'alerts', id: params.alertId.trim(), attributes } }
+        return { data: { type: 'alerts', id: String(params.alertId).trim(), attributes } }
       },
     },
 

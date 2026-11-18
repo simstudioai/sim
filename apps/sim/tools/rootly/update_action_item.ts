@@ -95,7 +95,7 @@ export const rootlyUpdateActionItemTool: ToolConfig<
       }
       if (params.dueDate) attributes.due_date = params.dueDate
       return {
-        data: { type: 'incident_action_items', id: params.actionItemId.trim(), attributes },
+        data: { type: 'incident_action_items', id: String(params.actionItemId).trim(), attributes },
       }
     },
   },
