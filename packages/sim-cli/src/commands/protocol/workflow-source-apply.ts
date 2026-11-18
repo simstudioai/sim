@@ -102,8 +102,8 @@ function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
 }
 
 /**
- * Prints a write's diagnostics and notes (a name the source changed but the apply kept, a dropped
- * tool), skipping any already in `printed` and adding the rest: after a terminal preview, the
+ * Prints a write's diagnostics and notes (such as a custom tool the save could not store),
+ * skipping any already in `printed` and adding the rest: after a terminal preview, the
  * write it confirmed prints only what the preview did not.
  */
 function printFindings(data: SourceApplyData, printed: Set<string>): void {

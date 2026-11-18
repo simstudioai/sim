@@ -77,13 +77,13 @@ no cached catalog (run the get once).
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
 does not bind (a block added since the get, or every block of a new workflow):
-${[...STRICT_CODES].join(', ')}. --strict fails on them in every block; --no-strict never fails on
-a warning.`
+${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
+--strict fails on them in every block; --no-strict never fails on a warning.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
   return command
-    .option('--strict', 'Fail on those warnings in every block, not only the blocks the edit added')
+    .option('--strict', 'Fail on the warnings listed below in every block, not only new ones')
     .option('--no-strict', 'Never fail on a warning')
 }
 
