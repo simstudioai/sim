@@ -148,19 +148,27 @@ function changedFields(before: DeploymentDecl | null, after: DeploymentDecl): st
 }
 
 /**
- * Checks what writing `chat` needs before anything is written: the password variable is set (a
- * `stored()` password needs one stored), and each output names a block of the draft (checked at
- * apply instead for a workflow this apply edits, whose blocks are not written yet).
+ * Checks, before anything is written, what the chat needs: when the apply writes it, that the
+ * password variable is set (a `stored()` password needs one stored); and that each output names a
+ * block of the draft the chat answers from. For a workflow this apply edits or creates, that is
+ * the graph its plan evaluated (`editedBlocks`), so an output naming a block the edit removes
+ * refuses the plan before anything goes live; otherwise it is the stored draft.
  */
 async function checkChat(
   change: DeploymentChange,
   chat: ChatDecl,
   ctx: PlanContext,
-  options: { workflowId?: string; storedPassword: boolean; draftKnown: boolean }
+  options: {
+    workflowId?: string
+    writesChat: boolean
+    storedPassword: boolean
+    draftEdited: boolean
+    editedBlocks?: ReadonlySet<string>
+  }
 ): Promise<void> {
   const { key } = change
   const { auth } = chat
-  if (auth !== 'public' && 'password' in auth) {
+  if (options.writesChat && auth !== 'public' && 'password' in auth) {
     if (auth.password === 'stored') {
       if (!options.storedPassword) {
         change.diagnostics.push(
@@ -191,10 +199,18 @@ async function checkChat(
     }
   }
   const outputs = chat.outputs ?? []
-  if (outputs.length === 0 || !options.workflowId || !options.draftKnown) return
-  const { idOf } = await readBlockNames(ctx, options.workflowId)
+  if (outputs.length === 0) return
+  let blocks: ReadonlySet<string>
+  if (options.draftEdited) {
+    // A workflow that did not evaluate has errors of its own, which refuse the plan.
+    if (!options.editedBlocks) return
+    blocks = options.editedBlocks
+  } else {
+    if (!options.workflowId) return
+    blocks = new Set((await readBlockNames(ctx, options.workflowId)).idOf.keys())
+  }
   for (const output of outputs) {
-    if (idOf.has(normalizeWorkflowBlockName(output.block))) continue
+    if (blocks.has(normalizeWorkflowBlockName(output.block))) continue
     change.diagnostics.push(
       deploymentFinding(
         key,
@@ -314,11 +330,16 @@ async function planDeployment(
     }
   }
   if (next.action === 'noop') return next
-  if (detail.chat === 'replace' && decl.chat) {
+  const writesChat = detail.chat === 'replace'
+  // A chat the apply keeps goes live with the edited draft all the same.
+  const publishesEditedDraft = detail.deploy && draftEdited
+  if (decl.chat && (writesChat || publishesEditedDraft)) {
     await checkChat(next, decl.chat, ctx, {
       workflowId,
+      writesChat,
       storedPassword: state?.chat?.hasPassword === true,
-      draftKnown: !draftEdited,
+      draftEdited,
+      ...(workflowChange?.blockNames ? { editedBlocks: workflowChange.blockNames } : {}),
     })
   }
   return { ...next, detail }
@@ -380,8 +401,19 @@ async function outputConfigs(
   }))
 }
 
-/** Writes the declared chat through the replace use case, its password read from its variable. */
-async function writeChat(ctx: ApplyContext, key: string, workflowId: string, chat: ChatDecl) {
+type ChatReplaceInput = Parameters<typeof replaceWorkflowChatDeployment.execute>[0]['input']
+
+/**
+ * The replace input for the declared chat: its password read from its variable and its outputs
+ * resolved to block ids of the (already written) draft. Resolved before the deployment publishes
+ * anything, so a chat that cannot be written refuses while the live version is still the old one.
+ */
+async function resolveChat(
+  ctx: ApplyContext,
+  key: string,
+  workflowId: string,
+  chat: ChatDecl
+): Promise<ChatReplaceInput> {
   const { auth } = chat
   let password: string | undefined
   if (auth !== 'public' && 'password' in auth && auth.password !== 'stored') {
@@ -405,24 +437,21 @@ async function writeChat(ctx: ApplyContext, key: string, workflowId: string, cha
         : 'emails' in auth
           ? 'email'
           : 'sso'
-  await replaceWorkflowChatDeployment.execute({
-    principal: ctx.principal,
-    input: {
-      workflowId,
-      identifier: chat.identifier,
-      title: chat.title,
-      ...(chat.description ? { description: chat.description } : {}),
-      ...(chat.customizations ? { customizations: chat.customizations } : {}),
-      authType,
-      ...(password !== undefined ? { password } : {}),
-      ...(auth !== 'public' && 'emails' in auth ? { allowedEmails: auth.emails } : {}),
-      ...(auth !== 'public' && 'sso' in auth ? { allowedEmails: auth.sso } : {}),
-      outputConfigs: await outputConfigs(ctx, key, workflowId, chat),
-      includeThinking: chat.includeThinking === true,
-      includeToolCalls: chat.includeToolCalls === true,
-      requestId: generateRequestId(),
-    },
-  })
+  return {
+    workflowId,
+    identifier: chat.identifier,
+    title: chat.title,
+    ...(chat.description ? { description: chat.description } : {}),
+    ...(chat.customizations ? { customizations: chat.customizations } : {}),
+    authType,
+    ...(password !== undefined ? { password } : {}),
+    ...(auth !== 'public' && 'emails' in auth ? { allowedEmails: auth.emails } : {}),
+    ...(auth !== 'public' && 'sso' in auth ? { allowedEmails: auth.sso } : {}),
+    outputConfigs: await outputConfigs(ctx, key, workflowId, chat),
+    includeThinking: chat.includeThinking === true,
+    includeToolCalls: chat.includeToolCalls === true,
+    requestId: generateRequestId(),
+  }
 }
 
 type TriggerKind = Awaited<
@@ -603,6 +632,12 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     }
     const { decl, detail } = change
     if (!decl || !detail) throw new Error('A deployment write needs its declaration and plan')
+    // Everything the chat needs is resolved first: a chat that cannot be written refuses before
+    // the flag or the deploy changes what is live.
+    const chatInput =
+      detail.chat === 'replace' && decl.chat
+        ? await resolveChat(ctx, change.key, workflowId, decl.chat)
+        : undefined
     // The flag is written before the deploy, so the API never goes live under a stale one.
     if (detail.publicApi !== undefined) {
       await updateWorkflowPublicApi.execute({
@@ -611,8 +646,7 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
       })
     }
     if (detail.deploy) await deployDraft(change, workflowId, ctx)
-    if (detail.chat === 'replace' && decl.chat)
-      await writeChat(ctx, change.key, workflowId, decl.chat)
+    if (chatInput) await replaceWorkflowChatDeployment.execute({ principal, input: chatInput })
     if (detail.chat === 'delete') {
       await deleteWorkflowChatDeployment.execute({ principal, input: { workflowId } })
     }

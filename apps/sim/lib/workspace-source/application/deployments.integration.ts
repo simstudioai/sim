@@ -341,6 +341,47 @@ describe('workspace source: deployments', () => {
     expect((await deployState(id)).isDeployed).toBe(true)
   })
 
+  check(
+    'refuses at plan time a chat output naming a block the edit removes, deploying nothing',
+    async () => {
+      const answering = withChat(
+        "{ identifier: 'answer-chat', title: 'Answers', auth: 'public', outputs: [{ block: 'Answer', path: 'content' }] }"
+      )
+      const deployed = await deployedWorkspace(answering)
+      const { workspaceId, id, base } = deployed
+      const files: Files = deployed.files
+      const before = await deployState(id)
+      expect(before).toMatchObject({ versions: 1, chat: { identifier: 'answer-chat' } })
+      const renamed = {
+        ...files,
+        [WORKFLOW]: files[WORKFLOW].replace("agent('Answer'", "agent('Responder'"),
+      }
+      expect(renamed[WORKFLOW]).not.toEqual(files[WORKFLOW])
+
+      // The chat kept as it is would go live with the edited draft; the chat rewritten would too.
+      const kept = await refusal(apply(workspaceId, renamed, { base, allowDelete: true }))
+      expect(deploymentCodes(kept.diagnostics, 'error')).toEqual(['E_DEPLOY_CHAT_OUTPUT'])
+      const rewritten = await refusal(
+        apply(
+          workspaceId,
+          {
+            ...renamed,
+            [DEPLOYMENT]: files[DEPLOYMENT].replace("title: 'Answers'", "title: 'Replies'"),
+          },
+          { base, allowDelete: true }
+        )
+      )
+      expect(deploymentCodes(rewritten.diagnostics, 'error')).toEqual(['E_DEPLOY_CHAT_OUTPUT'])
+
+      const after = await deployState(id)
+      expect(after.versions).toBe(1)
+      expect(after.chat).toMatchObject({
+        title: 'Answers',
+        outputConfigs: before.chat?.outputConfigs,
+      })
+    }
+  )
+
   check('undeploying needs --allow-delete, and the plan says what stops', async () => {
     const { workspaceId, id, files, base } = await deployedWorkspace()
     const { [DEPLOYMENT]: _removed, ...withoutDeployment } = files
