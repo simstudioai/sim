@@ -132,7 +132,11 @@ export const polymarketGetActivityTool: ToolConfig<
         const value = params[key]
         if (value == null || String(value).trim() === '') continue
         const seconds = Number(value)
-        if (Number.isFinite(seconds)) query.append(key, String(seconds))
+        if (!Number.isFinite(seconds)) {
+          throw new Error(`${key} must be a Unix timestamp in seconds, got "${value}".`)
+        }
+        // v2 reads start=0 as "three years back"; 1 keeps the full history that 0 asked for.
+        query.append(key, String(key === 'start' && seconds === 0 ? 1 : seconds))
       }
       if (params.sortBy) query.append('sort_by', params.sortBy)
       if (params.sortDirection) query.append('sort_direction', params.sortDirection)

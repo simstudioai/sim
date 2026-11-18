@@ -122,4 +122,16 @@ describe('Polymarket Data API v2', () => {
     })
     expect(fromString.searchParams.get('start')).toBe('1700000000')
   })
+
+  it('rejects a non-numeric start and reads start=0 as the full history', () => {
+    expect(() =>
+      requestUrl(polymarketGetActivityTool, {
+        user: '0xabc',
+        start: 'yesterday' as unknown as number,
+      })
+    ).toThrow('Unix timestamp')
+    expect(
+      requestUrl(polymarketGetActivityTool, { user: '0xabc', start: 0 }).searchParams.get('start')
+    ).toBe('1')
+  })
 })
