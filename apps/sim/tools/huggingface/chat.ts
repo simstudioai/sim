@@ -6,6 +6,20 @@ import type {
 } from '@/tools/huggingface/types'
 import { HUGGINGFACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+const HUGGINGFACE_ROUTER_URL = 'https://router.huggingface.co'
+
+/**
+ * Router paths for providers whose chat route is not `<provider>/v1/chat/completions`, as the
+ * official `@huggingface/inference` client builds them. The router prefix is the provider's
+ * Hugging Face ID, which is `fireworks-ai` for the block's `fireworks` option.
+ */
+const PROVIDER_CHAT_ROUTES: Record<string, string> = {
+  novita: 'novita/v3/openai/chat/completions',
+  cohere: 'cohere/compatibility/v1/chat/completions',
+  fireworks: 'fireworks-ai/inference/v1/chat/completions',
+}
 
 export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse> = {
   id: 'huggingface_chat',
@@ -70,24 +84,17 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
     },
     method: 'POST',
     url: (params) => {
-      // Provider-specific endpoint mapping
-      const endpointMap: Record<string, string> = {
-        novita: '/v3/openai/chat/completions',
-        cerebras: '/v1/chat/completions',
-        cohere: '/v1/chat/completions',
-        fal: '/v1/chat/completions',
-        fireworks: '/v1/chat/completions',
-        hyperbolic: '/v1/chat/completions',
-        'hf-inference': '/v1/chat/completions',
-        nebius: '/v1/chat/completions',
-        nscale: '/v1/chat/completions',
-        replicate: '/v1/chat/completions',
-        sambanova: '/v1/chat/completions',
-        together: '/v1/chat/completions',
+      if (params.provider === 'hf-inference') {
+        const modelPath = params.model
+          .trim()
+          .split('/')
+          .map((segment) => safeUrlPathSegment(segment, 'model'))
+          .join('/')
+        return `${HUGGINGFACE_ROUTER_URL}/hf-inference/models/${modelPath}/v1/chat/completions`
       }
-
-      const endpoint = endpointMap[params.provider] || '/v1/chat/completions'
-      return `https://router.huggingface.co/${params.provider}${endpoint}`
+      const route =
+        PROVIDER_CHAT_ROUTES[params.provider] ?? `${params.provider}/v1/chat/completions`
+      return `${HUGGINGFACE_ROUTER_URL}/${route}`
     },
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

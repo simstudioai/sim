@@ -44,13 +44,14 @@ export const generateFromTemplateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Automatically export the generated gamma as pdf or pptx',
+      description:
+        'Automatically export the generated gamma as pdf, pptx, or png (a zip of one PNG per card). Check Status returns the download URL',
     },
     folderIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated folder IDs to store the generated gamma in',
+      description: 'ID of the folder to store the generated gamma in (Gamma accepts one folder)',
     },
     imageModel: {
       type: 'string',
@@ -106,6 +107,7 @@ export const generateFromTemplateTool: ToolConfig<
       success: true,
       output: {
         generationId: data.generationId ?? '',
+        warnings: data.warnings ?? null,
       },
     }
   },
@@ -114,6 +116,11 @@ export const generateFromTemplateTool: ToolConfig<
     generationId: {
       type: 'string',
       description: 'The ID of the generation job. Use with Check Status to poll for completion.',
+    },
+    warnings: {
+      type: 'string',
+      description: 'Warnings about request options that Gamma ignored',
+      optional: true,
     },
   },
 }

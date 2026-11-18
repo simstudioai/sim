@@ -1,5 +1,5 @@
 import type { DSPyReActParams, DSPyReActResponse } from '@/tools/dspy/types'
-import { parseTrajectory } from '@/tools/dspy/utils'
+import { buildDSPyUrl, parseTrajectory } from '@/tools/dspy/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const reactTool: ToolConfig<DSPyReActParams, DSPyReActResponse> = {
@@ -54,11 +54,7 @@ export const reactTool: ToolConfig<DSPyReActParams, DSPyReActResponse> = {
       select: (params) => ({ task: params.task, context: params.context }),
     },
     method: 'POST',
-    url: (params) => {
-      const baseUrl = params.baseUrl.replace(/\/$/, '')
-      const endpoint = params.endpoint || '/predict'
-      return `${baseUrl}${endpoint}`
-    },
+    url: (params) => buildDSPyUrl(params.baseUrl, params.endpoint),
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

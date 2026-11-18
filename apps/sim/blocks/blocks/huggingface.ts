@@ -107,7 +107,12 @@ export const HuggingFaceBlock: BlockConfig = {
           model: params.model,
           content: params.content,
           systemPrompt: params.systemPrompt,
-          temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
+          temperature:
+            params.temperature === undefined ||
+            params.temperature === null ||
+            params.temperature === ''
+              ? undefined
+              : Number.parseFloat(params.temperature),
           maxTokens: params.maxTokens ? Number.parseInt(params.maxTokens) : undefined,
           stream: false, // Always false
         }

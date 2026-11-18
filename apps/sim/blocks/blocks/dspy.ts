@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { DsPyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -146,12 +147,19 @@ export const DSPyBlock: BlockConfig = {
         const { operation, additionalInputs, maxIterations, ...rest } = params
 
         let parsedAdditionalInputs: Record<string, unknown> | undefined
-        if (additionalInputs && typeof additionalInputs === 'string') {
+        if (typeof additionalInputs === 'string' && additionalInputs.trim()) {
+          let parsed: unknown
           try {
-            parsedAdditionalInputs = JSON.parse(additionalInputs)
+            parsed = JSON.parse(additionalInputs)
           } catch {
-            // Ignore parse errors
+            throw new Error('Additional Inputs must be valid JSON')
           }
+          if (!isPlainRecord(parsed)) {
+            throw new Error('Additional Inputs must be a JSON object')
+          }
+          parsedAdditionalInputs = parsed
+        } else if (isPlainRecord(additionalInputs)) {
+          parsedAdditionalInputs = additionalInputs
         }
 
         let parsedMaxIterations: number | undefined
