@@ -35,6 +35,8 @@ export interface PlanContext extends SourceContext {
    * dry run resolves them to (a placeholder for a create, the stored id for an adopt).
    */
   pending: PendingResource[]
+  /** The changes the kinds before this one planned, in apply order. */
+  planned: readonly PlannedChange[]
 }
 
 export interface ApplyContext extends SourceContext {

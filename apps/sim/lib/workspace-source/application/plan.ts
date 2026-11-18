@@ -30,6 +30,7 @@ import {
   refDeletedFinding,
 } from '@/lib/workspace-source/application/findings'
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
+import { warnDeployedDraftChanges } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
@@ -256,13 +257,14 @@ export async function planWorkspaceSource(
     }
   }
 
+  const changes: PlannedChange[] = []
   const planCtx: PlanContext = {
     ...ctx,
     base: directoryBase,
     allowDelete: submission.allowDelete === true,
     pending: [],
+    planned: changes,
   }
-  const changes: PlannedChange[] = []
   // Declarations sent without their files, by kind: the codec reads them as unchanged.
   const unchanged = new Map<WorkspaceKind, ReadonlySet<string>>()
   for (const kind of APPLY_ORDER) {
@@ -326,6 +328,7 @@ export async function planWorkspaceSource(
     }
   }
 
+  await warnDeployedDraftChanges(changes, ctx)
   await checkDeletesInUse(changes, unchanged, workspaceId)
   const deleted = new Set(
     changes

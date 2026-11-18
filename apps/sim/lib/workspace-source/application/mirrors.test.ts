@@ -4,6 +4,7 @@
  * drifted rule makes the local check disagree with the server, and a drifted default makes every
  * resource that leaves it undeclared fingerprint as changed.
  */
+import { CHAT_DEFAULT_CUSTOMIZATIONS } from '@sim/workspace-code/kinds/deployment'
 import {
   CHUNKING_STRATEGIES,
   DEFAULT_CHUNKING,
@@ -14,6 +15,10 @@ import { TABLE_TEXT_RULES } from '@sim/workspace-code/kinds/table'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { chunkingStrategySchema } from '@/lib/api/contracts/knowledge/base'
+import {
+  DEFAULT_PRIMARY_COLOR,
+  DEFAULT_WELCOME_MESSAGE,
+} from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import type { RecursiveRecipe } from '@/lib/chunkers/types'
 import {
   DEFAULT_CHUNKING_CONFIG,
@@ -37,5 +42,12 @@ describe('workspace source mirrors of server rules', () => {
       maxDescription: TABLE_LIMITS.MAX_DESCRIPTION_LENGTH,
     })
     expect(WORKSPACE_SOURCE_LIMITS.maxColumns).toBe(TABLE_LIMITS.MAX_COLUMNS_PER_TABLE)
+  })
+
+  it('chat deployments', () => {
+    expect(CHAT_DEFAULT_CUSTOMIZATIONS).toEqual({
+      primaryColor: DEFAULT_PRIMARY_COLOR,
+      welcomeMessage: DEFAULT_WELCOME_MESSAGE,
+    })
   })
 })

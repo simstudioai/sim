@@ -4,7 +4,8 @@
  */
 import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
-import type { WorkspaceKind } from '@sim/workspace-code'
+import type { ResourceKind } from '@sim/workflow-code'
+import { WORKSPACE_KIND_SPECS } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
@@ -24,7 +25,7 @@ import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspa
  */
 export async function bindStored<S>(
   ctx: SourceContext,
-  kind: WorkspaceKind,
+  kind: ResourceKind,
   records: ReadonlyArray<Omit<StoredResource<S>, 'key'>>,
   options: { allocate: boolean; bindable?: (record: Omit<StoredResource<S>, 'key'>) => boolean }
 ): Promise<StoredSet<S>> {
@@ -70,16 +71,19 @@ export async function listUpTo<T, C>(
 /**
  * Binds `change.key` to the resource the change wrote. Called only once the write succeeded, so a
  * write that fails leaves the key free and the next apply adopts the resource by name. Returns
- * `I_KEY_REBOUND` when the key named a deleted resource.
+ * `I_KEY_REBOUND` when the key named a deleted resource. A kind keyed by another kind's keys or by
+ * path (no `resourceKind`) claims nothing.
  */
 export async function claimKey(
   change: Pick<PlannedChange, 'kind' | 'key' | 'action'>,
   ctx: SourceContext,
   resourceId: string
 ): Promise<WorkspaceSourceDiagnostic[]> {
+  const kind = WORKSPACE_KIND_SPECS[change.kind].resourceKind
+  if (kind === null) return []
   const claim = await claimResourceKey({
     workspaceId: ctx.workspace.workspaceId,
-    kind: change.kind,
+    kind,
     key: change.key,
     resourceId,
     origin: change.action === 'create' ? 'created' : 'adopted',
@@ -97,8 +101,10 @@ export function pendingOf(
   change: Pick<PlannedChange, 'kind' | 'key' | 'action' | 'storedId'>,
   extra: Pick<PendingResource, 'name' | 'columns'> = {}
 ): PendingResource {
+  const kind = WORKSPACE_KIND_SPECS[change.kind].resourceKind
+  if (kind === null) throw new Error(`A ${change.kind} is never named by a workflow`)
   return {
-    kind: change.kind,
+    kind,
     key: change.key,
     id: change.action !== 'create' && change.storedId ? change.storedId : generateId(),
     ...extra,

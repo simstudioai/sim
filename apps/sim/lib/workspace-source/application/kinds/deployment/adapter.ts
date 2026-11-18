@@ -1,0 +1,672 @@
+/**
+ * Deployments as workspace source: `deployments/<key>.ts` deploys the workflow under the same key
+ * through the deployment use cases (`deployWorkflow`, `undeployWorkflow`, `updateWorkflowPublicApi`
+ * and the workflow chat use cases), so admin role, the workspace-key denial, permission-group
+ * capabilities, locks, audit and the deploy's own trigger registration (schedules, webhooks) are
+ * exactly a deploy's. Deployments apply after workflows, so one apply edits a workflow and then
+ * publishes it.
+ *
+ * The three-way rule covers what the server stores: the public API flag and the chat. `live` is
+ * read on every apply against the server's "draft differs" flag instead: `'draft'` deploys when
+ * this apply edits the workflow or the draft already differs, `'pinned'` never redeploys and says
+ * when the draft differs. A deploy is keyed by the deployment's fingerprint and the version it
+ * replaces, so a re-run after a failure replays the same deploy instead of publishing twice.
+ *
+ * The server keeps a chat password only encrypted, so the base records which variable the last
+ * apply set it from (`x-passwordEnv`), and the stored chat reads as that `env.NAME` against it.
+ * Publishing to an MCP server is not part of source.
+ */
+import { sha256Hex } from '@sim/security/hash'
+import type { Json } from '@sim/workflow-code'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  type BaseResource,
+  fingerprintOf,
+  resourceAddress,
+  type WorkspaceDiagnosticCode,
+} from '@sim/workspace-code'
+import {
+  type ChatDecl,
+  type DeploymentDecl,
+  deploymentCodec,
+  deploymentDeclarationPath,
+} from '@sim/workspace-code/kinds/deployment'
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
+import {
+  deleteWorkflowChatDeployment,
+  replaceWorkflowChatDeployment,
+} from '@/lib/chat-deployments/application/workflow-chat-deployment'
+import { authorizeWorkspaceOperation } from '@/lib/core/application'
+import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  deployWorkflow,
+  readWorkflowDeploymentStatus,
+  undeployWorkflow,
+} from '@/lib/workflows/application/deployments'
+import { listWorkflows } from '@/lib/workflows/application/list-workflows'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
+import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
+import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
+import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
+import {
+  declOf,
+  readBlockNames,
+  readDeployment,
+  type StoredDeployment,
+  storedFingerprint,
+} from '@/lib/workspace-source/application/kinds/deployment/stored'
+import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import type {
+  ApplyContext,
+  KindAdapter,
+  PlanContext,
+  PlannedChange,
+  SourceContext,
+  StoredSet,
+} from '@/lib/workspace-source/application/types'
+import { resolveIds } from '@/lib/workspaces/resource-keys'
+
+/** Deployed workflows per page while listing them. */
+const LIST_PAGE = 200
+
+/** Deployments a load reads at once. */
+const READ_CONCURRENCY = 4
+
+/** The base entry field naming the variable a chat password was last set from. */
+const PASSWORD_ENV = 'x-passwordEnv'
+
+/** What an apply carries out for one deployment, decided at plan time. */
+interface DeploymentPlan {
+  /** The workflow, when it exists at plan time (not one this apply creates). */
+  workflowId?: string
+  /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
+  deploy: boolean
+  /** The public API flag to set, when it changes. */
+  publicApi?: boolean
+  /** Whether the chat is written or removed. */
+  chat?: 'replace' | 'delete'
+  /** The variable the base recorded the stored chat password under (for `fingerprintNow`). */
+  basePasswordEnv?: string
+}
+
+type DeploymentChange = PlannedChange<DeploymentDecl, DeploymentPlan>
+
+/** The variable a base entry records the chat password under. */
+function passwordEnvOf(base: BaseResource | undefined): string | undefined {
+  const name = base?.[PASSWORD_ENV]
+  return typeof name === 'string' ? name : undefined
+}
+
+/** The variable a declaration sets the chat password from, if any. */
+function declaredPasswordEnv(decl: DeploymentDecl): string | undefined {
+  const auth = decl.chat?.auth
+  if (auth === undefined || auth === 'public' || !('password' in auth)) return undefined
+  return auth.password === 'stored' ? undefined : auth.password.env
+}
+
+function deploymentFinding(
+  key: string,
+  code: WorkspaceDiagnosticCode,
+  message: string,
+  hint?: string
+) {
+  return kindFinding('deployment', key, code, message, {
+    file: deploymentDeclarationPath(key),
+    ...(hint ? { hint } : {}),
+  })
+}
+
+/** The live workflow bound to `key`, by id, or `undefined`. */
+async function workflowIdByKey(ctx: SourceContext, key: string): Promise<string | undefined> {
+  const ids = await resolveIds(ctx.workspace.workspaceId, [{ kind: 'workflow', key }])
+  return ids.get('workflow')?.get(key)
+}
+
+/** A canonical declaration's fields; the codec's canonical form is always an object. */
+function fieldsOf(canonical: Json): Record<string, Json> {
+  return canonical !== null && typeof canonical === 'object' && !Array.isArray(canonical)
+    ? canonical
+    : {}
+}
+
+/**
+ * The top-level fields (`api`, `chat`) whose canonical values differ; every field when the stored
+ * deployment cannot be read as a declaration.
+ */
+function changedFields(before: DeploymentDecl | null, after: DeploymentDecl): string[] {
+  const now = fieldsOf(deploymentCodec.canonical(after))
+  if (!before) return Object.keys(now)
+  const was = fieldsOf(deploymentCodec.canonical(before))
+  return Object.keys(now).filter(
+    (field) => fingerprintOf(now[field]) !== fingerprintOf(was[field] ?? null)
+  )
+}
+
+/**
+ * Checks what writing `chat` needs before anything is written: the password variable is set (a
+ * `stored()` password needs one stored), and each output names a block of the draft (checked at
+ * apply instead for a workflow this apply edits, whose blocks are not written yet).
+ */
+async function checkChat(
+  change: DeploymentChange,
+  chat: ChatDecl,
+  ctx: PlanContext,
+  options: { workflowId?: string; storedPassword: boolean; draftKnown: boolean }
+): Promise<void> {
+  const { key } = change
+  const { auth } = chat
+  if (auth !== 'public' && 'password' in auth) {
+    if (auth.password === 'stored') {
+      if (!options.storedPassword) {
+        change.diagnostics.push(
+          deploymentFinding(
+            key,
+            'E_DEPLOY_SECRET',
+            '`stored()` keeps a stored chat password, but this chat has none.',
+            'Set the password from a secret: `auth: { password: env.NAME }`.'
+          )
+        )
+      }
+    } else {
+      const value = await resolvePrincipalEnvironmentVariable(
+        ctx.principal,
+        ctx.workspace.workspaceId,
+        auth.password.env
+      )
+      if (value === undefined) {
+        change.diagnostics.push(
+          deploymentFinding(
+            key,
+            'E_DEPLOY_SECRET',
+            `The secret ${auth.password.env} is not set for this workspace or you.`,
+            `Set it first: \`sim secrets set ${auth.password.env}\`.`
+          )
+        )
+      }
+    }
+  }
+  const outputs = chat.outputs ?? []
+  if (outputs.length === 0 || !options.workflowId || !options.draftKnown) return
+  const { idOf } = await readBlockNames(ctx, options.workflowId)
+  for (const output of outputs) {
+    if (idOf.has(normalizeWorkflowBlockName(output.block))) continue
+    change.diagnostics.push(
+      deploymentFinding(
+        key,
+        'E_DEPLOY_CHAT_OUTPUT',
+        `The chat output names block "${output.block}", which ${where('workflow', key)} does not have.`,
+        'Name a block of the workflow by its name.'
+      )
+    )
+  }
+}
+
+/** Plans one declared deployment against the workflow under the same key. */
+async function planDeployment(
+  key: string,
+  decl: DeploymentDecl,
+  stored: StoredSet<StoredDeployment>,
+  ctx: PlanContext
+): Promise<DeploymentChange> {
+  const change: DeploymentChange = {
+    kind: 'deployment',
+    key,
+    action: 'noop',
+    decl,
+    refs: [{ kind: 'workflow', key }],
+    diagnostics: [],
+  }
+  const workflowChange = ctx.planned.find(
+    (planned) => planned.kind === 'workflow' && planned.key === key
+  )
+  const creating = workflowChange?.action === 'create'
+  const deployed = stored.bound.get(key)
+  const workflowId =
+    deployed?.id ??
+    workflowChange?.storedId ??
+    (creating ? undefined : await workflowIdByKey(ctx, key))
+  if (!workflowId && !creating) {
+    change.diagnostics.push(
+      deploymentFinding(
+        key,
+        'E_DEPLOY_WORKFLOW',
+        `${deploymentDeclarationPath(key)} deploys workflow "${key}", which this workspace does not hold.`,
+        `Name a workflow by its folder key (workflows/<key>/), or add ${where('workflow', key)}/.`
+      )
+    )
+    return change
+  }
+  const draftEdited = workflowChange?.action === 'update' || creating
+  const base = ctx.base?.resources[resourceAddress('deployment', key)]
+  const basePasswordEnv = passwordEnvOf(base)
+  const resolution = resolveDeclared({
+    local: fingerprintOf(deploymentCodec.canonical(decl)),
+    stored: deployed,
+    base,
+    fingerprint: (record, entry) => storedFingerprint(record.state, passwordEnvOf(entry)),
+    holds: holdsIn(stored),
+  })
+  const planned = settle(resolution, change, (record) => ({
+    id: record.id,
+    fingerprint: storedFingerprint(record.state, basePasswordEnv),
+    ...(basePasswordEnv ? { [PASSWORD_ENV]: basePasswordEnv } : {}),
+  }))
+  // A no-op leaves the stored settings as they are, but the draft may still go live.
+  if ('settled' in planned && resolution.action !== 'noop') return planned.settled
+
+  const detail: DeploymentPlan = {
+    ...(workflowId ? { workflowId } : {}),
+    deploy: false,
+    ...(basePasswordEnv ? { basePasswordEnv } : {}),
+  }
+  const state = deployed?.state
+  let next: DeploymentChange
+  if ('settled' in planned) {
+    next = planned.settled
+  } else if (planned.action === 'create') {
+    detail.deploy = true
+    if (decl.api?.public === true) detail.publicApi = true
+    if (decl.chat) detail.chat = 'replace'
+    next = {
+      ...change,
+      action: 'create',
+      fields: ['deploy', ...(detail.publicApi ? ['api'] : []), ...(decl.chat ? ['chat'] : [])],
+    }
+  } else {
+    const before = declOf(planned.stored.state, { live: decl.live, passwordEnv: basePasswordEnv })
+    const fields = changedFields(before, decl)
+    if (fields.includes('api')) detail.publicApi = decl.api?.public === true
+    if (fields.includes('chat')) detail.chat = decl.chat ? 'replace' : 'delete'
+    next = { ...change, action: 'update', storedId: planned.stored.id, fields }
+  }
+  if (state) {
+    next.serverFingerprint = storedFingerprint(state, basePasswordEnv)
+    const draftDiffers = state.needsRedeployment || draftEdited
+    if (draftDiffers && decl.live === 'draft') {
+      detail.deploy = true
+      next.action = 'update'
+      next.fields = ['live version', ...(next.fields ?? [])]
+    } else if (draftDiffers) {
+      next.diagnostics.push(
+        deploymentFinding(
+          key,
+          'I_DEPLOY_DRAFT_NOT_LIVE',
+          `${where('workflow', key)}'s draft differs from its live version, which keeps running: the deployment is pinned.`,
+          "Set `live: 'draft'` to deploy the draft with this apply."
+        )
+      )
+      if (detail.chat === 'replace') {
+        next.diagnostics.push(
+          deploymentFinding(
+            key,
+            'E_DEPLOY_PINNED_CHAT',
+            'Writing the chat deploys the draft, which this pinned deployment keeps out of the live version.',
+            "Set `live: 'draft'`, or leave the chat as it is until the draft should go live."
+          )
+        )
+      }
+    }
+  }
+  if (next.action === 'noop') return next
+  if (detail.chat === 'replace' && decl.chat) {
+    await checkChat(next, decl.chat, ctx, {
+      workflowId,
+      storedPassword: state?.chat?.hasPassword === true,
+      draftKnown: !draftEdited,
+    })
+  }
+  return { ...next, detail }
+}
+
+/** The deployment's idempotency key: its fingerprint, workflow and the live version it replaces. */
+function idempotencyKey(change: DeploymentChange, workflowId: string, live: string | null) {
+  const local = change.decl ? fingerprintOf(deploymentCodec.canonical(change.decl)) : null
+  return `workspace-source:${sha256Hex(JSON.stringify([workflowId, local, live]))}`
+}
+
+/**
+ * Deploys the draft unless it already is the live version: a re-run after a deploy that
+ * succeeded finds nothing to publish, and one after a deploy that failed replays the same key.
+ */
+async function deployDraft(change: DeploymentChange, workflowId: string, ctx: ApplyContext) {
+  const { principal } = ctx
+  const status = await readWorkflowDeploymentStatus.execute({ principal, input: { workflowId } })
+  if (status.isDeployed && !status.needsRedeployment) return
+  await deployWorkflow.execute({
+    principal,
+    input: {
+      workflowId,
+      requestId: generateRequestId(),
+      idempotencyKey: idempotencyKey(
+        change,
+        workflowId,
+        status.activeDeployment?.deploymentVersionId ?? null
+      ),
+    },
+  })
+}
+
+/** The block ids a chat's outputs name, refusing a block the workflow does not have. */
+async function outputConfigs(
+  ctx: ApplyContext,
+  key: string,
+  workflowId: string,
+  chat: ChatDecl
+): Promise<Array<{ blockId: string; path: string }>> {
+  const outputs = chat.outputs ?? []
+  if (outputs.length === 0) return []
+  const { idOf } = await readBlockNames(ctx, workflowId)
+  const missing = outputs.filter((output) => !idOf.has(normalizeWorkflowBlockName(output.block)))
+  if (missing.length > 0) {
+    throw new WorkspaceSourceRejectedError(
+      missing.map((output) =>
+        deploymentFinding(
+          key,
+          'E_DEPLOY_CHAT_OUTPUT',
+          `The chat output names block "${output.block}", which ${where('workflow', key)} does not have.`
+        )
+      )
+    )
+  }
+  return outputs.map((output) => ({
+    blockId: idOf.get(normalizeWorkflowBlockName(output.block)) ?? '',
+    path: output.path,
+  }))
+}
+
+/** Writes the declared chat through the replace use case, its password read from its variable. */
+async function writeChat(ctx: ApplyContext, key: string, workflowId: string, chat: ChatDecl) {
+  const { auth } = chat
+  let password: string | undefined
+  if (auth !== 'public' && 'password' in auth && auth.password !== 'stored') {
+    password = await resolvePrincipalEnvironmentVariable(
+      ctx.principal,
+      ctx.workspace.workspaceId,
+      auth.password.env
+    )
+    if (password === undefined) {
+      throw new OrchestrationError(
+        'validation',
+        `The secret ${auth.password.env} is not set for this workspace or you.`
+      )
+    }
+  }
+  const authType =
+    auth === 'public'
+      ? 'public'
+      : 'password' in auth
+        ? 'password'
+        : 'emails' in auth
+          ? 'email'
+          : 'sso'
+  await replaceWorkflowChatDeployment.execute({
+    principal: ctx.principal,
+    input: {
+      workflowId,
+      identifier: chat.identifier,
+      title: chat.title,
+      ...(chat.description ? { description: chat.description } : {}),
+      ...(chat.customizations ? { customizations: chat.customizations } : {}),
+      authType,
+      ...(password !== undefined ? { password } : {}),
+      ...(auth !== 'public' && 'emails' in auth ? { allowedEmails: auth.emails } : {}),
+      ...(auth !== 'public' && 'sso' in auth ? { allowedEmails: auth.sso } : {}),
+      outputConfigs: await outputConfigs(ctx, key, workflowId, chat),
+      includeThinking: chat.includeThinking === true,
+      includeToolCalls: chat.includeToolCalls === true,
+      requestId: generateRequestId(),
+    },
+  })
+}
+
+/** What undeploying a workflow stops: its API, chat and live triggers, counted. */
+async function stopsOnUndeploy(
+  ctx: SourceContext,
+  workflowId: string,
+  state: StoredDeployment
+): Promise<Record<string, number>> {
+  const { triggers } = await listWorkflowTriggers.execute({
+    principal: ctx.principal,
+    input: { workflowId },
+  })
+  const schedules = triggers.filter((trigger) => trigger.kind === 'schedule').length
+  return {
+    api: 1,
+    ...(state.chat ? { chat: 1 } : {}),
+    ...(schedules > 0 ? { schedules } : {}),
+    ...(triggers.length > schedules ? { webhooks: triggers.length - schedules } : {}),
+  }
+}
+
+function describeStops(counts: Record<string, number>): string {
+  return Object.entries(counts)
+    .map(([what, count]) =>
+      what === 'api' || what === 'chat' ? `its ${what}` : `${count} ${what}`
+    )
+    .join(', ')
+}
+
+type CursorKeys = Awaited<ReturnType<typeof listWorkflows.execute>>['nextCursorKeys']
+
+/** The workspace's deployed workflows. */
+function listDeployedWorkflows(ctx: SourceContext) {
+  return listUpTo(async (cursorKeys: CursorKeys | undefined) => {
+    const page = await listWorkflows.execute({
+      principal: ctx.principal,
+      input: {
+        workspaceId: ctx.workspace.workspaceId,
+        scope: 'active',
+        deployedOnly: true,
+        sortBy: 'createdAt',
+        sortOrder: 'asc',
+        limit: LIST_PAGE,
+        ...(cursorKeys ? { cursorKeys } : {}),
+      },
+    })
+    return { items: page.workflows, next: page.nextCursorKeys }
+  })
+}
+
+export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, DeploymentPlan> = {
+  codec: deploymentCodec,
+
+  async load(ctx, { allocate }) {
+    const workflows = await listDeployedWorkflows(ctx)
+    const records = await mapWithConcurrency(workflows, READ_CONCURRENCY, async (workflow) => {
+      const state = await readDeployment(ctx, workflow.id)
+      return state ? [{ id: workflow.id, name: workflow.name, state }] : []
+    })
+    return bindStored(ctx, 'workflow', records.flat(), { allocate })
+  },
+
+  async plan(desired, stored, ctx) {
+    const changes: DeploymentChange[] = []
+    for (const [key, decl] of desired) changes.push(await planDeployment(key, decl, stored, ctx))
+    const undeclared = planUndeclared<StoredDeployment, DeploymentDecl, DeploymentPlan>(
+      'deployment',
+      desired,
+      stored,
+      ctx,
+      {
+        fingerprint: (record, base) => storedFingerprint(record.state, passwordEnvOf(base)),
+        detail: (record, base) => ({
+          workflowId: record.id,
+          deploy: false,
+          ...(passwordEnvOf(base) ? { basePasswordEnv: passwordEnvOf(base) } : {}),
+        }),
+      }
+    )
+    // Undeploying stops the workflow's triggers: the plan says which, deleting or refusing to.
+    for (const change of undeclared) {
+      const record = change.storedId ? stored.bound.get(change.key) : undefined
+      const refused = change.diagnostics.find(
+        (finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'
+      )
+      if (!record || (change.action !== 'delete' && !refused)) continue
+      const counts = await stopsOnUndeploy(ctx, record.id, record.state)
+      if (change.destructive) change.destructive = { what: 'deployment', counts }
+      if (refused) {
+        refused.message = `${deploymentDeclarationPath(change.key)} is removed; undeploying "${record.name}" stops ${describeStops(counts)}, and needs --allow-delete.`
+      }
+    }
+    return [...changes, ...undeclared]
+  },
+
+  async authorize(change, ctx) {
+    const { principal } = ctx
+    const workflowId = change.detail?.workflowId
+    const requestId = generateRequestId()
+    if (change.action === 'delete') {
+      if (workflowId)
+        await undeployWorkflow.authorize({ principal, input: { workflowId, requestId } })
+      return
+    }
+    const detail = change.detail
+    if (!detail) return
+    if (!workflowId) {
+      // A workflow this apply creates has no id yet: its deploy is held to the same operations
+      // at workspace level now, and to the use cases themselves when it is written.
+      await authorizeWorkspaceOperation(principal, workflowOperations.deploy, ctx.workspace)
+      if (detail.chat) {
+        await authorizeWorkspaceOperation(
+          principal,
+          chatDeploymentOperations.replace,
+          ctx.workspace
+        )
+      }
+      return
+    }
+    if (detail.deploy)
+      await deployWorkflow.authorize({ principal, input: { workflowId, requestId } })
+    if (detail.publicApi !== undefined) {
+      await updateWorkflowPublicApi.authorize({
+        principal,
+        input: { workflowId, isPublicApi: detail.publicApi },
+      })
+    }
+    if (detail.chat === 'replace' && change.decl?.chat) {
+      await replaceWorkflowChatDeployment.authorize({
+        principal,
+        input: {
+          workflowId,
+          identifier: change.decl.chat.identifier,
+          title: change.decl.chat.title,
+          requestId,
+        },
+      })
+    }
+    if (detail.chat === 'delete') {
+      await deleteWorkflowChatDeployment.authorize({ principal, input: { workflowId } })
+    }
+  },
+
+  async fingerprintNow(change, ctx) {
+    const workflowId = change.detail?.workflowId
+    if (!workflowId) throw new Error('A deployment check needs the workflow id')
+    const state = await readDeployment(ctx, workflowId)
+    return state ? storedFingerprint(state, change.detail?.basePasswordEnv) : ''
+  },
+
+  async apply(change, ctx) {
+    const { principal } = ctx
+    const workflowId = change.detail?.workflowId ?? (await workflowIdByKey(ctx, change.key))
+    if (!workflowId) throw new Error('A deployment write needs its workflow')
+    if (change.action === 'delete') {
+      await undeployWorkflow.execute({
+        principal,
+        input: { workflowId, requestId: generateRequestId() },
+      })
+      return { id: workflowId, text: {} }
+    }
+    const { decl, detail } = change
+    if (!decl || !detail) throw new Error('A deployment write needs its declaration and plan')
+    if (detail.deploy) await deployDraft(change, workflowId, ctx)
+    if (detail.publicApi !== undefined) {
+      await updateWorkflowPublicApi.execute({
+        principal,
+        input: { workflowId, isPublicApi: detail.publicApi },
+      })
+    }
+    if (detail.chat === 'replace' && decl.chat)
+      await writeChat(ctx, change.key, workflowId, decl.chat)
+    if (detail.chat === 'delete') {
+      await deleteWorkflowChatDeployment.execute({ principal, input: { workflowId } })
+    }
+    const state = await readDeployment(ctx, workflowId)
+    if (!state) throw new Error('A deployed workflow read back as not deployed')
+    const passwordEnv =
+      detail.chat === 'replace' ? declaredPasswordEnv(decl) : detail.basePasswordEnv
+    const written = declOf(state, { live: decl.live, passwordEnv })
+    return {
+      id: workflowId,
+      base: {
+        id: workflowId,
+        fingerprint: storedFingerprint(state, passwordEnv),
+        ...(passwordEnv ? { [PASSWORD_ENV]: passwordEnv } : {}),
+      },
+      text: written ? deploymentCodec.print(change.key, written).text : {},
+    }
+  },
+
+  async read(stored) {
+    const { state } = stored
+    // A draft that differs reads as pinned, so applying what a get wrote never publishes it.
+    const decl = declOf(state, { live: state.needsRedeployment ? 'pinned' : 'draft' })
+    if (!decl) {
+      throw new OrchestrationError(
+        'validation',
+        'Its chat answers with a block the draft no longer has, which source cannot name.'
+      )
+    }
+    return {
+      text: deploymentCodec.print(stored.key, decl).text,
+      blobs: [],
+      base: { id: stored.id, fingerprint: storedFingerprint(state, undefined) },
+    }
+  },
+}
+
+/**
+ * Warns on every workflow this apply edits that is deployed while no deployment file in the
+ * directory decides what happens to its live version (`W_DEPLOYED_DRAFT_CHANGED`): the edit
+ * changes the draft, and the triggers keep running the old one. Reads the deployed workflows only
+ * when the plan edits one.
+ */
+export async function warnDeployedDraftChanges(
+  changes: readonly PlannedChange[],
+  ctx: SourceContext
+): Promise<void> {
+  const declared = new Set(
+    changes
+      .filter((change) => change.kind === 'deployment' && change.decl)
+      .map((change) => change.key)
+  )
+  const edited = changes.filter(
+    (change) =>
+      change.kind === 'workflow' &&
+      change.action === 'update' &&
+      change.storedId !== undefined &&
+      !declared.has(change.key)
+  )
+  if (edited.length === 0) return
+  const deployedIds = new Set((await listDeployedWorkflows(ctx)).map((workflow) => workflow.id))
+  for (const change of edited) {
+    if (!change.storedId || !deployedIds.has(change.storedId)) continue
+    change.diagnostics.push(
+      kindFinding(
+        'workflow',
+        change.key,
+        'W_DEPLOYED_DRAFT_CHANGED',
+        `${where('workflow', change.key)} is deployed: this apply changes its draft, and the live version keeps running the old one.`,
+        {
+          hint: `Add ${deploymentDeclarationPath(change.key)} with \`live: 'draft'\` to deploy it with each apply, or deploy it: \`sim workflows deploy\`.`,
+        }
+      )
+    )
+  }
+}

@@ -52,8 +52,8 @@ import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-che
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
 
 /** Platform defaults for the presentation fields a replace may omit. */
-const DEFAULT_PRIMARY_COLOR = 'var(--brand-hover)'
-const DEFAULT_WELCOME_MESSAGE = 'Hi there! How can I help you today?'
+export const DEFAULT_PRIMARY_COLOR = 'var(--brand-hover)'
+export const DEFAULT_WELCOME_MESSAGE = 'Hi there! How can I help you today?'
 
 export interface WorkflowChatDeploymentInput {
   workflowId: string

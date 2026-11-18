@@ -150,21 +150,24 @@ function withPendingResources(
 }
 
 /**
- * The lint reference kind an unresolved id of each workspace source kind reports as. Every kind an
- * enclosing apply can create is listed, so a new one fails to compile until it is mapped.
+ * The lint reference kind an unresolved id of each workspace source kind reports as, or `null` for
+ * a kind no workflow references. Every kind an enclosing apply can create is listed, so a new one
+ * fails to compile until it is mapped.
  */
-const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind']> = {
-  'custom-tool': 'custom-tool',
-  skill: 'skill',
-  table: 'resource',
-  'knowledge-base': 'resource',
-  file: 'resource',
-  workflow: 'resource',
-}
+const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind'] | null> =
+  {
+    'custom-tool': 'custom-tool',
+    skill: 'skill',
+    table: 'resource',
+    'knowledge-base': 'resource',
+    file: 'resource',
+    workflow: 'resource',
+    deployment: null,
+  }
 
 /** Unresolved reference kinds whose ids an enclosing apply may create. */
 const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> = new Set(
-  Object.values(PENDABLE_REFERENCE_OF)
+  Object.values(PENDABLE_REFERENCE_OF).filter((kind) => kind !== null)
 )
 
 /**

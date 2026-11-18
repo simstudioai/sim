@@ -76,9 +76,11 @@ export async function checkDeletesInUse(
   unchanged: ReadonlyMap<WorkspaceKind, ReadonlySet<string>>,
   workspaceId: string
 ): Promise<void> {
+  // A workflow's own delete is checked by its use case, and an undeploy deletes no resource.
   const deleting = changes.filter(
     (change) =>
       change.kind !== 'workflow' &&
+      change.kind !== 'deployment' &&
       change.storedId !== undefined &&
       (change.action === 'delete' ||
         change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'))

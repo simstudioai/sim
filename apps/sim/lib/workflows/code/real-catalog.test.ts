@@ -393,6 +393,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
         path.join(dir, 'tools/*.ts'),
         path.join(dir, 'knowledge/*/knowledge.ts'),
         path.join(dir, 'workflows/*/workflow.ts'),
+        path.join(dir, 'deployments/*.ts'),
       ])
     ).toBe('')
 
