@@ -145,18 +145,15 @@ export async function loadCatalog(
   )
 }
 
-/**
- * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills,
- * custom tools and MCP servers sections omits them, which leaves those keys plain strings.
- */
+/** The resource manifest as `generateWorkspaceTypes` reads it. */
 function workspaceManifestFrom({
   tables,
   knowledgeBases,
   credentials,
   workflows,
-  skills = [],
-  customTools = [],
-  mcpServers = [],
+  skills,
+  customTools,
+  mcpServers,
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -203,8 +200,7 @@ export type LocalDeclarations = Pick<
  * The workspace's resources as `workspace.d.ts`, with what a workspace directory declares typed
  * too: its tables, secrets and credentials from their declarations, and its knowledge base, skill,
  * custom tool and workflow keys beside the stored ones (a stored workflow keeps its typed inputs). When the resources
- * cannot be listed (a `403` for a caller the manifest does not admit, a `404` from a server that
- * predates the route) only the declared resources are typed, or `null` without any: the source
+ * cannot be listed (a `403` for a caller the manifest does not admit, or a `404`) only the declared resources are typed, or `null` without any: the source
  * still writes and type-checks, with every other key a plain string.
  */
 export async function loadWorkspaceTypes(
