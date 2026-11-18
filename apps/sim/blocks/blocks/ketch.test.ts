@@ -53,6 +53,21 @@ describe('KetchBlock', () => {
     })
   })
 
+  it('rejects an allowed value Ketch would silently record as denied', () => {
+    const buildBody = setConsentTool.request.body
+    if (!buildBody) throw new Error('set consent has no body builder')
+
+    expect(() =>
+      buildBody({
+        organizationCode: 'org',
+        propertyCode: 'web',
+        environmentCode: 'production',
+        identities: { email: 'a@example.com' },
+        purposes: { analytics: { allowed: 'yes' } },
+      })
+    ).toThrow('invalid "allowed" value')
+  })
+
   it('surfaces the message of a Ketch error envelope', async () => {
     const transform = invokeRightTool.transformResponse
     if (!transform) throw new Error('invoke right has no response transform')
