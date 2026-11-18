@@ -258,42 +258,72 @@ function hasRuntimeReference(value: string): boolean {
 /**
  * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
  * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
- * Quoting each reference written outside a JSON string lets the Table block's own transform read
- * the literal parts, and the quoted references then reach the existing runtime-resolution notes.
- * When the transform's shape validation rejects a quoted reference (a filter `in` list, a
- * whole-field filter), the fields that only parse once quoted are left out and returned as
- * `runtimeFields`; malformed literal JSON still throws. Only this lint-local copy is rewritten;
- * references to string outputs left unquoted are reported by `collectUnquotedJsonStringReferences`.
+ * Each reference written outside a JSON string is replaced by a placeholder so the Table block's
+ * own transform reads the literal parts: a quoted string, or a one-item list for slots such as a
+ * filter `in`. Every combination is tried while there are few references (otherwise all-string
+ * and all-list). A field that is a single whole reference has no literal part, so if no
+ * combination fits it is left out and returned in `runtimeFields`. Any other failure, such as
+ * malformed JSON or an invalid literal condition, is rethrown. Only this lint-local copy is
+ * rewritten; references to string outputs left unquoted are reported by
+ * `collectUnquotedJsonStringReferences`.
  */
 function normalizeTableInputs(
   transform: (params: Record<string, unknown>) => Record<string, unknown>,
   params: Record<string, unknown>
 ): { normalized: Record<string, unknown>; runtimeFields: string[] } {
-  const quoted: Record<string, unknown> = {}
-  const runtimeFields: string[] = []
+  let hasReference = false
+  const wholeReferenceFields: string[] = []
   for (const [key, value] of Object.entries(params)) {
-    quoted[key] = typeof value === 'string' ? quoteBareReferences(value) : value
-    if (quoted[key] !== value && parsesAsJson(quoted[key])) runtimeFields.push(key)
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    const tokens = findWorkflowReferenceTokens(trimmed)
+    if (tokens.length === 0) continue
+    hasReference = true
+    if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
+      wholeReferenceFields.push(key)
+    }
   }
-  try {
-    return { normalized: transform(quoted), runtimeFields: [] }
-  } catch (error) {
-    if (runtimeFields.length === 0) throw error
-    for (const key of runtimeFields) delete quoted[key]
-    return { normalized: transform(quoted), runtimeFields }
+  if (!hasReference) return { normalized: transform(params), runtimeFields: [] }
+  const tiers = wholeReferenceFields.length > 0 ? [[], wholeReferenceFields] : [[]]
+  let firstError: unknown
+  for (const runtimeFields of tiers) {
+    const withPlaceholders = (asList: (ordinal: number) => boolean) => {
+      let ordinal = 0
+      const candidate: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(params)) {
+        if (runtimeFields.includes(key)) continue
+        candidate[key] =
+          typeof value === 'string'
+            ? replaceBareReferences(value, (reference) =>
+                asList(ordinal++) ? `[${JSON.stringify(reference)}]` : JSON.stringify(reference)
+              )
+            : value
+      }
+      return { candidate, count: ordinal }
+    }
+    const { count } = withPlaceholders(() => false)
+    const assignments: Array<(ordinal: number) => boolean> =
+      count <= MAX_PLACEHOLDER_SEARCH_REFERENCES
+        ? Array.from(
+            { length: 2 ** count },
+            (_, mask) => (ordinal) => ((mask >> ordinal) & 1) === 1
+          )
+        : [() => false, () => true]
+    for (const asList of assignments) {
+      try {
+        return { normalized: transform(withPlaceholders(asList).candidate), runtimeFields }
+      } catch (error) {
+        firstError ??= error
+      }
+    }
   }
+  throw firstError
 }
 
-function parsesAsJson(value: unknown): boolean {
-  try {
-    JSON.parse(String(value))
-    return true
-  } catch {
-    return false
-  }
-}
+/** Bounds the placeholder search to 2^6 pure transform calls per Table block. */
+const MAX_PLACEHOLDER_SEARCH_REFERENCES = 6
 
-function quoteBareReferences(json: string): string {
+function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {
   const tokens = findWorkflowReferenceTokens(json)
   if (tokens.length === 0) return json
   let result = ''
@@ -306,7 +336,7 @@ function quoteBareReferences(json: string): string {
       else if (char === '"') inString = !inString
     }
     result += json.slice(cursor, token.start)
-    result += inString ? token.value : JSON.stringify(token.value)
+    result += inString ? token.value : placeholder(token.value)
     cursor = token.end
   }
   return result + json.slice(cursor)

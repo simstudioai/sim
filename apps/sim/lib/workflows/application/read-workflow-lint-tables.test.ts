@@ -276,30 +276,53 @@ describe('standalone table diagnostics against the actual Table block', () => {
       expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
     })
 
-    it.each([
-      ['an in-list', '{"field":"name","op":"in","value":<start.names>}'],
-      ['a whole-field', '<start.filter>'],
-    ])(
-      'notes %s filter reference as runtime-resolved and still checks literal row data',
-      async (_shape, filter) => {
-        setGraph(
-          block('write', {
-            operation: 'update_rows_by_filter',
-            bulkFilterMode: 'json',
-            filter,
-            data: '{"name":"Ada","missing":1}',
-          })
-        )
-        const result = await lint()
-        expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
-        expect(result.notes).toContain(
-          'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
-        )
-        expect(
-          result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
-        ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
-      }
-    )
+    it('checks predicate fields around an in-list reference', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"other","op":"in","value":<start.names>},{"field":"name","op":"eq","value":<start.name>}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+    })
+
+    it('notes a whole-field filter reference as runtime-resolved and still checks row data', async () => {
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: '<start.filter>',
+          data: '{"name":"Ada","missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      )
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+    })
+
+    it('still reports an invalid literal condition beside a reference', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"name","op":"eq","value":<start.n>},{"field":"name","op":"in","value":"not a list"}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            'Table input checks in block "query" could not complete before runtime:'
+          ),
+        ])
+      )
+    })
   })
 
   it.each([
