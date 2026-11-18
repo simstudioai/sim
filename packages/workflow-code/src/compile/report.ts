@@ -64,7 +64,8 @@ interface ReportExtras {
 type SeverityOfCode = LocatedDiagnostic<CompileDiagnosticCode>['severity']
 
 function severityOf(code: CompileDiagnosticCode): SeverityOfCode {
-  return code.startsWith('E_') ? 'error' : 'warning'
+  if (code.startsWith('E_')) return 'error'
+  return code.startsWith('I_') ? 'info' : 'warning'
 }
 
 /** Errors one compile lists before it stops with `E_TOO_MANY_ERRORS`. */

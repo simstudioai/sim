@@ -1038,6 +1038,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     }
   }
   if (index) checkFields(ctx, index, state)
+  if (builder.type === SCHEDULE_BLOCK_TYPE) checkScheduleTimezone(ctx, state)
 
   const block: CanonicalBlock = {
     key: decl.key,
@@ -1181,6 +1182,30 @@ function predicateProblem(node: Record<string, Value>): string | null {
   return legacy
     ? 'This filter uses the legacy operator-object grammar ({ column: { $eq: value } }), which the table runtime refuses.'
     : 'A filter must be builder rows, a condition ({ field, op, value }) or an all/any group.'
+}
+
+/** The schedule trigger, whose `timezone` the editor seeds per viewer (`valueScope: 'viewer'`). */
+const SCHEDULE_BLOCK_TYPE = 'schedule'
+
+/**
+ * A schedule created from source with no `timezone` runs in UTC: the zone the editor seeds is the
+ * viewer's own, so source never gets one by default (`I_SCHEDULE_UTC`).
+ */
+function checkScheduleTimezone(ctx: CompileContext, state: BlockState): void {
+  const { decl, params } = state
+  if (ctx.stored && getOwn(ctx.stored.blocks, decl.key)) return
+  const timezone = getOwn(params, 'timezone')
+  if (timezone?.kind === 'value' && timezone.value !== null && timezone.value !== '') return
+  ctx.reporter.report(
+    'I_SCHEDULE_UTC',
+    'No timezone is set, so this schedule runs in UTC.',
+    rangeOf(ctx, decl.call),
+    {
+      hint: "Set timezone, e.g. timezone: 'America/New_York'.",
+      blockKey: decl.key,
+      param: 'timezone',
+    }
+  )
 }
 
 /** Catalog warnings: visibility, required fields, value kinds. */

@@ -221,4 +221,17 @@ export default workflow('Chat', {}, () => {
     expect(diagnostics.filter((d) => d.code === 'W_VALUE_KIND')).toEqual([])
     expect(typeCheck('upload', text)).toBe('')
   }, 120_000)
+
+  it('says a schedule created with no timezone runs in UTC, and only then', () => {
+    const schedule = (
+      params: string
+    ) => `${HEADER}import { trigger, workflow } from '@sim/workflow-sdk'
+export default workflow('Nightly', {}, () => {
+  trigger.schedule('Nightly', { scheduleType: 'daily', dailyTime: '02:00'${params} })
+})
+`
+    const codes = (text: string) => compile(text).diagnostics.map((d) => `${d.severity}:${d.code}`)
+    expect(codes(schedule(''))).toEqual(['info:I_SCHEDULE_UTC'])
+    expect(codes(schedule(", timezone: 'America/New_York'"))).toEqual([])
+  }, 120_000)
 })
