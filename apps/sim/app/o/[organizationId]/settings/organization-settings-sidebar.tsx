@@ -11,6 +11,7 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
+import { hasDesktopSettings } from '@/lib/desktop'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -20,6 +21,7 @@ import {
 import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
+import { useHydrated } from '@/hooks/use-hydrated'
 
 interface OrganizationSettingsSidebarProps {
   isCollapsed: boolean
@@ -31,6 +33,7 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
     useOrganizationContext()
   const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
+  const hydrated = useHydrated()
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const refreshPlan = viewer.isAdmin && settingsFeatures.hosted && settingsFeatures.billingEnabled
@@ -76,6 +79,7 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
           connectedAccounts: connectedAccountsAvailable,
           search: searchAccess.memberScoped,
           knowledgeGraphs,
+          desktopSettings: hydrated && hasDesktopSettings(),
         },
         session?.user?.role === 'admin'
       )}
