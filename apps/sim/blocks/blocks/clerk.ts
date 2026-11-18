@@ -1,7 +1,7 @@
 import { ClerkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { mapperOperation, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -849,13 +849,6 @@ export const ClerkBlock: BlockConfig = {
 
         // Map UI fields to API params based on operation
         switch (operation) {
-          case 'clerk_list_users':
-            if (emailAddressFilter) cleanParams.emailAddress = emailAddressFilter
-            if (usernameFilter) cleanParams.username = usernameFilter
-            if (phoneNumberFilter) cleanParams.phoneNumber = phoneNumberFilter
-            if (externalIdFilter) cleanParams.externalId = externalIdFilter
-            if (userIdFilter) cleanParams.userId = userIdFilter
-            break
           case 'clerk_create_user':
           case 'clerk_update_user':
           case 'clerk_create_organization_invitation':
@@ -918,6 +911,16 @@ export const ClerkBlock: BlockConfig = {
             cleanParams[key] = numericFields.has(key) ? Number(value) : value
           }
         })
+
+        // List Users filters have dedicated subBlocks. The same-named raw keys can hold Create/Update
+        // User values, so on the canvas they are cleared rather than forwarded as filters.
+        if (operation === 'clerk_list_users') {
+          cleanParams.emailAddress = emailAddressFilter || toolCallArg(context, rest.emailAddress)
+          cleanParams.username = usernameFilter || toolCallArg(context, rest.username)
+          cleanParams.phoneNumber = phoneNumberFilter || toolCallArg(context, rest.phoneNumber)
+          cleanParams.externalId = externalIdFilter || toolCallArg(context, rest.externalId)
+          cleanParams.userId = userIdFilter || toolCallArg(context, rest.userId)
+        }
 
         return cleanParams
       },

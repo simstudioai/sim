@@ -119,7 +119,7 @@ export const KetchBlock: BlockConfig = {
       title: 'Purposes',
       type: 'code',
       placeholder:
-        '{"analytics": {"allowed": "granted", "legalBasisCode": "consent_optin"}, "marketing": {"allowed": "denied"}}',
+        '{"analytics": {"allowed": "true", "legalBasisCode": "consent_optin"}, "marketing": {"allowed": "false", "legalBasisCode": "consent_optin"}}',
       language: 'json',
       condition: { field: 'operation', value: 'set_consent' },
       required: { field: 'operation', value: 'set_consent' },
@@ -160,7 +160,7 @@ export const KetchBlock: BlockConfig = {
       placeholder: '{"email": "user@example.com", "firstName": "John", "lastName": "Doe"}',
       language: 'json',
       condition: { field: 'operation', value: 'invoke_right' },
-      mode: 'advanced',
+      required: { field: 'operation', value: 'invoke_right' },
     },
     {
       id: 'collectedAt',
@@ -256,7 +256,7 @@ export const KetchBlock: BlockConfig = {
   },
   outputs: {
     purposes: { type: 'json', description: 'Consent status per purpose (allowed, legalBasisCode)' },
-    vendors: { type: 'json', description: 'Vendor consent statuses' },
+    vendors: { type: 'json', description: 'TCF vendor IDs returned with the consent record' },
     topics: {
       type: 'json',
       description: 'Subscription topic statuses per contact method',

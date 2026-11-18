@@ -14,7 +14,8 @@ vi.mock('dns/promises', () => ({
 }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-import { connectRequest } from '@/lib/internal/onepassword/client'
+import type { VaultOverview } from '@1password/sdk'
+import { connectRequest, normalizeSdkVault } from '@/lib/internal/onepassword/client'
 
 const { mockSecureFetchWithPinnedIP: mockSecureFetch, mockValidateUrlWithDNS } =
   inputValidationMockFns
@@ -50,6 +51,34 @@ describe('connectRequest', () => {
       profile: 'selfHostedService',
       maxResponseBytes: 10 * 1024 * 1024,
       signal: controller.signal,
+    })
+  })
+})
+
+describe('normalizeSdkVault', () => {
+  it('maps the service-account vault overview instead of placeholder values', () => {
+    const vault = {
+      id: 'vault-1',
+      title: 'Engineering',
+      description: 'Shared engineering secrets',
+      vaultType: 'transfer',
+      activeItemCount: 12,
+      contentVersion: 7,
+      attributeVersion: 3,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-02-01T00:00:00Z'),
+    } as unknown as VaultOverview
+
+    expect(normalizeSdkVault(vault)).toEqual({
+      id: 'vault-1',
+      name: 'Engineering',
+      description: 'Shared engineering secrets',
+      attributeVersion: 3,
+      contentVersion: 7,
+      items: 12,
+      type: 'TRANSFER',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-02-01T00:00:00.000Z',
     })
   })
 })

@@ -2,8 +2,10 @@ import type {
   RootlyAcknowledgeAlertParams,
   RootlyAcknowledgeAlertResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyAcknowledgeAlertTool: ToolConfig<
   RootlyAcknowledgeAlertParams,
@@ -31,7 +33,8 @@ export const rootlyAcknowledgeAlertTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}/acknowledge`,
+    url: (params) =>
+      `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}/acknowledge`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -46,7 +49,7 @@ export const rootlyAcknowledgeAlertTool: ToolConfig<
       return {
         success: false,
         output: { alert: {} as RootlyAcknowledgeAlertResponse['output']['alert'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

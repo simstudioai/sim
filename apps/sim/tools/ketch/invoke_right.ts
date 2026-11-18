@@ -1,4 +1,5 @@
 import type { KetchInvokeRightParams, KetchInvokeRightResponse } from '@/tools/ketch/types'
+import { readKetchErrorMessage } from '@/tools/ketch/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const invokeRightTool: ToolConfig<KetchInvokeRightParams, KetchInvokeRightResponse> = {
@@ -48,10 +49,10 @@ export const invokeRightTool: ToolConfig<KetchInvokeRightParams, KetchInvokeRigh
     },
     userData: {
       type: 'json',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
-        'Optional data subject information (e.g., {"email": "user@example.com", "firstName": "John", "lastName": "Doe"})',
+        'Data subject information sent as the request "user"; Ketch requires it for rights requests (e.g., {"email": "user@example.com", "firstName": "John", "lastName": "Doe"})',
     },
   },
 
@@ -79,13 +80,7 @@ export const invokeRightTool: ToolConfig<KetchInvokeRightParams, KetchInvokeRigh
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = `Request failed with status ${response.status}`
-      try {
-        const data = await response.json()
-        errorMessage = data.message ?? data.error ?? errorMessage
-      } catch {
-        // No JSON body in error response
-      }
+      const errorMessage = await readKetchErrorMessage(response)
       return {
         success: false,
         output: {

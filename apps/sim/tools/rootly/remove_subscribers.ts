@@ -2,8 +2,10 @@ import type {
   RootlyIncidentActionResponse,
   RootlyRemoveSubscribersParams,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyRemoveSubscribersTool: ToolConfig<
   RootlyRemoveSubscribersParams,
@@ -38,7 +40,7 @@ export const rootlyRemoveSubscribersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/remove_subscribers`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/remove_subscribers`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -60,7 +62,7 @@ export const rootlyRemoveSubscribersTool: ToolConfig<
       return {
         success: false,
         output: { incident: {} as RootlyIncidentActionResponse['output']['incident'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 
