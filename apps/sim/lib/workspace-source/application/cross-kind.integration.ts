@@ -815,13 +815,15 @@ export default workflow('Answer', {}, () => {
       input: { workspaceId, name: 'Policies' },
     })
     const buffer = Buffer.alloc(size, 'c')
-    await uploadKnowledgeDocument.execute({
+    const { document: uploaded } = await uploadKnowledgeDocument.execute({
       principal: owner,
       input: {
         knowledgeBaseId: created.id,
         file: { buffer, filename: 'c.txt', fileSize: size, mimeType: 'text/plain' },
       },
     })
+    // An older document, uploaded before its hash was recorded, is hashed from its bytes.
+    await db.update(document).set({ fileSha256: null }).where(eq(document.id, uploaded.id))
 
     const read = await get(workspaceId)
 

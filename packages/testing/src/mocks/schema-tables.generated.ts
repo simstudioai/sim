@@ -1084,6 +1084,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'fileUrl',
     'storageKey',
     'fileSize',
+    'fileSha256',
     'mimeType',
     'chunkCount',
     'tokenCount',

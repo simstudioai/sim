@@ -1,0 +1,1 @@
+ALTER TABLE "document" ADD COLUMN "file_sha256" text;

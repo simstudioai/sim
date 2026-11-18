@@ -3,6 +3,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -475,10 +476,11 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       registrationContext
     )
     const uploadedBy = resolveKnowledgeAttributedUserId(principal, registrationContext)
-    const documentInput: KnowledgeDocumentInput = {
+    const documentInput = {
       filename: input.file.filename,
       fileUrl: `${storedFile.path}?context=knowledge-base`,
       fileSize: input.file.fileSize,
+      fileSha256: sha256Hex(input.file.buffer),
       mimeType: input.file.mimeType,
     }
     const processingEventId = input.startProcessing !== false ? generateId() : undefined

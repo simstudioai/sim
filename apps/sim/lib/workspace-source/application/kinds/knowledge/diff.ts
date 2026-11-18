@@ -6,7 +6,6 @@
  * replacement therefore has a new id and none of the old one's tag values.
  */
 import { createLogger } from '@sim/logger'
-import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BaseResource } from '@sim/workspace-code'
 import {
@@ -115,8 +114,9 @@ export function checkWrites(
 }
 
 /**
- * Downloads and hashes each of `docs` whose hash `hashes` lacks, through the original-document
- * use case, adding it to `hashes`: the request's budget is spent in order first, then the
+ * Adds to `hashes` the hash of each of `docs` it lacks: the one recorded on the document, else
+ * its bytes downloaded and hashed through the original-document use case (which records it, so
+ * the next read downloads nothing). The request's budget is spent in order first, then the
  * downloads run a few at a time. A document whose bytes are gone stays unhashed. Returns the
  * documents left unchecked: past the request's download budget, or whose download failed (logged),
  * so one unreadable document never fails the whole get or plan.
@@ -128,7 +128,11 @@ export async function hashDocs(
   hashes: Map<string, string>
 ): Promise<StoredDoc[]> {
   const unknown = new Map<string, StoredDoc>()
-  for (const doc of docs) if (!hashes.has(doc.id)) unknown.set(doc.id, doc)
+  for (const doc of docs) {
+    if (hashes.has(doc.id)) continue
+    if (doc.fileSha256 !== null) hashes.set(doc.id, doc.fileSha256)
+    else unknown.set(doc.id, doc)
+  }
   const { taken, left } = takeHashBudget(ctx, unknown.values(), (doc) => doc.fileSize)
   const failed: StoredDoc[] = []
   const digests = await mapWithConcurrency(taken, HASH_CONCURRENCY, async (doc) => {
@@ -142,7 +146,7 @@ export async function hashDocs(
           maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
         },
       })
-      return original.sourceAvailable ? sha256Hex(original.buffer) : null
+      return original.sourceAvailable ? original.sha256 : null
     } catch (error) {
       logger.warn('Could not read a knowledge document to hash it', {
         knowledgeBaseId,
