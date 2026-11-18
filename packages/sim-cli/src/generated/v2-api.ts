@@ -755,6 +755,7 @@ export type ApplyWorkflowSourceResponse = {
     applied: boolean
     diff: {
       noop: boolean
+      meta?: Array<'name' | 'description'>
       blocks: {
         added: Array<{
           id: string
@@ -828,11 +829,17 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -915,6 +922,9 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1133,7 +1143,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -1160,6 +1169,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -1199,11 +1210,17 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -1285,6 +1302,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
       message: string
     }
     needBlobs: Array<string>
@@ -1356,7 +1375,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -1383,6 +1401,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -1422,11 +1442,17 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -1508,6 +1534,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -4875,6 +4903,7 @@ export type CreateWorkflowFromSourceResponse = {
     applied: boolean
     diff: {
       noop: boolean
+      meta?: Array<'name' | 'description'>
       blocks: {
         added: Array<{
           id: string
@@ -4948,11 +4977,17 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -5035,6 +5070,9 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -9928,11 +9966,17 @@ export type GetWorkflowSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -10015,6 +10059,9 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_NAME_TAKEN'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10464,7 +10511,6 @@ export type GetWorkspaceSourceResponse = {
         | 'E_KB_DOC_EMPTY'
         | 'E_KB_CHUNKING'
         | 'E_KB_FOLDER'
-        | 'W_KB_DOC_TAGS'
         | 'W_KB_DOC_UNCHECKED'
         | 'W_KB_DOC_FAILED'
         | 'I_KB_REEMBED'
@@ -10491,6 +10537,8 @@ export type GetWorkspaceSourceResponse = {
         | 'I_SERVER_DELETED'
         | 'I_SERVER_MOVED'
         | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'I_FINDINGS_TRUNCATED'
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
@@ -10530,11 +10578,17 @@ export type GetWorkspaceSourceResponse = {
         | 'E_BRANCH_KEY_COLLIDES'
         | 'E_BRANCH_ELSE_LAST'
         | 'W_RAW_HANDLE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
         | 'E_UNKNOWN_BUILDER'
         | 'E_UNKNOWN_PARAM'
         | 'E_FIXED_PARAM'
         | 'W_FIELD_NOT_APPLICABLE'
         | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
         | 'I_SCHEDULE_UTC'
         | 'E_STORED_VALUE_MISSING'
         | 'W_VALUE_KIND'
@@ -10616,6 +10670,8 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_LINT'
         | 'W_APPLY_LINT'
         | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
