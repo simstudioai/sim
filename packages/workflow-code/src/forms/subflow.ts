@@ -21,7 +21,7 @@ export type ConfigField<S> = Exclude<keyof S, 'kind' | 'loopType' | 'parallelTyp
 type ConfigKind<T> = [T] extends [number] ? 'number' : [T] extends [string] ? 'text' : 'json'
 
 /** One config key of a container form: the spec field it fills and how it is read and written. */
-export type ConfigEntry<S> = {
+type ConfigEntry<S> = {
   [F in ConfigField<S>]-?: {
     field: F
     kind: ConfigKind<NonNullable<S[F]>>
