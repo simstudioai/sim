@@ -1,5 +1,5 @@
 import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface DeleteFeatureFlagParams {
   projectId: string
@@ -9,9 +9,11 @@ interface DeleteFeatureFlagParams {
   apiKey: string
 }
 
-interface DeleteFeatureFlagResponse {
-  success: boolean
-  message: string
+interface DeleteFeatureFlagResponse extends ToolResponse {
+  output: {
+    success: boolean
+    message: string
+  }
 }
 
 export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFeatureFlagResponse> =
@@ -74,7 +76,7 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
     transformResponse: async () => {
       return {
         success: true,
-        message: 'Feature flag deleted successfully',
+        output: { success: true, message: 'Feature flag deleted successfully' },
       }
     },
 
