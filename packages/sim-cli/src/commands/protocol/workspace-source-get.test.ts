@@ -7,7 +7,9 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -349,6 +351,50 @@ describe('workspaces source get', () => {
         expect(readFileSync(join(dir, 'files/copy-of-a.bin'))).toEqual(bytesOf('a.bin'))
       })
 
+      it('removes its partial downloads on an interrupt and keeps the verified ones', async () => {
+        serve({}, { kinds: ['file'], blobs: ['a.bin', 'b.bin'].map((name) => listedNamed(name)) })
+        let cut: (error: Error) => void = () => {}
+        requestRaw.mockImplementation(async (path: string) => {
+          const name = path.slice('/api/v2/files/file_'.length)
+          if (name === 'a.bin') return new Response(bytesOf(name))
+          const half = bytesOf(name).subarray(0, 4)
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(half)
+                cut = (error) => controller.error(error)
+              },
+            })
+          )
+        })
+        // The real handler re-raises the signal, which would end the test runner with it.
+        const kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
+        const downloadsDir = join(dir, '.sim/downloads')
+        const entries = () =>
+          existsSync(downloadsDir) ? readdirSync(downloadsDir, { recursive: true }).map(String) : []
+
+        /** The verified downloads kept for the next get: named by a hex digest, at the top. */
+        const keptCopies = () => entries().filter((entry) => /^[0-9a-f]{64}$/.test(entry))
+
+        const running = get()
+        try {
+          await vi.waitFor(() => {
+            expect(entries().some((entry) => entry.endsWith('.part'))).toBe(true)
+            expect(keptCopies()).toHaveLength(1)
+          })
+          process.emit('SIGINT')
+
+          expect(kill).toHaveBeenCalledWith(process.pid, 'SIGINT')
+          expect(entries().some((entry) => entry.endsWith('.part'))).toBe(false)
+          expect(keptCopies()).toHaveLength(1)
+          expect(readFileSync(join(downloadsDir, keptCopies()[0]))).toEqual(bytesOf('a.bin'))
+        } finally {
+          cut(new Error('interrupted'))
+          await running.catch(() => {})
+          kill.mockRestore()
+        }
+      })
+
       it('never reuses a download listed with neither a hash nor a revision', async () => {
         const blobs = NAMES.map((name) => listedNamed(name, { sha256: undefined }))
         serve({}, { kinds: ['file'], blobs })
@@ -391,6 +437,75 @@ describe('workspaces source get', () => {
 
       await expect(get()).rejects.toMatchObject({ code: 'SOURCE_LOCAL_EDITS' })
       expect(readFileSync(join(dir, 'files/report.bin'))).toEqual(Buffer.from([7]))
+    })
+
+    describe('a same-size edit that kept its modification time (cp -p, rsync -t)', () => {
+      const EDITED = Buffer.from([0, 1, 2, 250, 7])
+
+      /** Whole seconds, which every file system and `utimes` hold exactly. */
+      const MTIME = 1_700_000_000
+
+      /**
+       * Gets the blob twice, so the second records the stat of the file in place, with a
+       * modification time `utimes` can put back exactly.
+       */
+      async function getTwice(): Promise<string> {
+        serve({}, { kinds: ['file'], blobs: [listed()], resources: fileResource })
+        requestRaw.mockImplementation(async () => new Response(BYTES))
+        await get()
+        const file = join(dir, 'files/report.bin')
+        utimesSync(file, MTIME, MTIME)
+        await get()
+        const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
+        expect(written.stats['files/report.bin']).toBeDefined()
+        return file
+      }
+
+      /** Rewrites `file` with bytes of the same length and puts its modification time back. */
+      function editKeepingMtime(file: string): void {
+        writeFileSync(file, EDITED)
+        utimesSync(file, MTIME, MTIME)
+        expect(statSync(file).mtimeMs).toBe(MTIME * 1000)
+      }
+
+      it('refuses to overwrite it', async () => {
+        const file = await getTwice()
+        editKeepingMtime(file)
+        const next = Buffer.from([1, 2, 3])
+        serve({}, { kinds: ['file'], blobs: [listed(next)] })
+        requestRaw.mockImplementation(async () => new Response(next))
+
+        await expect(get()).rejects.toMatchObject({ code: 'SOURCE_LOCAL_EDITS' })
+        expect(readFileSync(file)).toEqual(EDITED)
+      })
+
+      it('sends it on apply', async () => {
+        editKeepingMtime(await getTwice())
+        request.mockReset()
+        request.mockResolvedValue({
+          data: {
+            workspaceId: 'ws_local',
+            dryRun: true,
+            plan: [],
+            applied: [],
+            needBlobs: [],
+            remainingBlobs: [],
+            files: {},
+            base: { version: 1, workspaceId: 'ws_local', resources: fileResource },
+            diagnostics: [],
+          },
+        })
+
+        await runWorkspaceSource('apply', dir, '--dry-run', '--allow-delete')
+
+        expect(request.mock.calls[0][1].body.blobs).toEqual([
+          {
+            path: 'files/report.bin',
+            sha256: createHash('sha256').update(EDITED).digest('hex'),
+            size: EDITED.length,
+          },
+        ])
+      })
     })
 
     it('a get then an apply sends every blob by hash and plans from a complete directory', async () => {
