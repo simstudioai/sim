@@ -26,7 +26,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
+import { HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
 
 const LOOP_METHODS: ReadonlySet<string> = new Set<LoopSpec['loopType']>([
@@ -78,6 +78,25 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   const path = calleePath(call.callee)
   if (!path) return { kind: 'other' }
   const binding = lookup(scope, path.root)
+  if (!binding && path.rest.length > 0) {
+    // `discord.sendMessage(...)` with no such import: a builder namespace the SDK does not have.
+    const dotted = [path.root, ...path.rest].join('.')
+    const paths = catalogBuilderPaths(ctx.catalog)
+    const imported = paths.some((candidate) => candidate.startsWith(`${path.root}.`))
+    ctx.reporter.report(
+      'E_UNKNOWN_BUILDER',
+      imported
+        ? `${dotted}: ${path.root} is not imported from '@sim/workflow-sdk'.`
+        : `${dotted} is not a block builder: ${path.root} is not an SDK namespace.`,
+      rangeOf(ctx, call.callee),
+      {
+        hint: imported
+          ? `Add ${path.root} to the import from '@sim/workflow-sdk'.`
+          : suggestBuilder(dotted, paths),
+      }
+    )
+    return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+  }
   if (!binding || binding.kind !== 'sdk') return { kind: 'other' }
   const root = binding.name
   const dotted = [root, ...path.rest].join('.')
@@ -130,9 +149,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       'E_UNKNOWN_BUILDER',
       `${dotted} is not a block builder.`,
       rangeOf(ctx, call.callee),
-      {
-        hint: didYouMean(dotted, candidates),
-      }
+      { hint: suggestBuilder(dotted, candidates) }
     )
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
   }

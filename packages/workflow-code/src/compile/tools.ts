@@ -23,7 +23,7 @@ import {
 import { deepEqual, getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE } from '../sdk'
 import { type CompileContext, lookup, rangeOf, unsupported } from './context'
-import { didYouMean, hintForNode, nodeLabel } from './hints'
+import { didYouMean, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import {
   calleePath,
   compileJsonLiteral,
@@ -157,7 +157,7 @@ function compileToolCall(
       {
         ...(path && {
           hint:
-            didYouMean(
+            suggestBuilder(
               [path.root, ...path.rest].filter((segment) => segment !== 'tool').join('.'),
               catalogBuilderPaths(ctx.catalog)
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',

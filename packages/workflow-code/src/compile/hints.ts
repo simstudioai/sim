@@ -165,7 +165,7 @@ function levenshtein(a: string, b: string, cap: number): number {
  * The closest candidate within a third of the word's length (at least 1, at most 3 edits), or
  * `null`. Ties keep the first candidate, so callers pass candidates in a stable order.
  */
-function closest(word: string, candidates: Iterable<string>): string | null {
+export function closest(word: string, candidates: Iterable<string>): string | null {
   const cap = Math.min(3, Math.max(1, Math.floor(word.length / 3)))
   let best: string | null = null
   let bestDistance = cap + 1
@@ -183,4 +183,62 @@ function closest(word: string, candidates: Iterable<string>): string | null {
 export function didYouMean(word: string, candidates: Iterable<string>, format = (s: string) => s) {
   const match = closest(word, candidates)
   return match === null ? undefined : `Did you mean ${format(match)}?`
+}
+
+/** Verbs agents use interchangeably for one action, so `slack.postMessage` finds `sendMessage`. */
+const VERB_SYNONYMS: ReadonlyArray<readonly string[]> = [
+  ['send', 'post', 'create', 'add', 'write', 'insert', 'publish', 'new'],
+  ['get', 'read', 'fetch', 'retrieve', 'find', 'lookup'],
+  ['list', 'search', 'query', 'browse'],
+  ['update', 'edit', 'modify', 'patch', 'set', 'change'],
+  ['delete', 'remove', 'destroy', 'archive'],
+]
+
+/** `postMessage` → `['post', 'message']`: the leading lowercase verb and the rest, lowercased. */
+function splitVerb(method: string): [string, string] {
+  const match = /^([a-z]+)(.*)$/.exec(method)
+  return match ? [match[1], (match[2] ?? '').toLowerCase()] : ['', method.toLowerCase()]
+}
+
+/** How many builder paths a hint lists when nothing is close. */
+const LISTED_BUILDERS = 15
+
+/**
+ * The hint for a builder path no catalog builder has, from most to least specific: a builder of the
+ * same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
+ * the closest path by edit distance, the namespace's builders listed, else the closest namespace.
+ */
+export function suggestBuilder(written: string, paths: readonly string[]): string | undefined {
+  const dot = written.lastIndexOf('.')
+  const namespace = dot === -1 ? '' : written.slice(0, dot)
+  const method = dot === -1 ? written : written.slice(dot + 1)
+  const siblings = paths.filter(
+    (path) => path.lastIndexOf('.') === namespace.length && path.startsWith(`${namespace}.`)
+  )
+  if (namespace !== '' && siblings.length > 0) {
+    const [verb, rest] = splitVerb(method)
+    const group = VERB_SYNONYMS.find((verbs) => verbs.includes(verb))
+    const synonym = group
+      ? siblings.find((path) => {
+          const [otherVerb, otherRest] = splitVerb(path.slice(namespace.length + 1))
+          return otherVerb !== verb && group.includes(otherVerb) && otherRest === rest
+        })
+      : undefined
+    if (synonym) return `Did you mean ${synonym}?`
+  }
+  const near = didYouMean(written, paths)
+  if (near) return near
+  if (siblings.length > 0) {
+    const shown = siblings.slice(0, LISTED_BUILDERS).join(', ')
+    const more =
+      siblings.length > LISTED_BUILDERS ? `, and ${siblings.length - LISTED_BUILDERS} more` : ''
+    return `${namespace} has: ${shown}${more}.`
+  }
+  const namespaces = [
+    ...new Set(
+      paths.flatMap((path) => (path.includes('.') ? [path.slice(0, path.indexOf('.'))] : []))
+    ),
+  ]
+  const root = namespace === '' ? written : (namespace.split('.')[0] ?? namespace)
+  return didYouMean(root, namespaces, (name) => `${name}.*`)
 }

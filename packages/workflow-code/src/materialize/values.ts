@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
+import { closest } from '../compile/hints'
 import {
   type BlockKey,
   type CanonicalBlock,
@@ -9,6 +10,7 @@ import {
   type Json,
   type LoopSpec,
   type ParallelSpec,
+  type ResourceKind,
   type SimNode,
   type Value,
 } from '../model'
@@ -43,6 +45,26 @@ export function unliftValue(
   return result
 }
 
+/** How many keys an unknown-key hint lists. */
+const LISTED_KEYS = 20
+
+/**
+ * The hint of an unknown resource key: the closest available key, then the keys of that kind the
+ * workspace holds (or that it holds none). `undefined` when the caller loaded no keys.
+ */
+function availableKeysHint(
+  kind: ResourceKind,
+  keys: readonly string[] | undefined,
+  written: string
+): string | undefined {
+  if (keys === undefined) return undefined
+  if (keys.length === 0) return `This workspace has no ${kind} a source can name yet.`
+  const near = closest(written, keys)
+  const shown = keys.slice(0, LISTED_KEYS).join(', ')
+  const more = keys.length > LISTED_KEYS ? `, and ${keys.length - LISTED_KEYS} more` : ''
+  return `${near !== null ? `Did you mean ${near}? ` : ''}Keys: ${shown}${more}.`
+}
+
 function unliftNode(node: SimNode, context: MaterializeContext, location: ValueLocation): unknown {
   switch (node.$sim) {
     case 'literal':
@@ -65,10 +87,12 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'resource': {
       const id = context.resources?.toId(node.kind, node.key) ?? null
       if (id !== null) return id
+      const hint = availableKeysHint(node.kind, context.resources?.keysOf?.(node.kind), node.key)
       context.diagnostics.push({
         code: 'E_MAT_UNKNOWN_RESOURCE',
         severity: 'error',
         message: `No ${node.kind} "${node.key}" in this workspace`,
+        ...(hint !== undefined ? { hint } : {}),
         ...location,
       })
       return node.key

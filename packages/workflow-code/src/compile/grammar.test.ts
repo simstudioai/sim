@@ -240,12 +240,13 @@ describe('accepted grammar', () => {
           "const route = condition('Route', { billing: js`${a.content} === 'billing'`, urgent: 'x > 1', else: '' })",
           "const blank = condition('Blank', {})",
           "const triage = router('Triage', { context: 'c', routes: { small: 'Under $100', big: 'Over' } })",
+          "const escalate = agent('Escalate', { model: 'm' })",
           'start.to(a)',
           'a.to(route)',
           'route.billing.to(triage)',
           'route.else.to(blank)',
           'blank.if.to(triage)',
-          'triage.big.to(a)',
+          'triage.big.to(escalate)',
         ].join('\n')
       )
     )
@@ -279,7 +280,7 @@ describe('accepted grammar', () => {
     expect(wf.edges).toContainEqual({
       from: 'triage',
       port: { kind: 'branch', key: 'big' },
-      to: 'a',
+      to: 'escalate',
     })
   })
 
@@ -354,11 +355,12 @@ describe('accepted grammar', () => {
         "const b = api('B', { url: 'b' })",
         "const c = api('C', { url: 'c' })",
         "const d = api('D', { url: 'd' })",
+        "const e = api('E', { url: 'e' })",
         'start.to(a, b)',
         'a.to(c).to(d)',
-        'b.to(c, d).to(a)',
+        'b.to(c, d).to(e)',
         'c.onError(d)',
-        "edge(d, 'legacy-handle', a)",
+        "edge(d, 'legacy-handle', e)",
       ].join('\n')
     )
     const result = run(text)
@@ -370,10 +372,10 @@ describe('accepted grammar', () => {
       { from: 'b', port: { kind: 'out' }, to: 'c' },
       { from: 'b', port: { kind: 'out' }, to: 'd' },
       { from: 'c', port: { kind: 'error' }, to: 'd' },
-      { from: 'c', port: { kind: 'out' }, to: 'a' },
       { from: 'c', port: { kind: 'out' }, to: 'd' },
-      { from: 'd', port: { kind: 'out' }, to: 'a' },
-      { from: 'd', port: { kind: 'raw', handle: 'legacy-handle' }, to: 'a' },
+      { from: 'c', port: { kind: 'out' }, to: 'e' },
+      { from: 'd', port: { kind: 'out' }, to: 'e' },
+      { from: 'd', port: { kind: 'raw', handle: 'legacy-handle' }, to: 'e' },
       { from: 'start', port: { kind: 'out' }, to: 'a' },
       { from: 'start', port: { kind: 'out' }, to: 'b' },
     ])
@@ -597,9 +599,11 @@ describe('warnings that never block a compile', () => {
     expectDiagnostic(result, code, locate(text, needle))
   })
 
-  it('skips output-path checks on blocks with dynamic outputs', () => {
+  it('skips output-path checks on an input format the compiler cannot read', () => {
     const result = run(
-      source("const a = agent('A', { model: 'm' })\nconst b = api('B', { url: a.anything.goes })")
+      source(
+        "const h = human('H', { inputFormat: vars.retries })\nconst b = api('B', { url: h.anything.goes })"
+      )
     )
     expect(result.diagnostics.map((d) => d.code)).not.toContain('W_UNKNOWN_OUTPUT_PATH')
   })

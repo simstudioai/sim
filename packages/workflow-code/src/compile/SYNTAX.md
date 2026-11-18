@@ -182,7 +182,9 @@ reordered tool never takes another tool's secret.
 
 - `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
   `blk.items['0']` → `<key.items.0>`. Paths are typed from the block's outputs; a path no output
-  has is `W_UNKNOWN_OUTPUT_PATH` (skipped for dynamic outputs).
+  has is `W_UNKNOWN_OUTPUT_PATH`. For an agent with a `responseFormat`, its declared fields count
+  beside the static outputs (skipped when the format holds references); other dynamic outputs
+  skip the check.
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.
@@ -388,15 +390,21 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_BRANCH_KEY_COLLIDES` | A branch key equal to an output name, `to` or `onError`. |
 | `E_BRANCH_ELSE_LAST` | Two or more condition rows that do not end with `else`. |
 | `W_RAW_HANDLE` | `edge()` with a handle kept verbatim. |
-| `E_UNKNOWN_BUILDER` | A builder path the catalog does not have. |
+| `E_EDGE_CYCLE` | Wiring that closes a cycle among enabled blocks, a self-loop included: no block on it ever runs. Repeat work with `loop()`/`parallel()`. |
+| `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. |
+| `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, or a namespace the SDK lacks or the file did not import; `hint` prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
 | `E_FIXED_PARAM` | A param the builder already pins. |
 | `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values. |
-| `W_REQUIRED_MISSING` | A required field left empty, including `todo()`. |
+| `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names. |
+| `W_UNKNOWN_OPTION` | A dropdown value none of its options names; `hint` lists them. |
+| `E_UNKNOWN_OPERATION` | An `operation` the block does not offer; `hint` lists them. A retired one the stored block holds is `W_UNKNOWN_OPTION`. |
+| `W_UNKNOWN_MODEL` | A `model` the catalog does not list (kept: custom models are free text). |
+| `W_LEGACY_BLOCK_TYPE` | A new block of a legacy or deprecated type; `hint` names the replacement's builders. |
 | `E_STORED_VALUE_MISSING` | `stored()` where the stored workflow holds no value. |
 | `W_VALUE_KIND` | A value whose JSON type differs from the field's. |
 | `W_TABLE_FILTER_SHAPE` | A literal table filter the runtime refuses: the legacy `$` operator grammar, or predicate and builder rows mixed. |
-| `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference; get prints it as `stored()`. |
+| `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference, or any field holding a detected credential (a token format, an `Authorization` header, a credential-named property or query parameter); get prints it as `stored()`. |
 | `W_SUBFLOW_COUNT` | A loop or parallel count, or a parallel batch size, the runtime replaces or clamps. |
 | `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
@@ -479,4 +487,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_APPLY_TRIGGER_REMOVED` | A deleted or retyped block still serves a live webhook, schedule, chat output or MCP tool until the next deploy. |
 | `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
+| `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. |
+| `E_APPLY_META_CHANGED` | The `workflow('…')` name or description differs from the stored one; rename through settings. |
+| `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |
 | `W_TABLE_UNKNOWN_COLUMN` | A table row write whose data names a key that is not a column of the table; the run drops it. The hint names the nearest column. |
