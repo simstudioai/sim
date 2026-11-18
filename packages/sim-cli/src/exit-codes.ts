@@ -26,3 +26,10 @@ export const SOURCE_TOO_LARGE_EXIT_CODE = 7
  * saved back into the directory, the rest were not attempted. Applying again continues.
  */
 export const SOURCE_PARTIAL_EXIT_CODE = 8
+
+/**
+ * A request the server still answered `429` (rate limited) after the CLI resent it as often as it
+ * will, or a write it does not resend. Nothing was done by the refused request: wait a minute and
+ * run the command again.
+ */
+export const RATE_LIMITED_EXIT_CODE = 9

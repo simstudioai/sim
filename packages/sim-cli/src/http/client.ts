@@ -1,7 +1,10 @@
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import { RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
@@ -53,6 +56,12 @@ export interface RequestOptions {
   signal?: AbortSignal
   /** Self-hosted, auth-disabled routes may deliberately omit a local API key. */
   auth?: AuthRequirement
+  /**
+   * Resend a write the server answered `429`, as every GET is. Only for a route that rate limits
+   * before it acts: a v2 route charges its bucket at admission, ahead of the use case, so the
+   * refused request did nothing and sending it again is sending it for the first time.
+   */
+  retryRateLimited?: boolean
 }
 
 export interface WorkspaceOptions {
@@ -351,6 +360,35 @@ const DEFAULT_TIMEOUT_SECONDS = 3600
  */
 const MAX_TIMEOUT_MS = 2 ** 31 - 1
 
+/** How many times a request answered `429` is resent before the CLI gives up on it. */
+const RATE_LIMIT_RETRIES = 6
+
+/**
+ * The wait before each resend: exponential with jitter, so the requests of one parallel download
+ * spread out instead of returning together, and never shorter than the server's `Retry-After`
+ * (honoured up to a minute, the longest refill window a plan's bucket has).
+ */
+const RATE_LIMIT_BACKOFF = { baseMs: 1_000, maxMs: 30_000 }
+const RATE_LIMIT_RETRY_AFTER_MAX_MS = 60_000
+
+/** Whether a request answered `429` may be sent again: a GET, or a write that opted in. */
+function resendsRateLimited(method: string, options: RequestOptions): boolean {
+  return method === 'GET' || options.retryRateLimited === true
+}
+
+/** The rate-limit refusal a command exits with, saying what to do about it. */
+function rateLimitedError(error: SimApiError, resends: number): SimApiError {
+  const tried = resends > 0 ? ` (still limited after ${resends} retries)` : ''
+  return new SimApiError(
+    `${error.message}${tried}. Nothing more was sent; wait a minute, then run the command again.`,
+    error.status,
+    error.code,
+    error.details,
+    RATE_LIMITED_EXIT_CODE,
+    error.requestId
+  )
+}
+
 /** The one instruction that resolves an elapsed request bound, wherever it surfaces. */
 export const RAISE_TIMEOUT_HINT = 'Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.'
 
@@ -629,7 +667,8 @@ export class SimClient {
   private async send(
     path: string,
     options: RequestOptions,
-    retriedAfterRefresh = false
+    retriedAfterRefresh = false,
+    rateLimitResends = 0
   ): Promise<{ response: Response; url: string }> {
     let credential = this.resolveCredential(options.auth)
     if (
@@ -710,7 +749,23 @@ export class SimClient {
     ) {
       await response.body?.cancel()
       await this.refreshOAuth(credential.oauth)
-      return this.send(path, options, true)
+      return this.send(path, options, true, rateLimitResends)
+    }
+
+    if (
+      response.status === 429 &&
+      rateLimitResends < RATE_LIMIT_RETRIES &&
+      resendsRateLimited(method, options)
+    ) {
+      await response.body?.cancel()
+      const retryAfterMs = parseRetryAfter(
+        response.headers.get('retry-after'),
+        RATE_LIMIT_RETRY_AFTER_MAX_MS
+      )
+      const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
+      await interruptibleSleep(Math.max(retryAfterMs ?? 0, backoffMs), caller)
+      if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+      return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)
     }
 
     if (!response.ok) {
@@ -722,6 +777,7 @@ export class SimClient {
       if (namesKeyScopeRefusal(error)) {
         error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
+      if (response.status === 429) throw rateLimitedError(error, rateLimitResends)
       throw error
     }
 
