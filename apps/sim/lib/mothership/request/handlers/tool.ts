@@ -18,6 +18,7 @@ import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-ru
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+  COPILOT_WORKFLOW_TOOL_NO_VIEWER_GRACE_MS,
   DESKTOP_TOOL_PICKUP_GRACE_MS,
 } from '@/lib/mothership/constants'
 import {
@@ -237,6 +238,19 @@ function desktopClaimsLocalReads(
   desktopDeviceId: string | null
 ): boolean {
   return options?.desktopClaimsLocalReads === true || desktopDeviceId !== null
+}
+
+/**
+ * How long a workflow tool waits for a chat view to pick it up before the server runs it. The
+ * caller declared its executors at turn setup (ChatRequest.clientCapabilities): no pickup
+ * capability means no wait. With the capability, a turn no view is reading only waits for one
+ * that is re-attaching. The claim arbitration is the same either way.
+ */
+async function workflowToolPickupGraceMs(options: OrchestratorOptions): Promise<number> {
+  if (options.clientToolPickupExpected === false) return 0
+  if (!options.hasClientViewer) return COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS
+  const viewer = await options.hasClientViewer().catch(() => true)
+  return viewer ? COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS : COPILOT_WORKFLOW_TOOL_NO_VIEWER_GRACE_MS
 }
 
 /**
@@ -1113,14 +1127,7 @@ async function dispatchToolExecution(
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
             deadlineAt: toolCall.deadlineAt,
-            // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):
-            // no pickup capability → zero grace, the race resolves straight to the server
-            // claim. Same claim arbitration either way — the grace only encodes how long a
-            // client might plausibly appear.
-            graceMs:
-              options.clientToolPickupExpected === false
-                ? 0
-                : COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+            graceMs: await workflowToolPickupGraceMs(options),
             ...(toolCall.waitTimeoutMs !== undefined
               ? { waitTimeoutMs: toolCall.waitTimeoutMs }
               : {}),
