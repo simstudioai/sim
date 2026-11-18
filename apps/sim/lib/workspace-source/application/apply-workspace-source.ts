@@ -33,6 +33,7 @@ import type {
   PlannedChange,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('ApplyWorkspaceSource')
@@ -66,10 +67,11 @@ export interface ApplyWorkspaceSourceResult {
   applied: WorkspaceSourceChange[]
   /** The change that failed mid-apply; everything after it was not attempted. */
   failed?: { kind: WorkspaceKind; key: string; code: FlatDiagnostic['code']; message: string }
-  /** Blob paths whose content the next round must carry. */
+  /**
+   * Blob paths a write needs whose bytes the caller has not staged: a dry run lists them so the
+   * client stages exactly those; an apply with any is refused (`E_BLOB_MISSING`).
+   */
   needBlobs: string[]
-  /** Blob writes this round skipped for missing content; the next round continues with them. */
-  remainingBlobs: string[]
   /** Files reprinted from what was stored, for every resource written. */
   files: Record<string, string>
   /** The base after this apply: the next apply's `base`. */
@@ -179,7 +181,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true
-    const plan = await planWorkspaceSource(input, ctx, { decodeBlobs: !dryRun })
+    const plan = await planWorkspaceSource(input, ctx, { requireBlobs: !dryRun })
     if (plan.refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
     const result: ApplyWorkspaceSourceResult = {
       workspaceId: context.workspaceId,
@@ -187,7 +189,6 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       plan: plan.changes.map((change) => summarize(change)),
       applied: [],
       needBlobs: plan.needBlobs,
-      remainingBlobs: [],
       files: {},
       base: plan.base,
       diagnostics: plan.diagnostics,
@@ -195,10 +196,15 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     if (dryRun) return result
     Object.assign(result.files, plan.reprint)
 
-    const missing = new Set(plan.needBlobs)
     const writeCtx: ApplyContext = {
       ...ctx,
-      blobs: { content: plan.carried, complete: missing.size === 0 },
+      blobs: {
+        read(path) {
+          const staged = plan.staged.get(path)
+          if (!staged) throw new Error('A blob write ran without its staged bytes')
+          return readStagedBlob(staged)
+        },
+      },
     }
     const base: WorkspaceBaseV1 = { ...plan.base, resources: { ...plan.base.resources } }
     for (const change of plan.changes) {
@@ -206,23 +212,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         base.resources[resourceAddress(change.kind, change.key)] = change.base
       }
     }
-    // Resources this round leaves for a later one, by address.
-    const deferred = new Set<string>()
     for (const change of writeOrder(plan.changes)) {
-      const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
-      result.remainingBlobs.push(...waiting)
-      const names = change.refs ?? []
-      // A change waits for a later round when this round carries none of its blobs (one that
-      // carries some writes those and leaves the rest), when it names a resource that waits, or,
-      // for a delete, while any blob is missing, so a resumed apply never deletes early.
-      if (
-        (waiting.length > 0 && waiting.length === (change.needsBlobs ?? []).length) ||
-        names.some((ref) => deferred.has(resourceAddress(ref.kind, ref.key))) ||
-        (change.action === 'delete' && missing.size > 0)
-      ) {
-        deferred.add(resourceAddress(change.kind, change.key))
-        continue
-      }
       try {
         const written = await write(change, writeCtx)
         const address = resourceAddress(change.kind, change.key)

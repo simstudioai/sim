@@ -1,6 +1,6 @@
 /**
  * Workspace files as source: every file under `files/` is one workspace file at that folder path
- * and name, synced by SHA-256 through the blob rounds. Creates go through
+ * and name, synced by SHA-256 through staged blobs. Creates go through
  * `createWorkspaceFileBufferByPath` (which creates missing folders), content changes through
  * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
  * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
@@ -181,7 +181,7 @@ async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> 
  * Hashes the stored bytes of each declared file whose hash neither the server nor the base
  * records, when its size matches the declared one (only then can the bytes be equal), within the
  * request's hashing budget (spent in declaration order, then downloaded a few at a time). Knowing
- * the hash lets an apply whose earlier round wrote the file without saving the base record it as a
+ * the hash lets an apply whose earlier run wrote the file without saving the base record it as a
  * no-op instead of refusing it. A file past the budget, or whose bytes cannot be read, keeps no
  * hash, so it plans as no-base or stale and the rest still apply.
  */
@@ -456,13 +456,15 @@ async function claimFileKey(
 }
 
 /**
- * The bytes a write sends and their SHA-256: the plan decoded them and checked them against the
- * declared hash, so the declaration's hash is theirs.
+ * The bytes a write sends and their SHA-256: read from the staging area, which checks them
+ * against the declared hash, so the declaration's hash is theirs.
  */
-function contentOf(change: FileChange, ctx: ApplyContext): { content: Buffer; sha256: string } {
-  const content = ctx.blobs?.content.get(fileBlobPath(change.key))
-  if (!change.decl || !content) throw new Error('A file write needs its declaration and bytes')
-  return { content, sha256: change.decl.sha256 }
+async function contentOf(
+  change: FileChange,
+  ctx: ApplyContext
+): Promise<{ content: Buffer; sha256: string }> {
+  if (!change.decl || !ctx.blobs) throw new Error('A file write needs its declaration and bytes')
+  return { content: await ctx.blobs.read(fileBlobPath(change.key)), sha256: change.decl.sha256 }
 }
 
 /** The base entry of a file just written, from what the server recorded. */
@@ -575,7 +577,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
       })
       return { id: fileId, text: {} }
     }
-    const { content, sha256 } = contentOf(change, ctx)
+    const { content, sha256 } = await contentOf(change, ctx)
     if (change.action === 'create') {
       const segments = change.key.split('/')
       const created = await createWorkspaceFileBufferByPath.execute({

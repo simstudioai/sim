@@ -288,5 +288,15 @@
     "method": "POST",
     "path": "/api/v2/workspaces/[workspaceId]/source",
     "operation": "workspaces.source.apply"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs",
+    "operation": "workspaces.source.blobs.stage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs/missing",
+    "operation": "workspaces.source.blobs.missing"
   }
 ]

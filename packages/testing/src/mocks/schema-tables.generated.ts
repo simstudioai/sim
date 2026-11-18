@@ -674,6 +674,16 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  workspaceSourceStagedBlob: [
+    'id',
+    'workspaceId',
+    'scope',
+    'sha256',
+    'size',
+    'storageKey',
+    'createdAt',
+    'expiresAt',
+  ],
   workspaceForkDependentValue: [
     'id',
     'childWorkspaceId',

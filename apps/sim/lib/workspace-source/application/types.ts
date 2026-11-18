@@ -45,8 +45,11 @@ export interface PlanContext extends SourceContext {
 
 export interface ApplyContext extends SourceContext {
   provenance?: { client: 'cli' | 'api'; gitSha?: string }
-  /** The bytes this round carries by directory path, and whether it carries all the plan needs. */
-  blobs?: { content: ReadonlyMap<string, Buffer>; complete: boolean }
+  /**
+   * Reads the staged bytes of a blob a write needs, by directory path, checked against its
+   * SHA-256. Loaded one blob at a time, so a write never holds more than it is writing.
+   */
+  blobs?: { read(path: string): Promise<Buffer> }
 }
 
 /** A stored resource of one kind: its key (when bound), id, display name and kind state. */
@@ -87,8 +90,8 @@ export interface PlannedChange<D = unknown, P = unknown> {
   /** What a delete (or a dropped column or option) loses, with counts. */
   destructive?: { what: string; counts: Record<string, number> }
   /**
-   * Blob paths the change writes, whose content the request must carry. A round that carries some
-   * of them writes those and leaves the rest to the next round.
+   * Blob paths the change writes: their bytes must be staged before an apply, which is refused
+   * (nothing written) while any is missing.
    */
   needsBlobs?: string[]
   decl?: D
@@ -106,8 +109,7 @@ export interface PlannedChange<D = unknown, P = unknown> {
   serverFingerprint?: string
   /**
    * Resources of other kinds the change's declaration names by key, as the kind's own pipeline
-   * read them (a workflow's compiled source): deleting one in the same plan refuses it, and the
-   * write waits while one of them waits for a later blob round.
+   * read them (a workflow's compiled source): deleting one in the same plan refuses it.
    */
   refs?: Array<{
     kind: WorkspaceKind

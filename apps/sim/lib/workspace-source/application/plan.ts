@@ -5,7 +5,6 @@
  * change through the use case that will make it, and cap the plan's size. Any error in the result
  * refuses the whole apply before anything is written.
  */
-import { sha256Hex } from '@sim/security/hash'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -38,19 +37,21 @@ import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { warnDeployedDraftChanges } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import { refuseDeletingEveryWorkflow } from '@/lib/workspace-source/application/kinds/workflow/adapter'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
+import { stagingScopeOf } from '@/lib/workspace-source/application/stage-blobs'
 import type {
   PlanContext,
   PlannedChange,
   SourceContext,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+import { findStagedBlobs, type StagedBlob } from '@/lib/workspace-source/staging/store'
 
 /** What a workspace source submission carries, whether it is applied or dry-run. */
 export interface WorkspaceSourceSubmission {
   /** Workspace-relative path → text, for every managed kind's text files. */
   files: Record<string, string>
-  /** Binary files by hash, with their base64 content when this round carries it. */
-  blobs?: Array<BlobEntry & { content?: string }>
+  /** Binary files by path, with the SHA-256 and size of the bytes staged for them. */
+  blobs?: BlobEntry[]
   /** `.sim/base.json` as the directory holds it, when it holds one. */
   base?: unknown
   /** The kind folders the directory holds, empty ones included: the kinds it manages. */
@@ -66,10 +67,10 @@ export interface WorkspacePlan {
   diagnostics: WorkspaceSourceDiagnostic[]
   /** The base the apply starts from: the directory's, or an empty one for this workspace. */
   base: WorkspaceBaseV1
-  /** Blob paths a change writes whose content this round did not carry. */
+  /** Blob paths a change writes whose bytes the caller has not staged. */
   needBlobs: string[]
-  /** The bytes this round carries by path, checked against their hash and size. */
-  carried: ReadonlyMap<string, Buffer>
+  /** The staged blob each written blob path reads its bytes from. */
+  staged: ReadonlyMap<string, StagedBlob>
   /**
    * Whether an error refuses the whole apply: any error but those of changes held back (see
    * `PlannedChange.held`), which only keep those changes from being written.
@@ -82,29 +83,19 @@ export interface WorkspacePlan {
   reprint: Record<string, string>
 }
 
-type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
-
 /**
- * The blob manifest by path (hash and size only) and the paths whose content this round sent,
- * refusing a path listed twice or one that holds no binary file. With `decode`, the content each
- * blob carries is decoded once and checked against its declared hash and size, so bytes that
- * changed while they were sent refuse the apply before anything is written, and a round carrying
- * more than `maxBlobBytesPerRequest` is refused; a dry run never decodes.
+ * The blob manifest by path (hash and size), refusing a path listed twice or one that holds no
+ * binary file. The bytes are staged beforehand and looked up by hash once the plan knows which
+ * blobs its writes need.
  */
 function readBlobs(
-  blobs: readonly SubmittedBlob[],
-  decode: boolean,
+  blobs: readonly BlobEntry[],
   diagnostics: WorkspaceSourceDiagnostic[]
-): { byPath: Map<string, BlobEntry>; carried: Map<string, Buffer>; sent: Set<string> } {
+): Map<string, BlobEntry> {
   const byPath = new Map<string, BlobEntry>()
-  const carried = new Map<string, Buffer>()
-  const sent = new Set<string>()
-  let carriedBytes = 0
   for (const blob of blobs) {
-    const refuse = (message: string, hint?: string) =>
-      diagnostics.push(
-        finding('E_BLOB_CONTENT', message, { file: blob.path, ...(hint ? { hint } : {}) })
-      )
+    const refuse = (message: string) =>
+      diagnostics.push(finding('E_BLOB_CONTENT', message, { file: blob.path }))
     if (!isBlobPath(blob.path)) {
       refuse(`${blob.path} is sent as a binary file, but no binary file lives at that path.`)
       continue
@@ -113,31 +104,46 @@ function readBlobs(
       refuse(`${blob.path} is listed twice.`)
       continue
     }
-    if (blob.content !== undefined) sent.add(blob.path)
     byPath.set(blob.path, { path: blob.path, sha256: blob.sha256, size: blob.size })
-    if (!decode || blob.content === undefined) continue
-    const bytes = Buffer.from(blob.content, 'base64')
-    if (bytes.byteLength !== blob.size || sha256Hex(bytes) !== blob.sha256) {
-      refuse(
-        `${blob.path} does not match the SHA-256 and size the directory declared for it.`,
-        'It changed while it was sent; apply again.'
+  }
+  return byPath
+}
+
+/**
+ * The staged blob behind each path a write needs, and the paths with none (never staged, expired,
+ * or staged at another size). With `require`, each missing path is an `E_BLOB_MISSING` error, so
+ * the apply is refused before its first write.
+ */
+async function resolveStaged(
+  needed: readonly string[],
+  manifest: ReadonlyMap<string, BlobEntry>,
+  ctx: SourceContext,
+  require: boolean,
+  diagnostics: WorkspaceSourceDiagnostic[]
+): Promise<{ staged: Map<string, StagedBlob>; missing: string[] }> {
+  const entries = needed.flatMap((path) => manifest.get(path) ?? [])
+  const found = await findStagedBlobs(
+    stagingScopeOf(ctx.principal, ctx.workspace.workspaceId),
+    entries.map((entry) => entry.sha256)
+  )
+  const staged = new Map<string, StagedBlob>()
+  const missing: string[] = []
+  for (const entry of entries) {
+    const blob = found.get(entry.sha256)
+    if (blob && blob.size === entry.size) staged.set(entry.path, blob)
+    else missing.push(entry.path)
+  }
+  if (require) {
+    for (const path of missing) {
+      diagnostics.push(
+        finding('E_BLOB_MISSING', `${path} is not staged, so nothing was written.`, {
+          file: path,
+          hint: 'Stage its bytes (POST /source/blobs; the CLI does this), then apply again.',
+        })
       )
-      continue
     }
-    carried.set(blob.path, bytes)
-    carriedBytes += bytes.byteLength
   }
-  const { maxBlobBytesPerRequest } = WORKSPACE_SOURCE_LIMITS
-  if (carriedBytes > maxBlobBytesPerRequest) {
-    diagnostics.push(
-      finding(
-        'E_LIMIT_EXCEEDED',
-        `This round carries ${carriedBytes} bytes of binary files, over the ${maxBlobBytesPerRequest}-byte limit.`,
-        { hint: 'Send the rest of the files in the next round.' }
-      )
-    )
-  }
-  return { byPath, carried, sent }
+  return { staged, missing }
 }
 
 /** Changes a plan authorizes at once. */
@@ -284,13 +290,13 @@ function checkLimits(
 }
 
 /**
- * Plans `submission`. With `decodeBlobs` (an apply that writes), the content the round carries is
- * decoded and checked into `carried`; a dry run leaves it encoded and unread.
+ * Plans `submission`. With `requireBlobs` (an apply that writes), a blob a write needs that is not
+ * staged refuses the apply; a dry run lists such blobs in `needBlobs` instead.
  */
 export async function planWorkspaceSource(
   submission: WorkspaceSourceSubmission,
   ctx: SourceContext,
-  options: { decodeBlobs?: boolean } = {}
+  options: { requireBlobs?: boolean } = {}
 ): Promise<WorkspacePlan> {
   const { workspaceId } = ctx.workspace
   const diagnostics: WorkspaceSourceDiagnostic[] = []
@@ -308,14 +314,14 @@ export async function planWorkspaceSource(
     })
   )
   checkLimits(files, diagnostics)
-  const blobs = readBlobs(submission.blobs ?? [], options.decodeBlobs === true, diagnostics)
+  const manifest = readBlobs(submission.blobs ?? [], diagnostics)
   if (diagnostics.some((finding) => finding.severity === 'error')) {
     return {
       changes: [],
       diagnostics: capFindings(diagnostics),
       base,
       needBlobs: [],
-      carried: blobs.carried,
+      staged: new Map(),
       refused: true,
       reprint: {},
     }
@@ -335,7 +341,7 @@ export async function planWorkspaceSource(
   for (const kind of APPLY_ORDER) {
     if (!managed.has(kind)) continue
     const adapter = KIND_ADAPTERS[kind]
-    const paths = [...Object.keys(files), ...blobs.byPath.keys()].filter(
+    const paths = [...Object.keys(files), ...manifest.keys()].filter(
       (path) => kindOfPath(path) === kind
     )
     const grouped = adapter.codec.group(paths)
@@ -357,7 +363,7 @@ export async function planWorkspaceSource(
       const parsed = adapter.codec.parse(
         key,
         text,
-        group.flatMap((path) => blobs.byPath.get(path) ?? [])
+        group.flatMap((path) => manifest.get(path) ?? [])
       )
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
       if (parsed.decl === undefined) continue
@@ -444,24 +450,33 @@ export async function planWorkspaceSource(
     })
   }
   // Errors outside the changes, then those of changes not held back, refuse the apply.
-  const refused =
+  const refusedByPlan =
     diagnostics.some((finding) => finding.severity === 'error') ||
     changes.some(
       (change) => !change.held && change.diagnostics.some((finding) => finding.severity === 'error')
     )
-  for (const change of changes) diagnostics.push(...change.diagnostics)
-
-  const needBlobs = [
+  const needed = [
     ...new Set(
-      writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !blobs.sent.has(path))
+      writes.filter((change) => !change.held).flatMap((change) => change.needsBlobs ?? [])
     ),
   ]
+  // A missing blob refuses only a plan nothing else refuses: the fix comes first, the upload after.
+  const blobs = await resolveStaged(
+    needed,
+    manifest,
+    ctx,
+    options.requireBlobs === true && !refusedByPlan,
+    diagnostics
+  )
+  const refused = refusedByPlan || diagnostics.some((finding) => finding.code === 'E_BLOB_MISSING')
+  for (const change of changes) diagnostics.push(...change.diagnostics)
+
   return {
     changes,
     diagnostics: capFindings(diagnostics),
     base,
-    needBlobs,
-    carried: blobs.carried,
+    needBlobs: blobs.missing,
+    staged: blobs.staged,
     refused,
     reprint,
   }

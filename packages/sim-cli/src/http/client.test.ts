@@ -591,6 +591,9 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    /** Staging blob bytes for a workspace source apply writes nothing a user sees. */
+    'findMissingWorkspaceSourceBlobs',
+    'stageWorkspaceSourceBlobs',
     'completeProjectFileUpload',
     'copyFileItems',
     'createProjectFile',

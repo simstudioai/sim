@@ -1,5 +1,5 @@
 /**
- * What one request (a get, or one apply round) may download to hash stored bytes whose hash
+ * What one request (a get, or one apply) may download to hash stored bytes whose hash
  * nothing records: workspace files and knowledge base documents share one budget, so the bound
  * holds for the request, not per kind. Past it, a resource stays unhashed and is listed or planned
  * as such.

@@ -45,21 +45,24 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
-import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
+import { createWorkspaceFileBufferByPath } from '@/lib/workspace-files/application/write-workspace-file-by-path'
+import { findMissingSourceBlobs } from '@/lib/workspace-source/application/stage-blobs'
 import {
   blobManifest,
-  cliRound,
   codes,
+  type ManifestBlob,
   refusal,
   sourceChecks,
   sourceRunner,
   sourceWorkspaces,
+  stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
@@ -90,10 +93,8 @@ async function newWorkspace(): Promise<string> {
   })
 }
 
-type Blob = NonNullable<ApplyWorkspaceSourceInput['blobs']>[number]
-
-/** The blob manifest a directory sends, carrying the content of `send` (every blob by default). */
-function blobsOf(files: Record<string, Buffer>, send?: readonly string[]): Blob[] {
+/** The blob manifest a directory sends, staging the bytes of `send` (every blob by default). */
+function blobsOf(files: Record<string, Buffer>, send?: readonly string[]): ManifestBlob[] {
   return blobManifest(files, (blobPath) => !send || send.includes(blobPath))
 }
 
@@ -259,7 +260,6 @@ describe('workspace source files', () => {
     const created = await apply(workspaceId, STARTER)
 
     expect(created.failed).toBeUndefined()
-    expect(created.remainingBlobs).toEqual([])
     const stored = await storedFiles(workspaceId)
     expect(stored.map((file) => file.name)).toEqual(['notes.txt', 'plan.md'])
     expect(await bytesOf(workspaceId, fileId(created.base, 'docs/plan.md'))).toBe('# Plan\n')
@@ -400,7 +400,7 @@ describe('workspace source files', () => {
   )
 
   check(
-    'blob rounds over the request cap: writes land round by round, deletes only in the last, and an interrupted round resumes',
+    'an apply missing a staged blob is refused before any write; staging it and applying again writes everything, deletes included',
     async () => {
       const workspaceId = await newWorkspace()
       const read = await setUp(workspaceId)
@@ -411,6 +411,8 @@ describe('workspace source files', () => {
         'files/big/b.bin': big('b'),
         'files/big/c.bin': big('c'),
       }
+      const manifest = blobsOf(directory, [])
+      const before = await storedFiles(workspaceId)
 
       const preview = await apply(workspaceId, directory, {
         base: read.base,
@@ -424,51 +426,119 @@ describe('workspace source files', () => {
         'create big/c.bin',
         'delete docs/plan.md',
       ])
-      expect(preview.plan.find((change) => change.action === 'delete')?.destructive).toEqual({
-        what: 'file',
-        counts: { bytes: STARTER['files/docs/plan.md'].length },
-      })
+      expect(preview.needBlobs.sort()).toEqual([
+        'files/big/a.bin',
+        'files/big/b.bin',
+        'files/big/c.bin',
+      ])
 
-      const round = (wanted: readonly string[]) => cliRound(blobsOf(directory, []), wanted)
-      const first = round(preview.needBlobs)
-      expect(first).toHaveLength(2)
+      // Two of the three staged (an upload cut short): the apply writes nothing at all.
+      await stageBlobsAs(
+        owner,
+        workspaceId,
+        manifest.flatMap((blob) =>
+          blob.path === 'files/big/a.bin' || blob.path === 'files/big/b.bin'
+            ? [{ sha256: blob.sha256, content: directory[blob.path].toString('base64') }]
+            : []
+        )
+      )
+      const refused = await refusal(
+        runner.apply(workspaceId, {
+          files: {},
+          blobs: manifest,
+          base: read.base,
+          allowDelete: true,
+        })
+      )
+      expect(
+        refused.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.file}`)
+      ).toEqual(['E_BLOB_MISSING files/big/c.bin'])
+      expect(await storedFiles(workspaceId)).toEqual(before)
 
-      const roundOne = await apply(workspaceId, directory, {
+      // The resumed upload asks first: only c.bin is missing (notes.txt stays staged from the
+      // set-up apply), so only c.bin is sent.
+      const missing = await withPermissionGroupScope(() =>
+        findMissingSourceBlobs.execute({
+          principal: owner,
+          input: { workspaceId, blobs: manifest.map(({ sha256, size }) => ({ sha256, size })) },
+        })
+      )
+      const c = manifest.find((blob) => blob.path === 'files/big/c.bin')
+      expect(missing.missing).toEqual([c?.sha256])
+      await stageBlobsAs(owner, workspaceId, [
+        { sha256: c?.sha256 ?? '', content: directory['files/big/c.bin'].toString('base64') },
+      ])
+
+      const applied = await runner.apply(workspaceId, {
+        files: {},
+        blobs: manifest,
         base: read.base,
         allowDelete: true,
-        send: first,
       })
-      expect(roundOne.failed).toBeUndefined()
-      expect(summary(roundOne.applied)).toEqual(['create big/a.bin', 'create big/b.bin'])
-      expect(roundOne.remainingBlobs).toEqual(['files/big/c.bin'])
-      expect((await storedFiles(workspaceId)).map((file) => file.name)).toContain('plan.md')
-
-      // Round one's answer was lost: round two starts again from the base the get wrote.
-      const resumed = await apply(workspaceId, directory, {
-        base: read.base,
-        allowDelete: true,
-        send: round(roundOne.remainingBlobs),
-      })
-      expect(resumed.failed).toBeUndefined()
-      expect(summary(resumed.plan)).toEqual([
-        'noop notes.txt',
-        'noop big/a.bin',
-        'noop big/b.bin',
+      expect(applied.failed).toBeUndefined()
+      expect(summary(applied.applied)).toEqual([
+        'create big/a.bin',
+        'create big/b.bin',
         'create big/c.bin',
         'delete docs/plan.md',
       ])
-      expect(summary(resumed.applied)).toEqual(['create big/c.bin', 'delete docs/plan.md'])
-      expect(resumed.remainingBlobs).toEqual([])
       expect((await storedFiles(workspaceId)).map((file) => file.name)).toEqual([
         'a.bin',
         'b.bin',
         'c.bin',
         'notes.txt',
       ])
+      // What the apply wrote stays staged until it expires, so applying it again uploads nothing.
+      const after = await withPermissionGroupScope(() =>
+        findMissingSourceBlobs.execute({
+          principal: owner,
+          input: { workspaceId, blobs: manifest.map(({ sha256, size }) => ({ sha256, size })) },
+        })
+      )
+      expect(after.missing).toEqual([])
 
-      const settled = await apply(workspaceId, directory, { base: resumed.base, dryRun: true })
+      const settled = await apply(workspaceId, directory, { base: applied.base, dryRun: true })
       expect(settled.plan.every((change) => change.action === 'noop')).toBe(true)
       expect(settled.needBlobs).toEqual([])
+    }
+  )
+
+  check(
+    'two applies by one caller sharing a staged blob: the one that finishes first never takes the bytes the other still has to write',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const shared = Buffer.from('bytes both applies write')
+      const first: Record<string, Buffer> = {
+        'files/first/lead.txt': Buffer.from('written before the pause'),
+        'files/first/shared.txt': shared,
+      }
+      const second: Record<string, Buffer> = { 'files/second/shared.txt': shared }
+      const create = createWorkspaceFileBufferByPath.execute
+      let interleaved: ReturnType<typeof apply> | undefined
+      // The first apply pauses at its first write, after it planned with the shared blob; the
+      // second apply runs to completion meanwhile.
+      const paused = vi
+        .spyOn(createWorkspaceFileBufferByPath, 'execute')
+        .mockImplementationOnce(async (...args) => {
+          interleaved = apply(workspaceId, second)
+          await interleaved
+          return create(...args)
+        })
+
+      const result = await apply(workspaceId, first).finally(() => paused.mockRestore())
+      if (!interleaved) throw new Error('The second apply never ran')
+      const other = await interleaved
+
+      expect(other.failed).toBeUndefined()
+      expect(result.failed).toBeUndefined()
+      expect(summary(result.applied)).toEqual(['create first/lead.txt', 'create first/shared.txt'])
+      expect((await storedFiles(workspaceId)).map((file) => file.name).sort()).toEqual([
+        'lead.txt',
+        'shared.txt',
+        'shared.txt',
+      ])
     }
   )
 
@@ -815,10 +885,10 @@ export default workflow('Reader', {}, () => {
         dryRun: true,
       })
       expect(dryRun.diagnostics.filter((finding) => finding.severity === 'error')).toEqual([])
-      // The workflow waits while the file it names waits for its bytes.
-      const first = await withFiles.apply(workspaceId, { files: text, blobs: manifest })
-      expect(first.remainingBlobs).toEqual(['files/contract.pdf'])
-      expect(first.applied).toEqual([])
+      // Neither the file nor the workflow naming it is written while the file's bytes are missing.
+      const first = await refusal(withFiles.apply(workspaceId, { files: text, blobs: manifest }))
+      expect(codes(first.diagnostics)).toEqual(['E_BLOB_MISSING'])
+      expect(await storedFiles(workspaceId)).toEqual([])
       const second = await withFiles.apply(workspaceId, {
         files: text,
         blobs: blobsOf({ 'files/contract.pdf': pdf }),

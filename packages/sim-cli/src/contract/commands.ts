@@ -658,6 +658,9 @@ export const CLI_CONTRACT: CliContract = {
   /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
   getWorkspaceSource: { hidden: true },
   applyWorkspaceSource: { hidden: true },
+  /** The staging `workspaces source apply` runs before its one apply. */
+  findMissingWorkspaceSourceBlobs: { hidden: true },
+  stageWorkspaceSourceBlobs: { hidden: true },
   /** One document, not a page: `workflows source get --dir` writes it as `workspace.d.ts`. */
   getSourceResources: {
     command: 'workflows source resources',

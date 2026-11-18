@@ -324,6 +324,12 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /**
+   * A strong validator for the result's representation. When set, a success carries `ETag`, and a
+   * request whose `If-None-Match` names that tag (or `*`) is answered `304` with no body, after
+   * the use case ran, so authorization is unchanged and an unchanged result transfers nothing.
+   */
+  entityTag?(result: NoInfer<R>): string
   /** Headers applied last to every response path, including authentication and parse failures. */
   staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
@@ -335,6 +341,15 @@ type InternalJsonRouteOptions<
     body: ContractJsonResponse<C>
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
 } & InternalJsonPresenter<C, I, R, P>
+
+/** `If-None-Match` uses weak comparison (RFC 9110 §13.1.2), so `W/` prefixes are ignored. */
+function ifNoneMatchSatisfied(header: string | null, tag: string): boolean {
+  if (!header) return false
+  return header
+    .split(',')
+    .map((candidate) => candidate.trim().replace(/^W\//, ''))
+    .some((candidate) => candidate === '*' || candidate === tag)
+}
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
   return NextResponse.json(withRequestId(descriptor.body), {
@@ -442,6 +457,13 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
+        const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
+        if (entityTag && ifNoneMatchSatisfied(request.headers.get('if-none-match'), entityTag)) {
+          return new NextResponse(null, {
+            status: 304,
+            headers: { 'Cache-Control': 'private, no-cache', ETag: entityTag },
+          })
+        }
         const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
@@ -468,7 +490,15 @@ export function defineInternalJsonRoute<
           appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
           {
             status: responseStatus,
-            headers: appendFinalizedHeaders(headers, finalization?.headers),
+            headers: appendFinalizedHeaders(
+              entityTag
+                ? appendFinalizedHeaders(headers, {
+                    ETag: entityTag,
+                    'Cache-Control': 'private, no-cache',
+                  })
+                : headers,
+              finalization?.headers
+            ),
           }
         )
       } catch (error) {

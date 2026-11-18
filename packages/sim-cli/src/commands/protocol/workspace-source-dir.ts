@@ -4,8 +4,7 @@
  * `.sim/base.json`, and the SDK declarations once at the root. Path safety, staged writes and the
  * `.sim/written.json` record are the source directory's (`source-dir.ts`).
  */
-import { createHash } from 'node:crypto'
-import { readFile, realpath, stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   SDK_GUIDE_FILE,
@@ -355,7 +354,7 @@ export function keepFile(kind: WorkspaceKind): string | null {
   return isFileKind(kind) ? null : `${KIND_DIRS[kind]}/${KEEP_FILE}`
 }
 
-/** What one apply round sends, read from the directory. */
+/** What an apply sends, read from the directory. */
 export interface WorkspaceSubmission {
   kinds: WorkspaceKind[]
   files: Record<string, string>
@@ -374,15 +373,13 @@ export interface WorkspaceSubmission {
  * workspace still sends every workflow it creates. `written` is `.sim/written.json` as the command
  * read it. Blobs are hashed as streams (reusing the digest `written` records for one whose size and
  * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
- * read; a blob `known` already lists (an earlier round of the same apply hashed it) is not read
- * again.
+ * read.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
-  written: Written,
-  known: readonly BlobEntry[] = []
+  written: Written
 ): Promise<WorkspaceSubmission> {
   const {
     present: kinds,
@@ -424,14 +421,11 @@ export async function readWorkspaceDir(
   }
   const root = await realpath(dir)
   const verified = new Set<string>()
-  const listed = new Map(known.map((blob) => [blob.path, blob]))
   const hashed = new Map<string, StatDigest>()
   const blobs = await mapWithConcurrency(
     paths.filter(isBlobPath),
     FILE_CONCURRENCY,
     async (path): Promise<BlobEntry> => {
-      const entry = listed.get(path)
-      if (entry) return entry
       const file = await checkedPath(root, path, verified)
       const current = await stat(file)
       const { size } = current
@@ -459,23 +453,6 @@ export async function readWorkspaceDir(
     }
   }
   return { kinds, files, blobs, ignored, hashed, ...(base ? { base } : {}) }
-}
-
-/**
- * A blob as the round that sends its content carries it: its bytes as base64, with the SHA-256
- * and size of those same bytes, read once.
- */
-export async function blobContent(
-  dir: string,
-  path: string
-): Promise<BlobEntry & { content: string }> {
-  const bytes = await readFile(await checkedPath(await realpath(dir), path, new Set()))
-  return {
-    path,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    size: bytes.byteLength,
-    content: bytes.toString('base64'),
-  }
 }
 
 /** `.sim/skipped.json`, or `null` when nothing was skipped. */

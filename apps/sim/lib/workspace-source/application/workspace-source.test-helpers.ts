@@ -1,7 +1,7 @@
 /**
  * The harness the workspace source integration suites share: named checks with a JSON report,
  * workspaces created and cleaned up per suite, refusals, finding codes, the blob manifest a
- * directory sends, and the CLI's packing of blob content into rounds.
+ * directory sends, and the staging of blob bytes a CLI does before it applies.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -13,7 +13,6 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkspaceKind } from '@sim/workspace-code'
-import { roundPaths } from '@sim/workspace-code/limits'
 import { inArray } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -23,6 +22,7 @@ import {
 } from '@/lib/workspace-source/application/apply-workspace-source'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import { stageSourceBlobs } from '@/lib/workspace-source/application/stage-blobs'
 
 interface CheckResult {
   name: string
@@ -109,22 +109,72 @@ export function sourceWorkspaces() {
   }
 }
 
+/** A manifest entry, with the base64 bytes a CLI would stage for it before applying. */
+export type ManifestBlob = NonNullable<ApplyWorkspaceSourceInput['blobs']>[number] & {
+  content?: string
+}
+
 /** What a suite's apply sends: the submission, and who sends it when not the suite's owner. */
-export type SourceSubmission = Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'kinds'> & {
+export type SourceSubmission = Omit<
+  ApplyWorkspaceSourceInput,
+  'workspaceId' | 'kinds' | 'blobs'
+> & {
   kinds?: WorkspaceKind[]
+  blobs?: ManifestBlob[]
   principal?: Principal
+}
+
+/** Stages `blobs` (base64 bytes by SHA-256) in `workspaceId` as `principal`, as the CLI does. */
+export async function stageBlobsAs(
+  principal: Principal,
+  workspaceId: string,
+  blobs: ReadonlyArray<{ sha256: string; content: string }>
+) {
+  if (blobs.length === 0) return
+  await withPermissionGroupScope(() =>
+    stageSourceBlobs.execute({
+      principal,
+      input: {
+        workspaceId,
+        blobs: blobs.map((blob) => ({
+          sha256: blob.sha256,
+          content: Buffer.from(blob.content, 'base64'),
+        })),
+      },
+    })
+  )
 }
 
 /**
  * A suite's apply and get, for `kinds`, as `owner` unless a call names another principal, each
- * inside the permission-group scope a request runs in.
+ * inside the permission-group scope a request runs in. An apply that writes first stages every
+ * blob it carries `content` for, as the CLI does; a dry run stages nothing.
  */
 export function sourceRunner(kinds: WorkspaceKind[], owner: Principal) {
   return {
-    apply(workspaceId: string, submission: SourceSubmission) {
-      const { principal = owner, ...input } = submission
+    async apply(workspaceId: string, submission: SourceSubmission) {
+      const { principal = owner, blobs, ...input } = submission
+      if (!input.dryRun) {
+        await stageBlobsAs(
+          principal,
+          workspaceId,
+          (blobs ?? []).flatMap((blob) =>
+            blob.content === undefined ? [] : [{ sha256: blob.sha256, content: blob.content }]
+          )
+        )
+      }
       return withPermissionGroupScope(() =>
-        applyWorkspaceSource.execute({ principal, input: { workspaceId, kinds, ...input } })
+        applyWorkspaceSource.execute({
+          principal,
+          input: {
+            workspaceId,
+            kinds,
+            ...input,
+            ...(blobs
+              ? { blobs: blobs.map(({ path, sha256, size }) => ({ path, sha256, size })) }
+              : {}),
+          },
+        })
       )
     },
     get(workspaceId: string, principal: Principal = owner) {
@@ -155,7 +205,7 @@ export function codes(
     .map((finding) => finding.code)
 }
 
-/** The blob manifest a directory sends, carrying the content of each path `carry` accepts. */
+/** The blob manifest a directory sends, with the bytes to stage for each path `carry` accepts. */
 export function blobManifest(
   blobs: Readonly<Record<string, Buffer>>,
   carry: (path: string) => boolean
@@ -166,15 +216,4 @@ export function blobManifest(
     size: bytes.byteLength,
     ...(carry(path) ? { content: bytes.toString('base64') } : {}),
   }))
-}
-
-/**
- * The paths the CLI carries in one round: those the server asked for, in manifest order, while
- * they fit the per-request cap (always at least one).
- */
-export function cliRound(
-  manifest: ReadonlyArray<{ path: string; size: number }>,
-  wanted: readonly string[]
-): string[] {
-  return [...roundPaths(manifest, new Set(wanted))]
 }

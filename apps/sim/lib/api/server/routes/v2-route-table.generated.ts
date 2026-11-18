@@ -1018,6 +1018,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs/missing',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'),
   },

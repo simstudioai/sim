@@ -225,6 +225,7 @@ Persist the same value as `CRON_SECRET` on the application and its scheduler. Ea
 | Retention: Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | No |
 | Retention: file versions | `GET /api/cron/cleanup-file-versions` | Daily | No |
 | OAuth token cleanup | `GET /api/cron/cleanup-oauth-tokens` | Hourly | Yes |
+| Workspace source staging cleanup | `GET /api/cron/cleanup-source-staging` | Hourly | Yes |
 
 Included schedules still require the cron service to be configured and running. For an external scheduler, a request looks like:
 

@@ -8674,7 +8674,7 @@
       "post": {
         "operationId": "applyWorkspaceSource",
         "summary": "Apply workspace source",
-        "description": "Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest, and the `base` from Get Workspace Source; binary content may span rounds, each answering with the paths it still `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "description": "Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first (Find Missing Workspace Source Blobs, then Stage Workspace Source Blobs) and the apply names them by hash: a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workspaces.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -8790,7 +8790,6 @@
                         ],
                         "applied": [],
                         "needBlobs": [],
-                        "remainingBlobs": [],
                         "files": {},
                         "base": {
                           "version": 1,
@@ -8842,6 +8841,243 @@
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}/source/blobs/missing": {
+      "post": {
+        "operationId": "findMissingWorkspaceSourceBlobs",
+        "summary": "Find missing workspace source blobs",
+        "description": "List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. The staged ones are renewed: staged bytes expire a day after they were last staged, checked for, or planned with. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.source.blobs.missing",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to read or apply.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to read or apply."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The binary files an apply will need.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindMissingWorkspaceSourceBlobsBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "blobs": [
+                      {
+                        "sha256": "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e",
+                        "size": 18432
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The binary files still to stage.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindMissingWorkspaceSourceBlobsResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "missing": [
+                          "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}/source/blobs": {
+      "post": {
+        "operationId": "stageWorkspaceSourceBlobs",
+        "summary": "Stage workspace source blobs",
+        "description": "Stage the bytes of binary files (workspace files, knowledge documents) for a workspace source apply, as multipart form data: one file part per blob, its field name the SHA-256 of its bytes. At most 1000 files and 24000000 bytes per request, 10000000 bytes per file. A part whose bytes hash to another SHA-256 refuses the whole request (`400`), nothing staged. Staged files are scoped to the workspace and the caller, capped at 20000 files and 4000000000 bytes (`413` past either), and expire a day after their last use (staged, asked for, or applied); an apply does not remove them, so applying the same bytes again uploads nothing. Staging the same bytes again only renews them. Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.source.blobs.stage",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to read or apply.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to read or apply."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "One file part per binary file, named by its SHA-256.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/StageWorkspaceSourceBlobsForm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The binary files staged.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageWorkspaceSourceBlobsResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                        "staged": [
+                          {
+                            "sha256": "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e",
+                            "size": 18432
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -24854,6 +25090,7 @@
                         "E_DECL_UNKNOWN_FIELD",
                         "E_DECL_UNKNOWN_FILE",
                         "E_BLOB_CONTENT",
+                        "E_BLOB_MISSING",
                         "E_LIMIT_EXCEEDED",
                         "E_KEY_INVALID",
                         "E_BASE_JSON",
@@ -25401,6 +25638,7 @@
                       "E_DECL_UNKNOWN_FIELD",
                       "E_DECL_UNKNOWN_FILE",
                       "E_BLOB_CONTENT",
+                      "E_BLOB_MISSING",
                       "E_LIMIT_EXCEEDED",
                       "E_KEY_INVALID",
                       "E_BASE_JSON",
@@ -25629,14 +25867,7 @@
                 "items": {
                   "type": "string"
                 },
-                "description": "Binary paths whose content the next round must send."
-              },
-              "remainingBlobs": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Binary writes this round skipped for missing content."
+                "description": "Binary paths a write needs whose bytes are not staged: on a dry run, exactly what to stage before applying."
               },
               "files": {
                 "type": "object",
@@ -25794,6 +26025,7 @@
                         "E_DECL_UNKNOWN_FIELD",
                         "E_DECL_UNKNOWN_FILE",
                         "E_BLOB_CONTENT",
+                        "E_BLOB_MISSING",
                         "E_LIMIT_EXCEEDED",
                         "E_KEY_INVALID",
                         "E_BASE_JSON",
@@ -26088,7 +26320,6 @@
               "plan",
               "applied",
               "needBlobs",
-              "remainingBlobs",
               "files",
               "base",
               "diagnostics"
@@ -26116,7 +26347,6 @@
               ],
               "applied": [],
               "needBlobs": [],
-              "remainingBlobs": [],
               "files": {},
               "base": {
                 "version": 1,
@@ -26161,7 +26391,7 @@
             "description": "Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged."
           },
           "blobs": {
-            "description": "Binary files by hash.",
+            "description": "Binary files by path, with the SHA-256 and size of their bytes. Stage the bytes a write needs first (Stage Workspace Source Blobs); an apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.",
             "maxItems": 20000,
             "type": "array",
             "items": {
@@ -26183,10 +26413,6 @@
                   "minimum": 0,
                   "maximum": 10000000,
                   "description": "Bytes."
-                },
-                "content": {
-                  "description": "Base64 bytes; send only the paths the previous round listed in `needBlobs`.",
-                  "type": "string"
                 }
               },
               "required": ["path", "sha256", "size"],
@@ -26424,6 +26650,161 @@
             }
           }
         ]
+      },
+      "FindMissingWorkspaceSourceBlobsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "SHA-256 of the bytes, lowercase hex."
+                },
+                "description": "SHA-256 of each listed file that is not staged, in the order listed."
+              }
+            },
+            "required": ["workspaceId", "missing"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Find missing workspace source blobs response",
+        "description": "The SHA-256 of each binary file still to stage.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "missing": ["9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e"]
+            }
+          }
+        ]
+      },
+      "FindMissingWorkspaceSourceBlobsBody": {
+        "type": "object",
+        "properties": {
+          "blobs": {
+            "maxItems": 20000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "SHA-256 of the bytes, lowercase hex."
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000000,
+                  "description": "Bytes."
+                }
+              },
+              "required": ["sha256", "size"],
+              "additionalProperties": false,
+              "description": "A binary file by the SHA-256 and size of its bytes."
+            },
+            "description": "The binary files an apply will need."
+          }
+        },
+        "required": ["blobs"],
+        "additionalProperties": false,
+        "title": "Find missing workspace source blobs body",
+        "description": "The binary files an apply will need.",
+        "examples": [
+          {
+            "blobs": [
+              {
+                "sha256": "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e",
+                "size": 18432
+              }
+            ]
+          }
+        ]
+      },
+      "StageWorkspaceSourceBlobsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "staged": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$",
+                      "description": "SHA-256 of the bytes, lowercase hex."
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000,
+                      "description": "Bytes."
+                    }
+                  },
+                  "required": ["sha256", "size"],
+                  "additionalProperties": false,
+                  "description": "A binary file by the SHA-256 and size of its bytes."
+                },
+                "description": "The binary files now staged."
+              }
+            },
+            "required": ["workspaceId", "staged"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Stage workspace source blobs response",
+        "description": "The binary files now staged.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "staged": [
+                {
+                  "sha256": "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e",
+                  "size": 18432
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "StageWorkspaceSourceBlobsForm": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The SHA-256 of the part, lowercase hex."
+        },
+        "additionalProperties": {
+          "type": "string",
+          "format": "binary",
+          "contentEncoding": "binary",
+          "maxLength": 10000000,
+          "description": "The bytes of one binary file."
+        },
+        "description": "One file part per binary file, named by its SHA-256.",
+        "title": "Stage workspace source blobs form"
       }
     }
   },

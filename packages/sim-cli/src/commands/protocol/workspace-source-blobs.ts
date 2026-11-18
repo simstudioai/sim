@@ -6,7 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { realpath, rename, rm, stat } from 'node:fs/promises'
+import { readFile, realpath, rename, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -29,8 +29,12 @@ import {
   KIND_LAYOUTS,
 } from '@sim/workspace-code/kinds/registry'
 import { isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
-import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
+import { stageBatches, WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import type {
+  FindMissingWorkspaceSourceBlobsResponse,
+  GetWorkspaceSourceResponse,
+  StageWorkspaceSourceBlobsResponse,
+} from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import {
@@ -400,8 +404,9 @@ export function appliedBlobDigests(
 
 /**
  * The submitted blobs whose bytes the server needs: new since the get, or changed (the base
- * records another SHA-256 for their path). An apply carries them in its first round instead of
- * asking a dry run; a blob the server needs beyond them comes back in `remainingBlobs`.
+ * records another SHA-256 for their path). An apply without a dry run stages them; a blob the
+ * server needs beyond them is refused by name (`E_BLOB_MISSING`), and the CLI stages it and
+ * applies once more.
  */
 export function blobsToCarry(submission: {
   kinds: readonly WorkspaceKind[]
@@ -440,4 +445,72 @@ export function assertBlobsFetched(
     0,
     'SOURCE_BLOBS_NOT_FETCHED'
   )
+}
+
+/** The bytes of the blob at `path` in the directory, read inside its resolved root. */
+export async function blobBytes(dir: string, path: string): Promise<Buffer> {
+  return readFile(await checkedPath(await realpath(dir), path, new Set()))
+}
+
+/** The calls staging makes. */
+type StagingClient = OperationClient<
+  'findMissingWorkspaceSourceBlobs' | 'stageWorkspaceSourceBlobs'
+>
+
+/**
+ * Stages the bytes of the blobs at `paths` for an apply to `workspaceId`: asks which of their
+ * hashes the server does not hold staged for this caller, then uploads only those, in requests of
+ * at most `maxBlobBytesPerRequest`. A blob staged by an earlier, interrupted run is not sent
+ * again. A file whose bytes no longer hash to what the directory read is refused before it is
+ * sent. Returns how many blobs and bytes were uploaded.
+ */
+export async function stageBlobs(
+  client: StagingClient,
+  workspaceId: string,
+  dir: string,
+  blobs: readonly BlobEntry[],
+  paths: ReadonlySet<string>
+): Promise<{ count: number; bytes: number }> {
+  const byHash = new Map<string, BlobEntry>()
+  for (const blob of blobs) if (paths.has(blob.path)) byHash.set(blob.sha256, blob)
+  if (byHash.size === 0) return { count: 0, bytes: 0 }
+  const missing = new Set<string>()
+  const asked = [...byHash.values()].map(({ sha256, size }) => ({ sha256, size }))
+  for (let start = 0; start < asked.length; start += WORKSPACE_SOURCE_LIMITS.maxStagedBlobs) {
+    const response = await client.request<FindMissingWorkspaceSourceBlobsResponse>(
+      'findMissingWorkspaceSourceBlobs',
+      {
+        params: { workspaceId },
+        body: { blobs: asked.slice(start, start + WORKSPACE_SOURCE_LIMITS.maxStagedBlobs) },
+        retryRateLimited: true,
+      }
+    )
+    for (const sha256 of response.data.missing) missing.add(sha256)
+  }
+  const sending = [...missing].flatMap((sha256) => byHash.get(sha256) ?? [])
+  let bytes = 0
+  for (const batch of stageBatches(sending)) {
+    const form = new FormData()
+    for (const blob of batch) {
+      const content = await blobBytes(dir, blob.path)
+      if (
+        content.byteLength !== blob.size ||
+        createHash('sha256').update(content).digest('hex') !== blob.sha256
+      ) {
+        throw new SimApiError(
+          `${blob.path} changed while the apply read it; nothing was applied. Apply again.`,
+          0,
+          'SOURCE_BLOB_CHANGED'
+        )
+      }
+      form.append(blob.sha256, new Blob([new Uint8Array(content)]), blob.sha256)
+      bytes += content.byteLength
+    }
+    await client.request<StageWorkspaceSourceBlobsResponse>('stageWorkspaceSourceBlobs', {
+      params: { workspaceId },
+      form,
+      retryRateLimited: true,
+    })
+  }
+  return { count: sending.length, bytes }
 }

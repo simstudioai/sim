@@ -16,6 +16,8 @@
     "getSourceResources",
     "getWorkspaceSource",
     "applyWorkspaceSource",
+    "findMissingWorkspaceSourceBlobs",
+    "stageWorkspaceSourceBlobs",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",

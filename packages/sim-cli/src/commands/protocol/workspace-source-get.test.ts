@@ -20,8 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
-import { blobDigests } from './workspace-source-blobs'
-import { blobContent } from './workspace-source-dir'
+import { blobBytes, blobDigests } from './workspace-source-blobs'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -421,7 +420,7 @@ describe('workspaces source get', () => {
       ).rejects.toMatchObject({
         code: 'SOURCE_SYMLINK',
       })
-      await expect(blobContent(dir, 'files/report.bin')).rejects.toMatchObject({
+      await expect(blobBytes(dir, 'files/report.bin')).rejects.toMatchObject({
         code: 'SOURCE_SYMLINK',
       })
     })
