@@ -11,7 +11,7 @@ import {
   type WorkflowToolForm,
 } from '../agent-tools'
 import { toolModeOverrides } from '../canonicalize/modes'
-import { buildFieldIndex, paramAliases, typedForBuilder } from '../catalog/surface'
+import { builderPins, buildFieldIndex, paramAliases, typedForBuilder } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
 import { catalogBlock, catalogBuildersOfType } from '../catalog/view'
 import { isJson } from '../lock'
@@ -65,13 +65,6 @@ export function findBuilder(
     })
   const [first] = candidates
   return first ? { path: first[0], builder: first[1] } : null
-}
-
-/** The param ids a builder pins: its fixed fields and its operation. */
-export function pinnedIds(builder: CatalogBuilder | undefined): Set<string> {
-  const ids = new Set(Object.keys(builder?.fixed ?? {}))
-  if (builder?.operation !== undefined) ids.add('operation')
-  return ids
 }
 
 /**
@@ -210,7 +203,7 @@ export function printTools(
     ) {
       return rawToolCall(ctx, block, tool, declared, aliases)
     }
-    const pinned = pinnedIds(found.builder)
+    const pinned = builderPins(found.builder)
     const nested: FieldContext = { tag: 't', from: block.key }
     const params: Property[] = Object.entries(tool.params)
       .filter(([id]) => !pinned.has(id))
@@ -270,10 +263,10 @@ function toolParamsTyped(
   declared: CatalogBlock,
   builder: CatalogBuilder
 ): boolean {
-  const pinned = pinnedIds(builder)
+  const pins = builderPins(builder)
+  const pinned = new Set(pins.keys())
   const index = buildFieldIndex(declared, false, pinned)
-  const pinnedValues: Record<string, unknown> = { ...builder.fixed }
-  if (builder.operation !== undefined) pinnedValues.operation = builder.operation
+  const pinnedValues = Object.fromEntries(pins)
   return Object.keys(tool.params).every((id) => {
     if (pinned.has(id)) return true
     const field = index.fields.get(id) ?? index.aliased.get(id)

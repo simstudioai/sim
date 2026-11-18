@@ -102,13 +102,28 @@ export interface DynamicOutputPlan {
   outputExtension: string | null
 }
 
+/** Table operations that merge `data` over a stored row rather than write a whole row. */
+const TABLE_PATCH_OPERATIONS: ReadonlySet<string> = new Set(['update_row', 'update_rows_by_filter'])
+
+/**
+ * The row type a table operation's `data` takes: an update writes a patch (`TableDataPatch`, every
+ * column optional), and any other operation, or a builder with no operation, a whole row
+ * (`TableData`, required columns required).
+ */
+function tableDataType(operation: string | undefined): 'TableData' | 'TableDataPatch' {
+  return operation !== undefined && TABLE_PATCH_OPERATIONS.has(operation)
+    ? 'TableDataPatch'
+    : 'TableData'
+}
+
 /**
  * How a block's dynamic outputs become a const generic. `null` for `humanForm`, which `core.d.ts`
  * types on `human()` itself.
  */
 export function dynamicOutputPlan(
   spec: CatalogDynamicOutputs,
-  outputs: Record<string, CatalogOutput>
+  outputs: Record<string, CatalogOutput>,
+  operation?: string
 ): DynamicOutputPlan | null {
   switch (spec.source) {
     case 'responseFormat':
@@ -144,7 +159,10 @@ export function dynamicOutputPlan(
       return {
         typeParameter: { name: 'T', constraint: 'string', fallback: 'string', isConst: false },
         param: { name: spec.param, type: 'TableRef<T> | Value<string>' },
-        paramOverrides: { data: 'TableData<T> | Template', rows: 'TableData<T>[] | Template' },
+        paramOverrides: {
+          data: `${tableDataType(operation)}<T> | Template`,
+          rows: 'TableData<T>[] | Template',
+        },
         outputOverrides,
         outputExtension: null,
       }

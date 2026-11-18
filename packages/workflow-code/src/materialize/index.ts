@@ -26,7 +26,7 @@ import type { MaterializeContext, MaterializeHooks } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
-import { subflowEntry } from './subflows'
+import { loopEntry, parallelEntry } from './subflows'
 import { rewriteRenamedReferences } from './values'
 
 /**
@@ -104,10 +104,17 @@ function withPreservedState(
   return { ...workflow, blocks }
 }
 
-function childIds(blocks: Record<string, BlockState>, containerId: string): string[] {
-  return Object.entries(blocks)
-    .filter(([, block]) => block.data?.parentId === containerId)
-    .map(([id]) => id)
+/** Each container's child ids (`data.parentId`), in block order, from one pass over the blocks. */
+function childrenByParent(blocks: Record<string, BlockState>): Map<unknown, string[]> {
+  const children = new Map<unknown, string[]>()
+  for (const [id, block] of Object.entries(blocks)) {
+    const parent = block.data?.parentId
+    if (parent === undefined) continue
+    const ids = children.get(parent)
+    if (ids) ids.push(id)
+    else children.set(parent, [id])
+  }
+  return children
 }
 
 export interface MaterializeOptions {
@@ -322,34 +329,34 @@ export function materialize(
   for (const [id, entry] of Object.entries(prev?.parallels ?? {})) {
     if (!Object.hasOwn(prev?.blocks ?? {}, id)) setOwn(parallels, id, entry)
   }
+  const childrenOf = childrenByParent(blocks)
+  const prevChildrenOf = childrenByParent(prev?.blocks ?? {})
   for (const [key, target] of Object.entries(workflow.blocks)) {
     const id = idByKey.get(key)
     const resolved = resolution.blocks.get(key)
     const block = id !== undefined ? getOwn(blocks, id) : undefined
     if (id === undefined || !block || !resolved || !target.subflow) continue
     const before = prevBlock(resolved.prevKey)
-    const prevEntry =
-      before && prev
-        ? getOwn<Loop | Parallel>(
-            (target.subflow.kind === 'loop' ? prev.loops : prev.parallels) ?? {},
-            id
-          )
-        : undefined
-    const entry = subflowEntry({
+    const context = {
       id,
       block,
-      spec: target.subflow,
-      nodes: childIds(blocks, id),
-      prevEntry,
+      nodes: childrenOf.get(id) ?? [],
       specChanged: !before || !deepEqual(before.subflow, target.subflow),
       enabledChanged: before !== undefined && before.enabled !== target.enabled,
       lockedChanged: before !== undefined && before.locked !== target.locked,
       matched: before !== undefined,
-      prevNodes: before && prev ? childIds(prev.blocks, id) : [],
-    })
-    if (!entry) continue
-    if (target.subflow.kind === 'loop') setOwn(loops, id, entry as Loop)
-    else setOwn(parallels, id, entry as Parallel)
+      prevNodes: before && prev ? (prevChildrenOf.get(id) ?? []) : [],
+    }
+    const fromPrev = before !== undefined && prev !== undefined
+    if (target.subflow.kind === 'loop') {
+      const prevEntry = fromPrev ? getOwn(prev.loops ?? {}, id) : undefined
+      const entry = loopEntry(context, target.subflow, prevEntry)
+      if (entry) setOwn(loops, id, entry)
+    } else {
+      const prevEntry = fromPrev ? getOwn(prev.parallels ?? {}, id) : undefined
+      const entry = parallelEntry(context, target.subflow, prevEntry)
+      if (entry) setOwn(parallels, id, entry)
+    }
   }
 
   const state: WorkflowState = { ...prev, blocks, edges, loops, parallels }

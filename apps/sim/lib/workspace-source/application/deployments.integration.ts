@@ -387,6 +387,29 @@ describe('workspace source: deployments', () => {
     expect((await deployState(id)).isPublicApi).toBe(true)
   })
 
+  check(
+    'redeploys an undeployed public workflow as private when the API is not declared',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace(
+        deployment("{ live: 'draft', api: { public: true } }")
+      )
+      expect((await deployState(id)).isPublicApi).toBe(true)
+      const { [DEPLOYMENT]: _removed, ...withoutDeployment } = files
+      const undeployed = await apply(workspaceId, withoutDeployment, { base, allowDelete: true })
+      expect(undeployed.failed).toBeUndefined()
+      expect(await deployState(id)).toMatchObject({ isDeployed: false, isPublicApi: true })
+
+      const redeployed = await apply(
+        workspaceId,
+        { ...withoutDeployment, ...undeployed.files, [DEPLOYMENT]: DRAFT },
+        { base: undeployed.base }
+      )
+      expect(redeployed.failed).toBeUndefined()
+      expect(actions(redeployed.applied)).toContain('create deployment:nightly')
+      expect(await deployState(id)).toMatchObject({ isDeployed: true, isPublicApi: false })
+    }
+  )
+
   check('refuses an edit when the server changed the deployment since the base', async () => {
     const { workspaceId, files, base, id } = await deployedWorkspace()
     await updateWorkflowPublicApi.execute({
