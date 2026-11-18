@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisHGetAllParams, UpstashRedisHGetAllResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisHGetAllTool: ToolConfig<
   UpstashRedisHGetAllParams,
@@ -34,7 +35,7 @@ export const upstashRedisHGetAllTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${params.restUrl}/hgetall/${encodeURIComponent(params.key)}`,
+    url: (params) => `${params.restUrl}/hgetall/${upstashPathSegment(params.key, 'key')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

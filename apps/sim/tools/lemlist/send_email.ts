@@ -36,15 +36,17 @@ export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailR
     },
     contactId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Recipient contact identifier (e.g., "con_abc123def456")',
+      description:
+        'Recipient contact identifier (e.g., "ctc_abc123def456"). Provide this or the lead ID.',
     },
     leadId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Associated lead identifier (e.g., "lea_abc123def456")',
+      description:
+        'Associated lead identifier (e.g., "lea_abc123def456"). Provide this or the contact ID.',
     },
     subject: {
       type: 'string',
@@ -76,16 +78,21 @@ export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailR
         'Content-Type': 'application/json',
       }
     },
-    body: (params) => ({
-      sendUserId: params.sendUserId?.trim(),
-      sendUserEmail: params.sendUserEmail?.trim(),
-      sendUserMailboxId: params.sendUserMailboxId?.trim(),
-      contactId: params.contactId?.trim(),
-      leadId: params.leadId?.trim(),
-      subject: params.subject?.trim(),
-      message: params.message,
-      cc: params.cc ?? [],
-    }),
+    body: (params) => {
+      if (!params.contactId?.trim() && !params.leadId?.trim()) {
+        throw new Error('Either a contact ID or a lead ID is required to send a Lemlist email')
+      }
+      return {
+        sendUserId: params.sendUserId?.trim(),
+        sendUserEmail: params.sendUserEmail?.trim(),
+        sendUserMailboxId: params.sendUserMailboxId?.trim(),
+        contactId: params.contactId?.trim() || undefined,
+        leadId: params.leadId?.trim() || undefined,
+        subject: params.subject?.trim(),
+        message: params.message,
+        cc: params.cc ?? [],
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

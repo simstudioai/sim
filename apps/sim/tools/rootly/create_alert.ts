@@ -1,4 +1,5 @@
 import type { RootlyCreateAlertParams, RootlyCreateAlertResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -115,7 +116,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         return {
           success: false,
           output: { alert: {} as RootlyCreateAlertResponse['output']['alert'] },
-          error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+          error: rootlyErrorMessage(errorData, response),
         }
       }
 

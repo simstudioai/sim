@@ -411,10 +411,14 @@ export const CodePipelineBlock: BlockConfig = {
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
         const awsSecretAccessKey = rest.awsSecretAccessKey
-        const parsedMaxResults = parseOptionalNumberInput(maxResults, 'Max results', {
-          integer: true,
-          min: 1,
-        })
+        /** Parsed only by the list operations, so a value left in the hidden field never fails another one. */
+        const maxResultsParam = () => {
+          const parsed = parseOptionalNumberInput(maxResults, 'Max results', {
+            integer: true,
+            min: 1,
+          })
+          return parsed === undefined ? {} : { maxResults: parsed }
+        }
 
         switch (operation) {
           case 'list_pipelines':
@@ -422,7 +426,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
@@ -463,7 +467,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsAccessKeyId,
               awsSecretAccessKey,
               pipelineName: rest.pipelineName,
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
               ...(rest.succeededInStage && { succeededInStage: rest.succeededInStage }),
             }
@@ -475,7 +479,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsSecretAccessKey,
               pipelineName: rest.pipelineName,
               ...(rest.pipelineExecutionId && { pipelineExecutionId: rest.pipelineExecutionId }),
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 

@@ -106,6 +106,7 @@ export const ExaBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Auto', id: 'auto' },
+        { label: 'Lite', id: 'lite' },
         { label: 'Instant', id: 'instant' },
         { label: 'Fast', id: 'fast' },
         { label: 'Deep Lite', id: 'deep-lite' },
@@ -603,7 +604,7 @@ export const ExaBlock: BlockConfig = {
         if (params.extrasImageLinks) {
           result.extrasImageLinks = Number(params.extrasImageLinks)
         }
-        if (params.maxAgeHours !== undefined && String(params.maxAgeHours).trim() !== '') {
+        if (params.maxAgeHours != null && String(params.maxAgeHours).trim() !== '') {
           result.maxAgeHours = Number(params.maxAgeHours)
         }
         if (params.livecrawlTimeout) {

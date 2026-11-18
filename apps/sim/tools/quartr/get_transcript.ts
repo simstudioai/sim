@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetTranscriptTool: ToolConfig<
   QuartrGetTranscriptParams,
@@ -38,7 +39,7 @@ export const quartrGetTranscriptTool: ToolConfig<
   request: {
     url: (params) =>
       buildQuartrUrl(
-        `/documents/transcripts/${encodeURIComponent(String(params.transcriptId).trim())}`,
+        `/documents/transcripts/${safeUrlPathSegment(params.transcriptId, 'transcriptId')}`,
         { expand: 'event' }
       ),
     method: 'GET',

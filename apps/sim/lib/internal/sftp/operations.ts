@@ -8,6 +8,7 @@ import {
   getFileType,
   getSftp,
   isPathSafe,
+  joinRemotePath,
   MAX_SFTP_READ_BYTES,
   parsePermissions,
   readSftpFileCapped,
@@ -464,9 +465,7 @@ export async function executeSftpUpload(
             )
             resolvedTotal += buffer.length
             const safeName = sanitizeFileName(file.name)
-            const destination = sanitizePath(
-              remotePath.endsWith('/') ? `${remotePath}${safeName}` : `${remotePath}/${safeName}`
-            )
+            const destination = joinRemotePath(remotePath, safeName)
             if (!input.overwrite && (await sftpExists(sftp, destination, context.signal))) continue
             await writeSftpFile(sftp, destination, buffer, input.permissions, context.signal)
             uploadedFiles.push({ name: safeName, remotePath: destination, size: buffer.length })
@@ -493,9 +492,7 @@ export async function executeSftpUpload(
 
       if (hasDirectContent) {
         const safeName = sanitizeFileName(input.fileName ?? '')
-        const destination = sanitizePath(
-          remotePath.endsWith('/') ? `${remotePath}${safeName}` : `${remotePath}/${safeName}`
-        )
+        const destination = joinRemotePath(remotePath, safeName)
         if (!input.overwrite && (await sftpExists(sftp, destination, context.signal))) {
           return Response.json(
             { error: 'File already exists and overwrite is disabled' },

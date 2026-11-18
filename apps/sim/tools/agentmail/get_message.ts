@@ -1,6 +1,7 @@
 import type { GetMessageParams, GetMessageResult } from '@/tools/agentmail/types'
 import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageResult> = {
   id: 'agentmail_get_message',
@@ -32,7 +33,7 @@ export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageRes
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages/${params.messageId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

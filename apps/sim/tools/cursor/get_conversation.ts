@@ -1,6 +1,7 @@
 import type { GetConversationParams, GetConversationResponse } from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const getConversationBase = {
   params: {
@@ -19,7 +20,7 @@ const getConversationBase = {
   },
   request: {
     url: (params: GetConversationParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/conversation`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/conversation`,
     method: 'GET',
     headers: (params: GetConversationParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,

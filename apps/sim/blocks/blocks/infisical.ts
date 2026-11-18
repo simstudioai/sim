@@ -267,6 +267,11 @@ export const InfisicalBlock: BlockConfig = {
       description:
         'Secret object from get/create/update/delete operations (id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt)',
     },
+    approval: {
+      type: 'json',
+      description:
+        'Pending change request (id, policyId, slug, status, hasMerged, folderId, createdAt, updatedAt) returned by create/update/delete instead of the secret when the environment has a secret approval policy',
+    },
   },
 }
 

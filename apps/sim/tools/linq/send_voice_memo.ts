@@ -2,6 +2,7 @@ import type { LinqSendVoiceMemoParams, LinqSendVoiceMemoResult } from '@/tools/l
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqSendVoiceMemoTool: ToolConfig<LinqSendVoiceMemoParams, LinqSendVoiceMemoResult> = {
   id: 'linq_send_voice_memo',
@@ -39,7 +40,8 @@ export const linqSendVoiceMemoTool: ToolConfig<LinqSendVoiceMemoParams, LinqSend
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/voicememo`,
+    url: (params) =>
+      `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/voicememo`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => {

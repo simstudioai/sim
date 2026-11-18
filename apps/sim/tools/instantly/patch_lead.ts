@@ -10,6 +10,7 @@ import {
 } from '@/tools/instantly/utils'
 import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadResponse> = {
   id: 'instantly_patch_lead',
@@ -93,7 +94,7 @@ export const patchLeadTool: ToolConfig<InstantlyPatchLeadParams, InstantlyLeadRe
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/leads/${params.leadId.trim()}`),
+    url: (params) => instantlyUrl(`/api/v2/leads/${safeUrlPathSegment(params.leadId, 'leadId')}`),
     method: 'PATCH',
     headers: instantlyHeaders,
     body: (params) => {

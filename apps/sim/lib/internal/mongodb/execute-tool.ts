@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   executeMongodbAggregation,
   executeMongodbDelete,
@@ -40,6 +41,7 @@ async function executeOperation<TInput>(
     return Response.json(result)
   } catch (error) {
     signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error)) throw error
     if (error instanceof MongodbOperationInputError) {
       return Response.json({ error: error.message }, { status: 400 })
     }

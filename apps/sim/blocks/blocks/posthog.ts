@@ -2,6 +2,7 @@ import { toBooleanFromInput } from '@sim/utils/coerce'
 import { PosthogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 /**
  * Switch params the tools copy straight into the request body. Older workflows
@@ -1579,11 +1580,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         return params.operation as string
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
         if (params.offset) result.offset = Number(params.offset)
-        if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
+        if (
+          params.rolloutPercentage &&
+          mapperOperation(params, context) !== 'posthog_create_feature_flag'
+        ) {
+          result.rolloutPercentage = Number(params.rolloutPercentage)
+        }
         if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
         for (const key of SWITCH_PARAMS) {
           if (params[key] !== undefined) result[key] = toBooleanFromInput(params[key])

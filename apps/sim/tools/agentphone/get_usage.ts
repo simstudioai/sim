@@ -112,7 +112,8 @@ export const agentphoneGetUsageTool: ToolConfig<
     plan: {
       type: 'json',
       description:
-        'Plan name and limits (name, limits: numbers/messagesPerMonth/voiceMinutesPerMonth/maxCallDurationMinutes/concurrentCalls)',
+        'Plan name and limits (name, limits: numbers/messagesPerMonth/voiceMinutesPerMonth/maxCallDurationMinutes/concurrentCalls). The current AgentPhone usage API no longer returns a plan, so these values are empty.',
+      optional: true,
     },
     numbers: {
       type: 'json',

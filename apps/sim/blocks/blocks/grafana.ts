@@ -726,6 +726,14 @@ Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'grafana_list_annotations' },
     },
     {
+      id: 'alertUid',
+      title: 'Alert Rule UID',
+      type: 'short-input',
+      placeholder: 'Filter by alert rule UID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_annotations' },
+    },
+    {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
@@ -1178,6 +1186,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.annotationType) result.type = params.annotationType
             if (params.panelId) result.panelId = Number(params.panelId)
             if (params.alertId) result.alertId = Number(params.alertId)
+            if (params.alertUid) result.alertUid = params.alertUid
             if (params.userId) result.userId = Number(params.userId)
             if (params.from) result.from = Number(params.from)
             if (params.to) result.to = Number(params.to)
@@ -1290,6 +1299,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     from: { type: 'number', description: 'Filter from time' },
     to: { type: 'number', description: 'Filter to time' },
     alertId: { type: 'number', description: 'Filter annotations by alert ID' },
+    alertUid: { type: 'string', description: 'Filter annotations by alert rule UID' },
     userId: { type: 'number', description: 'Filter annotations by creator user ID' },
     annotationType: {
       type: 'string',

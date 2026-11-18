@@ -7,6 +7,7 @@ import type {
 } from '@/tools/clerk/types'
 import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkListOrganizationInvitations')
 
@@ -76,7 +77,7 @@ export const clerkListOrganizationInvitationsTool: ToolConfig<
       if (params.offset) queryParams.append('offset', params.offset.toString())
 
       const queryString = queryParams.toString()
-      const base = `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/invitations`
+      const base = `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/invitations`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',

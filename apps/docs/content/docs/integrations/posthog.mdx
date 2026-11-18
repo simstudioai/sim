@@ -822,7 +822,7 @@ Create a new feature flag in PostHog
 | `filters` | string | No | Feature flag filters as JSON string |
 | `active` | boolean | No | Whether the flag is active \(default: true\) |
 | `ensureExperienceContinuity` | boolean | No | Whether to ensure experience continuity \(default: false\) |
-| `rolloutPercentage` | number | No | Rollout percentage \(0-100\) |
+| `rolloutPercentage` | number | No | Percentage of users \(0-100\) the flag is released to. With Filters, applies to each group that sets no rollout_percentage of its own. |
 
 #### Output
 

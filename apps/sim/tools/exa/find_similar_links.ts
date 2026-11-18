@@ -152,7 +152,7 @@ export const findSimilarLinksTool: ToolConfig<
       const contents: Record<string, any> = {}
       if (params.text !== undefined) contents.text = params.text
       if (params.highlights !== undefined) contents.highlights = params.highlights
-      if (params.summary !== undefined) contents.summary = params.summary
+      if (String(params.summary) === 'true') contents.summary = true
 
       applyFreshness(contents, params)
 

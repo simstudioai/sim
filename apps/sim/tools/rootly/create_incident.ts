@@ -1,4 +1,5 @@
 import type { RootlyCreateIncidentParams, RootlyCreateIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -143,8 +144,7 @@ export const rootlyCreateIncidentTool: ToolConfig<
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const errorMsg =
-        errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`
+      const errorMsg = rootlyErrorMessage(errorData, response)
       return {
         success: false,
         output: { incident: {} as RootlyCreateIncidentResponse['output']['incident'] },

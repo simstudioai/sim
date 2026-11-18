@@ -536,11 +536,15 @@ Examples:
         // Add authentication based on method
         if (params.authMethod === 'privateKey') {
           connectionConfig.privateKey = params.privateKey
-          if (params.passphrase) {
-            connectionConfig.passphrase = params.passphrase
-          }
+          connectionConfig.passphrase = params.passphrase || undefined
+          connectionConfig.password = undefined
         } else {
           connectionConfig.password = params.password
+          if (params.authMethod === 'password') {
+            // A key stored before switching to password auth would otherwise win on the server.
+            connectionConfig.privateKey = undefined
+            connectionConfig.passphrase = undefined
+          }
         }
 
         // Build operation-specific parameters based on the selected operation
@@ -573,6 +577,7 @@ Examples:
               fileName: params.fileName,
               remotePath: params.remotePath,
               permissions: params.permissions,
+              overwrite: toolCallArg(context, params.overwrite),
             }
           case 'ssh_download_file':
             return {
@@ -596,6 +601,7 @@ Examples:
               ...connectionConfig,
               path: params.createPath ?? toolCallArg(context, params.path),
               recursive: params.recursive !== false,
+              permissions: toolCallArg(context, params.permissions),
             }
           case 'ssh_delete_file':
             return {

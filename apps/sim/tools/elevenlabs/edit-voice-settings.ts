@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elevenlabs/types'
 import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const elevenLabsEditVoiceSettingsTool: ToolConfig<
   ElevenLabsEditVoiceSettingsParams,
@@ -61,7 +62,8 @@ export const elevenLabsEditVoiceSettingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.elevenlabs.io/v1/voices/${params.voiceId.trim()}/settings/edit`,
+    url: (params) =>
+      `https://api.elevenlabs.io/v1/voices/${safeUrlPathSegment(params.voiceId, 'voiceId')}/settings/edit`,
     method: 'POST',
     headers: (params) => ({
       'xi-api-key': params.apiKey,

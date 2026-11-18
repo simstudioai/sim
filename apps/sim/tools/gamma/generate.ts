@@ -1,4 +1,5 @@
 import type { GammaGenerateParams, GammaGenerateResponse } from '@/tools/gamma/types'
+import { gammaFolderId } from '@/tools/gamma/utils'
 import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -72,13 +73,14 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Automatically export the generated gamma as pdf or pptx',
+      description:
+        'Automatically export the generated gamma as pdf, pptx, or png (a zip of one PNG per card). Check Status returns the download URL',
     },
     folderIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated folder IDs to store the generated gamma in',
+      description: 'ID of the folder to store the generated gamma in (Gamma accepts one folder)',
     },
     textAmount: {
       type: 'string',
@@ -110,7 +112,7 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Where to source images: aiGenerated, pictographic, unsplash, webAllImages, webFreeToUse, webFreeToUseCommercially, giphy, placeholder, or noImages',
+        'Where to source images: aiGenerated, pictographic, pexels, webAllImages, webFreeToUse, webFreeToUseCommercially, giphy, themeAccent, placeholder, or noImages',
     },
     imageModel: {
       type: 'string',
@@ -156,9 +158,8 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
       if (params.cardSplit) body.cardSplit = params.cardSplit
       if (params.additionalInstructions) body.additionalInstructions = params.additionalInstructions
       if (params.exportAs) body.exportAs = params.exportAs
-      if (params.folderIds) {
-        body.folderIds = params.folderIds.split(',').map((id: string) => id.trim())
-      }
+      const folderId = gammaFolderId(params.folderIds)
+      if (folderId) body.folderId = folderId
 
       const textOptions: Record<string, unknown> = {}
       if (params.textAmount) textOptions.amount = params.textAmount
@@ -188,6 +189,7 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
       success: true,
       output: {
         generationId: data.generationId ?? '',
+        warnings: data.warnings ?? null,
       },
     }
   },
@@ -196,6 +198,11 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
     generationId: {
       type: 'string',
       description: 'The ID of the generation job. Use with Check Status to poll for completion.',
+    },
+    warnings: {
+      type: 'string',
+      description: 'Warnings about request options that Gamma ignored',
+      optional: true,
     },
   },
 }

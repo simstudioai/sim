@@ -3,6 +3,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
+/** Operations whose coordinates come from the `aqLatitude`/`aqLongitude` fields. */
+const AQ_COORDINATE_OPERATIONS = ['air_quality', 'pollen', 'solar', 'places_nearby']
+
 export const GoogleMapsBlock: BlockConfig = {
   type: 'google_maps',
   name: 'Google Maps',
@@ -483,16 +486,16 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Latitude',
       type: 'short-input',
       placeholder: '37.4224764',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      condition: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
+      required: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
     },
     {
       id: 'aqLongitude',
       title: 'Longitude',
       type: 'short-input',
       placeholder: '-122.0842499',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      condition: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
+      required: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
     },
     {
       id: 'languageCode',
@@ -524,9 +527,10 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Minimum Imagery Quality',
       type: 'dropdown',
       options: [
-        { label: 'Any', id: '' },
+        { label: 'Default (High only)', id: '' },
         { label: 'High', id: 'HIGH' },
         { label: 'Medium', id: 'MEDIUM' },
+        { label: 'Low', id: 'LOW' },
         { label: 'Base', id: 'BASE' },
       ],
       condition: { field: 'operation', value: 'solar' },
@@ -595,21 +599,11 @@ export const GoogleMapsBlock: BlockConfig = {
           }
         }
 
-        let lat: number | undefined
-        let lng: number | undefined
-        if (params.latitude) {
-          lat = Number.parseFloat(params.latitude)
-        }
-        if (params.longitude) {
-          lng = Number.parseFloat(params.longitude)
-        }
-
-        if (params.aqLatitude) {
-          lat = Number.parseFloat(params.aqLatitude)
-        }
-        if (params.aqLongitude) {
-          lng = Number.parseFloat(params.aqLongitude)
-        }
+        const usesAqCoordinates = AQ_COORDINATE_OPERATIONS.includes(operation)
+        const latInput = usesAqCoordinates ? params.aqLatitude : params.latitude
+        const lngInput = usesAqCoordinates ? params.aqLongitude : params.longitude
+        const lat = latInput ? Number.parseFloat(latInput) : undefined
+        const lng = lngInput ? Number.parseFloat(lngInput) : undefined
 
         let timestamp: number | undefined
         if (params.timestamp) {

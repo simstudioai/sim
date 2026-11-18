@@ -1,5 +1,13 @@
 import type { PolymarketActivity } from '@/tools/polymarket/types'
-import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
+import {
+  appendDataPagination,
+  buildDataUrl,
+  handlePolymarketError,
+  POLYMARKET_CURSOR_DESCRIPTION,
+  POLYMARKET_DATA_PAGE_OUTPUTS,
+  type PolymarketDataPage,
+  readDataPage,
+} from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PolymarketGetActivityParams {
@@ -14,11 +22,12 @@ export interface PolymarketGetActivityParams {
   sortBy?: string
   sortDirection?: string
   side?: string
+  cursor?: string
 }
 
 export interface PolymarketGetActivityResponse {
   success: boolean
-  output: {
+  output: PolymarketDataPage & {
     activity: PolymarketActivity[]
   }
 }
@@ -43,14 +52,14 @@ export const polymarketGetActivityTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Maximum results to return (e.g., "50"). Default: 100, max: 500.',
+      description: 'Number of results for the first page (e.g., "50"). Default: 100, max: 1000.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description:
-        'Number of results to skip for pagination (e.g., "100"). Default: 0, max: 10000.',
+        'Not supported by the Polymarket Data API v2, which pages by cursor. Use cursor instead.',
       visibility: 'user-or-llm',
     },
     market: {
@@ -89,7 +98,7 @@ export const polymarketGetActivityTool: ToolConfig<
     sortBy: {
       type: 'string',
       required: false,
-      description: 'Sort field: TIMESTAMP, TOKENS, or CASH (default: TIMESTAMP)',
+      description: 'Sort field. Polymarket supports only TIMESTAMP.',
       visibility: 'user-or-llm',
     },
     sortDirection: {
@@ -104,25 +113,36 @@ export const polymarketGetActivityTool: ToolConfig<
       description: 'Trade side filter: BUY or SELL (only applies to trades)',
       visibility: 'user-or-llm',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      description: POLYMARKET_CURSOR_DESCRIPTION,
+      visibility: 'user-or-llm',
+    },
   },
 
   request: {
     url: (params) => {
-      const queryParams = new URLSearchParams()
-      queryParams.append('user', params.user)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.offset) queryParams.append('offset', params.offset)
-      if (params.market) queryParams.append('market', params.market)
-      if (params.eventId) queryParams.append('eventId', params.eventId)
-      if (params.type) queryParams.append('type', params.type)
-      if (params.start != null && !Number.isNaN(params.start))
-        queryParams.append('start', String(params.start))
-      if (params.end != null && !Number.isNaN(params.end))
-        queryParams.append('end', String(params.end))
-      if (params.sortBy) queryParams.append('sortBy', params.sortBy)
-      if (params.sortDirection) queryParams.append('sortDirection', params.sortDirection)
-      if (params.side) queryParams.append('side', params.side)
-      return `${buildDataUrl('/activity')}?${queryParams.toString()}`
+      const query = new URLSearchParams()
+      query.append('user', params.user)
+      if (params.market) query.append('condition', params.market)
+      if (params.eventId) query.append('event_id', params.eventId)
+      if (params.type) query.append('type', params.type)
+      for (const key of ['start', 'end'] as const) {
+        const value = params[key]
+        if (value == null || String(value).trim() === '') continue
+        const seconds = Number(value)
+        if (!Number.isFinite(seconds)) {
+          throw new Error(`${key} must be a Unix timestamp in seconds, got "${value}".`)
+        }
+        // v2 reads start=0 as "three years back"; 1 keeps the full history that 0 asked for.
+        query.append(key, String(key === 'start' && seconds === 0 ? 1 : seconds))
+      }
+      if (params.sortBy) query.append('sort_by', params.sortBy)
+      if (params.sortDirection) query.append('sort_direction', params.sortDirection)
+      if (params.side) query.append('side', params.side)
+      appendDataPagination(query, params)
+      return buildDataUrl('/activity', query)
     },
     method: 'GET',
     headers: () => ({
@@ -137,36 +157,36 @@ export const polymarketGetActivityTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_activity')
     }
 
-    const activityList = Array.isArray(data) ? data : []
-
-    const activity: PolymarketActivity[] = activityList.map((a: any) => ({
-      proxyWallet: a.proxyWallet ?? null,
-      timestamp: a.timestamp ?? 0,
-      conditionId: a.conditionId ?? '',
-      type: a.type ?? '',
-      size: a.size ?? 0,
-      usdcSize: a.usdcSize ?? 0,
-      transactionHash: a.transactionHash ?? null,
-      price: a.price ?? null,
-      asset: a.asset ?? null,
-      side: a.side ?? null,
-      outcomeIndex: a.outcomeIndex ?? null,
-      title: a.title ?? null,
-      slug: a.slug ?? null,
-      icon: a.icon ?? null,
-      eventSlug: a.eventSlug ?? null,
-      outcome: a.outcome ?? null,
-      name: a.name ?? null,
-      pseudonym: a.pseudonym ?? null,
-      bio: a.bio ?? null,
-      profileImage: a.profileImage ?? null,
-      profileImageOptimized: a.profileImageOptimized ?? null,
+    const { rows, page } = readDataPage(data)
+    const activity: PolymarketActivity[] = rows.map((a) => ({
+      proxyWallet: (a.proxy_wallet as string) ?? null,
+      timestamp: (a.timestamp as number) ?? 0,
+      conditionId: (a.condition_id as string) ?? '',
+      type: (a.type as string) ?? '',
+      size: (a.size as number) ?? 0,
+      usdcSize: (a.usdc_size as number) ?? 0,
+      transactionHash: (a.transaction_hash as string) ?? null,
+      price: (a.price as number) ?? null,
+      asset: (a.token_id as string) ?? null,
+      side: (a.side as string) ?? null,
+      outcomeIndex: (a.outcome_index as number) ?? null,
+      title: (a.title as string) ?? null,
+      slug: (a.slug as string) ?? null,
+      icon: (a.icon as string) ?? null,
+      eventSlug: (a.event_slug as string) ?? null,
+      outcome: (a.outcome as string) ?? null,
+      name: (a.name as string) ?? null,
+      pseudonym: (a.pseudonym as string) ?? null,
+      bio: (a.bio as string) ?? null,
+      profileImage: (a.profile_image as string) ?? null,
+      profileImageOptimized: (a.profile_image_optimized as string) ?? null,
     }))
 
     return {
       success: true,
       output: {
         activity,
+        ...page,
       },
     }
   },
@@ -205,5 +225,6 @@ export const polymarketGetActivityTool: ToolConfig<
         },
       },
     },
+    ...POLYMARKET_DATA_PAGE_OUTPUTS,
   },
 }

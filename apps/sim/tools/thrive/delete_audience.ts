@@ -2,6 +2,7 @@ import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteAudienceParams, ThriveDeleteResponse } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteAudienceTool: ToolConfig<ThriveDeleteAudienceParams, ThriveDeleteResponse> = {
   id: 'thrive_delete_audience',
@@ -39,7 +40,7 @@ export const deleteAudienceTool: ToolConfig<ThriveDeleteAudienceParams, ThriveDe
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}`,
     method: 'DELETE',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

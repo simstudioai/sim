@@ -2,6 +2,7 @@ import type { LinqGetMessageParams, LinqMessageResult } from '@/tools/linq/types
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqGetMessageTool: ToolConfig<LinqGetMessageParams, LinqMessageResult> = {
   id: 'linq_get_message',
@@ -26,7 +27,8 @@ export const linqGetMessageTool: ToolConfig<LinqGetMessageParams, LinqMessageRes
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/messages/${encodeURIComponent(params.messageId.trim())}`,
+    url: (params) =>
+      `${LINQ_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`,
     method: 'GET',
     headers: (params) => linqHeaders(params.apiKey),
   },

@@ -8,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, ThriveAddUsersResponse> =
   {
@@ -53,7 +54,7 @@ export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, Thriv
 
     request: {
       url: (params) =>
-        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/members`,
+        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members`,
       method: 'POST',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
       body: (params) => JSON.stringify(parseThriveArray<string>(params.users, 'users')),

@@ -3,6 +3,7 @@ import type { ThriveCompletionResponse, ThriveGetCompletionParams } from '@/tool
 import { THRIVE_COMPLETION_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCompletionTool: ToolConfig<ThriveGetCompletionParams, ThriveCompletionResponse> = {
   id: 'thrive_get_completion',
@@ -40,7 +41,7 @@ export const getCompletionTool: ToolConfig<ThriveGetCompletionParams, ThriveComp
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/learning/completions/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/learning/completions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

@@ -425,14 +425,14 @@ List the CloudTrail Lake event data stores in the account for the current Region
 | `eventDataStores` | array | Event data stores in the account for the current Region |
 |   ↳ `eventDataStoreArn` | string | ARN of the event data store |
 |   ↳ `name` | string | Name of the event data store |
-|   ↳ `status` | string | CREATED, ENABLED, PENDING_DELETION, or an ingestion state |
-|   ↳ `advancedEventSelectors` | array | Advanced event selectors that define what the store ingests |
-|   ↳ `multiRegionEnabled` | boolean | Whether the store collects events from all Regions |
-|   ↳ `organizationEnabled` | boolean | Whether the store collects events for the organization |
-|   ↳ `retentionPeriod` | number | Retention period in days |
-|   ↳ `terminationProtectionEnabled` | boolean | Whether termination protection is enabled |
-|   ↳ `createdTimestamp` | string | When the store was created \(ISO 8601\) |
-|   ↳ `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
+|   ↳ `status` | string | Store status. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `advancedEventSelectors` | array | Advanced event selectors. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `multiRegionEnabled` | boolean | Whether the store is multi-Region. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `organizationEnabled` | boolean | Whether the store is an organization store. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `retentionPeriod` | number | Retention period in days. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `terminationProtectionEnabled` | boolean | Whether termination protection is enabled. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `createdTimestamp` | string | Creation time. AWS no longer returns it from this list; read it with Get Event Data Store |
+|   ↳ `updatedTimestamp` | string | Last update time. AWS no longer returns it from this list; read it with Get Event Data Store |
 | `nextToken` | string | Pagination token for the next page of event data stores |
 
 </ReferenceDetails>

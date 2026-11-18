@@ -110,7 +110,7 @@ export const personaCreateReportTool: ToolConfig<PersonaCreateReportParams, Pers
         if (params.nameLast?.trim()) query['name-last'] = params.nameLast.trim()
         if (params.birthdate?.trim()) query.birthdate = params.birthdate.trim()
         if (params.countryCode?.trim()) {
-          query[reportType === 'watchlist' ? 'country-code' : 'address-country-code'] =
+          query[reportType === 'watchlist' ? 'address-country-code' : 'country-code'] =
             params.countryCode.trim()
         }
 

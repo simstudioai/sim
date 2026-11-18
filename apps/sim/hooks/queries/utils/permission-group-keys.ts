@@ -15,4 +15,6 @@ export const permissionGroupKeys = {
     [...permissionGroupKeys.all, 'userConfig', workspaceId ?? ''] as const,
   orgWorkspaces: (organizationId?: string) =>
     [...permissionGroupKeys.all, 'orgWorkspaces', organizationId ?? ''] as const,
+  computerUseAvailability: (scope: 'workspace' | 'organization', id?: string) =>
+    [...permissionGroupKeys.all, 'computerUseAvailability', scope, id ?? ''] as const,
 }

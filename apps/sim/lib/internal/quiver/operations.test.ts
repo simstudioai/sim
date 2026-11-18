@@ -118,7 +118,7 @@ describe('Quiver operations', () => {
       'generations',
       'secret',
       {
-        model: 'arrow-preview',
+        model: 'arrow-2',
         prompt: 'A compass',
         instructions: 'Minimal',
         references: [{ base64: 'AQID' }, { base64: 'BAU=' }],
@@ -138,6 +138,41 @@ describe('Quiver operations', () => {
     })
     expect(Object.keys(presented.output).sort()).toEqual(['files', 'id', 'usage'])
     expect(presented.output).not.toHaveProperty('svgContent')
+  })
+
+  it('sends retired Arrow 1.x model ids as arrow-2', async () => {
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-preview', image: rawFile },
+      context
+    )
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-2-telos', image: rawFile },
+      context
+    )
+
+    expect(mocks.requestQuiverSvg.mock.calls.map(([, , body]) => body.model)).toEqual([
+      'arrow-2',
+      'arrow-2-telos',
+    ])
+  })
+
+  it('omits the sampling fields Arrow 2 Telos rejects', async () => {
+    const sampling = { temperature: 0.4, top_p: 0.9, presence_penalty: 0.2, max_output_tokens: 10 }
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-2-telos', image: rawFile, ...sampling },
+      context
+    )
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-2', image: rawFile, ...sampling },
+      context
+    )
+
+    const [telosBody, arrowBody] = mocks.requestQuiverSvg.mock.calls.map(([, , body]) => body)
+    expect(telosBody).not.toHaveProperty('temperature')
+    expect(telosBody).not.toHaveProperty('top_p')
+    expect(telosBody).not.toHaveProperty('presence_penalty')
+    expect(telosBody).toMatchObject({ max_output_tokens: 10 })
+    expect(arrowBody).toMatchObject(sampling)
   })
 
   it('fails closed on incomplete private model-input provenance', async () => {

@@ -2,8 +2,10 @@ import type {
   RootlyAssignIncidentRoleParams,
   RootlyIncidentActionResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyAssignIncidentRoleTool: ToolConfig<
   RootlyAssignIncidentRoleParams,
@@ -44,7 +46,7 @@ export const rootlyAssignIncidentRoleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/assign_role_to_user`,
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/assign_role_to_user`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -67,7 +69,7 @@ export const rootlyAssignIncidentRoleTool: ToolConfig<
       return {
         success: false,
         output: { incident: {} as RootlyIncidentActionResponse['output']['incident'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

@@ -32,7 +32,7 @@ Search the web for information using Linkup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | The search query \(e.g., "latest AI research papers 2024"\) |
-| `depth` | string | Yes | Search depth: "standard" for quick results, "deep" for comprehensive search |
+| `depth` | string | Yes | Search depth: "flash" \(lowest latency\), "fast" \(one-shot retrieval\), "standard" \(single agentic pass\), or "deep" \(multi-step, most thorough\) |
 | `outputType` | string | Yes | Output format: "sourcedAnswer" for AI-generated answer with citations, "searchResults" for raw results |
 | `apiKey` | string | Yes | Enter your Linkup API key |
 | `includeImages` | boolean | No | Whether to include images in search results |
@@ -42,13 +42,26 @@ Search the web for information using Linkup
 | `includeDomains` | string | No | Comma-separated list of domain names to restrict search results to |
 | `includeInlineCitations` | boolean | No | Add inline citations to answers \(only applies when outputType is "sourcedAnswer"\) |
 | `includeSources` | boolean | No | Include sources in response |
+| `maxResults` | number | No | Maximum number of results to return \(at least 1\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `answer` | string | The sourced answer to the search query |
-| `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
+| `answer` | string | The sourced answer to the search query \(Answer output type\) |
+| `sources` | array | Sources used to compile the answer \(Answer output type\) |
+|   ↳ `name` | string | Title of the source |
+|   ↳ `url` | string | URL of the source |
+|   ↳ `snippet` | string | Text extracted from the source |
+|   ↳ `favicon` | string | Favicon URL |
+|   ↳ `publishedAt` | string | Publication date |
+| `results` | array | Ranked text and image results \(Search output type\) |
+|   ↳ `type` | string | Result type: text or image |
+|   ↳ `name` | string | Title of the result |
+|   ↳ `url` | string | URL of the result |
+|   ↳ `content` | string | Extracted text content \(text results\) |
+|   ↳ `favicon` | string | Favicon URL |
+|   ↳ `publishedAt` | string | Publication date |
 
 </ReferenceDetails>
 

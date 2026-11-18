@@ -2,6 +2,7 @@ import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiAmendOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to amend (required)
@@ -113,10 +114,11 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}/amend`),
+    url: (params) =>
+      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}/amend`),
     method: 'POST',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}/amend`
+      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}/amend`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
     },
     body: (params) => {
@@ -313,10 +315,11 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}/amend`),
+    url: (params) =>
+      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}/amend`),
     method: 'POST',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}/amend`
+      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}/amend`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
     },
     body: (params) => {

@@ -2,6 +2,7 @@ import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqShareContactCardTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
   id: 'linq_share_contact_card',
@@ -27,7 +28,7 @@ export const linqShareContactCardTool: ToolConfig<LinqChatActionParams, LinqSucc
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/share_contact_card`,
+      `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/share_contact_card`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
   },

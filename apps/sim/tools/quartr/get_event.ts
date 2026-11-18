@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrEvent, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEventResponse> = {
   id: 'quartr_get_event',
@@ -32,7 +33,7 @@ export const quartrGetEventTool: ToolConfig<QuartrGetEventParams, QuartrGetEvent
   },
 
   request: {
-    url: (params) => buildQuartrUrl(`/events/${encodeURIComponent(String(params.eventId).trim())}`),
+    url: (params) => buildQuartrUrl(`/events/${safeUrlPathSegment(params.eventId, 'eventId')}`),
     method: 'GET',
     headers: (params) => ({ 'x-api-key': params.apiKey }),
   },

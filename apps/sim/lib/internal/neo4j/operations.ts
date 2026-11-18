@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { QueryResult, Session } from 'neo4j-driver'
+import type { Record as Neo4jRecord, Result, ResultSummary, Session } from 'neo4j-driver'
 import type {
   Neo4jCreateRequest,
   Neo4jDeleteRequest,
@@ -11,6 +11,7 @@ import type {
 } from '@/lib/api/contracts/tools/databases/neo4j'
 import { createNeo4jDriver } from '@/lib/internal/neo4j/client'
 import { convertNeo4jValue } from '@/lib/internal/neo4j/values'
+import { createResponseRowsBudget } from '@/lib/internal/tool-operations/response-limits'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
 
 const logger = createLogger('Neo4jOperations')
@@ -43,21 +44,44 @@ function bindSessionAbort(session: Session, signal?: AbortSignal): () => void {
   return () => signal.removeEventListener('abort', abort)
 }
 
-function projectRecords(result: QueryResult): Array<Record<string, unknown>> {
-  return result.records.map((record) => {
-    const projected: Record<string, unknown> = {}
-    for (const key of record.keys) {
-      if (typeof key === 'string') projected[key] = convertNeo4jValue(record.get(key))
-    }
-    return projected
-  })
+function projectRecord(record: Neo4jRecord): Record<string, unknown> {
+  const projected: Record<string, unknown> = {}
+  for (const key of record.keys) {
+    if (typeof key === 'string') projected[key] = convertNeo4jValue(record.get(key))
+  }
+  return projected
 }
 
-function projectSummary(result: QueryResult) {
-  const updates = result.summary.counters.updates()
+/**
+ * Streams the records, failing with the tool response size error as soon as they cannot fit the
+ * response. Returning the iterator early tells the server to discard the rest, so an oversized
+ * result is never buffered in full. `delete` returns no records, so it only waits for the summary.
+ */
+async function readResult(result: Result, kind: StatementKind) {
+  if (kind === 'delete') return { records: [], summary: await result.summary() }
+  const budget = createResponseRowsBudget(`neo4j_${kind}`)
+  const records: Array<Record<string, unknown>> = []
+  const iterator = result[Symbol.asyncIterator]()
+  try {
+    let next = await iterator.next()
+    while (!next.done) {
+      const projected = projectRecord(next.value)
+      budget.admit(projected)
+      records.push(projected)
+      next = await iterator.next()
+    }
+    return { records, summary: next.value }
+  } catch (error) {
+    await iterator.return?.().catch(() => undefined)
+    throw error
+  }
+}
+
+function projectSummary(summary: ResultSummary) {
+  const updates = summary.counters.updates()
   return {
-    resultAvailableAfter: result.summary.resultAvailableAfter.toNumber(),
-    resultConsumedAfter: result.summary.resultConsumedAfter.toNumber(),
+    resultAvailableAfter: summary.resultAvailableAfter.toNumber(),
+    resultConsumedAfter: summary.resultConsumedAfter.toNumber(),
     counters: {
       nodesCreated: updates.nodesCreated,
       nodesDeleted: updates.nodesDeleted,
@@ -74,9 +98,11 @@ function projectSummary(result: QueryResult) {
   }
 }
 
-function statementResponse(kind: StatementKind, result: QueryResult) {
-  const records = projectRecords(result)
-  const summary = projectSummary(result)
+function statementResponse(
+  kind: StatementKind,
+  { records, summary: resultSummary }: Awaited<ReturnType<typeof readResult>>
+) {
+  const summary = projectSummary(resultSummary)
   switch (kind) {
     case 'query':
       return {
@@ -128,7 +154,7 @@ async function executeStatement(input: StatementInput, kind: StatementKind, sign
   const session = driver.session({ database: input.database })
   const unbindAbort = bindSessionAbort(session, signal)
   try {
-    const result = await session.run(input.cypherQuery, input.parameters ?? {})
+    const result = await readResult(session.run(input.cypherQuery, input.parameters ?? {}), kind)
     signal?.throwIfAborted()
     return statementResponse(kind, result)
   } finally {

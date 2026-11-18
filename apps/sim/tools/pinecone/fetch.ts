@@ -1,4 +1,5 @@
 import type { PineconeFetchParams, PineconeResponse, PineconeVector } from '@/tools/pinecone/types'
+import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
@@ -39,7 +40,10 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
     url: (params) => {
       const baseUrl = `${params.indexHost}/vectors/fetch`
       const queryParams = new URLSearchParams()
-      queryParams.append('ids', params.ids.join(','))
+      const ids = parseJsonParam<unknown>(params.ids, 'ids')
+      for (const id of Array.isArray(ids) ? ids : [ids]) {
+        queryParams.append('ids', String(id))
+      }
       if (params.namespace) {
         queryParams.append('namespace', params.namespace)
       }

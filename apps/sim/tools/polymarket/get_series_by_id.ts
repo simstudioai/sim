@@ -1,6 +1,7 @@
 import type { PolymarketSeries } from '@/tools/polymarket/types'
 import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface PolymarketGetSeriesByIdParams {
   seriesId: string // Series ID (required)
@@ -32,7 +33,7 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildGammaUrl(`/series/${params.seriesId.trim()}`),
+    url: (params) => buildGammaUrl(`/series/${safeUrlPathSegment(params.seriesId, 'seriesId')}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

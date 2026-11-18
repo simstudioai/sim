@@ -3,6 +3,7 @@ import type { ThriveAudienceResponse, ThriveGetAudienceParams } from '@/tools/th
 import { THRIVE_AUDIENCE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getAudienceTool: ToolConfig<ThriveGetAudienceParams, ThriveAudienceResponse> = {
   id: 'thrive_get_audience',
@@ -40,7 +41,7 @@ export const getAudienceTool: ToolConfig<ThriveGetAudienceParams, ThriveAudience
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

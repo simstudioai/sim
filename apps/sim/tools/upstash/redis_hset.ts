@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisHSetParams, UpstashRedisHSetResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisHSetTool: ToolConfig<UpstashRedisHSetParams, UpstashRedisHSetResponse> = {
   id: 'upstash_redis_hset',
@@ -44,7 +45,7 @@ export const upstashRedisHSetTool: ToolConfig<UpstashRedisHSetParams, UpstashRed
 
   request: {
     url: (params) =>
-      `${params.restUrl}/hset/${encodeURIComponent(params.key)}/${encodeURIComponent(params.field)}`,
+      `${params.restUrl}/hset/${upstashPathSegment(params.key, 'key')}/${upstashPathSegment(params.field, 'field')}`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

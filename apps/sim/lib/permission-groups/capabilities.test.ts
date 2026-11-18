@@ -43,3 +43,13 @@ describe('knowledge capability rules', () => {
     expect(exportRule.deniedBy(configWith({ hideKnowledgeBaseTab: true }))).toBe(true)
   })
 })
+
+describe('computer use capability rule', () => {
+  const computerUse = CAPABILITY_RULES['computer_use.use']
+
+  it('withholds computer use from its own key and from hiding Chat, which issues the actions', () => {
+    expect(computerUse.deniedBy(DEFAULT_PERMISSION_GROUP_CONFIG)).toBe(false)
+    expect(computerUse.deniedBy(configWith({ disableComputerUse: true }))).toBe(true)
+    expect(computerUse.deniedBy(configWith({ hideCopilot: true }))).toBe(true)
+  })
+})

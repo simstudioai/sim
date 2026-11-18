@@ -13,6 +13,14 @@ export interface PerplexityChatResponse extends ToolResponse {
   output: {
     content: string
     model: string
+    citations: string[]
+    search_results: Array<{
+      title: string
+      url: string
+      date: string | null
+      last_updated: string | null
+      snippet: string
+    }>
     usage: {
       prompt_tokens: number
       completion_tokens: number

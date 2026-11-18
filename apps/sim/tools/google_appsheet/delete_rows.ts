@@ -2,7 +2,11 @@ import type {
   GoogleAppsheetDeleteParams,
   GoogleAppsheetDeleteResponse,
 } from '@/tools/google_appsheet/types'
-import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
+import {
+  appsheetResponseRows,
+  buildAppsheetActionUrl,
+  readAppsheetResponseBody,
+} from '@/tools/google_appsheet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAppsheetDeleteRowsTool: ToolConfig<
@@ -70,7 +74,7 @@ export const googleAppsheetDeleteRowsTool: ToolConfig<
       throw new Error(data.error?.message || data.message || 'Failed to delete AppSheet rows')
     }
 
-    const rows = data.Rows ?? data.rows ?? []
+    const rows = appsheetResponseRows(data)
 
     return {
       success: true,

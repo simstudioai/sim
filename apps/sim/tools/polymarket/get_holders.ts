@@ -1,16 +1,26 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { PolymarketMarketHolders } from '@/tools/polymarket/types'
-import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
+import {
+  appendDataPagination,
+  buildDataUrl,
+  handlePolymarketError,
+  POLYMARKET_CURSOR_DESCRIPTION,
+  POLYMARKET_DATA_PAGE_OUTPUTS,
+  type PolymarketDataPage,
+  readDataPage,
+} from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PolymarketGetHoldersParams {
   market: string
   limit?: string
   minBalance?: string
+  cursor?: string
 }
 
 export interface PolymarketGetHoldersResponse {
   success: boolean
-  output: {
+  output: PolymarketDataPage & {
     holders: PolymarketMarketHolders[]
   }
 }
@@ -35,24 +45,30 @@ export const polymarketGetHoldersTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of holders to return (e.g., "10"). Range: 0-20, default: 20.',
+      description: 'Number of holders per outcome token (e.g., "10"). Default: 100, max: 1000.',
       visibility: 'user-or-llm',
     },
     minBalance: {
       type: 'string',
       required: false,
-      description: 'Minimum balance threshold (default: 1)',
+      description: 'Minimum net balance in shares (default: 0)',
+      visibility: 'user-or-llm',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      description: POLYMARKET_CURSOR_DESCRIPTION,
       visibility: 'user-or-llm',
     },
   },
 
   request: {
     url: (params) => {
-      const queryParams = new URLSearchParams()
-      queryParams.append('market', params.market)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.minBalance) queryParams.append('minBalance', params.minBalance)
-      return `${buildDataUrl('/holders')}?${queryParams.toString()}`
+      const query = new URLSearchParams()
+      query.append('condition', params.market)
+      if (params.minBalance) query.append('min_balance', params.minBalance)
+      appendDataPagination(query, params)
+      return buildDataUrl('/holders', query)
     },
     method: 'GET',
     headers: () => ({
@@ -67,29 +83,31 @@ export const polymarketGetHoldersTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_holders')
     }
 
-    const marketHolders = Array.isArray(data) ? data : []
-
-    const holders: PolymarketMarketHolders[] = marketHolders.map((mh: any) => ({
-      token: mh.token ?? '',
-      holders: (mh.holders ?? []).map((h: any) => ({
-        proxyWallet: h.proxyWallet ?? '',
-        bio: h.bio ?? null,
-        asset: h.asset ?? '',
-        pseudonym: h.pseudonym ?? null,
-        amount: h.amount ?? 0,
-        displayUsernamePublic: h.displayUsernamePublic ?? false,
-        outcomeIndex: h.outcomeIndex ?? 0,
-        name: h.name ?? null,
-        profileImage: h.profileImage ?? null,
-        profileImageOptimized: h.profileImageOptimized ?? null,
-        verified: h.verified ?? false,
-      })),
+    const { rows, page } = readDataPage(data)
+    const holders: PolymarketMarketHolders[] = rows.map((group) => ({
+      token: (group.token_id as string) ?? '',
+      holders: (Array.isArray(group.holders) ? group.holders.filter(isPlainRecord) : []).map(
+        (h) => ({
+          proxyWallet: (h.proxy_wallet as string) ?? '',
+          bio: (h.bio as string) ?? null,
+          asset: (h.token_id as string) ?? '',
+          pseudonym: (h.pseudonym as string) ?? null,
+          amount: (h.amount as number) ?? 0,
+          displayUsernamePublic: (h.display_username_public as boolean) ?? false,
+          outcomeIndex: (h.outcome_index as number) ?? 0,
+          name: (h.name as string) ?? null,
+          profileImage: (h.profile_image as string) ?? null,
+          profileImageOptimized: (h.profile_image_optimized as string) ?? null,
+          verified: (h.verified as boolean) ?? false,
+        })
+      ),
     }))
 
     return {
       success: true,
       output: {
         holders,
+        ...page,
       },
     }
   },
@@ -131,5 +149,6 @@ export const polymarketGetHoldersTool: ToolConfig<
         },
       },
     },
+    ...POLYMARKET_DATA_PAGE_OUTPUTS,
   },
 }

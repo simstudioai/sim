@@ -62,7 +62,7 @@ export const spotifyGetPlaylistTool: ToolConfig<
           display_name: playlist.owner?.display_name || '',
         },
         image_url: playlist.images?.[0]?.url || null,
-        total_tracks: playlist.tracks?.total || 0,
+        total_tracks: (playlist.items ?? playlist.tracks)?.total || 0,
         snapshot_id: playlist.snapshot_id,
         external_url: playlist.external_urls?.spotify || '',
       },

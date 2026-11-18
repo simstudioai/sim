@@ -169,6 +169,43 @@ describe('Error Extractors', () => {
   })
 
   describe('extractErrorMessage with explicit extractorId', () => {
+    it.each([
+      [
+        'a FastAPI validation array',
+        {
+          detail: [
+            { loc: ['body', 'max_results'], msg: 'Input should be less than or equal to 20' },
+            { loc: ['body', 'topic'], msg: "Input should be 'general', 'news' or 'finance'" },
+          ],
+        },
+        "Input should be less than or equal to 20; Input should be 'general', 'news' or 'finance'",
+      ],
+      ['a plain-text body', 'Upstream gateway timeout', 'Upstream gateway timeout'],
+      ['a top-level error string', { error: 'Rate limit exceeded' }, 'Rate limit exceeded'],
+      ['an unrecognized body', { unexpected: true }, 'Bad Request'],
+    ])('reads the Tavily message from %s', (_label, data, expected) => {
+      expect(
+        extractErrorMessage(
+          { status: 400, statusText: 'Bad Request', data },
+          ErrorExtractorId.TAVILY_ERRORS
+        )
+      ).toBe(expected)
+    })
+
+    it("reads Tavily's detail.error message instead of the bare status text", () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: {
+          detail: { error: 'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.' },
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.TAVILY_ERRORS)).toBe(
+        'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.'
+      )
+    })
+
     it('formats QuickBooks faults with status guidance', () => {
       const errorInfo: ErrorInfo = {
         status: 401,

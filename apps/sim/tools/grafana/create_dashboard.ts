@@ -112,15 +112,19 @@ export const createDashboardTool: ToolConfig<
         refresh: params.refresh || '',
       }
 
-      if (params.panels) {
+      let panels: unknown = params.panels || []
+      if (typeof panels === 'string' && !panels.trim()) panels = []
+      if (typeof panels === 'string') {
         try {
-          dashboard.panels = JSON.parse(params.panels)
+          panels = JSON.parse(panels)
         } catch {
-          dashboard.panels = []
+          throw new Error('Invalid JSON for panels parameter')
         }
-      } else {
-        dashboard.panels = []
       }
+      if (!Array.isArray(panels)) {
+        throw new Error('panels must be a JSON array of panel objects')
+      }
+      dashboard.panels = panels
 
       const body: Record<string, any> = {
         dashboard,

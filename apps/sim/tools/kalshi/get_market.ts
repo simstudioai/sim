@@ -1,6 +1,7 @@
 import type { KalshiMarket } from '@/tools/kalshi/types'
 import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiGetMarketParams {
   ticker: string // Market ticker
@@ -29,7 +30,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}`),
+    url: (params) => buildKalshiUrl(`/markets/${safeUrlPathSegment(params.ticker, 'ticker')}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -137,7 +138,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}`),
+    url: (params) => buildKalshiUrl(`/markets/${safeUrlPathSegment(params.ticker, 'ticker')}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

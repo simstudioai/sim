@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioUpdateRecordParams, AttioUpdateRecordResponse } from './types'
 import { RECORD_OBJECT_OUTPUT } from './types'
 
@@ -46,7 +47,7 @@ export const attioUpdateRecordTool: ToolConfig<AttioUpdateRecordParams, AttioUpd
 
     request: {
       url: (params) =>
-        `https://api.attio.com/v2/objects/${params.objectType.trim()}/records/${params.recordId.trim()}`,
+        `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records/${safeUrlPathSegment(params.recordId, 'recordId')}`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

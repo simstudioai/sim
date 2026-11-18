@@ -1,6 +1,7 @@
 import type { CreateDraftParams, CreateDraftResult } from '@/tools/agentmail/types'
 import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailCreateDraftTool: ToolConfig<CreateDraftParams, CreateDraftResult> = {
   id: 'agentmail_create_draft',
@@ -73,7 +74,8 @@ export const agentmailCreateDraftTool: ToolConfig<CreateDraftParams, CreateDraft
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

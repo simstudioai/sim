@@ -14,6 +14,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAudienceMembersTool: ToolConfig<
   ThriveListAudienceMembersParams,
@@ -67,7 +68,7 @@ export const listAudienceMembersTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/members`
+        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members`
       )
       appendThriveQuery(url, 'page', params.page)
       appendThriveQuery(url, 'perPage', params.perPage)

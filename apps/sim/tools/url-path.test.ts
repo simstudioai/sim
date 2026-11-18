@@ -103,6 +103,12 @@ describe('safeUrlPathSegment', () => {
     expect(safeUrlPathSegment('  users  ', 'table')).toBe('users')
   })
 
+  it.concurrent('keeps surrounding whitespace when asked to preserve it', () => {
+    expect(safeUrlPathSegment(' doc-1 ', 'id', { preserveWhitespace: true })).toBe('%20doc-1%20')
+    expect(() => safeUrlPathSegment('..', 'id', { preserveWhitespace: true })).toThrow(/id/)
+    expect(() => safeUrlPathSegment('   ', 'id', { preserveWhitespace: true })).toThrow(/id/)
+  })
+
   it.concurrent('every vector either throws or keeps the exact path shape', () => {
     for (const value of [...SEGMENT_REJECTED, ...NEUTRALIZED]) {
       let built: string | null = null

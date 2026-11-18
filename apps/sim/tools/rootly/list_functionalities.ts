@@ -2,6 +2,7 @@ import type {
   RootlyListFunctionalitiesParams,
   RootlyListFunctionalitiesResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -64,7 +65,7 @@ export const rootlyListFunctionalitiesTool: ToolConfig<
       return {
         success: false,
         output: { functionalities: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 
