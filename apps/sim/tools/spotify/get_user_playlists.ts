@@ -59,7 +59,7 @@ export const spotifyGetUserPlaylistsTool: ToolConfig<
       public: playlist.public,
       collaborative: playlist.collaborative,
       owner: playlist.owner?.display_name || '',
-      total_tracks: playlist.tracks?.total || 0,
+      total_tracks: (playlist.items ?? playlist.tracks)?.total || 0,
       image_url: playlist.images?.[0]?.url || null,
       external_url: playlist.external_urls?.spotify || '',
     }))

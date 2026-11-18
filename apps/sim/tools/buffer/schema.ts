@@ -13,6 +13,12 @@ import type { OutputProperty } from '@/tools/types'
 
 interface BufferSchemaType {
   fields?: Record<string, string>
+  /**
+   * Fields Buffer has removed or is removing from the API. They stay in the outputs (always null)
+   * so saved references keep resolving, but are never selected, since querying a removed field
+   * fails the whole GraphQL request.
+   */
+  retired?: string[]
   members?: string[]
   values?: string[]
   defaults?: string[]
@@ -48,6 +54,7 @@ export function bufferSelection(type: string): string {
     return `__typename ${schema.members.map((member) => `... on ${member} { ${bufferSelection(member)} }`).join(' ')}`
   }
   return Object.entries(schema.fields ?? {})
+    .filter(([field]) => !schema.retired?.includes(field))
     .map(([field, wireType]) => {
       const selection = bufferSelection(baseType(wireType))
       return selection ? `${field} { ${selection} }` : field
@@ -77,7 +84,9 @@ export function bufferOutputProperties(type: string): Record<string, OutputPrope
     const object = Boolean(nested?.fields || nested?.members)
     const property: OutputProperty = {
       type: object ? 'object' : scalarType(nestedType),
-      description: `${type} ${field}`,
+      description: schema.retired?.includes(field)
+        ? `${type} ${field} (removed by Buffer, always null)`
+        : `${type} ${field}`,
       ...(object ? { properties: bufferOutputProperties(nestedType) } : {}),
     }
     properties[field] = wireType.startsWith('[')
@@ -133,12 +142,12 @@ export function projectBufferObject(type: string, value: unknown): unknown {
         }
         return object
           ? projectBufferObject(nestedType, entry)
-          : parseValue(nestedType, entry, `Buffer response ${type}.${field}[]`)
+          : parseValue(nestedType, entry, `Buffer response ${type}.${field}[]`, 'output')
       })
     } else {
       result[field] = object
         ? projectBufferObject(nestedType, candidate)
-        : parseValue(nestedType, candidate, `Buffer response ${type}.${field}`)
+        : parseValue(nestedType, candidate, `Buffer response ${type}.${field}`, 'output')
     }
   }
   return result
@@ -202,7 +211,16 @@ export function bufferInputDescription(type: string, description: string): strin
     : description
 }
 
-function parseValue(wireType: string, value: unknown, path: string): unknown {
+/**
+ * Validates one wire value. Enum membership is enforced only on inputs: Buffer adds enum values
+ * to responses without notice (GraphQL clients must tolerate them), so an output keeps any string.
+ */
+function parseValue(
+  wireType: string,
+  value: unknown,
+  path: string,
+  direction: 'input' | 'output' = 'input'
+): unknown {
   if (value == null) {
     if (wireType.endsWith('!')) throw new Error(`${path} is required`)
     return null
@@ -211,12 +229,14 @@ function parseValue(wireType: string, value: unknown, path: string): unknown {
   if (type.startsWith('[')) {
     if (!Array.isArray(value)) throw new Error(`${path} must be an array`)
     if (value.length > 1000) throw new Error(`${path} exceeds the integration limit of 1000 items`)
-    return value.map((entry, index) => parseValue(type.slice(1, -1), entry, `${path}[${index}]`))
+    return value.map((entry, index) =>
+      parseValue(type.slice(1, -1), entry, `${path}[${index}]`, direction)
+    )
   }
   const schema = BUFFER_SCHEMA[type]
   if (schema?.fields) return parseBufferInput(type, value, path)
   if (typeof value !== scalarType(type)) throw new Error(`${path} must be a ${scalarType(type)}`)
-  if (schema?.values && !schema.values.includes(String(value)))
+  if (direction === 'input' && schema?.values && !schema.values.includes(String(value)))
     throw new Error(`${path} must be one of ${schema.values.join(', ')}`)
   if (type === 'Int' && !Number.isInteger(value)) throw new Error(`${path} must be an integer`)
   if ((type === 'Int' || type === 'Float') && !Number.isFinite(value))
@@ -385,8 +405,13 @@ const BUFFER_SCHEMA: Record<string, BufferSchemaType> = {
   },
   ChannelAction: {
     values: [
+      'approvePosts',
       'backfillChannel',
+      'cleanQueue',
+      'deleteDrafts',
+      'emptyQueue',
       'exportInsights',
+      'interactWithTakeaways',
       'manageCapabilities',
       'manageChannelSettings',
       'manageComments',
@@ -399,6 +424,7 @@ const BUFFER_SCHEMA: Record<string, BufferSchemaType> = {
       'reconnectChannel',
       'removeChannel',
       'scheduleUpdates',
+      'shuffleQueue',
       'viewCapabilities',
       'viewChannel',
       'viewComments',
@@ -1415,6 +1441,7 @@ const BUFFER_SCHEMA: Record<string, BufferSchemaType> = {
       metadata: 'ThreadItemMetadata',
       text: 'String!',
     },
+    retired: ['linkAttachment'],
   },
   ThreadedPostInput: {
     fields: {
