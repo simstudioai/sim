@@ -153,9 +153,11 @@ export async function blobDigests(
 }
 
 /**
- * The blobs among `touched` (path → the SHA-256 about to be written, or `null` for a removal)
- * whose bytes on disk (`digests`, from {@link blobDigests}) are neither what the CLI last wrote
- * there (`written`) nor what it is about to write.
+ * The blobs among `touched` (path → the SHA-256 about to be written, `null` when it is listed
+ * without one or removed) whose bytes on disk (`digests`, from {@link blobDigests}) are neither
+ * what the CLI last wrote there (`written`) nor what it is about to write. A blob the CLI wrote
+ * that is missing now counts as well, a delete no apply has sent: a removal names only a blob
+ * found on disk, so a missing one is about to be written again.
  */
 export function editedBlobs(
   touched: ReadonlyMap<string, string | null>,
@@ -164,7 +166,8 @@ export function editedBlobs(
 ): string[] {
   return [...touched].flatMap(([path, next]) => {
     const current = digests.get(path)?.sha256
-    if (current === undefined || current === next) return []
+    if (current === undefined) return Object.hasOwn(written, path) ? [path] : []
+    if (current === next) return []
     return written[path] !== current ? [path] : []
   })
 }

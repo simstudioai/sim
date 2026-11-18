@@ -14,7 +14,7 @@ function arxivPaperId(input: string): string {
   const linkPath = arxivLinkPath(
     SCHEMELESS_ARXIV_LINK.test(trimmed) ? `https://${trimmed}` : trimmed
   )
-  const id = linkPath ?? trimmed.replace(/[?#].*$/, '')
+  const id = linkPath ?? trimmed.split(/[?#]/, 1)[0]
   return id.replace(/\.pdf$/, '')
 }
 
