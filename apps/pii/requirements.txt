@@ -1,6 +1,6 @@
 # Pinned for reproducible image builds. Bump deliberately.
-presidio-analyzer==2.2.362
-presidio-anonymizer==2.2.362
+presidio-analyzer==2.2.366
+presidio-anonymizer==2.2.366
 spacy==3.8.14
 fastapi==0.138.0
 uvicorn[standard]==0.49.0
