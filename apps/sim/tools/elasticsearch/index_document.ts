@@ -85,7 +85,10 @@ export const indexDocumentTool: ToolConfig<
       const baseUrl = buildBaseUrl(params)
       let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc`
       if (params.documentId) {
-        url += `/${safeUrlPathSegment(params.documentId, 'documentId', { allowSeparators: true })}`
+        url += `/${safeUrlPathSegment(params.documentId, 'documentId', {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        })}`
       }
       if (params.refresh) {
         url += `?refresh=${params.refresh}`

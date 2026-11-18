@@ -52,7 +52,14 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
       if (params.lastn) queryParams.append('lastn', String(Number(params.lastn)))
 
       const queryString = queryParams.toString()
-      return `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', { allowSeparators: true })}/messages${queryString ? `?${queryString}` : ''}`
+      return `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(
+        params.threadId,
+        'threadId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}/messages${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

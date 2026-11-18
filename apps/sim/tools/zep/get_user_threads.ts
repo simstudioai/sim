@@ -36,7 +36,10 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   request: {
     url: (params) => {
       const limit = Number(params.limit || 10)
-      return `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', { allowSeparators: true })}/threads?limit=${limit}`
+      return `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}/threads?limit=${limit}`
     },
     method: 'GET',
     headers: (params) => ({

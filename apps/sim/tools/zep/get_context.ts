@@ -45,7 +45,14 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
       queryParams.append('mode', mode)
       if (params.minRating !== undefined)
         queryParams.append('minRating', String(Number(params.minRating)))
-      return `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', { allowSeparators: true })}/context?${queryParams.toString()}`
+      return `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(
+        params.threadId,
+        'threadId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}/context?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

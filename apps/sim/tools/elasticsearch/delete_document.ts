@@ -78,7 +78,14 @@ export const deleteDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc/${safeUrlPathSegment(params.documentId, 'documentId', { allowSeparators: true })}`
+      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_doc/${safeUrlPathSegment(
+        params.documentId,
+        'documentId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}`
 
       if (params.refresh) {
         url += `?refresh=${params.refresh}`

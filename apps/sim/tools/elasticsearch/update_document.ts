@@ -83,7 +83,14 @@ export const updateDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_update/${safeUrlPathSegment(params.documentId, 'documentId', { allowSeparators: true })}`
+      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_update/${safeUrlPathSegment(
+        params.documentId,
+        'documentId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}`
 
       if (params.retryOnConflict !== undefined) {
         url += `?retry_on_conflict=${params.retryOnConflict}`

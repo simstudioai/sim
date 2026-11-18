@@ -4,6 +4,7 @@ import type {
   PineconeUpsertTextRecord,
 } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function parseUpsertTextRecords(
   input: PineconeUpsertTextParams['records']
@@ -91,7 +92,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     },
     method: 'POST',
     url: (params) =>
-      `${params.indexHost}/records/namespaces/${encodeURIComponent(params.namespace.trim())}/upsert`,
+      `${params.indexHost}/records/namespaces/${safeUrlPathSegment(params.namespace, 'namespace', { allowSeparators: true, preserveWhitespace: true })}/upsert`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/x-ndjson',

@@ -27,7 +27,10 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', { allowSeparators: true })}`,
+      `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

@@ -30,10 +30,10 @@ describe('pinecone_search_text request', () => {
     apiKey: 'key',
   }
 
-  it('searches the default namespace when no namespace is given', () => {
-    const url = buildUrl<PineconeSearchTextParams>(searchTextTool, baseParams)
-
-    expect(url.pathname).toBe('/records/namespaces/__default__/search')
+  it('rejects a missing namespace instead of searching a namespace named "undefined"', () => {
+    expect(() => buildUrl<PineconeSearchTextParams>(searchTextTool, baseParams)).toThrow(
+      /namespace is required/
+    )
   })
 
   it('sends the rerank query as a string', () => {
@@ -52,5 +52,11 @@ describe('pinecone_search_text request', () => {
       rerank: { model: 'bge-reranker-v2-m3', query: { text: 'Paris' } },
     })
     expect(withObjectQuery.rerank.query).toBe('Paris')
+
+    const withBlankQuery = body({
+      ...baseParams,
+      rerank: { model: 'bge-reranker-v2-m3', query: '  ' },
+    })
+    expect(withBlankQuery.rerank.query).toBeUndefined()
   })
 })

@@ -28,7 +28,10 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', { allowSeparators: true })}`,
+      `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,
