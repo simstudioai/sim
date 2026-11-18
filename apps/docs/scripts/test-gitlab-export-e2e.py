@@ -344,6 +344,16 @@ process.stdout.write(JSON.stringify({
                         assert expected in str(error), str(error)
                         assert not output.exists(), "Published an incomplete CSV pair"
                     report["checks"].append({"name": scenario, "passed": True})
+                writer_globals["MAX_BYTES"] = 60
+                output = root / "combined-csv-byte-bound"
+                try:
+                    exporter["write_export"](output, iter([("a/b", 1)]),
+                                             {1: "alice@example.com", 2: "bob@example.com"})
+                    raise AssertionError("Published two individually small CSVs exceeding the combined limit")
+                except exporter["ExportError"] as error:
+                    assert "CSV byte limit" in str(error), str(error)
+                    assert not output.exists(), "Published an oversized CSV pair"
+                report["checks"].append({"name": "combined-csv-byte-bound", "passed": True})
                 assert not any(endpoint == "trap" for _, endpoint, _, _ in GitLabFixture.calls)
                 report["passed"] = True
             finally:

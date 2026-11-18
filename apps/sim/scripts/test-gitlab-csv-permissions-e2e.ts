@@ -251,6 +251,40 @@ try {
     userMapping: { filename: 'users.csv', parts: 1, rowCount: 3 },
     projectPermissions: { filename: 'projects.csv', parts: 2, rowCount: 2 },
   }
+  for (const field of ['userMapping', 'projectPermissions'] as const) {
+    for (const counts of [
+      { parts: 2, rowCount: 1 },
+      { parts: 1, rowCount: 5001 },
+    ]) {
+      assert.equal(
+        (
+          await importRequest('', 'POST', {
+            ...manifest,
+            [field]: { ...manifest[field], ...counts },
+          })
+        ).status,
+        400,
+        `${field}: an impossible part/row count must not reserve an import`
+      )
+    }
+  }
+  assert.equal(
+    (
+      await importRequest('', 'POST', {
+        ...manifest,
+        userMapping: { ...manifest.userMapping, parts: 2048, rowCount: 2048 },
+        projectPermissions: { ...manifest.projectPermissions, parts: 2049, rowCount: 2049 },
+      })
+    ).status,
+    400
+  )
+  const [reserved] = await sql`select count(*)::integer as count
+    from knowledge_connector_permission_import where connector_id = ${source}`
+  assert.equal(reserved?.count, 0)
+  await checkRevision(await request(adminKey), 3)
+  checks.push(
+    'Impossible row/part manifests and combined part overflow do not reserve import capacity or change permissions'
+  )
   assert.equal((await importRequest('', 'POST', manifest, memberKey)).status, 403)
   const started = await importRequest('', 'POST', manifest)
   assert.equal(started.status, 201)
@@ -271,6 +305,24 @@ try {
   )
   assert.equal((await importRequest(`/${pending.id}/parts/0`, 'PUT', identityPart)).status, 200)
   assert.equal((await importRequest(`/${pending.id}/parts/0`, 'PUT', identityPart)).status, 200)
+  const oversizedUtf8 = `${project}/${'é'.repeat(300)},2\n`.repeat(2000)
+  assert(oversizedUtf8.length < 1024 * 1024 && Buffer.byteLength(oversizedUtf8) > 1024 * 1024)
+  const byteRejected = await importRequest(`/${pending.id}/parts/1`, 'PUT', {
+    field: 'projectPermissions',
+    content: oversizedUtf8,
+  })
+  assert.equal(byteRejected.status, 400)
+  assert.equal(
+    (await byteRejected.json()).error.message,
+    'The permission import exceeds its byte limit.'
+  )
+  const [byteReceipt] =
+    await sql`select user_rows, project_rows, jsonb_array_length(part_digests) as parts
+    from knowledge_connector_permission_import where id = ${pending.id}`
+  assert.deepEqual(byteReceipt, { user_rows: 3, project_rows: 0, parts: 1 })
+  checks.push(
+    'Multibyte CSV parts respect the UTF-8 byte ceiling without advancing the upload receipt'
+  )
   assert.equal(
     (
       await importRequest(`/${pending.id}/parts/0`, 'PUT', {

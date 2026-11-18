@@ -351,7 +351,7 @@ sim organizations search sources permissions imports put-part <sourceId> <import
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--field <value>` | Yes | CSV file this part belongs to. Accepted values: `userMapping`, `projectPermissions`. |
-| `--content <value>` | Yes | Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part. |
+| `--content <value\|@file>` | Yes | Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part. (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @). |
 
 </CommandTable>
 

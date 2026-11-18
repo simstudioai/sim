@@ -1291,6 +1291,7 @@ export const CLI_CONTRACT: CliContract = {
   putSourcePermissionImportPart: {
     command: 'organizations search sources permissions imports put-part',
     pathFlags: ORGANIZATION_FLAG,
+    flags: { content: { textSource: true } },
   },
   completeSourcePermissionImport: {
     command: 'organizations search sources permissions imports complete',

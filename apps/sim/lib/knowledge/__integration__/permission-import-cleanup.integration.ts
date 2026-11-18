@@ -118,6 +118,27 @@ describe('permission import reclamation through the PostgreSQL outbox', () => {
     return processOutboxEventById(eventId, handlers)
   }
 
+  async function finishCleanup(eventId: string, importId: string, remaining: number) {
+    for (let continuation = 0; continuation < 200; continuation++) {
+      const result = await runAgain(eventId)
+      const next = await countRows(importId)
+      if (remaining > 0) expect(next).toBeLessThan(remaining)
+      else expect(next).toBe(0)
+      const [event] = await db
+        .select({ attempts: outboxEvent.attempts })
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, eventId))
+      expect(event?.attempts).toBe(0)
+      if (result === 'completed') {
+        expect(next).toBe(0)
+        return
+      }
+      expect(result).toBe('pending')
+      remaining = next
+    }
+    throw new Error('Cleanup did not finish within the bounded continuation budget')
+  }
+
   it('preserves active and unexpired uploads while reclaiming abandoned rows across continuations', async () => {
     const ids = await seed()
     const active = await importRows(ids.connectorId, 1, { active: true, completed: true })
@@ -142,7 +163,7 @@ describe('permission import reclamation through the PostgreSQL outbox', () => {
       .from(outboxEvent)
       .where(eq(outboxEvent.id, expiredEvent))
     expect(event?.attempts).toBe(0)
-    expect(await runAgain(expiredEvent)).toBe('completed')
+    await finishCleanup(expiredEvent, expired, remaining)
     expect(await countRows(expired)).toBe(0)
     expect(
       await db.select({ id: imports.id }).from(imports).where(eq(imports.id, expired))
@@ -187,13 +208,15 @@ describe('permission import reclamation through the PostgreSQL outbox', () => {
     if (!event) throw new Error('Connector cleanup intent was not committed')
     eventIds.push(event.id)
     expect(await processOutboxEventById(event.id, handlers)).toBe('pending')
-    expect(await countRows(imported)).toBeGreaterThan(0)
+    const remaining = await countRows(imported)
+    expect(remaining).toBeGreaterThan(0)
+    expect(remaining).toBeLessThan(45_001)
     const [source] = await db
       .select({ deletedAt: knowledgeConnector.deletedAt })
       .from(knowledgeConnector)
       .where(eq(knowledgeConnector.id, ids.connectorId))
     expect(source?.deletedAt?.toISOString()).toBe(deletedAt.toISOString())
-    expect(await runAgain(event.id)).toBe('completed')
+    await finishCleanup(event.id, imported, remaining)
     expect(
       await db
         .select({ id: knowledgeConnector.id })

@@ -6,7 +6,6 @@ import csv
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from http.client import HTTPException
-import io
 import json
 import os
 from pathlib import Path
@@ -49,16 +48,7 @@ def stage_files(directory, sources):
         if (not source.name.strip() or len(source.name) > 255
                 or any(ord(char) < 32 or ord(char) == 127 or char in "/\\" for char in source.name)):
             raise UploadError("Use CSV filenames of 1–255 characters without control characters.")
-        buffer = io.StringIO(newline="")
-        writer = csv.writer(buffer, lineterminator="\n", quoting=csv.QUOTE_ALL)
-
-        def encode(row):
-            buffer.seek(0)
-            buffer.truncate()
-            writer.writerow(row)
-            return buffer.getvalue().encode("utf-8")
-
-        header_bytes = encode(header)
+        header_bytes = (",".join(header) + "\n").encode("utf-8")
         content = bytearray(header_bytes)
         row_count, part_rows, part_count = 0, 0, 0
 
@@ -81,6 +71,7 @@ def stage_files(directory, sources):
                 before = os.fstat(handle.fileno())
                 first_record = True
                 record_characters = 0
+                record_lines = []
 
                 def lines():
                     nonlocal record_characters
@@ -91,22 +82,27 @@ def stage_files(directory, sources):
                         record_characters += len(line)
                         if record_characters > 8192:
                             raise UploadError(f"{field}: CSV record exceeds the field length limits.")
+                        record_lines.append(line)
                         yield line
 
                 for row in csv.reader(lines(), strict=True):
                     record_characters = 0
+                    record = "".join(record_lines)
+                    record_lines.clear()
                     if not row:
                         continue
                     if len(row) != 2:
                         raise UploadError(f"{field}: every CSV record must have exactly two columns.")
                     if first_record:
                         first_record = False
-                        if row == header:
+                        if [cell.strip() for cell in row] == header:
+                            header_bytes = (record if record.endswith(("\n", "\r")) else record + "\n").encode("utf-8")
+                            content = bytearray(header_bytes)
                             continue
                     row_count += 1
                     if row_count > max_rows:
                         raise UploadError(f"{field}: exceeds {max_rows:,} data records.")
-                    encoded = encode(row)
+                    encoded = (record if record.endswith(("\n", "\r")) else record + "\n").encode("utf-8")
                     if len(header_bytes) + len(encoded) > PART_BYTES:
                         raise UploadError(f"{field}: a CSV record exceeds the part size limit.")
                     if part_rows == PART_ROWS or len(content) + len(encoded) > PART_BYTES:

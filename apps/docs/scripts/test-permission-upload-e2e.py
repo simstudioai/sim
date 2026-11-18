@@ -76,6 +76,8 @@ class ImportFixture(BaseHTTPRequestHandler):
                 assert payload["field"] == expected_field
                 assert len(payload["content"].encode("utf-8")) <= 1024 * 1024
                 rows = list(csv.reader(io.StringIO(payload["content"], newline=""), strict=True))
+                if state["scenario"] == "padded-headers":
+                    rows = [[cell.strip() for cell in row] for row in rows]
                 header = ["user_id", "email"] if expected_field == "userMapping" else ["project_path", "user_id"]
                 assert rows[0] == header and 1 <= len(rows) - 1 <= 5000
                 state["parts"][number] = payload
@@ -126,7 +128,7 @@ def run():
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             try:
-                for scenario in ("parts", "record-bound", "retry", "validation-error", "conflict", "redirect", "create-unavailable",
+                for scenario in ("parts", "record-bound", "padded-headers", "retry", "validation-error", "conflict", "redirect", "create-unavailable",
                                  "malformed", "invalid-utf8", "empty", "too-many-users"):
                     started = time.monotonic()
                     state = {"scenario": scenario, "requests": [], "creates": 0, "completes": 0,
@@ -151,6 +153,9 @@ def run():
                             handle.write("user_id,email\n")
                             for _ in range(500001):
                                 handle.write("1,alice@example.com\n")
+                    elif scenario == "padded-headers":
+                        users.write_text(" user_id , email \n 1 , alice@example.com \n")
+                        grants.write_text(" project_path , user_id \n team/project , 1 \n")
                     result = subprocess.run([
                         sys.executable, str(SCRIPT), "--provider", "gitlab", "--expected-revision", "17",
                         "--user-mapping", str(users), "--project-permissions", str(grants),
@@ -159,17 +164,17 @@ def run():
                         "SIM_ORG_ID": "org-fixture", "SIM_SOURCE_ID": "source-fixture",
                         "SIM_API_KEY": TOKEN, "SSL_CERT_FILE": str(cert)})
                     assert TOKEN not in result.stdout + result.stderr, "API key leaked"
-                    if scenario in ("parts", "record-bound", "retry"):
+                    if scenario in ("parts", "record-bound", "padded-headers", "retry"):
                         assert result.returncode == 0, result.stderr
                         assert json.loads(result.stdout)["revision"] == 18
                         assert state["published"] and state["creates"] == 1
                         assert state["rows"]["projectPermissions"] == expected
-                        assert state["rows"]["userMapping"] == [["1", "alice@example.com"]] * 2
+                        assert state["rows"]["userMapping"] == [["1", "alice@example.com"]] * (1 if scenario == "padded-headers" else 2)
                         if scenario == "parts":
                             assert state["manifest"]["projectPermissions"]["parts"] > 2, "Did not split on UTF-8 bytes"
                         elif scenario == "record-bound":
                             assert state["manifest"]["projectPermissions"]["parts"] == 2
-                        else:
+                        elif scenario == "retry":
                             assert len(state["attempts"][0]) == 2 and len(state["attempts"][1]) == 2
                             assert state["completes"] == 2
                             for attempts in state["attempts"].values():

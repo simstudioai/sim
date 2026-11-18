@@ -25028,13 +25028,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 4096,
-                "description": "Number of parts containing this file."
+                "description": "Number of nonempty parts containing this file. Both files together may contain at most 4,096 parts."
               },
               "rowCount": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 500000,
-                "description": "Physical user records, excluding headers and empty lines."
+                "description": "Physical user records, excluding headers and empty lines. Must be between parts and parts × 5,000."
               }
             },
             "required": ["filename", "parts", "rowCount"],
@@ -25055,13 +25055,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 4096,
-                "description": "Number of parts containing this file."
+                "description": "Number of nonempty parts containing this file. Both files together may contain at most 4,096 parts."
               },
               "rowCount": {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 5000000,
-                "description": "Physical data records, excluding headers and empty lines."
+                "description": "Physical data records, excluding headers and empty lines. Must be between parts and parts × 5,000."
               }
             },
             "required": ["filename", "parts", "rowCount"],
@@ -25071,8 +25071,8 @@
         },
         "required": ["provider", "expectedRevision", "userMapping", "projectPermissions"],
         "additionalProperties": false,
-        "title": "Create source permission import",
-        "description": "Permission import input."
+        "description": "Permission import input.",
+        "title": "Create source permission import"
       },
       "PutSourcePermissionImportResponse": {
         "type": "object",
@@ -25108,7 +25108,6 @@
           "content": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 1048576,
             "description": "Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part."
           }
         },

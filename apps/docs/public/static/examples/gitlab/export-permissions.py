@@ -264,6 +264,7 @@ def write_export(output, grants, users):
             yield user_id, users[user_id]
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    total_bytes = 0
     # Publish the pair together, so an interrupted export cannot mix new and old CSVs.
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".gitlab-export-") as temporary:
         for name, header, rows, max_rows in [
@@ -274,10 +275,8 @@ def write_export(output, grants, users):
             buffer = io.StringIO(newline="")
             writer = csv.writer(buffer, lineterminator="\n")
             writer.writerow(header)
-            size = 0
             with path.open("wb") as handle:
-                handle.write(buffer.getvalue().encode("utf-8"))
-                size = handle.tell()
+                total_bytes += handle.write(buffer.getvalue().encode("utf-8"))
                 for count, row in enumerate(rows, 1):
                     if count > max_rows:
                         raise ExportError(f"{name} exceeds Sim's {max_rows:,}-row limit.")
@@ -285,9 +284,9 @@ def write_export(output, grants, users):
                     buffer.truncate()
                     writer.writerow(row)
                     content = buffer.getvalue().encode("utf-8")
-                    size += len(content)
-                    if size > MAX_BYTES:
-                        raise ExportError(f"{name} exceeds the CSV byte limit ({MAX_BYTES:,} bytes).")
+                    total_bytes += len(content)
+                    if total_bytes > MAX_BYTES:
+                        raise ExportError(f"The CSV pair exceeds the CSV byte limit ({MAX_BYTES:,} bytes).")
                     handle.write(content)
             path.chmod(0o600)
         if not users:

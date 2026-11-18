@@ -10,7 +10,7 @@ import {
   PERMISSION_IMPORT_MAX_IDENTITIES,
   PERMISSION_IMPORT_MAX_PARTS,
   PERMISSION_IMPORT_MAX_ROWS,
-  PERMISSION_IMPORT_PART_MAX_BYTES,
+  PERMISSION_IMPORT_PART_MAX_ROWS,
 } from '@/lib/knowledge/connectors/permission-import-limits'
 
 const params = z.strictObject({
@@ -34,13 +34,17 @@ const file = z.strictObject({
     .int()
     .min(1)
     .max(PERMISSION_IMPORT_MAX_PARTS)
-    .describe('Number of parts containing this file.'),
+    .describe(
+      'Number of nonempty parts containing this file. Both files together may contain at most 4,096 parts.'
+    ),
   rowCount: z
     .number()
     .int()
     .min(1)
     .max(PERMISSION_IMPORT_MAX_ROWS)
-    .describe('Physical data records, excluding headers and empty lines.'),
+    .describe(
+      'Physical data records, excluding headers and empty lines. Must be between parts and parts × 5,000.'
+    ),
 })
 export const permissionImportManifestSchema = z
   .strictObject({
@@ -57,15 +61,32 @@ export const permissionImportManifestSchema = z
           .int()
           .min(1)
           .max(PERMISSION_IMPORT_MAX_IDENTITIES)
-          .describe('Physical user records, excluding headers and empty lines.'),
+          .describe(
+            'Physical user records, excluding headers and empty lines. Must be between parts and parts × 5,000.'
+          ),
       })
       .describe('Complete user identity mapping.'),
     projectPermissions: file.describe('Complete project membership snapshot.'),
   })
-  .refine(
-    (value) =>
-      value.userMapping.parts + value.projectPermissions.parts <= PERMISSION_IMPORT_MAX_PARTS,
-    'The import has too many parts.'
+  .superRefine((value, ctx) => {
+    for (const field of ['userMapping', 'projectPermissions'] as const) {
+      const { parts, rowCount } = value[field]
+      if (rowCount < parts || rowCount > parts * PERMISSION_IMPORT_PART_MAX_ROWS)
+        ctx.addIssue({
+          code: 'custom',
+          path: [field, 'rowCount'],
+          message: 'Each declared part must contain between 1 and 5,000 data records.',
+        })
+    }
+    if (value.userMapping.parts + value.projectPermissions.parts > PERMISSION_IMPORT_MAX_PARTS)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['projectPermissions', 'parts'],
+        message: 'Both files together must contain at most 4,096 parts.',
+      })
+  })
+  .describe(
+    'Complete permission snapshot. The combined part count of both files must not exceed 4,096.'
   )
 export type PermissionImportManifest = z.output<typeof permissionImportManifestSchema>
 
@@ -103,7 +124,6 @@ export const v2PutSourcePermissionImportPartContract = defineRouteContract({
     content: z
       .string()
       .min(1)
-      .max(PERMISSION_IMPORT_PART_MAX_BYTES)
       .describe(
         'Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part.'
       ),
