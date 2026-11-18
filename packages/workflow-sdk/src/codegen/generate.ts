@@ -88,6 +88,7 @@ const CORE_TYPE_NAMES = [
   'SkillRef',
   'Sort',
   'TableData',
+  'TableDataPatch',
   'TablePredicate',
   'TableRef',
   'TableRow',
@@ -395,7 +396,8 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
   }
   const { outputs, nullable } = operationOutputs(block, entry, outputSource(catalog, block, entry))
   const spec = block.dynamicOutputs ?? null
-  const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
+  const plan =
+    spec && !entry.special ? dynamicOutputPlan(spec, outputs, entry.builder.operation) : null
   const { params, gate, candidates, context } = buildParams(block, entry, plan)
   const paramsName = `${entry.typeName}Params`
   const outputName = `${entry.typeName}Output`

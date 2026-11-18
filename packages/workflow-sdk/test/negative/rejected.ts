@@ -159,17 +159,40 @@ export default workflow('Rejected', {}, () => {
   table.insertRow('Bad score', {
     tableId: table('leads'),
     // @ts-expect-error `score` is a number column
-    data: { score: 'high' },
+    data: { email: 'a@b.co', score: 'high' },
   })
   table.insertRow('Bad status', {
     tableId: table('leads'),
     // @ts-expect-error `closed` is not an option of the `status` select column
-    data: { status: 'closed' },
+    data: { email: 'a@b.co', status: 'closed' },
   })
   table.insertRow('Good row', {
     tableId: table('leads'),
     data: { email: start.subject, status: 'new', score: null },
   })
+
+  // A whole-row write holds every required column; an update merges a patch over the stored row.
+  table.insertRow('No email', {
+    tableId: table('leads'),
+    // @ts-expect-error `email` is a required column of leads
+    data: { status: 'new' },
+  })
+  table.upsertRow('Upsert no email', {
+    tableId: table('leads'),
+    // @ts-expect-error an upsert checks the whole row, so `email` is required
+    data: { score: 3 },
+  })
+  table.batchInsertRows('Batch no email', {
+    tableId: table('leads'),
+    // @ts-expect-error every inserted row needs `email`
+    rows: [{ status: 'new' }],
+  })
+  table.insertRow('Null email', {
+    tableId: table('leads'),
+    // @ts-expect-error a required column cannot be null
+    data: { email: null },
+  })
+  table.updateRowById('Patch', { tableId: table('leads'), rowId: 'r1', data: { score: 2 } })
 
   // A credential field takes credential('key') or a run-time id, never literal text.
   slack.sendMessage('Literal token', {
