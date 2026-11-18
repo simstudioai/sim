@@ -1267,7 +1267,7 @@ const SCHEDULE_BLOCK_TYPE = 'schedule'
  */
 function checkScheduleTimezone(
   ctx: CompileContext,
-  index: FieldIndex | undefined,
+  index: FieldIndex | null,
   state: BlockState
 ): void {
   const { decl, params } = state
