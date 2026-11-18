@@ -21,7 +21,13 @@ describe('grafana create dashboard panels', () => {
     )
   })
 
-  it('sends panels a tool call already passed as an array', () => {
+  it('refuses panels JSON that is not an array', () => {
+    expect(() => buildBody({ ...baseParams, panels: '{"type": "timeseries"}' })).toThrow(
+      'panels must be a JSON array'
+    )
+  })
+
+  it('sends panels a block reference already resolved to an array', () => {
     const panels = [{ type: 'timeseries', title: 'Latency' }]
     const body = buildBody({ ...baseParams, panels: panels as unknown as string })
     expect(body.dashboard.panels).toEqual(panels)

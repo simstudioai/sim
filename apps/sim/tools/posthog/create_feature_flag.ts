@@ -106,7 +106,7 @@ export const createFeatureFlagTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Percentage of users (0-100) the flag is released to. Ignored when Filters is set; put rollout_percentage in its groups instead.',
+        'Percentage of users (0-100) the flag is released to. With Filters, applies to each group that sets no rollout_percentage of its own.',
     },
   },
 
@@ -142,9 +142,17 @@ export const createFeatureFlagTool: ToolConfig<
         body.ensure_experience_continuity = params.ensureExperienceContinuity
       }
 
-      if (params.rolloutPercentage !== undefined && body.filters === undefined) {
-        body.filters = {
-          groups: [{ properties: [], rollout_percentage: params.rolloutPercentage }],
+      if (params.rolloutPercentage !== undefined) {
+        if (body.filters === undefined) {
+          body.filters = {
+            groups: [{ properties: [], rollout_percentage: params.rolloutPercentage }],
+          }
+        } else if (Array.isArray(body.filters?.groups)) {
+          for (const group of body.filters.groups) {
+            if (group && group.rollout_percentage === undefined) {
+              group.rollout_percentage = params.rolloutPercentage
+            }
+          }
         }
       }
 

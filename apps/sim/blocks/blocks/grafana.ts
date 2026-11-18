@@ -1186,6 +1186,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.annotationType) result.type = params.annotationType
             if (params.panelId) result.panelId = Number(params.panelId)
             if (params.alertId) result.alertId = Number(params.alertId)
+            if (params.alertUid) result.alertUid = params.alertUid
             if (params.userId) result.userId = Number(params.userId)
             if (params.from) result.from = Number(params.from)
             if (params.to) result.to = Number(params.to)
