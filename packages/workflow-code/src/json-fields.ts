@@ -23,6 +23,7 @@ import { parseStoredPath, type RefSegment } from './code-files/ref-path'
 import {
   type BlockKey,
   type CanonicalBlock,
+  type CanonicalParam,
   type CanonicalVariable,
   isSimNode,
   type Value,
@@ -81,8 +82,9 @@ function outputAt(
 /** The declared type of `name` in a block's dynamic output source, when it is readable. */
 function dynamicFieldType(block: CanonicalBlock, source: string, param: string, name: string) {
   const stored = getOwn(block.params, param)
-  const value = stored?.kind === 'value' ? stored.value : undefined
-  if (source === 'inputFormat' && Array.isArray(value)) {
+  if (source === 'inputFormat') {
+    const value = stored?.kind === 'value' ? stored.value : undefined
+    if (!Array.isArray(value)) return undefined
     for (const item of value) {
       if (isRecordLike(item) && item.name === name) {
         return typeof item.type === 'string' ? item.type : undefined
@@ -90,38 +92,87 @@ function dynamicFieldType(block: CanonicalBlock, source: string, param: string, 
     }
     return undefined
   }
-  if (source === 'responseFormat' && typeof value === 'string') {
-    const parsed = parseJsonContainer(value)
-    if (!parsed || Array.isArray(parsed)) return undefined
-    const schema =
-      typeof parsed.schema === 'object' && parsed.schema !== null ? parsed.schema : parsed
-    const properties = (schema as { properties?: unknown }).properties
-    if (!properties || typeof properties !== 'object') return undefined
-    const field = getOwn(properties as Record<string, unknown>, name)
-    const type = field && typeof field === 'object' ? (field as { type?: unknown }).type : undefined
-    return typeof type === 'string' ? type : undefined
-  }
+  if (source === 'responseFormat') return responseFormatFieldTypes(stored)?.get(name)
   return undefined
 }
 
 /**
- * The top-level fields an agent `responseFormat` declares, read as the runtime reads them
- * (`extractFieldsFromSchema`): a JSON schema's `properties` (under `schema` or at the root), or a
- * legacy `fields` list. `[]` when the text is empty; `null` when it cannot be read statically (not
- * JSON, or JSON holding reference tokens), so nothing can be said about its fields.
+ * A response format's fields by name, each with its type when the runtime's is a string; `null`
+ * when the format cannot be read statically.
  */
-export function responseFormatFields(value: unknown): string[] | null {
-  if (value === undefined || value === null || value === '') return []
-  if (typeof value !== 'string') return null
-  const parsed = parseJsonContainer(value)
+type ResponseFormatFieldTypes = ReadonlyMap<string, string | undefined> | null
+
+const NO_FIELDS: ResponseFormatFieldTypes = new Map()
+
+/** Per stored param object, the text it held when read and that text's fields. */
+const fieldTypesByParam = new WeakMap<
+  CanonicalParam,
+  { text: string; fields: ResponseFormatFieldTypes }
+>()
+
+/**
+ * The top-level fields an agent `responseFormat` param declares with their types, read as the
+ * runtime reads them (`extractFieldsFromSchema`, apps/sim/lib/core/utils/response-format.ts): a
+ * legacy `fields` list with each entry's own type, else a JSON schema's `properties` (under
+ * `schema` or at the root), where a property with no `type` is a `'string'` and an array of types
+ * is `'array'` when it lists one, else its first. A type the runtime would not read as a string
+ * maps to `undefined`. Empty when the param is absent or empty; `null` when it cannot be read
+ * statically (not JSON, or JSON holding reference tokens). Memoized per param, since print and
+ * compile ask once per reference.
+ */
+export function responseFormatFieldTypes(
+  param: CanonicalParam | undefined
+): ResponseFormatFieldTypes {
+  const value = param?.kind === 'value' ? param.value : undefined
+  if (value === undefined || value === null || value === '') return NO_FIELDS
+  if (typeof value !== 'string' || !param) return null
+  const cached = fieldTypesByParam.get(param)
+  if (cached?.text === value) return cached.fields
+  const fields = readResponseFormatFields(value)
+  fieldTypesByParam.set(param, { text: value, fields })
+  return fields
+}
+
+function readResponseFormatFields(text: string): ResponseFormatFieldTypes {
+  const parsed = parseJsonContainer(text)
   if (!parsed || Array.isArray(parsed)) return null
+  const fields = new Map<string, string | undefined>()
   if (Array.isArray(parsed.fields)) {
-    return parsed.fields.flatMap((field) =>
-      isRecordLike(field) && typeof field.name === 'string' ? [field.name] : []
-    )
+    for (const field of parsed.fields) {
+      if (!isRecordLike(field) || typeof field.name !== 'string') continue
+      fields.set(field.name, typeof field.type === 'string' ? field.type : undefined)
+    }
+    return fields
   }
-  const schema = isRecordLike(parsed.schema) ? parsed.schema : parsed
-  return isRecordLike(schema.properties) ? Object.keys(schema.properties) : []
+  const schema = parsed.schema || parsed
+  const properties = isRecordLike(schema) ? schema.properties : undefined
+  if (typeof properties !== 'object' || properties === null) return fields
+  for (const [name, property] of Object.entries(properties)) {
+    fields.set(name, propertyType(property))
+  }
+  return fields
+}
+
+/** One schema property's type as `extractFieldsFromSchema` reads it, when that is a string. */
+function propertyType(property: unknown): string | undefined {
+  if (Array.isArray(property)) {
+    const type: unknown = property.includes('array') ? 'array' : property[0] || 'string'
+    return typeof type === 'string' ? type : undefined
+  }
+  if (property === null || property === undefined) return undefined
+  const declared = isRecordLike(property) ? property.type : undefined
+  const type: unknown = declared || 'string'
+  return typeof type === 'string' ? type : undefined
+}
+
+/**
+ * The top-level field names an agent `responseFormat` param declares ({@link
+ * responseFormatFieldTypes}): `[]` when it is absent or empty, `null` when it cannot be read
+ * statically, so nothing can be said about its fields.
+ */
+export function responseFormatFields(param: CanonicalParam | undefined): string[] | null {
+  const fields = responseFormatFieldTypes(param)
+  return fields ? [...fields.keys()] : null
 }
 
 /**

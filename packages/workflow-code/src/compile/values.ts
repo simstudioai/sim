@@ -710,7 +710,7 @@ export function checkResponseFormatRefs(
     const dynamic = block?.dynamicOutputs
     if (!block || !compiled || !dynamic) continue
     const param = getOwn(compiled.params, dynamic.param)
-    const fields = responseFormatFields(param?.kind === 'value' ? param.value : undefined)
+    const fields = responseFormatFields(param)
     const [first] = segments
     if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
