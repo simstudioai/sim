@@ -874,8 +874,7 @@ export const SSMBlock: BlockConfig = {
             setBoolean('recursive', params.recursive)
             setBoolean('withDecryption', params.withDecryption)
             setJson('parameterFilters', params.parameterFilters)
-            setNumber(
-              'maxResults',
+            result.maxResults = toOptionalNumber(
               params.pathMaxResults ?? toolCallArg(context, params.maxResults)
             )
             setString('nextToken', params.nextToken)
@@ -906,8 +905,7 @@ export const SSMBlock: BlockConfig = {
             break
           case 'describe_instance_information':
             setJson('filters', params.instanceInfoFilters ?? toolCallArg(context, params.filters))
-            setNumber(
-              'maxResults',
+            result.maxResults = toOptionalNumber(
               params.instanceInfoMaxResults ?? toolCallArg(context, params.maxResults)
             )
             setString('nextToken', params.nextToken)
@@ -915,16 +913,14 @@ export const SSMBlock: BlockConfig = {
           case 'describe_instance_patches':
             result.instanceId = params.instanceId
             setJson('filters', params.patchFilters ?? toolCallArg(context, params.filters))
-            setNumber(
-              'maxResults',
+            result.maxResults = toOptionalNumber(
               params.patchMaxResults ?? toolCallArg(context, params.maxResults)
             )
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_patch_states':
             setJson('instanceIds', params.instanceIds)
-            setNumber(
-              'maxResults',
+            result.maxResults = toOptionalNumber(
               params.patchMaxResults ?? toolCallArg(context, params.maxResults)
             )
             setString('nextToken', params.nextToken)
