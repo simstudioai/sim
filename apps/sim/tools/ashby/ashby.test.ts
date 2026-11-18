@@ -26,12 +26,12 @@ import type { ToolConfig } from '@/tools/types'
 
 const respond = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
-function requestBody(tool: ToolConfig<never, never>, params: unknown): Record<string, unknown> {
+function requestBody<P, R>(tool: ToolConfig<P, R>, params: unknown): Record<string, unknown> {
   const build = tool.request?.body as (p: unknown) => Record<string, unknown>
   return build(params)
 }
 
-async function transform(tool: ToolConfig<never, never>, body: unknown) {
+async function transform<P, R>(tool: ToolConfig<P, R>, body: unknown) {
   const run = tool.transformResponse as (r: Response) => Promise<{ output: Record<string, never> }>
   return run(respond(body))
 }
