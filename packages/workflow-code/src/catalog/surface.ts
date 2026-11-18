@@ -17,7 +17,7 @@ import {
   isConditionClause,
 } from './conditions'
 import { subBlockEditorDefault } from './defaults'
-import type { CatalogBlock, CatalogSubBlock } from './types'
+import type { CatalogBlock, CatalogBuilder, CatalogSubBlock } from './types'
 
 /** The fields this rule reads; a registry `SubBlockConfig` fits as well as a `CatalogSubBlock`. */
 type SurfaceFields = Partial<Pick<CatalogSubBlock, 'surface'>> & { mode?: string }
@@ -54,6 +54,25 @@ export function isWrittenInSource(
     return false
   }
   return !UNWRITTEN_SUBBLOCK_IDS.has(subBlock.id) && !subBlock.id.startsWith('samplePayload')
+}
+
+const pinsByBuilder = new WeakMap<CatalogBuilder, ReadonlyMap<SubBlockId, string>>()
+
+/**
+ * The param values a builder pins: its `operation` (when it has one), then its `fixed` entries,
+ * which win over the operation as compile stores them. Print leaves these out of the params,
+ * compile sets them (writing one is `E_FIXED_PARAM`), and SDK codegen leaves them out of the
+ * params type, so all three agree on which params a builder takes. Empty for no builder.
+ */
+export function builderPins(builder: CatalogBuilder | undefined): ReadonlyMap<SubBlockId, string> {
+  if (!builder) return new Map()
+  const known = pinsByBuilder.get(builder)
+  if (known) return known
+  const pins = new Map<SubBlockId, string>()
+  if (builder.operation !== undefined) pins.set('operation', builder.operation)
+  for (const [id, value] of Object.entries(builder.fixed ?? {})) pins.set(id, value)
+  pinsByBuilder.set(builder, pins)
+  return pins
 }
 
 /**
@@ -345,6 +364,24 @@ export function buildFieldIndex(
  */
 export function isModalPair(field: CatalogField): boolean {
   return field.kind === 'pair' && field.basic !== undefined && field.advanced !== undefined
+}
+
+/**
+ * Whether `subBlock` is the free-text twin of a saved-credential picker: a member of a canonical
+ * pair, among `siblings`, whose other member selects a credential (`manualCredential` beside
+ * `credential`). It holds a credential id, so source writes `credential('key')` or a reference,
+ * template or env variable that yields one at run time, never literal text (the SDK's
+ * `CredentialIdValue`); the printer writes a stored literal id as `raw()`.
+ */
+export function isCredentialIdTwin(
+  subBlock: CatalogSubBlock,
+  siblings: ReadonlyArray<CatalogSubBlock>
+): boolean {
+  const param = subBlock.canonicalParamId
+  if (param === undefined || subBlock.resourceKind === 'credential') return false
+  return siblings.some(
+    (sibling) => sibling.canonicalParamId === param && sibling.resourceKind === 'credential'
+  )
 }
 
 /** The member a group's value lands in for a mode (the printer's effective member). */

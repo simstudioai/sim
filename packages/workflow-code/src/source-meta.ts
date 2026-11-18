@@ -20,6 +20,7 @@ import { decodeAnchor, encodeAnchor } from './anchors'
 import type { SourceMetaDiagnosticCode } from './diagnostics/codes'
 import type { Diagnostic } from './diagnostics/frame'
 import {
+  fieldNames,
   isExtensionKey,
   isJson,
   isPrintOrder,
@@ -49,8 +50,13 @@ type ParseSourceMetaResult =
   | { meta: WorkflowSourceMetaV1; diagnostics?: undefined }
   | { meta?: undefined; diagnostics: SourceMetaDiagnostic[] }
 
-const META_FIELDS = ['version', 'idents', 'order', 'comments']
-const COMMENT_FIELDS = ['text', 'kind', 'placement']
+const META_FIELDS = fieldNames<WorkflowSourceMetaV1>({
+  version: true,
+  idents: true,
+  order: true,
+  comments: true,
+})
+const COMMENT_FIELDS = fieldNames<CodeComment>({ text: true, kind: true, placement: true })
 
 class SourceMetaReader {
   readonly diagnostics: SourceMetaDiagnostic[] = []

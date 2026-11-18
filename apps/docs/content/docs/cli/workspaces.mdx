@@ -734,6 +734,30 @@ Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printe
 
 API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs).
 
+### Compile every workflow of a workspace source directory locally, without the server
+
+```bash
+sim workspaces source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
+| `--strict` | No | Fail on those warnings in every block, not only the blocks the edit added. |
+| `--no-strict` | No | Never fail on a warning. |
+
+</CommandTable>
+
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached, and checks each against what the directory declares: env names (secrets.ts), credential keys (credentials.ts), the keys of its tables, knowledge bases, custom tools, MCP servers and workflows, and the columns and select options of a table row write. No request is made. The dry run still checks what only the server knows (stored values, resource files, deployment), so run it before applying. A check also adds the blocks the workflows now use to the CLI's tsconfig.json, so tsc type-checks a block an edit added.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once).
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
+
 ## Related docs
 
 - [Workspace sync](/cli/workflow-sync)

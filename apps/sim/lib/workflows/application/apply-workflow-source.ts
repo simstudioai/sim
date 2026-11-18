@@ -57,7 +57,6 @@ import {
   type SourcePlan,
   type SourceReference,
 } from '@/lib/workflows/application/source-evaluate'
-import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {
@@ -267,12 +266,18 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         } as const)
       : [],
   /** Source meta alone changes what an open Code tab prints, so it notifies too. */
-  afterSuccess: ({ principal, input, context, result }) => {
+  afterSuccess: async ({ principal, input, context, result }) => {
     if (result.applied) {
       recordSourceWritten(analyticsFacts(principal, input, 'apply', context.workspaceId), result)
     }
     if (!result.applied && !result.wroteSourceMeta) return
-    return notifyWorkflowUpdated(context.workflowId)
+    await Promise.all([
+      notifyWorkflowUpdated(context.workflowId),
+      // A rename or new description changes how the workspace lists the workflow.
+      result.applied && result.diff.meta?.length
+        ? notifyWorkspaceWorkflowsChanged(context.workspaceId)
+        : undefined,
+    ])
   },
 })
 
@@ -334,31 +339,6 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
     ])
   },
 })
-
-/**
- * Gives a stored workflow the name and description its source declares, through the workflow
- * update use case (its authorization, lock and folder name checks, audit and notifications),
- * after the graph write: the graph's commit checks the fingerprint the source was read at, which
- * the rename changes. Returns whether it renamed anything.
- */
-async function renameAsPlanned(
-  principal: Principal,
-  workflowId: string,
-  plan: SourcePlan
-): Promise<boolean> {
-  if (plan.metaChanged.length === 0) return false
-  await updateWorkflow.execute({
-    principal,
-    input: {
-      workflowId,
-      ...(plan.metaChanged.includes('name') ? { name: plan.meta.name } : {}),
-      ...(plan.metaChanged.includes('description')
-        ? { description: plan.meta.description ?? null }
-        : {}),
-    },
-  })
-  return true
-}
 
 function analyticsFacts(
   principal: Principal,
@@ -636,7 +616,8 @@ async function runSourceApply(
       const sourceMetaChanged =
         !isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)
       const wroteSourceMeta = sourceMetaChanged && !dryRun
-      if (wroteSourceMeta && target.kind === 'existing') {
+      const renamed = !dryRun && plan.metaChanged.length > 0
+      if ((wroteSourceMeta || renamed) && target.kind === 'existing') {
         await commitSourceMeta({
           scope,
           plan,
@@ -645,7 +626,6 @@ async function runSourceApply(
           catalog,
         })
       }
-      const renamed = !dryRun && (await renameAsPlanned(principal, context.workflowId, plan))
       return result(evaluated, printed, {
         applied: renamed,
         ...(renamed ? { workflowName: plan.meta.name } : {}),
@@ -719,11 +699,8 @@ async function runSourceApply(
               storedFingerprint: baseFingerprint,
               catalog,
             })),
-            name: stored.meta.name,
+            name: plan.meta.name,
           }
-    if (!isNew && (await renameAsPlanned(principal, context.workflowId, plan))) {
-      committed.name = plan.meta.name
-    }
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
     return result(evaluated, printWritten(committed.state), {
       applied: true,

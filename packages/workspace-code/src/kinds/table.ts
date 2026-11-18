@@ -40,7 +40,7 @@ import {
 } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration } from '../declaration/read'
-import type { WorkspaceDiagnostic } from '../diagnostics'
+import { resourceOf, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
@@ -289,9 +289,10 @@ function parseTable(
   const file = tablePath(key)
   const source = text[file] ?? ''
   const read = readDeclaration(file, source, { callee: CALLEE, calls })
-  const diagnostics = read.diagnostics.map((finding) => ({ ...finding, kind: 'table', key }))
+  const resource = resourceOf('table', key)
+  const diagnostics = read.diagnostics.map((finding) => ({ ...finding, ...resource }))
   if (read.value === undefined) return { diagnostics }
-  const report = fieldReporter(source, read.spans, diagnostics, { kind: 'table', key })
+  const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
   const { name, columns, ...rest } = readFields(fields, value, '', report)

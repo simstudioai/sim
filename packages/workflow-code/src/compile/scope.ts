@@ -12,13 +12,14 @@ import {
 import { encodeAnchor } from '../anchors'
 import { literalText } from '../babel'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
-import type { BlockKey, LoopSpec, ParallelSpec } from '../model'
+import { type BlockKey, isLoopType, isParallelType, LOOP_TYPES, PARALLEL_TYPES } from '../model'
 import { isSuspiciousCharacter } from '../print/strings'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
 import {
   type BlockDecl,
   type CompileContext,
+  EDGE_METHODS,
   lookup,
   type ResolvedBuilder,
   rangeOf,
@@ -28,28 +29,6 @@ import {
 } from './context'
 import { HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
-
-const LOOP_METHODS: ReadonlySet<string> = new Set<LoopSpec['loopType']>([
-  'for',
-  'forEach',
-  'while',
-  'doWhile',
-])
-const PARALLEL_METHODS: ReadonlySet<string> = new Set<NonNullable<ParallelSpec['parallelType']>>([
-  'count',
-  'collection',
-])
-
-function isLoopMethod(method: string | undefined): method is LoopSpec['loopType'] {
-  return method !== undefined && LOOP_METHODS.has(method)
-}
-
-function isParallelMethod(
-  method: string | undefined
-): method is NonNullable<ParallelSpec['parallelType']> {
-  return method !== undefined && PARALLEL_METHODS.has(method)
-}
-const EDGE_METHODS = new Set(['to', 'onError'])
 
 type CallClass =
   | { kind: 'builder'; builder: ResolvedBuilder; path: string }
@@ -102,7 +81,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   const dotted = [root, ...path.rest].join('.')
 
   const method = path.rest[0]
-  if (root === 'loop' && path.rest.length === 1 && isLoopMethod(method)) {
+  if (root === 'loop' && path.rest.length === 1 && isLoopType(method)) {
     return {
       kind: 'builder',
       path: dotted,
@@ -110,7 +89,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
     }
   }
   if (root === 'parallel' && path.rest.length <= 1) {
-    if (method === undefined || isParallelMethod(method)) {
+    if (method === undefined || isParallelType(method)) {
       return {
         kind: 'builder',
         path: dotted,
@@ -142,8 +121,8 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   if (!builder) {
     const candidates = [
       ...catalogBuilderPaths(ctx.catalog),
-      ...[...LOOP_METHODS].map((method) => `loop.${method}`),
-      ...[...PARALLEL_METHODS].map((method) => `parallel.${method}`),
+      ...LOOP_TYPES.map((method) => `loop.${method}`),
+      ...PARALLEL_TYPES.map((method) => `parallel.${method}`),
     ]
     ctx.reporter.report(
       'E_UNKNOWN_BUILDER',

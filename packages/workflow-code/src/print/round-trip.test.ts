@@ -47,6 +47,20 @@ describe('printWorkflow round trip', () => {
     expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
   })
 
+  it('prints a literal credential id as raw() and compiles it back into the advanced member', () => {
+    const text =
+      "// @sim-sdk 1\nimport { mail, raw, workflow } from '@sim/workflow-sdk'\n\n" +
+      "export default workflow('Test', {}, () => {\n  const m = mail.send('M', { credential: raw('cred-123'), to: 'a@b.co' })\n})\n"
+    const first = compile(text)
+    expect(first.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    const workflow = first.workflow
+    if (!workflow) throw new Error('expected a workflow')
+    expect(workflow.blocks.m?.params.manualCredential).toEqual({ kind: 'value', value: 'cred-123' })
+    const entry = printed(workflow).files[0]?.text ?? ''
+    expect(entry).toContain("credential: raw('cred-123')")
+    expect(compile(entry).workflow?.blocks.m?.params).toEqual(workflow.blocks.m?.params)
+  })
+
   it('escapes carriage returns in text values and compiles them back unchanged', () => {
     const workflow = compiled("  const a = api('A', { url: 'x\\r\\ny\\rz' })")
     expect(JSON.stringify(workflow.blocks.a?.params.url)).toContain('\\r')

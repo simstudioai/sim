@@ -63,6 +63,10 @@ const KNOWN_UNTYPED: ReadonlyArray<{ match: RegExp; cause: string }> = [
   { match: /:(zoho_desk|file_v5):/, cause: 'a list stored in a single-value field' },
   { match: /:sailpoint(_v2)?:sailpoint_search_aggregate(:|$)/, cause: 'a nested query object' },
   { match: /:(agiloft|coda):/, cause: 'a gated param written outside its variant' },
+  {
+    match: /^legacy-scalars:.*:gating-text$/,
+    cause: 'a switch another field reads holding legacy text, which stays text',
+  },
 ]
 
 const knownCause = (id: string) => KNOWN_UNTYPED.find(({ match }) => match.test(id))

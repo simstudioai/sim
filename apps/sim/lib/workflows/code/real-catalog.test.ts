@@ -26,6 +26,7 @@ import {
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import { DECLARATION_MODULES } from '@sim/workspace-code/layout'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
@@ -394,6 +395,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
     }
     for (const [file, text] of Object.entries(WORKSPACE_COOKBOOK)) write(file, text)
     const workspaceTypes = generateWorkspaceTypes({
+      declarationModules: DECLARATION_MODULES,
       tableDeclarations: ['orders'],
       knowledgeBases: ['policies'],
       skills: ['tone'],

@@ -16,7 +16,6 @@ import {
 import {
   APPLY_ORDER,
   type BlobEntry,
-  type FileKind,
   isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
@@ -24,8 +23,18 @@ import {
 } from '@sim/workspace-code'
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
 import { FILE_KIND_CODECS, isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import {
+  columnName,
+  createTableCodec,
+  TABLE_COLUMN_METADATA_KEYS,
+} from '@sim/workspace-code/kinds/table'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
-import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import {
+  DECLARATION_MODULES,
+  isWorkspaceSourcePath,
+  kindOfPath,
+  WORKSPACE_BASE_FILE,
+} from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
@@ -98,9 +107,11 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Edit loop (run from this directory)
 
-1. Edit the files. \`${typecheckCommand()}\` type-checks them with the TypeScript release the declarations are built for, but the dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is. \`tsconfig.json\` checks only the blocks the workflows used at the last get, which keeps it fast: a builder from another block fails with \`has no exported member\`, so check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\` (every current block) until the next get. \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations.
-2. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
-3. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
+1. Edit the files.
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+3. \`${typecheckCommand()}\` type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+4. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
+5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
 ## Deletes
 
@@ -146,34 +157,154 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
  * names: its tables (typed from their declarations), its knowledge base, skill, custom tool and
  * workflow keys (grouped from their paths), and the secret names and credential keys its root
  * files declare (read from their text; a file that does not read declares none, and is still
- * typed live). `workspace.d.ts` types them beside the stored resources.
+ * typed live), with the modules those declarations live in. `workspace.d.ts` types them beside the
+ * stored resources.
  */
 export function localDeclarations(files: Readonly<Record<string, string>>): LocalDeclarations {
-  const declared: LocalDeclarations = {}
-  const paths = Object.keys(files)
+  const declared: LocalDeclarations = { declarationModules: DECLARATION_MODULES }
   for (const kind of APPLY_ORDER) {
     const list = WORKSPACE_KIND_SPECS[kind].manifestKey
     if (list === null) continue
-    const keys = isFileKind(kind)
-      ? rootFileKeys(kind, files)
-      : [
-          ...KIND_LAYOUTS[kind]
-            .group(paths.filter((path) => kindOfPath(path) === kind))
-            .groups.keys(),
-        ]
-    if (keys === null) continue
+    if (isFileKind(kind) && !Object.hasOwn(files, KIND_DIRS[kind])) continue
+    const keys = declaredKeys(kind, files) ?? []
     if (list === 'workflows') declared.workflows = Object.fromEntries(keys.map((key) => [key, {}]))
     else declared[list] = keys
   }
   return declared
 }
 
-/** The keys a root file declares, `[]` when it does not read, `null` without the file. */
-function rootFileKeys(kind: FileKind, files: Readonly<Record<string, string>>): string[] | null {
+/**
+ * The keys `files` (path → text) declare for `kind`: a root file's entries, or the resources its
+ * folder's paths group into. `null` for a root file that is absent or does not read, whose keys
+ * are unknown.
+ */
+function declaredKeys(
+  kind: WorkspaceKind,
+  files: Readonly<Record<string, string>>
+): string[] | null {
+  if (!isFileKind(kind)) {
+    const paths = Object.keys(files).filter((path) => kindOfPath(path) === kind)
+    return [...KIND_LAYOUTS[kind].group(paths).groups.keys()]
+  }
   const file = KIND_DIRS[kind]
   if (!Object.hasOwn(files, file)) return null
   const read = FILE_KIND_CODECS[kind].parse(fileKindGroupKey(kind), { [file]: files[file] }, [])
-  return Object.keys(read.decl ?? {})
+  return read.decl ? Object.keys(read.decl) : null
+}
+
+/**
+ * The kinds whose keys an offline check holds a workflow's references to. A skill is left out:
+ * a built-in skill has no declaration, so an undeclared skill key may still be valid.
+ */
+const CHECKED_REFERENCE_KINDS: readonly WorkspaceKind[] = [
+  'credential',
+  'custom-tool',
+  'mcp-server',
+  'table',
+  'knowledge-base',
+  'workflow',
+]
+
+/** A table column as a workflow's row writes name it. */
+interface DeclaredColumn {
+  /** The option names of a `select` column. */
+  options?: readonly string[]
+  /** A `select` column whose cells hold several options. */
+  multiple?: boolean
+}
+
+/** What a workspace directory declares, for an offline compile of one of its workflows. */
+export interface WorkspaceDeclarations {
+  /** The names `secrets.ts` declares; absent when the directory has no readable file. */
+  envNames?: ReadonlySet<string>
+  /**
+   * The keys declared for each resource kind a workflow names them by (`table`, `credential`,
+   * …), for the kinds the directory
+   * manages (its folder or root file exists and reads): a get writes every resource of such a
+   * kind, so a key outside the list names nothing an apply can resolve.
+   */
+  keys: ReadonlyMap<string, ReadonlySet<string>>
+  /** Each declared table's columns, by table key and then by stored column name. */
+  tables: ReadonlyMap<string, ReadonlyMap<string, DeclaredColumn>>
+}
+
+/**
+ * Reads what the workspace directory `root` declares: its secret names, the keys of each
+ * resource kind it manages, and its tables' columns. Only the root files and table files are read.
+ */
+export async function readWorkspaceDeclarations(root: string): Promise<WorkspaceDeclarations> {
+  const { present, paths } = await kindFolders(root, APPLY_ORDER)
+  const read = paths.filter((path) => {
+    const kind = kindOfPath(path)
+    return kind !== null && (isFileKind(kind) || kind === 'table')
+  })
+  const texts = await mapWithConcurrency(read, FILE_CONCURRENCY, (path) =>
+    readSourceText(root, path)
+  )
+  const files: Record<string, string> = {}
+  for (const path of paths) files[path] = ''
+  read.forEach((path, index) => {
+    files[path] = texts[index] ?? ''
+  })
+  const keys = new Map<string, ReadonlySet<string>>()
+  for (const kind of CHECKED_REFERENCE_KINDS) {
+    const resourceKind = WORKSPACE_KIND_SPECS[kind].resourceKind
+    const declared = present.includes(kind) ? declaredKeys(kind, files) : null
+    if (resourceKind !== null && declared !== null) keys.set(resourceKind, new Set(declared))
+  }
+  const secrets = present.includes('secret') ? declaredKeys('secret', files) : null
+  const tables = new Map<string, ReadonlyMap<string, DeclaredColumn>>()
+  for (const [key, tablePaths] of KIND_LAYOUTS.table.group(
+    paths.filter((path) => kindOfPath(path) === 'table')
+  ).groups) {
+    const columns = declaredColumns(key, tablePaths, files)
+    if (columns) tables.set(key, columns)
+  }
+  return { ...(secrets ? { envNames: new Set(secrets) } : {}), keys, tables }
+}
+
+/** A column helper call and its arguments' text: `column.select({ options: [...] })`. */
+const COLUMN_CALL = /\bcolumn\.(\w+)\s*\(([^)]*)\)/g
+
+/**
+ * A table declaration's columns by stored name, or `null` when it does not read. The server's
+ * column-type catalog is not at hand offline, so the codec is built over the types the file
+ * calls, each owning the options its calls set (`options`, `multiple`, `currencyCode`): only
+ * the names and options are read here, and the dry run checks the declaration itself.
+ */
+function declaredColumns(
+  key: string,
+  paths: readonly string[],
+  files: Readonly<Record<string, string>>
+): ReadonlyMap<string, DeclaredColumn> | null {
+  const text = Object.fromEntries(paths.map((path) => [path, files[path] ?? '']))
+  const owned = new Map<string, Set<(typeof TABLE_COLUMN_METADATA_KEYS)[number]>>()
+  for (const source of Object.values(text)) {
+    for (const [, type, args] of source.matchAll(COLUMN_CALL)) {
+      const owns = owned.get(type) ?? new Set()
+      for (const option of TABLE_COLUMN_METADATA_KEYS) {
+        if (new RegExp(`\\b${option}\\s*:`).test(args)) owns.add(option)
+      }
+      owned.set(type, owns)
+    }
+  }
+  const codec = createTableCodec({
+    types: Object.fromEntries(
+      [...owned].map(([type, owns]) => [type, { owns: [...owns], unique: true }])
+    ),
+    maxOptions: Number.MAX_SAFE_INTEGER,
+  })
+  const decl = codec.parse(key, text, []).decl
+  if (!decl) return null
+  return new Map(
+    Object.entries(decl.columns).map(([columnKey, column]) => [
+      columnName(columnKey, column),
+      {
+        ...(column.options ? { options: column.options } : {}),
+        ...(column.multiple ? { multiple: true } : {}),
+      },
+    ])
+  )
 }
 
 /** Refuses a server answer naming a path outside every kind folder, before anything is written. */

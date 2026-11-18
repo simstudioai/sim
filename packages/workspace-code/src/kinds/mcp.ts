@@ -49,7 +49,7 @@ import {
   readDeclaration,
   unstorableCharacter,
 } from '../declaration/read'
-import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { groupByFile } from './group'
@@ -329,7 +329,7 @@ function parseMcpServer(
   text: Readonly<Record<string, string>>
 ): { decl?: McpServerDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = mcpDeclarationPath(key)
-  const resource = { kind: 'mcp-server', key }
+  const resource = resourceOf('mcp-server', key)
   const source = text[file]
   if (source === undefined) {
     return {

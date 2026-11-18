@@ -4,7 +4,7 @@ import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import { pointer, type WorkflowLockV1 } from '../lock'
+import { pointer, type WorkflowLockBlock, type WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
 import { getOwn } from '../records'
 import type { MaterializeHooks } from './context'
@@ -134,6 +134,12 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     inputs.compiledIdents ? getOwn(inputs.compiledIdents, key) : undefined
 
   const resolved = new Map<BlockKey, ResolvedBlock>()
+  /** The ids `resolved` holds, so a lock id's reuse check is one lookup. */
+  const resolvedIds = new Set<string>()
+  const resolve = (key: BlockKey, block: ResolvedBlock) => {
+    resolved.set(key, block)
+    resolvedIds.add(block.id)
+  }
   const claimed = new Set<string>()
   /** Keys that end as created blocks no later rule may match (retype, or a lock id to reuse). */
   const settled = new Map<BlockKey, { lockId?: string }>()
@@ -158,7 +164,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     const entry: IdentityEntry = { status: 'matched', key, id: prevId, via }
     if (stored.name !== target.name) entry.renamedFrom = stored.name
     if (relation === 'replaced') entry.retypedFrom = stored.type
-    resolved.set(key, {
+    resolve(key, {
       id: prevId,
       prevKey,
       lockOwned: via === 'lock-key' || via === 'lock-ident',
@@ -200,19 +206,21 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     }
   }
 
-  const identEntries = Object.entries(lock?.blocks ?? {}).filter(
-    ([key, entry]) =>
-      !duplicates.has(key) &&
-      (!Object.hasOwn(workflow.blocks, key) || compiledIdent(key) !== entry.ident)
-  )
+  /** Lock entries rule 2 may bind, by ident, in lock order. */
+  const identEntries = new Map<string, WorkflowLockBlock[]>()
+  for (const [key, entry] of Object.entries(lock?.blocks ?? {})) {
+    if (duplicates.has(key)) continue
+    if (Object.hasOwn(workflow.blocks, key) && compiledIdent(key) === entry.ident) continue
+    const entries = identEntries.get(entry.ident)
+    if (entries) entries.push(entry)
+    else identEntries.set(entry.ident, [entry])
+  }
   for (const key of open()) {
     if (lockEntry(key) && !identMoved(key)) continue
     const ident = compiledIdent(key)
     if (ident === undefined) continue
-    const found = identEntries.find(
-      ([, entry]) => entry.ident === ident && Object.hasOwn(prevBlocks, entry.id)
-    )
-    if (found) match(key, found[1].id, 'lock-ident')
+    const found = identEntries.get(ident)?.find((entry) => Object.hasOwn(prevBlocks, entry.id))
+    if (found) match(key, found.id, 'lock-ident')
   }
 
   for (const key of open()) {
@@ -239,7 +247,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       lockId !== undefined &&
       !claimed.has(lockId) &&
       !Object.hasOwn(prevBlocks, lockId) &&
-      ![...resolved.values()].some((block) => block.id === lockId)
+      !resolvedIds.has(lockId)
     if (lockId !== undefined && !reusable) {
       diagnostics.push({
         code: 'W_MAT_LOCK_ID_CLAIMED',
@@ -249,7 +257,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
       })
     }
     const id = reusable ? lockId : hooks.newId()
-    resolved.set(key, {
+    resolve(key, {
       id,
       prevKey: null,
       lockOwned: reusable,

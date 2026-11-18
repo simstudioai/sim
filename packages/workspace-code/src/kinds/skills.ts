@@ -16,10 +16,16 @@
  * printer also quotes a value a YAML reader would take for a boolean, null, number or date. The
  * server checks names and lengths against the skill rules.
  */
-import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/field-table'
-import { isOneOf } from '../declaration/fields'
+import {
+  asDeclared,
+  canonicalFields,
+  type DeclField,
+  type DeclFields,
+  printFields,
+} from '../declaration/field-table'
+import type { FieldReport } from '../declaration/fields'
 import { unstorableCharacter } from '../declaration/read'
-import { diagnostic, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, resourceOf, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { groupByFile } from './group'
 
@@ -32,19 +38,10 @@ export interface SkillDecl {
 
 const EXTENSION = '.md'
 const FENCE = '---'
-const FIELDS = ['name', 'description'] as const satisfies readonly (keyof SkillDecl)[]
+/** The field the codec reads, prints and fingerprints itself: everything after the frontmatter. */
+const CONTENT_FIELD = 'content' satisfies keyof SkillDecl
 
-type SkillField = (typeof FIELDS)[number]
-
-/**
- * What each field of a skill adds to its fingerprint. Content is compared with LF line endings:
- * the CLI reads every text file as LF.
- */
-const SKILL_CANONICAL: CanonicalFields<SkillDecl> = {
-  name: asDeclared,
-  description: asDeclared,
-  content: (content) => content?.replace(/\r\n/g, '\n'),
-}
+type Frontmatter = Omit<SkillDecl, typeof CONTENT_FIELD>
 
 /** `skills/<key>.md`. */
 export function skillPath(key: string): string {
@@ -75,6 +72,50 @@ function printValue(value: string): string {
   return isPlain(value) && !YAML_SCALAR.test(value) ? value : JSON.stringify(value)
 }
 
+/**
+ * A frontmatter value: read from the raw text after `field: ` (plain, or a JSON string), printed
+ * as {@link printValue} writes it, and fingerprinted as declared.
+ */
+const frontmatterField: DeclField<string | undefined> = {
+  read(value, field, pointer, report) {
+    const raw = value[field]
+    if (typeof raw !== 'string') return undefined
+    const parsed = raw.startsWith('"') ? readQuoted(raw) : isPlain(raw) ? raw : null
+    if (parsed === null) {
+      report(
+        'E_SKILL_FRONTMATTER',
+        pointer,
+        raw.startsWith('"')
+          ? `The ${field} is not a valid quoted string.`
+          : `Quote the ${field} ("…"): it is empty or holds characters plain text cannot.`
+      )
+      return undefined
+    }
+    const problem = unstorableCharacter(parsed)
+    if (problem) {
+      report(
+        'E_SKILL_FRONTMATTER',
+        pointer,
+        `The ${field} holds ${problem}, which cannot be stored.`
+      )
+      return undefined
+    }
+    return parsed
+  },
+  print: (value) => (value === undefined ? undefined : printValue(value)),
+  canonical: asDeclared,
+}
+
+/** The frontmatter fields, in print order; the content is the codec's own. */
+const FRONTMATTER_FIELDS: DeclFields<Frontmatter> = {
+  name: frontmatterField,
+  description: frontmatterField,
+}
+
+function isFrontmatterField(field: string): field is keyof Frontmatter {
+  return Object.hasOwn(FRONTMATTER_FIELDS, field)
+}
+
 function parseSkill(
   key: string,
   text: Readonly<Record<string, string>>
@@ -86,8 +127,7 @@ function parseSkill(
   const report = (start: number, end: number, message: string) => {
     diagnostics.push(
       diagnostic('E_SKILL_FRONTMATTER', message, {
-        kind: 'skill',
-        key,
+        ...resourceOf('skill', key),
         ...at.located(at.span(start, end)),
         hint: `A skill file opens with a \`${FENCE}\` line, \`name: …\`, \`description: …\` and a \`${FENCE}\` line; its content follows.`,
       })
@@ -108,7 +148,7 @@ function parseSkill(
     report(0, FENCE.length, `The frontmatter has no closing \`${FENCE}\` line.`)
     return { diagnostics }
   }
-  const values: Partial<Record<SkillField, string>> = {}
+  const values: Partial<Frontmatter> = {}
   const attempted = new Set<string>()
   let offset = open.length
   for (const line of close < offset ? [] : source.slice(offset, close).split('\n')) {
@@ -116,11 +156,11 @@ function parseSkill(
     offset += line.length + 1
     const colon = line.indexOf(':')
     const field = colon === -1 ? '' : line.slice(0, colon)
-    if (!isOneOf(FIELDS, field) || line[colon + 1] !== ' ') {
+    if (!isFrontmatterField(field) || line[colon + 1] !== ' ') {
       report(
         at,
         at + line.length,
-        isOneOf(FIELDS, field) || colon === -1
+        isFrontmatterField(field) || colon === -1
           ? 'Each frontmatter line is `field: value`.'
           : `Unknown frontmatter field "${field}"; a skill has only name and description.`
       )
@@ -131,24 +171,17 @@ function parseSkill(
       continue
     }
     attempted.add(field)
-    const raw = line.slice(colon + 2)
-    const value = raw.startsWith('"') ? readQuoted(raw) : isPlain(raw) ? raw : null
-    if (value === null) {
-      report(
-        at,
-        at + line.length,
-        raw.startsWith('"')
-          ? `The ${field} is not a valid quoted string.`
-          : `Quote the ${field} ("…"): it is empty or holds characters plain text cannot.`
-      )
-      continue
-    }
-    const problem = unstorableCharacter(value)
-    if (problem)
-      report(at, at + line.length, `The ${field} holds ${problem}, which cannot be stored.`)
-    else values[field] = value
+    const reportLine: FieldReport = (_code, _pointer, message) =>
+      report(at, at + line.length, message)
+    const value = FRONTMATTER_FIELDS[field].read(
+      { [field]: line.slice(colon + 2) },
+      field,
+      `/${field}`,
+      reportLine
+    )
+    if (value !== undefined) values[field] = value
   }
-  for (const field of FIELDS) {
+  for (const field of Object.keys(FRONTMATTER_FIELDS)) {
     if (!attempted.has(field)) report(0, FENCE.length, `The frontmatter has no ${field}.`)
   }
   const content = source.slice(Math.min(source.length, close + FENCE.length + 2))
@@ -183,13 +216,18 @@ export const skillCodec: KindCodec<SkillDecl> = {
     text: {
       [skillPath(key)]: [
         FENCE,
-        `name: ${printValue(decl.name)}`,
-        `description: ${printValue(decl.description)}`,
+        ...Object.entries(printFields(FRONTMATTER_FIELDS, decl)).map(
+          ([field, value]) => `${field}: ${value}`
+        ),
         FENCE,
-        decl.content,
+        decl[CONTENT_FIELD],
       ].join('\n'),
     },
     blobs: [],
   }),
-  canonical: (decl) => canonicalOf(SKILL_CANONICAL, decl),
+  /** Content is compared with LF line endings: the CLI reads every text file as LF. */
+  canonical: (decl) => ({
+    ...canonicalFields(FRONTMATTER_FIELDS, decl),
+    [CONTENT_FIELD]: decl[CONTENT_FIELD].replace(/\r\n/g, '\n'),
+  }),
 }

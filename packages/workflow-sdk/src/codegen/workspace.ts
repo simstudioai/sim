@@ -24,13 +24,30 @@ export interface WorkspaceManifestColumn {
   required?: boolean
 }
 
+/**
+ * Where a workspace source directory keeps the declarations `workspace.d.ts` types live, from the
+ * directory root as module specifiers (`@sim/workspace-code`'s `DECLARATION_MODULES`, from
+ * `KIND_DIRS`): the tables folder (`tables`), and the credentials and secrets files without their
+ * extension (`credentials`, `secrets`).
+ */
+interface WorkspaceDeclarationModules {
+  tables: string
+  credentials: string
+  secrets: string
+}
+
 /** The workspace resources the SDK can name, by stable key. */
 export interface WorkspaceManifest {
+  /**
+   * Where the directory's declarations live. Every `*Declarations` list below is typed from its
+   * module, so a manifest holding one names the modules too.
+   */
+  declarationModules?: WorkspaceDeclarationModules
   tables?: Record<string, { columns: Record<string, WorkspaceManifestColumn> }>
   /**
    * Keys of the tables a workspace source directory declares (`tables/<key>.ts`), as the CLI
    * listed them when it wrote this file (a get). Each is typed from its declaration
-   * (`RowOf<typeof import('../../tables/<key>').default>`), so its row type follows an edit of its
+   * (`RowOf<typeof import('../../<tables>/<key>').default>`), so its row type follows an edit of its
    * columns without regenerating the file, and it replaces a stored table of the same key. A
    * table declared after the file was written is not typed until the next get.
    */
@@ -73,13 +90,24 @@ export interface WorkspaceManifest {
 
 export type GenerateWorkspaceTypesFn = (manifest: WorkspaceManifest) => SdkTypeFile
 
+/** The `@sim/workflow-sdk` types `workspace.d.ts` may name, in import order. */
+const SDK_TYPES = ['Json', 'SimFile'] as const
+/** The `@sim/workflow-sdk/workspace` helpers `workspace.d.ts` may name, in import order. */
+const WORKSPACE_HELPERS = ['DeclaredCredentials', 'DeclaredSecretNames', 'RowOf'] as const
+
+/** The imported names an emitted type uses, recorded as each type is emitted. */
+interface UsedNames {
+  sdk: Set<(typeof SDK_TYPES)[number]>
+  workspace: Set<(typeof WORKSPACE_HELPERS)[number]>
+}
+
 /** A cell's type: its value, or `null` when the column is not required. */
-function cellType(column: WorkspaceManifestColumn): string {
-  const value = valueType(column)
+function cellType(column: WorkspaceManifestColumn, used: UsedNames): string {
+  const value = valueType(column, used)
   return column.required ? value : `${value} | null`
 }
 
-function valueType(column: WorkspaceManifestColumn): string {
+function valueType(column: WorkspaceManifestColumn, used: UsedNames): string {
   switch (column.type) {
     case 'number':
     case 'currency':
@@ -87,6 +115,7 @@ function valueType(column: WorkspaceManifestColumn): string {
     case 'boolean':
       return 'boolean'
     case 'json':
+      used.sdk.add('Json')
       return 'Json'
     case 'select': {
       const option =
@@ -100,17 +129,20 @@ function valueType(column: WorkspaceManifestColumn): string {
   }
 }
 
-function inputType(type: string): string {
+function inputType(type: string, used: UsedNames): string {
   switch (type) {
     case 'number':
       return 'number'
     case 'boolean':
       return 'boolean'
     case 'array':
+      used.sdk.add('Json')
       return 'Json[]'
     case 'object':
+      used.sdk.add('Json')
       return 'Json'
     case 'file[]':
+      used.sdk.add('SimFile')
       return 'SimFile[]'
     default:
       return 'string'
@@ -138,23 +170,40 @@ function interfaceBlock(name: string, members: readonly string[], extendsType?: 
   return [`  interface ${name} {`, ...members.map((member) => `    ${member}`), '  }']
 }
 
-/** `Helper<typeof import('../../<file>').default>`: a root declaration file's type, live. */
-function declaredFileType(helper: string, file: string): string {
-  return `${helper}<typeof import(${quoteString(`../../${file}`)}).default>`
+/**
+ * `Helper<typeof import('../../<module>').default>`: a declaration's type, live, from
+ * `.sim/sdk/workspace.d.ts` up to the directory root.
+ */
+function declaredType(
+  helper: (typeof WORKSPACE_HELPERS)[number],
+  module: string,
+  used: UsedNames
+): string {
+  used.workspace.add(helper)
+  return `${helper}<typeof import(${quoteString(`../../${module}`)}).default>`
+}
+
+/** The manifest's declaration modules, which a manifest with a `*Declarations` list must name. */
+function declarationModules(manifest: WorkspaceManifest): WorkspaceDeclarationModules {
+  if (!manifest.declarationModules) {
+    throw new Error('A workspace manifest with declarations must name their declarationModules.')
+  }
+  return manifest.declarationModules
 }
 
 /** Generates `workspace.d.ts`. Deterministic: keys are sorted. */
 export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
+  const used: UsedNames = { sdk: new Set(), workspace: new Set() }
   const declared = [...new Set(manifest.tableDeclarations ?? [])].sort(compareStrings)
   const declaredTables = declared.map(
     (key) =>
-      `${quoteString(key)}: RowOf<typeof import(${quoteString(`../../tables/${key}`)}).default>`
+      `${quoteString(key)}: ${declaredType('RowOf', `${declarationModules(manifest).tables}/${key}`, used)}`
   )
   const storedTables = sortedKeys(manifest.tables).filter((key) => !declared.includes(key))
   const tables = storedTables.map((key) => {
     const columns = manifest.tables?.[key]?.columns ?? {}
     const fields = sortedKeys(columns).map(
-      (column) => `${printKey(column)}: ${cellType(columns[column])}`
+      (column) => `${printKey(column)}: ${cellType(columns[column], used)}`
     )
     return `${quoteString(key)}: { ${fields.join('; ')} }`
   })
@@ -168,7 +217,9 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     )
   const workflows = sortedKeys(manifest.workflows).map((key) => {
     const inputs = manifest.workflows?.[key]?.inputs ?? {}
-    const fields = sortedKeys(inputs).map((name) => `${printKey(name)}: ${inputType(inputs[name])}`)
+    const fields = sortedKeys(inputs).map(
+      (name) => `${printKey(name)}: ${inputType(inputs[name], used)}`
+    )
     return `${quoteString(key)}: { inputs: { ${fields.join('; ')} } }`
   })
   const mcpServers = [
@@ -190,7 +241,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
       'WorkspaceCredentials',
       credentials,
       manifest.credentialDeclarations
-        ? declaredFileType('DeclaredCredentials', 'credentials')
+        ? declaredType('DeclaredCredentials', declarationModules(manifest).credentials, used)
         : undefined
     ),
     ...interfaceBlock('WorkspaceWorkflows', workflows),
@@ -200,19 +251,20 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     ...interfaceBlock(
       'WorkspaceEnv',
       env,
-      manifest.secretDeclarations ? declaredFileType('DeclaredSecretNames', 'secrets') : undefined
+      manifest.secretDeclarations
+        ? declaredType('DeclaredSecretNames', declarationModules(manifest).secrets, used)
+        : undefined
     ),
   ]
-  const text = body.join('\n')
-  const used = ['Json', 'SimFile'].filter((name) => new RegExp(`\\b${name}\\b`).test(text))
-  const workspaceImports = ['DeclaredCredentials', 'DeclaredSecretNames', 'RowOf'].filter((name) =>
-    new RegExp(`\\b${name}<`).test(text)
-  )
+  const sdkImports = SDK_TYPES.filter((name) => used.sdk.has(name))
+  const workspaceImports = WORKSPACE_HELPERS.filter((name) => used.workspace.has(name))
   return {
     path: 'workspace.d.ts',
     text: [
       '// @sim-sdk workspace · generated from the workspace resource manifest; do not edit',
-      used.length > 0 ? `import type { ${used.join(', ')} } from '@sim/workflow-sdk'` : 'export {}',
+      sdkImports.length > 0
+        ? `import type { ${sdkImports.join(', ')} } from '@sim/workflow-sdk'`
+        : 'export {}',
       ...(workspaceImports.length > 0
         ? [`import type { ${workspaceImports.join(', ')} } from '@sim/workflow-sdk/workspace'`]
         : []),

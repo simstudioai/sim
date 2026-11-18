@@ -88,7 +88,10 @@ materialize.
   `conditions`/`routes` (lifted into `branches`). A stored `null` is absent; `''` is kept.
 - The CWM is **encoding-free**: whether a subBlock held native JSON or JSON text is not recorded,
   so equality, hashes, diffs and the fingerprint never see it. Materialize picks the encoding:
-  prev's raw encoding, else the catalog `storage`.
+  prev's raw encoding, else the catalog `storage`. A switch's or slider's legacy text (`'true'`,
+  `'0.7'`, `'1.0'`: what registry defaults once seeded) is an encoding the same way: the CWM holds
+  the boolean or number, and an unchanged value keeps prev's text. A switch or slider another
+  field's condition reads keeps its text, since visibility compares strictly.
 - `Value` is JSON plus `SimNode`s, the internal-id sites lifted to keys:
   `{ $sim: 'var', key }`, `{ $sim: 'resource', kind, key }`, `{ $sim: 'unresolved', kind, id }`
   (an id the resolver could not map, kept verbatim with `W_CANON_UNRESOLVED_ID`),
@@ -254,16 +257,18 @@ drops labels equal to their id, and drops a block's other option labels (except 
 dropdown's), which nothing reads; an absent label reads as its id. Titles, output descriptions,
 defaults and option ids stay because codegen and the printer read them. `expandBlockCatalog` and
 the accessors in `catalog/view.ts` (`catalogBlock`, `catalogBlockTypes`, `catalogTrigger`,
-`catalogBuilder`, `catalogBuilderPaths`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
+`catalogBuilder`, `catalogBuilderPaths`, `catalogBuildersOfType`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
 `catalog.triggers` or `catalog.builders` directly. The hash is SHA-256 over `stableStringify` of
 the core shard, deterministic because tables fill in key order; it is the ETag and
 `base.catalogHash`.
 
 Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
 param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
-`forms/` (the response `body` form and the condition `else: true`, each printed and compiled by one
-module), `structured/` (one codec per structured subBlock kind, `CatalogStructuredKind`, with its
-canonicalize, compile, print and materialize hooks, held in a record total over the kinds),
+`forms/` (the response `body` form, the condition `else: true` and the loop and parallel config
+forms, each printed and compiled by one module; the executable view also reads the container
+forms), `structured/` (one codec per structured subBlock kind whose value stays a param, with its
+canonicalize, compile, print and materialize hooks, held in a record total over those kinds; `tools`
+and `branches` are lifted into their own model shapes and have their own stage modules),
 `catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
 
 ## Canonicalize
@@ -457,9 +462,14 @@ deploy is separate.
    - locked blocks (`code/apply/locked.ts`): any change to a locked block or a child of a locked
      container is `E_APPLY_LOCKED_BLOCK`, admins included;
    - the editing engine's per-user gates on added and changed blocks (`code/apply/gates.ts`):
-     block, model and tool allowlists, edge and subflow scope, required params, duplicate triggers,
-     single-instance blocks, credentials the user cannot reach, sandbox plan; a hosted key that
-     does not apply is dropped with `W_APPLY_HOSTED_KEY_DROPPED`;
+     `BLOCK_GATES` (`editing/gates.ts`) is the one list the engine and source both run, by subject
+     (block placement, retry policy, field value, tool entry), so a gate added there applies to
+     both: the engine withholds the refused subject, source refuses the apply. Block types
+     (registry, deployment, allowlist, sunset), duplicate triggers and single-instance blocks,
+     retry eligibility, model and operation access, tool entries; then, through the engine's own
+     functions, credentials the user cannot reach, the copilot tool-binding contract, enablement
+     under a disabled container, and the sandbox plan. A hosted key that does not apply is dropped
+     with `W_APPLY_HOSTED_KEY_DROPPED`;
    - `addable: false` types added or retyped (`E_APPLY_TYPE_NOT_ADDABLE`);
    - live effects (`code/apply/live-triggers.ts`): deleting or retyping a block with a live
      webhook, schedule, chat output or MCP tool warns `W_APPLY_TRIGGER_REMOVED`;
@@ -490,6 +500,7 @@ with `buildLockFromState`, and return files, lock, base, catalog hash and diagno
 can always be applied back unchanged:
 
 - 2,000 blocks (the v2 graph cap, `MAX_WORKFLOW_GRAPH_BLOCKS`);
+- 10,000 edges (the v2 graph cap, `MAX_WORKFLOW_GRAPH_EDGES`);
 - 2,001 files: `workflow.ts` plus one code file per block, so files mode never overflows into inline
   code;
 - 4,000,000 UTF-8 bytes across every file together, the entry included. No cap applies to a single

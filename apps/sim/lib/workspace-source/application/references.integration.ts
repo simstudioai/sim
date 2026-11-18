@@ -107,6 +107,24 @@ export default workflow('Plain', {}, () => {
 })
 `
 
+const CHILD = `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Child', {}, () => {
+  trigger.start('Start', { inputFormat: {} })
+})
+`
+
+const RUNS_CHILD = `// @sim-sdk 1
+import { childWorkflow, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Parent', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const run = runWorkflow('Run', { workflowId: childWorkflow('child') })
+  start.to(run)
+})
+`
+
 type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'files'>> & {
   principal?: Principal
 }
@@ -294,6 +312,56 @@ describe('workspace source: secrets and credentials', () => {
       const retried = await apply(workspaceId, { ...files, ...result.files }, { base: result.base })
       expect(actions(retried.applied)).toEqual(['create workflow:ask'])
       expect(await liveWorkflowNames(workspaceId)).toEqual(['Ask', 'Plain'])
+    }
+  )
+
+  check(
+    'refuses deleting a workflow a held-back edit stops running, since the stored one still runs it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, {
+        'workflows/parent/workflow.ts': RUNS_CHILD,
+        'workflows/child/workflow.ts': CHILD,
+      })
+      expect(created.failed).toBeUndefined()
+      const withoutChild = Object.fromEntries(
+        Object.entries(created.files).filter(([path]) => !path.startsWith('workflows/child/'))
+      )
+
+      // The edit drops the child for an agent reading a secret the workspace lacks: it is held.
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          {
+            ...withoutChild,
+            'secrets.ts': SECRETS(),
+            'workflows/parent/workflow.ts': ASK.replace("'Ask'", "'Parent'"),
+          },
+          { base: created.base, allowDelete: true }
+        )
+      )
+      expect(findings(refused.diagnostics)).toContain('E_SECRET_MISSING workflow:parent')
+      expect(findings(refused.diagnostics)).toContain('E_PLAN_REF_DELETED workflow:parent')
+      expect(await liveWorkflowNames(workspaceId)).toEqual(['Child', 'Parent'])
+    }
+  )
+
+  check(
+    'refuses deleting the last workflow when the create replacing it is held back',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, { 'workflows/plain/workflow.ts': PLAIN })
+      expect(created.failed).toBeUndefined()
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { 'secrets.ts': SECRETS(), 'workflows/ask/workflow.ts': ASK },
+          { base: created.base, allowDelete: true }
+        )
+      )
+      expect(findings(refused.diagnostics)).toContain('E_APPLY_REFUSED workflow:plain')
+      expect(await liveWorkflowNames(workspaceId)).toEqual(['Plain'])
     }
   )
 

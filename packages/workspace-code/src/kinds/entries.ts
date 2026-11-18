@@ -18,7 +18,7 @@ import {
 import { type FieldReport, fieldPointer, fieldReporter, readObject } from '../declaration/fields'
 import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
-import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { fingerprintOf } from '../fingerprint'
 import { type FileKind, type GroupedPaths, KIND_DIRS, type KindCodec } from '../kind'
 
@@ -71,7 +71,7 @@ export function entryCodec<E>(spec: EntryKind<E>): KindCodec<Record<string, E>> 
   return {
     group: (paths) => groupRootFile(spec.kind, paths),
     parse(key, text) {
-      const resource = { kind: spec.kind, key }
+      const resource = resourceOf(spec.kind, key)
       const source = text[file] ?? ''
       const read = readDeclaration(file, source, { callee: spec.callee })
       const diagnostics: WorkspaceDiagnostic[] = read.diagnostics.map((finding) => ({

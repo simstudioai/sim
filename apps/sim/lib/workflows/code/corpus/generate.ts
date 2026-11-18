@@ -60,6 +60,7 @@ type CorpusCaseKind =
   | 'unicode-names'
   | 'crlf-text'
   | 'agent-tools'
+  | 'legacy-scalars'
 
 export interface CorpusCase {
   /** Stable and unique: `<kind>:<block type>:<detail>`. */
@@ -76,9 +77,10 @@ export interface CorpusCase {
   /**
    * A stored shape the editor's write-time validators refuse but real workflows hold:
    * `implicit-branch-handle` is an edge on `condition-<blockId>-if` while the rows were never
-   * persisted.
+   * persisted. `legacy-scalar-text` is a switch or slider holding the text registry defaults once
+   * seeded (`'true'`, `'0.7'`), which the switch validator now refuses.
    */
-  storedQuirk?: 'implicit-branch-handle'
+  storedQuirk?: 'implicit-branch-handle' | 'legacy-scalar-text'
 }
 
 interface CorpusOptions {
@@ -929,6 +931,75 @@ function agentToolCases(registry: Registry, seed: number): CorpusCase[] {
   ]
 }
 
+/** A switch or slider value as registry defaults once seeded it: `'true'`, `'0.7'`, `'1.0'`. */
+function legacyText(value: unknown): unknown {
+  if (typeof value === 'boolean') return String(value)
+  if (typeof value === 'number') return Number.isInteger(value) ? value.toFixed(1) : String(value)
+  return value
+}
+
+/** Switch and slider ids another field's object condition reads (`{ field: 'x', value: true }`). */
+function gatingScalarIds(config: BlockConfig, scalarIds: ReadonlySet<string>): Set<string> {
+  const gating = new Set<string>()
+  for (const subBlock of config.subBlocks) {
+    const condition = subBlock.condition
+    if (!condition || typeof condition === 'function') continue
+    for (const field of [condition.field, condition.and?.field]) {
+      if (field && scalarIds.has(field)) gating.add(field)
+    }
+  }
+  return gating
+}
+
+/**
+ * Workflows stored before switch and slider defaults were seeded typed, every switch and slider
+ * holding its old text form. Per block type: the first operation that stores a seeded switch or
+ * slider, and the first that stores a switch another field's condition reads, held at `'true'`
+ * (the text visibility compares strictly, so it must not read as `true`). A case holding such a
+ * switch ends in `:gating-text`: its text stays text, so it prints as a string.
+ */
+function legacyScalarCases(configs: BlockConfig[], registry: Registry, seed: number): CorpusCase[] {
+  const cases: CorpusCase[] = []
+  for (const config of configs) {
+    if (config.category === 'triggers') continue
+    const scalars = config.subBlocks.filter((s) => s.type === 'switch' || s.type === 'slider')
+    const scalarIds = new Set(scalars.map((s) => s.id))
+    const gating = gatingScalarIds(config, scalarIds)
+    const targets = [
+      new Set(scalars.filter((s) => s.value !== undefined).map((s) => s.id)),
+      gating,
+    ].filter((ids) => ids.size > 0)
+    const operations = operationsOf(config)
+    const used = new Set<string>()
+    for (const target of targets) {
+      for (const operation of operations.length > 0 ? operations : [undefined]) {
+        const detail = operation ?? 'default'
+        if (used.has(detail)) continue
+        const builder = new CaseBuilder(seed, `legacy-scalars:${config.type}:${detail}`)
+        const start = startBlock(builder, registry)
+        const { block } = subject(builder, registry, config, { operation })
+        let hit = false
+        let gatingText = false
+        for (const [id, stored] of Object.entries(block.subBlocks)) {
+          if (!stored || !scalarIds.has(id) || typeof stored.value === 'string') continue
+          const text = gating.has(id) ? 'true' : legacyText(stored.value)
+          if (typeof text !== 'string') continue
+          stored.value = text
+          if (target.has(id)) hit = true
+          if (gating.has(id)) gatingText = true
+        }
+        if (!hit) continue
+        used.add(detail)
+        if (canConnect(config)) builder.connect(start, block.id)
+        const built = builder.build('legacy-scalars', { storedQuirk: 'legacy-scalar-text' })
+        cases.push(gatingText ? { ...built, id: `${built.id}:gating-text` } : built)
+        break
+      }
+    }
+  }
+  return cases
+}
+
 function unknownTypeCases(registry: Registry, seed: number): CorpusCase[] {
   return ['retired_block_corpus', 'custom_block_corpus-slug'].map((type) => {
     const builder = new CaseBuilder(seed, `unknown-type:${type}:stored`)
@@ -993,6 +1064,7 @@ export function generateRegistryCorpus(options: CorpusOptions = {}): CorpusCase[
     ...unicodeNameCases(registry, seed),
     ...crlfCases(registry, seed),
     ...agentToolCases(registry, seed),
+    ...legacyScalarCases(configs, registry, seed),
     ...unknownTypeCases(registry, seed),
   ]
 }

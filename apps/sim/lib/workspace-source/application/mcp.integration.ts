@@ -24,6 +24,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { createMcpServerUseCase, updateMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import { generateMcpServerId } from '@/lib/mcp/utils'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -405,6 +406,59 @@ describe('MCP servers as workspace source', () => {
       expect(after.map((server) => server.url)).toEqual([`${url}/v2`])
       expect(after[0]?.id).not.toBe(before.id)
       expect(replaced.base.resources['mcp-server:github']?.id).toBe(after[0]?.id)
+    }
+  )
+
+  check(
+    'sets a URL that keeps the id in place, without --allow-delete, keeping the server row',
+    async () => {
+      const { workspaceId, read } = await setUp()
+      const [before] = await liveServers(workspaceId)
+      const requery = {
+        ...read.files,
+        'mcp/github.ts': read.files['mcp/github.ts'].replace(url, `${url}?region=eu`),
+      }
+
+      const result = await apply(workspaceId, requery, { base: read.base })
+      expect(result.failed).toBeUndefined()
+      expect(actions(result.applied)).toEqual(['update mcp-server:github'])
+      expect(findings(result.diagnostics, 'warning')).not.toContain(
+        'W_MCP_REPLACE mcp-server:github'
+      )
+      const after = await liveServers(workspaceId)
+      expect(after.map((server) => [server.id, server.url, server.createdAt])).toEqual([
+        [before.id, `${url}?region=eu`, before.createdAt],
+      ])
+    }
+  )
+
+  check(
+    'a URL that keeps the id but fails its checks changes nothing, leaving the server live',
+    async () => {
+      const workspaceId = await newWorkspace()
+      // Seeded as stored rows are: the host no longer resolves, so no write path could add it now.
+      const unresolvable = 'http://mcp-gone.invalid/mcp'
+      const serverId = generateMcpServerId(workspaceId, unresolvable)
+      await db.insert(mcpServers).values({
+        id: serverId,
+        workspaceId,
+        name: 'Gone',
+        transport: 'streamable-http',
+        url: unresolvable,
+      })
+      const read = await runner.get(workspaceId)
+      const path = Object.keys(read.files).find((file) => file.startsWith('mcp/'))
+      if (!path) throw new Error('The server was not read')
+
+      const failed = await apply(
+        workspaceId,
+        { ...read.files, [path]: read.files[path].replace(unresolvable, `${unresolvable}?v=2`) },
+        { base: read.base }
+      ).catch((caught: unknown) => caught)
+      expect(failed).toBeTruthy()
+      expect((await liveServers(workspaceId)).map((server) => [server.id, server.url])).toEqual([
+        [serverId, unresolvable],
+      ])
     }
   )
 

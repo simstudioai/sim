@@ -11,6 +11,7 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import {
+  fieldNames,
   isNonEmptyString,
   type Json,
   jsonInput,
@@ -21,6 +22,7 @@ import {
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, SHA256_HEX, type WorkspaceKind } from './kind'
 import { isFileKey, isResourceKey, isSecretName } from './layout'
+import { type KeyShape, WORKSPACE_KIND_SPECS } from './specs'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -69,11 +71,30 @@ type BaseDiagnostic = WorkspaceDiagnostic<
   'E_BASE_JSON' | 'E_BASE_VERSION' | 'E_BASE_SHAPE' | 'E_BASE_UNKNOWN_FIELD'
 >
 
-const BASE_FIELDS = ['version', 'workspaceId', 'resources']
-const RESOURCE_FIELDS = ['id', 'fingerprint', 'columns', 'blobs']
-const COLUMN_FIELDS = ['id', 'options']
-const BLOB_FIELDS = ['id', 'rev', 'sha256']
+const BASE_FIELDS = fieldNames<WorkspaceBaseV1>({
+  version: true,
+  workspaceId: true,
+  resources: true,
+})
+const RESOURCE_FIELDS = fieldNames<BaseResource>({
+  id: true,
+  fingerprint: true,
+  columns: true,
+  blobs: true,
+})
+const COLUMN_FIELDS = fieldNames<BaseColumn>({ id: true, options: true })
+const BLOB_FIELDS = fieldNames<BaseBlob>({ id: true, rev: true, sha256: true })
 const FINGERPRINT = /^rf1:[0-9a-f]{64}$/
+
+function isResourceFingerprint(value: unknown): value is ResourceFingerprint {
+  return typeof value === 'string' && FINGERPRINT.test(value)
+}
+
+const IS_KEY_OF_SHAPE: Record<KeyShape, (key: string) => boolean> = {
+  resource: isResourceKey,
+  path: isFileKey,
+  'secret-name': isSecretName,
+}
 
 /** The address of a resource in the base. */
 export function resourceAddress(kind: WorkspaceKind, key: string): ResourceAddress {
@@ -86,9 +107,7 @@ export function parseResourceAddress(address: string): { kind: WorkspaceKind; ke
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)
   if (colon <= 0 || !isWorkspaceKind(kind)) return null
-  const valid =
-    kind === 'file' ? isFileKey(key) : kind === 'secret' ? isSecretName(key) : isResourceKey(key)
-  return valid ? { kind, key } : null
+  return IS_KEY_OF_SHAPE[WORKSPACE_KIND_SPECS[kind].keyShape](key) ? { kind, key } : null
 }
 
 /** An empty base for `workspaceId`. */
@@ -134,7 +153,7 @@ export function parseWorkspaceBase(
   const diagnostics: BaseDiagnostic[] = []
   const shape = (path: string, message: string) =>
     diagnostics.push(diagnostic('E_BASE_SHAPE', message, { path }))
-  const extensionsOf = (value: Record<string, unknown>, known: string[], path: string) =>
+  const extensionsOf = (value: Record<string, unknown>, known: readonly string[], path: string) =>
     readExtensions(value, known, (field, problem) =>
       diagnostics.push(
         problem === 'unknown'
@@ -160,7 +179,8 @@ export function parseWorkspaceBase(
       ],
     }
   }
-  if (!isNonEmptyString(value.workspaceId)) shape('/workspaceId', 'workspaceId must be a string.')
+  const workspaceId = isNonEmptyString(value.workspaceId) ? value.workspaceId : null
+  if (workspaceId === null) shape('/workspaceId', 'workspaceId must be a string.')
   const resources: Record<ResourceAddress, BaseResource> = {}
   if (!isRecordLike(value.resources)) shape('/resources', 'resources must be an object.')
   else {
@@ -176,12 +196,12 @@ export function parseWorkspaceBase(
     }
   }
   const extensions = extensionsOf(value, BASE_FIELDS, '')
-  if (diagnostics.length > 0) return { diagnostics }
+  if (diagnostics.length > 0 || workspaceId === null) return { diagnostics }
   return {
     base: {
       ...extensions,
       version: 1,
-      workspaceId: value.workspaceId as string,
+      workspaceId,
       resources,
     },
   }
@@ -193,7 +213,7 @@ function parseResource(
   shape: (path: string, message: string) => void,
   extensionsOf: (
     value: Record<string, unknown>,
-    known: string[],
+    known: readonly string[],
     path: string
   ) => Record<LockExtensionKey, Json>
 ): BaseResource | null {
@@ -203,8 +223,8 @@ function parseResource(
   }
   const entry: BaseResource = { ...extensionsOf(raw, RESOURCE_FIELDS, path), id: raw.id }
   if (raw.fingerprint !== undefined) {
-    if (typeof raw.fingerprint === 'string' && FINGERPRINT.test(raw.fingerprint)) {
-      entry.fingerprint = raw.fingerprint as ResourceFingerprint
+    if (isResourceFingerprint(raw.fingerprint)) {
+      entry.fingerprint = raw.fingerprint
     } else shape(`${path}/fingerprint`, 'fingerprint must be `rf1:` and 64 hex digits.')
   }
   if (raw.columns !== undefined) {
