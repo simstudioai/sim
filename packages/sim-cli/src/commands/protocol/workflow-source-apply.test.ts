@@ -189,6 +189,8 @@ describe('sim workflows source apply', () => {
     expect(dryRunFlags()).toEqual([true, false])
     expect(prompt.question).toHaveBeenCalledTimes(1)
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(`${ENTRY}// stored\n`)
+    // Refused at admission, a 429 left nothing written, so the client may resend either request.
+    expect(request.mock.calls.map((call) => call[1].retryRateLimited)).toEqual([true, true])
   })
 
   it('at a terminal, applies nothing when the person declines', async () => {

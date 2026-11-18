@@ -1,5 +1,6 @@
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import {
   formatApiErrorDetails,
@@ -374,6 +375,125 @@ describe('raw requests', () => {
     expect(() => unauthenticated.requireWorkspace()).toThrow(/Not logged in/)
     await expect(unauthenticated.requestRaw('/api/v2/workflows')).rejects.toThrow(/Not logged in/)
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('rate limiting', () => {
+  function limited(retryAfter: string | null = '0'): Response {
+    return new Response(
+      JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'API rate limit exceeded' } }),
+      {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          ...(retryAfter === null ? {} : { 'retry-after': retryAfter }),
+        },
+      }
+    )
+  }
+
+  /** Runs `request` to completion with the retry waits elapsed on fake timers. */
+  async function settle<T>(request: Promise<T>): Promise<PromiseSettledResult<T>> {
+    const settled = Promise.allSettled([request])
+    await vi.runAllTimersAsync()
+    return (await settled)[0]
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('resends a GET answered 429 and returns the answer that follows', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(limited())
+      .mockResolvedValueOnce(Response.json({ data: { id: 'tbl_1' } }))
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(client().request('/api/v2/tables/tbl_1'))
+
+    expect(outcome).toEqual({ status: 'fulfilled', value: { data: { id: 'tbl_1' } } })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('waits at least the Retry-After the server named before resending', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(limited('20'))
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    const request = client().request('/api/v2/tables')
+    await vi.advanceTimersByTimeAsync(19_000)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await expect(request).resolves.toEqual({ data: [] })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not resend a write that did not opt in, and exits with the rate-limit status', async () => {
+    const fetch = vi.fn().mockResolvedValue(limited())
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      client().request('/api/v2/tables', { method: 'POST', body: { name: 'leads' } })
+    ).rejects.toMatchObject({ status: 429, exitCode: RATE_LIMITED_EXIT_CODE })
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('resends a write that declared itself safe to resend after a 429', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(limited())
+      .mockResolvedValueOnce(Response.json({ data: { applied: [] } }))
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(
+      client().request('/api/v2/workspaces/ws_1/source', {
+        method: 'POST',
+        body: { files: {} },
+        retryRateLimited: true,
+      })
+    )
+
+    expect(outcome.status).toBe('fulfilled')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch.mock.calls[1][1].body).toBe(JSON.stringify({ files: {} }))
+  })
+
+  it('gives up after a bounded number of resends with the rate-limit exit status', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi.fn().mockImplementation(async () => limited())
+    vi.stubGlobal('fetch', fetch)
+
+    const outcome = await settle(client().requestRaw('/api/v2/files/file_1'))
+
+    expect(outcome.status).toBe('rejected')
+    const error = (outcome as PromiseRejectedResult).reason
+    expect(error).toBeInstanceOf(SimApiError)
+    expect(error).toMatchObject({ status: 429, exitCode: RATE_LIMITED_EXIT_CODE })
+    expect(error.message).toMatch(/run the command again/)
+    expect(fetch.mock.calls.length).toBeGreaterThan(2)
+    expect(fetch.mock.calls.length).toBeLessThanOrEqual(10)
+  })
+
+  it('stops waiting to resend when the caller cancels', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const fetch = vi.fn().mockImplementation(async () => limited('20'))
+    vi.stubGlobal('fetch', fetch)
+    const controller = new AbortController()
+
+    const request = client().request('/api/v2/tables', { signal: controller.signal })
+    const settled = Promise.allSettled([request])
+    await vi.advanceTimersByTimeAsync(1_000)
+    controller.abort()
+    const [outcome] = await settled
+
+    expect(outcome).toMatchObject({ status: 'rejected', reason: { message: 'Request cancelled.' } })
+    expect(fetch).toHaveBeenCalledOnce()
   })
 })
 

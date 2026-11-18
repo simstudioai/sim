@@ -55,8 +55,9 @@ the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base rec
 files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again
 into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is
-too large; 8 the apply stopped part-way: what was written is saved into the directory, and
-applying again continues.`
+too large; 8 the apply stopped part-way (a resource failed, or a later round stayed rate limited):
+what was written is saved into the directory, and applying again continues; 9 rate limited (HTTP
+429) after the CLI's retries, before anything was written: wait a minute and apply again.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -254,10 +255,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
               params: { workspaceId },
               ...(dryRun ? { query: { dryRun: true } } : {}),
               body,
+              retryRateLimited: true,
             }
           )
           return response.data
         } catch (error) {
+          if (!dryRun && roundsSaved > 0 && error instanceof SimApiError && error.status === 429) {
+            throw new SimApiError(
+              `${error.message} The ${roundsSaved === 1 ? 'round' : `${roundsSaved} rounds`} before it ${roundsSaved === 1 ? 'is' : 'are'} applied and saved into ${options.dir}: apply again to continue.`,
+              error.status,
+              error.code,
+              error.details,
+              SOURCE_PARTIAL_EXIT_CODE,
+              error.requestId
+            )
+          }
           return printRefusal(
             error,
             dryRun
@@ -267,6 +279,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
 
+      /** Write rounds this run saved into the directory; a later refusal leaves them standing. */
+      let roundsSaved = 0
       let written = await readWritten(options.dir)
       let submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
       assertBaseWorkspace(
@@ -317,6 +331,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       for (;;) {
         printNewDiagnostics(data.diagnostics, printed)
         written = await saveApplied(options.dir, data, submission, written)
+        roundsSaved++
         if (data.failed || data.remainingBlobs.length === 0) break
         const next = new Set(data.remainingBlobs)
         if (next.size >= wanted.size && [...next].every((path) => wanted.has(path))) {

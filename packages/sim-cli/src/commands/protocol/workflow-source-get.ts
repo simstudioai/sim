@@ -98,7 +98,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too).
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too), 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, so wait a minute and run the same command again.
 
 ## Rules
 
@@ -230,7 +230,8 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
 const GET_EXIT_CODES_HELP = `
 Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's
 source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them,
-get into another directory, or pass --force); 7 the workflow is too large to print as source.`
+get into another directory, or pass --force); 7 the workflow is too large to print as source;
+9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again.`
 
 /**
  * Teaches the generated `workflows source get` leaf `--dir <dir>`: instead of printing the

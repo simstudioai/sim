@@ -6,6 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen'
 import { APPLY_ORDER, type BlobEntry, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
@@ -19,7 +20,7 @@ import { SimApiError } from '../../http/client'
 import {
   checkedPath,
   digest,
-  inPool,
+  FILE_CONCURRENCY,
   listSourceFiles,
   readSourceText,
   SOURCE_SDK_DIR,
@@ -111,7 +112,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Exit codes
 
-0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply was written: run \`sim workspaces source get --dir . --force\`, nothing is lost); 6 locked; 7 too large; 8 stopped part-way: what was written is saved here, so apply again, as often as it takes, until it exits 0.
+0 applied; 1 errors (each printed as file:line:column with a hint); 5 a resource changed on the server since this directory was read (get it again into a fresh directory, reapply the edit; right after an apply that ended without an answer, such as a timeout, that apply was written: run \`sim workspaces source get --dir . --force\`, nothing is lost); 6 locked; 7 too large; 8 stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved here, so apply again, as often as it takes, until it exits 0; 9 rate limited (HTTP 429) after the CLI's retries: nothing more was written, so wait a minute and run the same command again (a get keeps the binary files it downloaded and fetches only the rest).
 
 Keep \`${WORKSPACE_BASE_FILE}\` and each workflow's \`.sim/\` files as written.
 `
@@ -222,7 +223,9 @@ export async function readWorkspaceDir(
     APPLY_ORDER.filter((kind) => !only || only.includes(kind))
   )
   const textPaths = paths.filter((path) => !isBlobPath(path))
-  const texts = await inPool(textPaths, (path) => readSourceText(dir, path))
+  const texts = await mapWithConcurrency(textPaths, FILE_CONCURRENCY, (path) =>
+    readSourceText(dir, path)
+  )
   const files: Record<string, string> = {}
   textPaths.forEach((path, index) => {
     const text = texts[index]
@@ -253,25 +256,29 @@ export async function readWorkspaceDir(
   const verified = new Set<string>()
   const listed = new Map(known.map((blob) => [blob.path, blob]))
   const hashed = new Map<string, StatDigest>()
-  const blobs = await inPool(paths.filter(isBlobPath), async (path): Promise<BlobEntry> => {
-    const entry = listed.get(path)
-    if (entry) return entry
-    const file = await checkedPath(root, path, verified)
-    const current = await stat(file)
-    const { size } = current
-    if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
-      throw new SimApiError(
-        `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
-        0,
-        'SOURCE_TOO_LARGE',
-        undefined,
-        SOURCE_TOO_LARGE_EXIT_CODE
-      )
+  const blobs = await mapWithConcurrency(
+    paths.filter(isBlobPath),
+    FILE_CONCURRENCY,
+    async (path): Promise<BlobEntry> => {
+      const entry = listed.get(path)
+      if (entry) return entry
+      const file = await checkedPath(root, path, verified)
+      const current = await stat(file)
+      const { size } = current
+      if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
+        throw new SimApiError(
+          `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
+          0,
+          'SOURCE_TOO_LARGE',
+          undefined,
+          SOURCE_TOO_LARGE_EXIT_CODE
+        )
+      }
+      const digested = await statDigest(file, path, current, written)
+      hashed.set(path, digested)
+      return { path, sha256: digested.sha256, size: digested.size }
     }
-    const digested = await statDigest(file, path, current, written)
-    hashed.set(path, digested)
-    return { path, sha256: digested.sha256, size: digested.size }
-  })
+  )
   const baseText = await readSourceText(dir, WORKSPACE_BASE_FILE)
   let base: ApplyWorkspaceSourceBody['base']
   if (baseText !== null) {

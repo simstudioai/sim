@@ -26,6 +26,10 @@
       "types": "./src/color.ts",
       "default": "./src/color.ts"
     },
+    "./concurrency": {
+      "types": "./src/concurrency.ts",
+      "default": "./src/concurrency.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"

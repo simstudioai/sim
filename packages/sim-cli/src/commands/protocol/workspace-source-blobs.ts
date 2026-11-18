@@ -6,9 +6,12 @@
  */
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { realpath, stat } from 'node:fs/promises'
+import { realpath, rename, rm, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { generateShortId } from '@sim/utils/id'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -32,8 +35,8 @@ import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import {
   checkedPath,
+  FILE_CONCURRENCY,
   type FileStat,
-  inPool,
   isMissing,
   type StatDigest,
   type Written,
@@ -134,7 +137,7 @@ export async function blobDigests(
     throw error
   }
   const verified = new Set<string>()
-  await inPool(paths, async (path) => {
+  await mapWithConcurrency(paths, FILE_CONCURRENCY, async (path) => {
     try {
       const file = await checkedPath(root, path, verified)
       digests.set(path, await statDigest(file, path, await stat(file), written))
@@ -185,7 +188,7 @@ export function assertListedBlobs(blobs: readonly ListedBlob[]): void {
  * past the listed size and, at the end, any size or SHA-256 other than the listing's. Returns the
  * SHA-256 of the bytes, which a blob listed without one records in the base.
  */
-export async function downloadBlob(
+async function downloadBlob(
   client: OperationClient<'downloadFile' | 'downloadKnowledgeDocument'>,
   blob: ListedBlob,
   file: string
@@ -232,6 +235,66 @@ export async function downloadBlob(
   const sha256 = hash.digest('hex')
   if (size !== blob.size || (blob.sha256 !== undefined && sha256 !== blob.sha256)) throw mismatch()
   return sha256
+}
+
+/**
+ * The name a verified download is kept under in a get's downloads folder until it moves into
+ * place: a digest of its path and listed SHA-256, else of its path, id, revision and size. The path
+ * keeps two paths listed with the same bytes apart, since each moves into place on its own. `null`
+ * when the listing names neither a hash nor a revision: nothing tells a kept copy from new bytes.
+ */
+function keptName(blob: ListedBlob): string | null {
+  const identity =
+    blob.sha256 !== undefined
+      ? [blob.path, blob.sha256]
+      : blob.rev !== undefined
+        ? [blob.path, blob.id, blob.rev, String(blob.size)]
+        : null
+  return identity && createHash('sha256').update(identity.join('\0')).digest('hex')
+}
+
+/** A blob's bytes in a get's downloads folder, verified against its listing. */
+export interface FetchedBlob extends StatDigest {
+  file: string
+  /** Whether a failed get keeps the file for the next one to reuse. */
+  kept: boolean
+}
+
+/**
+ * The listed blob's bytes in `downloads`: the copy a failed get kept there when it still matches
+ * the listing (one that does not is discarded), else a fresh download, which is kept under its
+ * name once verified. A download cut short leaves nothing behind.
+ */
+export async function fetchBlob(
+  client: OperationClient<'downloadFile' | 'downloadKnowledgeDocument'>,
+  blob: ListedBlob,
+  downloads: string
+): Promise<FetchedBlob> {
+  const name = keptName(blob)
+  const file = join(downloads, name ?? `${generateShortId()}.bin`)
+  if (name !== null) {
+    try {
+      const kept = await hashFile(file)
+      const { mtimeMs } = await stat(file)
+      if (kept.size === blob.size && (blob.sha256 === undefined || kept.sha256 === blob.sha256)) {
+        return { ...kept, mtimeMs, file, kept: true }
+      }
+      await rm(file, { force: true })
+    } catch (error) {
+      if (!isMissing(error)) throw error
+    }
+  }
+  const part = `${file}.${generateShortId()}.part`
+  let sha256: string
+  try {
+    sha256 = await downloadBlob(client, blob, part)
+  } catch (error) {
+    await rm(part, { force: true })
+    throw error
+  }
+  await rename(part, file)
+  const { size, mtimeMs } = await stat(file)
+  return { sha256, size, mtimeMs, file, kept: name !== null }
 }
 
 /**

@@ -1,5 +1,6 @@
-import { mkdir, mkdtemp, realpath, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, realpath, rename, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import {
   APPLY_ORDER,
@@ -21,13 +22,12 @@ import { apiCommand } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   editedFiles,
-  inPool,
+  FILE_CONCURRENCY,
   readSourceJson,
   readSourceText,
   readWritten,
   recordedStats,
   SOURCE_WRITTEN_FILE,
-  type StatDigest,
   updateSourceDir,
   writtenFile,
   writtenRecord,
@@ -43,8 +43,9 @@ import {
 import {
   assertListedBlobs,
   blobDigests,
-  downloadBlob,
   editedBlobs,
+  type FetchedBlob,
+  fetchBlob,
   recordHashedBlobs,
 } from './workspace-source-blobs'
 import {
@@ -62,7 +63,9 @@ const GET_EXIT_CODES_HELP = `
 Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
 (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
-has more resources of a kind than one directory holds.`
+has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
+retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
+running the get again downloads only the rest.`
 
 /** `--only`'s help: every kind by its folder. */
 export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind) => KIND_DIRS[kind]).join(', ')}`
@@ -135,7 +138,7 @@ async function mergedSkipped(
 async function writeWorkspaceSource(
   client: Parameters<typeof loadCatalog>[0] &
     Parameters<typeof loadWorkspaceTypes>[0] &
-    Parameters<typeof downloadBlob>[0],
+    Parameters<typeof fetchBlob>[0],
   dir: string,
   source: WorkspaceSource,
   force: boolean
@@ -189,75 +192,100 @@ async function writeWorkspaceSource(
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
   // hash of one listed without it and `.sim/written.json` the stat of each; they land inside the
   // directory so each moves into place by a rename, which keeps that stat.
-  const scratch = stale.length > 0 ? await downloadDir(dir) : null
-  try {
-    const downloaded = new Map<string, StatDigest & { file: string }>()
-    if (scratch) {
-      await inPool(
-        stale.map((blob, index) => [blob, join(scratch, String(index))] as const),
-        async ([blob, file]) => {
-          const sha256 = await downloadBlob(client, blob, file)
-          const { size, mtimeMs } = await stat(file)
-          downloaded.set(blob.path, { sha256, size, mtimeMs, file })
-        }
-      )
-    }
-    const hashed = new Map(
-      stale.flatMap((blob) => {
-        const sha256 = downloaded.get(blob.path)?.sha256
-        return blob.sha256 === undefined && sha256 ? [[blob.path, sha256] as const] : []
+  const downloads = join(await downloadsRoot(dir), SOURCE_DOWNLOADS_DIR)
+  const downloaded = new Map<string, FetchedBlob>()
+  if (stale.length > 0) {
+    await mkdir(downloads, { recursive: true })
+    try {
+      await mapWithConcurrency(stale, FILE_CONCURRENCY, async (blob) => {
+        downloaded.set(blob.path, await fetchBlob(client, blob, downloads))
       })
-    )
-    const kept = {
-      ...Object.fromEntries(
-        Object.entries(written.digests).filter(
-          ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
-        )
-      ),
-      ...Object.fromEntries(
-        source.blobs.map((blob) => [
-          blob.path,
-          blob.sha256 ?? downloaded.get(blob.path)?.sha256 ?? '',
-        ])
-      ),
+    } catch (error) {
+      throw await keepDownloads(error, downloads, [...downloaded.values()], stale.length)
     }
-    const record = writtenRecord(
-      source.files,
-      kept,
-      new Map([...recordedStats(written), ...digests, ...downloaded])
-    )
-    const skipped = skippedFile(await mergedSkipped(dir, source))
-    const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
-    const write: Array<readonly [string, string]> = [
-      ...Object.entries(source.files),
-      ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
-      [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
-      [SOURCE_WRITTEN_FILE, writtenFile(record)],
-      ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
-      ...tree.change.write,
-    ]
-    await updateSourceDir(dir, {
-      write,
-      fetch: [...downloaded].map(
-        ([path, { file }]) => [path, (staged: string) => rename(file, staged)] as const
-      ),
-      remove: [
-        ...gone,
-        ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]),
-        ...(tree.change.remove ?? []),
-      ],
-    })
-    const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
-    return { written: summary.files, removed: gone.size, guide: summary.guide }
-  } finally {
-    if (scratch) await rm(scratch, { recursive: true, force: true })
   }
+  const hashed = new Map(
+    stale.flatMap((blob) => {
+      const sha256 = downloaded.get(blob.path)?.sha256
+      return blob.sha256 === undefined && sha256 ? [[blob.path, sha256] as const] : []
+    })
+  )
+  const kept = {
+    ...Object.fromEntries(
+      Object.entries(written.digests).filter(
+        ([path]) => !gone.has(path) && !Object.hasOwn(source.files, path)
+      )
+    ),
+    ...Object.fromEntries(
+      source.blobs.map((blob) => [
+        blob.path,
+        blob.sha256 ?? downloaded.get(blob.path)?.sha256 ?? '',
+      ])
+    ),
+  }
+  const record = writtenRecord(
+    source.files,
+    kept,
+    new Map([...recordedStats(written), ...digests, ...downloaded])
+  )
+  const skipped = skippedFile(await mergedSkipped(dir, source))
+  const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
+  const write: Array<readonly [string, string]> = [
+    ...Object.entries(source.files),
+    ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
+    [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
+    [SOURCE_WRITTEN_FILE, writtenFile(record)],
+    ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
+    ...tree.change.write,
+  ]
+  await updateSourceDir(dir, {
+    write,
+    fetch: [...downloaded].map(
+      ([path, { file }]) => [path, (staged: string) => rename(file, staged)] as const
+    ),
+    remove: [...gone, ...(skipped ? [] : [WORKSPACE_SKIPPED_FILE]), ...(tree.change.remove ?? [])],
+  })
+  await rm(downloads, { recursive: true, force: true })
+  const summary = finishTree(dir, write.length + stale.length, workspaceTypes, tree.ownsTsconfig)
+  return { written: summary.files, removed: gone.size, guide: summary.guide }
 }
 
-/** A scratch folder inside the directory, on the file system its staged write renames from. */
-async function downloadDir(dir: string): Promise<string> {
+/**
+ * Where a get keeps the blobs it verified until they move into place. A get that fails leaves them
+ * there, so the next one downloads only the rest; the one that completes removes the folder.
+ */
+const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
+
+/** The directory, resolved, so the downloads folder sits on the file system its renames stay on. */
+async function downloadsRoot(dir: string): Promise<string> {
   await mkdir(dir, { recursive: true })
-  return mkdtemp(join(await realpath(dir), '.sim-download-'))
+  return realpath(dir)
+}
+
+/**
+ * The error a get whose download failed throws, once it dropped the downloads no later get can
+ * reuse: it names the blobs kept, so a rerun after a rate limit or a dropped connection resumes.
+ */
+async function keepDownloads(
+  error: unknown,
+  downloads: string,
+  fetched: readonly FetchedBlob[],
+  listed: number
+): Promise<unknown> {
+  await Promise.all(
+    fetched.filter((blob) => !blob.kept).map((blob) => rm(blob.file, { force: true }))
+  )
+  const kept = fetched.filter((blob) => blob.kept).length
+  if (kept === 0) await rmdir(downloads).catch(() => {})
+  if (!(error instanceof SimApiError) || kept === 0) return error
+  return new SimApiError(
+    `${error.message} ${kept} of ${listed} binary files were downloaded and are kept in ${SOURCE_DOWNLOADS_DIR}: run the get again to download only the rest.`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
 }
 
 /**

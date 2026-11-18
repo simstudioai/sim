@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -19,7 +20,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
-  inPool,
+  FILE_CONCURRENCY,
   lockCodeFiles,
   readPreviousLock,
   readSourceText,
@@ -37,13 +38,15 @@ const APPLY_EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
-6 the workflow or its folder is locked; 7 the source is too large.`
+6 the workflow or its folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after
+the CLI's retries, so nothing was written: wait a minute and run it again.`
 
 const CREATE_EXIT_CODES_HELP = `
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each
 printed as file:line:column with its frame and hint), the workflow name is taken
 (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source
-is too large.`
+is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a
+minute and run it again.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]
@@ -168,7 +171,9 @@ async function readSourceFiles(
   const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   const paths = codeFilePaths(entry, lock)
-  const texts = await inPool(paths, (path) => readSourceText(directory, path))
+  const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
+    readSourceText(directory, path)
+  )
   paths.forEach((path, index) => {
     const text = texts[index]
     if (text !== null) files[path] = text
@@ -209,6 +214,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
         params: args.params,
         ...(dryRun ? { query: { dryRun: true } } : {}),
         body: args.body,
+        retryRateLimited: true,
       })
       return response.data
     } catch (error) {
