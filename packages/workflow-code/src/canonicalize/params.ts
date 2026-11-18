@@ -3,6 +3,7 @@ import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import { isConditionClause } from '../catalog/conditions'
 import type { CatalogBlock, CatalogCondition, CatalogSubBlock } from '../catalog/types'
+import { declarationsOf } from '../catalog/view'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import { structuredCodec } from '../structured'
@@ -47,7 +48,7 @@ export function declarationFor(
   id: string,
   triggerMode: boolean
 ): CatalogSubBlock | undefined {
-  const declarations = catalog?.subBlocks.filter((subBlock) => subBlock.id === id) ?? []
+  const declarations = catalog ? declarationsOf(catalog, id) : []
   const surface = triggerMode ? 'trigger' : 'action'
   return declarations.find((subBlock) => subBlock.surface === surface) ?? declarations[0]
 }
@@ -163,10 +164,8 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
     if (
       catalog &&
       typeof subBlock.type === 'string' &&
-      !catalog.subBlocks.some(
-        (candidate) => candidate.id === id && candidate.type === subBlock.type
-      ) &&
-      catalog.subBlocks.some((candidate) => candidate.id === id)
+      declarationsOf(catalog, id).length > 0 &&
+      !declarationsOf(catalog, id).some((candidate) => candidate.type === subBlock.type)
     ) {
       context.diagnostics.push({
         code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',

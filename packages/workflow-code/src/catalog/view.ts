@@ -197,6 +197,43 @@ function memoBlock(catalog: BlockCatalog, type: string): CatalogBlock {
   return block
 }
 
+const NO_DECLARATIONS: readonly CatalogSubBlock[] = []
+
+/** {@link declarationsById} per subBlock list; a served block's list is never edited. */
+const declarationsMemo = new WeakMap<
+  ReadonlyArray<CatalogSubBlock>,
+  ReadonlyMap<string, readonly CatalogSubBlock[]>
+>()
+
+/**
+ * A block's declarations by subBlock id, in declared order: a block may declare one id more than
+ * once (one copy per surface, or per operation). Built once per block.
+ */
+export function declarationsById(
+  block: Pick<CatalogBlock, 'subBlocks'>
+): ReadonlyMap<string, readonly CatalogSubBlock[]> {
+  let byId = declarationsMemo.get(block.subBlocks)
+  if (!byId) {
+    const built = new Map<string, CatalogSubBlock[]>()
+    for (const subBlock of block.subBlocks) {
+      const list = built.get(subBlock.id)
+      if (list) list.push(subBlock)
+      else built.set(subBlock.id, [subBlock])
+    }
+    byId = built
+    declarationsMemo.set(block.subBlocks, byId)
+  }
+  return byId
+}
+
+/** Every declaration of `id` on a block ({@link declarationsById}), in declared order. */
+export function declarationsOf(
+  block: Pick<CatalogBlock, 'subBlocks'>,
+  id: string
+): readonly CatalogSubBlock[] {
+  return declarationsById(block).get(id) ?? NO_DECLARATIONS
+}
+
 /** Every block type the catalog serves, in catalog order. */
 export function catalogBlockTypes(catalog: BlockCatalog): string[] {
   return Object.keys(catalog.blocks)

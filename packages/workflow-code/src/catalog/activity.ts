@@ -22,7 +22,7 @@ import {
 import { evaluateCondition, recordLookup } from './conditions'
 import { isTriggerSurface, onSurface, serializedCanonicalIndex } from './surface'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
-import { catalogBlock, catalogTrigger } from './view'
+import { catalogBlock, catalogTrigger, declarationsOf } from './view'
 
 /** A custom block's computed wiring; the serializer recomputes it and never forwards it. */
 const CUSTOM_BLOCK_WIRING = new Set(['workflowId', 'inputMapping'])
@@ -42,7 +42,8 @@ function declaresCustomInputs(block: CatalogBlock): boolean {
  */
 const TRIGGER_SYSTEM_IDS: ReadonlySet<string> = new Set(SYSTEM_SUBBLOCK_IDS)
 
-interface ActivityInputs {
+/** What decides whether a block's stored params are active (`isInactive`). */
+export interface ActivityInputs {
   block: CatalogBlock
   blockType: string
   triggerMode: boolean
@@ -161,7 +162,7 @@ export function isInactive(id: SubBlockId, inputs: ActivityInputs): boolean {
   if (inputs.deployRead.has(id)) return false
   const isCustom = inputs.block.custom !== undefined
   if (isCustom && CUSTOM_BLOCK_WIRING.has(id)) return true
-  const declarations = inputs.block.subBlocks.filter((subBlock) => subBlock.id === id)
+  const declarations = declarationsOf(inputs.block, id)
   if (declarations.length === 0) {
     if (isCustom) return declaresCustomInputs(inputs.block)
     return !(inputs.blockType === 'agent' && LEGACY_AGENT_FIELDS.has(id))
@@ -195,6 +196,30 @@ export function canonicalActivityInputs(
     overrides,
     index: serializedCanonicalIndex(declared, block.triggerMode),
     deployRead: deployReadIds(catalog, declared, block.type, block.triggerMode, values),
+  }
+}
+
+/**
+ * `inputs` with the stored value of `id` replaced by `value`: what {@link canonicalActivityInputs}
+ * returns for the block holding that value, without rebuilding what the value cannot change. The
+ * canonical index depends only on the block and its surface; the ids deploy reads change only
+ * with the trigger it deploys as.
+ */
+export function withStoredValue(
+  catalog: BlockCatalog,
+  inputs: ActivityInputs,
+  id: SubBlockId,
+  value: unknown
+): ActivityInputs {
+  const values: Record<string, unknown> = { ...inputs.values }
+  setOwn(values, id, value)
+  const movesTrigger = id === 'selectedTriggerId' || id === 'triggerId'
+  return {
+    ...inputs,
+    values,
+    deployRead: movesTrigger
+      ? deployReadIds(catalog, inputs.block, inputs.blockType, inputs.triggerMode, values)
+      : inputs.deployRead,
   }
 }
 
