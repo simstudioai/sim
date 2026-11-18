@@ -54,6 +54,7 @@ import {
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
+import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
@@ -1577,6 +1578,59 @@ describe('source apply edge cases', () => {
       })
       expect(await storedName(seeded.workflowId)).toBe(name)
       expect(await snapshot(seeded.workflowId)).toEqual(before)
+    }
+  )
+
+  /** A `planOnly` evaluation of `files`, to commit after a concurrent write lands. */
+  async function planned(source: ReadWorkflowSourceResult, files: Record<string, string>) {
+    const plan = await apply(source, files, { planOnly: true })
+    if (!plan.evaluated) throw new Error('The plan was refused')
+    return plan.evaluated
+  }
+
+  check(
+    'a source rename committed after a teammate renamed the workflow is a 409 and keeps their name',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const files = edit(source.files, `'${await storedName(seeded.workflowId)}'`, "'From source'")
+      const evaluated = await planned(source, files)
+      const teammate = `Teammate ${generateId()}`
+      await updateWorkflow.execute({
+        principal,
+        input: { workflowId: seeded.workflowId, name: teammate },
+      })
+
+      await expect(apply(source, files, { evaluated })).rejects.toMatchObject({
+        name: 'WorkflowSourceStaleError',
+        code: 'conflict',
+      })
+      expect(await storedName(seeded.workflowId)).toBe(teammate)
+    }
+  )
+
+  check(
+    'a name taken after the plan refuses the whole apply, leaving the graph unwritten',
+    async () => {
+      const seeded = await seedWorkflow()
+      const other = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const contested = `Contested ${generateId()}`
+      const files = edit(edit(source.files, `'${name}'`, `'${contested}'`), SCORE_CODE, 'return 43')
+      const evaluated = await planned(source, files)
+      const before = await snapshot(seeded.workflowId)
+      await updateWorkflow.execute({
+        principal,
+        input: { workflowId: other.workflowId, name: contested },
+      })
+
+      await expect(apply(source, files, { evaluated })).rejects.toMatchObject({
+        name: 'WorkflowSourceNameTakenError',
+        code: 'conflict',
+      })
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+      expect(await storedName(seeded.workflowId)).toBe(name)
     }
   )
 

@@ -154,7 +154,7 @@ function restoreInactive(
 
 /** Fields of a loop or parallel config that the executor reads for its type. */
 function liveFields(spec: LoopSpec | ParallelSpec): Set<string> {
-  return new Set(Object.keys(executableSubflow(spec)))
+  return new Set(Object.keys(executableSubflow(spec).config))
 }
 
 function restoreLoop(target: LoopSpec, prev: LoopSpec, live: Set<string>): LoopSpec {

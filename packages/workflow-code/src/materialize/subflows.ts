@@ -1,5 +1,5 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
-import type { Json, LoopSpec, ParallelSpec } from '../model'
+import { isJsonObject, type Json, type LoopSpec, type ParallelSpec } from '../model'
 import { setOrDelete } from '../records'
 
 /** `block.data` keys each subflow kind owns, and the model field each one holds. */
@@ -38,13 +38,12 @@ export function writeSubflowData(
   }
 }
 
-interface SubflowEntryInputs {
+/** What a container's map entry is built from, besides its config and prev's entry. */
+interface SubflowEntryContext {
   id: string
   block: BlockState
-  spec: LoopSpec | ParallelSpec
   /** Ids of the blocks whose `data.parentId` is this container, in block order. */
   nodes: string[]
-  prevEntry: Loop | Parallel | undefined
   /** Whether the config differs from prev's (always for new). */
   specChanged: boolean
   enabledChanged: boolean
@@ -61,53 +60,90 @@ function sameMembers(left: readonly string[], right: readonly string[]): boolean
 }
 
 /**
- * The loops/parallels map entry for a container (`generateLoopBlocks`),
- * consistent with `block.data`. Prev's entry is returned untouched when its config, membership and
- * flags are unchanged. A continuing container that had no entry gets one only when something
- * changed, so a no-op write adds nothing.
+ * The executor types a loop's collection and a parallel's distribution as an array, an object or
+ * text. A JSON scalar fits none of them (the API contract refuses one), so it is left out, as an
+ * absent collection is; the executor reads the collection from `block.data`, which keeps it.
  */
-export function subflowEntry(inputs: SubflowEntryInputs): Loop | Parallel | undefined {
-  const { block, spec, prevEntry } = inputs
-  const membersChanged = !sameMembers(prevEntry?.nodes ?? inputs.prevNodes, inputs.nodes)
-  const changed =
-    inputs.specChanged || inputs.enabledChanged || inputs.lockedChanged || membersChanged
-  if (prevEntry && !changed) return prevEntry
-  if (!prevEntry && inputs.matched && !changed) return undefined
+function storedCollection(value: Json | undefined): Loop['forEachItems'] {
+  if (typeof value === 'string' || Array.isArray(value) || isJsonObject(value)) return value
+  return undefined
+}
 
+/**
+ * Whether prev's entry stands: `{ entry }` (prev's, or none for a continuing container that had
+ * none) when its config, membership and flags are unchanged, else `null` to build one.
+ */
+function standingEntry<E extends Loop | Parallel>(
+  context: SubflowEntryContext,
+  prevEntry: E | undefined,
+  membersChanged: boolean
+): { entry: E | undefined } | null {
+  const changed =
+    context.specChanged || context.enabledChanged || context.lockedChanged || membersChanged
+  if (prevEntry && !changed) return { entry: prevEntry }
+  if (!prevEntry && context.matched && !changed) return { entry: undefined }
+  return null
+}
+
+/**
+ * A loop's `loops` map entry (`generateLoopBlocks`), consistent with `block.data`. Prev's entry is
+ * returned untouched when its config, membership and flags are unchanged. A continuing container
+ * that had no entry gets one only when something changed, so a no-op write adds nothing.
+ */
+export function loopEntry(
+  context: SubflowEntryContext,
+  spec: LoopSpec,
+  prevEntry: Loop | undefined
+): Loop | undefined {
+  const membersChanged = !sameMembers(prevEntry?.nodes ?? context.prevNodes, context.nodes)
+  const standing = standingEntry(context, prevEntry, membersChanged)
+  if (standing) return standing.entry
+  const { block } = context
   const enabled = block.enabled !== false
-  if (spec.kind === 'loop') {
-    const entry: Loop = prevEntry
-      ? { ...(prevEntry as Loop) }
-      : {
-          id: inputs.id,
-          nodes: inputs.nodes,
-          iterations: spec.iterations,
-          loopType: spec.loopType,
-          enabled,
-        }
-    if (membersChanged) entry.nodes = inputs.nodes
-    if (!prevEntry || inputs.enabledChanged) entry.enabled = enabled
-    if (!prevEntry || inputs.specChanged) {
-      entry.iterations = spec.iterations
-      entry.loopType = spec.loopType
-      setOrDelete(entry, 'forEachItems', spec.forEachItems as Loop['forEachItems'])
-      setOrDelete(entry, 'whileCondition', spec.whileCondition)
-      setOrDelete(entry, 'doWhileCondition', spec.doWhileCondition)
-    }
-    if (inputs.lockedChanged) setOrDelete(entry, 'locked', block.locked === true ? true : undefined)
-    return entry
+  const entry: Loop = prevEntry
+    ? { ...prevEntry }
+    : {
+        id: context.id,
+        nodes: context.nodes,
+        iterations: spec.iterations,
+        loopType: spec.loopType,
+        enabled,
+      }
+  if (membersChanged) entry.nodes = context.nodes
+  if (!prevEntry || context.enabledChanged) entry.enabled = enabled
+  if (!prevEntry || context.specChanged) {
+    entry.iterations = spec.iterations
+    entry.loopType = spec.loopType
+    setOrDelete(entry, 'forEachItems', storedCollection(spec.forEachItems))
+    setOrDelete(entry, 'whileCondition', spec.whileCondition)
+    setOrDelete(entry, 'doWhileCondition', spec.doWhileCondition)
   }
+  if (context.lockedChanged) setOrDelete(entry, 'locked', block.locked === true ? true : undefined)
+  return entry
+}
+
+/** A parallel's `parallels` map entry, by the same rules as {@link loopEntry}. */
+export function parallelEntry(
+  context: SubflowEntryContext,
+  spec: ParallelSpec,
+  prevEntry: Parallel | undefined
+): Parallel | undefined {
+  const membersChanged = !sameMembers(prevEntry?.nodes ?? context.prevNodes, context.nodes)
+  const standing = standingEntry(context, prevEntry, membersChanged)
+  if (standing) return standing.entry
+  const { block } = context
+  const enabled = block.enabled !== false
   const entry: Parallel = prevEntry
-    ? { ...(prevEntry as Parallel) }
-    : { id: inputs.id, nodes: inputs.nodes, enabled }
-  if (membersChanged) entry.nodes = inputs.nodes
-  if (!prevEntry || inputs.enabledChanged) entry.enabled = enabled
-  if (!prevEntry || inputs.specChanged) {
+    ? { ...prevEntry }
+    : { id: context.id, nodes: context.nodes, enabled }
+  if (membersChanged) entry.nodes = context.nodes
+  if (!prevEntry || context.enabledChanged) entry.enabled = enabled
+  if (!prevEntry || context.specChanged) {
     setOrDelete(entry, 'parallelType', spec.parallelType)
     setOrDelete(entry, 'count', spec.count)
-    setOrDelete(entry, 'distribution', spec.distribution as Parallel['distribution'])
+    setOrDelete(entry, 'distribution', storedCollection(spec.distribution))
     setOrDelete(entry, 'batchSize', spec.batchSize)
   }
-  if (inputs.lockedChanged) setOrDelete(entry, 'locked', block.locked === true ? true : undefined)
+  if (context.lockedChanged) setOrDelete(entry, 'locked', block.locked === true ? true : undefined)
   return entry
 }

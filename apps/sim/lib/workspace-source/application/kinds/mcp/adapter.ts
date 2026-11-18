@@ -4,10 +4,11 @@
  * allowlist and SSRF checks included), audit and cache invalidation apply unchanged.
  *
  * A server's id derives from its URL (`generateMcpServerId`), so the URL is its identity: an
- * unbound server at the declared URL is adopted, two declarations of one URL refuse, and a changed
- * URL replaces the server (a new id, the old one deleted) since the update use case refuses a new
- * URL. A replace breaks stored workflows that still call the old server by id, so it needs
- * `--allow-delete` when any does. Servers a Credential Group manages are not source's to manage
+ * unbound server at the declared URL is adopted, two declarations of one URL refuse, and a URL
+ * that keeps the id (only its query string differs) is set in place through the reconfigure use
+ * case, which validates the URL before it writes anything. A URL with a new id replaces the server
+ * (created at the new URL, then the old one deleted). A replace breaks stored workflows that still
+ * call the old server by id, so it needs `--allow-delete` when any does. Servers a Credential Group manages are not source's to manage
  * and are left out.
  *
  * `checkRefs` checks the tools workflows call (`mcp(key).tool(name)`) against the server's own
@@ -37,6 +38,7 @@ import {
   discoverMcpServerToolsUseCase,
   getMcpServerUseCase,
   listMcpServersUseCase,
+  reconfigureMcpServerUseCase,
   updateMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 import type { McpServerRow } from '@/lib/mcp/queries'
@@ -72,7 +74,7 @@ const DISCOVERY_TIMEOUT_MS = 10_000
 interface McpPlan {
   /** The declaration fields that differ from the stored server. */
   changed: string[]
-  /** The URL changed: create the server at the new URL and delete the stored one. */
+  /** The URL changed its id: create the server at the new URL and delete the stored one. */
   replace?: boolean
 }
 
@@ -180,7 +182,8 @@ async function planServer(
     serverFingerprint: storedFingerprint(record.state),
     detail: { changed },
   }
-  if (record.state.url === decl.url) return update
+  // A URL that keeps the id is set in place (see `apply`); only a new id replaces the server.
+  if (record.state.url === decl.url || record.id === id) return update
   return planReplace(update, record, ctx)
 }
 
@@ -260,12 +263,22 @@ function updateInput(
     ...(has('name') ? { name: full.name } : {}),
     ...(has('description') ? { description: full.description } : {}),
     ...(has('transport') ? { transport: full.transport } : {}),
+    ...(has('url') ? { url: full.url } : {}),
     ...(has('headers') ? { headers: full.headers } : {}),
     ...(has('timeout') ? { timeout: full.timeout } : {}),
     ...(has('retries') ? { retries: full.retries } : {}),
     ...(has('enabled') ? { enabled: full.enabled } : {}),
     ...(has('auth') ? { authType: full.authType, oauthClientId: full.oauthClientId } : {}),
   }
+}
+
+/**
+ * The use case an update goes through: reconfigure when the URL changes (the update use case
+ * refuses any new URL; reconfigure takes one that keeps the server's id, and checks a new
+ * destination needs an admin), update otherwise.
+ */
+function updateUseCaseOf(changed: readonly string[]) {
+  return changed.includes('url') ? reconfigureMcpServerUseCase : updateMcpServerUseCase
 }
 
 async function getServer(ctx: SourceContext, serverId: string): Promise<McpServerRow> {
@@ -399,7 +412,7 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
         input: { workspaceId, serverId: change.storedId },
       })
     } else if (change.action !== 'create') {
-      await updateMcpServerUseCase.authorize({
+      await updateUseCaseOf(change.detail?.changed ?? []).authorize({
         principal,
         input: { workspaceId, serverId: change.storedId },
       })
@@ -430,19 +443,14 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
     if (change.action === 'create') return written(change.key, await create())
     if (!current) throw new Error('An MCP server update needs the stored id')
     if (change.detail?.replace) {
-      // The same id (only the query string changed) is revived after the delete; another is
-      // created first, so a failed create leaves the stored server as it was.
-      if (serverIdOf(ctx, decl.url) === current.id) {
-        await remove(current.id)
-        return written(change.key, await create())
-      }
+      // Created first, so a failed create leaves the stored server as it was.
       const created = await create()
       await remove(current.id)
       return written(change.key, created)
     }
     const changed = change.detail?.changed ?? []
     if (changed.length === 0) return written(change.key, current)
-    const { server } = await updateMcpServerUseCase.execute({
+    const { server } = await updateUseCaseOf(changed).execute({
       principal,
       input: updateInput(ctx, current.id, decl, changed, current),
     })

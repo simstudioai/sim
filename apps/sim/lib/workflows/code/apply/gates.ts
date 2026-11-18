@@ -6,35 +6,38 @@ import {
   type Diagnostic,
 } from '@sim/workflow-code'
 import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
-import { type BlockState, isSubflowType } from '@sim/workflow-types/workflow'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { GraphDiff, SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
+import { normalizeTools } from '@/lib/workflows/editing/builders'
 import {
-  applyBlockRetry,
-  createSubBlockInputGate,
-  filterDisallowedTools,
-  normalizeTools,
-} from '@/lib/workflows/editing/builders'
-import { refuseSunsetPlacement } from '@/lib/workflows/editing/operations'
+  checkBlockPlacement,
+  checkRetrySetting,
+  createFieldValueGate,
+  type GateContext,
+  partitionToolEntries,
+} from '@/lib/workflows/editing/gates'
 import type {
   EditWorkflowOperation,
   SkippedItem,
   SkippedItemType,
   ValidationError,
 } from '@/lib/workflows/editing/types'
-import { isBlockTypeAllowed, preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
+import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
 
 /**
  * The editing engine's per-user gates, applied to a whole-graph diff instead of to edit
- * operations. The engine skips a refused item and applies the rest; source apply is
- * atomic, so every refusal here is an error diagnostic and nothing is written.
+ * operations. `BLOCK_GATES` (`editing/gates.ts`) is the one list both run: the engine withholds
+ * what a gate refuses and applies the rest; source apply is atomic, so every refusal here is an
+ * error diagnostic and nothing is written. The checks below that are not in that list (credential
+ * reachability, the copilot tool-binding contract, enablement, the sandbox plan) call the
+ * engine's own functions.
  *
  * Gates run on added and changed blocks only, as the engine runs them on the blocks an operation
  * names: a stored block the caller left alone is never refused for a policy that changed after
@@ -185,64 +188,32 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
 }
 
 /**
- * The block-type gates the engine runs on `add`, `insert_into_subflow` and an `edit` that
- * changes `type`: registry membership, deployment visibility plus the integration allowlist, and
- * the sunset refusal. Returns whether the placement passed. First, a type the source catalog
- * keeps only for blocks that already use it is refused (`notAddable`); the engine has no such
- * rule, so the remaining gates still run and report alongside it.
+ * The placement gates on a new or retyped block, judged against the target graph's other blocks so
+ * replacing a trigger in one apply (remove the old, add the new) passes. Returns whether the
+ * placement passed. First, a type the source catalog keeps only for blocks that already use it is
+ * refused (`notAddable`); the engine has no such rule, so the gates still run and report alongside
+ * it.
  */
 function gateBlockPlacement(
   entry: GatedBlock,
   catalog: BlockCatalog,
-  permissionConfig: PermissionGroupConfig | null,
-  skipped: SkippedItem[],
+  others: Array<{ type: string }>,
+  ctx: GateContext,
   notAddable: (block: BlockState) => void
-): boolean {
+): SkippedItem | null {
   const { block } = entry
-  const operationType = entry.added ? 'add' : 'edit'
   if (catalogBlock(catalog, block.type)?.addable === false) notAddable(block)
-  if (isSubflowType(block.type)) return true
-  if (!getBlock(block.type)) {
-    skipped.push({
-      type: 'invalid_block_type',
-      operationType,
+  return checkBlockPlacement(
+    {
       blockId: block.id,
-      reason: `Invalid block type "${block.type}"`,
-      details: { requestedType: block.type },
-    })
-    return false
-  }
-  if (!isBlockTypeAllowed(block.type, permissionConfig)) {
-    skipped.push({
-      type: 'block_not_allowed',
-      operationType,
-      blockId: block.id,
-      reason: `Block type "${block.type}" is unavailable in this deployment or blocked by access control`,
-      details: { requestedType: block.type },
-    })
-    return false
-  }
-  return !refuseSunsetPlacement(skipped, {
-    blockType: block.type,
-    operationType,
-    blockId: block.id,
-    outcome: entry.added ? 'block not added' : 'type change refused',
-  })
-}
-
-/**
- * A retry policy the diff sets on a block that always runs once (a trigger, a human in the loop, a
- * container), through the engine's own `applyBlockRetry` so the refusal and its eligibility rule
- * are the engine's. It writes onto a throwaway copy: the gate only reports.
- */
-function gateRetry(entry: GatedBlock, skipped: SkippedItem[]): void {
-  if (!entry.retrySet) return
-  const { block } = entry
-  applyBlockRetry({ type: block.type, triggerMode: block.triggerMode }, block.retry, {
-    operationType: entry.added ? 'add' : 'edit',
-    blockId: block.id,
-    skippedItems: skipped,
-  })
+      blockType: block.type,
+      previousType: entry.baseBlock?.type,
+      operationType: entry.added ? 'add' : 'edit',
+      outcome: entry.added ? 'block not added' : 'type change refused',
+      others,
+    },
+    ctx
+  )
 }
 
 /**
@@ -268,70 +239,32 @@ function createOtherTypes(target: SourceGraph): (self: string) => Array<{ type: 
 }
 
 /**
- * Trigger uniqueness against the target graph: a new (or retyped) block may not be a second
- * single-instance trigger or block. The other blocks are the target's, so replacing a trigger in
- * one apply (remove the old, add the new) passes.
- */
-function gateTriggerUniqueness(
-  entry: GatedBlock,
-  others: Array<{ type: string }>,
-  skipped: SkippedItem[]
-): void {
-  const { block } = entry
-  const operationType = entry.added ? 'add' : 'edit'
-  const triggerIssue = TriggerUtils.getTriggerAdditionIssue(others, block.type)
-  if (triggerIssue) {
-    skipped.push({
-      type: 'duplicate_trigger',
-      operationType,
-      blockId: block.id,
-      reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
-      details: { requestedType: block.type, issue: triggerIssue.issue },
-    })
-    return
-  }
-  const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(others, block.type)
-  if (singleInstanceIssue) {
-    skipped.push({
-      type: 'duplicate_single_instance_block',
-      operationType,
-      blockId: block.id,
-      reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
-      details: { requestedType: block.type },
-    })
-  }
-}
-
-/**
- * The model/operation allowlist and the tool denylist, on the values the diff sets. The denylist
- * covers every field the block type declares as `tool-input` (an agent's `tools`, a human in the
- * loop's `notification`), and judges only the entries the stored value did not already hold.
+ * The field and tool-entry gates on the values the diff sets. Tool entries are judged in every
+ * field the block type declares as `tool-input` (an agent's `tools`, a human in the loop's
+ * `notification`), and only the entries the stored value did not already hold.
  */
 function gateFieldValues(
   entry: GatedBlock,
   toolInputFields: ReadonlySet<string>,
-  permissionConfig: PermissionGroupConfig | null,
+  ctx: GateContext,
   record: (skipped: SkippedItem[], param: string) => void
 ): void {
   const { block, baseBlock } = entry
-  const operationType = entry.added ? 'add' : 'edit'
+  const checkField = createFieldValueGate(
+    { blockId: block.id, blockType: block.type, operationType: entry.added ? 'add' : 'edit' },
+    ctx
+  )
   for (const field of entry.changedFields) {
     const skipped: SkippedItem[] = []
-    const isInputAllowed = createSubBlockInputGate({
-      blockType: block.type,
-      permissionConfig,
-      blockId: block.id,
-      operationType,
-      skippedItems: skipped,
-    })
     const value = subBlockValue(block, field)
-    isInputAllowed(field, value)
+    const refusal = checkField(field, value)
+    if (refusal) skipped.push(refusal)
     if (toolInputFields.has(field) && Array.isArray(value)) {
       const before = entry.typeChanged ? undefined : subBlockValue(baseBlock, field)
       const previous = Array.isArray(before) ? before : []
       const newEntries = value.filter((tool) => !previous.some((old) => isEqual(old, tool)))
       if (newEntries.length > 0) {
-        filterDisallowedTools(normalizeTools(newEntries), permissionConfig, block.id, skipped)
+        skipped.push(...partitionToolEntries(normalizeTools(newEntries), block.id, ctx).refused)
       }
     }
     record(skipped, field)
@@ -413,11 +346,11 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     }
   }
 
+  const ctx: GateContext = { permissionConfig }
   for (const entry of gated) {
     const { block } = entry
     if (entry.added || entry.typeChanged) {
-      const skipped: SkippedItem[] = []
-      const placed = gateBlockPlacement(entry, catalog, permissionConfig, skipped, (refused) =>
+      const refusal = gateBlockPlacement(entry, catalog, otherTypes(block.type), ctx, (refused) =>
         diagnostics.push({
           code: 'E_APPLY_TYPE_NOT_ADDABLE',
           severity: 'error',
@@ -425,9 +358,11 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
           ...located(refused.id),
         })
       )
-      if (placed) gateTriggerUniqueness(entry, otherTypes(block.type), skipped)
-      record(skipped)
-      if (!placed) continue
+      // A refused placement withholds the block, as the engine does, so nothing else on it is judged.
+      if (refusal) {
+        record([refusal])
+        continue
+      }
     }
     if (entry.typeChanged) {
       diagnostics.push({
@@ -438,16 +373,25 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
       })
     }
 
-    const retrySkipped: SkippedItem[] = []
-    gateRetry(entry, retrySkipped)
-    record(retrySkipped)
+    if (entry.retrySet) {
+      const refusal = checkRetrySetting(
+        {
+          blockId: block.id,
+          blockType: block.type,
+          triggerMode: block.triggerMode,
+          operationType: entry.added ? 'add' : 'edit',
+        },
+        ctx
+      )
+      if (refusal) record([refusal])
+    }
 
     const toolInputFields = new Set(
       getBlock(block.type)
         ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
         .map((subBlock) => subBlock.id) ?? []
     )
-    gateFieldValues(entry, toolInputFields, permissionConfig, record)
+    gateFieldValues(entry, toolInputFields, ctx, record)
 
     if (args.isCopilot) {
       for (const field of toolInputFields) {

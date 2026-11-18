@@ -86,7 +86,7 @@ interface DeploymentPlan {
   workflowId?: string
   /** Publish the draft: a first deploy, or `live: 'draft'` with a draft that differs. */
   deploy: boolean
-  /** The public API flag to set, when it changes. */
+  /** The public API flag to set: on a first deploy (an undeploy keeps the old one), or a change. */
   publicApi?: boolean
   /** Whether the chat is written or removed. */
   chat?: 'replace' | 'delete'
@@ -270,7 +270,8 @@ async function planDeployment(
     next = planned.settled
   } else if (planned.action === 'create') {
     detail.deploy = true
-    if (decl.api?.public === true) detail.publicApi = true
+    // An undeploy keeps the workflow's public API flag, so a first deploy always writes it.
+    detail.publicApi = decl.api?.public === true
     if (decl.chat) detail.chat = 'replace'
     next = {
       ...change,
@@ -602,13 +603,14 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     }
     const { decl, detail } = change
     if (!decl || !detail) throw new Error('A deployment write needs its declaration and plan')
-    if (detail.deploy) await deployDraft(change, workflowId, ctx)
+    // The flag is written before the deploy, so the API never goes live under a stale one.
     if (detail.publicApi !== undefined) {
       await updateWorkflowPublicApi.execute({
         principal,
         input: { workflowId, isPublicApi: detail.publicApi },
       })
     }
+    if (detail.deploy) await deployDraft(change, workflowId, ctx)
     if (detail.chat === 'replace' && decl.chat)
       await writeChat(ctx, change.key, workflowId, decl.chat)
     if (detail.chat === 'delete') {

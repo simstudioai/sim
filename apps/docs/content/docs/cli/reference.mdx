@@ -8311,12 +8311,16 @@ sim workflows source check [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+| `--strict` | No | Fail on those warnings in every block, not only the blocks the edit added. |
+| `--no-strict` | No | Never fail on a warning. |
 
 </CommandTable>
 
-Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring); the dry run still checks what only the server knows (resource keys, credentials, stored values, deployment), so run it before applying.
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring). In a workflow folder of a workspace directory (workflows/&lt;key&gt;), it reads the workspace's .sim/base.json and also checks env names, resource keys and table columns against what the directory declares. The dry run still checks what only the server knows (stored values, deployment), so run it before applying. A check also adds the blocks the source now uses to the CLI's tsconfig.json, so tsc type-checks a block the edit added.
 
-Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run `sim workflows source get` once).
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once).
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
 
 ### sim workflows get
 
@@ -9572,3 +9576,29 @@ sim workspaces source apply [options]
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or changes were held back because they use a declared secret the workspace has no value for or a declared credential key nothing binds to (the rest was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped part-way (a resource failed, or a later round stayed rate limited): what was written is saved into the directory, and applying again continues; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again.
 
 API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+
+### sim workspaces source check
+
+Compile every workflow of a workspace source directory locally, without the server
+
+```bash
+sim workspaces source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
+| `--strict` | No | Fail on those warnings in every block, not only the blocks the edit added. |
+| `--no-strict` | No | Never fail on a warning. |
+
+</CommandTable>
+
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached, and checks each against what the directory declares: env names (secrets.ts), credential keys (credentials.ts), the keys of its tables, knowledge bases, custom tools, MCP servers and workflows, and the columns and select options of a table row write. No request is made. The dry run still checks what only the server knows (stored values, resource files, deployment), so run it before applying. A check also adds the blocks the workflows now use to the CLI's tsconfig.json, so tsc type-checks a block an edit added.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once).
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
