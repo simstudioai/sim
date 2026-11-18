@@ -8,9 +8,8 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { effectiveModes } from './canonicalize/modes'
+import { toolModes } from './canonicalize/modes'
 import type { BlockCatalog } from './catalog/types'
-import { catalogBlock } from './catalog/view'
 import type { CanonicalTool, Json, ResourceKind, ResourceNode, Value } from './model'
 import { deepEqual, setOwn } from './records'
 
@@ -79,16 +78,6 @@ export interface WorkflowToolForm extends ToolUsage {
   workflow: ResourceNode
 }
 
-/** The modes canonicalize gives a tool with no explicit overrides. */
-function defaultModes(
-  catalog: BlockCatalog,
-  type: string,
-  params: Record<string, Value>
-): CanonicalTool['modes'] {
-  const block = catalogBlock(catalog, type)
-  return block ? effectiveModes(block, false, params, undefined, false) : {}
-}
-
 function withUsage(tool: CanonicalTool, usage: ToolUsage): CanonicalTool {
   if (usage.usageControl !== undefined) tool.usageControl = usage.usageControl
   if (usage.usageControlExpression !== undefined) {
@@ -129,7 +118,7 @@ export function buildMcpTool(catalog: BlockCatalog, form: McpToolForm): Canonica
     type: MCP_TOOL_TYPE,
     title: form.name,
     params,
-    modes: defaultModes(catalog, MCP_TOOL_TYPE, params),
+    modes: toolModes(catalog, MCP_TOOL_TYPE, params),
   }
   if (form.snapshot.schema !== undefined) tool.extra = { schema: form.snapshot.schema }
   return withUsage(tool, form)
@@ -165,7 +154,7 @@ export function buildWorkflowTool(catalog: BlockCatalog, form: WorkflowToolForm)
       title: WORKFLOW_TOOL_TITLE,
       toolId: WORKFLOW_TOOL_ID,
       params,
-      modes: defaultModes(catalog, WORKFLOW_TOOL_TYPE, params),
+      modes: toolModes(catalog, WORKFLOW_TOOL_TYPE, params),
     },
     form
   )

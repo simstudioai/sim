@@ -106,14 +106,24 @@ function buildTestingFactoryStates(): FixtureState[] {
 }
 
 /** One workflow a corpus property runs against. */
+/** Corpus ids that name a deleted resource, which stays unresolved. */
+const DELETED_SUFFIX = '-deleted'
+
+/** Whether the corpus workspace holds a resource with this id (and key: the two are equal). */
+function inCorpusWorkspace(value: string): boolean {
+  return value.startsWith('corpus-') && !value.endsWith(DELETED_SUFFIX)
+}
+
 /**
- * The workspace the round-trip harness resolves resources in: only {@link CORPUS_SKILL}, so a
- * picked skill prints as `skill('key')` and writes back through the resolver, and every other
- * stored id stays unresolved as it would with no resolver.
+ * The workspace the round-trip harness resolves resources in: every resource the corpus stores
+ * (`corpus-*`: credentials, tables, knowledge bases, workflows, skills…) under a key equal to its
+ * id, so selector fields print as `credential('…')`, `table('…')` and the like and write back
+ * through the resolver. A deleted resource (`*-deleted`) and any id from outside the corpus stay
+ * unresolved, as they would in a workspace that lacks them.
  */
 export const CORPUS_RESOURCES: ResourceKeyResolver = {
-  toKey: (kind, id) => (kind === 'skill' && id === CORPUS_SKILL.id ? CORPUS_SKILL.key : null),
-  toId: (kind, key) => (kind === 'skill' && key === CORPUS_SKILL.key ? CORPUS_SKILL.id : null),
+  toKey: (_kind, id) => (inCorpusWorkspace(id) ? id : null),
+  toId: (_kind, key) => (inCorpusWorkspace(key) ? key : null),
   nameOf: (kind, id) => (kind === 'skill' && id === CORPUS_SKILL.id ? CORPUS_SKILL.name : null),
 }
 

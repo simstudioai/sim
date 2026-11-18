@@ -1018,6 +1018,8 @@ When adding or changing `sunset.replacedBy`, run `bun run generate:block-success
 map to resolve legacy and current block IDs consistently without importing the executable registry.
 Verify it with `bun run check:block-successors`.
 
+A new block type also needs `bun run generate:sdk-names` (commit `apps/sim/blocks/sdk-names.generated.ts`) so workflow source gets a typed builder for it; `check:sdk-names` fails CI until it runs.
+
 Adding a block on its own needs no **tool metadata** regeneration — a block references existing
 tool IDs through `tools.access` and does not change any tool's shape.
 

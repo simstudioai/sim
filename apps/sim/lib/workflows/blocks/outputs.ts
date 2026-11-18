@@ -13,6 +13,7 @@ import {
 } from '@/lib/mcp/output-schema'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
+import { UNIFIED_START_OUTPUTS } from '@/lib/workflows/blocks/start-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers/triggers'
@@ -153,12 +154,6 @@ const CHAT_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'User message' },
   conversationId: { type: 'string', description: 'Conversation ID' },
   files: { type: 'file[]', description: 'Uploaded files' },
-}
-
-const UNIFIED_START_OUTPUTS: OutputDefinition = {
-  input: { type: 'string', description: 'Primary user input or message' },
-  conversationId: { type: 'string', description: 'Conversation thread identifier' },
-  files: { type: 'file[]', description: 'User uploaded files' },
 }
 
 const START_RUN_METADATA_OUTPUT = {

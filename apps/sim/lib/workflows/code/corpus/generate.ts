@@ -855,7 +855,8 @@ function crlfCases(registry: Registry, seed: number): CorpusCase[] {
 
 /**
  * Agent tool entries the editor's tool picker writes (tool-input.tsx): an MCP server tool with its
- * input schema snapshot, and a deployed workflow as a tool (`workflow_input`).
+ * input schema snapshot, a deployed workflow as a tool (`workflow_input`), a block operation as a
+ * tool (Slack send to a picked channel) and a workspace custom tool by id.
  */
 function agentToolCases(registry: Registry, seed: number): CorpusCase[] {
   const agent = registry.byType.get('agent')
@@ -869,8 +870,7 @@ function agentToolCases(registry: Registry, seed: number): CorpusCase[] {
     builder.connect(start, block.id)
     return builder.build('agent-tools')
   }
-  const mcpTool = (b: CaseBuilder) => {
-    const serverId = b.newId()
+  const mcpTool = (b: CaseBuilder, serverId = b.newId()) => {
     return {
       type: 'mcp',
       title: 'search_docs',
@@ -894,18 +894,38 @@ function agentToolCases(registry: Registry, seed: number): CorpusCase[] {
       },
     }
   }
-  const workflowTool = (b: CaseBuilder) => ({
+  const workflowTool = (b: CaseBuilder, workflowId = b.newId()) => ({
     type: 'workflow_input',
     title: 'Workflow',
     toolId: 'workflow_executor',
-    params: { workflowId: b.newId() },
+    params: { workflowId },
     isExpanded: false,
+    usageControl: 'auto',
+  })
+  const builderTool = () => ({
+    type: 'slack_v2',
+    title: 'Slack',
+    operation: 'send',
+    params: { channel: 'corpus-pick-1', text: CORPUS_TEXT },
+    isExpanded: false,
+    usageControl: 'auto',
+  })
+  const customTool = () => ({
+    type: 'custom-tool',
+    customToolId: 'corpus-custom-tool',
     usageControl: 'auto',
   })
   return [
     toolCase('mcp', (b) => [mcpTool(b)]),
     toolCase('workflow-input', (b) => [workflowTool(b)]),
     toolCase('mcp-and-workflow-input', (b) => [mcpTool(b), workflowTool(b)]),
+    toolCase('builder-and-custom', () => [builderTool(), customTool()]),
+    toolCase('every-kind', (b) => [
+      builderTool(),
+      customTool(),
+      mcpTool(b, 'corpus-mcp-server'),
+      workflowTool(b, 'corpus-workflow'),
+    ]),
   ]
 }
 

@@ -21,6 +21,7 @@ import {
   isConditionClause,
   isOpaqueCondition,
 } from '@sim/workflow-code/catalog/conditions'
+import { typedForBuilder } from '@sim/workflow-code/catalog/surface'
 
 const MAX_COMBINATIONS = 64
 
@@ -219,7 +220,9 @@ function describeWhen(
 
 /**
  * Classifies one param (one subBlock, a basic/advanced pair, or a duplicated id) across every
- * combination: visible in a combination iff any member is.
+ * combination: visible in a combination iff any member is. It is `never` exactly when the
+ * builder's pinned values alone hide every member (`typedForBuilder`), the rule print and compile
+ * use to place a stored value outside the builder's params.
  */
 export function classifyParam(
   members: readonly CatalogSubBlock[],
@@ -243,10 +246,10 @@ export function classifyParam(
     visible.push(anyTrue ? true : anyUnknown ? null : false)
     required.push(isRequired)
   }
-  const kind = visible.every((value) => value === true)
-    ? 'always'
-    : visible.every((value) => value === false)
-      ? 'never'
+  const kind = !typedForBuilder(members, context.pinned)
+    ? 'never'
+    : visible.every((value) => value === true)
+      ? 'always'
       : 'sometimes'
   return {
     kind,

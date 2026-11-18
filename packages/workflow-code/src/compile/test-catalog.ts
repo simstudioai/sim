@@ -80,7 +80,7 @@ export const TEST_CATALOG: BlockCatalog = {
     'slack.sendMessage': { type: 'slack', operation: 'send' },
     'slack.listChannels': { type: 'slack', operation: 'list_channels' },
     'table.insertRow': { type: 'table', operation: 'insert_row' },
-    mail: { type: 'mail' },
+    'mail.send': { type: 'mail' },
     human: { type: 'human_in_the_loop_v2' },
   },
   blocks: {
@@ -275,7 +275,7 @@ export const TEST_CATALOG: BlockCatalog = {
         sub('to', 'short-input', 'string'),
       ],
       { id: TEXT },
-      { paramAliases: { action: { oauthCredential: 'credential' } } }
+      { category: 'tools', paramAliases: { action: { oauthCredential: 'credential' } } }
     ),
     loop: block('loop', [], { results: ANY }, { graph: graph({ container: 'loop' }) }),
     parallel: block('parallel', [], { results: ANY }, { graph: graph({ container: 'parallel' }) }),

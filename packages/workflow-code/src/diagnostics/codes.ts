@@ -132,6 +132,11 @@ type CompileCatalogCode =
   /** Includes `todo()` placeholders. */
   | 'W_REQUIRED_MISSING'
   /**
+   * A schedule created from source with no `timezone`: the editor seeds the viewer's zone, but
+   * a schedule with none runs in UTC.
+   */
+  | 'I_SCHEDULE_UTC'
+  /**
    * `stored()` on a param the stored workflow holds no value for: a new block, a block of another
    * type, or an empty field (`CompileInput.stored`).
    */

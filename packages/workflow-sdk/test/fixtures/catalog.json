@@ -30622,7 +30622,7 @@
         {
           "id": "streamOutputs",
           "type": "workflow-output-selector",
-          "valueKind": "none",
+          "valueKind": "array",
           "storage": "native",
           "title": "Outputs to stream",
           "mode": "trigger",
@@ -31386,7 +31386,20 @@
         "access": [],
         "selector": "single"
       },
-      "outputs": {},
+      "outputs": {
+        "input": {
+          "type": "string",
+          "description": "Primary user input or message"
+        },
+        "conversationId": {
+          "type": "string",
+          "description": "Conversation thread identifier"
+        },
+        "files": {
+          "type": "file[]",
+          "description": "User uploaded files"
+        }
+      },
       "graph": {
         "canBeTarget": false,
         "errorPort": false,
@@ -32956,7 +32969,7 @@
         {
           "id": "streamOutputs",
           "type": "workflow-output-selector",
-          "valueKind": "none",
+          "valueKind": "array",
           "storage": "native",
           "title": "Outputs to stream",
           "mode": "trigger",

@@ -5,9 +5,10 @@ import {
   resolveCanonicalMode,
 } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
-import type { CatalogBlock } from '../catalog/types'
-import type { CanonicalParamId, ParamMode } from '../model'
-import { setOwn } from '../records'
+import type { BlockCatalog, CatalogBlock } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
+import type { CanonicalParamId, CanonicalTool, ParamMode } from '../model'
+import { getOwn, setOwn } from '../records'
 
 function isParamMode(value: unknown): value is ParamMode {
   return value === 'basic' || value === 'advanced'
@@ -54,4 +55,41 @@ export function effectiveModes(
       legacyAdvancedMode && !explicit ? 'advanced' : resolveCanonicalMode(group, values, overrides)
   }
   return modes
+}
+
+/**
+ * A nested tool's modes in canonical form: the effective mode of every pair of the tool's block,
+ * resolved over its params with `explicit` winning, as the serializer resolves a tool
+ * (`effectiveModes`, action surface). A type the catalog does not know keeps only its explicit
+ * entries. Canonicalize, compile and the tool forms all write a tool's modes through this.
+ */
+export function toolModes(
+  catalog: BlockCatalog,
+  type: string,
+  params: Record<string, unknown>,
+  explicit?: CanonicalModeOverrides
+): CanonicalTool['modes'] {
+  const block = catalogBlock(catalog, type)
+  if (block) return effectiveModes(block, false, params, explicit, false)
+  const modes: CanonicalTool['modes'] = {}
+  for (const [id, mode] of Object.entries(explicit ?? {})) {
+    if (mode) setOwn(modes, id, mode)
+  }
+  return modes
+}
+
+/**
+ * The entries of a tool's modes that inference over its params would not reach: the only modes
+ * source has to write, since {@link toolModes} infers the rest.
+ */
+export function toolModeOverrides(
+  catalog: BlockCatalog,
+  tool: Pick<CanonicalTool, 'type' | 'params' | 'modes'>
+): CanonicalTool['modes'] {
+  const inferred = toolModes(catalog, tool.type, tool.params)
+  const overrides: CanonicalTool['modes'] = {}
+  for (const [id, mode] of Object.entries(tool.modes)) {
+    if (getOwn(inferred, id) !== mode) setOwn(overrides, id, mode)
+  }
+  return overrides
 }

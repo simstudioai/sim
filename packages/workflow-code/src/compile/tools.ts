@@ -7,6 +7,7 @@ import {
   type McpToolForm,
 } from '../agent-tools'
 import { literalText } from '../babel'
+import { toolModes } from '../canonicalize/modes'
 import { paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import {
@@ -210,7 +211,12 @@ function compileToolCall(
   }
   const tool: CanonicalTool = { type: builder.type, params, modes: {} }
   if (builder.operation !== undefined) tool.operation = builder.operation
-  if (!optionsNode) return { tool, pending }
+  const explicit: Record<string, ParamMode> = {}
+  const done = () => {
+    tool.modes = toolModes(ctx.catalog, tool.type, tool.params, explicit)
+    return { tool, pending }
+  }
+  if (!optionsNode) return done()
   if (optionsNode.type !== 'ObjectExpression') {
     return unsupported(
       ctx,
@@ -250,7 +256,6 @@ function compileToolCall(
             site.decl.key
           )
         }
-        const modes: Record<string, ParamMode> = {}
         for (const [cid, modeProperty] of objectEntries(ctx, property.value)) {
           const mode = literalText(modeProperty.value)
           if (mode !== 'basic' && mode !== 'advanced') {
@@ -262,9 +267,8 @@ function compileToolCall(
               site.decl.key
             )
           }
-          setOwn(modes, cid, mode)
+          setOwn(explicit, cid, mode)
         }
-        tool.modes = modes
         break
       }
       case 'customTool': {
@@ -336,7 +340,7 @@ function compileToolCall(
         return null
     }
   }
-  return { tool, pending }
+  return done()
 }
 
 function sameKind(left: CanonicalTool, right: CanonicalTool): boolean {

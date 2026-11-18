@@ -6,7 +6,7 @@ import { catalogBlock } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
-import { effectiveModes } from './modes'
+import { toolModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
 export type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
@@ -83,7 +83,6 @@ function liftTool(
   context: CanonContext
 ): CanonicalTool {
   const type = stored.type
-  const block = catalogBlock(context.catalog, type)
   const location = { blockKey, param }
 
   const rawParams = toRecord(stored.params)
@@ -101,13 +100,15 @@ function liftTool(
   const binding = mcpBinding(type, rawParams)
   if (binding) params.serverId = liftResourceId('mcp-server', binding.serverId, context, location)
 
-  const explicit = scopeCanonicalModesForTool(overrides, index, type)
   const tool: CanonicalTool = {
     type,
     params,
-    modes: block
-      ? effectiveModes(block, false, rawParams, explicit, false)
-      : definedModes(explicit),
+    modes: toolModes(
+      context.catalog,
+      type,
+      rawParams,
+      scopeCanonicalModesForTool(overrides, index, type)
+    ),
   }
   const extra: Record<string, Json> = {}
 
@@ -147,14 +148,6 @@ function liftTool(
   }
   if (Object.keys(extra).length > 0) tool.extra = extra
   return tool
-}
-
-function definedModes(overrides: CanonicalModeOverrides | undefined): CanonicalTool['modes'] {
-  const modes: CanonicalTool['modes'] = {}
-  for (const [id, mode] of Object.entries(overrides ?? {})) {
-    if (mode) setOwn(modes, id, mode)
-  }
-  return modes
 }
 
 /**

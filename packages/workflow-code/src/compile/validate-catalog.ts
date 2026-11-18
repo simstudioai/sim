@@ -16,7 +16,7 @@ export function fieldFor(index: FieldIndex, key: string): CatalogField | undefin
 }
 
 /** A lookup over a block's compiled params, every one of them known. */
-function paramLookup(values: ReadonlyMap<string, Value>): ConditionLookup {
+export function paramLookup(values: ReadonlyMap<string, Value>): ConditionLookup {
   return (field: string) => ({ value: values.get(field) })
 }
 
@@ -67,7 +67,10 @@ export function missingRequiredFields(
     const members = field.kind === 'single' ? [field.sub] : field.members
     if (members.some((sub) => isWritten(sub.id))) continue
     const lookup = paramLookup(values)
-    if (members.some((sub) => evaluateCondition(sub, lookup) === true && isRequired(sub, values))) {
+    const declared = members.flatMap((sub) => index.declarations.get(sub.id) ?? [sub])
+    if (
+      declared.some((sub) => evaluateCondition(sub, lookup) === true && isRequired(sub, values))
+    ) {
       missing.push(field)
     }
   }
@@ -108,6 +111,8 @@ export function valueKindMatches(
       return isPlainRecord(value)
     case 'resource':
       return typeof value === 'object' && value !== null && '$sim' in value
+    case 'upload':
+      return Array.isArray(value) ? value.every(isPlainRecord) : isPlainRecord(value)
     default:
       return true
   }

@@ -15,9 +15,15 @@ import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
 import { printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
-import { onSurface, paramAliases } from '@sim/workflow-code/catalog/surface'
+import {
+  hasDefaultValue,
+  isWrittenInSource,
+  onSurface,
+  paramAliases,
+  requiredForBuilder,
+} from '@sim/workflow-code/catalog/surface'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
-import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
+import { hasToolForm } from '@sim/workflow-code/sdk'
 import { indentLines, jsdoc, literal, pascal, union } from './emit'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
@@ -58,6 +64,7 @@ const CORE_TYPE_NAMES = [
   'JsonWithRefs',
   'KnowledgeBaseRef',
   'LiteralUnion',
+  'McpServerRef',
   'Message',
   'Model',
   'ModelFallback',
@@ -76,24 +83,14 @@ const CORE_TYPE_NAMES = [
   'TimeString',
   'Tool',
   'ToolOpts',
+  'UploadedFile',
   'Value',
   'VariableAssignment',
   'WorkflowRef',
 ] as const
 
-/**
- * SubBlocks the SDK never writes: the shared trigger system set minus the credential, which source
- * states, plus the server-owned trigger path and the trigger and operation selectors.
- */
-const SDK_UNWRITTEN_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
-  ...SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials'),
-  'triggerPath',
-  'selectedTriggerId',
-  'operation',
-])
-
-/** Types whose control always holds a value (first option, off, minimum), so never required. */
-const ALWAYS_VALUED_TYPES: ReadonlySet<string> = new Set(['dropdown', 'switch', 'slider'])
+/** The trigger and operation selectors, which a builder pins rather than takes as params. */
+const BUILDER_PINNED_IDS: ReadonlySet<string> = new Set(['selectedTriggerId', 'operation'])
 
 const HEADER_PREFIX = '// @sim-sdk'
 
@@ -114,12 +111,8 @@ function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSu
   const triggerMode = entry.builder.triggerMode === true
   const fixed = entry.builder.fixed ?? {}
   return block.subBlocks.filter((subBlock) => {
-    if (subBlock.hidden || subBlock.context === 'tool-input') return false
-    if (!onSurface(block, subBlock, triggerMode)) return false
-    if (SDK_UNWRITTEN_SUBBLOCK_IDS.has(subBlock.id) || subBlock.id.startsWith('samplePayload')) {
-      return false
-    }
-    if (subBlock.id in fixed) return false
+    if (!isWrittenInSource(subBlock) || !onSurface(block, subBlock, triggerMode)) return false
+    if (BUILDER_PINNED_IDS.has(subBlock.id) || subBlock.id in fixed) return false
     return mapSubBlock(subBlock) !== null
   })
 }
@@ -133,16 +126,6 @@ interface Param {
   visibility: ParamVisibility
   type: string
   doc: string[]
-}
-
-function hasDefault(members: readonly CatalogSubBlock[]): boolean {
-  return members.some(
-    (member) =>
-      member.defaultValue !== undefined ||
-      (member.valueDefault !== undefined && 'constant' in member.valueDefault) ||
-      subBlockEditorDefault(member) !== undefined ||
-      ALWAYS_VALUED_TYPES.has(member.type)
-  )
 }
 
 function paramDoc(members: readonly CatalogSubBlock[], visibility: ParamVisibility): string[] {
@@ -257,14 +240,16 @@ function renderProperty(param: Param, required: boolean, indent: string): string
   ]
 }
 
-function isRequired(param: Param, requiredByVisibility: boolean): boolean {
-  return requiredByVisibility && !hasDefault(param.members)
+/** A gated variant's param is required where it is required for every value the variant covers. */
+function requiredInVariant(param: Param, requiredByVisibility: boolean): boolean {
+  return requiredByVisibility && !hasDefaultValue(param.members)
 }
 
 function renderParamsType(
   params: readonly Param[],
   gate: Gate | null,
-  candidates: readonly CatalogSubBlock[]
+  candidates: readonly CatalogSubBlock[],
+  pinned: VisibilityContext['pinned']
 ): string {
   const gated = new Set<string>()
   if (gate) {
@@ -273,23 +258,27 @@ function renderParamsType(
   }
   const common = params.filter((param) => !gated.has(param.name))
   const commonLines = common.flatMap((param) =>
-    renderProperty(param, isRequired(param, param.visibility.required), '  ')
+    renderProperty(param, requiredForBuilder(param.members, pinned), '  ')
   )
   const commonType = commonLines.length > 0 ? `{\n${commonLines.join('\n')}\n}` : '{}'
   if (!gate) return commonType
   const gateParam = params.find((param) => param.name === gate.field)
   const fallback = defaultGateValue(candidates, gate.field)
+  const nullable =
+    gateParam?.members.some((member) => subBlockEditorDefault(member) !== undefined) === true
   const variants = gate.variants.map((variant) => {
     const optional = fallback !== undefined && variant.values.includes(fallback)
+    // `null` (stored with no value) runs as the default, so it belongs to the default's variant.
+    const values = union(variant.values.map(literal))
     const lines: string[] = [
       ...jsdoc(gateParam?.doc ?? [], '    '),
-      `    ${printKey(gate.field)}${optional ? '?' : ''}: ${union(variant.values.map(literal))}`,
+      `    ${printKey(gate.field)}${optional ? '?' : ''}: ${values}${optional && nullable ? ' | null' : ''}`,
     ]
     for (const { name, required } of variant.params) {
       const param = params.find((candidate) => candidate.name === name)
       if (!param) continue
       const doc = param.doc.filter((line) => !line.startsWith('@when'))
-      lines.push(...renderProperty({ ...param, doc }, isRequired(param, required), '    '))
+      lines.push(...renderProperty({ ...param, doc }, requiredInVariant(param, required), '    '))
     }
     return `  | {\n${lines.join('\n')}\n    }`
   })
@@ -379,7 +368,7 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
   const genericArgs = plan ? `<${plan.typeParameter.name}>` : ''
   const outputGeneric = plan && Object.keys(plan.outputOverrides).length > 0
   const members = builderOutputs(outputs, context, plan?.outputOverrides ?? {})
-  const paramsDeclaration = `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates)}`
+  const paramsDeclaration = `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`
   const output: BuilderOutput = {
     name: outputName,
     typeParameters: outputGeneric ? generic : '',
@@ -404,10 +393,7 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
         `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}>`,
       ]
   const tool =
-    !entry.special &&
-    block.category === 'tools' &&
-    !entry.builder.triggerMode &&
-    entry.path.length > 1
+    !entry.special && hasToolForm(entry.key, entry.builder, block)
       ? [
           ...jsdoc([`${summary}, as an agent tool`], ''),
           `export function ${method}(params?: Partial<${paramsName}>, options?: ToolOpts): Tool`,
