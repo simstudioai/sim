@@ -4,6 +4,7 @@ import {
   MAX_CONTENT_NODES,
   MAX_MODEL_CONTENT_BYTES,
   measureModelContent,
+  projectResolvedSecretModelContent,
 } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -195,14 +196,16 @@ function compactBlockLogOutputs(logs: unknown, executionId: string | undefined):
 }
 
 /**
- * The most serialized characters a run result carries to the agent. The agent holds a workflow
- * tool result inline up to twice its 12K-character output window and stores a larger one behind a
- * paged read, which costs the agent a round to learn whether the run passed. This leaves room for
- * the envelope and the secret projection's placeholders.
+ * The most serialized characters a run result carries to the agent, measured after secret
+ * projection. The agent holds a workflow tool result inline up to twice its 12K-character output
+ * window and stores a larger one behind a paged read, which costs the agent a round to learn
+ * whether the run passed. This leaves room for the envelope.
  */
 const MODEL_RUN_RESULT_MAX_CHARS = 16_000
-/** How much of an oversized final output stays inline, as serialized JSON, when no secret is active. */
+/** The most of an oversized final output that stays inline, as serialized JSON, when no secret is active. */
 const FINAL_OUTPUT_PREVIEW_CHARS = 4_000
+/** A preview shorter than this says too little to be worth more than a pointer. */
+const FINAL_OUTPUT_PREVIEW_MIN_CHARS = 200
 
 /** `value` serialized the way the agent receives it; undefined for a value JSON cannot encode. */
 function serialize(value: unknown): string | undefined {
@@ -218,8 +221,12 @@ function serialize(value: unknown): string | undefined {
  * active: a kept prefix could otherwise cut through a secret and leave a fragment no whole-literal
  * redaction matches.
  */
-function finalOutputPreview(serialized: string, executionId: string | undefined): string {
-  let end = FINAL_OUTPUT_PREVIEW_CHARS
+function finalOutputPreview(
+  serialized: string,
+  chars: number,
+  executionId: string | undefined
+): string {
+  let end = chars
   const last = serialized.charCodeAt(end - 1)
   if (last >= 0xd800 && last <= 0xdbff) end -= 1
   return `${serialized.slice(0, end)} …[final output cut at ${end} of ${serialized.length} chars; inspect with logs get ${executionId ?? '<executionId>'} --trace]`
@@ -229,17 +236,33 @@ function finalOutputPreview(serialized: string, executionId: string | undefined)
  * Holds a run result to {@link MODEL_RUN_RESULT_MAX_CHARS} so the agent reads pass/fail, the
  * failing block's error, and each block's status inline. Echoed block inputs and outputs are
  * replaced with pointers, largest first, until the result fits; the per-block entries keep their
- * name, id, status, and error. If that is not enough, the final output is cut to a preview, or to a
- * pointer when `walksContent` (a secret is active). Values a caller named with `select` are kept.
+ * name, id, status, and error. If that is not enough, the final output is cut to a preview that
+ * fits what is left, or to a pointer when a secret is active. Values a caller named with `select`
+ * are kept. A result that still does not fit is returned as far as it was reduced.
+ *
+ * While `registry` makes the projection walk the result, its size is measured as projected:
+ * replacing many short secrets with their longer names can grow it. Raw sizes rank the parts and
+ * skip the projection while the raw result is plainly over.
  */
 function fitRunResultToWindow(
   data: Record<string, unknown>,
   error: string | undefined,
   executionId: string | undefined,
+  registry: ResolvedSecretTraceRegistry | undefined,
   walksContent: boolean
 ): Record<string, unknown> {
-  let total = serialize(error === undefined ? { output: data } : { output: data, error })?.length
-  if (total === undefined || total <= MODEL_RUN_RESULT_MAX_CHARS) return data
+  const envelope = (candidate: Record<string, unknown>) =>
+    error === undefined ? { output: candidate } : { output: candidate, error }
+  const fits = (candidate: Record<string, unknown>, rawChars: number): boolean => {
+    if (rawChars > MODEL_RUN_RESULT_MAX_CHARS) return false
+    if (!walksContent) return true
+    const projection = projectResolvedSecretModelContent(envelope(candidate), registry)
+    const projected = projection.safe ? serialize(projection.value)?.length : undefined
+    return (projected ?? rawChars) <= MODEL_RUN_RESULT_MAX_CHARS
+  }
+
+  let raw = serialize(envelope(data))?.length
+  if (raw === undefined || fits(data, raw)) return data
 
   let fitted = data
   if (Array.isArray(data.logs)) {
@@ -255,7 +278,6 @@ function fitRunResultToWindow(
     parts.sort((left, right) => right.size - left.size)
     const logs = [...data.logs]
     for (const part of parts) {
-      if (total <= MODEL_RUN_RESULT_MAX_CHARS) break
       const entry = logs[part.index] as Record<string, unknown>
       const pointer =
         part.field === 'input'
@@ -267,22 +289,31 @@ function fitRunResultToWindow(
       const saved = part.size - JSON.stringify(pointer).length
       if (saved <= 0) continue
       logs[part.index] = { ...entry, [part.field]: pointer }
-      total -= saved
+      raw -= saved
+      fitted = { ...data, logs }
+      if (fits(fitted, raw)) return fitted
     }
-    fitted = { ...data, logs }
   }
-  if (total <= MODEL_RUN_RESULT_MAX_CHARS || !Object.hasOwn(fitted, 'output')) return fitted
+  if (!Object.hasOwn(fitted, 'output')) return fitted
 
+  // A final output no longer than a preview is what the run was for; it stays whole.
   const serialized = serialize(fitted.output)
   if (serialized === undefined || serialized.length <= FINAL_OUTPUT_PREVIEW_CHARS) return fitted
   const label = sizeBlockOutput(fitted.output)?.label
-  if (walksContent && !label) return fitted
-  return {
-    ...fitted,
-    output: walksContent
-      ? blockOutputPointer(label ?? 'output omitted', executionId)
-      : finalOutputPreview(serialized, executionId),
+  if (!label) return fitted
+  const pointed = { ...fitted, output: blockOutputPointer(label, executionId) }
+  if (walksContent) return pointed
+
+  const rest = serialize(envelope(pointed))?.length ?? Number.POSITIVE_INFINITY
+  let chars = Math.min(FINAL_OUTPUT_PREVIEW_CHARS, MODEL_RUN_RESULT_MAX_CHARS - rest)
+  while (chars >= FINAL_OUTPUT_PREVIEW_MIN_CHARS && chars < serialized.length) {
+    const previewed = { ...fitted, output: finalOutputPreview(serialized, chars, executionId) }
+    const previewedChars = serialize(envelope(previewed))?.length ?? Number.POSITIVE_INFINITY
+    if (previewedChars <= MODEL_RUN_RESULT_MAX_CHARS) return previewed
+    // JSON escapes inside the preview grow it once it is embedded as a string.
+    chars -= previewedChars - MODEL_RUN_RESULT_MAX_CHARS
   }
+  return pointed
 }
 
 /**
@@ -303,7 +334,7 @@ export function boundRunResultForModel(
 ): Record<string, unknown> {
   const walksContent = copilotProjectionWalksContent(registry)
   const capped = walksContent ? boundToProjectionCaps(data, error, executionId) : data
-  return fitRunResultToWindow(capped, error, executionId, walksContent)
+  return fitRunResultToWindow(capped, error, executionId, registry, walksContent)
 }
 
 function boundToProjectionCaps(

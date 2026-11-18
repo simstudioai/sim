@@ -179,6 +179,62 @@ describe('run_workflow model-facing result budget', () => {
     expect(presented[3]).toMatchObject({ success: false, error: 'SMTP refused' })
   })
 
+  /** A short secret under a long name grows when projected, so the window is measured after it. */
+  it('fits the window as projected when short secrets expand into longer names', async () => {
+    const password = 'pw-12345'
+    const shortSecret = new ResolvedSecretTraceRegistry([
+      { name: 'DATABASE_PASSWORD', plaintext: password, encryptedValue: 'ciphertext' },
+    ])
+    shortSecret.recordResolved('DATABASE_PASSWORD', password, { propagated: true })
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { done: true },
+      logs: [
+        {
+          blockId: 'echo',
+          blockName: 'Echo',
+          success: true,
+          // About 14K characters raw, over 31K once each copy becomes {{DATABASE_PASSWORD}}.
+          output: { tokens: Array.from({ length: 1_300 }, () => password) },
+        },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, callContext(shortSecret))
+    const projection = inspectToolResultForCopilot(settled, shortSecret, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    expect(JSON.stringify(projection.result.output).length).toBeLessThanOrEqual(16_000)
+    const output = projection.result.output as { output: unknown; logs: Array<{ output: unknown }> }
+    expect(output.output).toEqual({ done: true })
+    expect(output.logs[0]?.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID}`))
+  })
+
+  /** Many small block entries leave less room than a full preview, so the preview shrinks to fit. */
+  it('shrinks the final output preview to the room the block entries leave', async () => {
+    const logs = Array.from({ length: 150 }, (_, index) => ({
+      blockId: `step-${index}`,
+      blockName: `Step ${index} of the nightly import`,
+      success: true,
+      output: { ok: true },
+    }))
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { report: 'z'.repeat(50_000) },
+      logs,
+      metadata: { executionId: EXECUTION_ID },
+    })
+    const inactive = secretRegistry({ active: false })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, callContext(inactive))
+    const output = settled.output as { output: unknown; logs: unknown[] }
+
+    expect(JSON.stringify({ output }).length).toBeLessThanOrEqual(16_000)
+    expect(output.logs).toEqual(logs)
+    expect(output.output).toEqual(expect.stringMatching(/^\{"report":"z+ …\[final output cut at/))
+  })
+
   /** Narrow rows reach the traversal cap while staying far under every byte budget. */
   it('bounds narrow row outputs by value count alone', async () => {
     const logs = Array.from({ length: 6 }, (_, index) => ({
