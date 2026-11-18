@@ -115,8 +115,13 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 
 ### A workspace resource kind
 
-1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`); every
-   `Record<WorkspaceKind, …>` then fails to type-check until it has the kind.
+The kinds: custom tools, skills, tables, knowledge bases, files, workflows and deployments
+(`deployments/<workflow key>.ts`, applied after workflows; see DESIGN.md "The deployment kind").
+
+1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`) and its
+   `WORKSPACE_KIND_SPECS` entry (`src/specs.ts`: `resourceKind` is the key table a write claims,
+   `null` for a kind keyed by another kind's keys or by path); every `Record<WorkspaceKind, …>`
+   then fails to type-check until it has the kind.
 2. A codec `packages/workspace-code/src/kinds/<kind>.ts` with tests; `KIND_LAYOUTS`, and
    `BLOB_KIND_CODECS` if it holds blobs (`src/kinds/registry.ts`); its diagnostic codes.
 3. An adapter `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts` calling the
