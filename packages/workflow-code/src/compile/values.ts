@@ -15,6 +15,7 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { literalText, memberSegment } from '../babel'
+import { builderOutputSchemas } from '../catalog/activity'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
@@ -61,7 +62,6 @@ import {
 } from './context'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import type { Range } from './report'
-import { outputSchemasFor } from './validate-catalog'
 
 /** Where a value is compiled: the block it belongs to and the scope its identifiers resolve in. */
 export interface ValueSite {
@@ -673,8 +673,7 @@ function checkOutputPath(
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-  const schemas = outputSchemasFor(ctx.catalog, block, builder)
-  if (!schemas.some((outputs) => outputKnown(outputs, segments))) {
+  if (!outputKnown(builderOutputSchemas(ctx.catalog, block, builder), segments)) {
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       `${block.name} has no output ${formatStoredPath(segments)}.`,
@@ -701,13 +700,13 @@ export function checkResponseFormatRefs(
     const dynamic = block?.dynamicOutputs
     if (!block || !compiled || !dynamic) continue
     const param = getOwn(compiled.params, dynamic.param)
-    const fields = responseFormatFields(param?.kind === 'value' ? param.value : undefined)
+    const fields = responseFormatFields(param)
     const [first] = segments
     if (fields === null || first?.kind !== 'name' || fields.includes(first.name)) continue
     const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-    const schemas = outputSchemasFor(ctx.catalog, block, builder)
-    if (schemas.some((outputs) => outputKnown(outputs, segments))) continue
-    const known = [...fields, ...schemas.flatMap((outputs) => Object.keys(outputs))]
+    const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+    if (outputKnown(outputs, segments)) continue
+    const known = [...fields, ...Object.keys(outputs)]
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       fields.length > 0

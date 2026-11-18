@@ -4,7 +4,13 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
+import {
+  type ActivityInputs,
+  canonicalActivityInputs,
+  executableInactiveParams,
+  isInactive,
+  withStoredValue,
+} from '../catalog/activity'
 import { recordLookup } from '../catalog/conditions'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
 import {
@@ -249,16 +255,11 @@ function printCodeFile(
  */
 function activeIfSet(
   ctx: PrintContext,
-  block: CanonicalBlock,
-  declared: CatalogBlock,
+  inputs: ActivityInputs,
   sb: CatalogSubBlock,
   value: Value
 ): boolean {
-  const filled: CanonicalBlock = {
-    ...block,
-    params: { ...block.params, [sb.id]: { kind: 'value', value } },
-  }
-  return !isInactive(sb.id, canonicalActivityInputs(filled, declared, ctx.catalog))
+  return !isInactive(sb.id, withStoredValue(ctx.catalog, inputs, sb.id, value))
 }
 
 /**
@@ -300,6 +301,11 @@ export function collectParams(
   }
 
   if (declared) {
+    let blockInputs: ActivityInputs | undefined
+    const inputs = () => {
+      blockInputs ??= canonicalActivityInputs(block, declared, ctx.catalog)
+      return blockInputs
+    }
     const index = buildFieldIndex(declared, block.triggerMode, pinned)
     const values = paramValues(block)
     const lookup = recordLookup(values)
@@ -330,7 +336,7 @@ export function collectParams(
           push(params, field.name, ctx.values.call('todo', []))
         } else if (
           field.members.some((member) => defaults.has(member.id)) &&
-          activeIfSet(ctx, block, declared, effective, defaults.get(effective.id) ?? '')
+          activeIfSet(ctx, inputs(), effective, defaults.get(effective.id) ?? '')
         ) {
           if (typed) push(params, field.name, NULL_EXPR)
           else push(extra, effective.id, NULL_EXPR)
@@ -343,7 +349,7 @@ export function collectParams(
           push(params, field.name, ctx.values.call('todo', []))
         } else {
           const fallback = defaults.get(sb.id)
-          if (fallback !== undefined && activeIfSet(ctx, block, declared, sb, fallback)) {
+          if (fallback !== undefined && activeIfSet(ctx, inputs(), sb, fallback)) {
             if (typed) push(params, field.name, NULL_EXPR)
             else push(extra, sb.id, NULL_EXPR)
           }

@@ -456,6 +456,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 |---|---|
 | `E_MAT_DUPLICATE_LOCK_ID` | Two lock keys carry one block id. |
 | `E_MAT_UNKNOWN_RESOURCE` | A resource key with no live resource in this workspace. |
+| `E_MAT_UNKNOWN_VARIABLE` | A `vars.x` reference to a variable the workflow does not declare. |
 | `W_MAT_DELETED_SINCE_PULL` | A lock entry whose block was deleted since the read; re-created. |
 | `W_MAT_INFERRED_RENAME` | A rename inferred from type, parent and edges (the key and the ident both changed). |
 | `W_MAT_RETYPE_RECREATED` | A key kept with a new type: delete plus create, so webhook URLs and schedules change. |

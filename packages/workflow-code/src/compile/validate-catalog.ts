@@ -1,13 +1,6 @@
 import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
 import type { CatalogField, FieldIndex } from '../catalog/surface'
-import type {
-  BlockCatalog,
-  CatalogBlock,
-  CatalogBuilder,
-  CatalogOutput,
-  CatalogSubBlock,
-} from '../catalog/types'
-import { catalogTrigger } from '../catalog/view'
+import type { CatalogSubBlock } from '../catalog/types'
 import { isPlainRecord, type SubBlockId, type Value } from '../model'
 
 /** The field a written param name targets: its written name or, when aliased, its own name. */
@@ -23,27 +16,6 @@ export function paramLookup(values: ReadonlyMap<string, Value>): ConditionLookup
 /** Whether a field may be shown: only a field the catalog's data decides hidden is not. */
 export function isVisible(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
   return evaluateCondition(sub, paramLookup(values)) !== false
-}
-
-/**
- * The output schemas a declared block can expose. A trigger-mode builder runs as its trigger, so
- * its outputs are that trigger's (the builder's pinned `selectedTriggerId`, else every trigger the
- * block offers) besides the block's own; any other block exposes its own outputs.
- */
-export function outputSchemasFor(
-  catalog: BlockCatalog,
-  block: CatalogBlock,
-  builder: CatalogBuilder | undefined
-): Array<Record<string, CatalogOutput>> {
-  if (!builder?.triggerMode) return [block.outputs]
-  const pinned = builder.fixed?.selectedTriggerId
-  const ids = pinned !== undefined ? [pinned] : (block.triggers?.available ?? [])
-  const schemas = [block.outputs]
-  for (const id of ids) {
-    const trigger = catalogTrigger(catalog, id)
-    if (trigger) schemas.push(trigger.outputs)
-  }
-  return schemas
 }
 
 /**

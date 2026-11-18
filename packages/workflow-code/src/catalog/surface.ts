@@ -211,9 +211,24 @@ export function serializedCanonicalIndex(
   block: Pick<CatalogBlock, 'category' | 'subBlocks'>,
   triggerMode: boolean
 ): CanonicalIndex {
+  let byMode = canonicalIndexMemo.get(block)
+  if (!byMode) {
+    byMode = new Map()
+    canonicalIndexMemo.set(block, byMode)
+  }
+  const cached = byMode.get(triggerMode)
+  if (cached) return cached
   const used = block.subBlocks.filter((subBlock) => onSurface(block, subBlock, triggerMode))
-  return buildCanonicalIndex(used)
+  const index = buildCanonicalIndex(used)
+  byMode.set(triggerMode, index)
+  return index
 }
+
+/** {@link serializedCanonicalIndex} per block and surface; an index is never edited once built. */
+const canonicalIndexMemo = new WeakMap<
+  Pick<CatalogBlock, 'category' | 'subBlocks'>,
+  Map<boolean, CanonicalIndex>
+>()
 
 const aliasMemo = new WeakMap<CatalogBlock, Map<boolean, ReadonlyMap<string, string>>>()
 

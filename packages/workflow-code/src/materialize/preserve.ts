@@ -20,7 +20,7 @@ import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { type CanonicalGroup, isCanonicalPair } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
-import { catalogBlock } from '../catalog/view'
+import { catalogBlock, declarationsOf } from '../catalog/view'
 import { executableSubflow } from '../equivalence/executable'
 import type {
   CanonicalBlock,
@@ -98,7 +98,7 @@ function restorePairs(
       continue
     }
     const basicId = group.basicId
-    const basic = declared.subBlocks.find((subBlock) => subBlock.id === basicId)
+    const basic = basicId === undefined ? undefined : declarationsOf(declared, basicId)[0]
     if (
       basicId !== undefined &&
       prevMode === 'basic' &&

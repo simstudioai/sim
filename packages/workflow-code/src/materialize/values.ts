@@ -60,9 +60,22 @@ function availableKeysHint(
   if (keys === undefined) return undefined
   if (keys.length === 0) return `This workspace has no ${kind} a source can name yet.`
   const near = closest(written, keys)
-  const shown = keys.slice(0, LISTED_KEYS).join(', ')
+  return `${near !== null ? `Did you mean ${near}? ` : ''}Keys: ${listed(keys)}.`
+}
+
+/** The first {@link LISTED_KEYS} keys, then how many more there are. */
+function listed(keys: readonly string[]): string {
   const more = keys.length > LISTED_KEYS ? `, and ${keys.length - LISTED_KEYS} more` : ''
-  return `${near !== null ? `Did you mean ${near}? ` : ''}Keys: ${shown}${more}.`
+  return `${keys.slice(0, LISTED_KEYS).join(', ')}${more}`
+}
+
+/** The hint of an unknown variable: the closest declared variable, then the declared ones. */
+function variableHint(written: string, keys: readonly string[]): string {
+  if (keys.length === 0) {
+    return "This workflow declares no variables; declare it in the workflow's variables option."
+  }
+  const near = closest(written, keys)
+  return `${near !== null ? `Did you mean vars.${near}? ` : ''}Variables: ${listed(keys)}.`
 }
 
 function unliftNode(node: SimNode, context: MaterializeContext, location: ValueLocation): unknown {
@@ -76,10 +89,12 @@ function unliftNode(node: SimNode, context: MaterializeContext, location: ValueL
     case 'var': {
       const id = context.variableIdByKey.get(node.key)
       if (id !== undefined) return id
+      const hint = variableHint(node.key, [...context.variableIdByKey.keys()])
       context.diagnostics.push({
-        code: 'E_MAT_UNKNOWN_RESOURCE',
+        code: 'E_MAT_UNKNOWN_VARIABLE',
         severity: 'error',
         message: `Variable "${node.key}" does not exist in this workflow`,
+        hint,
         ...location,
       })
       return node.key

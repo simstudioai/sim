@@ -13,7 +13,7 @@ import {
 import { toolModeOverrides } from '../canonicalize/modes'
 import { builderPins, buildFieldIndex, paramAliases, typedForBuilder } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
-import { catalogBlock, catalogBuildersOfType } from '../catalog/view'
+import { catalogBlock, catalogBuildersOfType, declarationsOf } from '../catalog/view'
 import { isJson } from '../lock'
 import {
   type CanonicalBlock,
@@ -208,7 +208,7 @@ export function printTools(
     const params: Property[] = Object.entries(tool.params)
       .filter(([id]) => !pinned.has(id))
       .map(([id, value]) => {
-        const sb = declared?.subBlocks.find((candidate) => candidate.id === id)
+        const sb = declared ? declarationsOf(declared, id)[0] : undefined
         return {
           key: printKey(aliases.get(id) ?? id),
           value: holdsSecret(sb, value)

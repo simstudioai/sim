@@ -319,6 +319,8 @@ const MATERIALIZE_DIAGNOSTIC_CODES = [
   'E_MAT_DUPLICATE_LOCK_ID',
   /** A resource key the resolver cannot map to an id in this workspace. */
   'E_MAT_UNKNOWN_RESOURCE',
+  /** A `vars.x` reference to a variable the workflow does not declare. */
+  'E_MAT_UNKNOWN_VARIABLE',
   /** A lock entry whose id has left prev; the block is re-created. */
   'W_MAT_DELETED_SINCE_PULL',
   /** Identity rule 4: a lockless rename inferred from type, parent and edge neighbourhood. */

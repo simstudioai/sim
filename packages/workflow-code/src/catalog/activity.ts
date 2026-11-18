@@ -21,8 +21,14 @@ import {
 } from './canonical-index'
 import { evaluateCondition, recordLookup } from './conditions'
 import { isTriggerSurface, onSurface, serializedCanonicalIndex } from './surface'
-import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
-import { catalogBlock, catalogTrigger } from './view'
+import type {
+  BlockCatalog,
+  CatalogBlock,
+  CatalogBuilder,
+  CatalogOutput,
+  CatalogSubBlock,
+} from './types'
+import { catalogBlock, catalogTrigger, declarationsOf } from './view'
 
 /** A custom block's computed wiring; the serializer recomputes it and never forwards it. */
 const CUSTOM_BLOCK_WIRING = new Set(['workflowId', 'inputMapping'])
@@ -42,7 +48,8 @@ function declaresCustomInputs(block: CatalogBlock): boolean {
  */
 const TRIGGER_SYSTEM_IDS: ReadonlySet<string> = new Set(SYSTEM_SUBBLOCK_IDS)
 
-interface ActivityInputs {
+/** What decides whether a block's stored params are active (`isInactive`). */
+export interface ActivityInputs {
   block: CatalogBlock
   blockType: string
   triggerMode: boolean
@@ -73,7 +80,7 @@ function deployedTriggerId(
   block: CatalogBlock,
   blockType: string,
   triggerMode: boolean,
-  values: Record<string, unknown>
+  values: Readonly<Record<string, unknown>>
 ): string | undefined {
   if (block.category === 'triggers' && triggerExists(catalog, blockType)) return blockType
   if (!triggerMode) return undefined
@@ -81,6 +88,45 @@ function deployedTriggerId(
   if (triggerExists(catalog, values.triggerId)) return values.triggerId
   const available = block.triggers?.enabled ? block.triggers.available[0] : undefined
   return triggerExists(catalog, available) ? available : undefined
+}
+
+/**
+ * The outputs a block exposes to references: a block acting as a trigger runs as the trigger it
+ * deploys as ({@link deployedTriggerId}) and emits that trigger's payload in place of its own
+ * outputs; any other block exposes its own. This is the runtime's rule: `getBlockOutputs`
+ * (lib/workflows/blocks/outputs.ts) returns the resolved trigger's outputs instead of the block's
+ * for a block in trigger mode, and `TriggerBlockHandler` (executor/handlers/trigger/handler.ts)
+ * returns the trigger's payload as the block's output. A trigger block (`category: 'triggers'`)
+ * only ever runs as a trigger, so it resolves its trigger as in trigger mode whatever its flag
+ * says (IMAP's `imap` block runs as `imap_poller`). `values` are the block's stored values, or a
+ * builder's pins when only the builder is known.
+ */
+export function blockOutputSchemas(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  options: { triggerMode: boolean; values: Readonly<Record<string, unknown>> }
+): Record<string, CatalogOutput> {
+  const triggerMode = options.triggerMode || block.category === 'triggers'
+  const triggerId = deployedTriggerId(catalog, block, block.type, triggerMode, options.values)
+  const trigger = triggerId === undefined ? undefined : catalogTrigger(catalog, triggerId)
+  return trigger ? trigger.outputs : block.outputs
+}
+
+/**
+ * The outputs a block declared through `builder` exposes ({@link blockOutputSchemas}) when its
+ * source sets no trigger of its own: a trigger-mode builder runs as the trigger it pins, else as
+ * its block's first. Compile checks output paths and SDK codegen types a builder's outputs by
+ * this one call, so a path compile accepts is one the SDK types.
+ */
+export function builderOutputSchemas(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  builder: CatalogBuilder | undefined
+): Record<string, CatalogOutput> {
+  return blockOutputSchemas(catalog, block, {
+    triggerMode: builder?.triggerMode === true,
+    values: builder?.fixed ?? {},
+  })
 }
 
 /**
@@ -161,7 +207,7 @@ export function isInactive(id: SubBlockId, inputs: ActivityInputs): boolean {
   if (inputs.deployRead.has(id)) return false
   const isCustom = inputs.block.custom !== undefined
   if (isCustom && CUSTOM_BLOCK_WIRING.has(id)) return true
-  const declarations = inputs.block.subBlocks.filter((subBlock) => subBlock.id === id)
+  const declarations = declarationsOf(inputs.block, id)
   if (declarations.length === 0) {
     if (isCustom) return declaresCustomInputs(inputs.block)
     return !(inputs.blockType === 'agent' && LEGACY_AGENT_FIELDS.has(id))
@@ -195,6 +241,30 @@ export function canonicalActivityInputs(
     overrides,
     index: serializedCanonicalIndex(declared, block.triggerMode),
     deployRead: deployReadIds(catalog, declared, block.type, block.triggerMode, values),
+  }
+}
+
+/**
+ * `inputs` with the stored value of `id` replaced by `value`: what {@link canonicalActivityInputs}
+ * returns for the block holding that value, without rebuilding what the value cannot change. The
+ * canonical index depends only on the block and its surface; the ids deploy reads change only
+ * with the trigger it deploys as.
+ */
+export function withStoredValue(
+  catalog: BlockCatalog,
+  inputs: ActivityInputs,
+  id: SubBlockId,
+  value: unknown
+): ActivityInputs {
+  const values: Record<string, unknown> = { ...inputs.values }
+  setOwn(values, id, value)
+  const movesTrigger = id === 'selectedTriggerId' || id === 'triggerId'
+  return {
+    ...inputs,
+    values,
+    deployRead: movesTrigger
+      ? deployReadIds(catalog, inputs.block, inputs.blockType, inputs.triggerMode, values)
+      : inputs.deployRead,
   }
 }
 
