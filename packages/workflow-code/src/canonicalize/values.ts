@@ -52,7 +52,7 @@ function rewriteReferences(text: string, context: CanonContext): string {
     }
     if (isReservedWorkflowBlockName(prefix)) return match
     const normalized = normalizeWorkflowBlockName(prefix)
-    if (normalized === prefix || !context.referenceKeyByName.has(normalized)) return match
+    if (normalized === prefix || !context.referenceableKeys.has(normalized)) return match
     return `<${normalized}${dot === -1 ? '' : inner.slice(dot)}>`
   })
 }
