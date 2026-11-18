@@ -1,6 +1,15 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { PosthogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+
+/**
+ * Switch params the tools copy straight into the request body. Older workflows
+ * store a switch as the text `'true'`/`'false'`, which PostHog would receive as a
+ * string (and `'false'` reads as truthy), so each is read back to a real boolean.
+ * `is_static` is the create-cohort copy `tools.config.tool` makes of `isStatic`.
+ */
+const SWITCH_PARAMS = ['active', 'ensureExperienceContinuity', 'isStatic', 'is_static'] as const
 
 /** Cohort membership definition, whichever of the three forms the user filled. */
 const COHORT_DEFINITION_FIELD = ['filters', 'query', 'groups'] as const
@@ -1566,6 +1575,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (params.offset) result.offset = Number(params.offset)
         if (params.rolloutPercentage) result.rolloutPercentage = Number(params.rolloutPercentage)
         if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
+        for (const key of SWITCH_PARAMS) {
+          if (params[key] !== undefined) result[key] = toBooleanFromInput(params[key])
+        }
 
         return result
       },
