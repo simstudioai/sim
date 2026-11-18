@@ -405,3 +405,115 @@ describe('slider ranges', () => {
     expect(sliders('temperature: vars.temp')).toEqual([])
   })
 })
+
+describe('hints that name the fix', () => {
+  it('suggests a block whose name an identifier swaps two letters of', () => {
+    const [unknown] = findings(
+      run([START, "const save = api('Save', { url: 'https://x' })", 'start.to(saev)'].join('\n')),
+      'E_UNKNOWN_IDENTIFIER'
+    )
+    expect(unknown?.hint).toBe('Did you mean save?')
+  })
+
+  it('names the block and suggests the output an unknown static output path is close to', () => {
+    const [unknown] = findings(
+      run(
+        [
+          START,
+          "const call = api('Call', { url: 'https://x' })",
+          "const next = api('Next', { url: 'https://x', body: { got: call.dat } })",
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+    expect(unknown?.message).toBe('Call has no output dat.')
+    expect(unknown?.hint).toBe('Did you mean data?')
+  })
+
+  it('lists the outputs when no output is close to an unknown path', () => {
+    const [unknown] = findings(
+      run(
+        [
+          START,
+          "const call = api('Call', { url: 'https://x' })",
+          "const next = api('Next', { url: 'https://x', body: { got: call.everything } })",
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+    expect(unknown?.hint).toBe('Outputs: data, status, headers.')
+  })
+
+  it('suggests a declared env name an unknown one is close to', () => {
+    const result = compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: source(
+          "const a = api('A', { url: 'https://x', body: { key: env.OPENAI_KYE } })"
+        ).replace('import { agent', 'import { env, agent'),
+      },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      envNames: new Set(['OPENAI_KEY']),
+    })
+    expect(findings(result, 'W_ENV_UNKNOWN')[0]?.hint).toBe('Did you mean OPENAI_KEY?')
+  })
+
+  it('points process.env at env.NAME', () => {
+    const [unknown] = findings(
+      run("const a = api('A', { url: process.env.API_URL })"),
+      'E_UNKNOWN_IDENTIFIER'
+    )
+    expect(unknown?.hint).toBe(
+      "Read an environment variable as env.NAME, with env imported from '@sim/workflow-sdk'."
+    )
+  })
+
+  it('tells a reference to a non-block const to inline its value', () => {
+    const result = run(["const URL = 'https://x'", "const a = api('A', { url: URL })"].join('\n'))
+    const [refused] = findings(result, 'E_UNSUPPORTED_SYNTAX')
+    expect(refused?.message).toBe('URL holds a value, not a block.')
+    expect(findings(result, 'E_UNKNOWN_IDENTIFIER')[0]?.hint).toBe(
+      'URL is a const that holds a value, which a workflow file cannot name: write the value here.'
+    )
+  })
+
+  it.each([
+    ['an untagged template', "const a = api('A', { url: `https://${start.host}` })"],
+    ['an unknown identifier', "const a = api('A', { url: process.env.API_URL })"],
+  ])('does not also report a required param written as %s as missing', (_, body) => {
+    const result = run([START, body].join('\n'))
+    expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true)
+    expect(findings(result, 'W_REQUIRED_MISSING')).toEqual([])
+  })
+
+  it('still reports a required param left as todo() as missing', () => {
+    const result = compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: source([START, "const a = api('A', { url: todo() })"].join('\n')).replace(
+          'import { agent',
+          'import { todo, agent'
+        ),
+      },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+    })
+    expect(findings(result, 'W_REQUIRED_MISSING').map((d) => d.param)).toEqual(['url'])
+  })
+})
+
+describe('an options object passed to .to()', () => {
+  it('says an edge takes no options and where block options go', () => {
+    const result = run(
+      [START, "const a = api('A', { url: 'https://x' })", 'start.to(a, { retry: true })'].join('\n')
+    )
+    const [refused] = findings(result, 'E_UNSUPPORTED_SYNTAX')
+    expect(refused?.message).toBe('.to() takes blocks only; an edge has no options.')
+    expect(refused?.hint).toBe(
+      "Set a block's options, such as retry, in its builder's third argument: api('Name', { ... }, { retry: { enabled: true, maxTries: 3 } })."
+    )
+  })
+})
