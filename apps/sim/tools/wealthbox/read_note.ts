@@ -50,9 +50,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    const listed: unknown[] | undefined = Array.isArray(data?.status_updates)
-      ? data.status_updates
-      : undefined
+    const listed = Array.isArray(data?.status_updates) ? data.status_updates : undefined
 
     // Format note information into readable content
     const note = data

@@ -50,7 +50,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    const listed: unknown[] | undefined = Array.isArray(data?.tasks) ? data.tasks : undefined
+    const listed = Array.isArray(data?.tasks) ? data.tasks : undefined
 
     // Format task information into readable content
     const task = data

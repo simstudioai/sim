@@ -50,7 +50,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    const listed: unknown[] | undefined = Array.isArray(data?.contacts) ? data.contacts : undefined
+    const listed = Array.isArray(data?.contacts) ? data.contacts : undefined
 
     // Format contact information into readable content
     const contact = data
