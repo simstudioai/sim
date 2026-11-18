@@ -1,10 +1,9 @@
 import type { PostgresClient } from '@/lib/internal/postgresql/client'
 import { executePostgresQuery } from '@/lib/internal/postgresql/client'
-
-export interface PostgresRowsResult {
-  rows: unknown[]
-  rowCount: number
-}
+import {
+  type CappedRowsResult,
+  capStatementRows,
+} from '@/lib/internal/tool-operations/response-limits'
 
 export interface PostgresIntrospectionResult {
   tables: Array<{
@@ -75,16 +74,17 @@ export async function queryPostgres(
   query: string,
   params: unknown[] = [],
   signal?: AbortSignal
-): Promise<PostgresRowsResult> {
+): Promise<CappedRowsResult> {
   type PostgresParameters = NonNullable<Parameters<PostgresClient['unsafe']>[1]>
   const result = await executePostgresQuery(
     client.unsafe(query, params as PostgresParameters),
     signal
   )
-  return {
-    rows: result,
-    rowCount: result.count ?? result.length ?? 0,
-  }
+  return capStatementRows(
+    result,
+    result.count ?? result.length ?? 0,
+    'Page with LIMIT and OFFSET to read the rest.'
+  )
 }
 
 export function validatePostgresQuery(query: string): { isValid: boolean; error?: string } {
@@ -118,7 +118,7 @@ export async function insertPostgresRows(
   table: string,
   data: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<PostgresRowsResult> {
+): Promise<CappedRowsResult> {
   const sanitizedTable = sanitizePostgresIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((column) => sanitizePostgresIdentifier(column))
@@ -135,7 +135,7 @@ export async function updatePostgresRows(
   data: Record<string, unknown>,
   where: string,
   signal?: AbortSignal
-): Promise<PostgresRowsResult> {
+): Promise<CappedRowsResult> {
   validateWhereClause(where)
 
   const sanitizedTable = sanitizePostgresIdentifier(table)
@@ -153,7 +153,7 @@ export async function deletePostgresRows(
   table: string,
   where: string,
   signal?: AbortSignal
-): Promise<PostgresRowsResult> {
+): Promise<CappedRowsResult> {
   validateWhereClause(where)
 
   const sanitizedTable = sanitizePostgresIdentifier(table)

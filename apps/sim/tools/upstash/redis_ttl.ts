@@ -1,6 +1,7 @@
 import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisTtlParams, UpstashRedisTtlResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisTtlTool: ToolConfig<UpstashRedisTtlParams, UpstashRedisTtlResponse> = {
   id: 'upstash_redis_ttl',
@@ -32,7 +33,7 @@ export const upstashRedisTtlTool: ToolConfig<UpstashRedisTtlParams, UpstashRedis
   },
 
   request: {
-    url: (params) => `${params.restUrl}/ttl/${encodeURIComponent(params.key)}`,
+    url: (params) => `${params.restUrl}/ttl/${upstashPathSegment(params.key, 'key')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

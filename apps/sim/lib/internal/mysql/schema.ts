@@ -4,7 +4,8 @@ import { z } from 'zod'
 const sslModeSchema = z.enum(['disabled', 'required', 'preferred']).default('preferred')
 /**
  * TLS mode for a MySQL connection: `required` encrypts and verifies the server certificate,
- * `preferred` encrypts without verifying it, and `disabled` connects without TLS.
+ * `preferred` encrypts without verifying it when the server offers TLS and connects unencrypted
+ * when it does not, and `disabled` connects without TLS.
  */
 export type MysqlSslMode = z.output<typeof sslModeSchema>
 

@@ -38,6 +38,8 @@ interface MySQLBaseResponse extends ToolResponse {
     message: string
     rows: unknown[]
     rowCount: number
+    truncated?: boolean
+    truncationReason?: string
   }
   error?: string
 }

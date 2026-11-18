@@ -105,6 +105,10 @@ export const queryTool: InternalToolConfig<MongoDBQueryParams, MongoDBResponse> 
         message: data.message || 'Query executed successfully',
         documents: data.documents || [],
         documentCount: data.documentCount || 0,
+        ...(data.truncated && {
+          truncated: true,
+          truncationReason: data.truncationReason,
+        }),
       },
       error: undefined,
     }
@@ -114,5 +118,16 @@ export const queryTool: InternalToolConfig<MongoDBQueryParams, MongoDBResponse> 
     message: { type: 'string', description: 'Operation status message' },
     documents: { type: 'array', description: 'Array of documents returned from the query' },
     documentCount: { type: 'number', description: 'Number of documents returned' },
+    truncated: {
+      type: 'boolean',
+      description:
+        'Present and true only when documents were dropped to stay inside the response ceilings (10,000 documents or 10 MiB). Absent means the result is complete',
+      optional: true,
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Which ceiling was hit and how to read the rest',
+      optional: true,
+    },
   },
 }

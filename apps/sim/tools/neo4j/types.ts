@@ -45,6 +45,8 @@ interface Neo4jBaseResponse extends ToolResponse {
     message: string
     records?: unknown[]
     recordCount?: number
+    truncated?: boolean
+    truncationReason?: string
     summary?: {
       resultAvailableAfter: number
       resultConsumedAfter: number

@@ -87,6 +87,10 @@ export const executeTool: InternalToolConfig<Neo4jExecuteParams, Neo4jResponse> 
         records: data.records || [],
         recordCount: data.recordCount || 0,
         summary: data.summary,
+        ...(data.truncated && {
+          truncated: true,
+          truncationReason: data.truncationReason,
+        }),
       },
       error: undefined,
     }
@@ -97,5 +101,16 @@ export const executeTool: InternalToolConfig<Neo4jExecuteParams, Neo4jResponse> 
     records: { type: 'array', description: 'Array of records returned from the query' },
     recordCount: { type: 'number', description: 'Number of records returned' },
     summary: { type: 'json', description: 'Execution summary with timing and counters' },
+    truncated: {
+      type: 'boolean',
+      description:
+        'Present and true only when records were dropped to stay inside the response ceilings (10,000 records or 10 MiB). Absent means the result is complete',
+      optional: true,
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Which ceiling was hit and how to read the rest',
+      optional: true,
+    },
   },
 }

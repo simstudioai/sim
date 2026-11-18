@@ -15,6 +15,7 @@ import type {
   MysqlQueryInput,
   MysqlUpdateInput,
 } from '@/lib/internal/mysql/schema'
+import { toRowsResponseBody } from '@/lib/internal/tool-operations/response-limits'
 
 export class MysqlOperationInputError extends Error {}
 
@@ -45,11 +46,10 @@ export function executeMysqlQuery(input: MysqlQueryInput, signal?: AbortSignal) 
 
   return withMysqlConnection(input, signal, async (connection) => {
     const result = await queryMysql(connection, input.query, undefined, signal)
-    return {
-      message: `Query executed successfully. ${result.rowCount} row(s) returned.`,
-      rows: result.rows,
-      rowCount: result.rowCount,
-    }
+    return toRowsResponseBody(
+      result,
+      `Query executed successfully. ${result.rowCount} row(s) returned.`
+    )
   })
 }
 
@@ -58,11 +58,10 @@ export function executeMysqlStatement(input: MysqlExecuteInput, signal?: AbortSi
 
   return withMysqlConnection(input, signal, async (connection) => {
     const result = await queryMysql(connection, input.query, undefined, signal)
-    return {
-      message: `SQL executed successfully. ${result.rowCount} row(s) affected.`,
-      rows: result.rows,
-      rowCount: result.rowCount,
-    }
+    return toRowsResponseBody(
+      result,
+      `SQL executed successfully. ${result.rowCount} row(s) affected.`
+    )
   })
 }
 
@@ -70,11 +69,10 @@ export function executeMysqlInsert(input: MysqlInsertInput, signal?: AbortSignal
   return withMysqlConnection(input, signal, async (connection) => {
     const { query, values } = buildMysqlInsertQuery(input.table, input.data)
     const result = await queryMysql(connection, query, values, signal)
-    return {
-      message: `Data inserted successfully. ${result.rowCount} row(s) affected.`,
-      rows: result.rows,
-      rowCount: result.rowCount,
-    }
+    return toRowsResponseBody(
+      result,
+      `Data inserted successfully. ${result.rowCount} row(s) affected.`
+    )
   })
 }
 
@@ -82,11 +80,10 @@ export function executeMysqlUpdate(input: MysqlUpdateInput, signal?: AbortSignal
   return withMysqlConnection(input, signal, async (connection) => {
     const { query, values } = buildMysqlUpdateQuery(input.table, input.data, input.where)
     const result = await queryMysql(connection, query, values, signal)
-    return {
-      message: `Data updated successfully. ${result.rowCount} row(s) affected.`,
-      rows: result.rows,
-      rowCount: result.rowCount,
-    }
+    return toRowsResponseBody(
+      result,
+      `Data updated successfully. ${result.rowCount} row(s) affected.`
+    )
   })
 }
 
@@ -94,11 +91,10 @@ export function executeMysqlDelete(input: MysqlDeleteInput, signal?: AbortSignal
   return withMysqlConnection(input, signal, async (connection) => {
     const { query, values } = buildMysqlDeleteQuery(input.table, input.where)
     const result = await queryMysql(connection, query, values, signal)
-    return {
-      message: `Data deleted successfully. ${result.rowCount} row(s) affected.`,
-      rows: result.rows,
-      rowCount: result.rowCount,
-    }
+    return toRowsResponseBody(
+      result,
+      `Data deleted successfully. ${result.rowCount} row(s) affected.`
+    )
   })
 }
 

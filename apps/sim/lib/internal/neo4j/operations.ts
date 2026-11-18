@@ -11,6 +11,10 @@ import type {
 } from '@/lib/api/contracts/tools/databases/neo4j'
 import { createNeo4jDriver } from '@/lib/internal/neo4j/client'
 import { convertNeo4jValue } from '@/lib/internal/neo4j/values'
+import {
+  capResultRows,
+  resultTruncationReason,
+} from '@/lib/internal/tool-operations/response-limits'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
 
 const logger = createLogger('Neo4jOperations')
@@ -75,22 +79,35 @@ function projectSummary(result: QueryResult) {
 }
 
 function statementResponse(kind: StatementKind, result: QueryResult) {
-  const records = projectRecords(result)
+  const { rows: records, truncated } = capResultRows(projectRecords(result))
   const summary = projectSummary(result)
+  const truncation = truncated
+    ? {
+        truncated: true,
+        truncationReason: resultTruncationReason(
+          records.length,
+          'Page with SKIP and LIMIT to read the rest.'
+        ),
+      }
+    : undefined
+  const withTruncation = (message: string) =>
+    truncation ? `${message} ${truncation.truncationReason}` : message
   switch (kind) {
     case 'query':
       return {
-        message: `Found ${records.length} records`,
+        message: withTruncation(`Found ${records.length} records`),
         records,
         recordCount: records.length,
         summary,
+        ...truncation,
       }
     case 'execute':
       return {
-        message: `Query executed successfully, returned ${records.length} records`,
+        message: withTruncation(`Query executed successfully, returned ${records.length} records`),
         records,
         recordCount: records.length,
         summary,
+        ...truncation,
       }
     case 'create':
       return {

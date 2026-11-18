@@ -129,6 +129,8 @@ interface PostgresBaseResponse extends ToolResponse {
     message: string
     rows: unknown[]
     rowCount: number
+    truncated?: boolean
+    truncationReason?: string
   }
   error?: string
 }

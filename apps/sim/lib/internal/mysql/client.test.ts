@@ -85,6 +85,39 @@ describe('MySQL client', () => {
     expect(socket.setNoDelay).toHaveBeenCalledWith(true)
   })
 
+  it('connects unencrypted for ssl=preferred when the server does not offer TLS', async () => {
+    const connection = { end: vi.fn(), destroy: vi.fn() }
+    mockCreateConnection
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Server does not support secure connection'), {
+          code: 'HANDSHAKE_NO_SSL_SUPPORT',
+        })
+      )
+      .mockResolvedValueOnce(connection)
+
+    await expect(createMysqlConnection({ ...CONNECTION_CONFIG, ssl: 'preferred' })).resolves.toBe(
+      connection
+    )
+    expect(mockCreateConnection).toHaveBeenCalledTimes(2)
+    expect(mockCreateConnection.mock.calls[1][0].ssl).toBeUndefined()
+  })
+
+  it.each(['required', 'disabled'] as const)(
+    'does not retry ssl=%s after a handshake failure',
+    async (ssl) => {
+      mockCreateConnection.mockRejectedValueOnce(
+        Object.assign(new Error('Server does not support secure connection'), {
+          code: 'HANDSHAKE_NO_SSL_SUPPORT',
+        })
+      )
+
+      await expect(createMysqlConnection({ ...CONNECTION_CONFIG, ssl })).rejects.toThrow(
+        'Server does not support secure connection'
+      )
+      expect(mockCreateConnection).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it.each([
     new Map([['key', 'value']]),
     new Set(['value']),

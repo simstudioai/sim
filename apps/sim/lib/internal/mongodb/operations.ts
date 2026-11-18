@@ -23,8 +23,44 @@ import type {
   MongodbQueryInput,
   MongodbUpdateInput,
 } from '@/lib/internal/mongodb/schema'
+import {
+  createResultRowsBudget,
+  resultTruncationReason,
+} from '@/lib/internal/tool-operations/response-limits'
 
 export class MongodbOperationInputError extends Error {}
+
+/**
+ * Reads documents until the response budget is spent. Leaving the loop early closes the server
+ * cursor, so an unbounded find or aggregation never materializes past the ceiling.
+ */
+async function readCappedDocuments(
+  cursor: AsyncIterable<Document>,
+  describe: (count: number) => string
+) {
+  const budget = createResultRowsBudget()
+  const documents: Document[] = []
+  let truncated = false
+  for await (const document of cursor) {
+    if (!budget.admit(document)) {
+      truncated = true
+      break
+    }
+    documents.push(document)
+  }
+  const message = describe(documents.length)
+  if (!truncated) return { message, documents }
+  const truncationReason = resultTruncationReason(
+    documents.length,
+    'Narrow the filter or page with $skip and $limit to read the rest.'
+  )
+  return {
+    message: `${message} ${truncationReason}`,
+    documents,
+    truncated: true,
+    truncationReason,
+  }
+}
 
 async function withMongodbClient<TResult>(
   input: MongodbConnectionConfig,
@@ -71,13 +107,9 @@ export function executeMongodbQuery(input: MongodbQueryInput, signal?: AbortSign
     }
 
     cursor = cursor.limit(input.limit || 100)
-    const documents = await cursor.toArray()
+    const result = await readCappedDocuments(cursor, (count) => `Found ${count} documents`)
     signal?.throwIfAborted()
-    return {
-      message: `Found ${documents.length} documents`,
-      documents,
-      documentCount: documents.length,
-    }
+    return { ...result, documentCount: result.documents.length }
   })
 }
 
@@ -92,17 +124,12 @@ export function executeMongodbAggregation(input: MongodbExecuteInput, signal?: A
   const pipeline = JSON.parse(input.pipeline) as Document[]
 
   return withMongodbClient(input, signal, async (client) => {
-    const documents = await client
-      .db(input.database)
-      .collection(collectionName)
-      .aggregate(pipeline, { signal })
-      .toArray()
+    const result = await readCappedDocuments(
+      client.db(input.database).collection(collectionName).aggregate(pipeline, { signal }),
+      (count) => `Aggregation completed, returned ${count} documents`
+    )
     signal?.throwIfAborted()
-    return {
-      message: `Aggregation completed, returned ${documents.length} documents`,
-      documents,
-      documentCount: documents.length,
-    }
+    return { ...result, documentCount: result.documents.length }
   })
 }
 

@@ -706,6 +706,14 @@ Return ONLY valid JSON.`,
       type: 'number',
       description: 'Number of records returned or affected',
     },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the result hit a row or byte ceiling and records were dropped',
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Explanation of the ceiling that truncated the result',
+    },
     summary: {
       type: 'json',
       description: 'Execution summary with timing and database change counters',
