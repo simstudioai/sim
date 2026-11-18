@@ -79,7 +79,7 @@ export const HuggingFaceBlock: BlockConfig = {
       type: 'slider',
       min: 0,
       max: 2,
-      value: () => '0.7',
+      value: () => 0.7,
     },
     {
       id: 'maxTokens',
