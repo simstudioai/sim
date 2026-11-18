@@ -46,6 +46,7 @@ import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mother
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
+  hasStreamViewer,
   isExplicitStopReason,
   registerActiveStream,
   releasePendingChatStream,
@@ -427,6 +428,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
             const result = await runCopilotLifecycle(requestPayload, {
               ...orchestrateOptions,
+              hasClientViewer: async () =>
+                !publisher.clientDisconnected || (await hasStreamViewer(streamId)),
               executionId,
               runId,
               trace: collector,

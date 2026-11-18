@@ -3,7 +3,9 @@ import type { OrganizationSettingsFeatures } from '@/components/settings/navigat
 import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import {
   organizationSettingsNavigation,
+  organizationSurfaceSettingsNavigation,
   resolveOrganizationSettingsSection,
+  resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
 
 const enterprise: OrganizationSettingsFeatures = {
@@ -15,6 +17,22 @@ const enterprise: OrganizationSettingsFeatures = {
 }
 
 describe('organization settings navigation', () => {
+  it('lists Desktop settings only inside the desktop app, where the page resolves', () => {
+    const ids = (desktopSettings: boolean) =>
+      organizationSurfaceSettingsNavigation(
+        false,
+        enterprise,
+        { connectedAccounts: false, search: true, desktopSettings },
+        false
+      ).map(({ id }) => id)
+    expect(ids(true)).toContain('desktop')
+    expect(ids(false)).not.toContain('desktop')
+    expect(resolveOrganizationSurfaceSection('/o/one/settings/desktop')).toEqual({
+      plane: 'account',
+      section: 'desktop',
+    })
+  })
+
   it('normalizes old section names and does not expose unsupported routes', () => {
     expect(resolveOrganizationSettingsSection('/o/one/settings/organization?query=person')).toBe(
       'members'
