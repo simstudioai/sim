@@ -6546,6 +6546,14 @@
                             "name": "lookup_order"
                           }
                         ],
+                        "mcpServers": [
+                          {
+                            "key": "github",
+                            "id": "mcp-1a2b3c4d",
+                            "name": "GitHub",
+                            "tools": ["create_issue", "list_issues"]
+                          }
+                        ],
                         "env": ["CRM_KEY"],
                         "truncated": false
                       }
@@ -20664,6 +20672,37 @@
                 },
                 "description": "Workspace custom tools, oldest first."
               },
+              "mcpServers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    },
+                    "tools": {
+                      "description": "Tool names the server listed, for `mcp(key).tool(name)`; absent when it could not be listed (unreachable, or not listable by this caller).",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["key", "id", "name"],
+                  "additionalProperties": false,
+                  "description": "An MCP server the workspace consumes: `mcp(key)`."
+                },
+                "description": "MCP servers, oldest first."
+              },
               "env": {
                 "type": "array",
                 "items": {
@@ -20684,6 +20723,7 @@
               "workflows",
               "skills",
               "customTools",
+              "mcpServers",
               "env",
               "truncated"
             ],
@@ -20757,6 +20797,14 @@
                   "key": "lookup-order",
                   "id": "ctl_2b8d6f03",
                   "name": "lookup_order"
+                }
+              ],
+              "mcpServers": [
+                {
+                  "key": "github",
+                  "id": "mcp-1a2b3c4d",
+                  "name": "GitHub",
+                  "tools": ["create_issue", "list_issues"]
                 }
               ],
               "env": ["CRM_KEY"],
@@ -24537,7 +24585,15 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "enum": [
+                    "custom-tool",
+                    "skill",
+                    "mcp-server",
+                    "table",
+                    "knowledge-base",
+                    "file",
+                    "workflow"
+                  ],
                   "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 },
                 "description": "The kinds read; the directory manages exactly these."
@@ -24710,6 +24766,7 @@
                       "enum": [
                         "custom-tool",
                         "skill",
+                        "mcp-server",
                         "table",
                         "knowledge-base",
                         "file",
@@ -24765,6 +24822,11 @@
                         "E_TOOL_SCHEMA",
                         "E_TOOL_CODE",
                         "E_SKILL_FRONTMATTER",
+                        "E_MCP_LITERAL_SECRET",
+                        "E_MCP_STORED_MISSING",
+                        "E_MCP_TOOL_UNKNOWN",
+                        "W_MCP_REPLACE",
+                        "W_MCP_TOOLS_UNCHECKED",
                         "E_FILE_PATH",
                         "E_FILE_PATH_COLLISION",
                         "E_FILE_NAME",
@@ -25092,6 +25154,7 @@
                       "enum": [
                         "custom-tool",
                         "skill",
+                        "mcp-server",
                         "table",
                         "knowledge-base",
                         "file",
@@ -25160,6 +25223,7 @@
                       "enum": [
                         "custom-tool",
                         "skill",
+                        "mcp-server",
                         "table",
                         "knowledge-base",
                         "file",
@@ -25224,7 +25288,15 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                    "enum": [
+                      "custom-tool",
+                      "skill",
+                      "mcp-server",
+                      "table",
+                      "knowledge-base",
+                      "file",
+                      "workflow"
+                    ],
                     "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                   },
                   "key": {
@@ -25260,6 +25332,11 @@
                       "E_TOOL_SCHEMA",
                       "E_TOOL_CODE",
                       "E_SKILL_FRONTMATTER",
+                      "E_MCP_LITERAL_SECRET",
+                      "E_MCP_STORED_MISSING",
+                      "E_MCP_TOOL_UNKNOWN",
+                      "W_MCP_REPLACE",
+                      "W_MCP_TOOLS_UNCHECKED",
                       "E_FILE_PATH",
                       "E_FILE_PATH_COLLISION",
                       "E_FILE_NAME",
@@ -25610,6 +25687,11 @@
                         "E_TOOL_SCHEMA",
                         "E_TOOL_CODE",
                         "E_SKILL_FRONTMATTER",
+                        "E_MCP_LITERAL_SECRET",
+                        "E_MCP_STORED_MISSING",
+                        "E_MCP_TOOL_UNKNOWN",
+                        "W_MCP_REPLACE",
+                        "W_MCP_TOOLS_UNCHECKED",
                         "E_FILE_PATH",
                         "E_FILE_PATH_COLLISION",
                         "E_FILE_NAME",
@@ -26077,11 +26159,19 @@
             "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
           },
           "kinds": {
-            "maxItems": 6,
+            "maxItems": 7,
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+              "enum": [
+                "custom-tool",
+                "skill",
+                "mcp-server",
+                "table",
+                "knowledge-base",
+                "file",
+                "workflow"
+              ],
               "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
             },
             "description": "The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent."
@@ -26099,7 +26189,15 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "enum": ["custom-tool", "skill", "table", "knowledge-base", "file", "workflow"],
+                  "enum": [
+                    "custom-tool",
+                    "skill",
+                    "mcp-server",
+                    "table",
+                    "knowledge-base",
+                    "file",
+                    "workflow"
+                  ],
                   "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 }
               }

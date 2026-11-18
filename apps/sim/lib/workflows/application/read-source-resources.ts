@@ -3,11 +3,14 @@ import { db } from '@sim/db'
 import {
   customTools,
   knowledgeBase,
+  mcpServers,
   skill,
   userTableDefinitions,
   workflowBlocks,
   workflow as workflowTable,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
@@ -22,6 +25,8 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
 import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { isColumnType } from '@/lib/table/column-types'
@@ -33,6 +38,8 @@ import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-d
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
+
+const logger = createLogger('ReadSourceResources')
 
 type ManifestColumn = SourceResources['tables'][number]['columns'][number]
 type ManifestWorkflowInputs = SourceResources['workflows'][number]['inputs']
@@ -52,6 +59,45 @@ const sourceResourcesDelegationPolicy = {
 
 /** One more row than the cap, so a full page tells a capped list from an exact one. */
 const PAGE = MAX_MANIFEST_RESOURCES_PER_KIND + 1
+
+/** How long the manifest waits on MCP tool listings (mostly served from the tool cache). */
+const MCP_TOOLS_TIMEOUT_MS = 5_000
+/** MCP servers whose tools the manifest lists at once. */
+const MCP_TOOLS_CONCURRENCY = 4
+
+/**
+ * The tool names of each MCP server, by id, through the discovery use case the editor's tool
+ * picker uses (cache first, never marking a server unhealthy). Best effort: a server that cannot be
+ * listed in time, or by this caller (a workspace API key may not discover), is left out, and its
+ * tools type as any name.
+ */
+async function loadMcpToolNames(
+  principal: Principal,
+  workspaceId: string,
+  serverIds: string[]
+): Promise<Map<string, string[]>> {
+  const names = new Map<string, string[]>()
+  if (serverIds.length === 0 || principal.kind === 'workspace_api_key') return names
+  const signal = AbortSignal.timeout(MCP_TOOLS_TIMEOUT_MS)
+  await mapWithConcurrency(serverIds, MCP_TOOLS_CONCURRENCY, async (serverId) => {
+    try {
+      const { tools } = await discoverMcpServerToolsUseCase.execute({
+        principal,
+        input: { workspaceId, serverId, signal, bestEffort: true },
+      })
+      names.set(
+        serverId,
+        tools.map((tool) => tool.name)
+      )
+    } catch (error) {
+      logger.info('Listed an MCP server without its tools', {
+        serverId,
+        error: getErrorMessage(error),
+      })
+    }
+  })
+  return names
+}
 
 /**
  * A table's columns as workflow source reads them. A `select` column lists its option names:
@@ -137,18 +183,21 @@ async function visibleSections(principal: Principal, context: WorkspaceAuthoriza
   // permission-group-enforced: integrations.manage — omits the credentials section, as the credential selector refuses
   // permission-group-enforced: skills.use — omits the skills section, as the skill list refuses
   // permission-group-enforced: custom_tools.use — omits the custom tools section, as the custom tool list refuses
-  const [secretsWithheld, integrationsWithheld, skillsWithheld, customToolsWithheld] =
+  // permission-group-enforced: mcp_tools.use — omits the MCP servers section, as the MCP server list refuses
+  const [secretsWithheld, integrationsWithheld, skillsWithheld, customToolsWithheld, mcpWithheld] =
     await Promise.all([
       withheld('secrets.manage'),
       withheld('integrations.manage'),
       withheld('skills.use'),
       withheld('custom_tools.use'),
+      withheld('mcp_tools.use'),
     ])
   return {
     env: principal.kind !== 'workspace_api_key' && !secretsWithheld,
     credentials: !integrationsWithheld,
     skills: !skillsWithheld,
     customTools: !customToolsWithheld,
+    mcpServers: !mcpWithheld,
   }
 }
 
@@ -161,8 +210,9 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 /**
  * The workspace resources a workflow file can name, by the keys source uses for them: tables
  * with their columns, knowledge bases, saved credentials with their provider, workflows with
- * the inputs their start block declares, workspace skills and custom tools, and env variable
- * names (never values). Credentials are the ones the caller's credential listing shows, and
+ * the inputs their start block declares, workspace skills and custom tools, MCP servers with the
+ * tool names they list (best effort, see `loadMcpToolNames`), and env variable names (never
+ * values). Credentials are the ones the caller's credential listing shows, and
  * credentials, env names, skills and custom tools are omitted where the editor's own pickers or
  * the resource's own list would withhold them (see `visibleSections`). The CLI writes it as
  * `workspace.d.ts`, so `table('tickets')`, `skill('triage')` and `env.X` type-check.
@@ -188,56 +238,72 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
       userId ? checkWorkspaceAccess(workspaceId, userId) : undefined,
     ])
 
-    const [tableRows, kbRows, credentialRows, workflowRows, skillRows, customToolRows, env] =
-      await Promise.all([
-        db
-          .select({
-            id: userTableDefinitions.id,
-            name: userTableDefinitions.name,
-            schema: userTableDefinitions.schema,
-          })
-          .from(userTableDefinitions)
-          .where(
-            and(
-              eq(userTableDefinitions.workspaceId, workspaceId),
-              isNull(userTableDefinitions.archivedAt)
-            )
+    const [
+      tableRows,
+      kbRows,
+      credentialRows,
+      workflowRows,
+      skillRows,
+      customToolRows,
+      mcpServerRows,
+      env,
+    ] = await Promise.all([
+      db
+        .select({
+          id: userTableDefinitions.id,
+          name: userTableDefinitions.name,
+          schema: userTableDefinitions.schema,
+        })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, workspaceId),
+            isNull(userTableDefinitions.archivedAt)
           )
-          .orderBy(asc(userTableDefinitions.createdAt), asc(userTableDefinitions.id))
-          .limit(PAGE),
-        db
-          .select({ id: knowledgeBase.id, name: knowledgeBase.name })
-          .from(knowledgeBase)
-          .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
-          .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
-          .limit(PAGE),
-        visible.credentials
-          ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE, access })
-          : [],
-        db
-          .select({ id: workflowTable.id, name: workflowTable.name })
-          .from(workflowTable)
-          .where(and(eq(workflowTable.workspaceId, workspaceId), isNull(workflowTable.archivedAt)))
-          .orderBy(asc(workflowTable.createdAt), asc(workflowTable.id))
-          .limit(PAGE),
-        visible.skills
-          ? db
-              .select({ id: skill.id, name: skill.name })
-              .from(skill)
-              .where(eq(skill.workspaceId, workspaceId))
-              .orderBy(asc(skill.createdAt), asc(skill.id))
-              .limit(PAGE)
-          : [],
-        visible.customTools
-          ? db
-              .select({ id: customTools.id, name: customTools.title })
-              .from(customTools)
-              .where(eq(customTools.workspaceId, workspaceId))
-              .orderBy(asc(customTools.createdAt), asc(customTools.id))
-              .limit(PAGE)
-          : [],
-        visible.env ? loadEnvNames(workspaceId, userId, access) : [],
-      ])
+        )
+        .orderBy(asc(userTableDefinitions.createdAt), asc(userTableDefinitions.id))
+        .limit(PAGE),
+      db
+        .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+        .from(knowledgeBase)
+        .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+        .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
+        .limit(PAGE),
+      visible.credentials
+        ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE, access })
+        : [],
+      db
+        .select({ id: workflowTable.id, name: workflowTable.name })
+        .from(workflowTable)
+        .where(and(eq(workflowTable.workspaceId, workspaceId), isNull(workflowTable.archivedAt)))
+        .orderBy(asc(workflowTable.createdAt), asc(workflowTable.id))
+        .limit(PAGE),
+      visible.skills
+        ? db
+            .select({ id: skill.id, name: skill.name })
+            .from(skill)
+            .where(eq(skill.workspaceId, workspaceId))
+            .orderBy(asc(skill.createdAt), asc(skill.id))
+            .limit(PAGE)
+        : [],
+      visible.customTools
+        ? db
+            .select({ id: customTools.id, name: customTools.title })
+            .from(customTools)
+            .where(eq(customTools.workspaceId, workspaceId))
+            .orderBy(asc(customTools.createdAt), asc(customTools.id))
+            .limit(PAGE)
+        : [],
+      visible.mcpServers
+        ? db
+            .select({ id: mcpServers.id, name: mcpServers.name })
+            .from(mcpServers)
+            .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+            .orderBy(asc(mcpServers.createdAt), asc(mcpServers.id))
+            .limit(PAGE)
+        : [],
+      visible.env ? loadEnvNames(workspaceId, userId, access) : [],
+    ])
 
     const tables = capped(tableRows)
     const kbs = capped(kbRows)
@@ -245,6 +311,7 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
     const workflows = capped(workflowRows)
     const skills = capped(skillRows)
     const tools = capped(customToolRows)
+    const servers = capped(mcpServerRows)
 
     const refs: ResourceIdRef[] = [
       ...tables.rows.map((row) => ({ kind: 'table' as const, id: row.id })),
@@ -253,10 +320,16 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
       ...workflows.rows.map((row) => ({ kind: 'workflow' as const, id: row.id })),
       ...skills.rows.map((row) => ({ kind: 'skill' as const, id: row.id })),
       ...tools.rows.map((row) => ({ kind: 'custom-tool' as const, id: row.id })),
+      ...servers.rows.map((row) => ({ kind: 'mcp-server' as const, id: row.id })),
     ]
-    const [keys, inputs] = await Promise.all([
+    const [keys, inputs, mcpTools] = await Promise.all([
       resolveKeys(workspaceId, refs, { createdBy: userId ?? null }),
       loadWorkflowInputs(workflows.rows.map((row) => row.id)),
+      loadMcpToolNames(
+        principal,
+        workspaceId,
+        servers.rows.map((row) => row.id)
+      ),
     ])
     const keyOf = (kind: ResourceKind, id: string) => keys.get(kind)?.get(id)
     const named = (kind: ResourceKind, rows: Array<{ id: string; name: string }>) =>
@@ -284,8 +357,12 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
       }),
       skills: named('skill', skills.rows),
       customTools: named('custom-tool', tools.rows),
+      mcpServers: named('mcp-server', servers.rows).map((server) => {
+        const names = mcpTools.get(server.id)
+        return names ? { ...server, tools: names } : server
+      }),
       env,
-      truncated: [tables, kbs, credentials, workflows, skills, tools].some(
+      truncated: [tables, kbs, credentials, workflows, skills, tools, servers].some(
         (section) => section.truncated
       ),
     }

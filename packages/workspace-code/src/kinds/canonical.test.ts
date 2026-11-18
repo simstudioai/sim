@@ -10,6 +10,7 @@ import { fingerprintOf } from '../fingerprint'
 import type { KindCodec } from '../kind'
 import { type FileDecl, fileCodec } from './files'
 import { type KnowledgeBaseDecl, type KnowledgeChunkingDecl, knowledgeCodec } from './knowledge'
+import { type McpServerDecl, mcpCodec } from './mcp'
 import { type SkillDecl, skillCodec } from './skills'
 import type { TableColumnDecl, TableDecl } from './table'
 import { testTableCodec } from './table.test-helpers'
@@ -155,6 +156,40 @@ describe('every declared field reaches the fingerprint', () => {
         schema: { type: 'function', function: { name: 'find' } },
         code: 'return 2',
       })
+    ).toEqual([])
+  })
+
+  it('MCP server', () => {
+    const base: McpServerDecl = {
+      name: 'GitHub',
+      description: 'Issues',
+      url: 'https://mcp.example.com',
+      transport: 'streamable-http',
+      headers: { Authorization: { stored: 'a' } },
+      auth: { type: 'oauth', clientId: 'one' },
+      timeout: 1000,
+      retries: 1,
+      enabled: true,
+    }
+
+    expect(
+      unfingerprinted(
+        fingerprintBy(mcpCodec),
+        base,
+        {
+          name: 'Hub',
+          description: 'Pulls',
+          url: 'https://mcp.example.org',
+          // The only transport there is; its default fingerprints alike.
+          transport: 'streamable-http',
+          headers: { Authorization: { stored: 'b' } },
+          auth: { type: 'oauth', clientId: 'two' },
+          timeout: 2000,
+          retries: 2,
+          enabled: false,
+        },
+        ['transport']
+      )
     ).toEqual([])
   })
 

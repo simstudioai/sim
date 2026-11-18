@@ -182,6 +182,8 @@ export interface WorkspaceWorkflows {}
 export interface WorkspaceSkills {}
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface WorkspaceCustomTools {}
+// biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
+export interface WorkspaceMcpServers {}
 
 type KeyOf<M> = keyof M extends never ? string : Extract<keyof M, string>
 
@@ -191,6 +193,16 @@ export type CredentialKey = KeyOf<WorkspaceCredentials>
 export type WorkflowKey = KeyOf<WorkspaceWorkflows>
 export type SkillKey = KeyOf<WorkspaceSkills>
 export type CustomToolKey = KeyOf<WorkspaceCustomTools>
+export type McpServerKey = KeyOf<WorkspaceMcpServers>
+/**
+ * The tool names of MCP server `K`, as `workspace.d.ts` records them from the server's last
+ * listing; any name for a server it could not list or does not know.
+ */
+export type McpToolName<K extends string> = K extends keyof WorkspaceMcpServers
+  ? WorkspaceMcpServers[K] extends { tools: infer T extends string }
+    ? T
+    : string
+  : string
 
 /** A workspace resource by stable key, compiled to the resource's internal id. */
 export interface ResourceRef<Kind extends string, Key extends string = string> {
@@ -335,11 +347,11 @@ export interface McpToolOpts extends ToolUsage {
 }
 
 /** An MCP server by key: `mcp('linear')`. */
-export interface McpServerRef extends ResourceRef<'mcp-server'> {
+export interface McpServerRef<Key extends string = string> extends ResourceRef<'mcp-server', Key> {
   /** One of the server's tools, as an agent tool: `mcp('linear').tool('create_issue')`. */
-  tool(name: string, options?: McpToolOpts): Tool
+  tool(name: McpToolName<Key>, options?: McpToolOpts): Tool
 }
-export declare function mcp(key: string): McpServerRef
+export declare function mcp<K extends McpServerKey>(key: K): McpServerRef<K>
 
 // Graph
 

@@ -137,8 +137,8 @@ export async function loadCatalog(
 }
 
 /**
- * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills and
- * custom tools sections omits them, which leaves those keys plain strings.
+ * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills,
+ * custom tools and MCP servers sections omits them, which leaves those keys plain strings.
  */
 function workspaceManifestFrom({
   tables,
@@ -147,6 +147,7 @@ function workspaceManifestFrom({
   workflows,
   skills = [],
   customTools = [],
+  mcpServers = [],
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -168,6 +169,9 @@ function workspaceManifestFrom({
     ),
     skills: skills.map((entry) => entry.key),
     customTools: customTools.map((entry) => entry.key),
+    mcpServers: Object.fromEntries(
+      mcpServers.map((server) => [server.key, server.tools ? { tools: server.tools } : {}])
+    ),
     env,
   }
 }
@@ -175,7 +179,12 @@ function workspaceManifestFrom({
 /** What a workspace directory declares itself, typed beside the stored resources. */
 export type LocalDeclarations = Pick<
   WorkspaceManifest,
-  'tableDeclarations' | 'knowledgeBases' | 'skills' | 'customTools' | 'workflows'
+  | 'tableDeclarations'
+  | 'knowledgeBases'
+  | 'skills'
+  | 'customTools'
+  | 'mcpServerDeclarations'
+  | 'workflows'
 >
 
 /**
@@ -203,6 +212,9 @@ export async function loadWorkspaceTypes(
     return generateWorkspaceTypes({
       ...stored,
       ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
+      ...(local.mcpServerDeclarations
+        ? { mcpServerDeclarations: local.mcpServerDeclarations }
+        : {}),
       knowledgeBases: both('knowledgeBases'),
       skills: both('skills'),
       customTools: both('customTools'),

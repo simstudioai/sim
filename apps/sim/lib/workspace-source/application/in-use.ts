@@ -26,7 +26,7 @@ interface UsingWorkflow {
  * mentions it, names nothing. Each block's sub-blocks are cast to text once (a materialized CTE)
  * to find the candidates cheaply; only those are walked value by value.
  */
-async function workflowsUsing(
+export async function workflowsUsing(
   workspaceId: string,
   ids: readonly string[]
 ): Promise<Map<string, UsingWorkflow[]>> {

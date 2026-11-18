@@ -78,6 +78,20 @@ const SKILL_CODES = [
   'E_SKILL_FRONTMATTER',
 ] as const
 
+/** MCP servers. */
+const MCP_CODES = [
+  /** A credential header (`Authorization`, `X-Api-Key`, …) holds literal text, not an env reference. */
+  'E_MCP_LITERAL_SECRET',
+  /** `stored()` names a header the stored server holds no value for. */
+  'E_MCP_STORED_MISSING',
+  /** A workflow names a tool the MCP server does not list. */
+  'E_MCP_TOOL_UNKNOWN',
+  /** A changed URL replaces the server: a new server id, the old one deleted. */
+  'W_MCP_REPLACE',
+  /** The server's tools could not be listed, so the tool names workflows use are not checked. */
+  'W_MCP_TOOLS_UNCHECKED',
+] as const
+
 /** Workspace files. */
 const FILE_CODES = [
   /** A path no workspace file may have: a dot or empty segment, a reserved name or character. */
@@ -178,6 +192,7 @@ export const WORKSPACE_DIAGNOSTIC_CODES = [
   ...TABLE_CODES,
   ...TOOL_CODES,
   ...SKILL_CODES,
+  ...MCP_CODES,
   ...FILE_CODES,
   ...KNOWLEDGE_CODES,
   ...PLAN_CODES,

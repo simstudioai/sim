@@ -343,14 +343,14 @@ describe('workspace source across kinds', () => {
     async () => {
       const workspaceId = await newWorkspace()
       const isBlob = (path: string) => path.startsWith('files/') || path.includes('/docs/')
+      // The MCP server example needs a live server to connect to; mcp.integration.ts applies one.
+      const example = Object.entries(WORKSPACE_COOKBOOK).filter(
+        ([path]) => !path.startsWith('mcp/')
+      )
       const cookbook: Directory = {
-        files: Object.fromEntries(
-          Object.entries(WORKSPACE_COOKBOOK).filter(([path]) => !isBlob(path))
-        ),
+        files: Object.fromEntries(example.filter(([path]) => !isBlob(path))),
         blobs: Object.fromEntries(
-          Object.entries(WORKSPACE_COOKBOOK)
-            .filter(([path]) => isBlob(path))
-            .map(([path, text]) => [path, Buffer.from(text)])
+          example.filter(([path]) => isBlob(path)).map(([path, text]) => [path, Buffer.from(text)])
         ),
       }
 

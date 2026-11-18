@@ -24,6 +24,12 @@ export function defineKnowledgeBase(): never {
   return notExecutable('defineKnowledgeBase')
 }
 
+export function defineMcpServer(): never {
+  return notExecutable('defineMcpServer')
+}
+
+export { env, stored } from '../runtime'
+
 export const column = new Proxy(
   {},
   {

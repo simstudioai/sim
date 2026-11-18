@@ -327,6 +327,13 @@ export async function planWorkspaceSource(
   }
 
   await checkDeletesInUse(changes, unchanged, workspaceId)
+  for (const kind of APPLY_ORDER) {
+    try {
+      await KIND_ADAPTERS[kind].checkRefs?.(changes, planCtx)
+    } catch (caught) {
+      diagnostics.push(refusalDiagnostic(caught, { kind }))
+    }
+  }
   const deleted = new Set(
     changes
       .filter((change) => change.action === 'delete')

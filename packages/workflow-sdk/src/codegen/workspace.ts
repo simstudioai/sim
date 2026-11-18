@@ -1,8 +1,8 @@
 /**
  * `generateWorkspaceTypes(manifest)`: one `workspace.d.ts` that narrows the SDK to a workspace's
  * resources. It fills the `Workspace*` interfaces `core.d.ts` declares, so `table('leads')` types
- * its rows, a misspelled `knowledgeBase('dosc')`, `skill('tirage')` or `env.STRIPE_KYE` is an
- * error, and so on.
+ * its rows, a misspelled `knowledgeBase('dosc')`, `skill('tirage')`, `mcp('github').tool('crate_issue')`
+ * or `env.STRIPE_KYE` is an error, and so on.
  * Written by `sim workflows source get --dir` from the workspace source resources; without it
  * every key is a plain string.
  */
@@ -44,6 +44,16 @@ export interface WorkspaceManifest {
   skills?: string[]
   /** Workspace custom tools by key. */
   customTools?: string[]
+  /**
+   * MCP servers by key, with the tool names the server listed when the manifest was read; a server
+   * listed without `tools` (unreachable, or not listable by the caller) takes any tool name.
+   */
+  mcpServers?: Record<string, { tools?: string[] }>
+  /**
+   * Keys of the MCP servers a workspace source directory declares (`mcp/<key>.ts`), typed beside
+   * the stored ones; one not stored yet takes any tool name until it is applied and read again.
+   */
+  mcpServerDeclarations?: string[]
   /** Environment variable names (never values). */
   env?: string[]
 }
@@ -133,6 +143,15 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     const fields = sortedKeys(inputs).map((name) => `${printKey(name)}: ${inputType(inputs[name])}`)
     return `${quoteString(key)}: { inputs: { ${fields.join('; ')} } }`
   })
+  const mcpServers = [
+    ...new Set([...sortedKeys(manifest.mcpServers), ...(manifest.mcpServerDeclarations ?? [])]),
+  ]
+    .sort(compareStrings)
+    .map((key) => {
+      const tools = [...new Set(manifest.mcpServers?.[key]?.tools ?? [])].sort(compareStrings)
+      const names = tools.length > 0 ? union(tools.map((name) => quoteString(name))) : 'string'
+      return `${quoteString(key)}: { tools: ${names} }`
+    })
   const env = [...new Set(manifest.env ?? [])]
     .sort(compareStrings)
     .map((name) => `${printKey(name)}: true`)
@@ -143,6 +162,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     ...interfaceBlock('WorkspaceWorkflows', workflows),
     ...interfaceBlock('WorkspaceSkills', keyMembers(manifest.skills)),
     ...interfaceBlock('WorkspaceCustomTools', keyMembers(manifest.customTools)),
+    ...interfaceBlock('WorkspaceMcpServers', mcpServers),
     ...interfaceBlock('WorkspaceEnv', env),
   ]
   const text = body.join('\n')

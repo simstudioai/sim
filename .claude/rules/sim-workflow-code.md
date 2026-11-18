@@ -135,6 +135,12 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 Steps 4 to 6 have no compile-time guard: a miss ships a kind that the CLI never type-checks or
 that a workflow cannot reference.
 
+The kinds today: custom tools, skills, MCP servers (`mcp/<key>.ts`), tables, knowledge bases,
+workspace files and workflows. A kind whose resources workflows name a member of (an MCP server's
+tools) carries the member on the workflow change's `refs` and checks it in its adapter's
+`checkRefs`, which runs once every kind is planned. A secret-bearing field prints `stored()` or an
+env reference, never a value, and a literal secret in source is refused (`E_MCP_LITERAL_SECRET`).
+
 ### A field on an existing kind
 
 Add it to the declaration type, the kind's allowed-field list (`KNOWLEDGE_FIELDS`,

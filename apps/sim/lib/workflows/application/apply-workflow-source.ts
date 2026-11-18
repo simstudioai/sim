@@ -55,6 +55,7 @@ import {
   evaluateSource,
   type PendingResource,
   type SourcePlan,
+  type SourceReference,
 } from '@/lib/workflows/application/source-evaluate'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
@@ -75,7 +76,6 @@ import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/context'
-import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
 const logger = createLogger('ApplyWorkflowSource')
 
@@ -188,7 +188,7 @@ interface ApplyWorkflowSourceResult {
    * Every resource the submitted source names by key, as the compiler read it; empty when the
    * source was refused before it compiled.
    */
-  references: ResourceKeyRef[]
+  references: SourceReference[]
   notes: string[]
   needsRedeployment: boolean
   sdkMajor: number

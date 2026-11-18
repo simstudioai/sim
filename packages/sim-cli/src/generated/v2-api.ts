@@ -1063,10 +1063,14 @@ export type ApplyWorkspaceSourceBody = {
       }
     >
   }
-  kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+  kinds: Array<
+    'custom-tool' | 'skill' | 'mcp-server' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+  >
   options?: {
     allowDelete?: boolean
-    only?: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    only?: Array<
+      'custom-tool' | 'skill' | 'mcp-server' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+    >
   }
   provenance?: {
     client: 'cli' | 'api'
@@ -1079,7 +1083,14 @@ export type ApplyWorkspaceSourceResponse = {
     workspaceId: string
     dryRun: boolean
     plan: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1090,7 +1101,14 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
     }>
     applied: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1101,7 +1119,14 @@ export type ApplyWorkspaceSourceResponse = {
       id?: string
     }>
     failed?: {
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       code:
         | 'E_DECL_SYNTAX'
@@ -1130,6 +1155,11 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'
         | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
         | 'E_FILE_PATH'
         | 'E_FILE_PATH_COLLISION'
         | 'E_FILE_NAME'
@@ -1362,6 +1392,11 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'
         | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
         | 'E_FILE_PATH'
         | 'E_FILE_PATH_COLLISION'
         | 'E_FILE_NAME'
@@ -9206,6 +9241,12 @@ export type GetSourceResourcesResponse = {
       id: string
       name: string
     }>
+    mcpServers: Array<{
+      key: string
+      id: string
+      name: string
+      tools?: Array<string>
+    }>
     env: Array<string>
     truncated: boolean
   }
@@ -10428,7 +10469,9 @@ export type GetWorkspaceSourceQuery = {
 export type GetWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    kinds: Array<
+      'custom-tool' | 'skill' | 'mcp-server' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+    >
     files: Record<string, string>
     blobs: Array<{
       path: string
@@ -10465,7 +10508,14 @@ export type GetWorkspaceSourceResponse = {
       >
     }
     skipped: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       reason: string
     }>
@@ -10497,6 +10547,11 @@ export type GetWorkspaceSourceResponse = {
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'
         | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
         | 'E_FILE_PATH'
         | 'E_FILE_PATH_COLLISION'
         | 'E_FILE_NAME'

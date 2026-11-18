@@ -94,7 +94,12 @@ export interface PlannedChange<D = unknown, P = unknown> {
    * read them (a workflow's compiled source): deleting one in the same plan refuses it, and the
    * write waits while one of them waits for a later blob round.
    */
-  refs?: Array<{ kind: WorkspaceKind; key: string }>
+  refs?: Array<{
+    kind: WorkspaceKind
+    key: string
+    /** The part of the resource the reference names: an MCP server's tool. */
+    member?: string
+  }>
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
   diagnostics: WorkspaceSourceDiagnostic[]
@@ -174,6 +179,12 @@ export interface KindAdapter<D, S, P = unknown> {
    * it from being read, by key. A kind without it is read one resource at a time with `read`.
    */
   readMany?(stored: StoredResource<S>[], ctx: SourceContext): Promise<Map<string, ReadOutcome>>
+  /**
+   * Checks the members other changes name of this kind's resources (`refs` with a `member`, the
+   * tools workflows call on an MCP server), adding findings to the changes that name them. Runs
+   * once every kind is planned, whether or not the directory manages this kind.
+   */
+  checkRefs?(changes: readonly PlannedChange[], ctx: PlanContext): Promise<void>
 }
 
 /** One resource of a batched read: what was read, or the error that kept it from being read. */
