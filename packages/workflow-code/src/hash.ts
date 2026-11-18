@@ -1,7 +1,7 @@
 /**
- * The one hashing primitive for `canonicalHash`, lock `contentHash`-style digests and
- * `sourceFingerprint`, so every engine hashes identical bytes. Pure JS: the boundary rule bans
- * `node:crypto` here, and `crypto.subtle` is async.
+ * The one hashing primitive for `canonicalHash`, `canonicalDigests` and `sourceFingerprint`, so
+ * every engine hashes identical bytes. Pure JS: the boundary rule bans `node:crypto` here, and
+ * `crypto.subtle` is async.
  */
 
 import { sha256 } from '@noble/hashes/sha2.js'

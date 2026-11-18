@@ -416,7 +416,7 @@ export interface CatalogTriggerEntry
  */
 export interface BlockCatalog {
   catalogVersion: 1
-  /** Content hash of the core shard; the ETag and `lock.catalogHash`. */
+  /** Content hash of the core shard; the ETag and `SourceBase.catalogHash`. */
   hash: string
   /** The SDK major this catalog serves (`// @sim-sdk N`). */
   sdkMajor: number

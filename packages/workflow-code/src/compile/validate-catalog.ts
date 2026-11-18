@@ -91,7 +91,7 @@ export function valueKindMatches(
     case 'none':
       return true
     default: {
-      // A kind from a catalog newer than this engine is not checked, as before.
+      // A kind from a catalog newer than this engine is not checked.
       const unknownKind: never = sub.valueKind
       return typeof unknownKind === 'string'
     }
