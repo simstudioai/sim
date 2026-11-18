@@ -83,32 +83,50 @@ export const listEventDataStoresTool: InternalToolConfig<
           name: { type: 'string', description: 'Name of the event data store' },
           status: {
             type: 'string',
-            description: 'CREATED, ENABLED, PENDING_DELETION, or an ingestion state',
+            description:
+              'Store status. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
           advancedEventSelectors: {
             type: 'array',
-            description: 'Advanced event selectors that define what the store ingests',
+            description:
+              'Advanced event selectors. AWS no longer returns it from this list; read it with Get Event Data Store',
           },
           multiRegionEnabled: {
             type: 'boolean',
-            description: 'Whether the store collects events from all Regions',
+            description:
+              'Whether the store is multi-Region. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
           organizationEnabled: {
             type: 'boolean',
-            description: 'Whether the store collects events for the organization',
+            description:
+              'Whether the store is an organization store. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
-          retentionPeriod: { type: 'number', description: 'Retention period in days' },
+          retentionPeriod: {
+            type: 'number',
+            description:
+              'Retention period in days. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
+          },
           terminationProtectionEnabled: {
             type: 'boolean',
-            description: 'Whether termination protection is enabled',
+            description:
+              'Whether termination protection is enabled. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
           createdTimestamp: {
             type: 'string',
-            description: 'When the store was created (ISO 8601)',
+            description:
+              'Creation time. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
           updatedTimestamp: {
             type: 'string',
-            description: 'When the store was last updated (ISO 8601)',
+            description:
+              'Last update time. AWS no longer returns it from this list; read it with Get Event Data Store',
+            optional: true,
           },
         },
       },
