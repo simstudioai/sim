@@ -47,7 +47,7 @@ export class WorkspaceSourceBusyError extends OrchestrationError {
  * This apply's lease expired and another apply took it over (this process stalled past the TTL):
  * the apply stops before its next write.
  */
-export class WorkspaceSourceLeaseLostError extends OrchestrationError {
+class WorkspaceSourceLeaseLostError extends OrchestrationError {
   constructor() {
     super(
       'conflict',
