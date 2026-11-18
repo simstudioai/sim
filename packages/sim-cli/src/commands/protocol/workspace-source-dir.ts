@@ -201,7 +201,7 @@ const CHECKED_REFERENCE_KINDS: readonly WorkspaceKind[] = [
 ]
 
 /** A table column as a workflow's row writes name it. */
-export interface DeclaredColumn {
+interface DeclaredColumn {
   /** The option names of a `select` column. */
   options?: readonly string[]
   /** A `select` column whose cells hold several options. */
