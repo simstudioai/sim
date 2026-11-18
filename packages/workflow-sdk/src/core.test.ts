@@ -8,7 +8,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { compileWorkflow, SDK_CORE_EXPORTS } from '@sim/workflow-code'
 import { describe, expect, it } from 'vitest'
-import { loadFixtureCatalog, typecheck, writeTypecheckProject } from '../test/typecheck-project'
+import {
+  loadFixtureCatalog,
+  typecheck,
+  typecheckSdkDirectory,
+  writeTypecheckProject,
+} from '../test/typecheck-project'
 
 const SAMPLE = readFileSync(
   path.resolve(import.meta.dirname, '../test/core/every-builder.ts'),
@@ -77,5 +82,21 @@ describe('core.d.ts builders', () => {
     } finally {
       rmSync(outDir, { recursive: true, force: true })
     }
+  }, 120_000)
+})
+
+describe('core.d.ts error messages', () => {
+  it('names only the branch other than else written as true', () => {
+    const output = typecheckSdkDirectory(
+      {
+        'check.ts': `import { condition, js } from '@sim/workflow-sdk'
+condition('Pick', { yes: js\`1 > 0\`, no: true })
+`,
+      },
+      ['check.ts']
+    )
+    expect(output).toContain('OnlyElseMayBeTrue')
+    expect(output).not.toContain("'never'")
+    expect(output.match(/error TS/g)).toHaveLength(1)
   }, 120_000)
 })

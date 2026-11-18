@@ -258,10 +258,6 @@ export declare function knowledgeBase<K extends KnowledgeBaseKey>(key: K): Knowl
 export type SkillRef<Key extends string = string> = ResourceRef<'skill', Key>
 export declare function skill<K extends SkillKey>(key: K): SkillRef<K>
 
-/** A sandbox image: `sandbox('node-ml')`. */
-export type SandboxRef = ResourceRef<'sandbox'>
-export declare function sandbox(key: string): SandboxRef
-
 /** A workspace folder: `folder('reports')`. */
 export type FolderRef = ResourceRef<'file-folder'>
 export declare function folder(key: string): FolderRef
@@ -620,9 +616,24 @@ type SpecialOutput<K extends string> = K extends keyof SpecialBuilderTypes
 /** A condition expression, or `true` for the `else` branch. */
 export type BranchExpression = Template | string | true
 
-/** A condition's branches: every key holds an expression, and only `else` may be `true`. */
+declare const ONLY_ELSE: unique symbol
+
+/** What a branch other than `else` written as `true` must be, which no value is: the error names it. */
+interface OnlyElseMayBeTrue {
+  readonly [ONLY_ELSE]: true
+}
+
+/**
+ * A condition's branches: every key holds an expression, and only `else` may be `true`. Another
+ * branch written as `true` is checked against {@link OnlyElseMayBeTrue}, so the error names that
+ * branch alone.
+ */
 type ConditionBranches<B> = {
-  [K in keyof B]: K extends 'else' ? BranchExpression : Template | string
+  [K in keyof B]: K extends 'else'
+    ? BranchExpression
+    : B[K] extends true
+      ? OnlyElseMayBeTrue
+      : Template | string
 }
 
 /**

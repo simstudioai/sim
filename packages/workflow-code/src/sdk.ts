@@ -41,7 +41,6 @@ export const SDK_RESOURCE_CALLS = {
   skill: 'skill',
   'custom-tool': 'customTool',
   'mcp-server': 'mcp',
-  sandbox: 'sandbox',
   file: 'file',
   'file-folder': 'folder',
 } as const satisfies Partial<Record<ResourceKind, string>>
@@ -97,7 +96,6 @@ const SDK_CORE = {
   response: { blockBuilder: true, coreParams: [] },
   router: { blockBuilder: true, coreParams: ['routes'] },
   runWorkflow: { blockBuilder: true, coreParams: [] },
-  sandbox: { mergeable: true },
   setVariables: { blockBuilder: true, coreParams: [] },
   sh: {},
   skill: { mergeable: true },

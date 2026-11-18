@@ -28,7 +28,6 @@ import {
   response,
   router,
   runWorkflow,
-  sandbox,
   setVariables,
   sh,
   skill,
@@ -125,7 +124,6 @@ export default workflow(
     })
     const opaque = block('retired_block', 'Retired', {
       skill: skill('triage'),
-      image: sandbox('node-ml'),
       folder: folder('reports'),
       document: file('contracts/acme.pdf'),
       later: todo(),
