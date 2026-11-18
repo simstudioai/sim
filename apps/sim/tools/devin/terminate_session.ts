@@ -1,5 +1,6 @@
 import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinTerminateSessionParams, DevinTerminateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
@@ -46,7 +47,7 @@ export const devinTerminateSessionTool: ToolConfig<
       const searchParams = new URLSearchParams()
       if (params.archive) searchParams.set('archive', 'true')
       const qs = searchParams.toString()
-      return `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

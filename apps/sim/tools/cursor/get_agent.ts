@@ -1,6 +1,7 @@
 import type { GetAgentParams, GetAgentResponse } from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const getAgentBase = {
   params: {
@@ -18,7 +19,8 @@ const getAgentBase = {
     },
   },
   request: {
-    url: (params: GetAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId.trim()}`,
+    url: (params: GetAgentParams) =>
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}`,
     method: 'GET',
     headers: (params: GetAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,

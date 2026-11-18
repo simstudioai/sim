@@ -5,6 +5,7 @@ import {
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const addFollowupBase = {
   params: {
@@ -46,7 +47,7 @@ const addFollowupBase = {
         ),
     },
     url: (params: AddFollowupParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/followup`,
     method: 'POST',
     headers: (params: AddFollowupParams) => ({
       'Content-Type': 'application/json',

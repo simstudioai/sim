@@ -1,6 +1,7 @@
 import type { DeleteAgentParams, DeleteAgentResponse } from '@/tools/cursor/types'
 import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const deleteAgentBase = {
   params: {
@@ -18,7 +19,8 @@ const deleteAgentBase = {
     },
   },
   request: {
-    url: (params: DeleteAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId.trim()}`,
+    url: (params: DeleteAgentParams) =>
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}`,
     method: 'DELETE',
     headers: (params: DeleteAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
