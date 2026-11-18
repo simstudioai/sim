@@ -29,8 +29,25 @@ describe('PostHogBlock switch values', () => {
         executionParams({ operation: 'posthog_create_cohort', isStatic: stored })
       ).toMatchObject({ is_static: expected })
       expect(
-        executionParams({ operation: 'posthog_update_cohort', isStatic: stored })
-      ).toMatchObject({ isStatic: expected })
+        executionParams({ operation: 'posthog_update_cohort', isStatic: stored, deleted: stored })
+      ).toMatchObject({ isStatic: expected, deleted: expected })
+      expect(
+        executionParams({ operation: 'posthog_update_insight', favorited: stored })
+      ).toMatchObject({ favorited: expected })
+      expect(
+        executionParams({ operation: 'posthog_create_dashboard', pinned: stored })
+      ).toMatchObject({ pinned: expected })
+      for (const operation of ['posthog_update_experiment', 'posthog_update_survey']) {
+        expect(executionParams({ operation, archived: stored })).toMatchObject({
+          archived: expected,
+        })
+      }
     }
+  })
+
+  it('leaves an untouched switch out of the request', () => {
+    const params = executionParams({ operation: 'posthog_update_cohort' })
+    expect(params).not.toHaveProperty('deleted')
+    expect(params).not.toHaveProperty('isStatic')
   })
 })

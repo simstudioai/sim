@@ -5,11 +5,21 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 
 /**
  * Switch params the tools copy straight into the request body. Older workflows
- * store a switch as the text `'true'`/`'false'`, which PostHog would receive as a
- * string (and `'false'` reads as truthy), so each is read back to a real boolean.
+ * store a switch as the text `'true'`/`'false'`, and an agent tool call can pass
+ * either form; PostHog would receive the string (and `'false'` reads as truthy),
+ * so each is read back to a real boolean when present.
  * `is_static` is the create-cohort copy `tools.config.tool` makes of `isStatic`.
  */
-const SWITCH_PARAMS = ['active', 'ensureExperienceContinuity', 'isStatic', 'is_static'] as const
+const SWITCH_PARAMS = [
+  'pinned',
+  'favorited',
+  'active',
+  'ensureExperienceContinuity',
+  'isStatic',
+  'is_static',
+  'deleted',
+  'archived',
+] as const
 
 /** Cohort membership definition, whichever of the three forms the user filled. */
 const COHORT_DEFINITION_FIELD = ['filters', 'query', 'groups'] as const
