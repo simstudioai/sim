@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomDeleteRecordingParams, ZoomDeleteRecordingResponse } from '@/tools/zoom/types'
+import { encodeZoomMeetingPathId } from '@/tools/zoom/utils'
 
 export const zoomDeleteRecordingTool: ToolConfig<
   ZoomDeleteRecordingParams,
@@ -28,7 +29,8 @@ export const zoomDeleteRecordingTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Specific recording file ID to delete. If not provided, deletes all recordings.',
+      description:
+        'Specific recording file ID to delete. If not provided, deletes all recordings of the meeting, which needs the cloud_recording:delete:meeting_recording scope.',
     },
     action: {
       type: 'string',
@@ -40,7 +42,7 @@ export const zoomDeleteRecordingTool: ToolConfig<
 
   request: {
     url: (params) => {
-      let baseUrl = `https://api.zoom.us/v2/meetings/${encodeURIComponent(params.meetingId)}/recordings`
+      let baseUrl = `https://api.zoom.us/v2/meetings/${encodeZoomMeetingPathId(params.meetingId)}/recordings`
 
       if (params.recordingId) {
         baseUrl += `/${encodeURIComponent(params.recordingId)}`

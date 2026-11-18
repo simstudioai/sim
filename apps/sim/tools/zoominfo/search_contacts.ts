@@ -1,3 +1,7 @@
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoSearchContactsParams,
@@ -19,6 +23,7 @@ export const zoominfoSearchContactsTool: InternalToolConfig<
   description:
     'Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data.',
   version: '1.0.0',
+  oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const zoominfoSearchContactsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     firstName: {
       type: 'string',
       required: false,

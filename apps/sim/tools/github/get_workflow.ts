@@ -1,5 +1,7 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetWorkflowParams, WorkflowResponse } from '@/tools/github/types'
 import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = {
@@ -8,6 +10,7 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
   description:
     'Get details of a specific GitHub Actions workflow by ID or filename. Returns workflow information including name, path, state, and badge URL.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -38,7 +41,7 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/workflows/${params.workflow_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/workflows/${githubPathSegment(params.workflow_id, 'workflow_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -82,7 +85,11 @@ Updated: ${data.updated_at}`
         id: { type: 'number', description: 'Workflow ID' },
         name: { type: 'string', description: 'Workflow name' },
         path: { type: 'string', description: 'Path to workflow file' },
-        state: { type: 'string', description: 'Workflow state (active/disabled)' },
+        state: {
+          type: 'string',
+          description:
+            'Workflow state (active, deleted, disabled_fork, disabled_inactivity, disabled_manually)',
+        },
         badge_url: { type: 'string', description: 'Badge URL for workflow' },
       },
     },
@@ -94,6 +101,7 @@ export const getWorkflowV2Tool: ToolConfig<GetWorkflowParams, any> = {
   name: getWorkflowTool.name,
   description: getWorkflowTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getWorkflowTool.params,
   request: getWorkflowTool.request,
 

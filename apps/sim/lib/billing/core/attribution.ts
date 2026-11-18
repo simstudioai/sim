@@ -147,19 +147,33 @@ type ResolvedPayerSubscription =
   | Awaited<ReturnType<typeof getOrganizationSubscription>>
   | Awaited<ReturnType<typeof getHighestPriorityPersonalSubscription>>
 
+/**
+ * The concurrency and async execution-timeout overrides an Enterprise
+ * subscription's metadata sets, or null for each one it does not.
+ */
+export function readEnterpriseLimitOverrides(subscription: { plan: string; metadata: unknown }): {
+  enterpriseConcurrencyLimit: number | null
+  enterpriseWorkflowExecutionTimeoutSeconds: number | null
+} {
+  const { metadata } = subscription
+  if (!isEnterprise(subscription.plan) || !isRecordLike(metadata)) {
+    return { enterpriseConcurrencyLimit: null, enterpriseWorkflowExecutionTimeoutSeconds: null }
+  }
+  return {
+    enterpriseConcurrencyLimit: parseBillingConcurrencyLimit(metadata.concurrencyLimit),
+    enterpriseWorkflowExecutionTimeoutSeconds: parseWorkflowExecutionTimeoutSeconds(
+      metadata.workflowExecutionTimeoutSeconds
+    ),
+  }
+}
+
 function serializeSubscription(
   subscription: NonNullable<ResolvedPayerSubscription> | null
 ): PayerSubscriptionSnapshot | null {
   if (!subscription) return null
 
-  const enterpriseConcurrencyLimit =
-    isEnterprise(subscription.plan) && isRecordLike(subscription.metadata)
-      ? parseBillingConcurrencyLimit(subscription.metadata.concurrencyLimit)
-      : null
-  const enterpriseWorkflowExecutionTimeoutSeconds =
-    isEnterprise(subscription.plan) && isRecordLike(subscription.metadata)
-      ? parseWorkflowExecutionTimeoutSeconds(subscription.metadata.workflowExecutionTimeoutSeconds)
-      : null
+  const { enterpriseConcurrencyLimit, enterpriseWorkflowExecutionTimeoutSeconds } =
+    readEnterpriseLimitOverrides(subscription)
   const billingInterval =
     subscription.billingInterval === 'month' || subscription.billingInterval === 'year'
       ? subscription.billingInterval

@@ -10,6 +10,7 @@ import {
   datadogHeaders,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsResponse> = {
@@ -18,6 +19,7 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
   description:
     'List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     include: {

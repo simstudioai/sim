@@ -28,6 +28,7 @@ export const ollamaProvider: ProviderConfig = {
     }
 
     try {
+      // egress-direct: operator-local Ollama server named by the deployment
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
         await response.text().catch(() => {})

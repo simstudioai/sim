@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ListContactsParams, ListContactsResult } from '@/tools/resend/types'
+import { withPagination } from '@/tools/resend/utils'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendListContactsTool')
@@ -9,8 +11,22 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
   name: 'List Contacts',
   description: 'List all contacts in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of contacts to return, 1 to 100 (Resend defaults to 20)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor: the ID of the last contact from the previous page, to fetch the next page',
+    },
     resendApiKey: {
       type: 'string',
       required: true,
@@ -20,7 +36,7 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
   },
 
   request: {
-    url: 'https://api.resend.com/contacts',
+    url: (params: ListContactsParams) => withPagination('https://api.resend.com/contacts', params),
     method: 'GET',
     headers: (params: ListContactsParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,

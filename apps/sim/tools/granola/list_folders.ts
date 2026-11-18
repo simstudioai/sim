@@ -1,5 +1,6 @@
 import type { GranolaListFoldersParams, GranolaListFoldersResponse } from '@/tools/granola/types'
 import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFoldersResponse> = {
@@ -7,6 +8,7 @@ export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFo
   name: 'Granola List Folders',
   description: 'Lists folders from Granola, sorted alphabetically, with pagination.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

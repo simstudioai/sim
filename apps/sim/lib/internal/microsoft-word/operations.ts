@@ -5,7 +5,6 @@ import {
   fetchDocumentItem,
   replaceContentIfUnchanged,
   requireContentTag,
-  toDocumentMetadata,
   uploadDocumentContent,
 } from '@/lib/internal/microsoft-word/client'
 import type {
@@ -32,6 +31,7 @@ import {
   getDocumentBasePath,
   getDriveBasePath,
   getFolderBasePath,
+  toDocumentMetadata,
 } from '@/tools/microsoft_word/utils'
 
 const logger = createLogger('MicrosoftWordOperations')

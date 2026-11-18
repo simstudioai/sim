@@ -8,6 +8,7 @@ import {
   genieMessagePath,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieSendFeedbackTool: ToolConfig<
@@ -19,6 +20,7 @@ export const genieSendFeedbackTool: ToolConfig<
   description:
     "Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_MESSAGE_PARAMS,

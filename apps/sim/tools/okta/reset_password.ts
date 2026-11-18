@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaResetPasswordParams, OktaResetPasswordResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaResetPassword')
 
@@ -13,6 +15,7 @@ export const oktaResetPasswordTool: ToolConfig<OktaResetPasswordParams, OktaRese
     description:
       'Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status.',
     version: '1.0.0',
+    oauth: OKTA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -47,7 +50,7 @@ export const oktaResetPasswordTool: ToolConfig<OktaResetPasswordParams, OktaRese
         const domain = validateOktaDomain(params.domain)
         const sendEmail =
           params.sendEmail === undefined ? true : isOktaFlagEnabled(params.sendEmail)
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/reset_password?sendEmail=${sendEmail}`
+        return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/reset_password?sendEmail=${sendEmail}`
       },
       method: 'POST',
       headers: (params) => oktaHeaders(params.apiKey),

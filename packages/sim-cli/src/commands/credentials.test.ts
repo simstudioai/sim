@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SimApiError } from '../http/client'
 import { buildGeneratedCommands } from '../runtime/build'
 import { attachCredentialCommands } from './credentials'
 
@@ -113,6 +114,97 @@ describe('credential connection commands', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1)
   })
 
+  describe('token provider with a client-credentials mode', () => {
+    const servicenow = {
+      type: 'service_account',
+      serviceId: 'servicenow-service-account',
+      providerId: 'servicenow-service-account',
+      available: true,
+      requiresClientGeneratedCredentialId: false,
+      fields: [
+        { id: 'apiToken', required: true, secret: true, requiredForAuthMethods: ['token'] },
+        {
+          id: 'providerWorkspaceId',
+          required: true,
+          secret: false,
+          requiredForAuthMethods: ['token'],
+        },
+        { id: 'domain', required: true, secret: false },
+        {
+          id: 'authMethod',
+          required: false,
+          secret: false,
+          defaultValue: 'token',
+          options: [
+            { value: 'token', label: 'Username and password' },
+            { value: 'client_credentials', label: 'OAuth client credentials' },
+          ],
+        },
+        {
+          id: 'clientId',
+          required: false,
+          secret: false,
+          requiredForAuthMethods: ['client_credentials'],
+        },
+        {
+          id: 'clientSecret',
+          required: false,
+          secret: true,
+          requiredForAuthMethods: ['client_credentials'],
+        },
+      ],
+    }
+    const createWith = (credentials: string) => [
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'servicenow-service-account',
+      '--name',
+      'ServiceNow',
+      '--credentials',
+      credentials,
+    ]
+
+    it('creates the client-credentials mode without the password sign-in fields', async () => {
+      const credentials =
+        '{"authMethod":"client_credentials","clientId":"client","clientSecret":"secret","domain":"acme.service-now.com"}'
+      mockRequest
+        .mockReset()
+        .mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+        .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+
+      await program().parseAsync(createWith(credentials))
+
+      const [, createRequest] = mockRequest.mock.calls[1]
+      expect(createRequest.body.credentials).toBe(credentials)
+    })
+
+    it('still names the client credentials a client-credentials create leaves out', async () => {
+      mockRequest.mockReset().mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+
+      await expect(
+        program().parseAsync(
+          createWith('{"authMethod":"client_credentials","domain":"acme.service-now.com"}')
+        )
+      ).rejects.toThrow(
+        'missing required fields for servicenow-service-account: clientId, clientSecret'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps requiring the password sign-in fields when no method is chosen', async () => {
+      mockRequest.mockReset().mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+
+      await expect(
+        program().parseAsync(createWith('{"domain":"acme.service-now.com"}'))
+      ).rejects.toThrow(
+        'missing required fields for servicenow-service-account: apiToken, providerWorkspaceId'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('native Claude Platform service account', () => {
     const claude = {
       type: 'service_account',
@@ -186,5 +278,347 @@ describe('credentials update --name', () => {
       '--name and --display-name are the same field; pass one, not both'
     )
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+})
+
+describe('keyless credentials', () => {
+  const subject = 'sim:workspace:ws_local:credential:abcdef0123456789'
+  const issued = {
+    issuer: 'https://sim.example.com/oidc/workload',
+    audience: 'snowflakecomputing.com',
+    subject,
+    subjectProof: '1781965031000.signature',
+    expiresAt: '2026-11-11T20:15:00.000Z',
+    keylessConfig: {
+      authType: 'workload_identity',
+      subject,
+      subjectProof: '1781965031000.signature',
+    },
+    requiredConfigFields: ['host'],
+    optionalConfigFields: [],
+  }
+  const snowflake = {
+    type: 'service_account',
+    providerId: 'snowflake-service-account',
+    available: true,
+    requiresClientGeneratedCredentialId: false,
+    fields: [
+      { id: 'domain', required: true },
+      { id: 'apiToken', required: true, secret: true },
+      { id: 'serviceAccountJson', required: false, secret: true },
+    ],
+    keyless: {
+      authType: 'workload_identity',
+      requiredConfigFields: ['host'],
+      optionalConfigFields: [],
+    },
+  }
+  const keylessConfig = { ...issued.keylessConfig, host: 'myorg-myaccount.snowflakecomputing.com' }
+  let log: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    output.format = 'json'
+    mockRequest.mockReset()
+    log = vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('prints the issued subject as the API data, ready to feed into creation', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account' },
+    })
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toEqual(issued)
+  })
+
+  it('refuses a provider with no keyless mode before calling the API', async () => {
+    const root = program()
+    const keylessSubject = root.commands
+      .find((command) => command.name() === 'credentials')
+      ?.commands.find((command) => command.name() === 'keyless-subject')
+    // exitOverride is not inherited by added subcommands; set it where the argument is parsed.
+    keylessSubject?.exitOverride().configureOutput({ writeErr: () => {} })
+
+    await expect(
+      root.parseAsync(['node', 'sim', 'credentials', 'keyless-subject', 'zoom-service-account'])
+    ).rejects.toThrow(
+      "command-argument value 'zoom-service-account' is invalid for argument 'providerId'. Allowed choices are aws-service-account, databricks-service-account, snowflake-service-account, microsoft-app-service-account, google-service-account."
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('creates a keyless Snowflake credential from the completed keylessConfig alone', async () => {
+    mockRequest
+      .mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+      .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'snowflake-service-account',
+      '--name',
+      'Snowflake (keyless)',
+      '--credentials',
+      JSON.stringify(keylessConfig),
+    ])
+
+    const [, createRequest] = mockRequest.mock.calls[1]
+    expect(JSON.parse(createRequest.body.credentials)).toEqual({
+      serviceAccountJson: JSON.stringify(keylessConfig),
+    })
+  })
+
+  const configOnly = (providerId: string) => ({
+    type: 'service_account',
+    providerId,
+    available: true,
+    requiresClientGeneratedCredentialId: false,
+    fields: [{ id: 'serviceAccountJson', required: true, secret: true }],
+    keyless: { authType: 'oidc_role', requiredConfigFields: ['roleArn'], optionalConfigFields: [] },
+  })
+
+  async function createWith(provider: object, providerId: string, credentials: unknown) {
+    mockRequest
+      .mockResolvedValueOnce({ data: [provider], nextCursor: null })
+      .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      providerId,
+      '--name',
+      'Credential',
+      '--credentials',
+      JSON.stringify(credentials),
+    ])
+    const [, createRequest] = mockRequest.mock.calls[1]
+    return JSON.parse(createRequest.body.credentials)
+  }
+
+  it.each([
+    ['aws-service-account', { serviceAccountJson: '{"authType":"access_keys"}' }],
+    ['google-service-account', { serviceAccountJson: '{"type":"service_account"}' }],
+  ])(
+    'sends %s fields that already name serviceAccountJson unchanged',
+    async (providerId, fields) => {
+      expect(await createWith(configOnly(providerId), providerId, fields)).toEqual(fields)
+    }
+  )
+
+  it('sends Snowflake token fields unchanged', async () => {
+    const fields = { domain: 'myorg-myaccount.snowflakecomputing.com', apiToken: 'pat' }
+    expect(await createWith(snowflake, 'snowflake-service-account', fields)).toEqual(fields)
+  })
+
+  it.each([
+    [
+      'a keylessConfig carrying its subject and proof',
+      { authType: 'workload_identity', projectNumber: '1', subject, subjectProof: 'p' },
+    ],
+    [
+      'an object with the catalog’s keyless authType',
+      { authType: 'oidc_role', roleArn: 'arn:aws:iam::123456789012:role/Sim' },
+    ],
+  ])('wraps %s as serviceAccountJson', async (_label, configuration) => {
+    expect(
+      await createWith(configOnly('aws-service-account'), 'aws-service-account', configuration)
+    ).toEqual({ serviceAccountJson: JSON.stringify(configuration) })
+  })
+
+  const snowflakeWithoutKeyless = { ...snowflake, keyless: undefined }
+  const keyPair = {
+    authType: 'key_pair',
+    host: 'myorg-myaccount.snowflakecomputing.com',
+    user: 'SIM_SERVICE',
+    privateKey: '-----BEGIN PRIVATE KEY-----...',
+  }
+
+  it('sends a Snowflake key pair as serviceAccountJson where the deployment has no keyless mode', async () => {
+    const fields = { serviceAccountJson: JSON.stringify(keyPair) }
+    expect(await createWith(snowflakeWithoutKeyless, 'snowflake-service-account', fields)).toEqual(
+      fields
+    )
+  })
+
+  it.each([
+    ['without', snowflakeWithoutKeyless],
+    ['with', snowflake],
+  ])(
+    'wraps a raw Snowflake key pair as serviceAccountJson %s a keyless mode',
+    async (_label, provider) => {
+      expect(await createWith(provider, 'snowflake-service-account', keyPair)).toEqual({
+        serviceAccountJson: JSON.stringify(keyPair),
+      })
+    }
+  )
+
+  it('still names the missing Snowflake token fields where the deployment has no keyless mode', async () => {
+    mockRequest.mockResolvedValueOnce({ data: [snowflakeWithoutKeyless], nextCursor: null })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'snowflake-service-account',
+        '--name',
+        'Snowflake',
+        '--credentials',
+        '{"domain":"myorg-myaccount.snowflakecomputing.com"}',
+      ])
+    ).rejects.toThrow('missing required fields for snowflake-service-account: apiToken')
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads any other object as fields, so a raw key file is reported, not wrapped', async () => {
+    mockRequest.mockResolvedValueOnce({
+      data: [configOnly('google-service-account')],
+      nextCursor: null,
+    })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'google-service-account',
+        '--name',
+        'Google',
+        '--credentials',
+        '{"type":"service_account","client_email":"sa@p.iam.gserviceaccount.com"}',
+      ])
+    ).rejects.toThrow('unsupported field "type" for google-service-account')
+  })
+
+  it('still reports a misspelled Snowflake field instead of wrapping it', async () => {
+    mockRequest.mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'snowflake-service-account',
+        '--name',
+        'Snowflake',
+        '--credentials',
+        '{"Domain":"myorg-myaccount.snowflakecomputing.com"}',
+      ])
+    ).rejects.toThrow('unsupported field "Domain" for snowflake-service-account')
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
+  function createRefusedWith(code: string) {
+    mockRequest
+      .mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
+      .mockRejectedValueOnce(new SimApiError('Refused.', 400, 'BAD_REQUEST', { code }))
+    return program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'snowflake-service-account',
+      '--name',
+      'Snowflake (keyless)',
+      '--credentials',
+      JSON.stringify(keylessConfig),
+    ])
+  }
+
+  it('names the renewal command when only the proof expired, so the trusted subject is kept', async () => {
+    await expect(createRefusedWith('WORKLOAD_IDENTITY_PROOF_EXPIRED')).rejects.toMatchObject({
+      message: expect.stringContaining(
+        'sim credentials keyless-subject snowflake-service-account --subject <subject>'
+      ),
+      code: 'BAD_REQUEST',
+      details: { code: 'WORKLOAD_IDENTITY_PROOF_EXPIRED' },
+    })
+  })
+
+  it('names the command that issues a new subject when the proof belongs to someone else', async () => {
+    const failure = createRefusedWith('WORKLOAD_IDENTITY_PROOF_INVALID')
+
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining(
+        'Run `sim credentials keyless-subject snowflake-service-account` for a new subject'
+      ),
+      details: { code: 'WORKLOAD_IDENTITY_PROOF_INVALID' },
+    })
+  })
+
+  it('names the command that issues a new subject when Sim no longer holds the one to renew', async () => {
+    mockRequest.mockRejectedValueOnce(
+      new SimApiError('Sim is not holding this subject for you.', 400, 'BAD_REQUEST', {
+        code: 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING',
+      })
+    )
+
+    const failure = program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      subject,
+    ])
+
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining('without --subject for a new subject'),
+      details: { code: 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING' },
+    })
+  })
+
+  it('sends an empty --subject for the API to refuse instead of issuing a new subject', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      '',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account', subject: '' },
+    })
+  })
+
+  it('renews the proof for a held subject instead of issuing a new one', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      subject,
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account', subject },
+    })
   })
 })

@@ -39,18 +39,98 @@ const CALENDAR_SUBBLOCK_VALUES: Record<string, unknown> = {
 
 describe('OutlookBlock calendar operations', () => {
   it('always sends sendResponse so an unset dropdown cannot read as "do not notify"', () => {
-    const withoutChoice = block.tools.config.params?.({
+    const withoutChoice = block.tools.config?.params?.({
       operation: 'respond_calendar',
       ...CALENDAR_SUBBLOCK_VALUES,
       calSendResponse: undefined,
     })
     expect(withoutChoice?.sendResponse).toBe(true)
 
-    const declined = block.tools.config.params?.({
+    const declined = block.tools.config?.params?.({
       operation: 'respond_calendar',
       ...CALENDAR_SUBBLOCK_VALUES,
       calSendResponse: 'false',
     })
     expect(declined?.sendResponse).toBe(false)
+  })
+})
+
+/**
+ * The executor builds tool params as `{ ...inputs, ...transformedParams }`, so a value stored for
+ * another operation reaches the tool unless the mapper assigns that key explicitly.
+ */
+describe('OutlookBlock values stored for another operation', () => {
+  const mapParams = block.tools.config?.params as (
+    params: Record<string, unknown>
+  ) => Record<string, unknown>
+
+  it.each(['reply_outlook', 'reply_all_outlook', 'forward_outlook'])(
+    'clears a Send cc/bcc on %s',
+    (operation) => {
+      const mapped = mapParams({
+        operation,
+        oauthCredential: 'cred-1',
+        messageId: 'msg-1',
+        cc: 'boss@example.com',
+        bcc: 'audit@example.com',
+      })
+      expect(mapped).toHaveProperty('cc', null)
+      expect(mapped).toHaveProperty('bcc', null)
+    }
+  )
+
+  it.each(['reply_outlook', 'reply_all_outlook', 'forward_outlook'])(
+    'clears an Update Message importance on %s',
+    (operation) => {
+      const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })
+      expect(mapped).toHaveProperty('importance', undefined)
+    }
+  )
+
+  it('clears an Update Message importance on send and draft', () => {
+    for (const operation of ['send_outlook', 'draft_outlook']) {
+      const mapped = mapParams({ operation, oauthCredential: 'cred-1', importance: 'high' })
+      expect(mapped).toHaveProperty('importance', null)
+    }
+  })
+})
+
+/**
+ * On an agent call the operation arrives only in the mapper context, the model supplies args under
+ * the tool's own names, and the dedicated block fields are never rendered in the agent tool input.
+ */
+describe('OutlookBlock agent tool calls', () => {
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
+    const inputs = { ...args, oauthCredential: 'cred-1' }
+    return { ...inputs, ...block.tools.config?.params?.(inputs, { operation }) }
+  }
+
+  it.each(['reply_outlook', 'forward_outlook'])('keeps the model cc and bcc on %s', (operation) => {
+    const mapped = agentCall(operation, { cc: 'cc@example.com', bcc: 'bcc@example.com' })
+    expect(mapped.cc).toBe('cc@example.com')
+    expect(mapped.bcc).toBe('bcc@example.com')
+  })
+
+  it('keeps the model bcc but never a cc on reply_all_outlook', () => {
+    const mapped = agentCall('reply_all_outlook', { cc: 'cc@example.com', bcc: 'bcc@example.com' })
+    expect(mapped.cc).toBeNull()
+    expect(mapped.bcc).toBe('bcc@example.com')
+  })
+
+  it.each(['send_outlook', 'draft_outlook'])('keeps the model importance on %s', (operation) => {
+    expect(agentCall(operation, { importance: 'high' }).importance).toBe('high')
+  })
+
+  it('prefers the dedicated field when the stored tool params carry one', () => {
+    const mapped = agentCall('reply_outlook', { replyCc: 'stored@example.com', cc: 'model@x.com' })
+    expect(mapped.cc).toBe('stored@example.com')
+  })
+
+  it('keeps the model booleans on create_event_calendar and respond_calendar', () => {
+    const created = agentCall('create_event_calendar', { isAllDay: true, isOnlineMeeting: 'true' })
+    expect(created.isAllDay).toBe(true)
+    expect(created.isOnlineMeeting).toBe(true)
+    expect(agentCall('create_folder_outlook', { isHidden: true }).isHidden).toBe(true)
+    expect(agentCall('respond_calendar', { sendResponse: false }).sendResponse).toBe(false)
   })
 })

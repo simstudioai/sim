@@ -12,6 +12,7 @@ import {
   mapTags,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrRemoveReportTagTool: ToolConfig<
@@ -22,6 +23,7 @@ export const checkrRemoveReportTagTool: ToolConfig<
   name: 'Checkr Remove Report Tag',
   description: 'Remove a tag from a report.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

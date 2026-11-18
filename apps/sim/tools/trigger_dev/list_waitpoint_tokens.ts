@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevListWaitpointTokensParams,
   TriggerDevListWaitpointTokensResponse,
@@ -20,6 +21,7 @@ export const triggerDevListWaitpointTokensTool: ToolConfig<
   description:
     'List Trigger.dev waitpoint tokens in the environment of the API key, with optional status, tag, and creation-time filters.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

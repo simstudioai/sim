@@ -7,6 +7,7 @@ import {
   mapOffer,
   OFFER_OUTPUTS,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOffersParams {
@@ -35,6 +36,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
   name: 'Ashby List Offers',
   description: 'Lists all offers with their latest version in an Ashby organization.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

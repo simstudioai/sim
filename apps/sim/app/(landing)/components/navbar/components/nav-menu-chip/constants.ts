@@ -128,14 +128,14 @@ export const RESOURCES_MENU: NavMenu = {
       items: [
         {
           title: 'Docs',
-          description: 'Guides, SDKs, and API reference',
+          description: 'Guides, CLI, and API reference',
           href: 'https://docs.sim.ai',
           external: true,
           preview: {
             kind: 'docs',
             eyebrow: 'Documentation',
             title: 'Build with Sim',
-            details: ['Quickstart', 'SDKs', 'API reference'],
+            details: ['Quickstart', 'CLI', 'API reference'],
           },
         },
         {

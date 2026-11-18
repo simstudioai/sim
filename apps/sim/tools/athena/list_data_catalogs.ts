@@ -2,6 +2,7 @@ import type {
   AthenaListDataCatalogsParams,
   AthenaListDataCatalogsResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listDataCatalogsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listDataCatalogsTool: InternalToolConfig<
   name: 'Athena List Data Catalogs',
   description: 'List the data catalogs (data sources) registered in the AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -143,6 +143,20 @@ export const credentialOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
+  /**
+   * Issues a signed workload-identity subject for a new keyless credential. The
+   * proof is bound to the person who asked for it, so only principals that
+   * carry a person qualify: never a workspace API key, and never a delegated
+   * service acting for one.
+   */
+  prepareWorkloadIdentity: defineWorkspaceOperation({
+    id: 'credentials.workload_identity.prepare',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+  }),
   createServiceAccount: defineWorkspaceOperation({
     id: 'credentials.service_accounts.create',
     oauthScope: 'api:write',

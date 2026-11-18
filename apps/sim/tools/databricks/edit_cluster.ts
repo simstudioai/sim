@@ -10,6 +10,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const editClusterTool: ToolConfig<DatabricksEditClusterParams, DatabricksSuccessResponse> = {
@@ -18,6 +19,7 @@ export const editClusterTool: ToolConfig<DatabricksEditClusterParams, Databricks
   description:
     'Replace a compute cluster configuration; a running cluster restarts to apply the changes.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     clusterId: {

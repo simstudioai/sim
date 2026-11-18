@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
@@ -266,3 +267,22 @@ export const iamPaginationResponseShape = {
   marker: z.string().nullable(),
   count: z.number(),
 }
+
+/** IAM tags as a JSON object string: at most 50 pairs with string, number, or boolean values. */
+export const iamTagsJsonSchema = z.string().refine(
+  (value) => {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      return (
+        isRecordLike(parsed) &&
+        Object.keys(parsed).length <= 50 &&
+        Object.values(parsed).every((tagValue) =>
+          ['string', 'number', 'boolean'].includes(typeof tagValue)
+        )
+      )
+    } catch {
+      return false
+    }
+  },
+  { message: 'Tags must be a JSON object of at most 50 key/value pairs with scalar values' }
+)

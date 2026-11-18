@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -271,7 +272,7 @@ export const ashbyHandler: WebhookProviderHandler = {
         secretToken,
       }
 
-      const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.create', {
+      const ashbyResponse = await outboundFetch('https://api.ashbyhq.com/webhook.create', {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,
@@ -362,7 +363,7 @@ export const ashbyHandler: WebhookProviderHandler = {
 
       const authString = Buffer.from(`${apiKey}:`).toString('base64')
 
-      const ashbyResponse = await fetch('https://api.ashbyhq.com/webhook.delete', {
+      const ashbyResponse = await outboundFetch('https://api.ashbyhq.com/webhook.delete', {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,

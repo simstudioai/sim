@@ -1,8 +1,11 @@
 import { LumaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const LumaBlock: BlockConfig = {
   type: 'luma',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'luma_v2' },
   name: 'Luma',
   description: 'Manage events and guests on Luma',
   longDescription:
@@ -711,3 +714,17 @@ export const LumaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LumaV2Block: BlockConfig = {
+  ...LumaBlock,
+  type: 'luma_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LumaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'luma',
+    title: 'Luma Credential',
+  }),
+}

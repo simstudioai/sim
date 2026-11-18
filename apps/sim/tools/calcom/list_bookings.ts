@@ -10,7 +10,7 @@ import type { ToolConfig } from '@/tools/types'
 export const listBookingsTool: ToolConfig<CalcomListBookingsParams, CalcomListBookingsResponse> = {
   id: 'calcom_list_bookings',
   name: 'Cal.com List Bookings',
-  description: 'List all bookings with optional status filter',
+  description: 'List bookings, optionally filtered by status, attendee email, or time range',
   version: '1.0.0',
 
   oauth: {
@@ -44,6 +44,30 @@ export const listBookingsTool: ToolConfig<CalcomListBookingsParams, CalcomListBo
       visibility: 'user-or-llm',
       description: 'Number of bookings to skip (pagination offset)',
     },
+    attendeeEmail: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return bookings that include an attendee with this email',
+    },
+    afterStart: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return bookings starting after this ISO 8601 time',
+    },
+    beforeEnd: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return bookings ending before this ISO 8601 time',
+    },
+    sortStart: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort bookings by start time: asc or desc',
+    },
   },
 
   request: {
@@ -55,12 +79,28 @@ export const listBookingsTool: ToolConfig<CalcomListBookingsParams, CalcomListBo
         queryParams.push(`status=${encodeURIComponent(params.status)}`)
       }
 
-      if (params.take !== undefined) {
+      if (params.take != null && String(params.take) !== '') {
         queryParams.push(`take=${params.take}`)
       }
 
-      if (params.skip !== undefined) {
+      if (params.skip != null && String(params.skip) !== '') {
         queryParams.push(`skip=${params.skip}`)
+      }
+
+      if (params.attendeeEmail) {
+        queryParams.push(`attendeeEmail=${encodeURIComponent(params.attendeeEmail)}`)
+      }
+
+      if (params.afterStart) {
+        queryParams.push(`afterStart=${encodeURIComponent(params.afterStart)}`)
+      }
+
+      if (params.beforeEnd) {
+        queryParams.push(`beforeEnd=${encodeURIComponent(params.beforeEnd)}`)
+      }
+
+      if (params.sortStart) {
+        queryParams.push(`sortStart=${encodeURIComponent(params.sortStart)}`)
       }
 
       return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl

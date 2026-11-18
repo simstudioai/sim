@@ -1,5 +1,8 @@
 import type { SentryGetIssueParams, SentryGetIssueResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueResponse> = {
   id: 'sentry_issues_get',
@@ -7,8 +10,10 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
   description:
     'Retrieve detailed information about a specific Sentry issue by its ID. Returns complete issue details including metadata, tags, and statistics.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -31,7 +36,7 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/${safeUrlPathSegment(params.issueId, 'issueId')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

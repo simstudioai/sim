@@ -1,4 +1,5 @@
 import type { SESGetTemplateParams, SESGetTemplateResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTemplateTool: InternalToolConfig<SESGetTemplateParams, SESGetTemplateResponse> = {
@@ -6,6 +7,7 @@ export const getTemplateTool: InternalToolConfig<SESGetTemplateParams, SESGetTem
   name: 'SES Get Template',
   description: 'Retrieve the content and details of an SES email template',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

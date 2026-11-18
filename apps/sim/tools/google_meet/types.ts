@@ -43,6 +43,9 @@ export interface GoogleMeetApiSpaceResponse {
   config?: {
     accessType?: string
     entryPointAccess?: string
+    moderation?: string
+    attendanceReportGenerationType?: string
+    artifactConfig?: Record<string, unknown>
   }
   activeConference?: {
     conferenceRecord: string
@@ -84,8 +87,14 @@ export interface GoogleMeetApiParticipantListResponse {
   totalSize?: number
 }
 
+export interface GoogleMeetSpaceConfigDetails {
+  moderation: string | null
+  attendanceReportGenerationType: string | null
+  artifactConfig: Record<string, unknown> | null
+}
+
 export interface GoogleMeetCreateSpaceResponse extends ToolResponse {
-  output: {
+  output: GoogleMeetSpaceConfigDetails & {
     name: string
     meetingUri: string
     meetingCode: string
@@ -95,7 +104,7 @@ export interface GoogleMeetCreateSpaceResponse extends ToolResponse {
 }
 
 export interface GoogleMeetGetSpaceResponse extends ToolResponse {
-  output: {
+  output: GoogleMeetSpaceConfigDetails & {
     name: string
     meetingUri: string
     meetingCode: string
@@ -142,6 +151,7 @@ export interface GoogleMeetListParticipantsResponse extends ToolResponse {
       latestEndTime: string | null
       displayName: string | null
       userType: string
+      user: string | null
     }>
     nextPageToken: string | null
     totalSize: number | null

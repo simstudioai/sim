@@ -2,6 +2,7 @@ import type {
   CodePipelineListPipelineExecutionsParams,
   CodePipelineListPipelineExecutionsResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listPipelineExecutionsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listPipelineExecutionsTool: InternalToolConfig<
   name: 'CodePipeline List Pipeline Executions',
   description: 'List recent executions of a CodePipeline pipeline with status and source revisions',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

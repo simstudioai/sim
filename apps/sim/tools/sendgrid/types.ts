@@ -74,6 +74,7 @@ export interface SendGridTemplateVersionRequest {
 // Common types
 interface SendGridBaseParams {
   apiKey: string
+  region?: string
 }
 
 export interface SendMailParams extends SendGridBaseParams {

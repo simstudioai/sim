@@ -10,6 +10,7 @@ import {
   isTransientProviderStatus,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { normalizeJamaInstanceUrl } from '@/lib/jama/client'
 
@@ -49,7 +50,9 @@ export async function mintJamaServiceAccountToken(
             !isTransientProviderStatus(response.status)
             ? 'invalid_credentials'
             : 'provider_unavailable',
-          response.status
+          response.status,
+          undefined,
+          { retryAfterMs: throttledRetryAfterMs(response) }
         )
       }
       return toRecord(await response.json())

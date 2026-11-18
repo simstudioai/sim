@@ -7,12 +7,12 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { TextractOperationError } from '@/lib/internal/textract/errors'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { RawFileInput } from '@/lib/uploads/utils/file'
 import {
   extractStorageKey,
@@ -26,6 +26,16 @@ import {
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 type TextractLogger = ReturnType<typeof createLogger>
+
+/** Textract's synchronous operations accept at most 10 MB of document bytes. */
+const TEXTRACT_SYNC_MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+function documentTooLargeError(): TextractOperationError {
+  return new TextractOperationError(
+    'Document exceeds the 10 MB limit for synchronous Textract processing. For a larger PDF or TIFF, upload it to S3 and use Multi-Page mode where the operation supports it.',
+    413
+  )
+}
 
 export interface ResolvedDocument {
   bytes: Buffer
@@ -54,22 +64,28 @@ async function fetchDocumentBytes(
     throw new TextractOperationError(urlValidation.error || 'Invalid document URL', 400)
   }
 
-  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
-    profile,
-    method: 'GET',
-    signal,
-  })
-  if (!response.ok) {
-    await response.text().catch(() => {})
-    throw new TextractOperationError(
-      `Failed to fetch document: ${response.statusText}`,
-      response.status
-    )
-  }
+  try {
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+      profile,
+      method: 'GET',
+      signal,
+      maxResponseBytes: TEXTRACT_SYNC_MAX_DOCUMENT_BYTES,
+    })
+    if (!response.ok) {
+      await response.text().catch(() => {})
+      throw new TextractOperationError(
+        `Failed to fetch document: ${response.statusText}`,
+        response.status
+      )
+    }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const contentType = response.headers.get('content-type') || 'application/octet-stream'
-  return { bytes: Buffer.from(arrayBuffer), contentType }
+    const arrayBuffer = await response.arrayBuffer()
+    const contentType = response.headers.get('content-type') || 'application/octet-stream'
+    return { bytes: Buffer.from(arrayBuffer), contentType }
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw documentTooLargeError()
+    throw error
+  }
 }
 
 export async function resolveDocumentInput(
@@ -107,12 +123,16 @@ export async function resolveDocumentInput(
     }
 
     signal?.throwIfAborted()
-    const { buffer, contentType } = await downloadServableFileFromStorage(
-      userFile,
-      requestId,
-      logger,
-      { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }
-    )
+    let downloaded: Awaited<ReturnType<typeof downloadServableFileFromStorage>>
+    try {
+      downloaded = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: TEXTRACT_SYNC_MAX_DOCUMENT_BYTES,
+      })
+    } catch (error) {
+      if (isPayloadSizeLimitError(error)) throw documentTooLargeError()
+      throw error
+    }
+    const { buffer, contentType } = downloaded
     const resolvedContentType = contentType || userFile.type || 'application/octet-stream'
 
     return {

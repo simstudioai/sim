@@ -2,7 +2,7 @@
 title: Twilio Voice
 description: Make and manage phone calls
 integration:
-  type: "twilio_voice"
+  type: "twilio_voice_v2"
   color: "#F22F46"
 ---
 
@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 [Twilio Voice](https://www.twilio.com/en-us/voice) connects phone calls to workflows. Use this integration to place outbound calls, list calls, retrieve recordings, and receive call events through a webhook. Supply the call instructions and phone numbers required by the selected operation.
+
+Connect Twilio once as a Twilio credential with your Account SID and either the account's Auth Token or an [API key](https://www.twilio.com/docs/iam/api-keys). Enter an API key as its SID and secret joined by a colon (`SKxxx:secret`). A Standard or Main key works; a restricted key needs read access to phone numbers. Workflows built with the earlier Twilio block keep the Account SID and Auth Token they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -35,8 +37,6 @@ Make an outbound phone call using Twilio Voice API.
 | `twiml` | string | No | TwiML instructions to execute. Use square brackets instead of angle brackets \(e.g., \[Response\]\[Say\]Hello\[/Say\]\[/Response\]\) |
 | `statusCallback` | string | No | Webhook URL for call status updates |
 | `statusCallbackMethod` | string | No | HTTP method for status callback \(GET or POST\) |
-| `accountSid` | string | Yes | Twilio Account SID |
-| `authToken` | string | Yes | Twilio Auth Token |
 | `record` | boolean | No | Whether to record the call |
 | `recordingStatusCallback` | string | No | Webhook URL for recording status updates |
 | `timeout` | number | No | Time to wait for answer before giving up \(seconds, default: 60\) |
@@ -69,14 +69,13 @@ Retrieve a list of calls made to and from an account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accountSid` | string | Yes | Twilio Account SID |
-| `authToken` | string | Yes | Twilio Auth Token |
 | `to` | string | No | Filter by calls to this phone number in E.164 format \(e.g., +14155551234\) |
 | `from` | string | No | Filter by calls from this phone number in E.164 format \(e.g., +14155559876\) |
 | `status` | string | No | Filter by call status \(e.g., queued, ringing, in-progress, completed, busy, failed, no-answer, canceled\) |
-| `startTimeAfter` | string | No | Filter calls that started on or after this date \(YYYY-MM-DD\) |
-| `startTimeBefore` | string | No | Filter calls that started on or before this date \(YYYY-MM-DD\) |
+| `startTimeAfter` | string | No | Filter calls that started on or after this date \(YYYY-MM-DD, UTC; inclusive\) |
+| `startTimeBefore` | string | No | Filter calls that started before this date \(YYYY-MM-DD, UTC; exclusive\) |
 | `pageSize` | number | No | Number of records to return \(max 1000, default 50\) |
+| `pageToken` | string | No | Page token from a previous result \(nextPageToken\) to fetch the next page |
 
 #### Output
 
@@ -84,9 +83,10 @@ Retrieve a list of calls made to and from an account.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the calls were successfully retrieved |
 | `calls` | array | Array of call objects |
-| `total` | number | Total number of calls returned |
+| `total` | number | Number of calls returned on this page |
 | `page` | number | Current page number |
 | `pageSize` | number | Number of calls per page |
+| `nextPageToken` | string | Pass as pageToken to fetch the next page; null on the last page |
 | `error` | string | Error message if retrieval failed |
 
 </ReferenceDetails>
@@ -102,8 +102,6 @@ Retrieve call recording information and transcription (if enabled via TwiML).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `recordingSid` | string | Yes | Recording SID to retrieve \(e.g., RExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\) |
-| `accountSid` | string | Yes | Twilio Account SID |
-| `authToken` | string | Yes | Twilio Auth Token |
 
 #### Output
 

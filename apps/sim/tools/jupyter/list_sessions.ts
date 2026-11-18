@@ -1,5 +1,6 @@
 import { mapJupyterSession } from '@/lib/internal/jupyter/protocol'
 import type { JupyterListSessionsParams, JupyterListSessionsResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterListSessionsTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const jupyterListSessionsTool: InternalToolConfig<
   name: 'Jupyter List Sessions',
   description: 'List active sessions (notebook-to-kernel bindings) on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

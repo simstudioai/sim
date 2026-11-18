@@ -9,6 +9,7 @@ import {
   handleKalshiError,
   KALSHI_SETTLEMENT_OUTPUT_PROPERTIES,
 } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetSettlementsParams extends KalshiAuthParams, KalshiPaginationParams {
@@ -34,6 +35,7 @@ export const kalshiGetSettlementsTool: ToolConfig<
   name: 'Get Settlements from Kalshi',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -91,8 +93,12 @@ export const kalshiGetSettlementsTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.ticker) queryParams.append('ticker', params.ticker)
       if (params.eventTicker) queryParams.append('event_ticker', params.eventTicker)
-      if (params.minTs !== undefined) queryParams.append('min_ts', params.minTs.toString())
-      if (params.maxTs !== undefined) queryParams.append('max_ts', params.maxTs.toString())
+      if (params.minTs != null && String(params.minTs) !== '') {
+        queryParams.append('min_ts', String(params.minTs))
+      }
+      if (params.maxTs != null && String(params.maxTs) !== '') {
+        queryParams.append('max_ts', String(params.maxTs))
+      }
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.cursor) queryParams.append('cursor', params.cursor)
 
@@ -183,6 +189,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
   name: 'Get Settlements from Kalshi V2',
   description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -246,8 +253,12 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.ticker) queryParams.append('ticker', params.ticker)
       if (params.eventTicker) queryParams.append('event_ticker', params.eventTicker)
-      if (params.minTs !== undefined) queryParams.append('min_ts', params.minTs.toString())
-      if (params.maxTs !== undefined) queryParams.append('max_ts', params.maxTs.toString())
+      if (params.minTs != null && String(params.minTs) !== '') {
+        queryParams.append('min_ts', String(params.minTs))
+      }
+      if (params.maxTs != null && String(params.maxTs) !== '') {
+        queryParams.append('max_ts', String(params.maxTs))
+      }
       if (params.subaccount) queryParams.append('subaccount', params.subaccount)
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.cursor) queryParams.append('cursor', params.cursor)

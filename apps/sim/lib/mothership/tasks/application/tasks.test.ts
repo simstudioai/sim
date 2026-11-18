@@ -253,6 +253,7 @@ describe('worker HTTP contracts', () => {
         startedAt: '2026-09-06T00:00:00.000Z',
         endedAt: '2026-09-06T00:00:01.000Z',
         durationMs: 1000,
+        version: null,
         paused: null,
         cost: null,
         error: null,

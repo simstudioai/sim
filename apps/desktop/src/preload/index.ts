@@ -46,6 +46,7 @@ import type {
   DesktopZoomPercent,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
+  QuickChatShortcut,
   SimDesktopApi,
   TerminalShortcutCommand,
   TerminalThemeProfile,
@@ -126,11 +127,13 @@ const api: SimDesktopApi = {
   ...(process.platform === 'darwin'
     ? {
         computerUse: {
+          stableElementIds: true,
           getActivity: () => ipcRenderer.invoke('computer-use:get-activity'),
           getStatus: () => ipcRenderer.invoke('computer-use:status'),
           setEnabled: (enabled: boolean) => ipcRenderer.invoke('computer-use:set-enabled', enabled),
           requestPermission: (permission: 'accessibility' | 'screenCapture') =>
             ipcRenderer.invoke('computer-use:request-permission', permission),
+          setAskForApps: (ask: boolean) => ipcRenderer.invoke('computer-use:set-ask-for-apps', ask),
           listAppPermissions: () => ipcRenderer.invoke('computer-use:list-permissions'),
           revokeApp: (bundleId: string) => ipcRenderer.invoke('computer-use:revoke-app', bundleId),
           executeTool: (toolCallId: string, params: ComputerUseInput) =>
@@ -216,6 +219,8 @@ const api: SimDesktopApi = {
     },
     setPreventSleepWhileRunning: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-prevent-sleep', enabled),
+    setQuickChatShortcut: (shortcut: QuickChatShortcut | null): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-quick-chat-shortcut', shortcut),
     setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-browser-search-suggestions', enabled),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>

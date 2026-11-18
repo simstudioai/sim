@@ -4,6 +4,7 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, gt } from 'drizzle-orm'
 import { createApiKey } from '@/lib/api-key/auth'
 import { decryptApiKey, hashApiKey } from '@/lib/api-key/crypto'
+import { DELEGATION_KEY_NAME_PREFIX } from '@/lib/api-key/reserved-names'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   traceMothershipQuery,
@@ -16,7 +17,7 @@ const DELEGATION_TTL_MS = 12 * 60 * 60 * 1000
 const MIN_REMAINING_MS = 30 * 60 * 1000
 
 function delegationName(userId: string): string {
-  return `mothership-delegation:${userId}`
+  return `${DELEGATION_KEY_NAME_PREFIX}${userId}`
 }
 
 /**
@@ -48,6 +49,7 @@ export async function mintDelegationToken(params: {
               eq(apiKey.userId, params.userId),
               eq(apiKey.name, name),
               eq(apiKey.type, 'personal'),
+              eq(apiKey.access, 'write'),
               gt(apiKey.expiresAt, new Date(Date.now() + MIN_REMAINING_MS))
             )
           )
@@ -82,6 +84,7 @@ export async function mintDelegationToken(params: {
           key: stored,
           keyHash: hashApiKey(plainKey),
           type: 'personal',
+          access: 'write',
           createdAt: now,
           updatedAt: now,
           expiresAt,

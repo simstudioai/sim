@@ -114,6 +114,7 @@ interface ApolloOpportunity {
 
 interface ApolloBaseParams {
   apiKey: string
+  credentialType?: string
 }
 
 // People Search Types

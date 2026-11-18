@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -26,6 +27,7 @@ export const sportmonksGetSchedulesBySeasonAndTeamTool: ToolConfig<
   name: 'Get Schedules by Season and Team',
   description: 'Retrieve the full season schedule for a specific team by season ID and team ID',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

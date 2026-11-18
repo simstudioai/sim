@@ -1,4 +1,6 @@
 import type { RootlyListPlaybooksParams, RootlyListPlaybooksResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListPlaybooksTool: ToolConfig<
@@ -9,6 +11,7 @@ export const rootlyListPlaybooksTool: ToolConfig<
   name: 'Rootly List Playbooks',
   description: 'List playbooks from Rootly with pagination support.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -52,7 +55,7 @@ export const rootlyListPlaybooksTool: ToolConfig<
       return {
         success: false,
         output: { playbooks: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

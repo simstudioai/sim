@@ -7,6 +7,7 @@ import {
 } from '@/tools/trello/shared'
 import type { TrelloAddCommentParams, TrelloAddCommentResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddCommentResponse> = {
   id: 'trello_add_comment',
@@ -54,7 +55,9 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}/actions/comments`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}/actions/comments`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
       url.searchParams.set('text', params.text)

@@ -1,6 +1,8 @@
 import type { MailchimpAudience } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetAudienceParams {
   apiKey: string
@@ -23,6 +25,7 @@ export const mailchimpGetAudienceTool: ToolConfig<
   name: 'Get Audience from Mailchimp',
   description: 'Retrieve details of a specific audience (list) from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -40,7 +43,8 @@ export const mailchimpGetAudienceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/lists/${params.listId}`),
+    url: (params) =>
+      buildMailchimpUrl(params.apiKey, `/lists/${safeUrlPathSegment(params.listId, 'listId')}`),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

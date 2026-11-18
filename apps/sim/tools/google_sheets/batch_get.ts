@@ -2,7 +2,9 @@ import type {
   GoogleSheetsV2BatchGetParams,
   GoogleSheetsV2BatchGetResponse,
 } from '@/tools/google_sheets/types'
+import { appendReadRenderParams, READ_RENDER_PARAMS } from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const batchGetV2Tool: ToolConfig<
   GoogleSheetsV2BatchGetParams,
@@ -51,6 +53,7 @@ export const batchGetV2Tool: ToolConfig<
       description:
         'How values should be rendered: "FORMATTED_VALUE" (default), "UNFORMATTED_VALUE", or "FORMULA"',
     },
+    dateTimeRenderOption: READ_RENDER_PARAMS.dateTimeRenderOption,
   },
 
   request: {
@@ -70,15 +73,9 @@ export const batchGetV2Tool: ToolConfig<
         queryParams.append('ranges', range)
       })
 
-      if (params.majorDimension) {
-        queryParams.append('majorDimension', params.majorDimension)
-      }
+      appendReadRenderParams(queryParams, params)
 
-      if (params.valueRenderOption) {
-        queryParams.append('valueRenderOption', params.valueRenderOption)
-      }
-
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${queryParams.toString()}`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values:batchGet?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => {

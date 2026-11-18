@@ -13,6 +13,7 @@ import {
   checkrPaginationQuery,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListReportAddressesTool: ToolConfig<
@@ -23,6 +24,7 @@ export const checkrListReportAddressesTool: ToolConfig<
   name: 'Checkr List Report Addresses',
   description: 'List the address history found for a report.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentUpdatesListParams,
   IncidentioIncidentUpdatesListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentUpdatesListTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentUpdatesListTool: ToolConfig<
   name: 'List Incident Updates',
   description: 'List all updates for a specific incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

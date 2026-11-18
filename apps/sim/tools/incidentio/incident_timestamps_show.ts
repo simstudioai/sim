@@ -2,7 +2,9 @@ import type {
   IncidentioIncidentTimestampsShowParams,
   IncidentioIncidentTimestampsShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentTimestampsShowTool: ToolConfig<
   IncidentioIncidentTimestampsShowParams,
@@ -12,6 +14,7 @@ export const incidentTimestampsShowTool: ToolConfig<
   name: 'Show Incident Timestamp',
   description: 'Get details of a specific incident timestamp definition in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +32,8 @@ export const incidentTimestampsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_timestamps/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_timestamps/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -56,8 +60,16 @@ export const incidentTimestampsShowTool: ToolConfig<
         id: { type: 'string', description: 'The timestamp ID' },
         name: { type: 'string', description: 'The timestamp name' },
         rank: { type: 'number', description: 'The rank/order of the timestamp' },
-        created_at: { type: 'string', description: 'When the timestamp was created' },
-        updated_at: { type: 'string', description: 'When the timestamp was last updated' },
+        created_at: {
+          type: 'string',
+          description: 'Not returned by the incident.io API; always empty',
+          optional: true,
+        },
+        updated_at: {
+          type: 'string',
+          description: 'Not returned by the incident.io API; always empty',
+          optional: true,
+        },
       },
     },
   },

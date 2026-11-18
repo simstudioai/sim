@@ -2,6 +2,10 @@ import type {
   CrowdStrikeGetIndicatorDetailsParams,
   CrowdStrikeGetIndicatorDetailsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetIndicatorDetailsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeGetIndicatorDetailsTool: InternalToolConfig<
   description:
     'Get custom CrowdStrike Falcon indicator of compromise (IOC) records for one or more IOC IDs (GET /iocs/entities/indicators/v1). Requires the "IOC Management: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeGetIndicatorDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     indicatorIds: {
       type: 'json',
       required: true,
@@ -46,6 +52,7 @@ export const crowdstrikeGetIndicatorDetailsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       indicatorIds: params.indicatorIds,
       operation: 'crowdstrike_get_indicator_details',
     }),

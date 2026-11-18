@@ -1,5 +1,8 @@
 import type { SentryGetProjectParams, SentryGetProjectResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProjectResponse> = {
   id: 'sentry_projects_get',
@@ -7,8 +10,10 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
   description:
     'Retrieve detailed information about a specific Sentry project by its slug. Returns complete project details including teams, features, and configuration.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -31,7 +36,7 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

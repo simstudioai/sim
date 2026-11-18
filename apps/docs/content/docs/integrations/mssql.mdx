@@ -2,7 +2,7 @@
 title: Microsoft SQL Server
 description: Connect to Microsoft SQL Server database
 integration:
-  type: "mssql"
+  type: "mssql_v2"
   color: "#FFFFFF"
 ---
 
@@ -10,7 +10,17 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or modify rows, execute T-SQL, and inspect tables, keys, and indexes. Configure the host, port, database, credentials, and TLS settings for your instance.
+Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or modify rows, execute T-SQL, and inspect tables, keys, and indexes.
+
+### Connection setup
+
+In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
+
+- **Encrypt connection** requests TLS; leave it enabled. A server that does not support encryption gets an unencrypted session rather than an error, so confirm the server has encryption on.
+- **Trust server certificate** skips certificate validation. Enable it only for a server with a self-signed certificate you trust.
+- Named instances are not supported; give the instance a static TCP port and connect to that port.
+
+Workflows built before saved connections keep their inline connection fields and run unchanged.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -29,13 +39,6 @@ Execute a SELECT query on a Microsoft SQL Server database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL SELECT query to execute, optionally led by a WITH clause. Statements that modify data or schema are rejected — use the Execute Raw SQL operation for those. |
 
@@ -61,13 +64,6 @@ Insert data into a Microsoft SQL Server table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
@@ -94,13 +90,6 @@ Update rows in a Microsoft SQL Server table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to update |
 | `data` | object | Yes | Data object with the columns to set \(key-value pairs\) |
@@ -128,13 +117,6 @@ Delete rows from a Microsoft SQL Server table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to delete rows from |
 | `where` | string | Yes | WHERE condition identifying the rows to delete |
@@ -161,13 +143,6 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL statement to execute |
 
@@ -193,13 +168,6 @@ Introspect a Microsoft SQL Server schema to retrieve table structures, columns, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `encrypt` | string | No | Request TLS encryption for the connection \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `schema` | string | No | Schema to introspect \(default: dbo\) |
 

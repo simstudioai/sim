@@ -56,6 +56,15 @@ function workerSummary(worker: WorkdayWorkerSoap) {
   }
 }
 
+/**
+ * Clamps a page size to the 1-999 range `Response_Filter.Count` accepts (Human_Resources
+ * WSDL `Response_FilterType`), defaulting to 20 when the value is absent or not a number.
+ */
+function responseFilterCount(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit)) return 20
+  return Math.min(999, Math.max(1, Math.trunc(limit)))
+}
+
 export async function executeWorkdayGetWorker(input: WorkdayGetWorkerBody, signal?: AbortSignal) {
   const client = await createClient(input, 'humanResources', signal)
   const [result] = await client.Get_WorkersAsync({
@@ -96,7 +105,7 @@ export async function executeWorkdayListWorkers(
   signal?: AbortSignal
 ) {
   const client = await createClient(input, 'humanResources', signal)
-  const limit = input.limit ?? 20
+  const limit = responseFilterCount(input.limit)
   const offset = input.offset ?? 0
   const page = offset > 0 ? Math.floor(offset / limit) + 1 : 1
   const [result] = await client.Get_WorkersAsync({
@@ -132,15 +141,18 @@ export async function executeWorkdayCreatePrehire(
     throw new WorkdayOperationError('Legal name must include both a first name and last name', 400)
   }
 
+  const countryCode = input.countryCode ?? 'US'
+  const workUsageData = {
+    attributes: { 'wd:Public': 'true' },
+    Type_Data: { Type_Reference: wdRef('Communication_Usage_Type_ID', 'WORK') },
+  }
   const contactData: Record<string, unknown> = {}
-  if (input.email) {
-    contactData.Email_Address_Data = [
+  if (input.address) {
+    contactData.Address_Data = [
       {
-        Email_Address: input.email,
-        Usage_Data: {
-          Type_Data: { Type_Reference: wdRef('Communication_Usage_Type_ID', 'WORK') },
-          Public: true,
-        },
+        Country_Reference: wdRef('ISO_3166-1_Alpha-2_Code', countryCode),
+        Address_Line_Data: { attributes: { 'wd:Type': 'ADDRESS_LINE_1' }, $value: input.address },
+        Usage_Data: workUsageData,
       },
     ]
   }
@@ -149,23 +161,12 @@ export async function executeWorkdayCreatePrehire(
       {
         Phone_Number: input.phoneNumber,
         Phone_Device_Type_Reference: wdRef('Phone_Device_Type_ID', 'Landline'),
-        Usage_Data: {
-          Type_Data: { Type_Reference: wdRef('Communication_Usage_Type_ID', 'WORK') },
-          Public: true,
-        },
+        Usage_Data: workUsageData,
       },
     ]
   }
-  if (input.address) {
-    contactData.Address_Data = [
-      {
-        Formatted_Address: input.address,
-        Usage_Data: {
-          Type_Data: { Type_Reference: wdRef('Communication_Usage_Type_ID', 'WORK') },
-          Public: true,
-        },
-      },
-    ]
+  if (input.email) {
+    contactData.Email_Address_Data = [{ Email_Address: input.email, Usage_Data: workUsageData }]
   }
 
   const client = await createClient(input, 'recruiting', signal)
@@ -175,13 +176,13 @@ export async function executeWorkdayCreatePrehire(
         Name_Data: {
           Legal_Name_Data: {
             Name_Detail_Data: {
-              Country_Reference: wdRef('ISO_3166-1_Alpha-2_Code', input.countryCode ?? 'US'),
+              Country_Reference: wdRef('ISO_3166-1_Alpha-2_Code', countryCode),
               First_Name: firstName,
               Last_Name: lastName,
             },
           },
         },
-        Contact_Information_Data: contactData,
+        Contact_Data: contactData,
       },
     },
   })
@@ -207,6 +208,7 @@ export async function executeWorkdayHire(input: WorkdayHireBody, signal?: AbortS
       Hire_Employee_Event_Data: {
         Employee_Type_Reference: wdRef('Employee_Type_ID', input.employeeType ?? 'Regular'),
         First_Day_of_Work: input.hireDate,
+        Position_Details: {},
       },
     },
   })
@@ -230,7 +232,7 @@ export async function executeWorkdayUpdateWorker(
   const client = await createClient(input, 'humanResources', signal)
   const [result] = await client.Change_Personal_InformationAsync({
     Business_Process_Parameters: { Auto_Complete: true, Run_Now: true },
-    Change_Personal_Information_Business_Process_Data: {
+    Change_Personal_Information_Data: {
       Person_Reference: wdRef('Employee_ID', input.workerId),
       Personal_Information_Data: input.fields,
     },
@@ -275,11 +277,10 @@ export async function executeWorkdayGetOrganizations(
   signal?: AbortSignal
 ) {
   const client = await createClient(input, 'humanResources', signal)
-  const limit = input.limit ?? 20
+  const limit = responseFilterCount(input.limit)
   const offset = input.offset ?? 0
   const page = offset > 0 ? Math.floor(offset / limit) + 1 : 1
   const [result] = await client.Get_OrganizationsAsync({
-    Response_Filter: { Page: page, Count: limit },
     Request_Criteria: input.type
       ? {
           Organization_Type_Reference: {
@@ -287,6 +288,7 @@ export async function executeWorkdayGetOrganizations(
           },
         }
       : undefined,
+    Response_Filter: { Page: page, Count: limit },
     Response_Group: { Include_Hierarchy_Data: true },
   })
   signal?.throwIfAborted()
@@ -299,7 +301,10 @@ export async function executeWorkdayGetOrganizations(
     const inactive = parseSoapBoolean(organization.Organization_Data?.Inactive)
     return {
       id: extractRefId(organization.Organization_Reference) ?? null,
-      descriptor: organization.Organization_Descriptor ?? null,
+      descriptor:
+        organization.Organization_Reference?.attributes?.Descriptor ??
+        organization.Organization_Data?.Name ??
+        null,
       type: extractRefId(organization.Organization_Data?.Organization_Type_Reference) ?? null,
       subtype: extractRefId(organization.Organization_Data?.Organization_Subtype_Reference) ?? null,
       isActive: inactive == null ? null : !inactive,
@@ -379,18 +384,20 @@ export async function executeWorkdayGetCompensation(
       parseSoapNumber(plan.Amount) ??
       parseSoapNumber(plan.Per_Unit_Amount) ??
       parseSoapNumber(plan.Individual_Target_Amount) ??
+      parseSoapNumber(plan.Target_Amount) ??
       null,
     currency: extractRefId(plan.Currency_Reference) ?? null,
     frequency: extractRefId(plan.Frequency_Reference) ?? null,
   })
   const planTypeKeys: (keyof WorkdayCompensationDataSoap)[] = [
-    'Employee_Base_Pay_Plan_Assignment_Data',
-    'Employee_Salary_Unit_Plan_Assignment_Data',
-    'Employee_Bonus_Plan_Assignment_Data',
-    'Employee_Allowance_Plan_Assignment_Data',
-    'Employee_Commission_Plan_Assignment_Data',
-    'Employee_Stock_Plan_Assignment_Data',
-    'Employee_Period_Salary_Plan_Assignment_Data',
+    'Salary_and_Hourly_Data',
+    'Unit_Salary_Plan_Data',
+    'Allowance_Plan_Data',
+    'Unit_Allowance_Plan_Data',
+    'Bonus_Plan_Data',
+    'Commission_Plan_Data',
+    'Stock_Plan_Data',
+    'Period_Salary_Plan_Data',
   ]
   const compensationPlans = planTypeKeys.flatMap((key) =>
     normalizeSoapArray(compensationData?.[key]).map(mapPlan)
@@ -406,8 +413,8 @@ export async function executeWorkdayTerminate(input: WorkdayTerminateBody, signa
       Employee_Reference: wdRef('Employee_ID', input.workerId),
       Termination_Date: input.terminationDate,
       Terminate_Event_Data: {
-        Primary_Reason_Reference: wdRef('Termination_Subcategory_ID', input.reason),
         Last_Day_of_Work: input.lastDayOfWork ?? input.terminationDate,
+        Primary_Reason_Reference: wdRef('Termination_Subcategory_ID', input.reason),
         Notification_Date: input.notificationDate ?? input.terminationDate,
       },
     },

@@ -7,6 +7,7 @@ import {
   authorizeSlackSearchInstallation,
   authorizeSlackSearchRedirect,
   requireSlackInstallationPrincipal,
+  withSlackSearchOutboundScope,
 } from '@/lib/knowledge/application/slack-search/authorization'
 import { routeSlackSearchMentionToDm } from '@/lib/knowledge/application/slack-search/mention'
 import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
@@ -98,7 +99,7 @@ export const respondToSlackSearchMessage: OperationUseCase<
   typeof respondOperation,
   RespondInput,
   void
-> = {
+> = withSlackSearchOutboundScope({
   operation: respondOperation,
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
@@ -151,4 +152,4 @@ export const respondToSlackSearchMessage: OperationUseCase<
     }
     await runSlackSearchAssistant(principal, { ...input, job })
   },
-}
+})

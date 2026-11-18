@@ -7,6 +7,7 @@ import {
 } from '@/tools/trello/shared'
 import type { TrelloListListsParams, TrelloListListsResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListListsResponse> = {
   id: 'trello_list_lists',
@@ -55,7 +56,9 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
         throw new Error('Trello access token is missing')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/boards/${params.boardId.trim()}/lists`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/boards/${safeUrlPathSegment(params.boardId, 'boardId')}/lists`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
 

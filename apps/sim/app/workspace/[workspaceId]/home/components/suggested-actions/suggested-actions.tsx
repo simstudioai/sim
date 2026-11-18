@@ -15,6 +15,7 @@ import {
 } from '@/lib/integrations/oauth-service'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { unconnectedIntegrations } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/connect-candidates'
 import type {
   Action,
   ActionIcon,
@@ -28,11 +29,6 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/connections'
 import { useTablesList } from '@/hooks/queries/tables'
-
-/** Lookup integration slug by OAuth service display name (case-insensitive). */
-const SLUG_BY_LOWER_NAME: ReadonlyMap<string, string> = new Map(
-  INTEGRATION_METADATA.map((i) => [i.name.toLowerCase(), i.slug])
-)
 
 /** Lookup base block type by catalog slug, for the connect-row popularity weight. */
 const TYPE_BY_SLUG: ReadonlyMap<string, string> = new Map(
@@ -177,11 +173,11 @@ function toIntegrationAction(service: ServiceInfo, slug: string): Action {
  * prompts; fresh workspaces get two of each.
  */
 function computeActions(services: readonly ServiceInfo[], signals: Signals): Action[] {
-  const connectCandidates = services.flatMap((s) => {
-    if (signals.connectedProviders.has(s.providerId)) return []
-    const slug = SLUG_BY_LOWER_NAME.get(s.name.toLowerCase())
-    return slug ? [{ service: s, slug }] : []
-  })
+  const connectCandidates = unconnectedIntegrations(
+    services,
+    signals.connectedProviders,
+    INTEGRATION_METADATA
+  )
   const connectCount = signals.connectedProviders.size === 0 ? 2 : 1
   const integrations = weightedSample(
     connectCandidates,

@@ -28,12 +28,13 @@ const deploymentGatedIntegrationTypes = new Set(
 )
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
 /** Search authorization shares GitHub's integration policy while its workflow tools retain PAT auth. */
-integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
+integrationTypesByOAuthServiceId.set('github-repositories', ['github_v3'])
 /** Stored API-token credentials for api-key blocks are available without a deployment OAuth client. */
 const tokenCredentialIntegrationTypes = new Map([
   ['coda', 'coda'],
   ['gauge', 'gauge'],
   ['higgsfield', 'higgsfield'],
+  ['monaco', 'monaco'],
   ['flow', 'flow'],
   ['claude-platform', 'managed_agent'],
 ])

@@ -1,4 +1,6 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { AddLabelsParams, LabelsResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
@@ -6,6 +8,7 @@ export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
   name: 'GitHub Add Labels',
   description: 'Add labels to an issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -42,7 +45,7 @@ export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/labels`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}/labels`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -102,6 +105,7 @@ export const addLabelsV2Tool: ToolConfig<AddLabelsParams, any> = {
   name: addLabelsTool.name,
   description: addLabelsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: addLabelsTool.params,
   request: addLabelsTool.request,
 

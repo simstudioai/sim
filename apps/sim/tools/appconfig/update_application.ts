@@ -2,6 +2,7 @@ import type {
   AppConfigUpdateApplicationParams,
   AppConfigUpdateApplicationResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateApplicationTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const updateApplicationTool: InternalToolConfig<
   name: 'AppConfig Update Application',
   description: 'Update the name or description of an AWS AppConfig application',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

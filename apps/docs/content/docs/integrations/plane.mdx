@@ -2,7 +2,7 @@
 title: Plane
 description: Manage projects and work items in Plane
 integration:
-  type: "plane"
+  type: "plane_v2"
   color: "#FFFFFF"
 ---
 
@@ -19,7 +19,7 @@ With the Plane block, you can:
 - **Keep knowledge current**: Manage pages and sync project work items or pages into a Sim knowledge base.
 - **React to changes**: Start agents from authenticated Plane webhook events.
 
-Create a personal access token in Plane's profile settings and enter it as the API token. API v2 is the default. For Community Edition or an older self-hosted instance, select API v1 in the advanced settings and set the instance origin, optionally including its reverse-proxy path prefix. Omit `/api/v1` and `/api/v2` from the instance URL. The block exposes core workflow actions. Supported self-hosted actions use the same operation list. Resource availability depends on the instance's edition and version.
+Create a personal access token in Plane's profile settings and enter it as the API token. API v2 is the default. For Community Edition or an older self-hosted instance, select API v1 in the advanced settings and set the instance origin on the Plane credential (the legacy block's advanced settings), optionally including its reverse-proxy path prefix. Omit `/api/v1` and `/api/v2` from the instance URL. The block exposes core workflow actions. Supported self-hosted actions use the same operation list. Resource availability depends on the instance's edition and version.
 
 Explicit empty strings, nulls, and empty arrays can be supplied through **Body Overrides** using the action's canonical input names. Clearing work item labels and assignees is verified through API v1 because Plane v2 can continue returning deleted relationship IDs. The update action returns the verified cleared state; subsequent v2 reads may still include those IDs. Use API v1 when reading active relationships after a clear.
 
@@ -44,8 +44,6 @@ Archive a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The project id. |
@@ -68,8 +66,6 @@ Archive a work item in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -140,8 +136,6 @@ Confirm a work item attachment upload in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -182,8 +176,6 @@ Create a work item attachment upload in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -262,8 +254,6 @@ Create a comment in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -335,8 +325,6 @@ Create a cycle in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -407,8 +395,6 @@ Create a label in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -458,8 +444,6 @@ Create a link in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -505,8 +489,6 @@ Create a module in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -576,8 +558,6 @@ Create a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -689,8 +669,6 @@ Create a project page in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -773,8 +751,6 @@ Create a state in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -830,8 +806,6 @@ Create a webhook in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -871,8 +845,6 @@ Create a work item in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -1014,8 +986,6 @@ Delete an attachment in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1040,8 +1010,6 @@ Delete a comment in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -1066,8 +1034,6 @@ Delete a cycle in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the cycle belongs to. |
@@ -1091,8 +1057,6 @@ Delete a label in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the label belongs to. |
@@ -1116,8 +1080,6 @@ Delete a link in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1142,8 +1104,6 @@ Delete a module in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the module belongs to. |
@@ -1167,8 +1127,6 @@ Delete a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The project id. |
@@ -1191,8 +1149,6 @@ Delete a project page in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1216,8 +1172,6 @@ Delete a state in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the state belongs to. |
@@ -1241,8 +1195,6 @@ Delete a webhook in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The webhook id. |
@@ -1265,8 +1217,6 @@ Delete a work item in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -1290,8 +1240,6 @@ Get an attachment in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1329,8 +1277,6 @@ Get a comment in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -1395,8 +1341,6 @@ Get current user in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 
 #### Output
@@ -1426,8 +1370,6 @@ Get a cycle in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the cycle belongs to. A cycle id from a different project returns `404`, not the record. |
@@ -1488,8 +1430,6 @@ Get a label in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the label belongs to. |
@@ -1532,8 +1472,6 @@ Get a link in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1597,8 +1535,6 @@ Get a module in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the module belongs to. |
@@ -1657,8 +1593,6 @@ Get a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The project id. |
@@ -1740,8 +1674,6 @@ Get a project page in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -1811,8 +1743,6 @@ Get a project summary in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | Project ID or bare project identifier whose summary to retrieve. |
@@ -1851,8 +1781,6 @@ Get a state in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the state belongs to. A state id from a different project returns `404`, even inside the same workspace. |
@@ -1898,8 +1826,6 @@ Get a webhook in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The webhook id. |
@@ -1932,8 +1858,6 @@ Get a work item in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -2048,8 +1972,6 @@ Get a work item by identifier in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `identifier` | string | Yes | The work item's human key: the project identifier, a hyphen, and the work item's number — `PROJ-142`. The project part must start with a letter, and it is upper-cased before lookup, so `proj-142` resolves the same work item as `PROJ-142`. A project identifier is unique within a workspace, which is what makes this key unambiguous. |
@@ -2119,8 +2041,6 @@ List attachments in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -2208,8 +2128,6 @@ List comments in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -2312,8 +2230,6 @@ List cycles in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project whose cycles you want. |
@@ -2429,8 +2345,6 @@ List labels in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project whose labels you want. |
@@ -2547,8 +2461,6 @@ List links in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -2634,8 +2546,6 @@ List modules in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project whose modules you want. |
@@ -2745,8 +2655,6 @@ List project pages in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the resource belongs to. Accepts the project UUID or its bare identifier, for example `ENG`. |
@@ -2878,8 +2786,6 @@ List projects in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `count` | boolean | No | Set to false to skip the total_count COUNT\(\*\) \(omits total_count\). |
@@ -3033,8 +2939,6 @@ List states in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project whose states you want to list. |
@@ -3128,8 +3032,6 @@ List webhooks in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `count` | boolean | No | Set to false to skip the total_count COUNT\(\*\) \(omits total_count\). |
@@ -3179,8 +3081,6 @@ List work items in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project to list work items from. |
@@ -3388,8 +3288,6 @@ List work items across a workspace in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `assignee_id` | string | No | Filter by `assignee_id`. |
@@ -3510,8 +3408,6 @@ Add or remove cycle work items in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -3555,8 +3451,6 @@ Add or remove module work items in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -3659,8 +3553,6 @@ Regenerate a webhook secret in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The webhook id. |
@@ -3694,8 +3586,6 @@ Transfer work items between cycles in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -3723,8 +3613,6 @@ Unarchive a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `pk` | string | Yes | The project id. |
@@ -3747,8 +3635,6 @@ Unarchive a work item in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
 | `project_id` | string | Yes | The project the work item belongs to. |
@@ -3819,8 +3705,6 @@ Update a comment in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -3891,8 +3775,6 @@ Update a cycle in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -3964,8 +3846,6 @@ Update a label in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4016,8 +3896,6 @@ Update a link in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4067,8 +3945,6 @@ Update a module in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4139,8 +4015,6 @@ Update a project in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4253,8 +4127,6 @@ Update a project page in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4338,8 +4210,6 @@ Update a state in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4396,8 +4266,6 @@ Update a webhook in Plane. Requires API v2.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |
@@ -4437,8 +4305,6 @@ Update a work item in Plane. Supports API v1 compatibility.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Plane personal access token from Profile → API tokens. |
-| `baseUrl` | string | No | Plane instance origin, optionally with a reverse-proxy path prefix. Defaults to https://api.plane.so. Do not include /api/v1 or /api/v2. |
 | `apiVersion` | string | No | API version: v2 \(default\) for Plane Cloud and current commercial instances; v1 for Community Edition or older self-hosted instances. Unsupported operations or fields fail explicitly. |
 | `bodyOverrides` | json | No | JSON overrides using the canonical input names for the selected API version. Preserves empty strings, null, and empty arrays; unsupported fields are rejected. |
 | `workspace_slug` | string | Yes | Workspace slug from the Plane URL \(for example, my-team\). |

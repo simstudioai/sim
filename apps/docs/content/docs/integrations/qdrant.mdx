@@ -2,7 +2,7 @@
 title: Qdrant
 description: Use Qdrant vector database
 integration:
-  type: "qdrant"
+  type: "qdrant_v2"
   color: "#1A223F"
 ---
 
@@ -29,8 +29,6 @@ Insert or update points in a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name for upsert \(e.g., "my_collection"\) |
 | `points` | array | Yes | Array of points to upsert |
 
@@ -55,8 +53,6 @@ Search for similar vectors in a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name to search \(e.g., "my_collection"\) |
 | `vector` | array | Yes | Query vector for similarity search \(e.g., \[0.1, 0.2, 0.3, ...\]\) |
 | `limit` | number | No | Maximum number of results to return \(e.g., 10\) |
@@ -91,8 +87,6 @@ Fetch points by ID from a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name to fetch from \(e.g., "my_collection"\) |
 | `ids` | array | Yes | Array of point IDs to fetch \(e.g., \["id1", "id2"\] or \[1, 2\]\) |
 | `fetch_return_data` | string | No | Data to return from fetch |

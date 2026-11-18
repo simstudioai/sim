@@ -1,11 +1,14 @@
 import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDeleteResponse> = {
   id: 'incidentio_workflows_delete',
   name: 'incident.io Workflows Delete',
   description: 'Delete a workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +26,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/workflows/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

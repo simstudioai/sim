@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -145,7 +146,7 @@ export const resendHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
-      const resendResponse = await fetch('https://api.resend.com/webhooks', {
+      const resendResponse = await outboundFetch('https://api.resend.com/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -232,7 +233,7 @@ export const resendHandler: WebhookProviderHandler = {
         return
       }
 
-      const resendResponse = await fetch(`https://api.resend.com/webhooks/${externalId}`, {
+      const resendResponse = await outboundFetch(`https://api.resend.com/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type {
   VercelCreateDeploymentParams,
@@ -12,6 +13,7 @@ export const vercelCreateDeploymentTool: ToolConfig<
   name: 'Vercel Create Deployment',
   description: 'Create a new deployment or redeploy an existing one',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

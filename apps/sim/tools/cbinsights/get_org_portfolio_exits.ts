@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetOrgPortfolioExitsTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const cbinsightsGetOrgPortfolioExitsTool: InternalToolConfig<
   description:
     'Retrieve exit rounds for companies this organization invested in before the exit, with AI-generated insights on each deal.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

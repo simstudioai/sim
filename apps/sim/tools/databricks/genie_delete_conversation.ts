@@ -8,6 +8,7 @@ import {
   genieConversationPath,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieDeleteConversationTool: ToolConfig<
@@ -18,6 +19,7 @@ export const genieDeleteConversationTool: ToolConfig<
   name: 'Databricks Genie Delete Conversation',
   description: 'Delete a Genie conversation you no longer need.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,

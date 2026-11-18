@@ -8,6 +8,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneRemoveTaskAssigneesTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneRemoveTaskAssigneesTool: ToolConfig<
   name: 'Rocketlane Remove Task Assignees',
   description: 'Remove assignees from a Rocketlane task',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

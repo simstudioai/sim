@@ -1,4 +1,6 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
 import { THREAD_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
@@ -60,6 +62,7 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
   name: 'Add Messages',
   description: 'Add messages to an existing thread',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {
@@ -98,7 +101,11 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
         }
       },
     },
-    url: (params) => `https://api.getzep.com/api/v2/threads/${params.threadId}/messages`,
+    url: (params) =>
+      `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

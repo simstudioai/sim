@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateTimeEntryTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneCreateTimeEntryTool: ToolConfig<
   description:
     'Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -3,7 +3,12 @@ import type {
   SharepointSite,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl, optionalTrim } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  getGraphNextPageUrl,
+  graphPathSegment,
+  optionalTrim,
+} from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteResponse> = {
@@ -43,6 +48,13 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       description:
         'The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012',
     },
+    searchQuery: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Keywords to search sites by when listing all sites (defaults to * for every site). Example: marketing',
+    },
     nextPageUrl: {
       type: 'string',
       required: false,
@@ -54,7 +66,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
   request: {
     url: (params) => {
       if (params.nextPageUrl) {
-        return assertGraphNextPageUrl(params.nextPageUrl)
+        return assertGraphNextPageUrlForCollection(params.nextPageUrl, ['sites'])
       }
 
       let baseUrl: string
@@ -62,14 +74,17 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector)
 
       if (groupId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/sites/root`
+        baseUrl = `https://graph.microsoft.com/v1.0/groups/${graphPathSegment(groupId, 'groupId')}/sites/root`
       } else if (siteId) {
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}`
       } else {
-        baseUrl = 'https://graph.microsoft.com/v1.0/sites?search=*'
+        baseUrl = 'https://graph.microsoft.com/v1.0/sites'
       }
 
       const url = new URL(baseUrl)
+      if (!groupId && !siteId) {
+        url.searchParams.set('search', optionalTrim(params.searchQuery) || '*')
+      }
 
       url.searchParams.append(
         '$select',

@@ -40,6 +40,12 @@ export const emailBisonBaseParamFields = {
   },
 } satisfies ToolConfig['params']
 
+/**
+ * Builds an Email Bison API URL. The API is Laravel, which parses PHP query syntax: an array is
+ * sent as repeated `key[]` (a repeated bare `key` keeps only its last value), a nested filter as
+ * `filters[name]` (PHP turns the dot in `filters.name` into `_`), and a boolean as `1`/`0` (its
+ * `boolean` rule rejects the string `true`).
+ */
 export function emailBisonUrl(
   path: string,
   query: Record<string, QueryValue>,
@@ -52,8 +58,13 @@ export function emailBisonUrl(
 
     if (Array.isArray(value)) {
       value.forEach((item) => {
-        url.searchParams.append(key, String(item))
+        url.searchParams.append(`${key}[]`, String(item))
       })
+      return
+    }
+
+    if (typeof value === 'boolean') {
+      url.searchParams.set(key, value ? '1' : '0')
       return
     }
 
@@ -63,7 +74,11 @@ export function emailBisonUrl(
   return url.toString()
 }
 
-function normalizeEmailBisonBaseUrl(baseUrl: string): string {
+/**
+ * The Email Bison instance origin the tools build on: a host without a scheme is taken as https,
+ * and the path, query, and fragment are dropped.
+ */
+export function normalizeEmailBisonBaseUrl(baseUrl: string): string {
   const trimmedBaseUrl = baseUrl.trim()
   if (!trimmedBaseUrl) {
     throw new Error('Email Bison Instance URL is required')

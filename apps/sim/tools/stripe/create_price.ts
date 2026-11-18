@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -19,6 +20,7 @@ export const stripeCreatePriceTool: ToolConfig<
   name: 'Stripe Create Price',
   description: 'Create a new price for a product',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -87,8 +89,10 @@ export const stripeCreatePriceTool: ToolConfig<
       formData.append('product', params.product)
       formData.append('currency', params.currency)
 
-      if (params.unit_amount !== undefined)
-        formData.append('unit_amount', Number(params.unit_amount).toString())
+      const unitAmount: unknown = params.unit_amount
+      if (unitAmount != null && String(unitAmount).trim() !== '') {
+        formData.append('unit_amount', Number(unitAmount).toString())
+      }
       if (params.billing_scheme) formData.append('billing_scheme', params.billing_scheme)
 
       if (params.recurring) {

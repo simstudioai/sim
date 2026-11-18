@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveMessageResponse, ThriveRemoveUserTagsParams } from '@/tools/thrive/types'
 import {
   getThriveBaseUrl,
@@ -6,12 +7,14 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeUserTagsTool: ToolConfig<ThriveRemoveUserTagsParams, ThriveMessageResponse> = {
   id: 'thrive_remove_user_tags',
   name: 'Thrive Remove User Tags',
   description: 'Remove one or more tags from a learner in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -48,7 +51,7 @@ export const removeUserTagsTool: ToolConfig<ThriveRemoveUserTagsParams, ThriveMe
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/users/${encodeURIComponent(params.userId)}/tags`,
+      `${getThriveBaseUrl(params.host, 'v1')}/users/${safeUrlPathSegment(params.userId, 'userId')}/tags`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => ({

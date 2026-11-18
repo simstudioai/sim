@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetIssueParams, IssueResponse } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -5,6 +6,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
@@ -12,6 +14,7 @@ export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
   name: 'GitHub Get Issue',
   description: 'Get detailed information about a specific issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -42,7 +45,7 @@ export const getIssueTool: ToolConfig<GetIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -116,6 +119,7 @@ export const getIssueV2Tool: ToolConfig<GetIssueParams, any> = {
   name: getIssueTool.name,
   description: getIssueTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getIssueTool.params,
   request: getIssueTool.request,
 

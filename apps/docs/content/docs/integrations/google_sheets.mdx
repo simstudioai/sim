@@ -50,6 +50,9 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 | `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `sheetName` | string | Yes | The name of the sheet/tab to read from |
 | `cellRange` | string | No | The cell range to read \(e.g. "A1:D10"\). Defaults to "A1:Z1000" if not specified. |
+| `majorDimension` | string | No | The major dimension of the returned values: "ROWS" \(default\) or "COLUMNS" |
+| `valueRenderOption` | string | No | How values should be rendered: "FORMATTED_VALUE" \(default, as displayed\), "UNFORMATTED_VALUE" \(raw numbers/booleans\), or "FORMULA" \(formulas instead of results\) |
+| `dateTimeRenderOption` | string | No | How dates, times, and durations should be rendered: "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 | `filterColumn` | string | No | Column name \(from the header row\) to filter on. Filtering is applied to the rows returned by the read range \(the default is A1:Z1000\), not the entire sheet. If not provided, no filtering is applied. |
 | `filterValue` | string | No | Value to match against the filter column. |
 | `filterMatchType` | string | No | How to match the filter value. Text: "contains", "not_contains", "exact", "not_equals", "starts_with", "ends_with". Numeric/ordering: "gt", "gte", "lt", "lte" \(numeric when both values are numbers, otherwise lexicographic\). Defaults to "contains". |
@@ -61,6 +64,7 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 | `sheetName` | string | Name of the sheet that was read |
 | `range` | string | The range of cells that was read |
 | `values` | array | The cell values as a 2D array |
+| `majorDimension` | string | Major dimension of the returned values \(ROWS or COLUMNS\) |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
 |   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
@@ -82,6 +86,9 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 | `cellRange` | string | No | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to write |
+| `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
+| `responseValueRenderOption` | string | No | How values in updatedData should be rendered \(only with includeValuesInResponse\): "FORMATTED_VALUE" \(default, as displayed\), "UNFORMATTED_VALUE" \(raw numbers/booleans\), or "FORMULA" \(formulas instead of results\) |
+| `responseDateTimeRenderOption` | string | No | How dates in updatedData should be rendered \(only with includeValuesInResponse\): "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 
 #### Output
 
@@ -112,6 +119,9 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 | `cellRange` | string | No | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to update |
+| `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
+| `responseValueRenderOption` | string | No | How values in updatedData should be rendered \(only with includeValuesInResponse\): "FORMATTED_VALUE" \(default, as displayed\), "UNFORMATTED_VALUE" \(raw numbers/booleans\), or "FORMULA" \(formulas instead of results\) |
+| `responseDateTimeRenderOption` | string | No | How dates in updatedData should be rendered \(only with includeValuesInResponse\): "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 
 #### Output
 
@@ -142,6 +152,9 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 | `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
 | `valueInputOption` | string | No | The format of the data to append |
 | `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | No | Whether to include the appended values in the response |
+| `responseValueRenderOption` | string | No | How values in updatedData should be rendered \(only with includeValuesInResponse\): "FORMATTED_VALUE" \(default, as displayed\), "UNFORMATTED_VALUE" \(raw numbers/booleans\), or "FORMULA" \(formulas instead of results\) |
+| `responseDateTimeRenderOption` | string | No | How dates in updatedData should be rendered \(only with includeValuesInResponse\): "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 
 #### Output
 
@@ -259,6 +272,7 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 | `ranges` | json | Yes | Array of ranges to read \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
 | `majorDimension` | string | No | The major dimension of values: "ROWS" \(default\) or "COLUMNS" |
 | `valueRenderOption` | string | No | How values should be rendered: "FORMATTED_VALUE" \(default\), "UNFORMATTED_VALUE", or "FORMULA" |
+| `dateTimeRenderOption` | string | No | How dates, times, and durations should be rendered: "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 
 #### Output
 
@@ -286,8 +300,11 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
-| `data` | json | Yes | Array of value ranges to update. Each item should have "range" \(e.g., "Sheet1!A1:D10"\) and "values" \(2D array\). |
+| `data` | json | Yes | Array of value ranges to update. Each item should have "range" \(e.g., "Sheet1!A1:D10"\), "values" \(2D array\), and optionally "majorDimension" \("ROWS" default, or "COLUMNS"\). |
 | `valueInputOption` | string | No | How input data should be interpreted: "RAW" or "USER_ENTERED" \(default\). USER_ENTERED parses formulas. |
+| `includeValuesInResponse` | boolean | No | Whether each entry in responses should include updatedData with the values of the updated cells. Defaults to false. |
+| `responseValueRenderOption` | string | No | How values in updatedData should be rendered \(only with includeValuesInResponse\): "FORMATTED_VALUE" \(default, as displayed\), "UNFORMATTED_VALUE" \(raw numbers/booleans\), or "FORMULA" \(formulas instead of results\) |
+| `responseDateTimeRenderOption` | string | No | How dates in updatedData should be rendered \(only with includeValuesInResponse\): "SERIAL_NUMBER" \(default, days since 1899-12-30\) or "FORMATTED_STRING" \(as displayed\). Ignored when the value render option is "FORMATTED_VALUE". |
 
 #### Output
 

@@ -6,8 +6,10 @@ import {
   checkBillingEntityBlocked,
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
+import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import {
   checkAttributedBillingBlocks,
+  readEnterpriseLimitOverrides,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
   toUsageLimitSubscription,
@@ -28,6 +30,8 @@ import {
   getUserStorageUsage,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { executionTimeoutSeconds, getExecutionTimeout } from '@/lib/core/execution-limits/types'
 
 export interface GetBillingStatusInput {
   workspaceId?: string
@@ -46,6 +50,19 @@ export interface BillingStorageStatus {
 }
 
 /**
+ * The payer's plan caps on a run. Plan caps, not consumption, so every caller
+ * that reads the plan reads them too. A null value is not enforced.
+ */
+interface BillingPlanLimits {
+  /** Longest a synchronous run may execute, in seconds. */
+  maxSyncExecutionTimeoutSeconds: number | null
+  /** Longest an asynchronous run may execute, in seconds; a request can only lower it. */
+  maxAsyncExecutionTimeoutSeconds: number | null
+  /** Most runs the payer can have executing at once, across everything it funds. */
+  maxConcurrentExecutions: number | null
+}
+
+/**
  * `credits` and `storage` describe the resolved payer's pooled allowances, not
  * the caller's own consumption, so they are only projected to a caller who may
  * manage that payer's billing — see {@link canReadPayerPool} on the workspace
@@ -60,6 +77,35 @@ export interface BillingStatusResult {
   status: 'active' | 'limit_exceeded' | 'billing_blocked'
   credits: BillingCreditsStatus | null
   storage: BillingStorageStatus | null
+  limits: BillingPlanLimits
+}
+
+/**
+ * The caps execution admission applies for a payer on `plan`: the same
+ * resolvers preprocessing and usage reservation call, so the two cannot drift.
+ * Concurrency is enforced only by hosted billing.
+ */
+function planLimits(
+  plan: string | undefined,
+  overrides: {
+    enterpriseConcurrencyLimit?: number | null
+    enterpriseWorkflowExecutionTimeoutSeconds?: number | null
+  }
+): BillingPlanLimits {
+  return {
+    maxSyncExecutionTimeoutSeconds: executionTimeoutSeconds(getExecutionTimeout(plan, 'sync')),
+    maxAsyncExecutionTimeoutSeconds: executionTimeoutSeconds(
+      getExecutionTimeout(
+        plan,
+        'async',
+        overrides.enterpriseWorkflowExecutionTimeoutSeconds ?? undefined
+      )
+    ),
+    maxConcurrentExecutions:
+      isHosted && isBillingEnabled
+        ? getBillingConcurrencyLimit(plan, overrides.enterpriseConcurrencyLimit)
+        : null,
+  }
 }
 
 function storageStatus(usedBytes: number, limitBytes: number): BillingStorageStatus {
@@ -179,6 +225,10 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
         status: block.blocked ? 'billing_blocked' : usage.isExceeded ? 'limit_exceeded' : 'active',
         credits: canViewPayerPool ? creditsStatus(usage) : null,
         storage,
+        limits: planLimits(
+          attribution.payerSubscription?.plan,
+          attribution.payerSubscription ?? {}
+        ),
       }
     }
 
@@ -209,6 +259,10 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
             : 'active',
       credits: canViewPayerPool ? creditsStatus(usage) : null,
       storage,
+      limits: planLimits(
+        subscription?.plan,
+        subscription ? readEnterpriseLimitOverrides(subscription) : {}
+      ),
     }
   },
 })

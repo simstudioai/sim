@@ -37,7 +37,7 @@ export const WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES = {
 
 interface WebflowBaseParams {
   accessToken: string
-  siteId: string
+  siteId?: string
   collectionId: string
 }
 

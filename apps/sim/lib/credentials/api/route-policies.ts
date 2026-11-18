@@ -1,3 +1,4 @@
+import type { NextResponse } from 'next/server'
 import {
   extendInternalErrorPolicy,
   internalErrorResponse,
@@ -7,7 +8,7 @@ import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/se
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import {
   CredentialGroupOAuthError,
@@ -21,6 +22,27 @@ import {
   OAuthDisconnectPartialFailureError,
   OAuthProviderRevocationError,
 } from '@/lib/credentials/oauth-accounts'
+import { KeylessCredentialRefusedError } from '@/lib/credentials/workload-identity/subject'
+import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
+
+/**
+ * The v2 rendering of a refused credential. A keyless refusal names its cause
+ * in `details.code`, the field every v2 application error code uses; a
+ * provider rejection keeps its published `details.providerErrorCode`, and a
+ * provider outage is `503`.
+ */
+export function renderV2CredentialProviderError(error: unknown): NextResponse | null {
+  if (error instanceof KeylessCredentialRefusedError) {
+    return v2ErrorForOrchestration(error.code, error.message, { code: error.detailCode })
+  }
+  if (!(error instanceof CredentialProviderOperationError)) return null
+  if (error.providerUnavailable) {
+    return v2Error('SERVICE_UNAVAILABLE', 'Credential provider is temporarily unavailable')
+  }
+  return v2Error('BAD_REQUEST', error.message, {
+    details: { providerErrorCode: error.providerErrorCode },
+  })
+}
 
 export const credentialValidationParseOptions = {
   validationErrorResponse: (error: Parameters<typeof getValidationErrorMessage>[0]) =>
@@ -53,6 +75,12 @@ export const internalCredentialErrorPolicy = extendInternalErrorPolicy(
         { error: revocationError.message },
         { 'Retry-After': ADMISSION_RETRY_AFTER_SECONDS.toString() }
       )
+    }
+    if (error instanceof KeylessCredentialRefusedError) {
+      return internalErrorResponse(statusForOrchestrationError(error.code), {
+        error: error.message,
+        code: error.detailCode,
+      })
     }
     if (!(error instanceof CredentialProviderOperationError)) return null
     if (!error.providerUnavailable) {

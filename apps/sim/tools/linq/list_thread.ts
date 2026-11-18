@@ -1,12 +1,15 @@
 import type { LinqListMessagesResult, LinqListThreadParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqListThreadTool: ToolConfig<LinqListThreadParams, LinqListMessagesResult> = {
   id: 'linq_list_thread',
   name: 'List Thread Messages',
   description: 'List all messages in the thread that contains a given message',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -48,7 +51,7 @@ export const linqListThreadTool: ToolConfig<LinqListThreadParams, LinqListMessag
       if (typeof params.limit === 'number') query.set('limit', String(params.limit))
       if (params.cursor) query.set('cursor', params.cursor)
       const qs = query.toString()
-      return `${LINQ_API_BASE}/messages/${encodeURIComponent(params.messageId.trim())}/thread${
+      return `${LINQ_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/thread${
         qs ? `?${qs}` : ''
       }`
     },

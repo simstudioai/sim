@@ -48,4 +48,19 @@ describe('getZoomMeetingRecordings', () => {
       expect.objectContaining({ maxResponseBytes: 2 })
     )
   })
+
+  it('double encodes a meeting UUID that starts with a slash', async () => {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(Response.json({ recording_files: [] }))
+
+    await getZoomMeetingRecordings(
+      { accessToken: 'token', meetingId: '/ajXp112==' },
+      { requestId: 'request-1' }
+    )
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+      'https://api.zoom.us/v2/meetings/%252FajXp112%253D%253D/recordings',
+      '203.0.113.1',
+      expect.anything()
+    )
+  })
 })

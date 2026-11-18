@@ -1,5 +1,6 @@
 import { CALENDAR_API_BASE, type GoogleCalendarDeleteParams } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleCalendarDeleteResponse {
   success: boolean
@@ -60,7 +61,7 @@ export const deleteTool: ToolConfig<GoogleCalendarDeleteParams, GoogleCalendarDe
       }
 
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}${queryString ? `?${queryString}` : ''}`
     },
     method: 'DELETE',
     headers: (params: GoogleCalendarDeleteParams) => ({

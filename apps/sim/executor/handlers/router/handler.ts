@@ -20,7 +20,6 @@ import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/execut
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
-import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest } from '@/providers/types'
@@ -96,6 +95,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -113,24 +114,12 @@ export class RouterBlockHandler implements BlockHandler {
       await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
       const providerId = getProviderFromModel(resolved.model)
 
-      let finalApiKey: string | undefined = routerConfig.apiKey
-      if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential({
-          credentialId: routerConfig.vertexCredential,
-          actingUserId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          callerLabel: 'vertex-router',
-        })
-      }
-
       const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
-        apiKey: finalApiKey,
+        apiKey: routerConfig.apiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
         vertexProject: routerConfig.vertexProject,
@@ -152,6 +141,7 @@ export class RouterBlockHandler implements BlockHandler {
         providerId,
         request: providerRequest,
         resolvedSecretTraceRegistry: modelInputProjection.registry,
+        credentials: { inputs: routerConfig, callerLabel: 'vertex-router' },
       })
 
       const chosenBlockId = result.content.trim().toLowerCase()
@@ -266,6 +256,8 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     try {
@@ -283,24 +275,12 @@ export class RouterBlockHandler implements BlockHandler {
       await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
       const providerId = getProviderFromModel(resolved.model)
 
-      let finalApiKey: string | undefined = routerConfig.apiKey
-      if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential({
-          credentialId: routerConfig.vertexCredential,
-          actingUserId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          callerLabel: 'vertex-router',
-        })
-      }
-
       const providerRequest: ProviderRequest = {
         model: resolved.model,
         systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
-        apiKey: finalApiKey,
+        apiKey: routerConfig.apiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
         vertexProject: routerConfig.vertexProject,
@@ -341,6 +321,7 @@ export class RouterBlockHandler implements BlockHandler {
         providerId,
         request: providerRequest,
         resolvedSecretTraceRegistry: modelInputProjection.registry,
+        credentials: { inputs: routerConfig, callerLabel: 'vertex-router' },
       })
 
       let chosenRouteId: string

@@ -10,7 +10,9 @@ import {
   readString,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const orderCatalogItemTool: ToolConfig<
   ServiceNowOrderCatalogItemParams,
@@ -21,6 +23,7 @@ export const orderCatalogItemTool: ToolConfig<
   description:
     'Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,
@@ -60,7 +63,7 @@ export const orderCatalogItemTool: ToolConfig<
       if (!itemSysId) {
         throw new Error('A catalog item sys_id is required')
       }
-      return `${baseUrl}/api/sn_sc/servicecatalog/items/${itemSysId}/order_now`
+      return `${baseUrl}/api/sn_sc/servicecatalog/items/${safeUrlPathSegment(itemSysId, 'catalogItemSysId')}/order_now`
     },
     method: 'POST',
     headers: (params) => buildServiceNowHeaders(params, { json: true }),

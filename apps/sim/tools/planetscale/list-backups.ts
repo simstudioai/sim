@@ -19,6 +19,7 @@ import {
   planetScaleJson,
   planetScalePaginationSchema,
 } from '@/tools/planetscale/utils'
+import { PLANETSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 export const planetScaleListBackupsTool: ToolConfig<
@@ -29,6 +30,7 @@ export const planetScaleListBackupsTool: ToolConfig<
   name: 'PlanetScale List Backups',
   description: 'List backups',
   version: '1.0.0',
+  oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {
       type: 'string',

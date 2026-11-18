@@ -1,5 +1,22 @@
 import type { ProjectResponse, UpdateProjectParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * GraphQL rejects a string for a `Boolean` variable, and the block's dropdown
+ * stores `'true'`/`'false'`. An empty value is the "No change" option.
+ */
+function toOptionalBoolean(value: unknown, name: string): boolean | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+    if (normalized === '') return undefined
+  }
+  throw new Error(`${name} must be true or false, but was ${String(value)}`)
+}
 
 export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse> = {
   id: 'github_update_project',
@@ -7,6 +24,7 @@ export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse>
   description:
     'Update an existing GitHub Project V2. Can update title, description, visibility (public), or status (closed). Requires the project Node ID.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     project_id: {
@@ -68,20 +86,22 @@ export const updateProjectTool: ToolConfig<UpdateProjectParams, ProjectResponse>
         inputFields.push('shortDescription: $shortDescription')
         variables.shortDescription = params.shortDescription
       }
-      if (params.project_public !== undefined) {
+      const projectPublic = toOptionalBoolean(params.project_public, 'project_public')
+      const closed = toOptionalBoolean(params.closed, 'closed')
+      if (projectPublic !== undefined) {
         inputFields.push('public: $project_public')
-        variables.project_public = params.project_public
+        variables.project_public = projectPublic
       }
-      if (params.closed !== undefined) {
+      if (closed !== undefined) {
         inputFields.push('closed: $closed')
-        variables.closed = params.closed
+        variables.closed = closed
       }
 
       const variableDefs = ['$projectId: ID!']
       if (params.title !== undefined) variableDefs.push('$title: String')
       if (params.shortDescription !== undefined) variableDefs.push('$shortDescription: String')
-      if (params.project_public !== undefined) variableDefs.push('$project_public: Boolean')
-      if (params.closed !== undefined) variableDefs.push('$closed: Boolean')
+      if (projectPublic !== undefined) variableDefs.push('$project_public: Boolean')
+      if (closed !== undefined) variableDefs.push('$closed: Boolean')
 
       const query = `
         mutation(${variableDefs.join(', ')}) {

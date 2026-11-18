@@ -13,15 +13,13 @@ interface ExtensionLayoutProps {
 
 export const metadata = { title: 'Sim', robots: { index: false, follow: false } }
 
+/**
+ * The compact chat surface. The browser extension frames it in its side panel, and the desktop
+ * app's quick chat window opens it top-level, so it renders on deployments without the extension
+ * too: with no extension origins the proxy's `frame-ancestors 'none'` keeps it unframeable.
+ */
 export default async function ExtensionLayout({ children }: ExtensionLayoutProps) {
   const origins = getBrowserExtensionOrigins()
-  if (origins.length === 0) {
-    return (
-      <main className='flex h-dvh items-center justify-center bg-[var(--bg)] p-6 text-[var(--text-muted)] text-small'>
-        The browser extension is not enabled for this Sim deployment.
-      </main>
-    )
-  }
   const session = await getSession()
   if (!session?.user)
     return (

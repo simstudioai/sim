@@ -12,6 +12,7 @@ import {
   parseJsonObjectParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -24,6 +25,7 @@ export const updateRulesetRuleTool: ToolConfig<
   description:
     'Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather than merging it, so you must send every field you want the rule to keep — any field you omit is reset to its default. Read the current rule with "Get Ruleset" first. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     exposed_credential_check: {

@@ -4,6 +4,7 @@ import {
   LUMA_HOST_OUTPUT_PROPERTIES,
   lumaEventStub,
 } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateEventTool: ToolConfig<LumaUpdateEventParams, LumaUpdateEventResponse> = {
@@ -12,6 +13,7 @@ export const updateEventTool: ToolConfig<LumaUpdateEventParams, LumaUpdateEventR
   description:
     'Update an existing Luma event. Only the fields you provide will be changed; all other fields remain unchanged.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

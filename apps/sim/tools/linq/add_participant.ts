@@ -1,12 +1,15 @@
 import type { LinqParticipantParams, LinqQueuedResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqAddParticipantTool: ToolConfig<LinqParticipantParams, LinqQueuedResult> = {
   id: 'linq_add_participant',
   name: 'Add Participant',
   description: 'Add a participant to a group chat (3+ existing participants)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -31,7 +34,7 @@ export const linqAddParticipantTool: ToolConfig<LinqParticipantParams, LinqQueue
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/participants`,
+      `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/participants`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => ({ handle: params.handle }),

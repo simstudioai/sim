@@ -78,7 +78,7 @@ export async function executeSmtpSend(input: SmtpSendInput, context: SmtpOperati
     throw new SmtpOperationError(hostValidation.error || 'Invalid SMTP host', 400)
   }
 
-  const from = input.fromName ? `"${input.fromName}" <${input.from}>` : input.from
+  const from = input.fromName ? { name: input.fromName, address: input.from } : input.from
   const contentType = input.contentType || 'text'
   const message: SendMailOptions = {
     from,
@@ -117,6 +117,7 @@ export async function executeSmtpSend(input: SmtpSendInput, context: SmtpOperati
         host: hostValidation.resolvedIP ?? input.smtpHost,
         port: input.smtpPort,
         secure: input.smtpSecure === 'SSL',
+        requireTLS: input.smtpSecure === 'TLS',
         auth: { user: input.smtpUsername, pass: input.smtpPassword },
         name: getSmtpEhloName(),
         tls:

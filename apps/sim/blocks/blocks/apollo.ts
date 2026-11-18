@@ -3,12 +3,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /** Identifies a person by email when available, otherwise by given name. */
 const PERSON_IDENTITY_FIELD = ['email', 'first_name'] as const
 
 export const ApolloBlock: BlockConfig = {
   type: 'apollo',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'apollo_v2' },
   name: 'Apollo',
   description: 'Search, enrich, and manage contacts with Apollo.io',
   authMode: AuthMode.ApiKey,
@@ -1109,7 +1112,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             throw new Error(`Invalid Apollo operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const { apiKey, ...rest } = params
         const parsedParams: Record<string, unknown> = { apiKey, ...rest }
 
@@ -1187,7 +1191,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           }
         }
 
-        if (params.operation === 'organization_bulk_enrich') {
+        if (operation === 'organization_bulk_enrich') {
           // Back-compat: workflows saved before the `organizations` → `domains` rename stored an
           // array of { name, domain? } objects (or plain strings) under `organizations`. Derive
           // `domains` from it so those workflows keep running without manual migration.
@@ -1210,7 +1214,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           parsedParams.organizations = undefined
         }
 
-        if (params.operation === 'contact_bulk_update') {
+        if (operation === 'contact_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.contacts)
           if (attributes) {
             if (parsedParams.contact_attributes === undefined) {
@@ -1222,7 +1226,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           parsedParams.contacts = undefined
         }
 
-        if (params.operation === 'account_bulk_update') {
+        if (operation === 'account_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.accounts)
           if (attributes) {
             if (parsedParams.account_attributes === undefined) {
@@ -1246,23 +1250,23 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           parsedParams.account_bulk_update_account_stage_id = undefined
         }
 
-        if (params.operation === 'contact_create') {
+        if (operation === 'contact_create') {
           if (rest.contact_run_dedupe !== undefined) {
             parsedParams.run_dedupe = rest.contact_run_dedupe
           }
           parsedParams.contact_run_dedupe = undefined
         }
 
-        if (params.operation === 'account_create' || params.operation === 'account_update') {
+        if (operation === 'account_create' || operation === 'account_update') {
           if (rest.account_name) parsedParams.name = rest.account_name
           parsedParams.account_name = undefined
         }
 
-        if (params.operation === 'account_update') {
+        if (operation === 'account_update') {
           parsedParams.account_id = rest.account_id
         }
 
-        if (params.operation === 'sequence_add') {
+        if (operation === 'sequence_add') {
           if (parsedParams.sequence_add_label_names !== undefined) {
             parsedParams.label_names = parsedParams.sequence_add_label_names
           }
@@ -1277,17 +1281,14 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           parsedParams.sequence_status = undefined
         }
 
-        if (params.operation === 'task_create') {
+        if (operation === 'task_create') {
           if (rest.task_notes !== undefined) {
             parsedParams.note = rest.task_notes
           }
           parsedParams.task_notes = undefined
         }
 
-        if (
-          params.operation === 'opportunity_create' ||
-          params.operation === 'opportunity_update'
-        ) {
+        if (operation === 'opportunity_create' || operation === 'opportunity_update') {
           if (rest.opportunity_name) parsedParams.name = rest.opportunity_name
           parsedParams.opportunity_name = undefined
         }
@@ -1585,3 +1586,18 @@ export const ApolloBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ApolloV2Block: BlockConfig = {
+  ...ApolloBlock,
+  type: 'apollo_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ApolloBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'apollo',
+    title: 'Apollo Credential',
+    credentialKind: 'any',
+  }),
+}

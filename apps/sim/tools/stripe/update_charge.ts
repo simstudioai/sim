@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -5,6 +6,7 @@ import {
 } from '@/tools/stripe/idempotency'
 import type { ChargeResponse, UpdateChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_update_charge',
@@ -19,6 +21,7 @@ export const stripeUpdateChargeTool: ToolConfig<
   name: 'Stripe Update Charge',
   description: 'Update an existing charge',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -48,7 +51,7 @@ export const stripeUpdateChargeTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/charges/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

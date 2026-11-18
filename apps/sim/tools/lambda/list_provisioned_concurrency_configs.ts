@@ -3,6 +3,7 @@ import type {
   LambdaListProvisionedConcurrencyConfigsParams,
   LambdaListProvisionedConcurrencyConfigsResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listProvisionedConcurrencyConfigsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listProvisionedConcurrencyConfigsTool: InternalToolConfig<
   name: 'Lambda List Provisioned Concurrency',
   description: 'List the provisioned concurrency configurations of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

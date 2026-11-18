@@ -21,9 +21,12 @@ export async function resolveVertexAccessToken(
   if (!resolved) throw new Error(`Vertex AI credential not found: ${credentialId}`)
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
-    const accessToken = await getServiceAccountToken(resolved.credentialId, [
-      'https://www.googleapis.com/auth/cloud-platform',
-    ])
+    const accessToken = await getServiceAccountToken(
+      resolved.credentialId,
+      ['https://www.googleapis.com/auth/cloud-platform'],
+      undefined,
+      { service: 'vertex-ai' }
+    )
     logger.info('Resolved Vertex AI service account credential', { requestId })
     return accessToken
   }

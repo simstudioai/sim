@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressListUsersParams,
@@ -54,6 +55,13 @@ export const listUsersTool: ToolConfig<WordPressListUsersParams, WordPressListUs
       visibility: 'user-or-llm',
       description: 'Order direction: asc or desc',
     },
+    context: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Response context: view (default) or edit. edit returns username, first_name, last_name, email and roles but requires the list_users capability',
+    },
   },
 
   request: {
@@ -65,9 +73,10 @@ export const listUsersTool: ToolConfig<WordPressListUsersParams, WordPressListUs
       if (params.search) queryParams.append('search', params.search)
       if (params.roles) queryParams.append('roles', params.roles)
       if (params.order) queryParams.append('order', params.order)
+      if (params.context) queryParams.append('context', params.context)
 
       const queryString = queryParams.toString()
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/users${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/users${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -117,16 +126,36 @@ export const listUsersTool: ToolConfig<WordPressListUsersParams, WordPressListUs
         type: 'object',
         properties: {
           id: { type: 'number', description: 'User ID' },
-          username: { type: 'string', description: 'Username' },
+          username: {
+            type: 'string',
+            description: 'Username (edit context only)',
+            optional: true,
+          },
           name: { type: 'string', description: 'Display name' },
-          first_name: { type: 'string', description: 'First name' },
-          last_name: { type: 'string', description: 'Last name' },
-          email: { type: 'string', description: 'Email address' },
+          first_name: {
+            type: 'string',
+            description: 'First name (edit context only)',
+            optional: true,
+          },
+          last_name: {
+            type: 'string',
+            description: 'Last name (edit context only)',
+            optional: true,
+          },
+          email: {
+            type: 'string',
+            description: 'Email address (edit context only)',
+            optional: true,
+          },
           url: { type: 'string', description: 'User website URL' },
           description: { type: 'string', description: 'User bio' },
           link: { type: 'string', description: 'Author archive URL' },
           slug: { type: 'string', description: 'User slug' },
-          roles: { type: 'array', description: 'User roles' },
+          roles: {
+            type: 'array',
+            description: 'User roles (edit context only)',
+            optional: true,
+          },
           avatar_urls: { type: 'object', description: 'Avatar URLs at different sizes' },
         },
       },

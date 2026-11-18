@@ -1,5 +1,7 @@
 import type { DiscordDeleteInviteParams, DiscordDeleteInviteResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteInviteTool: ToolConfig<
   DiscordDeleteInviteParams,
@@ -9,6 +11,7 @@ export const discordDeleteInviteTool: ToolConfig<
   name: 'Discord Delete Invite',
   description: 'Delete a Discord invite',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -25,7 +28,7 @@ export const discordDeleteInviteTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -33,7 +36,7 @@ export const discordDeleteInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}`
+      return `https://discord.com/api/v10/invites/${safeUrlPathSegment(params.inviteCode, 'inviteCode')}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -36,6 +36,7 @@ const workspaceKey: Principal = {
   kind: 'workspace_api_key',
   workspaceId: ids.workspaceId,
   keyId: 'fixture-key',
+  access: 'write',
 }
 const privateId = generateId()
 const sharedId = generateId()
@@ -176,7 +177,7 @@ describe('canonical search knowledge-base policy', () => {
     )
     for (const principal of [
       writer,
-      { kind: 'personal_api_key', userId: ids.bobId, keyId: 'fixture-personal' },
+      { kind: 'personal_api_key', userId: ids.bobId, keyId: 'fixture-personal', access: 'write' },
       workspaceKey,
       copilot(ids.bobId),
     ] as Principal[]) {
@@ -308,7 +309,12 @@ describe('canonical search knowledge-base policy', () => {
         .deletedAt
     ).not.toBeNull()
     await deleteKnowledgeBaseOperation.execute({
-      principal: { kind: 'personal_api_key', userId: ids.aliceId, keyId: 'fixture-admin-key' },
+      principal: {
+        kind: 'personal_api_key',
+        userId: ids.aliceId,
+        keyId: 'fixture-admin-key',
+        access: 'write',
+      },
       input: { knowledgeBaseId: replacementId },
     })
     const restored = await restoreKnowledgeBase.execute({

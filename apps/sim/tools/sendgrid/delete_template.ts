@@ -1,13 +1,18 @@
 import type { DeleteTemplateParams } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolResponse> = {
   id: 'sendgrid_delete_template',
   name: 'SendGrid Delete Template',
   description: 'Delete an email template from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolRe
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/templates/${params.templateId}`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${safeUrlPathSegment(params.templateId, 'templateId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -6,6 +6,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -71,7 +72,7 @@ function bitbucketHooksUrl(workspaceSlug: string, repoSlug: string): string {
 }
 
 function fetchBitbucketManagement(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
+  return outboundFetch(url, {
     ...init,
     signal: AbortSignal.timeout(BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS),
   })
@@ -260,16 +261,19 @@ async function deleteProvenBitbucketCandidate(
       }
     )
   } catch (error) {
-    logger.warn(`Failed to delete proven Bitbucket candidate ${externalId}`, {
+    logger.warn('Failed to delete proven Bitbucket candidate', {
       requestId,
+      externalId,
       error: getErrorMessage(error),
     })
     return false
   }
 
   if (!response.ok && response.status !== 404) {
-    logger.warn(`Failed to delete proven Bitbucket candidate ${externalId} (${response.status})`, {
+    logger.warn('Failed to delete proven Bitbucket candidate', {
       requestId,
+      externalId,
+      status: response.status,
     })
     return false
   }
@@ -454,10 +458,11 @@ export const bitbucketHandler: WebhookProviderHandler = {
     const { isBitbucketEventMatch } = await import('@/triggers/bitbucket/utils')
 
     if (!triggerId || !isBitbucketEventMatch(triggerId, eventKey)) {
-      logger.debug(
-        `Bitbucket event '${eventKey}' does not match trigger '${triggerId || 'unknown'}', skipping`,
-        { requestId }
-      )
+      logger.debug('Bitbucket event does not match trigger, skipping', {
+        requestId,
+        eventKey,
+        triggerId: triggerId || 'unknown',
+      })
       return false
     }
     return true
@@ -520,8 +525,9 @@ export const bitbucketHandler: WebhookProviderHandler = {
           existingCandidate.events.length === 1 &&
           existingCandidate.events[0] === eventKey
         if (candidateMatchesCheckpoint && checkpointedSecret) {
-          logger.info(`Reusing checkpointed Bitbucket candidate ${existingCandidate.externalId}`, {
+          logger.info('Reusing checkpointed Bitbucket candidate', {
             requestId: ctx.requestId,
+            externalId: existingCandidate.externalId,
           })
           return {
             providerConfigUpdates: {
@@ -577,8 +583,9 @@ export const bitbucketHandler: WebhookProviderHandler = {
 
     if (!response.ok) {
       const detail = await readBitbucketErrorDetail(response)
-      logger.error(`Failed to create Bitbucket webhook (${response.status})`, {
+      logger.error('Failed to create Bitbucket webhook', {
         requestId: ctx.requestId,
+        status: response.status,
         detail,
         workspaceSlug,
         repoSlug,
@@ -614,8 +621,11 @@ export const bitbucketHandler: WebhookProviderHandler = {
       throw new Error('Bitbucket webhook was created but no hook UUID was returned.')
     }
 
-    logger.info(`Created Bitbucket webhook ${externalId} for ${workspaceSlug}/${repoSlug}`, {
+    logger.info('Created Bitbucket webhook', {
       requestId: ctx.requestId,
+      externalId,
+      workspaceSlug,
+      repoSlug,
     })
     return {
       providerConfigUpdates: { externalId, webhookSecret, eventTypes: [eventKey] },
@@ -655,7 +665,7 @@ export const bitbucketHandler: WebhookProviderHandler = {
         throw createBitbucketApiError(response.status, 'delete', detail)
       }
 
-      logger.info(`Deleted Bitbucket webhook ${externalId}`, { requestId: ctx.requestId })
+      logger.info('Deleted Bitbucket webhook', { requestId: ctx.requestId, externalId })
     } catch (error) {
       logger.warn('Error deleting Bitbucket webhook (non-fatal)', error, {
         requestId: ctx.requestId,

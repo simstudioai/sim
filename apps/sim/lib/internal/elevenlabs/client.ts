@@ -2,6 +2,7 @@ import {
   createTimeoutAbortController,
   DEFAULT_EXECUTION_TIMEOUT_MS,
 } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { consumeOrCancelBody, readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import { ElevenLabsOperationError } from '@/lib/internal/elevenlabs/errors'
 import type {
@@ -90,7 +91,7 @@ export async function generateElevenLabsAudio(
   const timeout = createTimeoutAbortController(DEFAULT_EXECUTION_TIMEOUT_MS, signal)
   try {
     const { url, init } = buildRequest(args)
-    const response = await fetch(url, { ...init, signal: timeout.signal })
+    const response = await outboundFetch(url, { ...init, signal: timeout.signal })
     timeout.signal.throwIfAborted()
     if (!response.ok) {
       await consumeOrCancelBody(response)

@@ -82,17 +82,17 @@
     "@radix-ui/react-switch": "1.4.1",
     "@radix-ui/react-tabs": "1.2.1",
     "@sim/tsconfig": "workspace:*",
-    "@tanstack/react-virtual": "3.13.24",
+    "@tanstack/react-virtual": "3.14.26",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "class-variance-authority": "0.7.1",
     "framer-motion": "^12.5.0",
-    "next": "16.4.1",
+    "next": "16.4.5",
     "prismjs": "^1.30.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

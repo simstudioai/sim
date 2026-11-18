@@ -26,6 +26,7 @@ export const jiraWriteInputSchema = z.object({
   customFieldValue: z.string().optional(),
   components: z.array(z.string()).optional(),
   fixVersions: z.array(z.string()).optional(),
+  customFields: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const jiraUpdateInputSchema = z.object({
@@ -45,6 +46,8 @@ export const jiraUpdateInputSchema = z.object({
   customFieldValue: z.string().optional(),
   notifyUsers: z.boolean().optional(),
   cloudId: z.string().optional(),
+  parent: jiraParentReferenceSchema.optional(),
+  customFields: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const jiraAddAttachmentInputSchema = z.object({

@@ -152,7 +152,8 @@ export async function waitWorkspaceOperation(
           requestId: report?.requestId,
           applied: report?.applied,
         },
-        failure.exitCode
+        failure.exitCode,
+        failure.requestId
       )
     }
     if (report.status !== 'processing') return { report, timedOut: false }

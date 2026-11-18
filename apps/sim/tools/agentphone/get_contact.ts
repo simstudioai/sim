@@ -2,7 +2,9 @@ import type {
   AgentPhoneGetContactParams,
   AgentPhoneGetContactResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneGetContactTool: ToolConfig<
   AgentPhoneGetContactParams,
@@ -12,6 +14,7 @@ export const agentphoneGetContactTool: ToolConfig<
   name: 'Get Contact',
   description: 'Fetch a single contact by ID',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +32,8 @@ export const agentphoneGetContactTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/contacts/${params.contactId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

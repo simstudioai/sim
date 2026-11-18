@@ -738,6 +738,7 @@ export function DeployModal({
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
         source='deploy_modal'
+        fullAccessOnly
       />
 
       {workflowId && (

@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapReport,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetReportTool: ToolConfig<CheckrReportIdParams, CheckrReportResponse> = {
@@ -19,6 +20,7 @@ export const checkrGetReportTool: ToolConfig<CheckrReportIdParams, CheckrReportR
   description:
     'Retrieve a report by ID, including its status, result, adjudication, and the IDs of each screening it ran.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

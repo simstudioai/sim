@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentMembershipsRevokeParams,
   IncidentioIncidentMembershipsRevokeResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentMembershipsRevokeTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentMembershipsRevokeTool: ToolConfig<
   name: 'Revoke Incident Membership',
   description: "Revoke a user's membership of a private incident in incident.io",
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

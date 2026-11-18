@@ -10,6 +10,7 @@ import {
   listLeadsOutputs,
   mapLead,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonListLeadsResponse> = {
@@ -17,6 +18,7 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
   name: 'Email Bison List Leads',
   description: 'Retrieves leads from Email Bison with optional search and tag filters.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     search: {
@@ -59,10 +61,10 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
         '/api/leads',
         {
           search: params.search,
-          'filters.lead_campaign_status': params.campaignStatus,
-          'filters.tag_ids': params.tagIds,
-          'filters.excluded_tag_ids': params.excludedTagIds,
-          'filters.without_tags': params.withoutTags,
+          'filters[lead_campaign_status]': params.campaignStatus,
+          'filters[tag_ids]': params.tagIds,
+          'filters[excluded_tag_ids]': params.excludedTagIds,
+          'filters[without_tags]': params.withoutTags === true ? true : undefined,
         },
         params.apiBaseUrl
       ),

@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevExecuteQueryParams,
   TriggerDevExecuteQueryResponse,
@@ -14,6 +15,7 @@ export const triggerDevExecuteQueryTool: ToolConfig<
   description:
     'Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and analytics.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

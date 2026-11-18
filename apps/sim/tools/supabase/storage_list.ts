@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_FILE_OUTPUT_PROPERTIES,
   type SupabaseStorageListParams,
@@ -11,6 +12,7 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
   name: 'Supabase Storage List',
   description: 'List files in a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

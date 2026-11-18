@@ -2,6 +2,7 @@ import type {
   IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listAccountAssignmentsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listAccountAssignmentsTool: InternalToolConfig<
   description:
     'List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -63,6 +65,12 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination token from a previous request',
     },
+    accountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return assignments in this 12-digit AWS account ID',
+    },
   },
 
   operation: {
@@ -74,6 +82,7 @@ export const listAccountAssignmentsTool: InternalToolConfig<
       principalId: params.principalId,
       principalType: params.principalType,
       maxResults: params.maxResults,
+      accountId: params.accountId,
       nextToken: params.nextToken,
     }),
   },

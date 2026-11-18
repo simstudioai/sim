@@ -213,6 +213,7 @@ export async function executeIdentityCenterListAccountAssignments(
       input.principalType,
       input.maxResults,
       input.nextToken,
+      input.accountId,
       signal
     )
   } finally {

@@ -11,7 +11,7 @@ The v2 surface makes one promise: **every response is the same two shapes, and a
 ```
 success (single)      { "data": {...} }
 success (collection)  { "data": [...], "nextCursor": "..." | null }
-failure (always)      { "error": { "code": "...", "message": "...", "details"?: ... } }
+failure (always)      { "error": { "code": "...", "message": "...", "details"?: ..., "requestId"?: "..." } }
 ```
 
 Nothing else at the top level. No `success: true`, no bare `{ "error": "string" }`, no HTML.
@@ -214,7 +214,7 @@ The consequence to keep true: **never put a resource id, filter, or scope into a
 
 Run this against any new or changed v2 endpoint.
 
-- [ ] Success body is exactly `{data}` or `{data, nextCursor}`; failures are exactly `{error:{code,message,details?}}`.
+- [ ] Success body is exactly `{data}` or `{data, nextCursor}`; failures are exactly `{error:{code,message,details?,requestId?}}`, where `v2Error` alone sets `requestId` (the `x-request-id` value).
 - [ ] Route uses a shared builder; no hand-built `NextResponse.json`.
 - [ ] Query and body schemas are `.strict()`.
 - [ ] The contract declares a `query` — `noInputSchema` when the endpoint takes no query params, never omission.

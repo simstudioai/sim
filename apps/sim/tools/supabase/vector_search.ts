@@ -1,4 +1,5 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SupabaseVectorSearchParams,
   SupabaseVectorSearchResponse,
@@ -14,6 +15,7 @@ export const vectorSearchTool: ToolConfig<
   name: 'Supabase Vector Search',
   description: 'Perform similarity search using pgvector in a Supabase table',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

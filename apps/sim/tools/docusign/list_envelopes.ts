@@ -2,7 +2,8 @@ import type {
   DocuSignListEnvelopesParams,
   DocuSignListEnvelopesResponse,
 } from '@/tools/docusign/types'
-import { ENVELOPES_ARRAY_OUTPUT } from '@/tools/docusign/types'
+import { ENVELOPES_ARRAY_OUTPUT, LIST_PAGINATION_OUTPUTS } from '@/tools/docusign/types'
+import { listPagination } from '@/tools/docusign/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const docusignListEnvelopesTool: InternalToolConfig<
@@ -17,6 +18,7 @@ export const docusignListEnvelopesTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -25,6 +27,12 @@ export const docusignListEnvelopesTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     fromDate: {
       type: 'string',
@@ -54,18 +62,27 @@ export const docusignListEnvelopesTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of envelopes to return (default: 25)',
+      description: 'Maximum number of envelopes to return (max 1000)',
+    },
+    startPosition: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Zero-based index of the first result to return, for paging through envelopes (default: 0)',
     },
   },
 
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       fromDate: params.fromDate,
       toDate: params.toDate,
       envelopeStatus: params.envelopeStatus,
       searchText: params.searchText,
       count: params.count,
+      startPosition: params.startPosition,
     }),
   },
 
@@ -89,6 +106,7 @@ export const docusignListEnvelopesTool: InternalToolConfig<
         envelopes,
         totalSetSize: Number(data.totalSetSize) || 0,
         resultSetSize: Number(data.resultSetSize) || envelopes.length,
+        ...listPagination(data),
       },
     }
   },
@@ -97,5 +115,6 @@ export const docusignListEnvelopesTool: InternalToolConfig<
     envelopes: ENVELOPES_ARRAY_OUTPUT,
     totalSetSize: { type: 'number', description: 'Total number of matching envelopes' },
     resultSetSize: { type: 'number', description: 'Number of envelopes returned in this response' },
+    ...LIST_PAGINATION_OUTPUTS,
   },
 }

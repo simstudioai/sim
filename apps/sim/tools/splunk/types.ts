@@ -16,6 +16,8 @@ export interface SplunkBaseParams {
   authToken?: string
   username?: string
   password?: string
+  /** `basic` when a saved Splunk credential is a username and password; set by the executor. */
+  authStyle?: string
   /** Namespace owner for `/servicesNS` requests (defaults to the token's user). */
   owner?: string
   /** Namespace app context for `/servicesNS` requests (e.g. `search`). */

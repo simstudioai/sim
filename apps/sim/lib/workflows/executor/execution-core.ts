@@ -11,7 +11,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, redactBoundParameters, toError } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
@@ -79,6 +78,7 @@ import {
   buildParallelSentinelEndId,
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ExecutionCore')
 
@@ -686,6 +686,20 @@ async function executeWorkflowCoreImpl(
   if (resumeFromSnapshot && !useDraftState && !resumeDeploymentVersionId) {
     throw new Error('Deployed resume requires its admitted deployment version')
   }
+  /**
+   * A draft resume runs the graph it paused on, never the live draft. Any `write`
+   * member can edit the draft while the resumed run keeps its starter's identity
+   * (personal variables, credential access), so reloading it would run another
+   * member's later edits as the starter.
+   */
+  const resumesPausedDraft = resumeFromSnapshot && useDraftState
+  if (resumesPausedDraft && !Array.isArray(snapshot.workflow?.blocks)) {
+    throw new Error('Draft resume is missing the workflow graph it paused on')
+  }
+  const pinnedDeploymentVersionId = metadata.pinnedDeploymentVersionId
+  if (pinnedDeploymentVersionId && (useDraftState || metadata.workflowStateOverride)) {
+    throw new Error('A pinned deployment version cannot run draft or overridden workflow state')
+  }
 
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
@@ -724,22 +738,25 @@ async function executeWorkflowCoreImpl(
      * on the environment load, so the two are awaited concurrently below.
      */
     const loadWorkflowState = async () => {
-      if (resumeFromSnapshot && !useDraftState) {
-        if (!resumeDeploymentVersionId) {
-          throw new Error('Deployed resume requires its admitted deployment version')
-        }
-        const deployedData = await loadWorkflowDeploymentVersionState(
+      /** A deployed resume reloads the version its log admitted; a pinned run, its pin. */
+      const versionId =
+        resumeFromSnapshot && !useDraftState ? resumeDeploymentVersionId : pinnedDeploymentVersionId
+      if (versionId) {
+        const versionData = await loadWorkflowDeploymentVersionState(
           workflowId,
-          resumeDeploymentVersionId,
+          versionId,
           providedWorkspaceId
         )
-        logger.info('Using admitted historical deployment state (resumed execution)', { requestId })
+        logger.info('Using a selected deployment version state', {
+          requestId,
+          resumed: resumeFromSnapshot,
+        })
         return {
-          blocks: deployedData.blocks,
-          edges: deployedData.edges,
-          loops: deployedData.loops,
-          parallels: deployedData.parallels,
-          deploymentVersionId: deployedData.deploymentVersionId,
+          blocks: versionData.blocks,
+          edges: versionData.edges,
+          loops: versionData.loops,
+          parallels: versionData.parallels,
+          deploymentVersionId: versionData.deploymentVersionId,
         }
       }
 
@@ -790,16 +807,18 @@ async function executeWorkflowCoreImpl(
     }
 
     const [workflowState, env, piiPolicyRow] = await Promise.all([
-      withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
+      resumesPausedDraft
+        ? undefined
+        : withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
       reads.environment,
       reads.piiPolicyRow,
     ])
 
-    const { blocks, loops, parallels } = workflowState
-    const edges: Edge[] = workflowState.edges
-    deploymentVersionId = workflowState.deploymentVersionId
-
-    const mergedStates = mergeSubblockStateWithValues(blocks)
+    deploymentVersionId = workflowState?.deploymentVersionId
+    const loadedWorkflow = workflowState && {
+      ...workflowState,
+      mergedStates: mergeSubblockStateWithValues(workflowState.blocks),
+    }
 
     const {
       personalEncrypted,
@@ -865,7 +884,12 @@ async function executeWorkflowCoreImpl(
       triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
       skipLogCreation,
       deploymentVersionId,
-      workflowState: { blocks, edges, loops, parallels },
+      workflowState: loadedWorkflow && {
+        blocks: loadedWorkflow.blocks,
+        edges: loadedWorkflow.edges,
+        loops: loadedWorkflow.loops,
+        parallels: loadedWorkflow.parallels,
+      },
     })
     /**
      * A start that failed because the run's workspace or workflow is gone ends the run here,
@@ -873,9 +897,6 @@ async function executeWorkflowCoreImpl(
      */
     const deletedScope = loggingSession.getDeletedScope()
     if (deletedScope) throw new ExecutionScopeDeletedError(executionId, deletedScope)
-
-    // Use edges directly - trigger-to-trigger edges are prevented at creation time
-    const filteredEdges = edges
 
     // Check if this is a resume execution before trigger resolution
     const resumePendingQueue = snapshot.state?.pendingQueue
@@ -898,6 +919,9 @@ async function executeWorkflowCoreImpl(
         resumeTerminalNoop,
       })
     } else if (!triggerBlockId) {
+      if (!loadedWorkflow) {
+        throw new Error('Draft resume is missing its pending queue')
+      }
       const executionKind =
         triggerType === 'api' || triggerType === 'chat'
           ? (triggerType as 'api' | 'chat')
@@ -905,7 +929,11 @@ async function executeWorkflowCoreImpl(
             ? 'external'
             : 'manual'
 
-      const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
+      const startBlock = TriggerUtils.findStartBlock(
+        loadedWorkflow.mergedStates,
+        executionKind,
+        false
+      )
 
       if (!startBlock) {
         throw new UserFailure('No start block found. Add a start block to this workflow.')
@@ -920,14 +948,15 @@ async function executeWorkflowCoreImpl(
       })
     }
 
-    // Serialize workflow
-    const serializedWorkflow = new Serializer().serializeWorkflow(
-      mergedStates,
-      filteredEdges,
-      loops,
-      parallels,
-      true
-    )
+    const serializedWorkflow: SerializedWorkflow = loadedWorkflow
+      ? new Serializer().serializeWorkflow(
+          loadedWorkflow.mergedStates,
+          loadedWorkflow.edges,
+          loadedWorkflow.loops,
+          loadedWorkflow.parallels,
+          true
+        )
+      : snapshot.workflow
     const inputFileKeys = new Set<string>()
     processedInput =
       resumeFromSnapshot || runFromBlock

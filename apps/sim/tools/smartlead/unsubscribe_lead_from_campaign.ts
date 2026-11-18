@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadActionResponse, SmartleadCampaignLeadParams } from '@/tools/smartlead/types'
 import {
   actionOutputs,
@@ -22,6 +23,7 @@ export const unsubscribeLeadFromCampaignTool: ToolConfig<
   description:
     'Unsubscribes a lead from a single Smartlead campaign, leaving it active in other campaigns.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

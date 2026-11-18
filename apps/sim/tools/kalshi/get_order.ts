@@ -1,6 +1,8 @@
 import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiGetOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to retrieve (required)
@@ -18,6 +20,7 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
   name: 'Get Order from Kalshi',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -41,10 +44,11 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
+    url: (params) =>
+      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
     method: 'GET',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
+      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'GET', path)
     },
   },
@@ -122,6 +126,7 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
   name: 'Get Order from Kalshi V2',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -145,10 +150,11 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
+    url: (params) =>
+      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
     method: 'GET',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
+      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'GET', path)
     },
   },

@@ -2,8 +2,17 @@ import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
-import type { BlockConfig } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import type { BlockConfig, BlockToolParamsContext } from '@/blocks/types'
+import {
+  failToolCallOnError,
+  isToolCall,
+  mapperOperation,
+  parseOptionalNumberInput,
+  resolveTableColumnSelection,
+  TABLE_OUTPUT_COLUMNS_INPUT,
+  TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+  toolCallArg,
+} from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
@@ -52,6 +61,9 @@ interface TableBlockParams {
   rows?: string | unknown
   filter?: string | unknown
   sort?: string | unknown
+  outputColumns?: unknown
+  /** The tool's own `columns` param, supplied by a model when the block runs as an Agent tool. */
+  columns?: unknown
   limit?: string
   offset?: string
   builderMode?: string
@@ -60,6 +72,8 @@ interface TableBlockParams {
   bulkFilterMode?: string
   bulkFilterBuilder?: unknown
   conflictColumn?: string
+  /** The tool's own `conflictTarget` param, set in an Agent tool row. */
+  conflictTarget?: string
 }
 
 /** Normalized params after parsing, ready for tool request body */
@@ -75,17 +89,63 @@ interface ParsedParams {
   conflictTarget?: string
 }
 
+/**
+ * Resolves a filter or sort from its builder rules when the builder is active, else from the
+ * JSON field. On a tool call a builder that yields nothing (a stored empty or incomplete rule
+ * list) falls back to the model's `filter`/`sort` arg instead of discarding it; the canvas keeps
+ * the builder's result.
+ */
+function resolveBuilderOrJson<TRule>(
+  builderActive: boolean,
+  builderValue: unknown,
+  fromBuilder: (rules: TRule[]) => unknown,
+  json: unknown,
+  fieldName: string,
+  context: BlockToolParamsContext | undefined
+): unknown {
+  if (builderActive) {
+    // A tool row's rules that did not decode to an array are corrupt, not empty: falling back
+    // would run the operation on the model's filter instead of the one the user pinned.
+    if (isToolCall(context) && !Array.isArray(builderValue)) {
+      throw new Error(`Invalid ${fieldName} builder rules: expected a list of conditions.`)
+    }
+    const built = fromBuilder(builderValue as TRule[]) || undefined
+    if (built !== undefined || !isToolCall(context) || !json) return built
+  } else if (!json) {
+    return undefined
+  }
+  return parseJSON(json, fieldName)
+}
+
+function resolveBulkFilter(
+  params: TableBlockParams,
+  context: BlockToolParamsContext | undefined
+): unknown {
+  return resolveBuilderOrJson(
+    params.bulkFilterMode === 'builder' && Boolean(params.bulkFilterBuilder),
+    params.bulkFilterBuilder,
+    filterRulesToFilter,
+    params.filter,
+    'Filter',
+    context
+  )
+}
+
 /** Transforms raw block params into tool request params for each operation */
-const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
+const paramTransformers: Record<
+  string,
+  (params: TableBlockParams, context: BlockToolParamsContext | undefined) => ParsedParams
+> = {
   insert_row: (params) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
   }),
 
-  upsert_row: (params) => ({
+  upsert_row: (params, context) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
-    conflictTarget: params.conflictColumn || undefined,
+    conflictTarget:
+      params.conflictColumn || toolCallArg(context, params.conflictTarget) || undefined,
   }),
 
   batch_insert_rows: (params) => ({
@@ -99,20 +159,10 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     data: parseJSON(params.data, 'Row Data'),
   }),
 
-  update_rows_by_filter: (params) => {
-    let filter: unknown
-    if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
-      filter =
-        filterRulesToFilter(
-          params.bulkFilterBuilder as Parameters<typeof filterRulesToFilter>[0]
-        ) || undefined
-    } else if (params.filter) {
-      filter = parseJSON(params.filter, 'Filter')
-    }
-
+  update_rows_by_filter: (params, context) => {
     return {
       tableId: params.tableId,
-      filter,
+      filter: resolveBulkFilter(params, context),
       data: parseJSON(params.data, 'Row Data'),
       limit: parseOptionalNumberInput(params.limit, 'Limit', {
         integer: true,
@@ -127,20 +177,10 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     rowId: params.rowId,
   }),
 
-  delete_rows_by_filter: (params) => {
-    let filter: unknown
-    if (params.bulkFilterMode === 'builder' && params.bulkFilterBuilder) {
-      filter =
-        filterRulesToFilter(
-          params.bulkFilterBuilder as Parameters<typeof filterRulesToFilter>[0]
-        ) || undefined
-    } else if (params.filter) {
-      filter = parseJSON(params.filter, 'Filter')
-    }
-
+  delete_rows_by_filter: (params, context) => {
     return {
       tableId: params.tableId,
-      filter,
+      filter: resolveBulkFilter(params, context),
       limit: parseOptionalNumberInput(params.limit, 'Limit', {
         integer: true,
         min: 1,
@@ -158,26 +198,28 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     tableId: params.tableId,
   }),
 
-  query_rows: (params) => {
-    let filter: unknown
-    if (params.builderMode === 'builder' && params.filterBuilder) {
-      filter =
-        filterRulesToFilter(params.filterBuilder as Parameters<typeof filterRulesToFilter>[0]) ||
-        undefined
-    } else if (params.filter) {
-      filter = parseJSON(params.filter, 'Filter')
-    }
-
-    let sort: unknown
-    if (params.builderMode === 'builder' && params.sortBuilder) {
-      sort =
-        sortRulesToSort(params.sortBuilder as Parameters<typeof sortRulesToSort>[0]) || undefined
-    } else if (params.sort) {
-      sort = parseJSON(params.sort, 'Sort')
-    }
+  query_rows: (params, context) => {
+    const builderMode = params.builderMode === 'builder'
+    const filter = resolveBuilderOrJson(
+      builderMode && Boolean(params.filterBuilder),
+      params.filterBuilder,
+      filterRulesToFilter,
+      params.filter,
+      'Filter',
+      context
+    )
+    const sort = resolveBuilderOrJson(
+      builderMode && Boolean(params.sortBuilder),
+      params.sortBuilder,
+      sortRulesToSort,
+      params.sort,
+      'Sort',
+      context
+    )
 
     return {
       tableId: params.tableId,
+      columns: resolveTableColumnSelection(params),
       filter,
       sort,
       limit: parseOptionalNumberInput(params.limit, 'Limit', {
@@ -326,6 +368,8 @@ export const TableBlock: BlockConfig = {
       placeholder: 'Enter table ID',
       required: true,
     },
+
+    TABLE_OUTPUT_COLUMNS_SUBBLOCK,
 
     // Row ID for get/update/delete
     {
@@ -720,12 +764,12 @@ Return ONLY the sort JSON:`,
         }
         return toolMap[params.operation] || 'table_query_rows'
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
-        const transformer = paramTransformers[operation]
+        const transformer = paramTransformers[mapperOperation(params, context)]
 
         if (transformer) {
-          return transformer(rest as TableBlockParams)
+          return failToolCallOnError(context, () => transformer(rest as TableBlockParams, context))
         }
 
         return rest
@@ -739,6 +783,7 @@ Return ONLY the sort JSON:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
+    outputColumns: TABLE_OUTPUT_COLUMNS_INPUT,
     bulkFilterMode: {
       type: 'string',
       description: 'Filter input mode for bulk operations (builder or json)',

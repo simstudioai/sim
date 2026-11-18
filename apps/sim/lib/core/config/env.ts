@@ -134,6 +134,7 @@ export const env = createEnv({
     ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Deprecated alias for the egress allowlist, kept so existing self-hosted deployments keep working. Equivalent to allowing every private, reserved, and loopback destination. Prefer EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES, which name specific destinations.
     EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
     EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
+    DOMAIN_VERIFICATION_NAMESERVERS:       z.string().optional(),                  // Comma-separated nameserver IPs for the domain-verification TXT lookup (e.g. "10.0.0.2"). Defaults to 1.1.1.1 and 8.8.8.8; set it where outbound DNS is restricted to an internal resolver.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
@@ -143,11 +144,16 @@ export const env = createEnv({
     TRUSTED_ORIGINS:                       z.string().optional(),                  // Comma-separated additional origins to trust for auth (e.g., "https://app.example.com,https://www.example.com"). Merged into Better Auth trustedOrigins.
     BROWSER_EXTENSION_IDS:                 z.string().optional(),
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
+    CAL_API_KEY:                           z.string().min(1).optional(),           // Cal.com API key that confirms or declines /demo booking requests (unset leaves every request for manual review)
+    CAL_WEBHOOK_SECRET:                    z.string().min(1).optional(),           // Secret Cal.com signs /demo booking webhooks with (unset disables the webhook)
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
+    WORKLOAD_IDENTITY_SIGNING_KEY:         z.string().min(1).optional(),           // PKCS#8 PEM RSA private key that signs Sim workload-identity (OIDC) tokens for keyless AWS/cloud credentials; unset disables the OIDC credential mode
+    WORKLOAD_IDENTITY_PREVIOUS_KEY:        z.string().min(1).optional(),           // Retiring workload-identity key (private or public PEM), still published in the JWKS during rotation so tokens it signed keep verifying
+    WORKLOAD_IDENTITY_ISSUER:              z.string().url().optional(),            // Workload-identity issuer URL (default <NEXT_PUBLIC_APP_URL>/oidc/workload). Customer trust policies pin it, so it must never change once in use
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
@@ -221,7 +227,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
-    AWS_MARKETPLACE_PRODUCT_CODE:          z.string().min(1).optional(),           // AWS Marketplace SaaS product code; unset turns the Marketplace registration, claim, and reconcile surfaces off
+    AWS_MARKETPLACE_PRODUCTS:              z.string().min(1).optional(),           // AWS Marketplace SaaS products this deployment sells, as <product code>=<plan> pairs (lib/billing/aws-marketplace/products.ts); unset turns the Marketplace surfaces off
     AWS_MARKETPLACE_EVENTS_QUEUE_URL:      z.string().url().optional(),            // SQS queue receiving the Marketplace agreement EventBridge events the reconcile cron drains
 
     // Email & Communication
@@ -319,7 +325,6 @@ export const env = createEnv({
 
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
-    FREEBUFF_API_KEY:                      z.string().min(1).optional(),           // Freebuff Ads key for server-side conversion postbacks (unset disables them)
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
@@ -343,6 +348,8 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_PERSISTENT_CACHE:           z.boolean().optional(),                 // Enables incremental compiler state for qualified CI builds
+    NEXT_BUILD_SKIP_SOURCE_MAPS:           z.boolean().optional(),                 // Omits unused browser source maps in acceptance builds
     NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling
@@ -561,6 +568,8 @@ export const env = createEnv({
     ZOHO_CLIENT_SECRET:                    z.string().optional(),                  // Zoho OAuth client secret (Zoho Desk)
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
+    APOLLO_CLIENT_ID:                      z.string().optional(),
+    APOLLO_CLIENT_SECRET:                  z.string().optional(),
     PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
@@ -613,7 +622,6 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     DASHBOARDS: z.boolean().optional(),
     PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
-    MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig

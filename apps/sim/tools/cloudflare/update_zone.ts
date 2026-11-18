@@ -12,6 +12,7 @@ import {
   parseJsonObjectParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -21,6 +22,7 @@ export const updateZoneTool: ToolConfig<CloudflareUpdateZoneParams, CloudflareUp
     name: 'Cloudflare Update Zone',
     description: 'Edits a zone. Only one zone property can be changed at a time.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
     params: {
       zoneId: {
         type: 'string',

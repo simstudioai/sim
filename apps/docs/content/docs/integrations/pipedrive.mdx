@@ -186,6 +186,7 @@ Retrieve files from Pipedrive with optional filters
 | `files` | array | Array of file objects from Pipedrive |
 |   ↳ `id` | number | File ID |
 |   ↳ `name` | string | File name |
+|   ↳ `file_name` | string | Stored file name |
 |   ↳ `file_type` | string | File type/extension |
 |   ↳ `file_size` | number | File size in bytes |
 |   ↳ `add_time` | string | When the file was uploaded |
@@ -263,7 +264,8 @@ Retrieve all pipelines from Pipedrive
 | `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
 | `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
-| `start` | string | No | Pagination start offset \(0-based index of the first item to return\) |
+| `start` | string | No | Ignored: Pipedrive API v2 pages pipelines with cursor instead of an offset |
+| `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
 #### Output
 
@@ -272,15 +274,15 @@ Retrieve all pipelines from Pipedrive
 | `pipelines` | array | Array of pipeline objects from Pipedrive |
 |   ↳ `id` | number | Pipeline ID |
 |   ↳ `name` | string | Pipeline name |
-|   ↳ `url_title` | string | URL-friendly title |
 |   ↳ `order_nr` | number | Pipeline order number |
-|   ↳ `active` | boolean | Whether the pipeline is active |
-|   ↳ `deal_probability` | boolean | Whether deal probability is enabled |
-|   ↳ `add_time` | string | When the pipeline was created |
-|   ↳ `update_time` | string | When the pipeline was last updated |
+|   ↳ `is_deleted` | boolean | Whether the pipeline is deleted |
+|   ↳ `is_deal_probability_enabled` | boolean | Whether deal probability is enabled |
+|   ↳ `add_time` | string | When the pipeline was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the pipeline was last updated \(ISO 8601\) |
 | `total_items` | number | Total number of pipelines returned |
 | `has_more` | boolean | Whether more pipelines are available |
-| `next_start` | number | Offset for fetching the next page |
+| `next_start` | number | Always null: API v2 pages with next_cursor instead of an offset |
+| `next_cursor` | string | Cursor for fetching the next page; null on the last page |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>
@@ -321,7 +323,7 @@ Retrieve all projects or a specific project from Pipedrive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `project_id` | string | No | Optional: ID of a specific project to retrieve \(e.g., "123"\) |
-| `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
+| `status` | string | No | Filter by project status: open, completed, canceled, deleted \(only for listing all\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500, only for listing all\) |
 | `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
@@ -419,7 +421,7 @@ Create a new activity (task) in Pipedrive
 | `due_time` | string | No | Due time in HH:MM format \(e.g., "14:30"\) |
 | `duration` | string | No | Duration in HH:MM format \(e.g., "01:00" for 1 hour\) |
 | `deal_id` | string | No | ID of the deal to associate with \(e.g., "123"\) |
-| `person_id` | string | No | ID of the person to associate with \(e.g., "456"\) |
+| `person_id` | string | No | ID of the person to associate with as the primary participant \(e.g., "456"\) |
 | `org_id` | string | No | ID of the organization to associate with \(e.g., "789"\) |
 | `note` | string | No | Notes for the activity |
 
@@ -533,7 +535,7 @@ Create a new lead in Pipedrive
 | `value_amount` | string | No | Potential value amount \(e.g., "10000"\) |
 | `value_currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
 | `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-04-15"\) |
-| `visible_to` | string | No | Visibility: 1 \(Owner & followers\), 3 \(Entire company\) |
+| `visible_to` | string | No | Visibility group; meanings depend on the Pipedrive plan. Light, Growth, and Professional: 1 = owner & followers, 3 = entire company. Premium and Ultimate: 1 = owner only, 3 = owner's visibility group, 5 = owner's visibility group and sub-groups, 7 = entire company |
 
 #### Output
 

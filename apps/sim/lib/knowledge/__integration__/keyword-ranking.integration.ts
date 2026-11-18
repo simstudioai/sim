@@ -159,6 +159,7 @@ describe('unauthenticated keyword ranking', () => {
     kind: 'workspace_api_key',
     workspaceId: ids.workspaceId,
     keyId: 'fixture-key',
+    access: 'write',
   }
   const alice: Principal = { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-alice' }
   const restrictedAcl = confluencePageAcl({

@@ -14,7 +14,7 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id: workflowId } = parsed.data.params
 
-    const access = await validateWorkflowAccess(request, workflowId, false)
+    const access = await validateWorkflowAccess(request, workflowId)
     if (access.error) {
       return NextResponse.json({ error: access.error.message }, { status: access.error.status })
     }

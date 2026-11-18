@@ -289,6 +289,37 @@ describe('redactManifest — chunk-wise', () => {
   })
 })
 
+describe('encoded file bodies inside large values', () => {
+  const encodedFile = Buffer.from(
+    Array.from({ length: 48 * 1024 }, (_, i) => (i * 7919 + 13) % 256)
+  ).toString('base64')
+
+  it('replaces them in the execution log', async () => {
+    chunkData.set(REF.id, { file: encodedFile, note: 'contact bob' })
+
+    const result = await redactLargeValueRefs(
+      { finalOutput: REF },
+      { entityTypes: ['PERSON'], language: 'en', store: STORE }
+    )
+
+    expect(result.finalOutput).toEqual({
+      file: '[BINARY_CONTENT_REDACTED]',
+      note: 'MASKED(contact bob)',
+    })
+  })
+
+  it('masks them as text in live block state', async () => {
+    chunkData.set(REF.id, { file: encodedFile })
+
+    const result = await redactLargeValueRefsInValue(
+      { 'block-1': { output: REF } },
+      { entityTypes: ['PERSON'], language: 'en', store: STORE, onFailure: 'throw' }
+    )
+
+    expect(result).toEqual({ 'block-1': { output: { file: `MASKED(${encodedFile})` } } })
+  })
+})
+
 describe('redactLargeValueRefsInValue (arbitrary blockStates)', () => {
   it('hydrates + re-stores a ref nested in a non-RedactablePayload shape', async () => {
     chunkData.set(REF.id, { note: 'contact bob' })

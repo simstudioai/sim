@@ -1,4 +1,5 @@
 import type { AthenaStartQueryParams, AthenaStartQueryResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 /**
@@ -37,6 +38,7 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
     name: 'Athena Start Query',
     description: 'Start an SQL query execution in AWS Athena',
     version: '1.0.0',
+    oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {
       awsRegion: {
@@ -108,6 +110,33 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
         description:
           'Maximum age in minutes of a previous result eligible for reuse (0-10080, default: 60)',
       },
+      encryptionOption: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Encryption for the query results in S3: SSE_S3, SSE_KMS, or CSE_KMS. Overridden when the workgroup enforces its own settings',
+      },
+      kmsKey: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'KMS key ARN or ID used when encryptionOption is SSE_KMS or CSE_KMS',
+      },
+      expectedBucketOwner: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'AWS account ID expected to own the output location bucket; the query fails if it does not',
+      },
+      clientRequestToken: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Idempotency token (32-128 characters). Repeating a request with the same token returns the original query execution instead of starting a new one',
+      },
     },
 
     operation: {
@@ -129,6 +158,13 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
           ...(params.resultReuseMaxAgeInMinutes !== undefined && {
             resultReuseMaxAgeInMinutes: params.resultReuseMaxAgeInMinutes,
           }),
+          ...(params.encryptionOption && { encryptionOption: params.encryptionOption }),
+          ...(params.kmsKey &&
+            (params.encryptionOption === 'SSE_KMS' || params.encryptionOption === 'CSE_KMS') && {
+              kmsKey: params.kmsKey,
+            }),
+          ...(params.expectedBucketOwner && { expectedBucketOwner: params.expectedBucketOwner }),
+          ...(params.clientRequestToken && { clientRequestToken: params.clientRequestToken }),
         }
       },
     },

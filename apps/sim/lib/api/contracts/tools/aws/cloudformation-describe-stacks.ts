@@ -37,6 +37,7 @@ const DescribeStacksResponseSchema = z.object({
             outputKey: z.string(),
             outputValue: z.string(),
             description: z.string().optional(),
+            exportName: z.string().optional(),
           })
         ),
         tags: z.array(
@@ -45,6 +46,26 @@ const DescribeStacksResponseSchema = z.object({
             value: z.string(),
           })
         ),
+        parameters: z.array(
+          z.object({
+            parameterKey: z.string(),
+            parameterValue: z.string().optional(),
+            usePreviousValue: z.boolean().optional(),
+            resolvedValue: z.string().optional(),
+          })
+        ),
+        capabilities: z.array(z.string()),
+        changeSetId: z.string().optional(),
+        deletionTime: z.number().optional(),
+        disableRollback: z.boolean().optional(),
+        notificationArns: z.array(z.string()),
+        timeoutInMinutes: z.number().optional(),
+        roleArn: z.string().optional(),
+        parentId: z.string().optional(),
+        rootId: z.string().optional(),
+        detailedStatus: z.string().optional(),
+        deletionMode: z.string().optional(),
+        retainExceptOnCreate: z.boolean().optional(),
       })
     ),
   }),

@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmGetDocumentParams, SsmGetDocumentResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const getDocumentTool: InternalToolConfig<SsmGetDocumentParams, SsmGetDoc
   name: 'SSM Get Document',
   description: 'Read the content of an SSM document or Automation runbook',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

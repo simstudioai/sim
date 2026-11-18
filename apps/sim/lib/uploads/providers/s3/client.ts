@@ -17,6 +17,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getAwsCredentials } from '@/lib/core/config/aws'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   assertKnownSizeWithinLimit,
   readNodeStreamToBufferWithLimit,
@@ -47,7 +48,7 @@ export function resetS3ClientForTesting(): void {
   _s3Client = null
 }
 
-export function getS3Client(): S3Client {
+function getS3Client(): S3Client {
   if (_s3Client) return _s3Client
 
   const { region } = S3_CONFIG
@@ -63,6 +64,7 @@ export function getS3Client(): S3Client {
     endpoint: S3_CONFIG.endpoint,
     forcePathStyle: S3_CONFIG.forcePathStyle,
     credentials: getAwsCredentials(),
+    requestHandler: awsRequestHandler(),
   })
 
   return _s3Client

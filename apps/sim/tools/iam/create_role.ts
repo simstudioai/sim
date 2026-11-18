@@ -1,4 +1,5 @@
 import type { IAMCreateRoleParams, IAMCreateRoleResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRoleResponse> = {
@@ -6,6 +7,7 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
   name: 'IAM Create Role',
   description: 'Create a new IAM role with a trust policy',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -56,6 +58,18 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
       visibility: 'user-or-llm',
       description: 'Maximum session duration in seconds (3600-43200, default 3600)',
     },
+    permissionsBoundary: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ARN of a managed policy to set as the role permissions boundary',
+    },
+    tags: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON object of up to 50 tag key/value pairs to attach to the new role',
+    },
   },
 
   operation: {
@@ -68,6 +82,8 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
       description: params.description,
       path: params.path,
       maxSessionDuration: params.maxSessionDuration,
+      permissionsBoundary: params.permissionsBoundary,
+      tags: params.tags,
     }),
   },
 
@@ -87,6 +103,8 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
         arn: data.arn ?? '',
         path: data.path ?? '',
         createDate: data.createDate ?? null,
+        permissionsBoundaryArn: data.permissionsBoundaryArn ?? null,
+        tags: data.tags ?? [],
       },
     }
   },
@@ -98,5 +116,15 @@ export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRo
     arn: { type: 'string', description: 'The ARN of the created role' },
     path: { type: 'string', description: 'The path of the created role' },
     createDate: { type: 'string', description: 'Date the role was created', optional: true },
+    permissionsBoundaryArn: {
+      type: 'string',
+      description: 'ARN of the permissions boundary policy set on the role',
+      optional: true,
+    },
+    tags: {
+      type: 'json',
+      description: 'Tags attached to the role (key, value pairs)',
+      optional: true,
+    },
   },
 }

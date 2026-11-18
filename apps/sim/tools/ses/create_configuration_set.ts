@@ -2,6 +2,7 @@ import type {
   SESCreateConfigurationSetParams,
   SESCreateConfigurationSetResponse,
 } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createConfigurationSetTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const createConfigurationSetTool: InternalToolConfig<
   description:
     'Create an SES configuration set to control tracking, delivery, reputation, sending, and suppression behavior for emails',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

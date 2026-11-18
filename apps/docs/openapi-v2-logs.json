@@ -1065,6 +1065,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -1094,6 +1095,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],

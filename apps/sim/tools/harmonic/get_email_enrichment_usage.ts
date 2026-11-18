@@ -15,7 +15,7 @@ export const harmonicGetEmailEnrichmentUsageTool: ToolConfig<
   description:
     'Read the team monthly email-enrichment quota. Check this before a large batch to avoid a quota rejection.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

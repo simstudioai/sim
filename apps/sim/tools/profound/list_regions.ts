@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListRegionsParams, ProfoundListRegionsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundListRegionsTool: ToolConfig<
   name: 'Profound List Regions',
   description: 'List all organization regions in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

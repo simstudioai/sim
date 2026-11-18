@@ -2,6 +2,7 @@ import type {
   CloudFormationDescribeStackDriftDetectionStatusParams,
   CloudFormationDescribeStackDriftDetectionStatusResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeStackDriftDetectionStatusTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeStackDriftDetectionStatusTool: InternalToolConfig<
   name: 'CloudFormation Describe Stack Drift Detection Status',
   description: 'Check the status of a stack drift detection operation',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

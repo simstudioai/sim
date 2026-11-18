@@ -1,8 +1,12 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
   ORGANIZATION_OUTPUT_PROPERTIES,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
 } from '@/tools/zendesk/types'
 
 export interface ZendeskGetOrganizationParams {
@@ -30,7 +34,10 @@ export const zendeskGetOrganizationTool: ToolConfig<
   description: 'Get a single organization by ID from Zendesk',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -58,16 +65,16 @@ export const zendeskGetOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/organizations/${params.organizationId}`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`
+      ),
     method: 'GET',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async (response: Response) => {

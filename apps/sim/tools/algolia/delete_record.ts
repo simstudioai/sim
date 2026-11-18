@@ -1,4 +1,5 @@
 import type { AlgoliaDeleteRecordParams, AlgoliaDeleteRecordResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDeleteRecordResponse> =
@@ -7,6 +8,7 @@ export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDele
     name: 'Algolia Delete Record',
     description: 'Delete a record by objectID from an Algolia index',
     version: '1.0',
+    oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
     params: {
       applicationId: {

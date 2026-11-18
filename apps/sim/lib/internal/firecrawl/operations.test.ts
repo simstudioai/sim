@@ -11,6 +11,7 @@ import {
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -90,5 +91,16 @@ describe('executeFirecrawlParse', () => {
     expect(response.status).toBe(400)
     expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an egress routing failure instead of a parse error', async () => {
+    vi.mocked(fetch).mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      executeFirecrawlParse(
+        { apiKey: 'firecrawl-key', file: FILE, options: { formats: ['markdown'] } },
+        createContext()
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 })

@@ -3,6 +3,7 @@ import {
   handleMailchimpError,
   type MailchimpCampaign,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetCampaignsParams {
@@ -30,6 +31,7 @@ export const mailchimpGetCampaignsTool: ToolConfig<
   name: 'Get Campaigns from Mailchimp',
   description: 'Retrieve a list of campaigns from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

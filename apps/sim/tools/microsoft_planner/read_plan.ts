@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerReadPlanResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerReadPlan')
 
@@ -15,6 +17,7 @@ export const readPlanTool: ToolConfig<
   name: 'Read Microsoft Planner Plan',
   description: 'Get details of a specific Microsoft Planner plan',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -42,7 +45,7 @@ export const readPlanTool: ToolConfig<
       if (!planId) {
         throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${safeUrlPathSegment(planId, 'planId')}`
     },
     method: 'GET',
     headers: (params) => {

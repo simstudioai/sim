@@ -43,6 +43,10 @@
     {
       "group": "project-files",
       "task": "ci:e2e-project-files"
+    },
+    {
+      "group": "markdown-viewer",
+      "task": "ci:e2e-markdown-viewer"
     }
   ],
   "production": [

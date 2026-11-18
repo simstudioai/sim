@@ -43,6 +43,8 @@ export const googleFormsHandler: WebhookProviderHandler = {
         createTime,
         lastSubmittedTime,
         formId,
+        respondentEmail:
+          typeof b?.respondentEmail === 'string' && b.respondentEmail ? b.respondentEmail : null,
         answers: normalizeAnswers(b?.answers),
         ...(includeRaw ? { raw: b?.raw ?? b } : {}),
       },

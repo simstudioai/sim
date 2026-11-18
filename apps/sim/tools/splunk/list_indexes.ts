@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SplunkListIndexesParams, SplunkListIndexesResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
@@ -20,6 +21,7 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
   description:
     'List the indexes configured on the Splunk instance with their size, event count, and retention settings.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

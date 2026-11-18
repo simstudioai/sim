@@ -3,7 +3,10 @@ import type {
   DataverseGetEntityMetadataParams,
   DataverseGetEntityMetadataResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseGetEntityMetadata')
@@ -21,7 +24,7 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
     'Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -60,7 +63,7 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       // OData string literals escape embedded single quotes by doubling them - URL-encoding the
       // quote alone isn't sufficient since Dataverse URL-decodes the request before parsing the
       // OData key predicate, so a percent-encoded quote would still land as a literal delimiter.

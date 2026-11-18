@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -49,7 +50,7 @@ export class BrexReceiptClient {
     const endpoint = expenseId
       ? `${BREX_API_BASE}/v1/expenses/card/${encodeURIComponent(expenseId)}/receipt_upload`
       : `${BREX_API_BASE}/v1/expenses/card/receipt_match`
-    const response = await fetch(endpoint, {
+    const response = await outboundFetch(endpoint, {
       method: 'POST',
       headers: buildBrexHeaders(this.apiKey),
       body: JSON.stringify({ receipt_name: receiptName }),

@@ -1,14 +1,16 @@
-import { createLogger } from '@sim/logger'
+import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
+import { twilioAuthorization } from '@/tools/twilio/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('Twilio Send SMS Tool')
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> = {
   id: 'twilio_send_sms',
   name: 'Twilio Send SMS',
-  description: 'Send text messages to single or multiple recipients using the Twilio API.',
+  description:
+    'Send a text message to one recipient using the Twilio API. Call once per recipient to reach several numbers.',
   version: '1.0.0',
+  oauth: TWILIO_CREDENTIAL_OAUTH,
 
   params: {
     phoneNumbers: {
@@ -16,7 +18,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Phone numbers to send the message to in E.164 format (e.g., +15551234567), separated by newlines',
+        'Recipient phone number in E.164 format (e.g., +15551234567) or a channel address (e.g., whatsapp:+15551234567). Only the first line is used.',
     },
     message: {
       type: 'string',
@@ -34,14 +36,21 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Twilio Auth Token',
+      description: 'Twilio Auth Token, or an API key as SKxxx:secret',
     },
     fromNumber: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Twilio phone number to send the message from in E.164 format (e.g., +15551234567)',
+        'Sender: a Twilio phone number in E.164 format (e.g., +15551234567), alphanumeric sender ID, short code, or channel address. Required unless a Messaging Service SID is given.',
+    },
+    messagingServiceSid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Messaging Service SID (MG...). When set without a From number, Twilio picks the sender from the service sender pool.',
     },
   },
 
@@ -50,21 +59,17 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
-      const url = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Messages.json`
-      return url
+      return `https://api.twilio.com/2010-04-01/Accounts/${safeUrlPathSegment(params.accountSid, 'accountSid')}/Messages.json`
     },
     method: 'POST',
     headers: (params) => {
       if (!params.accountSid || !params.authToken) {
         throw new Error('Twilio credentials are required')
       }
-      // Use Buffer instead of btoa for Node.js compatibility
-      const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
-      const headers = {
-        Authorization: `Basic ${authToken}`,
+      return {
+        Authorization: twilioAuthorization(params.accountSid.trim(), params.authToken),
         'Content-Type': 'application/x-www-form-urlencoded',
       }
-      return headers
     },
     body: (params) => {
       if (!params.phoneNumbers) {
@@ -73,35 +78,40 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.message) {
         throw new Error('Message content is required but not provided')
       }
-      if (!params.fromNumber) {
+      const fromNumber = params.fromNumber?.trim()
+      const messagingServiceSid = params.messagingServiceSid?.trim()
+      if (!fromNumber && !messagingServiceSid) {
         throw new Error('From number is required but not provided')
       }
 
-      // Get first phone number if multiple are provided
+      // Twilio's `To` takes one recipient per message, so only the first line is sent.
       const toNumber = params.phoneNumbers.split('\n')[0].trim()
 
-      // Create a URLSearchParams object and convert to string
       const formData = new URLSearchParams()
       formData.append('To', toNumber)
-      formData.append('From', params.fromNumber)
+      if (fromNumber) {
+        formData.append('From', fromNumber)
+      }
+      if (messagingServiceSid) {
+        formData.append('MessagingServiceSid', messagingServiceSid)
+      }
       formData.append('Body', params.message)
 
-      const formDataString = formData.toString()
-      return { body: formDataString }
+      return { body: formData.toString() }
     },
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
 
-    logger.info('Twilio Response:', data)
-    logger.info('Twilio Response type:', typeof data)
     return {
       success: true,
       output: {
         success: true,
         messageId: data.sid,
         status: data.status,
+        fromNumber: data.from ?? null,
+        toNumber: data.to ?? null,
       },
       error: undefined,
     }
@@ -111,7 +121,11 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     success: { type: 'boolean', description: 'SMS send success status' },
     messageId: { type: 'string', description: 'Unique Twilio message identifier (SID)' },
     status: { type: 'string', description: 'Message delivery status from Twilio' },
-    fromNumber: { type: 'string', description: 'Phone number message was sent from' },
-    toNumber: { type: 'string', description: 'Phone number message was sent to' },
+    fromNumber: {
+      type: 'string',
+      description: 'Phone number message was sent from',
+      nullable: true,
+    },
+    toNumber: { type: 'string', description: 'Phone number message was sent to', nullable: true },
   },
 }

@@ -47,7 +47,7 @@ Create a new task in a Google Tasks list
 | `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
 | `title` | string | Yes | Title of the task \(max 1024 characters\) |
 | `notes` | string | No | Notes/description for the task \(max 8192 characters\) |
-| `due` | string | No | Due date in RFC 3339 format \(e.g., 2025-06-03T00:00:00.000Z\) |
+| `due` | string | No | Due date in RFC 3339 format \(e.g., 2025-06-03T00:00:00.000Z\). Google Tasks stores only the date; the time is discarded |
 | `status` | string | No | Task status: "needsAction" or "completed" |
 | `parent` | string | No | Parent task ID to create this task as a subtask. Omit for top-level tasks. |
 | `previous` | string | No | Previous sibling task ID to position after. Omit to place first among siblings. |
@@ -56,6 +56,11 @@ Create a new task in a Google Tasks list
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `links` | array | Read-only links attached to the task |
+|   ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message", "keep_note"\) |
+|   ↳ `description` | string | Link description |
+|   ↳ `link` | string | The URL |
+| `assignmentInfo` | json | Source of a task assigned to the current user from Google Docs or Chat \(linkToTask, surfaceType, driveResourceInfo, spaceInfo\) |
 | `id` | string | Task ID |
 | `title` | string | Task title |
 | `notes` | string | Task notes |
@@ -68,6 +73,7 @@ Create a new task in a Google Tasks list
 | `position` | string | Position among sibling tasks |
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
+| `hidden` | boolean | Whether the task was hidden when its list was cleared |
 
 </ReferenceDetails>
 
@@ -84,7 +90,7 @@ List all tasks in a Google Tasks list
 | `taskListId` | string | No | Task list ID \(defaults to primary task list "@default"\) |
 | `maxResults` | number | No | Maximum number of tasks to return \(default 20, max 100\) |
 | `pageToken` | string | No | Token for pagination |
-| `showCompleted` | boolean | No | Whether to show completed tasks \(default true\) |
+| `showCompleted` | boolean | No | Whether to show completed tasks \(default true\). Tasks completed in the Google Tasks apps are also hidden, so set showHidden to true to include them |
 | `showDeleted` | boolean | No | Whether to show deleted tasks \(default false\) |
 | `showHidden` | boolean | No | Whether to show hidden tasks \(default false\) |
 | `dueMin` | string | No | Lower bound for due date filter \(RFC 3339 timestamp\) |
@@ -92,12 +98,18 @@ List all tasks in a Google Tasks list
 | `completedMin` | string | No | Lower bound for task completion date \(RFC 3339 timestamp\) |
 | `completedMax` | string | No | Upper bound for task completion date \(RFC 3339 timestamp\) |
 | `updatedMin` | string | No | Lower bound for last modification time \(RFC 3339 timestamp\) |
+| `showAssigned` | boolean | No | Whether to include tasks assigned to the current user from Google Docs or Chat \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tasks` | array | List of tasks |
+|   ↳ `links` | array | Read-only links attached to the task |
+|     ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message", "keep_note"\) |
+|     ↳ `description` | string | Link description |
+|     ↳ `link` | string | The URL |
+|   ↳ `assignmentInfo` | json | Source of a task assigned to the current user from Google Docs or Chat \(linkToTask, surfaceType, driveResourceInfo, spaceInfo\) |
 |   ↳ `id` | string | Task identifier |
 |   ↳ `title` | string | Title of the task |
 |   ↳ `notes` | string | Notes/description for the task |
@@ -111,10 +123,6 @@ List all tasks in a Google Tasks list
 |   ↳ `position` | string | Position among sibling tasks \(string-based ordering\) |
 |   ↳ `hidden` | boolean | Whether the task is hidden |
 |   ↳ `deleted` | boolean | Whether the task is deleted |
-|   ↳ `links` | array | Collection of links associated with the task |
-|     ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message"\) |
-|     ↳ `description` | string | Link description |
-|     ↳ `link` | string | The URL |
 | `nextPageToken` | string | Token for retrieving the next page of results |
 
 </ReferenceDetails>
@@ -136,6 +144,11 @@ Retrieve a specific task by ID from a Google Tasks list
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `links` | array | Read-only links attached to the task |
+|   ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message", "keep_note"\) |
+|   ↳ `description` | string | Link description |
+|   ↳ `link` | string | The URL |
+| `assignmentInfo` | json | Source of a task assigned to the current user from Google Docs or Chat \(linkToTask, surfaceType, driveResourceInfo, spaceInfo\) |
 | `id` | string | Task ID |
 | `title` | string | Task title |
 | `notes` | string | Task notes |
@@ -148,6 +161,7 @@ Retrieve a specific task by ID from a Google Tasks list
 | `position` | string | Position among sibling tasks |
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
+| `hidden` | boolean | Whether the task was hidden when its list was cleared |
 
 </ReferenceDetails>
 
@@ -165,13 +179,18 @@ Update an existing task in a Google Tasks list
 | `taskId` | string | Yes | The ID of the task to update |
 | `title` | string | No | New title for the task |
 | `notes` | string | No | New notes for the task |
-| `due` | string | No | New due date in RFC 3339 format |
+| `due` | string | No | New due date in RFC 3339 format. Google Tasks stores only the date; the time is discarded |
 | `status` | string | No | New status: "needsAction" or "completed" |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `links` | array | Read-only links attached to the task |
+|   ↳ `type` | string | Link type \(e.g., "email", "generic", "chat_message", "keep_note"\) |
+|   ↳ `description` | string | Link description |
+|   ↳ `link` | string | The URL |
+| `assignmentInfo` | json | Source of a task assigned to the current user from Google Docs or Chat \(linkToTask, surfaceType, driveResourceInfo, spaceInfo\) |
 | `id` | string | Task ID |
 | `title` | string | Task title |
 | `notes` | string | Task notes |
@@ -184,6 +203,7 @@ Update an existing task in a Google Tasks list
 | `position` | string | Position among sibling tasks |
 | `completed` | string | Completion date |
 | `deleted` | boolean | Whether the task is deleted |
+| `hidden` | boolean | Whether the task was hidden when its list was cleared |
 
 </ReferenceDetails>
 
@@ -219,7 +239,7 @@ Retrieve all task lists for the authenticated user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `maxResults` | number | No | Maximum number of task lists to return \(default 20, max 100\) |
+| `maxResults` | number | No | Maximum number of task lists to return \(default 1000, max 1000\) |
 | `pageToken` | string | No | Token for pagination |
 
 #### Output

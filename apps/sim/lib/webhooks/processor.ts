@@ -24,10 +24,10 @@ import {
   isPayloadSizeLimitError,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { createWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import {
   getPendingWebhookVerification,
@@ -530,10 +530,6 @@ export async function findWebhooksByRoutingKey(
   return results
 }
 
-function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  return resolveEnvVarReferences(value, envVars) as string
-}
-
 /** True when any string value in the provider config contains an env-var reference (`{{VAR}}`). */
 function providerConfigReferencesEnvVars(config: Record<string, unknown>): boolean {
   for (const value of Object.values(config)) {
@@ -544,24 +540,46 @@ function providerConfigReferencesEnvVars(config: Record<string, unknown>): boole
   return false
 }
 
-function resolveProviderConfigEnvVars(
+/**
+ * Resolves the env-var references in the provider config's top-level string values for auth.
+ *
+ * A value whose reference has no variable keeps its literal `{{VAR}}` text and is exposed through
+ * a getter that records the read in `unresolvedReads`. Fields auth never reads, like a response
+ * body that legitimately contains braces, cannot affect the outcome; a handler that enumerates
+ * the config reads every field, so it errs toward rejecting.
+ */
+function resolveAuthProviderConfig(
   config: Record<string, unknown>,
   envVars: Record<string, string>
-): Record<string, unknown> {
+): { config: Record<string, unknown>; unresolvedReads: Set<string> } {
   const resolved: Record<string, unknown> = {}
+  const unresolvedReads = new Set<string>()
   for (const [key, value] of Object.entries(config)) {
-    if (typeof value === 'string') {
-      resolved[key] = resolveEnvVars(value, envVars)
-    } else {
-      resolved[key] = value
+    const missingKeys: string[] = []
+    const resolvedValue =
+      typeof value === 'string' ? resolveEnvVarReferences(value, envVars, { missingKeys }) : value
+    if (missingKeys.length === 0) {
+      resolved[key] = resolvedValue
+      continue
     }
+    Object.defineProperty(resolved, key, {
+      enumerable: true,
+      get: () => {
+        unresolvedReads.add(key)
+        return resolvedValue
+      },
+    })
   }
-  return resolved
+  return { config: resolved, unresolvedReads }
 }
 
 /**
  * Verify webhook provider authentication and signatures.
  * Delegates to the provider handler registry.
+ *
+ * Fails closed when the env vars the config references cannot be loaded, or when the handler's
+ * decision read a field whose reference did not resolve: that field still holds its literal
+ * `{{VAR}}` text, which would make a guessable placeholder the expected token or signing key.
  */
 export async function verifyProviderAuth(
   foundWebhook: WebhookRecord,
@@ -575,37 +593,57 @@ export async function verifyProviderAuth(
   }
 
   const handler = getProviderHandler(foundWebhook.provider)
+  if (!handler.verifyAuth) return null
+
   const rawProviderConfig = parseProviderConfig(foundWebhook.providerConfig)
 
   /**
-   * Only fetch + decrypt the effective env when there is auth to verify AND the
-   * provider config actually references env vars (`{{VAR}}`). This avoids a DB
-   * read and decryption on the synchronous pre-ack path for the common case.
+   * Only fetch + decrypt the env when the provider config actually references env vars
+   * (`{{VAR}}`). This avoids a DB read and decryption on the synchronous pre-ack path for the
+   * common case.
    */
-  let decryptedEnvVars: Record<string, string> = {}
-  if (handler.verifyAuth && providerConfigReferencesEnvVars(rawProviderConfig)) {
+  let envVars: Record<string, string> = {}
+  if (providerConfigReferencesEnvVars(rawProviderConfig)) {
     try {
-      decryptedEnvVars = await getEffectiveDecryptedEnv(
+      envVars = await resolveBackgroundWebhookEnv(
         foundWorkflow.userId,
         foundWorkflow.workspaceId ?? undefined
       )
     } catch (error) {
-      logger.error('Failed to fetch environment variables', { requestId, error })
+      logger.error('Failed to load environment variables for webhook auth', {
+        requestId,
+        webhookId: foundWebhook.id,
+        error,
+      })
+      return NextResponse.json(
+        { error: 'Failed to verify webhook authentication' },
+        { status: 500 }
+      )
     }
   }
 
-  const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
+  const { config: providerConfig, unresolvedReads } = resolveAuthProviderConfig(
+    rawProviderConfig,
+    envVars
+  )
 
-  if (handler.verifyAuth) {
-    const authResult = await handler.verifyAuth({
-      webhook: { ...foundWebhook },
-      workflow: { ...foundWorkflow },
-      request,
-      rawBody,
+  const authResult = await handler.verifyAuth({
+    webhook: { ...foundWebhook },
+    workflow: { ...foundWorkflow },
+    request,
+    rawBody,
+    requestId,
+    providerConfig,
+  })
+  if (authResult) return authResult
+
+  if (unresolvedReads.size > 0) {
+    logger.warn('Webhook auth rejected: it read config fields with unresolved env vars', {
       requestId,
-      providerConfig,
+      webhookId: foundWebhook.id,
+      fields: [...unresolvedReads],
     })
-    if (authResult) return authResult
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   return null

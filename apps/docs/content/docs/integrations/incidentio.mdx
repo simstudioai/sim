@@ -2,7 +2,7 @@
 title: incident.io
 description: Manage incidents with incident.io
 integration:
-  type: "incidentio"
+  type: "incidentio_v2"
   color: "#FFFFFF"
 ---
 
@@ -29,7 +29,6 @@ List incidents from incident.io. Returns a list of incidents with their details 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of incidents to return per page \(e.g., 10, 25, 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `sort_by` | string | No | Sort order for incidents: created_at_newest_first or created_at_oldest_first |
@@ -75,7 +74,7 @@ List incidents from incident.io. Returns a list of incidents with their details 
 
 ### incident.io Incidents Create
 
-Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status.
+Create a new incident in incident.io. Requires idempotency_key and visibility. Optionally accepts name, summary, severity_id, incident_type_id, and incident_status_id.
 
 <ReferenceDetails>
 
@@ -83,11 +82,10 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `idempotency_key` | string | Yes | Unique identifier to prevent duplicate incident creation. Use a UUID or unique string. |
 | `name` | string | No | Name of the incident \(e.g., "Database connection issues"\) |
 | `summary` | string | No | Brief summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
-| `severity_id` | string | Yes | ID of the severity level \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `severity_id` | string | No | ID of the severity level \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `incident_type_id` | string | No | ID of the incident type |
 | `incident_status_id` | string | No | ID of the initial incident status |
 | `visibility` | string | Yes | Visibility of the incident: "public" or "private" \(required\) |
@@ -132,7 +130,6 @@ Retrieve detailed information about a specific incident from incident.io by its 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | ID of the incident to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -162,14 +159,14 @@ Retrieve detailed information about a specific incident from incident.io by its 
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
-|   ↳ `custom_field_entries` | array | Custom field values for the incident |
+|   ↳ `custom_field_entries` | array | Custom field values for the incident. Each value carries one of value_text, value_link, value_numeric, value_option \(\{id, value\}\), or value_catalog_entry \(\{id, name, external_id\}\). |
 |   ↳ `incident_role_assignments` | array | Role assignments for the incident |
 
 </ReferenceDetails>
 
 ### incident.io Incidents Update
 
-Update an existing incident in incident.io. Can update name, summary, severity, status, or type.
+Update an existing incident in incident.io. Can update name, summary, severity, or status.
 
 <ReferenceDetails>
 
@@ -177,13 +174,12 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | ID of the incident to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | No | Updated name of the incident \(e.g., "Database connection issues"\) |
 | `summary` | string | No | Updated summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
 | `severity_id` | string | No | Updated severity ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `incident_status_id` | string | No | Updated status ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `incident_type_id` | string | No | Updated incident type ID |
+| `incident_type_id` | string | No | Not applied: incident.io does not support changing an incident's type after creation, so this value is ignored. |
 | `notify_incident_channel` | boolean | Yes | Whether to notify the incident channel about this update |
 
 #### Output
@@ -218,7 +214,7 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 
 ### incident.io Actions List
 
-List actions from incident.io. Optionally filter by incident ID.
+List actions from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 actions, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page.
 
 <ReferenceDetails>
 
@@ -226,14 +222,18 @@ List actions from incident.io. Optionally filter by incident ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter actions by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `incident_mode` | string | No | Filter actions by incident mode \(standard, retrospective, test, tutorial, or stream\) |
+| `incident_mode` | string | No | Filter actions by incident mode \(standard, retrospective, test, tutorial, or stream\). When omitted, actions from standard and retrospective incidents are returned. |
+| `page_size` | number | No | Number of actions per page, 1-250. Setting it fetches a single page instead of following pages automatically |
+| `after` | string | No | Pagination cursor from a previous page's pagination_meta.after \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pagination_meta` | object | Pagination metadata. Pass `after` back to fetch the next page. |
+|   ↳ `after` | string | Cursor for the next page |
+|   ↳ `page_size` | number | Number of results per page |
 | `actions` | array | List of actions |
 |   ↳ `id` | string | Action ID |
 |   ↳ `description` | string | Action description |
@@ -242,19 +242,30 @@ List actions from incident.io. Optionally filter by incident ID.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `status` | string | Action status |
-|   ↳ `due_at` | string | Due date/time |
+|   ↳ `due_at` | string | Deprecated: incident.io actions have no due date, so this is never set |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
-|   ↳ `creator` | object | User who created the action |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
+|     ↳ `id` | string | ID of the user, API key, workflow, or alert |
+|     ↳ `name` | string | Name of the user, API key, or workflow \(or the alert title\) |
+|     ↳ `email` | string | User email, when a user created it |
 |   ↳ `completed_at` | string | Completion timestamp |
-|   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
-|     ↳ `issue_name` | string | Issue identifier |
-|     ↳ `issue_permalink` | string | URL to the external issue |
 
 </ReferenceDetails>
 
@@ -268,7 +279,6 @@ Get detailed information about a specific action from incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | Action ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -283,25 +293,36 @@ Get detailed information about a specific action from incident.io.
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
 |   ↳ `status` | string | Action status |
-|   ↳ `due_at` | string | Due date/time |
+|   ↳ `due_at` | string | Deprecated: incident.io actions have no due date, so this is never set |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
-|   ↳ `creator` | object | User who created the action |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `creator` | object | Who created the action |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
+|     ↳ `id` | string | ID of the user, API key, workflow, or alert |
+|     ↳ `name` | string | Name of the user, API key, or workflow \(or the alert title\) |
+|     ↳ `email` | string | User email, when a user created it |
 |   ↳ `completed_at` | string | Completion timestamp |
-|   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
-|     ↳ `issue_name` | string | Issue identifier |
-|     ↳ `issue_permalink` | string | URL to the external issue |
 
 </ReferenceDetails>
 
 ### incident.io Follow-ups List
 
-List follow-ups from incident.io. Optionally filter by incident ID.
+List follow-ups from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 follow-ups, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page.
 
 <ReferenceDetails>
 
@@ -309,14 +330,18 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | Filter follow-ups by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `incident_mode` | string | No | Filter follow-ups by incident mode \(standard, retrospective, test, tutorial, or stream\) |
+| `incident_mode` | string | No | Filter follow-ups by incident mode \(standard, retrospective, test, tutorial, or stream\). When omitted, follow-ups from standard and retrospective incidents are returned. |
+| `page_size` | number | No | Number of follow-ups per page, 1-250. Setting it fetches a single page instead of following pages automatically |
+| `after` | string | No | Pagination cursor from a previous page's pagination_meta.after \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pagination_meta` | object | Pagination metadata. Pass `after` back to fetch the next page. |
+|   ↳ `after` | string | Cursor for the next page |
+|   ↳ `page_size` | number | Number of results per page |
 | `follow_ups` | array | List of follow-ups |
 |   ↳ `id` | string | Follow-up ID |
 |   ↳ `title` | string | Follow-up title |
@@ -325,25 +350,48 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
+|   ↳ `assignee_team` | object | The team the follow-up is assigned to |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 |   ↳ `status` | string | Follow-up status |
 |   ↳ `priority` | object | Follow-up priority |
 |     ↳ `id` | string | Priority ID |
 |     ↳ `name` | string | Priority name |
 |     ↳ `description` | string | Priority description |
 |     ↳ `rank` | number | Priority rank |
+|   ↳ `category` | object | Follow-up category |
+|     ↳ `id` | string | Category ID |
+|     ↳ `name` | string | Category name |
+|     ↳ `description` | string | Category description |
+|     ↳ `rank` | number | Category rank |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
-|   ↳ `creator` | object | User who created the follow-up |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
+|     ↳ `id` | string | ID of the user, API key, workflow, or alert |
+|     ↳ `name` | string | Name of the user, API key, or workflow \(or the alert title\) |
+|     ↳ `email` | string | User email, when a user created it |
 |   ↳ `completed_at` | string | Completion timestamp |
 |   ↳ `labels` | array | Labels associated with the follow-up |
 |   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | External provider name |
-|     ↳ `issue_name` | string | External issue name or ID |
-|     ↳ `issue_permalink` | string | Permalink to external issue |
+|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|     ↳ `issue_name` | string | Issue identifier |
+|     ↳ `issue_permalink` | string | URL to the external issue |
 
 </ReferenceDetails>
 
@@ -357,7 +405,6 @@ Get detailed information about a specific follow-up from incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | Follow-up ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -372,25 +419,48 @@ Get detailed information about a specific follow-up from incident.io.
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
 |     ↳ `email` | string | User email |
+|   ↳ `assignee_team` | object | The team the follow-up is assigned to |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 |   ↳ `status` | string | Follow-up status |
 |   ↳ `priority` | object | Follow-up priority |
 |     ↳ `id` | string | Priority ID |
 |     ↳ `name` | string | Priority name |
 |     ↳ `description` | string | Priority description |
 |     ↳ `rank` | number | Priority rank |
+|   ↳ `category` | object | Follow-up category |
+|     ↳ `id` | string | Category ID |
+|     ↳ `name` | string | Category name |
+|     ↳ `description` | string | Category description |
+|     ↳ `rank` | number | Category rank |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `incident_id` | string | Associated incident ID |
-|   ↳ `creator` | object | User who created the follow-up |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `creator` | object | Who created the follow-up |
+|     ↳ `user` | object | The user who caused this, if a person did |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User display name |
+|       ↳ `email` | string | User email address |
+|       ↳ `role` | string | User role |
+|       ↳ `slack_user_id` | string | Slack user ID |
+|     ↳ `api_key` | object | The API key that caused this, if an integration did |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | The incident.io workflow that caused this, if automation did |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | The alert that caused this, if an alert did |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
+|     ↳ `id` | string | ID of the user, API key, workflow, or alert |
+|     ↳ `name` | string | Name of the user, API key, or workflow \(or the alert title\) |
+|     ↳ `email` | string | User email, when a user created it |
 |   ↳ `completed_at` | string | Completion timestamp |
 |   ↳ `labels` | array | Labels associated with the follow-up |
 |   ↳ `external_issue_reference` | object | External issue tracking reference |
-|     ↳ `provider` | string | External provider name |
-|     ↳ `issue_name` | string | External issue name or ID |
-|     ↳ `issue_permalink` | string | Permalink to external issue |
+|     ↳ `provider` | string | Issue tracking provider \(e.g., Jira, Linear\) |
+|     ↳ `issue_name` | string | Issue identifier |
+|     ↳ `issue_permalink` | string | URL to the external issue |
 
 </ReferenceDetails>
 
@@ -404,11 +474,11 @@ List all users in your Incident.io workspace. Returns user details including id,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Incident.io API Key |
 | `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results |
 | `email` | string | No | Filter users by email address |
 | `slack_user_id` | string | No | Filter users by Slack user ID |
+| `include_inactive` | boolean | No | Include deactivated or not-yet-active users, for resolving people who have since been offboarded. Default: false |
 
 #### Output
 
@@ -419,6 +489,8 @@ List all users in your Incident.io workspace. Returns user details including id,
 |   ↳ `name` | string | Full name of the user |
 |   ↳ `email` | string | Email address of the user |
 |   ↳ `role` | string | Role of the user in the workspace |
+|   ↳ `slack_user_id` | string | Slack ID of the user |
+|   ↳ `is_active` | boolean | Whether the user is active \(false once deactivated\) |
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of items per page |
@@ -436,7 +508,6 @@ Get detailed information about a specific user in your Incident.io workspace by 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Incident.io API Key |
 | `id` | string | Yes | The unique identifier of the user to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -448,6 +519,8 @@ Get detailed information about a specific user in your Incident.io workspace by 
 |   ↳ `name` | string | Full name of the user |
 |   ↳ `email` | string | Email address of the user |
 |   ↳ `role` | string | Role of the user in the workspace |
+|   ↳ `slack_user_id` | string | Slack ID of the user |
+|   ↳ `is_active` | boolean | Whether the user is active \(false once deactivated\) |
 
 </ReferenceDetails>
 
@@ -461,7 +534,6 @@ List all workflows in your incident.io workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 
 #### Output
 
@@ -499,7 +571,6 @@ Create a new workflow in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the workflow \(e.g., "Notify on Critical Incidents"\) |
 | `folder` | string | No | Folder to organize the workflow in |
 | `state` | string | No | State of the workflow \(active, draft, or disabled\) |
@@ -551,7 +622,6 @@ Get details of a specific workflow in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the workflow to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `skip_step_upgrades` | boolean | No | Skip workflow step upgrades when existing workflow step parameters changed |
 
@@ -592,7 +662,6 @@ Update an existing workflow in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the workflow to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | Yes | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
 | `steps` | string | Yes | Complete array of workflow steps as a JSON string |
@@ -644,7 +713,6 @@ Delete a workflow in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the workflow to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -665,7 +733,6 @@ List all schedules in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
@@ -698,6 +765,7 @@ List all schedules in incident.io
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_record_count` | number | Total number of schedules |
 
 </ReferenceDetails>
 
@@ -711,7 +779,6 @@ Create a new schedule in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the schedule \(e.g., "Primary On-Call"\) |
 | `timezone` | string | Yes | Timezone for the schedule \(e.g., America/New_York\) |
 | `config` | string | Yes | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
@@ -739,7 +806,6 @@ Get details of a specific schedule in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -781,11 +847,10 @@ Update an existing schedule in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the schedule to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | No | New name for the schedule \(e.g., "Primary On-Call"\) |
 | `timezone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
-| `config` | string | No | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
+| `config` | string | No | Schedule configuration as JSON with rotations. Sending it replaces the entire configuration, including any scheduled future versions of its rotations, so fetch the schedule first and include every version you want to keep. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
 
 #### Output
 
@@ -810,7 +875,6 @@ Delete a schedule in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the schedule to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -823,7 +887,7 @@ Delete a schedule in incident.io
 
 ### List Escalations
 
-List all escalation policies in incident.io
+List escalations (pages sent to people) in incident.io. For escalation policies, use List Escalation Paths.
 
 <ReferenceDetails>
 
@@ -831,8 +895,7 @@ List all escalation policies in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of escalations to return per page |
+| `page_size` | number | No | Number of escalations to return per page \(max 50\) |
 | `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
@@ -856,7 +919,7 @@ List all escalation policies in incident.io
 
 ### Create Escalation
 
-Create a new escalation policy in incident.io
+Page users or an escalation path (create an escalation) in incident.io. Provide either escalation_path_id or user_ids, not both. To create a reusable escalation policy, use Create Escalation Path instead.
 
 <ReferenceDetails>
 
@@ -864,11 +927,12 @@ Create a new escalation policy in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `idempotency_key` | string | Yes | Unique identifier to prevent duplicate escalation creation. Use a UUID or unique string. |
 | `title` | string | Yes | Title of the escalation \(e.g., "Database Critical Alert"\) |
 | `escalation_path_id` | string | No | ID of the escalation path to use \(required if user_ids not provided\) |
-| `user_ids` | string | No | Comma-separated list of user IDs to notify \(required if escalation_path_id not provided\) |
+| `user_ids` | string | No | Comma-separated list of user IDs to page directly \(required if escalation_path_id not provided\) |
+| `incident_id` | string | No | ID of an incident to link this escalation to; it appears in the escalation's related incidents \(e.g., "01H0J1EXE7AXZ2C93K61WBPYEH"\) |
+| `description` | string | No | Additional details included with the page \(e.g., "Database CPU above 90%"\) |
 
 #### Output
 
@@ -888,7 +952,7 @@ Create a new escalation policy in incident.io
 
 ### Show Escalation
 
-Get details of a specific escalation policy in incident.io
+Get an escalation (a page sent to people) in incident.io. For an escalation policy, use Show Escalation Path.
 
 <ReferenceDetails>
 
@@ -896,8 +960,7 @@ Get details of a specific escalation policy in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the escalation policy \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `id` | string | Yes | The ID of the escalation \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -925,7 +988,6 @@ List all custom fields from incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 
 #### Output
 
@@ -951,7 +1013,6 @@ Create a new custom field in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the custom field \(e.g., "Affected Service"\) |
 | `description` | string | Yes | Description of the custom field \(required\) |
 | `field_type` | string | Yes | Type of the custom field: text, link, numeric, single_select, or multi_select |
@@ -980,7 +1041,6 @@ Get detailed information about a specific custom field from incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1007,7 +1067,6 @@ Update an existing custom field in incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | Yes | New name for the custom field \(e.g., "Affected Service"\) |
 | `description` | string | Yes | New description for the custom field \(required\) |
@@ -1036,7 +1095,6 @@ Delete a custom field from incident.io.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1057,7 +1115,6 @@ List all severity levels configured in your Incident.io workspace. Returns sever
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Incident.io API Key |
 
 #### Output
 
@@ -1081,7 +1138,6 @@ List all incident statuses configured in your Incident.io workspace. Returns sta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Incident.io API Key |
 
 #### Output
 
@@ -1105,7 +1161,6 @@ List all incident types configured in your Incident.io workspace. Returns type d
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Incident.io API Key |
 
 #### Output
 
@@ -1129,7 +1184,6 @@ List all incident roles in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 
 #### Output
 
@@ -1142,7 +1196,7 @@ List all incident roles in incident.io
 |   ↳ `instructions` | string | Instructions for the role |
 |   ↳ `shortform` | string | Short form abbreviation of the role |
 |   ↳ `role_type` | string | The type of role |
-|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `required` | boolean | Not returned by the incident.io API; always empty |
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
@@ -1158,7 +1212,6 @@ Create a new incident role in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the incident role \(e.g., "Incident Commander"\) |
 | `description` | string | Yes | Description of the incident role |
 | `instructions` | string | Yes | Instructions for the incident role |
@@ -1175,7 +1228,7 @@ Create a new incident role in incident.io
 |   ↳ `instructions` | string | Instructions for the role |
 |   ↳ `shortform` | string | Short form abbreviation of the role |
 |   ↳ `role_type` | string | The type of role |
-|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `required` | boolean | Not returned by the incident.io API; always empty |
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
@@ -1191,7 +1244,6 @@ Get details of a specific incident role in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the incident role \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1205,7 +1257,7 @@ Get details of a specific incident role in incident.io
 |   ↳ `instructions` | string | Instructions for the role |
 |   ↳ `shortform` | string | Short form abbreviation of the role |
 |   ↳ `role_type` | string | The type of role |
-|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `required` | boolean | Not returned by the incident.io API; always empty |
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
@@ -1221,7 +1273,6 @@ Update an existing incident role in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the incident role to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | Yes | Name of the incident role \(e.g., "Incident Commander"\) |
 | `description` | string | Yes | Description of the incident role |
@@ -1239,7 +1290,7 @@ Update an existing incident role in incident.io
 |   ↳ `instructions` | string | Instructions for the role |
 |   ↳ `shortform` | string | Short form abbreviation of the role |
 |   ↳ `role_type` | string | The type of role |
-|   ↳ `required` | boolean | Whether the role is required |
+|   ↳ `required` | boolean | Not returned by the incident.io API; always empty |
 |   ↳ `created_at` | string | When the role was created |
 |   ↳ `updated_at` | string | When the role was last updated |
 
@@ -1255,7 +1306,6 @@ Delete an incident role in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the incident role to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1276,7 +1326,6 @@ List all incident timestamp definitions in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 
 #### Output
 
@@ -1286,8 +1335,8 @@ List all incident timestamp definitions in incident.io
 |   ↳ `id` | string | The timestamp ID |
 |   ↳ `name` | string | The timestamp name |
 |   ↳ `rank` | number | The rank/order of the timestamp |
-|   ↳ `created_at` | string | When the timestamp was created |
-|   ↳ `updated_at` | string | When the timestamp was last updated |
+|   ↳ `created_at` | string | Not returned by the incident.io API; always empty |
+|   ↳ `updated_at` | string | Not returned by the incident.io API; always empty |
 
 </ReferenceDetails>
 
@@ -1301,7 +1350,6 @@ Get details of a specific incident timestamp definition in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the incident timestamp \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1312,8 +1360,8 @@ Get details of a specific incident timestamp definition in incident.io
 |   ↳ `id` | string | The timestamp ID |
 |   ↳ `name` | string | The timestamp name |
 |   ↳ `rank` | number | The rank/order of the timestamp |
-|   ↳ `created_at` | string | When the timestamp was created |
-|   ↳ `updated_at` | string | When the timestamp was last updated |
+|   ↳ `created_at` | string | Not returned by the incident.io API; always empty |
+|   ↳ `updated_at` | string | Not returned by the incident.io API; always empty |
 
 </ReferenceDetails>
 
@@ -1327,7 +1375,6 @@ List all updates for a specific incident in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | No | The ID of the incident to get updates for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\). If not provided, returns all updates |
 | `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\) |
 | `after` | string | No | Cursor for pagination \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
@@ -1380,7 +1427,6 @@ List all entries for a specific schedule in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `schedule_id` | string | Yes | The ID of the schedule to get entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `entry_window_start` | string | No | Start date/time to filter entries in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
 | `entry_window_end` | string | No | End date/time to filter entries in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
@@ -1409,7 +1455,6 @@ Create a new schedule override in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `rotation_id` | string | Yes | The ID of the rotation to override \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `layer_id` | string | Yes | The ID of the layer this override applies to |
 | `schedule_id` | string | Yes | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
@@ -1449,8 +1494,7 @@ List escalation paths in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of escalation paths to return per page |
+| `page_size` | number | No | Number of escalation paths to return per page \(max 25\) |
 | `after` | string | No | Pagination cursor to fetch the next page of results |
 
 #### Output
@@ -1460,8 +1504,35 @@ List escalation paths in incident.io
 | `escalation_paths` | array | List of escalation paths |
 |   ↳ `id` | string | The escalation path ID |
 |   ↳ `name` | string | The escalation path name |
-|   ↳ `path` | array | Array of escalation levels |
-|   ↳ `working_hours` | array | Working hours configuration |
+|   ↳ `kind` | string | Path kind \(standalone, templated\) |
+|   ↳ `team_ids` | array | IDs of the teams that own this escalation path |
+|   ↳ `path` | array | Nodes that form the levels and branches of the path |
+|     ↳ `id` | string | Node ID, unique within the path |
+|     ↳ `type` | string | Node type \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\) |
+|     ↳ `level` | object | For a level node: who to page and how long to wait for an ack |
+|       ↳ `targets` | array | Users, schedules, or channels to page |
+|         ↳ `id` | string | Target ID |
+|         ↳ `type` | string | Target type \(schedule, user, slack_channel, msteams_channel\) |
+|         ↳ `urgency` | string | Urgency \(high, low\) |
+|         ↳ `schedule_mode` | string | For schedule targets, which users to page |
+|       ↳ `time_to_ack_seconds` | number | Seconds to wait for an ack before moving on |
+|     ↳ `notify_channel` | json | For a notify_channel node |
+|     ↳ `delay` | json | For a delay node |
+|     ↳ `if_else` | json | For an if_else node |
+|     ↳ `repeat` | json | For a repeat node |
+|     ↳ `escalation_path` | json | For an escalation_path node |
+|   ↳ `working_hours` | array | Working-hours windows the path can refer to |
+|     ↳ `id` | string | Window ID |
+|     ↳ `name` | string | Window name |
+|     ↳ `timezone` | string | Timezone the intervals are in |
+|     ↳ `weekday_intervals` | array | Intervals, each \{weekday, start_time, end_time\} |
+|   ↳ `repeat_config` | json | How the path repeats |
+|   ↳ `current_responders` | array | Users currently on call for this path |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
@@ -1478,10 +1549,9 @@ Create a new escalation path in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the escalation path \(e.g., "Critical Incident Path"\) |
-| `path` | json | Yes | Array of escalation levels with targets and time to acknowledge in seconds. Each level should have: targets \(array of \{id, type, schedule_id?, user_id?, urgency\}\) and time_to_ack_seconds \(number\) |
-| `working_hours` | json | No | Optional working hours configuration. Array of \{weekday, start_time, end_time\} |
+| `path` | json | Yes | Array of escalation path nodes. Each node needs a unique "id" and a "type" \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\); a level node nests its targets under "level", e.g. \[\{"id":"lvl1","type":"level","level":\{"targets":\[\{"id":"&lt;schedule id&gt;","type":"schedule","schedule_mode":"currently_on_call","urgency":"high"\}\],"time_to_ack_seconds":300\}\}\]. Target type is schedule, user, slack_channel, or msteams_channel; urgency is high or low. |
+| `working_hours` | json | No | Optional. Array of working-hours windows, each \{id, name, timezone, weekday_intervals: \[\{weekday, start_time, end_time\}\]\}, e.g. \[\{"id":"wh","name":"Business hours","timezone":"Europe/London","weekday_intervals":\[\{"weekday":"monday","start_time":"09:00","end_time":"17:00"\}\]\}\] |
 
 #### Output
 
@@ -1490,18 +1560,35 @@ Create a new escalation path in incident.io
 | `escalation_path` | object | The created escalation path |
 |   ↳ `id` | string | The escalation path ID |
 |   ↳ `name` | string | The escalation path name |
-|   ↳ `path` | array | Array of escalation levels |
-|     ↳ `targets` | array | Targets for this level |
-|       ↳ `id` | string | Target ID |
-|       ↳ `type` | string | Target type |
-|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
-|       ↳ `user_id` | string | User ID if type is user |
-|       ↳ `urgency` | string | Urgency level |
-|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
-|   ↳ `working_hours` | array | Working hours configuration |
-|     ↳ `weekday` | string | Day of week |
-|     ↳ `start_time` | string | Start time |
-|     ↳ `end_time` | string | End time |
+|   ↳ `kind` | string | Path kind \(standalone, templated\) |
+|   ↳ `team_ids` | array | IDs of the teams that own this escalation path |
+|   ↳ `path` | array | Nodes that form the levels and branches of the path |
+|     ↳ `id` | string | Node ID, unique within the path |
+|     ↳ `type` | string | Node type \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\) |
+|     ↳ `level` | object | For a level node: who to page and how long to wait for an ack |
+|       ↳ `targets` | array | Users, schedules, or channels to page |
+|         ↳ `id` | string | Target ID |
+|         ↳ `type` | string | Target type \(schedule, user, slack_channel, msteams_channel\) |
+|         ↳ `urgency` | string | Urgency \(high, low\) |
+|         ↳ `schedule_mode` | string | For schedule targets, which users to page |
+|       ↳ `time_to_ack_seconds` | number | Seconds to wait for an ack before moving on |
+|     ↳ `notify_channel` | json | For a notify_channel node |
+|     ↳ `delay` | json | For a delay node |
+|     ↳ `if_else` | json | For an if_else node |
+|     ↳ `repeat` | json | For a repeat node |
+|     ↳ `escalation_path` | json | For an escalation_path node |
+|   ↳ `working_hours` | array | Working-hours windows the path can refer to |
+|     ↳ `id` | string | Window ID |
+|     ↳ `name` | string | Window name |
+|     ↳ `timezone` | string | Timezone the intervals are in |
+|     ↳ `weekday_intervals` | array | Intervals, each \{weekday, start_time, end_time\} |
+|   ↳ `repeat_config` | json | How the path repeats |
+|   ↳ `current_responders` | array | Users currently on call for this path |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 
 </ReferenceDetails>
 
@@ -1515,7 +1602,6 @@ Get details of a specific escalation path in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation path \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1525,18 +1611,35 @@ Get details of a specific escalation path in incident.io
 | `escalation_path` | object | The escalation path details |
 |   ↳ `id` | string | The escalation path ID |
 |   ↳ `name` | string | The escalation path name |
-|   ↳ `path` | array | Array of escalation levels |
-|     ↳ `targets` | array | Targets for this level |
-|       ↳ `id` | string | Target ID |
-|       ↳ `type` | string | Target type |
-|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
-|       ↳ `user_id` | string | User ID if type is user |
-|       ↳ `urgency` | string | Urgency level |
-|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
-|   ↳ `working_hours` | array | Working hours configuration |
-|     ↳ `weekday` | string | Day of week |
-|     ↳ `start_time` | string | Start time |
-|     ↳ `end_time` | string | End time |
+|   ↳ `kind` | string | Path kind \(standalone, templated\) |
+|   ↳ `team_ids` | array | IDs of the teams that own this escalation path |
+|   ↳ `path` | array | Nodes that form the levels and branches of the path |
+|     ↳ `id` | string | Node ID, unique within the path |
+|     ↳ `type` | string | Node type \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\) |
+|     ↳ `level` | object | For a level node: who to page and how long to wait for an ack |
+|       ↳ `targets` | array | Users, schedules, or channels to page |
+|         ↳ `id` | string | Target ID |
+|         ↳ `type` | string | Target type \(schedule, user, slack_channel, msteams_channel\) |
+|         ↳ `urgency` | string | Urgency \(high, low\) |
+|         ↳ `schedule_mode` | string | For schedule targets, which users to page |
+|       ↳ `time_to_ack_seconds` | number | Seconds to wait for an ack before moving on |
+|     ↳ `notify_channel` | json | For a notify_channel node |
+|     ↳ `delay` | json | For a delay node |
+|     ↳ `if_else` | json | For an if_else node |
+|     ↳ `repeat` | json | For a repeat node |
+|     ↳ `escalation_path` | json | For an escalation_path node |
+|   ↳ `working_hours` | array | Working-hours windows the path can refer to |
+|     ↳ `id` | string | Window ID |
+|     ↳ `name` | string | Window name |
+|     ↳ `timezone` | string | Timezone the intervals are in |
+|     ↳ `weekday_intervals` | array | Intervals, each \{weekday, start_time, end_time\} |
+|   ↳ `repeat_config` | json | How the path repeats |
+|   ↳ `current_responders` | array | Users currently on call for this path |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 
 </ReferenceDetails>
 
@@ -1550,11 +1653,10 @@ Update an existing escalation path in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation path to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `name` | string | Yes | New name for the escalation path \(e.g., "Critical Incident Path"\) |
-| `path` | json | Yes | New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds |
-| `working_hours` | json | No | New working hours configuration. Array of \{weekday, start_time, end_time\} |
+| `path` | json | Yes | New escalation path configuration. Array of escalation path nodes. Each node needs a unique "id" and a "type" \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\); a level node nests its targets under "level", e.g. \[\{"id":"lvl1","type":"level","level":\{"targets":\[\{"id":"&lt;schedule id&gt;","type":"schedule","schedule_mode":"currently_on_call","urgency":"high"\}\],"time_to_ack_seconds":300\}\}\]. Target type is schedule, user, slack_channel, or msteams_channel; urgency is high or low. |
+| `working_hours` | json | No | New working hours configuration. Array of working-hours windows, each \{id, name, timezone, weekday_intervals: \[\{weekday, start_time, end_time\}\]\}, e.g. \[\{"id":"wh","name":"Business hours","timezone":"Europe/London","weekday_intervals":\[\{"weekday":"monday","start_time":"09:00","end_time":"17:00"\}\]\}\] |
 
 #### Output
 
@@ -1563,18 +1665,35 @@ Update an existing escalation path in incident.io
 | `escalation_path` | object | The updated escalation path |
 |   ↳ `id` | string | The escalation path ID |
 |   ↳ `name` | string | The escalation path name |
-|   ↳ `path` | array | Array of escalation levels |
-|     ↳ `targets` | array | Targets for this level |
-|       ↳ `id` | string | Target ID |
-|       ↳ `type` | string | Target type |
-|       ↳ `schedule_id` | string | Schedule ID if type is schedule |
-|       ↳ `user_id` | string | User ID if type is user |
-|       ↳ `urgency` | string | Urgency level |
-|     ↳ `time_to_ack_seconds` | number | Time to acknowledge in seconds |
-|   ↳ `working_hours` | array | Working hours configuration |
-|     ↳ `weekday` | string | Day of week |
-|     ↳ `start_time` | string | Start time |
-|     ↳ `end_time` | string | End time |
+|   ↳ `kind` | string | Path kind \(standalone, templated\) |
+|   ↳ `team_ids` | array | IDs of the teams that own this escalation path |
+|   ↳ `path` | array | Nodes that form the levels and branches of the path |
+|     ↳ `id` | string | Node ID, unique within the path |
+|     ↳ `type` | string | Node type \(level, notify_channel, delay, if_else, repeat, voicemail, escalation_path\) |
+|     ↳ `level` | object | For a level node: who to page and how long to wait for an ack |
+|       ↳ `targets` | array | Users, schedules, or channels to page |
+|         ↳ `id` | string | Target ID |
+|         ↳ `type` | string | Target type \(schedule, user, slack_channel, msteams_channel\) |
+|         ↳ `urgency` | string | Urgency \(high, low\) |
+|         ↳ `schedule_mode` | string | For schedule targets, which users to page |
+|       ↳ `time_to_ack_seconds` | number | Seconds to wait for an ack before moving on |
+|     ↳ `notify_channel` | json | For a notify_channel node |
+|     ↳ `delay` | json | For a delay node |
+|     ↳ `if_else` | json | For an if_else node |
+|     ↳ `repeat` | json | For a repeat node |
+|     ↳ `escalation_path` | json | For an escalation_path node |
+|   ↳ `working_hours` | array | Working-hours windows the path can refer to |
+|     ↳ `id` | string | Window ID |
+|     ↳ `name` | string | Window name |
+|     ↳ `timezone` | string | Timezone the intervals are in |
+|     ↳ `weekday_intervals` | array | Intervals, each \{weekday, start_time, end_time\} |
+|   ↳ `repeat_config` | json | How the path repeats |
+|   ↳ `current_responders` | array | Users currently on call for this path |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User display name |
+|     ↳ `email` | string | User email address |
+|     ↳ `role` | string | User role |
+|     ↳ `slack_user_id` | string | Slack user ID |
 
 </ReferenceDetails>
 
@@ -1588,7 +1707,6 @@ Delete an escalation path in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation path to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1609,7 +1727,6 @@ Get who is currently on call in incident.io, as one row per ongoing shift across
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `schedule_id` | string | No | Limit the result to a single schedule by ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\). Leave empty to return who is on call across every schedule. |
 | `page_size` | number | No | Number of schedules to scan per page when no schedule ID is given \(e.g., 10, 25\). Defaults to 25; upcoming shifts are only returned at 25 or lower. |
 | `after` | string | No | Pagination cursor to fetch the next page of schedules \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
@@ -1637,7 +1754,6 @@ List the one-off overrides layered on top of a schedule in incident.io, such as 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `schedule_id` | string | Yes | The ID of the schedule to get overrides for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `rotation_id` | string | No | Only return overrides on this rotation |
 | `layer_id` | string | No | Only return overrides on this layer |
@@ -1679,8 +1795,7 @@ List alerts in incident.io, optionally filtered by status, source, or created da
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50; max 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `status` | string | No | Filter by alert status: "firing" or "resolved" |
 | `status_operator` | string | No | How to apply the status filter: "one_of" to match it, "not_in" to exclude it. Default: one_of |
@@ -1709,6 +1824,9 @@ List alerts in incident.io, optionally filtered by status, source, or created da
 |   ↳ `updated_at` | string | When this alert was last updated |
 |   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
 |   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+|   ↳ `tags` | array | Tags someone has applied to this alert |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `name` | string | Tag name |
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
@@ -1725,7 +1843,6 @@ Get a single alert by ID from incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the alert to fetch \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
 
 #### Output
@@ -1745,6 +1862,9 @@ Get a single alert by ID from incident.io
 |   ↳ `updated_at` | string | When this alert was last updated |
 |   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
 |   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+|   ↳ `tags` | array | Tags someone has applied to this alert |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `name` | string | Tag name |
 
 </ReferenceDetails>
 
@@ -1758,7 +1878,6 @@ Resolve a currently firing alert in incident.io. Resolving an already-resolved a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the alert to resolve \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
 
 #### Output
@@ -1778,6 +1897,9 @@ Resolve a currently firing alert in incident.io. Resolving an already-resolved a
 |   ↳ `updated_at` | string | When this alert was last updated |
 |   ↳ `alert_group_ids` | array | IDs of every alert group this alert belongs to |
 |   ↳ `attributes` | array | Attribute values parsed from the alert payload |
+|   ↳ `tags` | array | Tags someone has applied to this alert |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `name` | string | Tag name |
 
 </ReferenceDetails>
 
@@ -1820,8 +1942,7 @@ List the connections between incidents and alerts in incident.io — which alert
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50; max 50\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `incident_id` | string | No | Only return alerts attached to this incident \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 | `alert_id` | string | No | Only return connections for this alert \(e.g., "01GW2G3V0S59R238FAHPDS1R66"\) |
@@ -1868,7 +1989,6 @@ Cancel an escalation in incident.io. Notifications stop, and the escalation will
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the escalation to cancel \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
@@ -1889,7 +2009,6 @@ List all catalog types in incident.io, including those synced from external reso
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 
 #### Output
 
@@ -1931,9 +2050,8 @@ List the entries of a catalog type in incident.io — for example every service,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `catalog_type_id` | string | Yes | The ID of the catalog type to list entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
-| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50; max 250\). Default: 25 |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `identifier` | string | No | Only return entries matching this identifier. Searches by ID, external ID, and alias. |
 
@@ -1992,7 +2110,6 @@ List all teams in the incident.io organisation, along with their members
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\) |
 | `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
@@ -2028,7 +2145,6 @@ Get a single team by ID from incident.io, along with its members
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the team to fetch \(e.g., "01JPQA75EPNEES4479P16P4XAB"\) |
 
 #### Output
@@ -2060,7 +2176,6 @@ Create a new follow-up on an incident in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | Yes | The ID of the incident the follow-up belongs to \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 | `title` | string | Yes | Title of the follow-up \(e.g., "Add alerting on connection pool saturation"\) |
 | `description` | string | No | Description of the follow-up. Supports Markdown. |
@@ -2132,7 +2247,6 @@ Update an existing follow-up in incident.io, for example to mark it completed or
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the follow-up to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `title` | string | Yes | Title of the follow-up. This endpoint replaces the title, so always send it. |
 | `status` | string | Yes | Status of the follow-up: "outstanding", "completed", or "not_doing". Deleting is not supported here. |
@@ -2204,7 +2318,6 @@ Create a new action on an incident in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | Yes | The ID of the incident the action belongs to \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 | `description` | string | Yes | Description of the action. Supports Markdown. |
 | `assignee_id` | string | No | ID of the user to assign this action to |
@@ -2260,7 +2373,6 @@ Update an existing action in incident.io, for example to mark it completed or re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `id` | string | Yes | The ID of the action to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `description` | string | Yes | Description of the action. This endpoint replaces the description, so always send it. |
 | `status` | string | Yes | Status of the action: "outstanding", "completed", or "not_doing". Deleting is not supported here. |
@@ -2317,7 +2429,6 @@ List the participants of an incident in incident.io, split into those actively h
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | Yes | The ID of the incident to find participants of \(e.g., "01FDAG4SAP5TYPT98WGR2N7W91"\) |
 
 #### Output
@@ -2339,7 +2450,6 @@ Make a user a member of a private incident in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | Yes | The ID of the private incident \(e.g., "01FCNDV6P870EA6S7TK1DSYD5H"\) |
 | `user_id` | string | Yes | The ID of the user to grant access to \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
@@ -2371,7 +2481,6 @@ Revoke a user's membership of a private incident in incident.io
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | incident.io API Key |
 | `incident_id` | string | Yes | The ID of the private incident \(e.g., "01FCNDV6P870EA6S7TK1DSYD5H"\) |
 | `user_id` | string | Yes | The ID of the user to revoke access from \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 

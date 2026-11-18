@@ -4,7 +4,14 @@ import type {
   GetWorkItemsBatchResponse,
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
-import { formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import {
+  azureDevOpsProjectUrl,
+  formatWorkItem,
+  mapWorkItem,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+} from '@/tools/azure_devops/utils'
+import { fetchWorkItemsChunk, WORK_ITEMS_BATCH_SIZE } from '@/tools/azure_devops/work-items.server'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkItemsBatchResponse> =
@@ -14,6 +21,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
     description:
       'Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "123,456,789"). Requests with more than 200 IDs are automatically split into chunks.',
     version: '1.0.0',
+    oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
     params: {
       organization: {
@@ -53,9 +61,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
           throw new Error('Get Work Items Batch requires at least one work item ID.')
         }
         const firstChunk = allIds.slice(0, 200)
-        const url = new URL(
-          `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems`
-        )
+        const url = new URL(`${azureDevOpsProjectUrl(params)}/_apis/wit/workitems`)
         url.searchParams.set('ids', firstChunk.join(','))
         url.searchParams.set('$expand', 'all')
         url.searchParams.set('api-version', '7.2-preview.3')
@@ -68,48 +74,31 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
       }),
     },
 
-    transformResponse: async (response, params) => {
+    transformResponse: async (response, params, context) => {
       const firstData = await response.json()
       const workItems: AzureDevOpsWorkItem[] = (firstData.value ?? []).map(
-        (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw)
+        (raw: AzureDevOpsRawWorkItem) => mapWorkItem(raw, { includeRawDetails: false })
       )
 
-      const allIds = params!.ids
+      const allIds = (params?.ids ?? '')
         .split(',')
         .map((id) => id.trim())
         .filter(Boolean)
 
-      if (allIds.length > 200) {
-        const BATCH_SIZE = 200
-        const organization = params!.organization.trim()
-        const project = params!.project.trim()
-        const authHeader = `Basic ${btoa(`:${params!.accessToken}`)}`
-
-        for (let i = BATCH_SIZE; i < allIds.length; i += BATCH_SIZE) {
-          const chunk = allIds.slice(i, i + BATCH_SIZE)
-          const detailsUrl = new URL(
-            `https://dev.azure.com/${organization}/${project}/_apis/wit/workitems`
+      if (allIds.length > WORK_ITEMS_BATCH_SIZE) {
+        if (!params) {
+          throw new Error('Get Work Items Batch requires organization, project, and access token.')
+        }
+        for (let i = WORK_ITEMS_BATCH_SIZE; i < allIds.length; i += WORK_ITEMS_BATCH_SIZE) {
+          const chunk = allIds.slice(i, i + WORK_ITEMS_BATCH_SIZE)
+          workItems.push(
+            ...(await fetchWorkItemsChunk(
+              params,
+              chunk,
+              'Failed to fetch work item batch chunk',
+              context?.signal
+            ))
           )
-          detailsUrl.searchParams.set('ids', chunk.join(','))
-          detailsUrl.searchParams.set('$expand', 'all')
-          detailsUrl.searchParams.set('api-version', '7.2-preview.3')
-
-          const chunkResponse = await fetch(detailsUrl.toString(), {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json', Authorization: authHeader },
-          })
-
-          if (!chunkResponse.ok) {
-            const errorBody = await chunkResponse.text().catch(() => '')
-            throw new Error(
-              `Failed to fetch work item batch chunk (${chunkResponse.status}): ${errorBody || chunkResponse.statusText}`
-            )
-          }
-
-          const chunkData = await chunkResponse.json()
-          for (const raw of chunkData.value ?? []) {
-            workItems.push(mapWorkItem(raw as AzureDevOpsRawWorkItem))
-          }
         }
       }
 
@@ -164,6 +153,7 @@ export const getWorkItemsBatchTool: ToolConfig<GetWorkItemsBatchParams, GetWorkI
                 },
                 areaPath: { type: 'string', description: 'Area path of the work item' },
                 url: { type: 'string', description: 'API URL for the work item' },
+                ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
               },
             },
           },

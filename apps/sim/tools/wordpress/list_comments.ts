@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressListCommentsParams,
@@ -49,7 +50,7 @@ export const listCommentsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by comment status: approved, hold, spam, trash',
+      description: 'Filter by comment status: approve, hold, spam, trash, all',
     },
     search: {
       type: 'string',
@@ -69,6 +70,13 @@ export const listCommentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Order direction: asc or desc',
     },
+    context: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Response context: view (default) or edit. edit returns author_email but requires the moderate_comments capability',
+    },
   },
 
   request: {
@@ -78,13 +86,16 @@ export const listCommentsTool: ToolConfig<
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
       if (params.postId) queryParams.append('post', String(params.postId))
-      if (params.status) queryParams.append('status', params.status)
+      if (params.status) {
+        queryParams.append('status', params.status === 'approved' ? 'approve' : params.status)
+      }
       if (params.search) queryParams.append('search', params.search)
       if (params.orderBy) queryParams.append('orderby', params.orderBy)
       if (params.order) queryParams.append('order', params.order)
+      if (params.context) queryParams.append('context', params.context)
 
       const queryString = queryParams.toString()
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/comments${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -137,7 +148,11 @@ export const listCommentsTool: ToolConfig<
           parent: { type: 'number', description: 'Parent comment ID' },
           author: { type: 'number', description: 'Author user ID' },
           author_name: { type: 'string', description: 'Author display name' },
-          author_email: { type: 'string', description: 'Author email' },
+          author_email: {
+            type: 'string',
+            description: 'Author email (edit context only)',
+            optional: true,
+          },
           author_url: { type: 'string', description: 'Author URL' },
           date: { type: 'string', description: 'Comment date' },
           content: { type: 'object', description: 'Comment content object' },

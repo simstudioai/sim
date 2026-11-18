@@ -1,4 +1,6 @@
 import type { RootlyListTeamsParams, RootlyListTeamsResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTeamsResponse> = {
@@ -6,6 +8,7 @@ export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTe
   name: 'Rootly List Teams',
   description: 'List teams (groups) configured in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -56,7 +59,7 @@ export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTe
       return {
         success: false,
         output: { teams: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

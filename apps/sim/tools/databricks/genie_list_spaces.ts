@@ -10,6 +10,7 @@ import {
   GENIE_READ_RETRY,
   mapGenieSpace,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieListSpacesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const genieListSpacesTool: ToolConfig<
   description:
     'List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...DATABRICKS_AUTH_PARAMS,

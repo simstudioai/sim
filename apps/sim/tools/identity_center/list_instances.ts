@@ -2,6 +2,7 @@ import type {
   IdentityCenterListInstancesParams,
   IdentityCenterListInstancesResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listInstancesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listInstancesTool: InternalToolConfig<
   name: 'Identity Center List Instances',
   description: 'List all AWS IAM Identity Center instances in your account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

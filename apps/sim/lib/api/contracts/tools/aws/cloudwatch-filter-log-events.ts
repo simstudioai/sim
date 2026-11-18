@@ -26,6 +26,7 @@ const FilterLogEventsSchema = z.object({
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
     z.coerce.number().int().positive().optional()
   ),
+  nextToken: z.string().optional(),
 })
 
 const FilterLogEventsResponseSchema = z.object({
@@ -37,8 +38,10 @@ const FilterLogEventsResponseSchema = z.object({
         timestamp: z.number().optional(),
         message: z.string().optional(),
         ingestionTime: z.number().optional(),
+        eventId: z.string().optional(),
       })
     ),
+    nextToken: z.string().nullable(),
   }),
 })
 

@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapCandidate,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetCandidateTool: ToolConfig<CheckrCandidateIdParams, CheckrCandidateResponse> =
@@ -19,6 +20,7 @@ export const checkrGetCandidateTool: ToolConfig<CheckrCandidateIdParams, CheckrC
     name: 'Checkr Get Candidate',
     description: 'Retrieve a candidate by ID, including their report and geo IDs.',
     version: '1.0.0',
+    oauth: CHECKR_CREDENTIAL_OAUTH,
     errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
     params: {

@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchUsersParams {
@@ -34,6 +35,7 @@ export const searchUsersTool: ToolConfig<SearchUsersParams, SearchUsersResponse>
   description:
     'Search for users and organizations on GitHub. Use qualifiers like type:user, type:org, followers:>1000, repos:>10, location:city',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     q: {
@@ -157,6 +159,7 @@ export const searchUsersV2Tool: ToolConfig<SearchUsersParams, any> = {
   name: searchUsersTool.name,
   description: searchUsersTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchUsersTool.params,
   request: searchUsersTool.request,
 

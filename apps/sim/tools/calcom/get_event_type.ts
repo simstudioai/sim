@@ -1,5 +1,6 @@
 import type { CalcomGetEventTypeParams, CalcomGetEventTypeResponse } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getEventTypeTool: ToolConfig<CalcomGetEventTypeParams, CalcomGetEventTypeResponse> = {
   id: 'calcom_get_event_type',
@@ -29,7 +30,7 @@ export const getEventTypeTool: ToolConfig<CalcomGetEventTypeParams, CalcomGetEve
 
   request: {
     url: (params: CalcomGetEventTypeParams) =>
-      `https://api.cal.com/v2/event-types/${params.eventTypeId}`,
+      `https://api.cal.com/v2/event-types/${safeUrlPathSegment(params.eventTypeId, 'eventTypeId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -69,6 +70,12 @@ export const getEventTypeTool: ToolConfig<CalcomGetEventTypeParams, CalcomGetEve
         disableGuests: { type: 'boolean', description: 'Whether guests are disabled' },
         createdAt: { type: 'string', description: 'ISO timestamp of creation' },
         updatedAt: { type: 'string', description: 'ISO timestamp of last update' },
+        bookingUrl: { type: 'string', description: 'Public booking page URL for the event type' },
+        hidden: {
+          type: 'boolean',
+          description: 'Whether the event type is hidden from the profile',
+        },
+        ownerId: { type: 'number', description: 'ID of the user who owns the event type' },
       },
     },
   },

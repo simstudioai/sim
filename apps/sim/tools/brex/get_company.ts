@@ -1,5 +1,6 @@
 import type { BrexApiKeyParams, BrexGetCompanyResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResponse> = {
@@ -7,6 +8,7 @@ export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResp
   name: 'Brex Get Company',
   description: 'Get the Brex company associated with the API token',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -31,7 +33,7 @@ export const brexGetCompanyTool: ToolConfig<BrexApiKeyParams, BrexGetCompanyResp
         id: data.id ?? '',
         legalName: data.legal_name ?? '',
         mailingAddress: data.mailing_address ?? null,
-        accountType: data.account_type ?? null,
+        accountType: data.accountType ?? data.account_type ?? null,
       },
     }
   },

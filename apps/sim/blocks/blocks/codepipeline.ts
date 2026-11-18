@@ -2,13 +2,18 @@ import { CodePipelineIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 export const CodePipelineBlock: BlockConfig = {
   type: 'codepipeline',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'codepipeline_v2' },
   name: 'CodePipeline',
   description: 'Run, monitor, and approve AWS CodePipeline pipelines',
   authMode: AuthMode.ApiKey,
@@ -394,16 +399,26 @@ export const CodePipelineBlock: BlockConfig = {
             throw new Error(`Invalid CodePipeline operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, maxResults, getPipelineVersion, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { maxResults, getPipelineVersion, ...rest } = params
+        /** A blank block-only field yields, on a tool call, the model's arg under the tool's name. */
+        const orToolArg = (blockValue: unknown, toolValue: unknown) =>
+          blockValue === undefined || blockValue === ''
+            ? (toolCallArg(context, toolValue) ?? blockValue)
+            : blockValue
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
         const awsSecretAccessKey = rest.awsSecretAccessKey
-        const parsedMaxResults = parseOptionalNumberInput(maxResults, 'Max results', {
-          integer: true,
-          min: 1,
-        })
+        /** Parsed only by the list operations, so a value left in the hidden field never fails another one. */
+        const maxResultsParam = () => {
+          const parsed = parseOptionalNumberInput(maxResults, 'Max results', {
+            integer: true,
+            min: 1,
+          })
+          return parsed === undefined ? {} : { maxResults: parsed }
+        }
 
         switch (operation) {
           case 'list_pipelines':
@@ -411,7 +426,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
@@ -452,7 +467,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsAccessKeyId,
               awsSecretAccessKey,
               pipelineName: rest.pipelineName,
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
               ...(rest.succeededInStage && { succeededInStage: rest.succeededInStage }),
             }
@@ -464,7 +479,7 @@ export const CodePipelineBlock: BlockConfig = {
               awsSecretAccessKey,
               pipelineName: rest.pipelineName,
               ...(rest.pipelineExecutionId && { pipelineExecutionId: rest.pipelineExecutionId }),
-              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...maxResultsParam(),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
@@ -527,9 +542,9 @@ export const CodePipelineBlock: BlockConfig = {
               pipelineName: rest.pipelineName,
               stageName: rest.stageName,
               actionName: rest.actionName,
-              token: rest.approvalToken,
-              status: rest.approvalStatus,
-              summary: rest.approvalSummary,
+              token: orToolArg(rest.approvalToken, rest.token),
+              status: orToolArg(rest.approvalStatus, rest.status),
+              summary: orToolArg(rest.approvalSummary, rest.summary),
             }
 
           case 'disable_stage_transition':
@@ -540,7 +555,7 @@ export const CodePipelineBlock: BlockConfig = {
               pipelineName: rest.pipelineName,
               stageName: rest.stageName,
               transitionType: rest.transitionType,
-              reason: rest.transitionReason,
+              reason: orToolArg(rest.transitionReason, rest.reason),
             }
 
           case 'enable_stage_transition':
@@ -830,3 +845,19 @@ export const CodePipelineBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CodePipelineV2Block: BlockConfig = {
+  ...CodePipelineBlock,
+  type: 'codepipeline_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions.',
+  ...withSavedCredential(CodePipelineBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

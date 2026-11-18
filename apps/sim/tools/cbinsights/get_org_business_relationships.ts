@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetOrgBusinessRelationshipsTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const cbinsightsGetOrgBusinessRelationshipsTool: InternalToolConfig<
   description:
     "Retrieve one organization's partnerships, client/vendor relationships, and licensing activity, with AI-generated insights on each.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

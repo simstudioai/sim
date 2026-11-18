@@ -23,10 +23,13 @@ const DeleteSchema = z.object({
   conditionExpression: z.string().optional(),
   expressionAttributeNames: z.record(z.string(), z.string()).optional(),
   expressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
+  returnValues: z.enum(['NONE', 'ALL_OLD']).optional(),
 })
 
 const DeleteResponseSchema = z.object({
   message: z.string(),
+  // untyped-response: DynamoDB DeleteItem ALL_OLD Attributes is an arbitrary user attribute-value record
+  attributes: z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
 export const awsDynamodbDeleteContract = defineRouteContract({

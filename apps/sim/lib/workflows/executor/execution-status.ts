@@ -1,9 +1,19 @@
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  resumeQueue,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
+import {
+  type FailedTraceBlock,
+  findFailedTraceBlock,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import { materializeExecutionDataForDisplayWithBlockOutputs } from '@/lib/logs/execution/trace-store'
 import {
   type LogFieldProjection,
@@ -15,8 +25,10 @@ import {
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
 import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { namePausePoints, pauseBaseBlockId } from '@/lib/workflows/executor/pause-block-names'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
-import type { PausePoint } from '@/executor/types'
+import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
 
 /**
  * Reads a single execution's status resource — the log row, the paused-state
@@ -33,6 +45,7 @@ interface ExecutionDataShape {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
+  traceSpans?: unknown
 }
 
 function resolvePath(value: unknown, path: string[]): unknown {
@@ -70,6 +83,11 @@ function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
   }, null)
 }
 
+/** A point no resume can act on any more: it resumed, or its resumed execution failed. */
+function isSettledPausePoint(point: PausePoint): boolean {
+  return point.resumeStatus === 'resumed' || point.resumeStatus === 'failed'
+}
+
 function extractError(executionData: unknown): string | null {
   if (!executionData || typeof executionData !== 'object') return null
   const data = executionData as ExecutionDataShape
@@ -89,7 +107,8 @@ function extractJobFinalOutput(output: unknown): unknown | null {
 
 function projectQueueJob(
   job: Job,
-  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
+  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>,
+  deploymentVersion: number | null
 ): WorkflowExecutionStatusResponse {
   const status: WorkflowExecutionStatusResponse['status'] =
     job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
@@ -105,6 +124,7 @@ function projectQueueJob(
     startedAt: startedAt.toISOString(),
     endedAt: endedAt?.toISOString() ?? null,
     totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+    deploymentVersion,
     paused: null,
     cost: null,
     error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
@@ -241,6 +261,23 @@ function projectExecutionStatus(
 export interface ProjectedWorkflowExecutionStatus {
   status: WorkflowExecutionStatusResponse
   projection: LogFieldProjection
+  /**
+   * The execution whose recorded state answered: the run itself, or the parent run a settled
+   * resume attempt continued. Further reads of the run's state (its pause points) use this id.
+   */
+  stateExecutionId: string
+  /**
+   * The state execution's raw `pause_points`, already loaded while the run is paused, so
+   * {@link readPausedRunPoints} need not read them again; null when the run is not paused.
+   */
+  pausePoints: unknown
+  /**
+   * The block a failed run's recorded trace names as its failure, or null when the run did not
+   * fail, its trace names none, or the viewer's group withholds execution data.
+   *
+   * permission-group-enforced: logs.trace_spans
+   */
+  failedBlock: FailedTraceBlock | null
 }
 
 /**
@@ -260,14 +297,20 @@ export interface ProjectedWorkflowExecutionStatus {
 export async function getProjectedWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<ProjectedWorkflowExecutionStatus | null> {
-  const status = await readWorkflowExecutionStatus(input)
-  if (!status) return null
+  const resolved = await readWorkflowExecutionStatus(input)
+  if (!resolved) return null
   const projection = await resolveLogFieldProjection(
     input.viewerUserId,
     input.workspaceId,
     input.workspaceOrganizationId
   )
-  return { status: projectExecutionStatus(status, projection), projection }
+  return {
+    status: projectExecutionStatus(resolved.status, projection),
+    projection,
+    stateExecutionId: resolved.stateExecutionId,
+    pausePoints: resolved.pausePoints,
+    failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
+  }
 }
 
 /**
@@ -298,9 +341,44 @@ function executionDataReadByPoll(
   )
 }
 
+/** The deployment version number a run's log recorded, or null when it recorded none. */
+async function readRunDeploymentVersion(
+  workflowId: string,
+  executionId: string
+): Promise<number | null> {
+  const [row] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.version ?? null
+}
+
+/**
+ * A status resource and the execution whose recorded state answered it: the run itself, or
+ * for a settled resume attempt with no log row of its own, the parent run it continued.
+ */
+interface ResolvedExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  stateExecutionId: string
+  /** The state execution's raw `pause_points`, loaded while it is paused; null otherwise. */
+  pausePoints: unknown
+  /** The failing block the recorded trace names, when the answered `error` is the run's own. */
+  failedBlock: FailedTraceBlock | null
+}
+
 async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
-): Promise<WorkflowExecutionStatusResponse | null> {
+): Promise<ResolvedExecutionStatus | null> {
   const { workflowId, executionId, includeOutput, selectedOutputs } = input
 
   const [logRow] = await db
@@ -316,8 +394,13 @@ async function readWorkflowExecutionStatus(
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       executionData: executionDataReadByPoll(input),
       costTotal: workflowExecutionLogs.costTotal,
+      deploymentVersion: workflowDeploymentVersion.version,
     })
     .from(workflowExecutionLogs)
+    .leftJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
     .where(
       and(
         eq(workflowExecutionLogs.executionId, executionId),
@@ -360,18 +443,33 @@ async function readWorkflowExecutionStatus(
     ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
   ]
 
+  /**
+   * An active resume continues its parent run on the version the parent admitted, so it
+   * reports that version before it has a log row of its own, as it does once it settles.
+   */
+  const deploymentVersion =
+    logRow?.deploymentVersion ??
+    (projectedResume
+      ? await readRunDeploymentVersion(workflowId, projectedResume.parentExecutionId)
+      : null)
+
   if (queueJobIds.length > 0) {
     const jobQueue = await getJobQueue()
     for (const jobId of queueJobIds) {
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
-      return projectQueueJob(job, { executionId, includeOutput, workflowId })
+      return {
+        status: projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion),
+        stateExecutionId: executionId,
+        pausePoints: null,
+        failedBlock: null,
+      }
     }
   }
 
   if (projectedResume) {
     const startedAt = projectedResume.claimedAt ?? projectedResume.queuedAt
-    return {
+    const status: WorkflowExecutionStatusResponse = {
       executionId,
       workflowId,
       status: 'queued',
@@ -380,12 +478,14 @@ async function readWorkflowExecutionStatus(
       startedAt: startedAt.toISOString(),
       endedAt: null,
       totalDurationMs: null,
+      deploymentVersion,
       paused: null,
       cost: null,
       error: null,
       finalOutput: null,
       blockOutputs: null,
     }
+    return { status, stateExecutionId: executionId, pausePoints: null, failedBlock: null }
   }
 
   if (!logRow) {
@@ -394,7 +494,15 @@ async function readWorkflowExecutionStatus(
       ...input,
       executionId: resumeAttempt.parentExecutionId,
     })
-    return run ? projectSettledResumeAttempt(executionId, resumeAttempt, run) : null
+    if (!run) return null
+    const status = projectSettledResumeAttempt(executionId, resumeAttempt, run.status)
+    return {
+      status,
+      stateExecutionId: run.stateExecutionId,
+      pausePoints: run.pausePoints,
+      failedBlock:
+        status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
+    }
   }
 
   const [pausedRow] = await db
@@ -408,11 +516,23 @@ async function readWorkflowExecutionStatus(
       nextResumeAt: pausedExecutions.nextResumeAt,
     })
     .from(pausedExecutions)
-    .where(eq(pausedExecutions.executionId, executionId))
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
     .limit(1)
 
+  /**
+   * An open pause record makes the run read `paused` unless the log has finished and no point
+   * is left to resume: a resume that ran and failed marks its point `failed` and fails the log
+   * but leaves the record open, and that point can never be resumed again.
+   */
   const isCurrentlyPaused =
-    !!pausedRow && (pausedRow.status === 'paused' || pausedRow.status === 'partially_resumed')
+    !!pausedRow &&
+    (pausedRow.status === 'paused' || pausedRow.status === 'partially_resumed') &&
+    !(hasTerminalLog && normalizePausePoints(pausedRow.pausePoints).every(isSettledPausePoint))
 
   let status: WorkflowExecutionStatusResponse['status']
   if (isCurrentlyPaused) {
@@ -452,6 +572,7 @@ async function readWorkflowExecutionStatus(
     startedAt: logRow.startedAt.toISOString(),
     endedAt: logRow.endedAt?.toISOString() ?? null,
     totalDurationMs: logRow.totalDurationMs ?? null,
+    deploymentVersion: logRow.deploymentVersion ?? null,
     paused,
     cost,
   }
@@ -460,7 +581,12 @@ async function readWorkflowExecutionStatus(
   const readsExecutionData =
     selectedOutputs.length > 0 || statusesReadingExecutionData(includeOutput).includes(status)
   if (!readsExecutionData) {
-    return { ...resource, error: null, finalOutput: null, blockOutputs: null }
+    return {
+      status: { ...resource, error: null, finalOutput: null, blockOutputs: null },
+      stateExecutionId: executionId,
+      pausePoints: paused ? pausedRow?.pausePoints : null,
+      failedBlock: null,
+    }
   }
 
   const requestedBlockIds = [
@@ -489,5 +615,160 @@ async function readWorkflowExecutionStatus(
       ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
-  return { ...resource, error, finalOutput, blockOutputs }
+  return {
+    status: { ...resource, error, finalOutput, blockOutputs },
+    stateExecutionId: executionId,
+    pausePoints: paused ? pausedRow?.pausePoints : null,
+    failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
+  }
+}
+
+/**
+ * Most pause points a run detail lists. A run that pauses again after resuming keeps its
+ * resumed points, so a run over the cap keeps every point not yet resumed before any resumed
+ * one: the points a caller can still act on are never crowded out by history.
+ */
+const MAX_PAUSED_RUN_POINTS = 100
+
+/** At most {@link MAX_PAUSED_RUN_POINTS}, keeping unresolved points in preference to resumed ones, earliest registered first. */
+function capPausePoints<P extends PausePoint>(points: P[]): P[] {
+  const byRegistration = (a: P, b: P) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? '')
+  const sorted = [...points].sort(byRegistration)
+  if (sorted.length <= MAX_PAUSED_RUN_POINTS) return sorted
+  const unresolved = sorted.filter((point) => point.resumeStatus !== 'resumed')
+  const resumed = sorted.filter((point) => point.resumeStatus === 'resumed')
+  return [...unresolved, ...resumed].slice(0, MAX_PAUSED_RUN_POINTS).sort(byRegistration)
+}
+
+/** One pause point of a paused run, as a caller reading the run may see it. */
+export interface PausedRunPoint {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: ResumeStatus
+  /** Null for a point recorded without a registration time. */
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: { parallelId: string; branchIndex: number; branchTotal: number | null } | null
+  loop: { loopId: string; iteration: number } | null
+  inputFields: PauseInputField[] | null
+  display: unknown
+  queuePosition: number | null
+}
+
+/**
+ * The pause points of a paused run, earliest registered first and capped at
+ * {@link MAX_PAUSED_RUN_POINTS} (unresolved points kept first), or null when the run has no
+ * paused record.
+ *
+ * Reads only `pause_points`, never the execution snapshot. `display` and
+ * `inputFields` come only from points scrubbed of the run's resolved secrets when
+ * they were captured; an older point's stored response was never scrubbed, so both
+ * are null for it. Resume links and API-mode response status and headers are never
+ * part of a point.
+ *
+ * A caller that already loaded the paused record's `pause_points` passes them as
+ * `pausePoints` and the record is not read again. A caller that lists only some
+ * points passes `only`, applied before the cap so the points it keeps are never
+ * crowded out by ones it would discard.
+ */
+export async function readPausedRunPoints(input: {
+  workflowId: string
+  executionId: string
+  pausePoints?: unknown
+  only?: (point: PausePoint) => boolean
+}): Promise<PausedRunPoint[] | null> {
+  const { workflowId, executionId } = input
+  const row =
+    input.pausePoints !== undefined
+      ? { pausePoints: input.pausePoints }
+      : (
+          await db
+            .select({ pausePoints: pausedExecutions.pausePoints })
+            .from(pausedExecutions)
+            .where(
+              and(
+                eq(pausedExecutions.executionId, executionId),
+                eq(pausedExecutions.workflowId, workflowId)
+              )
+            )
+            .limit(1)
+        )[0]
+  if (!row) return null
+
+  // Positions count the whole pending queue, so it is read unpaged: it holds a few columns per
+  // waiting point, never more than the `pause_points` already loaded above.
+  const pendingResumes = await db
+    .select({
+      contextId: resumeQueue.contextId,
+      status: resumeQueue.status,
+      queuedAt: resumeQueue.queuedAt,
+    })
+    .from(resumeQueue)
+    .where(and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending')))
+    .orderBy(resumeQueue.queuedAt)
+  const queuePositions = PauseResumeManager.computeQueuePositions(
+    pendingResumes.map((entry) => ({
+      contextId: entry.contextId,
+      status: entry.status,
+      queuedAt: entry.queuedAt?.toISOString() ?? null,
+    }))
+  )
+
+  const mapped = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
+  const points = await namePausePoints(
+    workflowId,
+    executionId,
+    capPausePoints(input.only ? mapped.filter(input.only) : mapped)
+  )
+
+  return points.map((point) => ({
+    contextId: point.contextId,
+    blockId: pauseBaseBlockId(point),
+    blockName: point.blockName ?? null,
+    kind: point.pauseKind === 'time' ? 'time' : 'human',
+    status: point.resumeStatus,
+    registeredAt: point.registeredAt ?? null,
+    resumeAt: point.resumeAt ?? null,
+    parallel: point.parallelScope
+      ? {
+          parallelId: point.parallelScope.parallelId,
+          branchIndex: point.parallelScope.branchIndex,
+          branchTotal: point.parallelScope.branchTotal ?? null,
+        }
+      : null,
+    loop: point.loopScope
+      ? { loopId: point.loopScope.loopId, iteration: point.loopScope.iteration }
+      : null,
+    inputFields: point.inputFields ?? null,
+    display: point.display ?? null,
+    queuePosition: point.queuePosition ?? null,
+  }))
+}
+
+/**
+ * Pause points as a viewer may see them. A point's `display` is what the block
+ * rendered from upstream outputs, so it follows `finalOutput`'s gating: withheld
+ * unless output was asked for and the viewer's group shows execution data.
+ * `inputFields` are resolved before the pause is captured, so a label or
+ * description can carry upstream values too: they are withheld from a viewer
+ * whose group hides execution data.
+ *
+ * The one copy of this rule, so every surface that lists pause points reveals
+ * no more than the run detail does.
+ *
+ * permission-group-enforced: logs.trace_spans
+ */
+export function projectPausedRunPoints(
+  points: readonly PausedRunPoint[],
+  options: { projection: LogFieldProjection; includeOutput: boolean }
+): PausedRunPoint[] {
+  const hidesExecutionData = options.projection.hideTraceSpans
+  const showsDisplay = options.includeOutput && !hidesExecutionData
+  return points.map((point) => ({
+    ...point,
+    display: showsDisplay ? point.display : null,
+    inputFields: hidesExecutionData ? null : point.inputFields,
+  }))
 }

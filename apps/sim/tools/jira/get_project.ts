@@ -1,10 +1,12 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetProjectParams, JiraGetProjectResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function buildProjectUrl(cloudId: string, projectIdOrKey: string): string {
-  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${encodeURIComponent(projectIdOrKey)}`
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${safeUrlPathSegment(projectIdOrKey, 'projectId')}`
 }
 
 export const jiraGetProjectTool: ToolConfig<JiraGetProjectParams, JiraGetProjectResponse> = {
@@ -64,7 +66,7 @@ export const jiraGetProjectTool: ToolConfig<JiraGetProjectParams, JiraGetProject
 
   transformResponse: async (response: Response, params?: JiraGetProjectParams) => {
     const fetchProject = async (cloudId: string) => {
-      const projectResponse = await fetch(buildProjectUrl(cloudId, params!.projectId), {
+      const projectResponse = await outboundFetch(buildProjectUrl(cloudId, params!.projectId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

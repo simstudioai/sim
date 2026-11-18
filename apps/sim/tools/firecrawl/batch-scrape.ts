@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import { cancelFirecrawlJob, readFirecrawlJobStatus } from '@/tools/firecrawl/job-polling'
 import {
   applyFirecrawlFormatModelInput,
   applyFirecrawlScrapeOptionsModelInput,
@@ -11,6 +13,7 @@ import {
 import type {
   FirecrawlBatchScrapeParams,
   FirecrawlBatchScrapeResponse,
+  FirecrawlJobStatusBody,
 } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -183,12 +186,13 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
       }
     },
 
-    postProcess: async (result, params) => {
+    postProcess: async (result, params, _executeTool, context) => {
       if (!result.success) {
         return result
       }
 
       const jobId = result.output.jobId
+      const signal = context?.signal
       const invalidURLs = result.output.invalidURLs ?? []
       logger.info(`Firecrawl batch scrape job ${jobId} created, polling for completion...`)
 
@@ -196,19 +200,26 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
 
       while (elapsedTime < MAX_POLL_TIME_MS) {
         try {
-          const statusResponse = await fetch(`https://api.firecrawl.dev/v2/batch/scrape/${jobId}`, {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${params.apiKey}`,
-              'Content-Type': 'application/json',
-            },
-          })
+          signal?.throwIfAborted()
+          const statusResponse = await outboundFetch(
+            `https://api.firecrawl.dev/v2/batch/scrape/${jobId}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${params.apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              signal,
+            }
+          )
 
           if (!statusResponse.ok) {
             throw new Error(`Failed to get batch scrape status: ${statusResponse.statusText}`)
           }
 
-          const batchData = await statusResponse.json()
+          const batchData = await readFirecrawlJobStatus<
+            FirecrawlJobStatusBody<FirecrawlBatchScrapeResponse['output']['pages']>
+          >(statusResponse, signal)
           logger.info(`Firecrawl batch scrape job ${jobId} status: ${batchData.status}`)
 
           if (batchData.status === 'completed') {
@@ -234,9 +245,11 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
             }
           }
 
-          await sleep(POLL_INTERVAL_MS)
+          await interruptibleSleep(POLL_INTERVAL_MS, signal)
           elapsedTime += POLL_INTERVAL_MS
         } catch (error: any) {
+          if (signal?.aborted && jobId)
+            await cancelFirecrawlJob(`batch/scrape/${encodeURIComponent(jobId)}`, params.apiKey)
           logger.error('Error polling for batch scrape job status:', {
             message: error.message || 'Unknown error',
             jobId,

@@ -58,9 +58,12 @@ export async function resolveVertexCredential({
   }
 
   if (cred.type === 'service_account') {
-    const accessToken = await getServiceAccountToken(cred.id, [
-      'https://www.googleapis.com/auth/cloud-platform',
-    ])
+    const accessToken = await getServiceAccountToken(
+      cred.id,
+      ['https://www.googleapis.com/auth/cloud-platform'],
+      undefined,
+      { service: 'vertex-ai' }
+    )
     recordCredentialAccess({
       actorId: actingUserId,
       workspaceId: cred.workspaceId,

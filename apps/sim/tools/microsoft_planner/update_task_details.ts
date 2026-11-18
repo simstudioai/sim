@@ -6,6 +6,7 @@ import type {
   PlannerTaskDetails,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerUpdateTaskDetails')
 
@@ -76,7 +77,7 @@ export const updateTaskDetailsTool: ToolConfig<
       if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}/details`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${safeUrlPathSegment(taskId, 'taskId')}/details`
     },
     method: 'PATCH',
     headers: (params) => {

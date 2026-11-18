@@ -40,9 +40,10 @@ function document(row: Record<string, unknown>, kind: string): NativeDocument {
 
 export async function searchGitLab(
   client: NativeClient,
-  input: NativeSearchInput
+  input: NativeSearchInput,
+  groupId?: number
 ): Promise<NativePage> {
-  if (!input.native?.project) {
+  if (!input.native?.project && groupId === undefined) {
     const projects = array(
       await client.json('/api/v4/projects', {
         query: {
@@ -83,13 +84,22 @@ export async function searchGitLab(
           : result.message,
     }
   }
-  if (!input.native.kind)
+  if (!input.native?.kind)
     return collectNativePages(
       ['issues', 'code', 'merge_requests'].map((kind) =>
-        searchGitLab(client, {
-          ...input,
-          native: { ...input.native!, kind: kind as 'issues' | 'code' | 'merge_requests' },
-        })
+        searchGitLab(
+          client,
+          {
+            ...input,
+            native: {
+              provider: 'gitlab',
+              query: input.query,
+              ...input.native,
+              kind: kind as 'issues' | 'code' | 'merge_requests',
+            },
+          },
+          groupId
+        )
       ),
       'Searched GitLab issues, merge requests, and code.'
     )
@@ -107,12 +117,18 @@ export async function searchGitLab(
       'GitLab supports issues, code, merge_requests, or wiki search.'
     )
   const page = input.native?.cursor ?? '1'
-  if (!/^\d{1,4}$/.test(page) || Number(page) < 1)
+  if (!/^\d{1,5}$/.test(page) || Number(page) < 1 || Number(page) > 10_000)
     throw new NativeSearchError('unavailable', 'Invalid GitLab page.')
   if (['code', 'wiki'].includes(kind) && hasDateBounds(input.filters))
     throw new NativeSearchError(
       'unavailable',
       'GitLab code/wiki search does not provide modification dates. Use issues or merge_requests for date-filtered search.'
+    )
+  const groupPageLimit = Math.floor(10_000 / input.limit)
+  if (groupId !== undefined && Number(page) > groupPageLimit)
+    throw new NativeSearchError(
+      'unavailable',
+      'GitLab group search reached its result window. Narrow the query or target a project.'
     )
   const dates = nativeDateBounds(input)
   const listing = Boolean(
@@ -123,14 +139,17 @@ export async function searchGitLab(
   let response: unknown
   try {
     response = await client.json(
-      listing
-        ? `/api/v4/projects/${segment(input.native!.project!)}/${kind}`
-        : input.native?.project
-          ? `/api/v4/projects/${segment(input.native.project)}/search`
-          : '/api/v4/search',
+      groupId !== undefined
+        ? `/api/v4/groups/${groupId}/search`
+        : listing
+          ? `/api/v4/projects/${segment(input.native!.project!)}/${kind}`
+          : input.native?.project
+            ? `/api/v4/projects/${segment(input.native.project)}/search`
+            : '/api/v4/search',
       {
         query: {
           scope: listing ? 'all' : scope,
+          ...(groupId !== undefined ? { exclude_forks: 'false', include_archived: 'true' } : {}),
           ...(nativeText(input) ? { search: nativeText(input) } : {}),
           ...(listing && dates.start ? { updated_after: dates.start } : {}),
           ...(listing && dates.end ? { updated_before: dates.end } : {}),
@@ -147,17 +166,19 @@ export async function searchGitLab(
       throw new NativeSearchError(
         error.status,
         `GitLab ${kind} search: ${error.message}`,
-        error.retryAfterSeconds
+        error.retryAfterSeconds,
+        error.httpStatus,
+        error.diagnosticCode
       )
     throw error
   }
-  if (!Array.isArray(response))
+  if (!Array.isArray(response) || response.length > input.limit)
     throw new NativeSearchError('unavailable', 'GitLab returned an invalid search response.')
   const data = array(response)
   const documents = data.map((row) => document(row, kind))
   const projects = new Map<string, string>()
   for (const item of documents) {
-    if (!item.url && item.container) {
+    if (groupId === undefined && !item.url && item.container) {
       let url = projects.get(item.container)
       if (!url) {
         url = string(
@@ -173,9 +194,15 @@ export async function searchGitLab(
             : `${url}/-/${kind}/${segment(item.id)}`
     }
   }
+  const capped =
+    groupId !== undefined && Number(page) === groupPageLimit && data.length === input.limit
   return {
     documents,
-    ...(data.length === input.limit ? { nextCursor: String(Number(page) + 1) } : {}),
+    ...(capped
+      ? { partial: true, hasMore: true }
+      : data.length === input.limit
+        ? { nextCursor: String(Number(page) + 1) }
+        : {}),
     message:
       'GitLab code/wiki/global search availability depends on the instance plan and enabled search backend. Set project to narrow to a project ID or path.',
   }

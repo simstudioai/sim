@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapSubscription,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetSubscriptionTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrGetSubscriptionTool: ToolConfig<
   name: 'Checkr Get Subscription',
   description: 'Retrieve a subscription by ID, including its schedule and next occurrence.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

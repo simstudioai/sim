@@ -4,6 +4,7 @@ import {
   type Rb2bMaidResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bIpToMaidTool: ToolConfig<Rb2bIpToMaidParams, Rb2bMaidResponse> = {
@@ -12,6 +13,7 @@ export const rb2bIpToMaidTool: ToolConfig<Rb2bIpToMaidParams, Rb2bMaidResponse> 
   description:
     'Resolve an IP address (and optional user agent) into mobile advertising identifiers (MAIDs) observed over the last 60 days.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -73,6 +73,7 @@ export interface MicrosoftExcelToolParams {
   driveId?: string
   sessionId?: string
   range?: string
+  valuesOnly?: boolean
   values?: ExcelCellValue[][]
   formulas?: ExcelCellValue[][]
   formulasLocal?: ExcelCellValue[][]
@@ -224,6 +225,7 @@ export interface MicrosoftExcelV2ToolParams {
   sessionId?: string
   sheetName: string
   cellRange?: string
+  valuesOnly?: boolean
   values?: ExcelCellValue[][]
   formulas?: ExcelCellValue[][]
   formulasLocal?: ExcelCellValue[][]

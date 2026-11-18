@@ -1,11 +1,14 @@
 import type { RipplingDeleteCustomSettingParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSettingParams> = {
   id: 'rippling_delete_custom_setting',
   name: 'Rippling Delete Custom Setting',
   description: 'Delete a custom setting',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -17,12 +20,12 @@ export const ripplingDeleteCustomSettingTool: ToolConfig<RipplingDeleteCustomSet
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the resource to delete',
+      description: 'Custom setting API name (api_name) to delete',
     },
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

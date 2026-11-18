@@ -54,8 +54,8 @@ export function newChatRoute(lastRoute: string | undefined): string {
 }
 
 /**
- * Route for "Settings…": the settings of the workspace or organization the user
- * was last in. Never the app entry, which lands on a page without settings.
+ * Route for "Settings…": the Desktop settings of the workspace or organization the
+ * user was last in. Never the app entry, which lands on a page without settings.
  */
 export function settingsRoute(lastRoute: string | undefined): string {
   const workspaceId = workspaceIdFromRoute(lastRoute)
@@ -63,5 +63,18 @@ export function settingsRoute(lastRoute: string | undefined): string {
     return `/workspace/${workspaceId}/settings/desktop`
   }
   const organizationId = organizationIdFromRoute(lastRoute)
-  return organizationId ? `/o/${organizationId}/settings/general` : SETTINGS_ENTRY_ROUTE
+  return organizationId ? `/o/${organizationId}/settings/desktop` : SETTINGS_ENTRY_ROUTE
+}
+
+/**
+ * Route for the quick chat window: the web app's compact chat surface (the one the browser
+ * extension's side panel frames), scoped to the workspace or organization the user was last in.
+ */
+export function quickChatRoute(lastRoute: string | undefined): string {
+  const workspaceId = workspaceIdFromRoute(lastRoute)
+  if (workspaceId) {
+    return `/extension/${workspaceId}`
+  }
+  const organizationId = organizationIdFromRoute(lastRoute)
+  return organizationId ? `/extension/o/${organizationId}` : '/extension'
 }

@@ -217,7 +217,7 @@ Query rows with a typed predicate filter and cursor pagination. A single filter 
 | --------- | ---- | -------- | ----------- |
 | `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `filter` | json | No | Predicate condition, e.g. `\{"field":"wins","op":"gte","value":10\}`. Use `all` or `any` for multiple conditions; omit to match all rows. |
-| `columns` | array | No | Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored. |
+| `columns` | array | No | Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored; if none match, each row's data is empty. |
 | `order` | json | No | Sort spec, e.g. `\[\{"field":"wins","direction":"desc"\}\]`. |
 | `limit` | number | No | Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the fixed 5 MiB row-data budget. With a limit, pages may byte-cut early and set nextCursor when more remain. |
 | `cursor` | string | No | Opaque pagination cursor returned by a prior query. Omit for the first page. |

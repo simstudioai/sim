@@ -5,6 +5,7 @@ import {
   type Ec2DescribeVpcEndpointsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeVpcEndpointsTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeVpcEndpointsTool: InternalToolConfig<
   name: 'EC2 Describe VPC Endpoints',
   description: 'List VPC endpoints with their service, type, state, and network placement',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

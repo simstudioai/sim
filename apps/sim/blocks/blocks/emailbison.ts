@@ -1,6 +1,7 @@
 import { EmailBisonIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const LEAD_MUTATION_OPERATIONS = ['create_lead', 'update_lead'] as const
@@ -34,6 +35,8 @@ const EMAILBISON_TRIGGER_IDS = [
 
 export const EmailBisonBlock: BlockConfig = {
   type: 'emailbison',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'emailbison_v2' },
   name: 'Email Bison',
   description: 'Manage Email Bison leads, campaigns, replies, and tags',
   longDescription:
@@ -521,42 +524,58 @@ export const EmailBisonBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `emailbison_${params.operation}`,
-      params: (params) => ({
-        apiBaseUrl: params.apiBaseUrl,
-        leadId:
-          params.operation === 'list_replies' ? toNumberParam(params.replyLeadId) : params.leadId,
-        leadIds: parseNumberList(params.leadIds),
-        tagIds: parseNumberList(
-          params.operation === 'attach_tags_to_leads' ? params.tagIds : params.filterTagIds
-        ),
-        excludedTagIds: parseNumberList(params.excludedTagIds),
-        customVariables: parseJsonArray(params.customVariables),
-        campaignId: toNumberParam(params.campaignId),
-        campaignType: emptyToUndefined(params.campaignType),
-        name:
-          params.operation === 'create_tag' || params.operation === 'create_campaign'
-            ? params.operation === 'create_tag'
-              ? params.tagName
-              : params.campaignName
-            : emptyToUndefined(params.campaignName),
-        action: params.action,
-        maxEmailsPerDay: toNumberParam(params.maxEmailsPerDay),
-        maxNewLeadsPerDay: toNumberParam(params.maxNewLeadsPerDay),
-        sequencePrioritization: emptyToUndefined(params.sequencePrioritization),
-        plainText: toBooleanParam(params.plainText),
-        openTracking: toBooleanParam(params.openTracking),
-        reputationBuilding: toBooleanParam(params.reputationBuilding),
-        canUnsubscribe: toBooleanParam(params.canUnsubscribe),
-        includeAutoRepliesInStats: toBooleanParam(params.includeAutoRepliesInStats),
-        allowParallelSending: toBooleanParam(params.allowParallelSending),
-        skipWebhooks: toBooleanParam(params.skipWebhooks),
-        withoutTags: toBooleanParam(params.withoutTags),
-        read: toBooleanParam(params.read),
-        senderEmailId: toNumberParam(params.senderEmailId),
-        campaignStatus: emptyToUndefined(params.campaignStatus),
-        status:
-          params.operation === 'list_replies' ? emptyToUndefined(params.replyStatus) : undefined,
-      }),
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const toolCall = isToolCall(context)
+        /** A block-only field; on a tool call a blank one yields to the model's arg under the tool's param name. */
+        const blockFieldOr = (blockValue: unknown, modelArg: unknown) =>
+          toolCall ? (emptyToUndefined(blockValue) ?? modelArg) : blockValue
+        return {
+          apiBaseUrl: params.apiBaseUrl,
+          leadId:
+            operation === 'list_replies'
+              ? (toNumberParam(params.replyLeadId) ??
+                toNumberParam(toolCallArg(context, params.leadId)))
+              : params.leadId,
+          leadIds: parseNumberList(params.leadIds),
+          tagIds:
+            operation === 'attach_tags_to_leads'
+              ? parseNumberList(params.tagIds)
+              : (parseNumberList(params.filterTagIds) ??
+                parseNumberList(toolCallArg(context, params.tagIds))),
+          excludedTagIds: parseNumberList(params.excludedTagIds),
+          customVariables: parseJsonArray(params.customVariables),
+          campaignId: toNumberParam(params.campaignId),
+          campaignType: emptyToUndefined(params.campaignType),
+          name:
+            operation === 'create_tag'
+              ? blockFieldOr(params.tagName, params.name)
+              : operation === 'create_campaign'
+                ? blockFieldOr(params.campaignName, params.name)
+                : (emptyToUndefined(params.campaignName) ??
+                  emptyToUndefined(toolCallArg(context, params.name))),
+          action: params.action,
+          maxEmailsPerDay: toNumberParam(params.maxEmailsPerDay),
+          maxNewLeadsPerDay: toNumberParam(params.maxNewLeadsPerDay),
+          sequencePrioritization: emptyToUndefined(params.sequencePrioritization),
+          plainText: toBooleanParam(params.plainText),
+          openTracking: toBooleanParam(params.openTracking),
+          reputationBuilding: toBooleanParam(params.reputationBuilding),
+          canUnsubscribe: toBooleanParam(params.canUnsubscribe),
+          includeAutoRepliesInStats: toBooleanParam(params.includeAutoRepliesInStats),
+          allowParallelSending: toBooleanParam(params.allowParallelSending),
+          skipWebhooks: toBooleanParam(params.skipWebhooks),
+          withoutTags: toBooleanParam(params.withoutTags),
+          read: toBooleanParam(params.read),
+          senderEmailId: toNumberParam(params.senderEmailId),
+          campaignStatus: emptyToUndefined(params.campaignStatus),
+          status:
+            operation === 'list_replies'
+              ? (emptyToUndefined(params.replyStatus) ??
+                emptyToUndefined(toolCallArg(context, params.status)))
+              : undefined,
+        }
+      },
     },
   },
   inputs: {
@@ -771,3 +790,17 @@ export const EmailBisonBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const EmailBisonV2Block: BlockConfig = {
+  ...EmailBisonBlock,
+  type: 'emailbison_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(EmailBisonBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'emailbison',
+    title: 'Email Bison Credential',
+  }),
+}

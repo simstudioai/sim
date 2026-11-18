@@ -1,6 +1,5 @@
-import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
+import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
-  createSsrfGuardedFetchWithDispatcher,
   type SecureFetchOptions,
   type SecureFetchResponse,
   secureFetchWithValidation,
@@ -61,7 +60,6 @@ export async function secureFetchWithRetry(
 }
 
 const DEFAULT_FETCH_RETRY_BUDGET_MS = 150_000
-let connectorTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
 
 /**
  * Bounds requests and response bodies within one retry budget.
@@ -84,18 +82,10 @@ export async function fetchWithRetry(
         signal,
         AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
       ])
-      const transport: typeof fetch = async (input, init) => {
-        const route = await resolveCurrentOutboundRoute()
-        if (route.kind === 'direct') return fetch(input, init)
-        connectorTransport ??= createSsrfGuardedFetchWithDispatcher({
-          profile: 'configuredEndpoint',
-        })
-        return connectorTransport.fetch(input, init)
-      }
       const init = { ...options, signal: requestSignal }
       const response = retryOptions.fetcher
-        ? await retryOptions.fetcher(url, init, transport)
-        : await transport(url, init)
+        ? await retryOptions.fetcher(url, init, scopedOutboundFetch)
+        : await scopedOutboundFetch(url, init)
 
       if (
         !response.ok &&

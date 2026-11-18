@@ -115,6 +115,7 @@ const INBOX_TASK = {
   workspaceId: 'workspace-1',
   status: 'received',
   fromEmail: 'sender@example.com',
+  senderAuthenticated: true,
   fromName: 'Sender',
   subject: 'Task',
   bodyPreview: 'Please do this',

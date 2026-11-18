@@ -3,6 +3,7 @@ import type {
   CalendlyListScheduledEventsResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listScheduledEventsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listScheduledEventsTool: ToolConfig<
   name: 'Calendly List Scheduled Events',
   description: 'Retrieve a list of scheduled events for a user or organization',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -38,7 +40,7 @@ export const listScheduledEventsTool: ToolConfig<
     invitee_email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Return events where invitee has this email',
     },
     count: {

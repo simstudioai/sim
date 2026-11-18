@@ -63,6 +63,50 @@ describe('native history request binding', () => {
     ).not.toBe(initial)
   })
 
+  it('binds a saved AWS credential, not the session it resolved to for one run', () => {
+    const session = (credentialId: string, accessKeyId: string) => ({
+      credentialId,
+      accessKeyId,
+      secretAccessKey: `${accessKeyId}-secret`,
+      sessionToken: `${accessKeyId}-token`,
+    })
+    const first = getConversationBinding('bedrock', {
+      ...request,
+      bedrockSession: session('aws-cred-1', 'ASIAFIRSTSESSION0001'),
+    })
+
+    expect(
+      getConversationBinding('bedrock', {
+        ...request,
+        bedrockSession: session('aws-cred-1', 'ASIANEXTSESSION00002'),
+      })
+    ).toBe(first)
+    expect(
+      getConversationBinding('bedrock', {
+        ...request,
+        bedrockSession: session('aws-cred-2', 'ASIAFIRSTSESSION0001'),
+      })
+    ).not.toBe(first)
+    expect(getConversationBinding('bedrock', request)).not.toBe(first)
+  })
+
+  it('ignores inline access keys left on a block that signs with a saved AWS credential', () => {
+    const savedCredentialRequest = (bedrockAccessKeyId: string, bedrockSecretKey: string) => ({
+      ...request,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockSession: {
+        credentialId: 'aws-cred-1',
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+      },
+    })
+
+    expect(
+      getConversationBinding('bedrock', savedCredentialRequest('AKIAOLDKEY0000000001', 'old'))
+    ).toBe(getConversationBinding('bedrock', savedCredentialRequest('AKIANEWKEY0000000002', 'new')))
+  })
+
   it('binds JSON-shaped parameter projection metadata for pending tool replay', () => {
     const tool: ProviderToolConfig = {
       id: 'lookup',

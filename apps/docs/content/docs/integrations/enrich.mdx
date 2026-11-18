@@ -2,7 +2,7 @@
 title: Enrich
 description: B2B data enrichment and LinkedIn intelligence with Enrich.so
 integration:
-  type: "enrich"
+  type: "enrich_v2"
   color: "#E5E5E6"
 ---
 
@@ -29,7 +29,6 @@ Check your Enrich API credit usage and remaining balance.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 
 #### Output
 
@@ -51,7 +50,6 @@ Retrieve detailed LinkedIn profile information using an email address including 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to look up \(e.g., john.doe@company.com\) |
 | `inRealtime` | boolean | No | Set to true to retrieve fresh data, bypassing cached information |
 
@@ -104,7 +102,6 @@ Retrieve basic LinkedIn profile information from an email address. A lighter ver
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to look up \(e.g., john.doe@company.com\) |
 
 #### Output
@@ -144,7 +141,6 @@ Enrich a LinkedIn profile URL with detailed information including positions, edu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `url` | string | Yes | LinkedIn profile URL \(e.g., linkedin.com/in/williamhgates\) |
 
 #### Output
@@ -190,7 +186,6 @@ Find a person's work email address using their full name and company domain.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `fullName` | string | Yes | Person's full name \(e.g., John Doe\) |
 | `companyDomain` | string | Yes | Company domain \(e.g., example.com\) |
 
@@ -217,7 +212,6 @@ Find a work email address from a LinkedIn profile URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `linkedinProfile` | string | Yes | LinkedIn profile URL \(e.g., https://www.linkedin.com/in/williamhgates) |
 
 #### Output
@@ -240,7 +234,6 @@ Find personal email address from a LinkedIn profile URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `linkedinProfile` | string | Yes | LinkedIn profile URL \(e.g., linkedin.com/in/username\) |
 
 #### Output
@@ -263,7 +256,6 @@ Find a phone number from a LinkedIn profile URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `linkedinProfile` | string | Yes | LinkedIn profile URL \(e.g., linkedin.com/in/williamhgates\) |
 
 #### Output
@@ -287,7 +279,6 @@ Find a phone number associated with an email address.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to look up \(e.g., john.doe@example.com\) |
 
 #### Output
@@ -311,7 +302,6 @@ Verify an email address for deliverability, including catch-all detection and pr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to verify \(e.g., john.doe@example.com\) |
 
 #### Output
@@ -339,7 +329,6 @@ Check if an email address is from a disposable or temporary email provider. Retu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to check \(e.g., john.doe@example.com\) |
 
 #### Output
@@ -368,7 +357,6 @@ Discover an IP address associated with an email address.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `email` | string | Yes | Email address to look up \(e.g., john.doe@example.com\) |
 
 #### Output
@@ -391,7 +379,6 @@ Identify a company from an IP address with detailed firmographic information.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `ip` | string | Yes | IP address to look up \(e.g., 86.92.60.221\) |
 
 #### Output
@@ -428,7 +415,6 @@ Look up company information by name or domain, including funding, location, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `name` | string | No | Company name \(e.g., Google\) |
 | `domain` | string | No | Company domain \(e.g., google.com\) |
 
@@ -474,7 +460,6 @@ Retrieve company funding history, traffic metrics, and executive information by 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `domain` | string | Yes | Company domain \(e.g., example.com\) |
 
 #### Output
@@ -510,7 +495,6 @@ Retrieve company revenue data, CEO information, and competitive analysis by doma
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `domain` | string | Yes | Company domain \(e.g., clay.io\) |
 
 #### Output
@@ -556,7 +540,6 @@ Search for professionals by various criteria including name, title, skills, educ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `firstName` | string | No | First name |
 | `lastName` | string | No | Last name |
 | `summary` | string | No | Professional summary keywords |
@@ -610,7 +593,6 @@ Search for companies by various criteria including name, industry, location, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `name` | string | No | Company name |
 | `website` | string | No | Company website URL |
 | `tagline` | string | No | Company tagline |
@@ -657,7 +639,6 @@ Search for employees within specific companies by location and job title.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `companyIds` | json | No | Array of company IDs to search within |
 | `country` | string | No | Country filter \(e.g., United States\) |
 | `city` | string | No | City filter \(e.g., San Francisco\) |
@@ -696,7 +677,6 @@ Find companies similar to a given company by LinkedIn URL with filters for locat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `url` | string | Yes | LinkedIn company URL \(e.g., linkedin.com/company/google\) |
 | `accountLocation` | json | No | Filter by locations \(array of country names\) |
 | `employeeSizeType` | string | No | Employee size filter type \(e.g., RANGE\) |
@@ -735,7 +715,6 @@ Advanced people search with complex filters for location, company size, seniorit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `page` | number | Yes | Page number \(starts at 1\) |
 | `filters` | json | Yes | Array of filter objects. Each filter has type \(e.g., POSTAL_CODE, COMPANY_HEADCOUNT\), values \(array with id, text, selectionType: INCLUDED/EXCLUDED\), and optional selectedSubFilter |
 
@@ -769,7 +748,6 @@ Search LinkedIn job postings by keywords with filters for location, job type, wo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `keywords` | string | Yes | Search keywords \(e.g., "software engineer"\) |
 | `location` | string | No | Location filter \(e.g., London\) |
 | `jobTypes` | string | No | Comma-separated job types \(e.g., "full time, part time"\) |
@@ -808,7 +786,6 @@ Search LinkedIn posts by keywords with date filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `keywords` | string | Yes | Search keywords \(e.g., "AI automation"\) |
 | `datePosted` | string | No | Time filter \(e.g., past_week, past_month\) |
 | `page` | number | No | Page number \(default: 1\) |
@@ -845,7 +822,6 @@ Get detailed information about a LinkedIn post by URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `url` | string | Yes | LinkedIn post URL |
 
 #### Output
@@ -877,7 +853,6 @@ Get reactions on a LinkedIn post with filtering by reaction type.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `postUrn` | string | Yes | LinkedIn activity URN \(e.g., urn:li:activity:7231931952839196672\) |
 | `reactionType` | string | Yes | Reaction type filter: all, like, love, celebrate, insightful, or funny \(default: all\) |
 | `page` | number | Yes | Page number \(starts at 1\) |
@@ -910,7 +885,6 @@ Get reactions on a LinkedIn post by its URL, filtered by reaction type.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `postUrl` | string | Yes | LinkedIn post URL \(e.g., https://www.linkedin.com/posts/...) |
 | `reactionType` | string | Yes | Reaction type filter: all, like, love, celebrate, insightful, or funny \(default: all\) |
 | `page` | number | Yes | Page number \(starts at 1\) |
@@ -943,7 +917,6 @@ Get comments on a LinkedIn post.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `postUrn` | string | Yes | LinkedIn activity URN \(e.g., urn:li:activity:7191163324208705536\) |
 | `page` | number | No | Page number \(starts at 1, default: 1\) |
 
@@ -985,7 +958,6 @@ Get comments on a LinkedIn post by its URL.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `postUrl` | string | Yes | LinkedIn post URL \(e.g., https://www.linkedin.com/posts/...) |
 | `page` | number | No | Page number \(starts at 1, default: 1\) |
 
@@ -1027,7 +999,6 @@ Get a person's LinkedIn activities (posts, comments, or articles) by profile ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `profileId` | string | Yes | LinkedIn profile ID |
 | `activityType` | string | Yes | Activity type: posts, comments, or articles |
 | `paginationToken` | string | No | Pagination token for next page of results |
@@ -1066,7 +1037,6 @@ Get a company's LinkedIn activities (posts, comments, or articles) by company ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `companyId` | string | Yes | LinkedIn company ID |
 | `activityType` | string | Yes | Activity type: posts, comments, or articles |
 | `paginationToken` | string | No | Pagination token for next page of results |
@@ -1106,7 +1076,6 @@ Convert an MD5 email hash back to the original email address and display name.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `hash` | string | Yes | MD5 hash value to look up |
 
 #### Output
@@ -1130,7 +1099,6 @@ Get a company logo image URL by domain.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Enrich API key |
 | `url` | string | Yes | Company domain \(e.g., google.com\) |
 
 #### Output

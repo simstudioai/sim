@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InvoiceListResponse, SearchInvoicesParams } from '@/tools/square/types'
 import {
   INVOICE_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
   name: 'Square Search Invoices',
   description: 'Search invoices across one or more locations',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -43,7 +46,7 @@ export const squareSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/invoices/search`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices/search`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

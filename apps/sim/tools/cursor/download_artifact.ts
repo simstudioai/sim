@@ -3,6 +3,7 @@ import type {
   DownloadArtifactResponse,
   DownloadArtifactV2Response,
 } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 const downloadArtifactBase = {
@@ -23,7 +24,8 @@ const downloadArtifactBase = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Absolute path of the artifact to download (e.g., /src/index.ts)',
+      description:
+        'Absolute artifact path from List Artifacts (e.g., /opt/cursor/artifacts/screenshot.png)',
     },
   },
   operation: {
@@ -46,6 +48,7 @@ export const downloadArtifactTool: InternalToolConfig<
   name: 'Cursor Download Artifact',
   description: 'Download a generated artifact file from a cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...downloadArtifactBase,
 
@@ -95,6 +98,7 @@ export const downloadArtifactV2Tool: InternalToolConfig<
   description:
     'Download a generated artifact file from a cloud agent. Returns the file for execution storage.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   transformResponse: async (response) => {
     const data = await response.json()

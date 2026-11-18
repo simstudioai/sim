@@ -1063,6 +1063,7 @@ type CancelOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -1436,6 +1437,7 @@ type CancelWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2038,6 +2040,7 @@ export type CreateCredentialConnectionBody =
         | 'ramp'
         | 'helpscout'
         | 'hubspot'
+        | 'apollo'
         | 'linkedin'
         | 'instagram'
         | 'salesforce'
@@ -2060,11 +2063,47 @@ export type CreateCredentialConnectionBody =
 
 type CreateCredentialConnectionResponseRef0 = {
   authorizationUrl: string
+  draftId: string
   expiresAt: string
 }
 
 export type CreateCredentialConnectionResponse = {
   data: CreateCredentialConnectionResponseRef0
+}
+
+/** `POST /api/v2/credentials/workload-identity/subjects` */
+export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, unknown>
+
+export type CreateCredentialWorkloadIdentitySubjectBody = {
+  workspaceId: string
+  providerId:
+    | 'aws-service-account'
+    | 'databricks-service-account'
+    | 'snowflake-service-account'
+    | 'microsoft-app-service-account'
+    | 'google-service-account'
+  subject?: string
+}
+
+type CreateCredentialWorkloadIdentitySubjectResponseRef0 = {
+  issuer: string
+  audience?: string
+  subject: string
+  subjectProof: string
+  expiresAt: string
+  subjectIssuedAt: string
+  subjectHeldUntil: string
+  keylessConfig: {
+    authType: string
+    subject: string
+    subjectProof: string
+  }
+  requiredConfigFields: Array<string>
+  optionalConfigFields: Array<string>
+}
+
+export type CreateCredentialWorkloadIdentitySubjectResponse = {
+  data: CreateCredentialWorkloadIdentitySubjectResponseRef0
 }
 
 /** `POST /api/v2/custom-tools` */
@@ -2772,6 +2811,7 @@ export type CreateOrganizationAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2851,6 +2891,7 @@ type CreateOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2986,6 +3027,7 @@ export type CreatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -3042,6 +3084,7 @@ type CreatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -4075,6 +4118,7 @@ export type CreateWorkspaceAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -4154,6 +4198,7 @@ type CreateWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5209,6 +5254,7 @@ type DiscoverOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5317,6 +5363,7 @@ type DiscoverWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5545,6 +5592,7 @@ export type ExecuteWorkflowBody = {
   run?:
     | {
         source: 'deployment'
+        version?: number
       }
     | {
         source: 'manual'
@@ -5602,11 +5650,13 @@ type ExecuteWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  executionTimeoutSeconds: number | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
   runId: string
   statusUrl: string
+  executionTimeoutSeconds: number | null
 }
 
 export type ExecuteWorkflowResponse =
@@ -5818,6 +5868,11 @@ type GetBillingStatusResponseRef0 = {
     limitBytes: number
     percentUsed: number
   } | null
+  limits: {
+    maxSyncExecutionTimeoutSeconds: number | null
+    maxAsyncExecutionTimeoutSeconds: number | null
+    maxConcurrentExecutions: number | null
+  }
 }
 
 export type GetBillingStatusResponse = {
@@ -5836,6 +5891,7 @@ export type GetBlockQuery = {
 type GetBlockResponseRef0 = {
   id: string
   type: string
+  valueType?: 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
   title?: string
   required?: boolean
   requiredWhen?: GetBlockResponseRef1
@@ -6629,6 +6685,15 @@ type GetMetaResponseRef0 = {
   v2Enabled: boolean
   keyType: 'personal' | 'workspace' | 'oauth_access_token'
   expiresAt: string | null
+  scopes: Array<'api:read' | 'api:write' | 'search:read'>
+  keyId: string | null
+  userId: string | null
+  workspaceId: string | null
+  links: {
+    openapi: string
+    docs: string
+    mcp: string
+  }
 }
 
 export type GetMetaResponse = {
@@ -6869,6 +6934,7 @@ type GetPermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -7160,6 +7226,22 @@ export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type GetSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourcePermissionsQuery = Record<string, unknown>
+
+type GetSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type GetSearchSourcePermissionsResponse = {
+  data: GetSearchSourcePermissionsResponseRef0
+}
+
 /** `POST /api/v2/selectors/get` */
 export type GetSelectorQuery = Record<string, unknown>
 
@@ -7273,8 +7355,14 @@ export type GetSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -7690,6 +7778,12 @@ type GetWorkflowResponseRef0 = {
 }
 
 type GetWorkflowResponseRef1 = {
+  type: string
+  properties?: Record<string, unknown>
+  required?: Array<string>
+}
+
+type GetWorkflowResponseRef2 = {
   id: string
   webUrl: string
   name: string
@@ -7704,10 +7798,11 @@ type GetWorkflowResponseRef1 = {
   updatedAt: string
   variables: Record<string, unknown>
   inputs: Array<GetWorkflowResponseRef0>
+  inputSchema: GetWorkflowResponseRef1 | null
 }
 
 export type GetWorkflowResponse = {
-  data: GetWorkflowResponseRef1
+  data: GetWorkflowResponseRef2
 }
 
 /** `GET /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -7834,6 +7929,38 @@ export type GetWorkflowMcpServerResponse = {
   data: GetWorkflowMcpServerResponseRef0
 }
 
+/** `GET /api/v2/workflows/[workflowId]/outline` */
+export type GetWorkflowOutlineParams = {
+  workflowId: string
+}
+
+export type GetWorkflowOutlineQuery = Record<string, unknown>
+
+type GetWorkflowOutlineResponseRef0 = {
+  type: string
+  name: string
+  enabled: boolean
+  inputs?: Record<string, unknown>
+  connections?: Record<string, string | Array<string>>
+  nestedNodes?: Record<string, unknown>
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+}
+
+type GetWorkflowOutlineResponseRef1 = {
+  blocks: Record<string, GetWorkflowOutlineResponseRef0>
+}
+
+export type GetWorkflowOutlineResponse = {
+  data: GetWorkflowOutlineResponseRef1
+}
+
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]` */
 export type GetWorkflowRunParams = {
   workflowId: string
@@ -7848,6 +7975,38 @@ export type GetWorkflowRunQuery = {
 }
 
 type GetWorkflowRunResponseRef0 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<GetWorkflowRunResponseRef1> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type GetWorkflowRunResponseRef1 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+type GetWorkflowRunResponseRef2 = {
   message: string
   code:
     | 'TIMEOUT'
@@ -7862,7 +8021,7 @@ type GetWorkflowRunResponseRef0 = {
   blockType?: string
 }
 
-type GetWorkflowRunResponseRef1 = {
+type GetWorkflowRunResponseRef3 = {
   id: string
   name: string
   size: number
@@ -7871,7 +8030,7 @@ type GetWorkflowRunResponseRef1 = {
   base64: string | null
 }
 
-type GetWorkflowRunResponseRef2 = {
+type GetWorkflowRunResponseRef4 = {
   runId: string
   workflowId: string
   status:
@@ -7887,6 +8046,7 @@ type GetWorkflowRunResponseRef2 = {
   startedAt: string | null
   endedAt: string | null
   durationMs: number | null
+  version: number | null
   paused: {
     contextId: string | null
     pausedAt: string
@@ -7896,18 +8056,19 @@ type GetWorkflowRunResponseRef2 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
     total: number
   } | null
-  error: GetWorkflowRunResponseRef0 | null
+  error: GetWorkflowRunResponseRef2 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
-  files: Array<GetWorkflowRunResponseRef1> | null
+  files: Array<GetWorkflowRunResponseRef3> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef2
+  data: GetWorkflowRunResponseRef4
 }
 
 /** `GET /api/v2/workflows/[workflowId]/state` */
@@ -8246,6 +8407,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   } | null
   entitled: boolean
   organizationId: string | null
@@ -8589,6 +8751,10 @@ type ListConnectorTypesResponseRef0 = {
         label?: string
         placeholder?: string
         optional: boolean
+        savedCredential?: {
+          provider: string
+          label: string
+        }
       }
   configFields: Array<ListConnectorTypesResponseRef1>
   supportsIncrementalSync: boolean
@@ -8621,6 +8787,7 @@ type ListConnectorTypesResponseRef1 = {
   mode?: 'basic' | 'advanced'
   canonicalParamId?: string
   multi?: boolean
+  apiKeyOnly?: boolean
 }
 
 type ListConnectorTypesResponseRef2 = {
@@ -8696,6 +8863,7 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
     }
@@ -8722,8 +8890,14 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
+      keyless?: {
+        authType: string
+        requiredConfigFields: Array<string>
+        optionalConfigFields: Array<string>
+      }
     }
 
 export type ListCredentialProvidersResponse = {
@@ -9419,6 +9593,7 @@ type ListMyOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9527,6 +9702,7 @@ type ListMyWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9636,6 +9812,7 @@ type ListOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9893,6 +10070,61 @@ export type ListOrganizationWorkspacesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/runs/paused` */
+export type ListPausedRunsQuery = {
+  workspaceId: string
+  includeOutput?: boolean
+  limit?: number
+  cursor?: string
+  sortBy?: 'pausedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListPausedRunsResponseRef0 = {
+  runId: string
+  workflowId: string
+  workflowName: string
+  pausedAt: string
+  points: Array<ListPausedRunsResponseRef1>
+}
+
+type ListPausedRunsResponseRef1 = {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: {
+    parallelId: string
+    branchIndex: number
+    branchTotal: number | null
+  } | null
+  loop: {
+    loopId: string
+    iteration: number
+  } | null
+  inputFields: Array<ListPausedRunsResponseRef2> | null
+  display: unknown | null
+  queuePosition: number | null
+}
+
+type ListPausedRunsResponseRef2 = {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: Array<unknown>
+}
+
+export type ListPausedRunsResponse = {
+  data: Array<ListPausedRunsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
 export type ListPermissionGroupMembersParams = {
   organizationId: string
@@ -9984,6 +10216,7 @@ type ListPermissionGroupsResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -10312,8 +10545,14 @@ export type ListSelectorBody = {
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
+    | 'planetscale.savedDatabases'
+    | 'planetscale.savedBranches'
+    | 'planetscale.savedBackups'
+    | 'planetscale.savedDeployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -10835,6 +11074,33 @@ export type ListWorkflowsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/[workflowId]/triggers` */
+export type ListWorkflowTriggersParams = {
+  workflowId: string
+}
+
+export type ListWorkflowTriggersQuery = Record<string, unknown>
+
+type ListWorkflowTriggersResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type ListWorkflowTriggersResponse = {
+  data: Array<ListWorkflowTriggersResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/[workflowId]/versions` */
 export type ListWorkflowVersionsParams = {
   workflowId: string
@@ -11023,6 +11289,34 @@ export type ListWorkspacesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/schedules` */
+export type ListWorkspaceSchedulesQuery = {
+  workspaceId: string
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListWorkspaceSchedulesResponseRef0 = {
+  blockId: string
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  workflowId: string
+  workflowName: string
+  timezone: string
+}
+
+export type ListWorkspaceSchedulesResponse = {
+  data: Array<ListWorkspaceSchedulesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `POST /api/v2/files/move` */
 export type MoveFileItemsQuery = Record<string, unknown>
 
@@ -11181,6 +11475,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11272,6 +11567,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -11338,6 +11634,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11429,6 +11726,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -12657,6 +12955,24 @@ export type RemovePermissionGroupMemberResponse = {
   data: RemovePermissionGroupMemberResponseRef0
 }
 
+/** `DELETE /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type RemoveWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type RemoveWorkspaceMemberQuery = Record<string, unknown>
+
+type RemoveWorkspaceMemberResponseRef0 = {
+  userId: string
+  deleted: true
+  organizationMembershipRemoved: boolean
+}
+
+export type RemoveWorkspaceMemberResponse = {
+  data: RemoveWorkspaceMemberResponseRef0
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -12719,6 +13035,37 @@ type RenameProjectFileResponseRef0 = {
 
 export type RenameProjectFileResponse = {
   data: RenameProjectFileResponseRef0
+}
+
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type ReplaceSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type ReplaceSearchSourcePermissionsQuery = Record<string, unknown>
+
+export type ReplaceSearchSourcePermissionsBody = {
+  expectedRevision: number
+  permissions: {
+    provider: 'gitlab'
+    userMapping: {
+      filename: string
+      content: string
+    }
+    projectPermissions: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+type ReplaceSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type ReplaceSearchSourcePermissionsResponse = {
+  data: ReplaceSearchSourcePermissionsResponseRef0
 }
 
 /** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -13066,6 +13413,7 @@ type ResolveOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -14836,6 +15184,7 @@ export type UpdatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -14892,6 +15241,7 @@ type UpdatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -15723,6 +16073,37 @@ export type UpdateWorkflowPublicApiResponse = {
   data: UpdateWorkflowPublicApiResponseRef0
 }
 
+/** `PATCH /api/v2/workflows/[workflowId]/triggers/[blockId]` */
+export type UpdateWorkflowTriggerParams = {
+  workflowId: string
+  blockId: string
+}
+
+export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+
+export type UpdateWorkflowTriggerBody = {
+  enabled: boolean
+}
+
+type UpdateWorkflowTriggerResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type UpdateWorkflowTriggerResponse = {
+  data: UpdateWorkflowTriggerResponseRef0
+}
+
 /** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
 export type UpdateWorkflowVersionParams = {
   version: number
@@ -15744,6 +16125,32 @@ type UpdateWorkflowVersionResponseRef0 = {
 
 export type UpdateWorkflowVersionResponse = {
   data: UpdateWorkflowVersionResponseRef0
+}
+
+/** `PATCH /api/v2/workspaces/[workspaceId]` */
+export type UpdateWorkspaceParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceQuery = Record<string, unknown>
+
+export type UpdateWorkspaceBody = {
+  name?: string
+  logoUrl?: string | null
+}
+
+type UpdateWorkspaceResponseRef0 = {
+  id: string
+  name: string
+  color: string
+  logoUrl: string | null
+  memberCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkspaceResponse = {
+  data: UpdateWorkspaceResponseRef0
 }
 
 /** `PUT /api/v2/workspaces/[workspaceId]/fork/exclusions` */
@@ -15801,6 +16208,32 @@ type UpdateWorkspaceForkMappingsResponseRef0 = {
 
 export type UpdateWorkspaceForkMappingsResponse = {
   data: UpdateWorkspaceForkMappingsResponseRef0
+}
+
+/** `PATCH /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type UpdateWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type UpdateWorkspaceMemberQuery = Record<string, unknown>
+
+export type UpdateWorkspaceMemberBody = {
+  role: 'admin' | 'write' | 'read'
+}
+
+type UpdateWorkspaceMemberResponseRef0 = {
+  userId: string
+  email: string
+  name: string
+  image: string | null
+  role: 'admin' | 'write' | 'read'
+  isExternal: boolean
+  joinedAt: string
+}
+
+export type UpdateWorkspaceMemberResponse = {
+  data: UpdateWorkspaceMemberResponseRef0
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
@@ -16557,10 +16990,16 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Compare workflow versions',
     query: {
-      base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
+      base: {
+        kind: 'integer',
+        required: true,
+        maximum: 2147483647,
+        describe: 'Deployment version to compare from.',
+      },
       target: {
         kind: 'integer',
         required: true,
+        maximum: 2147483647,
         describe: 'Deployment version to compare to, in the same workflow.',
       },
     },
@@ -16700,6 +17139,39 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     opaqueBody: true,
   },
+  createCredentialWorkloadIdentitySubject: {
+    method: 'POST',
+    path: '/api/v2/credentials/workload-identity/subjects',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create workload identity subject',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that will own the keyless credential.',
+      },
+      providerId: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'aws-service-account',
+          'databricks-service-account',
+          'snowflake-service-account',
+          'microsoft-app-service-account',
+          'google-service-account',
+        ] as const,
+        describe:
+          'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.',
+      },
+      subject: {
+        kind: 'string',
+        describe:
+          'A subject Sim issued to you earlier that no credential has saved yet. Renews its proof instead of issuing a new subject, so a trust configuration that already allows it keeps working. Refused with `WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING` once a credential saves it, after its hold ends, or for a subject issued to someone else.',
+      },
+    },
+  },
   createCustomTool: {
     method: 'POST',
     path: '/api/v2/custom-tools',
@@ -16798,7 +17270,12 @@ export const V2_OPERATIONS = {
       },
       name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
       contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 5368709120,
+        describe: 'Exact file size in bytes.',
+      },
       folderPath: {
         kind: 'string',
         describe: 'Canonical destination folder path. Omit for the workspace root.',
@@ -16906,7 +17383,7 @@ export const V2_OPERATIONS = {
       credentialId: {
         kind: 'string',
         describe:
-          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',
@@ -16921,6 +17398,7 @@ export const V2_OPERATIONS = {
       syncIntervalMinutes: {
         kind: 'integer',
         default: 1440,
+        maximum: 525600,
         describe: 'Scheduled synchronization interval in minutes; zero disables scheduling.',
       },
     },
@@ -16948,7 +17426,12 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Supported MIME type for the document.',
       },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 104857600,
+        describe: 'Exact file size in bytes.',
+      },
       tag1: { kind: 'string', describe: 'Value for tag slot 1.' },
       tag2: { kind: 'string', describe: 'Value for tag slot 2.' },
       tag3: { kind: 'string', describe: 'Value for tag slot 3.' },
@@ -17146,11 +17629,13 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
+        maximum: 300000,
         describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
+        maximum: 10,
         describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
@@ -17302,7 +17787,12 @@ export const V2_OPERATIONS = {
     body: {
       name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
       contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
-      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      size: {
+        kind: 'integer',
+        required: true,
+        maximum: 5368709120,
+        describe: 'Exact file size in bytes.',
+      },
       folderPath: {
         kind: 'string',
         describe:
@@ -18111,7 +18601,7 @@ export const V2_OPERATIONS = {
         describe:
           'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
-      limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
+      limit: { kind: 'integer', maximum: 1000, describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
     },
   },
@@ -18290,6 +18780,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -18349,6 +18840,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -18487,6 +18979,7 @@ export const V2_OPERATIONS = {
       },
       timeoutSeconds: {
         kind: 'integer',
+        maximum: 300,
         describe:
           'Maximum wait time in seconds; defaults to 120 and cannot exceed 300. Timeout does not guarantee that a third-party side effect was cancelled.',
       },
@@ -18507,23 +19000,25 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
         default: false,
         describe:
-          'Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).',
+          'Queue the run and return a 202 receipt. Requires a full-access API key or an OAuth access token with `api:write`, and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).',
       },
       executionTimeoutSeconds: {
         kind: 'integer',
+        maximum: 604800,
         describe:
           "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true` or `waitTimeoutSeconds`; otherwise returns `400`.",
       },
       waitTimeoutSeconds: {
         kind: 'integer',
+        maximum: 604800,
         describe:
-          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
+          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires a full-access API key or an OAuth access token with `api:write`. Cannot be combined with `async` or `stream`.',
       },
       stream: {
         kind: 'boolean',
@@ -18554,6 +19049,7 @@ export const V2_OPERATIONS = {
       },
       base64MaxBytes: {
         kind: 'integer',
+        maximum: 16777216,
         describe:
           'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
       },
@@ -18944,6 +19440,7 @@ export const V2_OPERATIONS = {
       segmentCount: {
         kind: 'integer',
         default: 72,
+        maximum: 500,
         describe:
           'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
       },
@@ -19099,6 +19596,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -19259,6 +19757,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
   },
+  getSearchSourcePermissions: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source permission revision',
+    workspaceKeyUnsupported: true,
+  },
   getSelector: {
     method: 'POST',
     path: '/api/v2/selectors/get',
@@ -19383,8 +19893,14 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',
@@ -19602,6 +20118,14 @@ export const V2_OPERATIONS = {
     summary: 'Get workflow MCP server',
     workspaceKeyUnsupported: true,
   },
+  getWorkflowOutline: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/outline',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow outline',
+  },
   getWorkflowRun: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]',
@@ -19630,6 +20154,7 @@ export const V2_OPERATIONS = {
       },
       base64MaxBytes: {
         kind: 'integer',
+        maximum: 16777216,
         describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
       },
     },
@@ -19703,6 +20228,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -19847,6 +20373,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum audit entries to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -19911,6 +20438,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -19975,6 +20503,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20014,6 +20543,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum chat deployments to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20051,6 +20581,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 25,
+        maximum: 100,
         describe:
           'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
@@ -20078,6 +20609,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum credential members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20160,6 +20692,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20201,6 +20734,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20272,6 +20806,7 @@ export const V2_OPERATIONS = {
       },
       depth: {
         kind: 'integer',
+        maximum: 64,
         describe: 'Deepest level below parentPath to include when recursive is true.',
       },
     },
@@ -20373,6 +20908,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20427,6 +20963,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20479,6 +21016,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20513,6 +21051,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20552,6 +21091,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20578,6 +21118,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20730,21 +21271,25 @@ export const V2_OPERATIONS = {
       },
       minDurationMs: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
       },
       maxDurationMs: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
       },
       minCost: {
         kind: 'number',
+        maximum: 1000000,
         describe:
           'Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
       },
       maxCost: {
         kind: 'number',
+        maximum: 1000000,
         describe:
           'Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
       },
@@ -20850,6 +21395,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20910,6 +21456,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20949,6 +21496,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -20988,6 +21536,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21018,6 +21567,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum domain claims to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21073,6 +21623,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21115,6 +21666,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21154,6 +21706,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21192,6 +21745,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21250,6 +21804,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21301,6 +21856,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21308,6 +21864,48 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPausedRuns: {
+    method: 'GET',
+    path: '/api/v2/workflows/runs/paused',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List paused workflow runs',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose paused runs should be listed.',
+      },
+      includeOutput: {
+        kind: 'boolean',
+        describe: "Include each pause point's reviewer `display` content when true.",
+      },
+      limit: {
+        kind: 'integer',
+        default: 10,
+        maximum: 25,
+        describe:
+          'Maximum runs to return per page. A page also ends early once it holds 100 pause points, so it can return fewer runs while `nextCursor` is set. Must be a whole number from 1 to 25. Defaults to 10.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['pausedAt'] as const,
+        default: 'pausedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -21338,6 +21936,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21377,6 +21976,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21464,6 +22064,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 100,
+        maximum: 1000,
         describe: 'Maximum files per page. Must be a whole number from 1 to 1000. Defaults to 100.',
       },
       cursor: {
@@ -21500,6 +22101,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21538,6 +22140,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21586,6 +22189,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21720,8 +22324,14 @@ export const V2_OPERATIONS = {
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
+          'planetscale.savedDatabases',
+          'planetscale.savedBranches',
+          'planetscale.savedBackups',
+          'planetscale.savedDeployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',
@@ -21754,6 +22364,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe: 'Maximum options per page, from 1 to 100. Defaults to 50.',
       },
     },
@@ -21786,6 +22397,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum skill editors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21824,6 +22436,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21849,6 +22462,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum identity providers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -21930,6 +22544,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 100,
+        maximum: 1000,
         describe:
           'Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.',
       },
@@ -22052,6 +22667,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22138,6 +22754,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22184,6 +22801,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22232,6 +22850,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22259,6 +22878,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkflowTriggers: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/triggers',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'List workflow triggers',
+  },
   listWorkflowVersions: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/versions',
@@ -22270,6 +22897,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22292,6 +22920,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22326,6 +22955,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22373,6 +23003,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22394,6 +23025,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 50,
+        maximum: 100,
         describe:
           'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
@@ -22432,6 +23064,7 @@ export const V2_OPERATIONS = {
       limit: {
         kind: 'integer',
         default: 25,
+        maximum: 100,
         describe:
           'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
@@ -22439,6 +23072,45 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkspaceSchedules: {
+    method: 'GET',
+    path: '/api/v2/schedules',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List workspace schedules',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose schedules should be listed.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        maximum: 100,
+        describe:
+          'Maximum schedules to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe:
+          "Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end.",
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -22804,6 +23476,7 @@ export const V2_OPERATIONS = {
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
         kind: 'integer',
+        maximum: 1000,
         describe:
           'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
@@ -22846,16 +23519,19 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
         kind: 'integer',
+        maximum: 26214400,
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
       offset: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe: 'How many lines to return from `offset`. Absent reads to the end.',
       },
     },
@@ -22871,16 +23547,19 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
         kind: 'integer',
+        maximum: 26214400,
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
       offset: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe: 'How many lines to return from `offset`. Absent reads to the end.',
       },
     },
@@ -23035,6 +23714,18 @@ export const V2_OPERATIONS = {
     summary: 'Remove permission group member',
     workspaceKeyUnsupported: true,
   },
+  removeWorkspaceMember: {
+    method: 'DELETE',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Remove workspace member',
+    workspaceKeyUnsupported: true,
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -23063,6 +23754,31 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  replaceSearchSourcePermissions: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Replace Search source permissions',
+    workspaceKeyUnsupported: true,
+    body: {
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        maximum: 9007199254740991,
+        describe: 'Permission revision read before exporting the grants.',
+      },
+      permissions: {
+        kind: 'object',
+        required: true,
+        describe: 'Complete permission grants in the source provider’s format.',
+      },
     },
   },
   replaceWorkflowChatDeployment: {
@@ -23192,6 +23908,7 @@ export const V2_OPERATIONS = {
       },
       newLimitCredits: {
         kind: 'integer',
+        maximum: 9007199254740991,
         describe:
           'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply.',
       },
@@ -23218,6 +23935,7 @@ export const V2_OPERATIONS = {
           },
           newLimitCredits: {
             kind: 'integer',
+            maximum: 9007199254740991,
             describe:
               'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests.',
           },
@@ -23381,6 +24099,7 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       expectedCurrentVersion: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
       },
@@ -23406,6 +24125,7 @@ export const V2_OPERATIONS = {
     body: {
       expectedCurrentVersion: {
         kind: 'integer',
+        maximum: 2147483647,
         describe:
           'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
       },
@@ -23471,6 +24191,7 @@ export const V2_OPERATIONS = {
     body: {
       version: {
         kind: 'integer',
+        maximum: 2147483647,
         describe: 'Deployment version to reactivate. Omit to select the previous active version.',
       },
     },
@@ -23804,7 +24525,12 @@ export const V2_OPERATIONS = {
         default: 'regex',
         describe: 'How `query` is read.',
       },
-      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      maxResults: {
+        kind: 'integer',
+        default: 50,
+        maximum: 200,
+        describe: 'Maximum matching lines to return.',
+      },
       folderPaths: {
         kind: 'string',
         describe:
@@ -23857,6 +24583,7 @@ export const V2_OPERATIONS = {
       topK: {
         kind: 'number',
         default: 10,
+        maximum: 100,
         describe:
           'Maximum number of search results to return. Must be a whole number between 1 and 100.',
       },
@@ -23884,6 +24611,7 @@ export const V2_OPERATIONS = {
       },
       rerankerInputCount: {
         kind: 'integer',
+        maximum: 100,
         describe:
           'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.',
       },
@@ -23909,7 +24637,12 @@ export const V2_OPERATIONS = {
         default: 'regex',
         describe: 'How `query` is read.',
       },
-      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      maxResults: {
+        kind: 'integer',
+        default: 50,
+        maximum: 200,
+        describe: 'Maximum matching lines to return.',
+      },
       folderPaths: {
         kind: 'string',
         describe:
@@ -24285,6 +25018,7 @@ export const V2_OPERATIONS = {
       },
       syncIntervalMinutes: {
         kind: 'integer',
+        maximum: 525600,
         describe: 'New scheduled synchronization interval in minutes.',
       },
       status: {
@@ -24435,11 +25169,13 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
+        maximum: 300000,
         describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
+        maximum: 10,
         describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
@@ -24602,7 +25338,11 @@ export const V2_OPERATIONS = {
         describe:
           'New parent folder identifier; null moves to the root, omission leaves the parent unchanged.',
       },
-      sortOrder: { kind: 'integer', describe: 'New manual position; omit to leave unchanged.' },
+      sortOrder: {
+        kind: 'integer',
+        maximum: 9007199254740991,
+        describe: 'New manual position; omit to leave unchanged.',
+      },
     },
   },
   updateProjectFileShare: {
@@ -24661,7 +25401,7 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Row-data patch applied to every matching row.',
       },
-      limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
+      limit: { kind: 'integer', maximum: 1000, describe: 'Maximum matching rows to update.' },
     },
   },
   updateSandbox: {
@@ -24894,6 +25634,25 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateWorkflowTrigger: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+    pathParams: ['workflowId', 'blockId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      blockId: 'Trigger block in the deployed workflow.',
+    },
+    responseMode: 'json',
+    summary: 'Update workflow trigger',
+    body: {
+      enabled: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.',
+      },
+    },
+  },
   updateWorkflowVersion: {
     method: 'PATCH',
     path: '/api/v2/workflows/[workflowId]/versions/[version]',
@@ -24909,6 +25668,23 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'New release note for the deployment version, or null to clear it.',
+      },
+    },
+  },
+  updateWorkspace: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to update.' },
+    responseMode: 'json',
+    summary: 'Update workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'New workspace display name.' },
+      logoUrl: {
+        kind: 'string',
+        describe:
+          'New workspace logo URL: a root-relative path (starting with /) or an https:// URL. Send null to remove the logo.',
       },
     },
   },
@@ -24959,6 +25735,27 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping.',
+      },
+    },
+  },
+  updateWorkspaceMember: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Update workspace member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['admin', 'write', 'read'] as const,
+        describe:
+          'New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here.',
       },
     },
   },

@@ -1,4 +1,5 @@
 import type { RipplingCreateObjectCategoryParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateObjectCategoryTool: ToolConfig<RipplingCreateObjectCategoryParams> = {
@@ -6,6 +7,7 @@ export const ripplingCreateObjectCategoryTool: ToolConfig<RipplingCreateObjectCa
   name: 'Rippling Create ObjectCategory',
   description: 'Create a new object category',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

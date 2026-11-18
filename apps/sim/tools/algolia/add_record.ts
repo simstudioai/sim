@@ -1,4 +1,5 @@
 import type { AlgoliaAddRecordParams, AlgoliaAddRecordResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordResponse> = {
@@ -6,6 +7,7 @@ export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordR
   name: 'Algolia Add Record',
   description: 'Add or replace a record in an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

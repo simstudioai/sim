@@ -5,6 +5,7 @@ import type {
 } from '@/tools/calcom/types'
 import { SCHEDULE_DATA_OUTPUT_PROPERTIES } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateScheduleTool: ToolConfig<
   CalcomUpdateScheduleParams,
@@ -80,7 +81,7 @@ export const updateScheduleTool: ToolConfig<
 
   request: {
     url: (params: CalcomUpdateScheduleParams) =>
-      `https://api.cal.com/v2/schedules/${encodeURIComponent(params.scheduleId)}`,
+      `https://api.cal.com/v2/schedules/${safeUrlPathSegment(params.scheduleId, 'scheduleId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

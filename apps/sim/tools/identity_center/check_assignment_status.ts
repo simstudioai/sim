@@ -2,6 +2,7 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterCheckAssignmentStatusParams,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const checkAssignmentStatusTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const checkAssignmentStatusTool: InternalToolConfig<
   name: 'Identity Center Check Assignment Status',
   description: 'Check the provisioning status of an account assignment creation request',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

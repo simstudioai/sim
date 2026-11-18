@@ -1,5 +1,6 @@
 import type { MailchimpTemplate } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetTemplatesParams {
@@ -25,6 +26,7 @@ export const mailchimpGetTemplatesTool: ToolConfig<
   name: 'Get Templates from Mailchimp',
   description: 'Retrieve a list of templates from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sesEmailTagsSchema } from '@/lib/api/contracts/tools/aws/ses-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -26,6 +27,8 @@ const SendEmailSchema = z
     bccAddresses: z.string().nullish(),
     replyToAddresses: z.string().nullish(),
     configurationSetName: z.string().nullish(),
+    fromName: z.string().nullish(),
+    emailTags: sesEmailTagsSchema,
   })
   .refine((data) => data.bodyText || data.bodyHtml, {
     message: 'At least one of bodyText or bodyHtml is required',

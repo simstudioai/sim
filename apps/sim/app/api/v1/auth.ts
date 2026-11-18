@@ -5,6 +5,7 @@ import {
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { apiKeyPrincipal } from '@/lib/api-key/principal'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
@@ -29,6 +30,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
         kind: 'personal_api_key',
         userId: ANONYMOUS_USER_ID,
         keyId: 'auth-disabled',
+        access: 'write',
       },
     }
   }
@@ -53,28 +55,8 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       }
     }
 
-    if (!result.keyId || !result.userId || !result.keyType) {
-      throw new Error('Authenticated v1 API key is missing its canonical identity')
-    }
-    let principal: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
-    if (result.keyType === 'workspace') {
-      if (!result.workspaceId) {
-        throw new Error('Authenticated workspace API key is missing its workspace scope')
-      }
-      principal = {
-        kind: 'workspace_api_key',
-        workspaceId: result.workspaceId,
-        keyId: result.keyId,
-      }
-    } else {
-      principal = {
-        kind: 'personal_api_key',
-        userId: result.userId,
-        keyId: result.keyId,
-      }
-    }
-
-    updateApiKeyLastUsed(result.keyId)
+    const principal = apiKeyPrincipal(result)
+    updateApiKeyLastUsed(principal.keyId)
 
     return {
       authenticated: true,

@@ -5,10 +5,7 @@ import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
-import { oauthTokenPostContract } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
@@ -26,6 +23,7 @@ import {
 } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
@@ -53,6 +51,7 @@ import {
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { collectUserFilesById, isUserFile } from '@/lib/core/utils/user-file'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { REJECTED_TOKEN_MINIMUM_AGE_MS } from '@/lib/credentials/token-request-resilience'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
@@ -88,7 +87,10 @@ import {
 } from '@/lib/internal/tool-operations/file-result.server'
 import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
-import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import type {
+  AuthorizedServiceAccountCredential,
+  InternalToolOperationContext,
+} from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import {
   assistantConnectedAccountTokenParam,
@@ -128,8 +130,10 @@ import {
   projectToolModelInputParams,
   readRequestedDeadline,
 } from '@/tools/request-transport'
+import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import type {
   BYOKProviderId,
+  CredentialParamSource,
   ExecutableToolConfig,
   InternalToolConfig,
   ToolConfig,
@@ -515,13 +519,22 @@ function normalizeCopilotCredentialParams(params: Record<string, unknown>): void
   }
 }
 
+/**
+ * Whether this deployment and these params let Sim's hosted key fill
+ * `tool.hosting.apiKeyParam`, the gate {@link injectHostedKeyIfNeeded} opens with.
+ */
+function hostedKeyMayFill(tool: ToolDefinition, params: Record<string, unknown>): boolean {
+  if (!isHosted || !tool.hosting) return false
+  return !tool.hosting.enabled || tool.hosting.enabled(params)
+}
+
 function enforceCopilotCredentialSelection(
   toolId: string,
   tool: ToolDefinition,
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): void {
-  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+  if (!scope.copilotToolExecution || !tool.oauth) {
     return
   }
 
@@ -530,6 +543,22 @@ function enforceCopilotCredentialSelection(
   }
 
   const toolLabel = tool.name || toolId
+  if (!tool.oauth.required) {
+    // Copilot's schema lets credentialId stand in for these, so it no longer requires them.
+    const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
+      (paramId) =>
+        tool.params[paramId]?.required &&
+        !(paramId === tool.hosting?.apiKeyParam && hostedKeyMayFill(tool, params)) &&
+        (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
+    )
+    if (missing.length > 0) {
+      throw new Error(
+        `${toolLabel} needs credentialId (a saved ${tool.oauth.provider} credential) or ${missing.join(', ')}.`
+      )
+    }
+    return
+  }
+
   throw new Error(
     `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
@@ -597,6 +626,40 @@ interface HostedKeyInjectionResult {
   envVarName?: string
 }
 
+const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
+  accessToken: 'a token',
+  domain: 'a host',
+  providerWorkspaceId: 'a workspace ID',
+  applicationKey: 'an application key',
+}
+
+/**
+ * Fills the params a saved credential supplies (`oauth.credentialParams`) from
+ * the resolved credential. Runs only after authorization, overwrites any value
+ * the caller or model supplied, and fails closed when the credential lacks a
+ * mapped field rather than sending a request without it, unless the policy
+ * names that param optional, which is then cleared instead.
+ */
+function applyCredentialParams(
+  tool: ToolDefinition,
+  credential: CredentialTokenPayload,
+  params: Record<string, unknown>
+): void {
+  for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
+    const value = credential[source]
+    if (typeof value !== 'string' || value.length === 0) {
+      if (tool.oauth?.optionalCredentialParams?.includes(param)) {
+        params[param] = undefined
+        continue
+      }
+      throw new Error(
+        `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
+      )
+    }
+    params[param] = value
+  }
+}
+
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
  * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
@@ -609,13 +672,16 @@ async function injectHostedKeyIfNeeded(
   requestId: string,
   signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
-  if (!tool.hosting) return { isUsingHostedKey: false }
-  if (!isHosted) return { isUsingHostedKey: false }
-  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
-    return { isUsingHostedKey: false }
-  }
+  if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  // A selected saved credential supplies this key; Sim's key must never stand in for it.
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(apiKeyParam)
+  ) {
+    return { isUsingHostedKey: false }
+  }
   const userProvidedKey = params[apiKeyParam]
   if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
     return { isUsingHostedKey: false }
@@ -1659,47 +1725,6 @@ function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy
 }
 
 /**
- * Resolves a credential token from the browser through `POST /api/auth/oauth/token`,
- * authenticated by the session cookie. Server-side execution resolves in-process
- * through `resolveExecutorCredentialToken` instead; this HTTP path exists only
- * because the browser holds no server credentials.
- */
-async function fetchCredentialTokenFromRoute(params: {
-  requestId: string
-  toolId: string
-  toolLabel: string
-  credentialId: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
-  callerUserId?: string
-}): Promise<CredentialTokenPayload> {
-  const { requestId, toolId, toolLabel, credentialId, workflowId } = params
-
-  try {
-    return await requestJson(oauthTokenPostContract, {
-      query: { userId: params.callerUserId },
-      headers: {},
-      body: {
-        credentialId,
-        toolId,
-        ...(workflowId ? { workflowId } : {}),
-        ...(params.impersonateEmail ? { impersonateEmail: params.impersonateEmail } : {}),
-        ...(params.scopes ? { scopes: params.scopes } : {}),
-      },
-    })
-  } catch (error: unknown) {
-    const status = error instanceof ApiClientError ? error.status : undefined
-    logger.error(`Token fetch failed for ${toolId}:`, {
-      requestId,
-      status,
-      error: getErrorMessage(error),
-    })
-    throw new Error(`Failed to obtain credential for ${toolLabel}: ${getErrorMessage(error)}`)
-  }
-}
-
-/**
  * Runs private-provenance tools against an isolated registry. Unavailable authenticated lineage
  * marks the parent unknown without replacing the tool's functional result; malformed metadata is
  * rejected inside the transport consumer and never committed to the parent.
@@ -1994,6 +2019,8 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
+    // Set only by the credential resolution below, never from tool params.
+    let authorizedServiceAccountCredential: AuthorizedServiceAccountCredential | undefined
     if (contextParams.credential) {
       logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
@@ -2023,50 +2050,33 @@ async function executeToolImplementation(
         const credentialTool = tool
         const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
           signal?.throwIfAborted()
-          let data: CredentialTokenPayload
-          if (typeof window === 'undefined') {
-            /**
-             * Dynamic import for the same client-bundle reason as the workflow_executor
-             * runner below: the resolver pulls the db/audit dependency graph, which must
-             * never enter the client-bundled tool registry.
-             */
-            const { resolveExecutorCredentialToken } = await import(
-              '@/executor/utils/credential-token'
-            )
-            data = await waitWithAbort(
-              resolveExecutorCredentialToken({
-                requestId,
-                credentialId,
-                userId,
-                workflowId,
-                executionId: scope.executionId,
-                toolId,
-                toolLabel,
-                scopes: providerScopes,
-                impersonateEmail,
-                enforceCredentialAccess,
-                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-                ...(operationContext?.copilotToolExecution
-                  ? { copilotExecutionContext: operationContext }
-                  : {}),
-              }),
-              signal
-            )
-          } else {
-            data = await waitWithAbort(
-              fetchCredentialTokenFromRoute({
-                requestId,
-                toolId,
-                toolLabel,
-                credentialId,
-                workflowId,
-                impersonateEmail,
-                scopes: providerScopes,
-                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-              }),
-              signal
-            )
-          }
+          /**
+           * Dynamic import for the same client-bundle reason as the workflow_executor
+           * runner below: the resolver pulls the db/audit dependency graph, which must
+           * never enter the client-bundled tool registry.
+           */
+          const { resolveExecutorCredentialToken } = await import(
+            '@/executor/utils/credential-token'
+          )
+          const data: CredentialTokenPayload = await waitWithAbort(
+            resolveExecutorCredentialToken({
+              requestId,
+              credentialId,
+              userId,
+              workflowId,
+              executionId: scope.executionId,
+              toolId,
+              toolLabel,
+              scopes: providerScopes,
+              impersonateEmail,
+              enforceCredentialAccess,
+              executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+              ...(operationContext?.copilotToolExecution
+                ? { copilotExecutionContext: operationContext }
+                : {}),
+            }),
+            signal
+          )
 
           signal?.throwIfAborted()
 
@@ -2088,12 +2098,18 @@ async function executeToolImplementation(
             await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
               data.accessToken,
               data.idToken,
+              data.applicationKey,
             ])
           }
+          authorizedServiceAccountCredential =
+            data.credentialType === 'service_account' && credentialTool.oauth
+              ? { credentialId, service: credentialTool.oauth.provider }
+              : undefined
           for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
             contextParams[paramId] = undefined
           }
           contextParams.accessToken = data.accessToken
+          applyCredentialParams(credentialTool, data, contextParams)
           if (operationContext?.requestMode === 'assistant') {
             const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
             if (tokenParam) contextParams[tokenParam] = data.accessToken
@@ -2113,17 +2129,21 @@ async function executeToolImplementation(
           ) {
             contextParams.providerWorkspaceId = data.providerWorkspaceId
           }
-          if (data.instanceUrl) {
-            contextParams.instanceUrl = data.instanceUrl
-          }
-          if (data.apiDomain && !contextParams.apiDomain) {
-            contextParams.apiDomain = data.apiDomain
-          }
-          if (data.cloudId && !contextParams.cloudId) {
-            contextParams.cloudId = data.cloudId
-          }
-          if (data.domain && !contextParams.domain) {
-            contextParams.domain = data.domain
+          // A policy that maps credential fields (`credentialParams`) is the only way they reach
+          // the tool; a same-named param it leaves unmapped is the user's own data, not the host.
+          if (!credentialTool.oauth?.credentialParams) {
+            if (data.instanceUrl) {
+              contextParams.instanceUrl = data.instanceUrl
+            }
+            if (data.apiDomain && !contextParams.apiDomain) {
+              contextParams.apiDomain = data.apiDomain
+            }
+            if (data.cloudId && !contextParams.cloudId) {
+              contextParams.cloudId = data.cloudId
+            }
+            if (data.domain && !contextParams.domain) {
+              contextParams.domain = data.domain
+            }
           }
           if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
             contextParams.realmId = data.realmId
@@ -2170,6 +2190,32 @@ async function executeToolImplementation(
         }
         throw error
       }
+    }
+
+    if (
+      authorizedServiceAccountCredential?.service === AWS_CREDENTIAL_OAUTH.provider &&
+      !tool.operation
+    ) {
+      // AWS tools that sign their own HTTP request need the session keys themselves.
+      if (typeof window !== 'undefined') {
+        throw new Error('Saved AWS credentials can only be used on the server')
+      }
+      if (!AWS_SESSION_SIGNED_TOOL_IDS.has(normalizedToolId)) {
+        throw new Error(`${tool.name} cannot sign with a saved AWS credential`)
+      }
+      const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
+      const session = await resolveAuthorizedAwsCredential(
+        authorizedServiceAccountCredential.credentialId,
+        {
+          workspaceId: operationContext?.workspaceId ?? scope.workspaceId,
+          organizationId: operationContext?.organizationId,
+          executionId: scope.executionId,
+        },
+        effectiveSignal
+      )
+      contextParams.accessKeyId = session.accessKeyId
+      contextParams.secretAccessKey = session.secretAccessKey
+      contextParams.sessionToken = session.sessionToken
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
@@ -2286,12 +2332,23 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
+        authorizedServiceAccountCredential,
+      }).catch(async (error: unknown) => {
+        throw authorizedServiceAccountCredential
+          ? await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          : error
       })
 
       let finalResult = result
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+          finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+            signal: effectiveSignal,
+          })
         } catch (error) {
           logger.error(`Post-processing error for ${toolId}`, {
             requestId,
@@ -2379,12 +2436,24 @@ async function executeToolImplementation(
           operationContext,
           effectiveSignal,
           resolvedSecretTraceRegistry
-        )
+        ).catch(async (error: unknown) => {
+          if (authorizedServiceAccountCredential) {
+            await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+            throw await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          }
+          throw error
+        })
 
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+        finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+          signal: effectiveSignal,
+        })
       } catch (error) {
         const normalizedError = toError(error)
         logger.error(
@@ -2709,6 +2778,8 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
+  /** Service-account credential the executor authorized for this call (never from tool params). */
+  authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2757,6 +2828,7 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
+  authorizedServiceAccountCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2894,10 +2966,24 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context,
+        // Always written, so only this executor's authorization can set it.
+        context: { ...context, authorizedServiceAccountCredential },
         requestId,
         signal: operationController.signal,
       })
+      if (
+        result instanceof Response &&
+        (result.status === 401 || result.status === 403) &&
+        authorizedServiceAccountCredential &&
+        typeof params.accessToken === 'string'
+      ) {
+        await forgetRefusedServiceAccountToken(
+          params.accessToken,
+          requestId,
+          result.status === 403 ? REJECTED_TOKEN_MINIMUM_AGE_MS : undefined
+        )
+        await expireRefusedCoordinatedToken(params.accessToken, requestId)
+      }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
         operationController.signal.throwIfAborted()
@@ -2913,6 +2999,7 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
+          authorizedServiceAccountCredential,
         })
       }
       response = await presentInternalToolOperationResult(
@@ -2971,6 +3058,122 @@ async function executeDeclaredInternalOperation({
       isRecordLike(responseData) && isRecordLike(responseData.output)
         ? responseData.output
         : (responseData as Record<string, any>),
+  }
+}
+
+/**
+ * A 401 whose body blames the scope rather than the token: Atlassian's gateway answers
+ * `Unauthorized; scope does not match` for a valid token, and RFC 6750 names `insufficient_scope`.
+ */
+const SCOPE_REFUSAL_PATTERN = /scope does not match|insufficient_scope/i
+
+function reportsScopeRefusal(error: Error): boolean {
+  const data = 'data' in error ? error.data : undefined
+  if (typeof data === 'string') return SCOPE_REFUSAL_PATTERN.test(data)
+  if (data === undefined || data === null) return false
+  try {
+    return SCOPE_REFUSAL_PATTERN.test(JSON.stringify(data))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A 401 means the provider no longer accepts the token a saved service-account credential
+ * resolved to. The rejected token is dropped from whichever cache holds it: a token coordinated
+ * across workers is expired at once, and a token cached on this instance is forgotten, so the
+ * next call mints a replacement rather than re-sending it. A 401 that only reports a missing scope
+ * leaves the token in service, since a replacement would carry the same scopes. A pasted token
+ * matches no cached token and is left alone.
+ */
+async function expireRejectedServiceAccountToken(
+  error: unknown,
+  accessToken: unknown,
+  requestId: string
+): Promise<void> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
+  if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
+  await forgetRefusedServiceAccountToken(accessToken, requestId)
+  await expireRefusedCoordinatedToken(accessToken, requestId)
+}
+
+/**
+ * Expires a refused token coordinated across workers (a client-credentials grant's shared token),
+ * so the next call on any worker mints a replacement. A token minted within
+ * {@link REJECTED_TOKEN_MINIMUM_AGE_MS} is kept, since the refusal may come from the endpoint.
+ */
+async function expireRefusedCoordinatedToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
+  try {
+    const { invalidateCoordinatedClientToken } = await import(
+      '@/lib/credentials/coordinated-client-token'
+    )
+    await invalidateCoordinatedClientToken(accessToken, {
+      minimumAgeMs: REJECTED_TOKEN_MINIMUM_AGE_MS,
+    })
+  } catch (invalidationError) {
+    logger.warn('Could not expire a service-account token the provider rejected', {
+      requestId,
+      error: toError(invalidationError).message,
+    })
+  }
+}
+
+/**
+ * A 401 for a saved service-account token past the expiry its vendor stated when it was saved
+ * becomes an error that says so and asks for a new token, keeping the provider's status and body
+ * and the refusal's log attribution and logged response body. Any other failure, or one whose
+ * expiry cannot be read, is returned unchanged.
+ */
+async function explainExpiredServiceAccountToken(
+  error: unknown,
+  credentialId: string,
+  requestId: string
+): Promise<unknown> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return error
+  try {
+    const { explainExpiredSavedToken } = await import('@/lib/credentials/saved-token-expiry')
+    const explained = await explainExpiredSavedToken(credentialId, {
+      status: error.status,
+      statusText: 'statusText' in error ? error.statusText : undefined,
+      data: 'data' in error ? error.data : undefined,
+    })
+    if (!explained) return error
+    if (externalHttpFailures.has(error)) externalHttpFailures.add(explained)
+    return inheritFailureMarks(explained, error)
+  } catch (lookupError) {
+    logger.warn('Could not check whether a refused saved token had expired', {
+      requestId,
+      error: toError(lookupError).message,
+    })
+    return error
+  }
+}
+
+/**
+ * Drops a refused service-account token from this instance's client-credential cache: an internal
+ * operation answers 401 or 403, and an external request 401, when the provider refused it. The
+ * next call mints a replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's
+ * scopes when it is minted, so a scope granted since then only reaches a new token. A 403 can also
+ * come from Sim's own file-access refusal or a per-record permission, so the internal-operation
+ * path passes `minimumAgeMs` for it and a token minted within that window is kept.
+ */
+async function forgetRefusedServiceAccountToken(
+  accessToken: string,
+  requestId: string,
+  minimumAgeMs?: number
+): Promise<void> {
+  try {
+    const { forgetRejectedClientCredentialToken } = await import('@/lib/oauth/credential-service')
+    if (minimumAgeMs === undefined) forgetRejectedClientCredentialToken(accessToken)
+    else forgetRejectedClientCredentialToken(accessToken, { minimumAgeMs })
+  } catch (error) {
+    logger.warn('Could not drop a service-account token the provider refused', {
+      requestId,
+      error: toError(error).message,
+    })
   }
 }
 

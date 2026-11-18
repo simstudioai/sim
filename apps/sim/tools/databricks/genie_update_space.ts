@@ -11,6 +11,7 @@ import {
   optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const genieUpdateSpaceTool: ToolConfig<
   name: 'Databricks Update Genie Space',
   description: 'Update a Genie space, optionally protecting the change with its current ETag.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     spaceId: {

@@ -10,6 +10,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -20,6 +21,7 @@ export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, Cloudflare
     description:
       'Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       accountId: {

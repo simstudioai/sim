@@ -11,6 +11,13 @@ const SYNTHETIC_PUBLIC_PIN = '8.8.8.8'
 export const POWERBI_FIXTURE_TOKEN = 'powerbi-synthetic-access-token'
 export const POWERBI_FIXTURE_REFRESH_TOKEN = 'powerbi-synthetic-refresh-token'
 export const POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN = 'powerbi-rotated-refresh-token'
+/** A synthetic Entra app registration whose client-credentials grant the fixture answers. */
+export const POWERBI_FIXTURE_APP = {
+  tenantId: '44444444-4444-4444-8444-444444444444',
+  clientId: '55555555-5555-4555-8555-555555555555',
+  clientSecret: 'powerbi-fixture-app-secret',
+} as const
+const POWERBI_FIXTURE_APP_TOKEN_PATH = `/${POWERBI_FIXTURE_APP.tenantId}/oauth2/v2.0/token`
 export const POWERBI_FIXTURE_IDS = {
   groupId: '11111111-1111-4111-8111-111111111111',
   datasetId: '22222222-2222-4222-8222-222222222222',
@@ -105,6 +112,21 @@ export async function startPowerBIProviderFixture(http: typeof NodeHTTP) {
       return send(200, {
         access_token: POWERBI_FIXTURE_TOKEN,
         refresh_token: POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN,
+        expires_in: 3600,
+        token_type: 'Bearer',
+      })
+    }
+    if (url.pathname === POWERBI_FIXTURE_APP_TOKEN_PATH) {
+      const parameters = new URLSearchParams(text)
+      entry.body = Object.fromEntries(parameters)
+      entry.authorized =
+        parameters.get('grant_type') === 'client_credentials' &&
+        parameters.get('client_id') === POWERBI_FIXTURE_APP.clientId &&
+        parameters.get('client_secret') === POWERBI_FIXTURE_APP.clientSecret &&
+        parameters.get('scope') === 'https://analysis.windows.net/powerbi/api/.default'
+      if (!entry.authorized) return send(400, { error: 'invalid_client' })
+      return send(200, {
+        access_token: POWERBI_FIXTURE_TOKEN,
         expires_in: 3600,
         token_type: 'Bearer',
       })
@@ -361,7 +383,8 @@ export function installPowerBITransport(
     }
     if (
       url.origin === 'https://login.microsoftonline.com' &&
-      url.pathname === '/common/oauth2/v2.0/token' &&
+      (url.pathname === '/common/oauth2/v2.0/token' ||
+        url.pathname === POWERBI_FIXTURE_APP_TOKEN_PATH) &&
       !url.username &&
       !url.password
     ) {

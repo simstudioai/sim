@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleDeleteDeviceResponse, TailscaleDeviceParams } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
   name: 'Tailscale Delete Device',
   description: 'Remove a device from the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmStartAutomationExecutionParams,
   SsmStartAutomationExecutionResponse,
@@ -12,6 +13,7 @@ export const startAutomationExecutionTool: InternalToolConfig<
   name: 'SSM Start Automation Execution',
   description: 'Start an AWS Systems Manager Automation runbook execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

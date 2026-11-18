@@ -1,3 +1,5 @@
+import { githubRepoPath } from '@/tools/github/request-path'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface UnstarRepoParams {
@@ -23,6 +25,7 @@ export const unstarRepoTool: ToolConfig<UnstarRepoParams, UnstarRepoResponse> = 
   name: 'GitHub Unstar Repository',
   description: 'Remove star from a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -46,7 +49,8 @@ export const unstarRepoTool: ToolConfig<UnstarRepoParams, UnstarRepoResponse> = 
   },
 
   request: {
-    url: (params) => `https://api.github.com/user/starred/${params.owner}/${params.repo}`,
+    url: (params) =>
+      `https://api.github.com/user/starred/${githubRepoPath(params.owner, params.repo)}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -92,6 +96,7 @@ export const unstarRepoV2Tool: ToolConfig<UnstarRepoParams, any> = {
   name: unstarRepoTool.name,
   description: unstarRepoTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: unstarRepoTool.params,
   request: unstarRepoTool.request,
 

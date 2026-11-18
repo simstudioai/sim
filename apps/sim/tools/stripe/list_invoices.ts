@@ -1,4 +1,6 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InvoiceListResponse, ListInvoicesParams } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListResponse> = {
@@ -6,6 +8,7 @@ export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   name: 'Stripe List Invoices',
   description: 'List all invoices',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,12 +35,14 @@ export const stripeListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
       visibility: 'user-or-llm',
       description: 'Filter by invoice status',
     },
+    ...listCursorParams('invoice'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/invoices')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.customer) url.searchParams.append('customer', params.customer)
       if (params.status) url.searchParams.append('status', params.status)
       return url.toString()

@@ -2,6 +2,8 @@ import type {
   ApolloSequenceAddContactsParams,
   ApolloSequenceAddContactsResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloSequenceAddContactsTool: ToolConfig<
@@ -12,8 +14,10 @@ export const apolloSequenceAddContactsTool: ToolConfig<
   name: 'Apollo Add Contacts to Sequence',
   description: 'Add contacts to an Apollo sequence',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -200,7 +204,7 @@ export const apolloSequenceAddContactsTool: ToolConfig<
     method: 'POST',
     headers: (params: ApolloSequenceAddContactsParams) => ({
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
   },
 

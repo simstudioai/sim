@@ -1,12 +1,15 @@
 import type { LinqUpdateChatParams, LinqUpdateChatResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqUpdateChatTool: ToolConfig<LinqUpdateChatParams, LinqUpdateChatResult> = {
   id: 'linq_update_chat',
   name: 'Update Chat',
   description: 'Update chat properties such as group display name and icon',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -36,7 +39,7 @@ export const linqUpdateChatTool: ToolConfig<LinqUpdateChatParams, LinqUpdateChat
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}`,
     method: 'PUT',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => {

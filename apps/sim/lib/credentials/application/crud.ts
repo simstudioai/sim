@@ -37,6 +37,7 @@ import {
   type WorkspaceCredentialLookup,
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
+import type { KeylessCredentialRefusedError } from '@/lib/credentials/workload-identity/subject'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
@@ -61,7 +62,9 @@ export function throwCredentialMutationFailure(result: {
   errorCode?: PerformCredentialResult['errorCode']
   providerErrorCode?: string
   providerUnavailable?: boolean
+  keylessRefusal?: KeylessCredentialRefusedError
 }): never {
+  if (result.keylessRefusal) throw result.keylessRefusal
   if (result.providerErrorCode) {
     throw new CredentialProviderOperationError(
       result.error ?? result.providerErrorCode,
@@ -343,7 +346,11 @@ export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCas
     const result =
       context.credential.type === 'personal_token'
         ? await updatePersonalTokenCredential({ ...fields, credential: context.credential })
-        : await updateCredentialRecord({ ...fields, credential: context.credential })
+        : await updateCredentialRecord({
+            ...fields,
+            credential: context.credential,
+            actorUserId: requirePrincipalSubjectUserId(principal),
+          })
     if (!result.success) throwCredentialMutationFailure(result)
     const access = await getCredentialActorContext(
       context.credential.id,

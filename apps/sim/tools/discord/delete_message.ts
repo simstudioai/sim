@@ -2,7 +2,9 @@ import type {
   DiscordDeleteMessageParams,
   DiscordDeleteMessageResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteMessageTool: ToolConfig<
   DiscordDeleteMessageParams,
@@ -12,6 +14,7 @@ export const discordDeleteMessageTool: ToolConfig<
   name: 'Discord Delete Message',
   description: 'Delete a message from a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -34,7 +37,7 @@ export const discordDeleteMessageTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -42,7 +45,7 @@ export const discordDeleteMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

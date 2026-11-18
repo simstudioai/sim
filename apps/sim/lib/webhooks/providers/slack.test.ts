@@ -1,11 +1,25 @@
 import { createHmac } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { assertSlackFileHost } from '@/lib/internal/slack/file-download'
 import {
   handleSlackChallenge,
   resolveSlackEventKey,
   shouldSkipSlackTriggerEvent,
   slackHandler,
 } from '@/lib/webhooks/providers/slack'
+
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+const { mockOutboundFetch } = vi.hoisted(() => ({ mockOutboundFetch: vi.fn() }))
+vi.mock('@/lib/core/network/outbound-fetch.server', () => ({ outboundFetch: mockOutboundFetch }))
 
 const ctx = (body: unknown) => ({
   webhook: {},
@@ -143,6 +157,136 @@ describe('slackHandler formatInput - Events API', () => {
       })
     )
     expect(eventOf(directMessage.input).context).toEqual({ entities: [] })
+  })
+})
+
+describe('slackHandler formatInput - native app bot token', () => {
+  async function formatNativeAppEvent(event: Record<string, unknown>) {
+    const formatInput = slackHandler.formatInput
+    if (!formatInput) throw new Error('Slack handler has no formatInput')
+    return formatInput({
+      ...ctx({ event }),
+      webhook: { providerConfig: { credentialId: 'cred-1' } },
+      query: {},
+      method: 'POST',
+    })
+  }
+
+  function resolveCredentialOwner() {
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({ accountId: 'acct-1' })
+    queueTableRows(schemaMock.account, [{ userId: 'owner-1' }])
+  }
+
+  it('still runs the event without a bot token when the egress route is down', async () => {
+    resolveCredentialOwner()
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    const { input } = await formatNativeAppEvent({
+      type: 'message',
+      channel: 'C1',
+      user: 'U1',
+      text: 'hi',
+    })
+
+    expect(eventOf(input)).toMatchObject({ event_type: 'message', channel: 'C1', text: 'hi' })
+  })
+
+  it('fails the event on a token error that is not an outage', async () => {
+    resolveCredentialOwner()
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockRejectedValueOnce(
+      new Error('decrypt failed')
+    )
+
+    await expect(formatNativeAppEvent({ type: 'message', channel: 'C1' })).rejects.toThrow(
+      'decrypt failed'
+    )
+  })
+})
+
+describe('slackHandler formatInput - file downloads', () => {
+  beforeEach(() => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+      originalHostname: 'files.slack.com',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(Buffer.from('%PDF'), { status: 200 })
+    )
+  })
+
+  async function formatWithFiles(files: Record<string, unknown>[]) {
+    const formatInput = slackHandler.formatInput
+    if (!formatInput) throw new Error('Slack handler has no formatInput')
+    return formatInput({
+      ...ctx({ event: { type: 'message', channel: 'C1', user: 'U1', text: 'see file', files } }),
+      webhook: { providerConfig: { botToken: 'xoxb-test', includeFiles: true } },
+      query: {},
+      method: 'POST',
+    })
+  }
+
+  it('downloads from the Slack download URL and keeps redirects on the file host', async () => {
+    const { input } = await formatWithFiles([
+      {
+        id: 'F1',
+        name: 'report.pdf',
+        mimetype: 'application/pdf',
+        size: 4,
+        url_private: 'https://files.slack.com/files-pri/T1-F1/report.pdf',
+        url_private_download: 'https://files.slack.com/files-pri/T1-F1/download/report.pdf',
+      },
+    ])
+
+    const [url, , options] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+    expect(url).toBe('https://files.slack.com/files-pri/T1-F1/download/report.pdf')
+    expect(options).toMatchObject({ assertRedirectTarget: assertSlackFileHost })
+    expect(eventOf(input).files).toHaveLength(1)
+  })
+
+  it("looks up the download URL when the event carries only the file's private URL", async () => {
+    mockOutboundFetch.mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        file: {
+          id: 'F3',
+          url_private: 'https://files.slack.com/files-pri/T1-F3/report.pdf',
+          url_private_download: 'https://files.slack.com/files-pri/T1-F3/download/report.pdf',
+        },
+      })
+    )
+
+    const { input } = await formatWithFiles([
+      {
+        id: 'F3',
+        name: 'report.pdf',
+        mimetype: 'application/pdf',
+        size: 4,
+        url_private: 'https://files.slack.com/files-pri/T1-F3/report.pdf',
+      },
+    ])
+
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.lastCall?.[0]).toBe(
+      'https://files.slack.com/files-pri/T1-F3/download/report.pdf'
+    )
+    expect(eventOf(input).files).toHaveLength(1)
+  })
+
+  it('never sends the bot token to a file hosted outside Slack', async () => {
+    const { input } = await formatWithFiles([
+      {
+        id: 'F2',
+        name: 'plan.pdf',
+        is_external: true,
+        url_private: 'https://files.slack.com/files-pri/T1-F2/plan.pdf',
+      },
+    ])
+
+    expect(mockOutboundFetch).not.toHaveBeenCalled()
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(eventOf(input).files).toEqual([])
   })
 })
 

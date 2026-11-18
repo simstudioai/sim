@@ -1,4 +1,5 @@
 import type { MySQLResponse, MySQLUpdateParams } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<MySQLUpdateParams, MySQLResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<MySQLUpdateParams, MySQLResponse> = 
   name: 'MySQL Update',
   description: 'Update existing records in MySQL database',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

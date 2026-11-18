@@ -1,5 +1,7 @@
 import type { CustomFieldsUpdateParams, CustomFieldsUpdateResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const customFieldsUpdateTool: ToolConfig<
   CustomFieldsUpdateParams,
@@ -9,6 +11,7 @@ export const customFieldsUpdateTool: ToolConfig<
   name: 'incident.io Custom Fields Update',
   description: 'Update an existing custom field in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -38,7 +41,8 @@ export const customFieldsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/custom_fields/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -67,7 +71,6 @@ export const customFieldsUpdateTool: ToolConfig<
           field_type: data.custom_field.field_type,
           created_at: data.custom_field.created_at,
           updated_at: data.custom_field.updated_at,
-          options: data.custom_field.options,
         },
       },
     }

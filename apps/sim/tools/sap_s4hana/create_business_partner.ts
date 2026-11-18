@@ -150,7 +150,8 @@ export const createBusinessPartnerTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP (201 on success)' },
     data: {
       type: 'json',
-      description: 'Created A_BusinessPartner entity (under d in OData v2)',
+      description:
+        'Created A_BusinessPartner entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
         BusinessPartner: {
           type: 'string',

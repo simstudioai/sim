@@ -1,5 +1,6 @@
 import { SixtyfourIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 const PHONE_LOOKUP_FIELD = ['name', 'linkedinUrl', 'emailInput'] as const
 const EMAIL_LOOKUP_FIELD = ['name', 'linkedinUrl', 'phoneInput'] as const
@@ -7,6 +8,8 @@ const EMPLOYER_FIELD = ['company', 'domain'] as const
 
 export const SixtyfourBlock: BlockConfig = {
   type: 'sixtyfour',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sixtyfour_v2' },
   name: 'Sixtyfour AI',
   description: 'Enrich leads and companies with AI-powered research',
   longDescription:
@@ -220,20 +223,21 @@ export const SixtyfourBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `sixtyfour_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
+        const operation = mapperOperation(params, context)
 
-        if (params.operation === 'find_phone') {
+        if (operation === 'find_phone') {
           if (params.emailInput) result.email = params.emailInput
-        } else if (params.operation === 'find_email') {
+        } else if (operation === 'find_email') {
           if (params.phoneInput) result.phone = params.phoneInput
-        } else if (params.operation === 'enrich_lead') {
+        } else if (operation === 'enrich_lead') {
           result.leadInfo = params.leadInfo
-          result.struct = params.leadStruct
+          result.struct = params.leadStruct ?? toolCallArg(context, params.struct)
           if (params.leadResearchPlan) result.researchPlan = params.leadResearchPlan
-        } else if (params.operation === 'enrich_company') {
+        } else if (operation === 'enrich_company') {
           result.targetCompany = params.targetCompany
-          result.struct = params.companyStruct
+          result.struct = params.companyStruct ?? toolCallArg(context, params.struct)
           if (params.findPeople !== undefined) result.findPeople = Boolean(params.findPeople)
           if (params.fullOrgChart !== undefined) result.fullOrgChart = Boolean(params.fullOrgChart)
           if (params.peopleFocusPrompt) result.peopleFocusPrompt = params.peopleFocusPrompt
@@ -421,3 +425,17 @@ export const SixtyfourBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SixtyfourV2Block: BlockConfig = {
+  ...SixtyfourBlock,
+  type: 'sixtyfour_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SixtyfourBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sixtyfour',
+    title: 'Sixtyfour Credential',
+  }),
+}

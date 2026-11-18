@@ -2,6 +2,10 @@ import type {
   CrowdStrikePerformHostGroupActionParams,
   CrowdStrikePerformHostGroupActionResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
   description:
     'Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /devices/entities/host-group-actions/v1). Group membership drives policy assignment, so changing it changes which policies apply to those hosts. Requires the "Host groups: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     actionName: {
       type: 'string',
       required: true,
@@ -60,6 +66,7 @@ export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       deviceIds: params.deviceIds,
       hostGroupId: params.hostGroupId,
       operation: 'crowdstrike_perform_host_group_action',

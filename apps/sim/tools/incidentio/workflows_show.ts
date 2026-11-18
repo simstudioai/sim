@@ -1,13 +1,16 @@
 import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {
   id: 'incidentio_workflows_show',
   name: 'incident.io Workflows Show',
   description: 'Get details of a specific workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,7 +35,9 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.incident.io/v2/workflows/${params.id.trim()}`)
+      const url = new URL(
+        `https://api.incident.io/v2/workflows/${safeUrlPathSegment(params.id, 'id')}`
+      )
       if (params.skip_step_upgrades !== undefined) {
         url.searchParams.set('skip_step_upgrades', String(params.skip_step_upgrades))
       }

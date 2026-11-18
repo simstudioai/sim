@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InvoiceListResponse, ListInvoicesParams } from '@/tools/square/types'
 import {
   INVOICE_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
   name: 'Square List Invoices',
   description: 'List invoices for a specific location',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -44,7 +47,7 @@ export const squareListInvoicesTool: ToolConfig<ListInvoicesParams, InvoiceListR
 
   request: {
     url: (params) => {
-      const url = new URL(`${SQUARE_BASE_URL}/v2/invoices`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices`)
       url.searchParams.append('location_id', params.locationId)
       if (params.limit !== undefined) url.searchParams.append('limit', params.limit.toString())
       if (params.cursor) url.searchParams.append('cursor', params.cursor)

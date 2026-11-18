@@ -31,6 +31,7 @@ const principal = {
   kind: 'workspace_api_key' as const,
   workspaceId: 'workspace-1',
   keyId: 'key-1',
+  access: 'write' as const,
 }
 const auth = {
   principal,
@@ -58,6 +59,7 @@ const baseStatus = {
   startedAt: '2026-07-31T00:00:00.000Z',
   endedAt: '2026-07-31T00:00:05.000Z',
   totalDurationMs: 5000,
+  deploymentVersion: null,
   paused: null,
   cost: { total: 0.02 },
   error: 'Send Email: Invalid credentials',

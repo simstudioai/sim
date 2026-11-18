@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraListIssueTypesParams, JiraListIssueTypesResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -60,7 +61,7 @@ export const jiraListIssueTypesTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraListIssueTypesParams) => {
     const fetchIssueTypes = async (cloudId: string) => {
-      const issueTypesResponse = await fetch(buildIssueTypesUrl(cloudId), {
+      const issueTypesResponse = await outboundFetch(buildIssueTypesUrl(cloudId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

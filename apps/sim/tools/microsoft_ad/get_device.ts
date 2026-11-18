@@ -5,6 +5,7 @@ import type {
 import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { DEVICE_SELECT, mapDevice } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getDeviceTool: ToolConfig<MicrosoftAdGetDeviceParams, MicrosoftAdGetDeviceResponse> = {
   id: 'microsoft_ad_get_device',
@@ -34,7 +35,7 @@ export const getDeviceTool: ToolConfig<MicrosoftAdGetDeviceParams, MicrosoftAdGe
     url: (params) => {
       const deviceObjectId = params.deviceObjectId?.trim()
       if (!deviceObjectId) throw new Error('Device object ID is required')
-      return `https://graph.microsoft.com/v1.0/devices/${encodeURIComponent(deviceObjectId)}?$select=${DEVICE_SELECT}`
+      return `https://graph.microsoft.com/v1.0/devices/${safeUrlPathSegment(deviceObjectId, 'deviceObjectId')}?$select=${DEVICE_SELECT}`
     },
     method: 'GET',
     headers: (params) => ({

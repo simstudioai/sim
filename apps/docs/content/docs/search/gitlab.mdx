@@ -3,7 +3,7 @@ title: GitLab
 description: Search self-managed projects with live administrator checks or CSV grants
 ---
 
-GitLab Search uses **Service account** mode, with one self-managed project per source. Teammates do not connect personal GitLab accounts. Sim matches their verified identity to the source's permission strategy on each search and read.
+GitLab Search uses **Service account** mode, with a self-managed project or group per source. Teammates do not connect personal GitLab accounts. Sim matches their verified identity to the source's permission strategy on each search and read.
 
 ## Choose a permission strategy
 
@@ -11,24 +11,24 @@ GitLab Search uses **Service account** mode, with one self-managed project per s
 | --- | --- | --- |
 | Token owner | Active instance administrator | Account that can read the project's content |
 | PAT scopes | `read_api`; `admin_mode` when Admin Mode is enabled | `read_api` |
-| Reader authorization | Current GitLab identity, membership, roles, and supported restrictions | Admin-uploaded email mapping and project grants |
-| Membership changes | Checked during the request | Admin updates the CSV files |
+| Reader authorization | Current GitLab identity, membership, roles, and supported restrictions | Email mapping and project grants supplied by your organization |
+| Membership changes | Checked during the request | After the next successful CSV update |
 | Confidential issues | Only when supported permissions allow the reader | Always excluded |
 
 The administrator path requires self-managed GitLab 17.4 or later and its administrator identity/settings APIs. A project Maintainer or group Owner is not an instance administrator. Non-admin mode does not require those administrator APIs.
 
-The instance must be reachable from the Sim server and pass outbound-request protections. Use the self-managed host, not `gitlab.com`. Each source binds its host and project; a query cannot redirect the token elsewhere.
+The instance must be reachable from the Sim server and pass outbound-request protections. Use the self-managed host, not `gitlab.com`. Each source binds its host and selected project or group; a query cannot redirect the token elsewhere.
 
 ## Add a project
 
 1. Create a read-only PAT with the chosen scopes and an appropriate expiry.
-2. Open **Settings → Sources → Add source → GitLab → Add project**.
+2. Open **Settings → Sources → Add source → GitLab → Add connection**.
 3. Choose **Administrator token** or **Non-admin token**.
 4. Enter the token, self-managed **Host**, and exact **Project** path or numeric ID.
 5. Choose content and filters. Non-admin mode requires both CSV files below.
 6. Save, then have a permitted teammate search and read known content. Repeat with a teammate who has no grant.
 
-Use **Add project** again for another project. There is no initial sync. Organization membership and a matching verified email are required, but membership alone does not grant project access.
+Use **Add connection** again for another project. There is no initial sync. Organization membership and a matching verified email are required, but membership alone does not grant project access.
 
 ## Resource settings
 
@@ -42,6 +42,22 @@ Use **Add project** again for another project. There is no initial sync. Organiz
 | Milestone | Exact issue milestone title. |
 
 Sim checks returned content against these restrictions independently of the query. Available search APIs depend on the GitLab version and enabled search capabilities. Unsupported searches are reported explicitly.
+
+## Add a group
+
+Choose **Group** in the source's **Scope** field and enter the numeric group ID or full group path. Enable **Include subgroups** only if descendant projects should be included. Sim supports up to **50,000 projects** visible to the source token, subject to the CSV limits below and a 16 MiB limit for saved project IDs and paths. Projects shared from outside the group are excluded.
+
+Discovery reads 100 projects per page and must finish within five minutes. GitLab's configured offset and rate limits still apply; choose narrower groups if the instance cannot return the complete listing within these limits. Sim also handles listings without total-count headers, which GitLab can omit above 10,000 results.
+
+The same permission strategies apply. Group membership alone never grants access to every project: administrator mode checks each project's current permissions, and non-admin mode requires a CSV grant for each project and reader. The source token must be able to read every project you want to search.
+
+In CSV mode, each successful upload rediscovers the group's projects and replaces all grants atomically. Newly discovered projects become searchable only for users explicitly listed in the uploaded CSV. Updating and saving source settings also refreshes discovery. A failed discovery or stale revision preserves the previous configuration and grants. If a group configured by path is renamed, save the new path and an updated project-permissions CSV together in source settings. Numeric group IDs remain valid across renames.
+
+In CSV mode, search uses GitLab's group search API and checks each result against the saved projects and reader grants. Group code search requires Advanced Search or Exact Code Search; group wiki search requires Advanced Search. Unsupported scopes fall back to project search. A configured branch/tag, date filters, or administrator-token mode also use project search where needed. Each request visits a bounded number of pages; continuation cursors cover the remainder. Targeting a project narrows the request.
+
+Group search stops at 10,000 candidates per content type to respect GitLab's Advanced Search window. Sim marks this as partial and asks you to narrow the query or target a project. This candidate limit applies before permission filtering. Renamed or moved projects are blocked until a successful refresh; projects outside the configured group remain excluded. See GitLab's [search capabilities and pagination limits](https://docs.gitlab.com/api/search/).
+
+To expand an existing deployment, create a **separate group source** after the application deployment finishes. Keep the working project source and its CI variables unchanged while validating the group. Give the group job its new `SIM_SOURCE_ID`, then pause the old source after confirming the wider setup. Regular knowledge-base ingestion remains project-scoped.
 
 ## Non-admin CSV permissions
 
@@ -66,10 +82,49 @@ engineering/platform,456
 Use the full namespace path even if **Project** contains a numeric ID. Include inherited members explicitly. A grant without an email mapping grants nothing; rows for other projects cannot expand this source.
 
 - Each file has exactly two columns in the shown order and at least one data row. Template headers or headerless data are accepted.
-- Use UTF-8 CSV, at most 4 MiB and 100,000 data rows per file. The full request must fit 10 MiB.
+- Use UTF-8 CSV, at most **8 MiB and 500,000 data rows per file**. The complete JSON upload, including escaped CSV content, must fit **10 MiB**. These are independent limits; split large deployments into narrower sources when either is reached.
 - Identical rows are deduplicated. Conflicting user-ID/email mappings and malformed rows are rejected.
 
-These grants are admin-managed authorization. A granted reader can search allowed non-confidential content; Sim does not infer that person's actual GitLab role, restrictions, or membership from the non-admin token. Update both files when access changes.
+In this example, Alice can search `engineering/platform` because the files link GitLab user `123` to both that project and `alice@example.com`. Sim checks that Alice is a current organization member and that her verified Sim email uniquely matches the grant. It checks again when she opens a result. GitLab receives the request under the source's read-only service account; Alice does not sign in to GitLab or authorize Sim individually.
+
+Saving the CSVs grants the access listed in them. Changing a membership in GitLab alone does not change these grants. Replace the CSVs to add or revoke access; the change applies to the next search or read without re-indexing.
+
+### Export both CSVs from GitLab
+
+Download [export-permissions.py](/static/examples/gitlab/export-permissions.py) and save it as `ci/export-gitlab-permissions.py` in your repository. It uses Python 3.10 or later with no extra packages and exports a project or group per run.
+
+Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of each selected project, their primary emails, and confirmation status. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
+
+The exporter makes only these GitLab API requests:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v4/groups/:id` | Resolve a group identity when using `--group`. |
+| `GET /api/v4/groups/:id/projects` | Page through group projects, excluding shared projects; include subgroups only when requested. |
+| `GET /api/v4/projects/:id` | Resolve the numeric ID and full project path. |
+| `GET /api/v4/projects/:id/members/all` | Page through visible direct, inherited, and invited-group members, 100 at a time. |
+| `GET /api/v4/users/:id` | Read each eligible member's account state, email confirmation, and primary email. |
+
+GitLab documents [membership visibility](https://docs.gitlab.com/api/project_members/#list-all-members-of-a-project) and [user profile fields](https://docs.gitlab.com/api/users/#retrieve-a-single-user). The `read_api` scope alone does not grant access to private emails. The export token needs that directory permission too. Profiles without a valid `confirmed_at` timestamp are excluded. If an eligible reader's primary email is unavailable, the script stops; it never substitutes a public email. Confirm the exported emails match your teammates' verified Sim emails.
+
+With `GITLAB_EXPORT_TOKEN` set in the environment, run:
+
+```bash
+python3 ci/export-gitlab-permissions.py \
+  --gitlab-url https://gitlab.example.com \
+  --project engineering/platform \
+  --output-dir gitlab-permissions
+```
+
+For a group, replace `--project engineering/platform` with `--group engineering`. Add `--include-subgroups` only when the Sim source has the same setting. Both CSVs cover the whole group: users appear once in `users.csv`, and `project-permissions.csv` contains a row for each project/user grant. Projects without eligible readers contribute no grants. If the entire export has no readers, pause the source instead of uploading empty files.
+
+This creates `gitlab-permissions/users.csv` and `gitlab-permissions/project-permissions.csv`. Numeric project IDs are also accepted. The output directory must not already exist. Both files are published together after the export completes and passes validation.
+
+The export includes active, unlocked human members with Reporter access or higher. It excludes Guests, Planners, bots, and memberships expiring today or earlier in UTC. It does not infer access from public/internal visibility, administrator or Auditor privileges, or custom permissions below Reporter. GitLab policies such as SSO or external authorization are not represented by these CSVs. Review the grants against your organization's access requirements before uploading them.
+
+Requests run serially, paced at 60 per minute by default. Set `--requests-per-minute` to change this export-job ceiling; it does not configure live Search traffic. Each run reads each project's identity and membership pages, plus one profile request per distinct candidate reader. Group exports also read the group identity and project listing. The request ceiling applies across the entire export. API errors, hidden emails, identity conflicts, inconsistent pagination totals (when GitLab provides them), and oversized exports stop the job without publishing either file. Run exports after bulk membership updates finish; paginated API reads are not a point-in-time snapshot.
+
+Large exports can take hours. For example, 50,000 projects require at least 100,000 project and membership requests, before listing and profile requests: over 27 hours at the default ceiling. Set the CI job timeout and schedule accordingly, or use smaller groups. Agree any higher request rate with your GitLab administrator. CSV files are written incrementally and published only when the complete export succeeds.
 
 ## Access checks
 
@@ -77,13 +132,68 @@ The source token retrieves content. Administrator mode proves the reader's curre
 
 Non-admin mode uses saved source-local CSV grants and revalidates the token's current host/project identity. Confidential issues are excluded, including issues that became confidential after search.
 
-Reads recheck current settings, permissions, and metadata. A reference from another member, account, organization, project, or host cannot authorize a read. Live Search does not use a stored content or permission index.
+Reads recheck current settings, permissions, and metadata. A reference from another member, account, organization, project, or host cannot authorize a read. Sim fetches content live from GitLab. In CSV mode, Sim stores the uploaded mappings and resulting project grants.
 
 ## Update permissions or rotate the token
 
-In project settings, replace either CSV file, retaining the other when appropriate. Sim validates the resulting pair before saving. Invalid or stale updates preserve saved grants. Removed readers lose access on the next operation.
+In source settings, replace either CSV file, retaining the other when appropriate. Sim validates the resulting pair before saving. Invalid or stale updates preserve saved grants. Removed readers lose access on the next operation.
 
-To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Changing host, project, or permission strategy requires valid configuration for the new identity.
+To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Changing host, scope, or permission strategy requires valid configuration for the new identity.
+
+### Automate updates with GitLab CI
+
+After an admin configures a source in **Non-admin token** mode, a job can [read its revision](/api-reference/organizations/getSearchSourcePermissions) and [replace both CSVs](/api-reference/organizations/replaceSearchSourcePermissions). Copy `SIM_ORG_ID` and `SIM_SOURCE_ID` from the source settings URL: `/o/<organizationId>/settings/integrations/sources/<sourceId>`. Set `SIM_BASE_URL` to your Sim origin (for hosted Sim, `https://www.sim.ai`).
+
+Store an organization admin's [personal Sim API key](/api-reference/authentication) with [**Full access**](/api-reference/authentication#key-access) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access; a read-only key can read the revision but not replace the CSVs. This endpoint can only read the revision or replace both CSVs; it cannot change the GitLab PAT, host, or configured scope.
+
+Commit [the exporter above](#export-both-csvs-from-gitlab) at `ci/export-gitlab-permissions.py`. Set `GITLAB_EXPORT_TOKEN`, `GITLAB_PROJECT` (full path or numeric ID), and the Sim variables above. This example uses `CI_SERVER_URL` for the GitLab host and runs on a schedule against a protected branch. Choose the schedule based on how quickly permission changes must reach Sim.
+
+```yaml title=".gitlab-ci.yml"
+sync_gitlab_permissions:
+  image: alpine:3.22
+  resource_group: "sim-permissions-$SIM_SOURCE_ID"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_PROTECTED == "true"'
+  before_script:
+    - apk add --no-cache ca-certificates curl jq python3
+  script:
+    - |
+      set -eu
+      umask 077
+      export_root=$(mktemp -d)
+      trap 'rm -rf "$export_root"' EXIT
+      url="${SIM_BASE_URL%/}/api/v2/organizations/$SIM_ORG_ID/search/sources/$SIM_SOURCE_ID/permissions"
+      auth="X-API-Key: $SIM_API_KEY"
+      current=$(curl --fail --silent --show-error -H "$auth" "$url")
+      revision=$(printf '%s' "$current" | jq -er '.data.revision')
+      python3 ci/export-gitlab-permissions.py \
+        --gitlab-url "$CI_SERVER_URL" --project "$GITLAB_PROJECT" \
+        --output-dir "$export_root/permissions" --requests-per-minute 60
+      jq -n --argjson rev "$revision" \
+        --rawfile users "$export_root/permissions/users.csv" \
+        --rawfile grants "$export_root/permissions/project-permissions.csv" \
+        '{expectedRevision: $rev, permissions: {provider: "gitlab",
+          userMapping: {filename: "users.csv", content: $users},
+          projectPermissions: {filename: "project-permissions.csv", content: $grants}}}' > "$export_root/update.json"
+      if [ "$(wc -c < "$export_root/update.json")" -gt 10485760 ]; then
+        echo "Permission upload exceeds 10 MiB; use a narrower source." >&2
+        exit 1
+      fi
+      curl --fail --silent --show-error --request PUT -H "$auth" \
+        -H 'Content-Type: application/json' --data-binary "@$export_root/update.json" "$url"
+```
+
+For a group source, keep the same revision/read/upload steps and replace only the exporter command above:
+
+```bash
+python3 ci/export-gitlab-permissions.py \
+  --gitlab-url "$CI_SERVER_URL" --group "$GITLAB_GROUP" \
+  --output-dir "$export_root/permissions" --requests-per-minute 60
+```
+
+Set `GITLAB_GROUP` to the configured group's full path or numeric ID. Add `--include-subgroups` if enabled in Sim. The existing `--project` command, CSV headers, upload endpoint, and revision checks are unchanged. Grants for projects outside the configured group are rejected; a reused path with a different project ID requires a new connection.
+
+A successful update returns the new revision. A `409 Conflict` means someone updated the source after the job read its revision. Rerun the job from the beginning so it exports current grants. An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the source should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
 
 ## Troubleshooting
 

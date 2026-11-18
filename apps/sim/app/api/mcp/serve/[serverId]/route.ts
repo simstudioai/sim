@@ -17,7 +17,11 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
-import { isUserCredentialPrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import {
+  isReadOnlyApiKeyPrincipal,
+  isUserCredentialPrincipal,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   workflow,
@@ -37,7 +41,11 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
-import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
+import {
+  API_KEY_EXPIRED,
+  PERSONAL_KEY_DENIED,
+  READ_ONLY_API_KEY_DENIED,
+} from '@/lib/api-key/policy-messages'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   InvalidOAuthAccessTokenError,
@@ -79,6 +87,10 @@ import { buildWorkflowMcpServerUrl } from '@/lib/mcp/urls'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  PublicApiNotAllowedError,
+  validatePublicApiAllowed,
+} from '@/ee/access-control/utils/permission-check'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {
@@ -445,6 +457,7 @@ async function getServer(serverId: string) {
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
       workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
+      workspaceBilledAccountUserId: workspace.billedAccountUserId,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -483,10 +496,14 @@ async function resolveWorkflowMcpBillingAttribution(
  * A 401 that points OAuth clients at this server's protected-resource metadata,
  * so they can discover Sim's authorization server and start the flow.
  */
-function unauthorizedResponse(serverId: string, invalidToken = false): NextResponse {
+function unauthorizedResponse(
+  serverId: string,
+  invalidToken = false,
+  error?: string
+): NextResponse {
   return withWorkflowMcpAuthChallenge(
     NextResponse.json(
-      { error: invalidToken ? 'Invalid access token' : 'Unauthorized' },
+      { error: invalidToken ? 'Invalid access token' : (error ?? 'Unauthorized') },
       {
         status: 401,
         ...(invalidToken && { headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } }),
@@ -549,7 +566,21 @@ async function authorizeMcpServeRequest(
   server: WorkflowMcpServeServer,
   options: { requireAuthForPublic?: boolean } = {}
 ): Promise<{ response?: NextResponse; executeAuthContext?: ExecuteAuthContext }> {
-  if (server.isPublic && !options.requireAuthForPublic) return {}
+  if (server.isPublic) {
+    // The public-API gate, checked per request so a revocation reaches servers already public.
+    try {
+      await validatePublicApiAllowed(server.workspaceBilledAccountUserId, server.workspaceId)
+    } catch (error) {
+      if (!(error instanceof PublicApiNotAllowedError)) throw error
+      return {
+        response: NextResponse.json(
+          { error: 'Public access to this MCP server is disabled' },
+          { status: 403 }
+        ),
+      }
+    }
+    if (!options.requireAuthForPublic) return {}
+  }
 
   const auth = await authenticateMcpServeRequest(request, server.id)
   if (auth === 'invalid_token') return { response: unauthorizedResponse(server.id, true) }
@@ -561,7 +592,10 @@ async function authorizeMcpServeRequest(
     }
   }
   if (!auth.success || !auth.userId) {
-    return { response: unauthorizedResponse(server.id) }
+    const expired = auth.error === API_KEY_EXPIRED
+    return {
+      response: unauthorizedResponse(server.id, false, expired ? API_KEY_EXPIRED : undefined),
+    }
   }
   if (!auth.principal) {
     throw new Error('Authenticated MCP request is missing its principal')
@@ -604,13 +638,24 @@ async function authorizeMcpServeRequest(
   }
 }
 
-/** Calling a tool runs a workflow, so an OAuth token needs `api:write`. */
+/**
+ * Calling a tool runs a workflow, so an OAuth token needs `api:write` and a
+ * read-only API key is refused outright: it has no scope to step up to.
+ */
 function insufficientToolCallScopeResponse(
   id: RequestId,
   serverId: string,
   executeAuthContext: ExecuteAuthContext | null
 ): NextResponse | null {
   const principal = executeAuthContext?.principal
+  if (principal && isReadOnlyApiKeyPrincipal(principal)) {
+    return NextResponse.json(
+      createError(id, ErrorCode.InvalidRequest, READ_ONLY_API_KEY_DENIED, {
+        code: 'READ_ONLY_API_KEY',
+      }),
+      { status: 403 }
+    )
+  }
   if (principal?.kind !== 'oauth_access_token') return null
   if (oauthScopeSatisfies(principal.scopes, OAUTH_API_WRITE_SCOPE)) return null
   return insufficientScopeResponse(

@@ -1,6 +1,8 @@
 import type { GitLabUpdateMemberParams, GitLabUpdateMemberResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabUpdateMemberTool: ToolConfig<
   GitLabUpdateMemberParams,
@@ -11,6 +13,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
   name: 'GitLab Update Member',
   description: "Update a member's access level in a GitLab project or group",
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -48,7 +51,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'New access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'New access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner). 5 (Minimal access) is also valid for a top-level group on Premium and Ultimate.',
     },
     expiresAt: {
       type: 'string',
@@ -69,7 +72,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
   request: {
     url: (params) => {
       const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
-      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${params.userId}`
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'PUT',
     headers: (params) => ({

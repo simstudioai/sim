@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteMediaParams,
@@ -36,7 +37,7 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
     request: {
       url: (params) => {
         // Media has no trash — deletion always requires force=true to take effect
-        return `${WORDPRESS_COM_API_BASE}/${params.siteId}/media/${params.mediaId}?force=true`
+        return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/media/${safeUrlPathSegment(params.mediaId, 'mediaId')}?force=true`
       },
       method: 'DELETE',
       headers: (params) => ({

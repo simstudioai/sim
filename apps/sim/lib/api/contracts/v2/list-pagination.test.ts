@@ -75,6 +75,7 @@ const PAGED_LISTS = [
   'GET /api/v2/logs',
   'GET /api/v2/mcp-servers',
   'GET /api/v2/sandboxes',
+  'GET /api/v2/schedules',
   'GET /api/v2/secrets',
   'GET /api/v2/skills',
   'GET /api/v2/skills/[skillId]/editors',
@@ -85,6 +86,7 @@ const PAGED_LISTS = [
   'GET /api/v2/workflows',
   'GET /api/v2/workflows/[workflowId]/runs',
   'GET /api/v2/workflows/[workflowId]/versions',
+  'GET /api/v2/workflows/runs/paused',
   'GET /api/v2/workflow-mcp-servers',
   'GET /api/v2/workspaces/[workspaceId]/members',
   'GET /api/v2/workspaces/[workspaceId]/fork/children',
@@ -137,6 +139,7 @@ const FULL_SET_LISTS = [
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
   'GET /api/v2/workflows/folders',
+  'GET /api/v2/workflows/[workflowId]/triggers',
 ] as const
 
 /**
@@ -314,6 +317,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/sandboxes': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/schedules': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
@@ -339,6 +343,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   ],
   'GET /api/v2/workflows/[workflowId]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
   'GET /api/v2/workflows/[workflowId]/versions': [],
+  'GET /api/v2/workflows/runs/paused': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/workflow-mcp-servers': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/chat-deployments': ['workspaceId', 'workflowId', 'isActive', 'sortBy', 'sortOrder'],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
@@ -451,6 +456,10 @@ const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
     details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
     includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',
     includeFinalOutput: 'Response shaping only; the row set and its order are unchanged.',
+  },
+  'GET /api/v2/workflows/runs/paused': {
+    includeOutput:
+      'Response shaping only; the run set, its order, and where a page ends (counted in pause points, not bytes) are unchanged.',
   },
   'GET /api/v2/tables/[tableId]/rows': {
     workspaceId:

@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface EvaluateFlagsParams {
   region: 'us' | 'eu'
@@ -22,7 +22,10 @@ interface EvaluateFlagsResponse {
   errors_while_computing_flags: boolean
 }
 
-export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsResponse> = {
+export const evaluateFlagsTool: ToolConfig<
+  EvaluateFlagsParams,
+  ToolResponse & { output: EvaluateFlagsResponse }
+> = {
   id: 'posthog_evaluate_flags',
   name: 'PostHog Evaluate Feature Flags',
   description:
@@ -140,9 +143,12 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
     }
 
     return {
-      feature_flags,
-      feature_flag_payloads,
-      errors_while_computing_flags: data.errorsWhileComputingFlags || false,
+      success: true,
+      output: {
+        feature_flags,
+        feature_flag_payloads,
+        errors_while_computing_flags: data.errorsWhileComputingFlags || false,
+      },
     }
   },
 

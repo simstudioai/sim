@@ -1,4 +1,5 @@
 import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type {
   YouComFinanceResearchParams,
@@ -22,6 +23,7 @@ export const youComFinanceResearchTool: ToolConfig<
   description:
     'Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     input: {

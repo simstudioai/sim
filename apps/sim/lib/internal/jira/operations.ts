@@ -100,6 +100,27 @@ function putOptionalIssueFields(
   }
 }
 
+function toParentReference(parent: NonNullable<JiraWriteInput['parent']>): unknown {
+  if (typeof parent !== 'string') return parent
+  return /^\d+$/.test(parent) ? { id: parent } : { key: parent }
+}
+
+/**
+ * Merges `customFields` under the explicit fields. `reserved` names fields an explicit
+ * param sets outside this body (the create flow assigns after creation), which
+ * `customFields` must not override either.
+ */
+function putAdditionalFields(
+  fields: JsonObject,
+  customFields: JsonObject | undefined,
+  reserved: string[] = []
+): void {
+  if (!customFields) return
+  for (const [fieldId, value] of Object.entries(customFields)) {
+    if (!(fieldId in fields) && !reserved.includes(fieldId)) fields[fieldId] = value
+  }
+}
+
 async function assignCreatedIssue(
   client: JiraClient,
   issueKey: string,
@@ -149,15 +170,9 @@ export async function executeJiraWrite(input: JiraWriteInput, context: JiraOpera
     summary: input.summary,
   }
   putOptionalIssueFields(fields, input, false)
-  if (input.parent) {
-    fields.parent =
-      typeof input.parent === 'string'
-        ? /^\d+$/.test(input.parent)
-          ? { id: input.parent }
-          : { key: input.parent }
-        : input.parent
-  }
+  if (input.parent) fields.parent = toParentReference(input.parent)
   if (input.reporter) fields.reporter = { accountId: input.reporter }
+  putAdditionalFields(fields, input.customFields, input.assignee ? ['assignee'] : [])
 
   const response = await client.request(
     client.issuePath(),
@@ -212,6 +227,8 @@ export async function executeJiraUpdate(input: JiraUpdateInput, context: JiraOpe
   const fields: JsonObject = {}
   if (input.summary) fields.summary = input.summary
   putOptionalIssueFields(fields, input, true)
+  if (input.parent) fields.parent = toParentReference(input.parent)
+  putAdditionalFields(fields, input.customFields)
   const notifyParam =
     input.notifyUsers === false
       ? '?notifyUsers=false'

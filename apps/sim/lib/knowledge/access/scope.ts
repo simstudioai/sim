@@ -16,8 +16,13 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
@@ -459,14 +464,19 @@ function createAccessProvider(
         connectorIds: ids,
         signal: cancellation,
       }
-      const [githubInstallationGrants, confluenceSiteGrants] = await Promise.all([
-        githubReaders.length
-          ? resolveGitHubInstallationReadGrants({ ...input, readers: githubReaders })
-          : Promise.resolve([]),
-        confluenceReaders.length
-          ? resolveConfluenceSiteReadGrants({ ...input, readers: confluenceReaders })
-          : Promise.resolve([]),
-      ])
+      // One owner scope for both resolvers, so a workspace owner is loaded once, not per resolver.
+      const [githubInstallationGrants, confluenceSiteGrants] = await withResourceOutboundScope(
+        resourceScopeFields(input.scope),
+        () =>
+          Promise.all([
+            githubReaders.length
+              ? resolveGitHubInstallationReadGrants({ ...input, readers: githubReaders })
+              : Promise.resolve([]),
+            confluenceReaders.length
+              ? resolveConfluenceSiteReadGrants({ ...input, readers: confluenceReaders })
+              : Promise.resolve([]),
+          ])
+      )
       return { ...access, githubInstallationGrants, confluenceSiteGrants }
     },
     async getForDocuments(documentIds, signal) {

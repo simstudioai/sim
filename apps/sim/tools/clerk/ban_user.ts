@@ -5,7 +5,9 @@ import type {
   ClerkBanUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkBanUser')
 
@@ -14,6 +16,7 @@ export const clerkBanUserTool: ToolConfig<ClerkBanUserParams, ClerkBanUserRespon
   name: 'Ban User in Clerk',
   description: 'Ban a user, preventing them from signing in',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -31,7 +34,8 @@ export const clerkBanUserTool: ToolConfig<ClerkBanUserParams, ClerkBanUserRespon
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/users/${params.userId?.trim()}/ban`,
+    url: (params) =>
+      `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/ban`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

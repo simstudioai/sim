@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { KEY_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleKey,
@@ -16,6 +17,7 @@ export const tailscaleListAuthKeysTool: ToolConfig<
   name: 'Tailscale List Keys',
   description: 'List active auth keys, API access tokens, and trust credentials in the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

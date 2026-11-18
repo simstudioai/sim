@@ -1,5 +1,6 @@
 import { CheckrIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CANDIDATE_ID_REQUIRED_OPS = [
@@ -115,6 +116,8 @@ function toOptionalNumber(value: unknown): number | undefined {
 
 export const CheckrBlock: BlockConfig = {
   type: 'checkr',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'checkr_v2' },
   name: 'Checkr',
   description: 'Run and manage background checks with Checkr',
   longDescription:
@@ -1268,7 +1271,8 @@ export const CheckrBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `checkr_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           candidateAdjudication,
           reportAdjudication,
@@ -1290,18 +1294,21 @@ export const CheckrBlock: BlockConfig = {
         } = params
         const result: Record<string, unknown> = { ...rest }
 
-        if (params.operation === 'create_invitation' || params.operation === 'create_report') {
-          result.tags = toStringList(reportTags)
+        if (operation === 'create_invitation' || operation === 'create_report') {
+          result.tags = toStringList(reportTags ?? toolCallArg(context, rest.tags))
         } else {
           result.tags = toStringList(rest.tags)
         }
-        if (params.operation === 'list_candidates') {
-          result.geoId = filterGeoId || undefined
-          result.programId = filterProgramId || undefined
+        if (operation === 'list_candidates') {
+          result.geoId = filterGeoId || toolCallArg(context, rest.geoId) || undefined
+          result.programId = filterProgramId || toolCallArg(context, rest.programId) || undefined
         }
-        if (params.operation === 'update_continuous_check') {
-          result.node = continuousCheckNode || undefined
-          result.workLocations = toJsonArray(continuousCheckWorkLocations, 'work locations')
+        if (operation === 'update_continuous_check') {
+          result.node = continuousCheckNode || toolCallArg(context, rest.node) || undefined
+          result.workLocations = toJsonArray(
+            continuousCheckWorkLocations ?? toolCallArg(context, rest.workLocations),
+            'work locations'
+          )
         } else {
           result.workLocations = toJsonArray(rest.workLocations, 'work locations')
         }
@@ -1311,10 +1318,9 @@ export const CheckrBlock: BlockConfig = {
         result.selfDisclosures = toJsonArray(rest.selfDisclosures, 'self disclosures')
 
         const adjudication =
-          params.operation === 'update_report' ? reportAdjudication : candidateAdjudication
+          operation === 'update_report' ? reportAdjudication : candidateAdjudication
         if (adjudication) result.adjudication = adjudication
-        const status =
-          params.operation === 'list_subscriptions' ? subscriptionStatus : invitationStatus
+        const status = operation === 'list_subscriptions' ? subscriptionStatus : invitationStatus
         if (status) result.status = status
 
         const noMiddle = toOptionalBoolean(noMiddleName)
@@ -1691,3 +1697,17 @@ export const CheckrBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CheckrV2Block: BlockConfig = {
+  ...CheckrBlock,
+  type: 'checkr_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CheckrBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'checkr',
+    title: 'Checkr Credential',
+  }),
+}

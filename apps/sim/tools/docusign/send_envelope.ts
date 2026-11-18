@@ -16,6 +16,7 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -24,6 +25,12 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     emailSubject: {
       type: 'string',
@@ -65,7 +72,8 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
       type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Document file to send for signature',
+      description:
+        'Document file to send for signature. Text "/sig1/" and "/date1/" in the document anchor the signature and date fields; without them the signer places fields freely, unless the DocuSign account disables freeform signing',
     },
     status: {
       type: 'string',
@@ -79,6 +87,7 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       emailSubject: params.emailSubject,
       emailBody: params.emailBody,
       signerEmail: params.signerEmail,

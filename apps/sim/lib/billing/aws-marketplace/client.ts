@@ -4,6 +4,7 @@ import { SQSClient } from '@aws-sdk/client-sqs'
 import { fromHttp } from '@aws-sdk/credential-providers'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 /**
  * The Entitlement Service exists only here. Metering is multi-region, but a registration token is
@@ -28,17 +29,17 @@ let queueClient: SQSClient | null = null
 /**
  * Credentials for the Marketplace and event-queue clients only. On ECS the app's env also carries
  * a static IAM user's keys, which the SDK's default chain prefers and which Sim's general AWS
- * clients (`getAwsCredentials()`) sign with. Infra grants ResolveCustomer, GetEntitlements, and the
- * queue permissions to the ECS task role alone, and AWS asks for temporary role credentials here,
- * so whenever the container credential endpoint is present these clients sign as the task role.
- * Elsewhere (local development, tests) they keep the default chain.
+ * clients (`getAwsCredentials()`) sign with. Infra grants ResolveCustomer, GetEntitlements,
+ * BatchMeterUsage, and the queue permissions to the ECS task role alone, and AWS asks for
+ * temporary role credentials here, so whenever the container credential endpoint is present these
+ * clients sign as the task role. Elsewhere (local development, tests) they keep the default chain.
  */
 function marketplaceClientConfig() {
   const relativeUri = env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
   const fullUri = env.AWS_CONTAINER_CREDENTIALS_FULL_URI
   return {
     region: MARKETPLACE_REGION,
-    requestHandler: REQUEST_HANDLER,
+    requestHandler: awsRequestHandler(REQUEST_HANDLER),
     credentials:
       relativeUri || fullUri
         ? fromHttp({

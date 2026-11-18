@@ -72,7 +72,7 @@ function validateModelInputProvenance(
   input: VideoOperationInput,
   context: VideoOperationContext
 ): void {
-  if (input.provider !== 'runway') return
+  if (input.provider !== 'runway' && !input.visualReference) return
   const provenance = validateOpaqueModelInputProvenance({
     headers: context.headers,
     payload: input,

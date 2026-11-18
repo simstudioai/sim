@@ -1,11 +1,25 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type CrowdStrikeCloud = 'us-1' | 'us-2' | 'us-3' | 'eu-1' | 'us-gov-1' | 'us-gov-2'
+/** Falcon clouds Sim reaches; `lib/internal/crowdstrike/client` maps each to its API origin. */
+export const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'us-3', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
 
-export interface CrowdStrikeBaseParams {
+export type CrowdStrikeCloud = (typeof CROWDSTRIKE_CLOUDS)[number]
+
+/** API client credentials typed inline on the legacy block. */
+export interface CrowdStrikeInlineCredentials {
   clientId: string
   clientSecret: string
   cloud: CrowdStrikeCloud
+}
+
+/**
+ * Inline API client credentials, or the token and Falcon cloud the executor
+ * resolves from a saved CrowdStrike credential in their place.
+ */
+interface CrowdStrikeBaseParams
+  extends Partial<Pick<CrowdStrikeInlineCredentials, 'clientId' | 'clientSecret'>> {
+  cloud: CrowdStrikeCloud
+  accessToken?: string
 }
 
 export interface CrowdStrikeQuerySensorsParams extends CrowdStrikeBaseParams {

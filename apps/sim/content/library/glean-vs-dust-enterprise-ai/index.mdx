@@ -1,0 +1,138 @@
+---
+slug: glean-vs-dust-enterprise-ai
+title: 'Glean vs Dust: Which Enterprise AI Platform Should You Choose?'
+seoTitle: 'Glean vs Dust: Enterprise AI Comparison'
+description: 'Compare Glean and Dust for enterprise search, permission-aware knowledge access, configurable AI agents, deployment, governance, and workflow automation.'
+date: 2026-11-16
+updated: 2026-11-16
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, Enterprise AI, Enterprise Search, Comparisons, Sim]
+ogImage: /library/glean-vs-dust-enterprise-ai/cover.jpg
+draft: false
+faq:
+  - q: "Can Glean and Dust be used together?"
+    a: "Glean and Dust can be used together, with Glean serving company-wide search and Dust serving selected team-level agents. The enterprise should avoid duplicating indexes and governance processes unless the additional capability justifies the operational cost."
+  - q: "How much do Glean and Dust cost?"
+    a: "Glean documents per-user licensing with usage-based elements, while Dust publishes hosted plans and offers custom Enterprise terms as of November 2026. A valid comparison must include required enterprise controls, connector scope, model usage, implementation, support, and the total number of users rather than comparing headline subscription prices alone."
+  - q: "How do Glean and Dust handle source-system permissions?"
+    a: "Glean is designed to mirror source-system permissions in enterprise search, while Dust controls agent access through configured connections, data sources, Spaces, and workspace permissions. Enterprises should test both products with real users and document-level access changes because connector availability alone does not prove permission fidelity."
+  - q: "Can Glean or Dust be self-hosted?"
+    a: "Glean documents customer-hosted deployments in an organization's AWS or Google Cloud account, while Dust publishes an MIT-licensed repository that engineering teams can inspect and evaluate. Buyers must confirm deployment responsibilities, feature coverage, upgrades, security, monitoring, and support for either approach."
+  - q: "Are Glean and Dust open source?"
+    a: "Dust publishes its public repository under the MIT License, while Glean provides a commercial enterprise service. Buyers should verify which hosted Dust features and enterprise controls are included in the public repository before treating the source code and commercial service as equivalent."
+  - q: "Dust vs Microsoft Copilot: which should an enterprise choose?"
+    a: "Dust fits configurable, model-flexible agents grounded in selected company data, while Microsoft 365 Copilot fits organizations prioritizing assistance across the Microsoft 365 environment. The decision should account for required non-Microsoft data sources, model control, identity architecture, and workflow depth."
+  - q: "Dust vs Writer: which should an enterprise choose?"
+    a: "Dust fits teams that want to assemble specialized agents from connected knowledge, models, instructions, and tools, while Writer fits enterprises seeking centrally governed agents, playbooks, and language controls. Buyers should compare exact agent-building, governance, deployment, and commercial requirements rather than treating both products as generic company chat."
+  - q: "Dust vs Copilot Studio: which should an enterprise choose?"
+    a: "Dust fits focused knowledge agents with flexible model and data configuration, while Microsoft Copilot Studio fits organizations building agents inside the Microsoft Power Platform ecosystem. Copilot Studio should be evaluated together with Power Automate when the use case requires substantial cross-system workflow logic."
+  - q: "Which platform is easier to pilot, Glean or Dust?"
+    a: "Dust can be scoped as a team-level agent pilot, while Glean is often evaluated as an enterprise search and knowledge program involving identity, permissions, and multiple systems. Pilot difficulty still depends on connector setup, security review, data quality, and the number of users included."
+---
+
+## TL;DR
+
+Glean fits enterprises that need company-wide, permissions-aware search and discovery across many business systems. Dust fits teams that want to configure AI agents around selected company knowledge, models, instructions, and tools.
+
+Both products extend beyond simple knowledge chat, so the decision is not strictly search versus agents. The practical difference is where each platform starts: Glean starts with enterprise-wide knowledge discovery and governance, while Dust starts with configurable agents for specific teams and use cases.
+
+## Glean vs Dust for enterprise AI: which should we choose?
+
+Choose Glean when the primary requirement is to help employees find information across many systems without bypassing source permissions. Its fit is a broad rollout in which search relevance, identity, permissions, and centralized administration matter more than deeply customized workflow logic.
+
+Choose Dust when the primary requirement is to let teams configure agents with specific instructions, models, data sources, and tools. Its fit is a focused rollout for teams that want greater control over agent behavior than a conventional enterprise search interface provides.
+
+Neither choice should be made from an agent demo alone. CIOs and Heads of AI should test permission fidelity, connector depth, answer citations, administrative controls, tool execution, auditability, deployment requirements, and total cost for the expected user population.
+
+## How do Glean and Dust compare for enterprise AI?
+
+Glean centers enterprise-wide search and permission-aware discovery. Dust centers flexible team-built agents grounded in selected company data.
+
+| Decision area | Glean | Dust |
+|---|---|---|
+| Core job | [Enterprise search](https://www.glean.com/enterprise-search), knowledge discovery, assistance, and agents across company systems | [Custom AI agents](https://docs.dust.tt/docs/user-documentation/getting-started/intro-to-dust) configured around instructions, models, data sources, and tools |
+| Connectors | Connectors index content, mirror source permissions, and keep data current; evaluate each required system in Glean's [connector documentation](https://docs.glean.com/connectors/about) | Connections synchronize company tools, while other data sources and tools connected through Model Context Protocol (MCP) provide access to external services; evaluate the required sources in the [Dust data-source documentation](https://docs.dust.tt/docs/user-documentation/data-sources/overview) |
+| Permission model | Designed to mirror source-system access controls when indexing and retrieving information | Uses connections, Spaces, and workspace roles to control which data agents and users can access; test the design for each source and workspace in the [Spaces documentation](https://docs.dust.tt/docs/user-documentation/admins/spaces-management) |
+| Agent building | [Glean Agents](https://docs.glean.com/agents/overview/about-agents) combines instructions, knowledge, tools, context, and actions on top of Glean's enterprise knowledge layer | Dust lets builders select [instructions and tools](https://docs.dust.tt/docs/user-documentation/agents/create-your-first-agent), knowledge, and [models](https://docs.dust.tt/docs/user-documentation/agents/model-selection) for specialized agents |
+| Deployment and data controls | Glean offers vendor-hosted and [customer-hosted deployments](https://docs.glean.com/get-started/prepare/about-deployment), with customer-hosted environments running in the buyer's AWS or Google Cloud account | Dust sells a hosted service and publishes an [MIT-licensed repository](https://github.com/dust-tt/dust/blob/main/LICENSE) that engineering teams can inspect; buyers should establish what operating that code would require |
+| Pricing model | As of November 2026, Glean documents per-user licensing with pooled or metered usage elements in its [Enterprise Flex pricing model](https://docs.glean.com/glean-enterprise-flex-pricing) | As of November 2026, Dust publishes self-serve and custom Enterprise options on its [pricing page](https://dust.tt/home/pricing) |
+| Fit | Large organizations prioritizing company-wide search, discovery, and centralized governance | Teams prioritizing configurable agents for defined knowledge-intensive jobs |
+| Workflow boundary | Glean Agents can take actions and run on schedules or supported events, but buyers should test the exact orchestration controls their process requires | Dust supports tools, [schedules, and webhook triggers](https://docs.dust.tt/docs/user-documentation/agents/triggers), but buyers should test branching, approvals, retries, state, and execution monitoring for each process |
+
+The table reflects public vendor information available as of November 2026. Buyers should run permission and connector tests against their own systems because a listed integration does not prove that every object, field, access rule, or action required by the organization is supported.
+
+## What are the key facts about Glean and Dust?
+
+Glean and Dust differ most clearly in product center of gravity, deployment model, licensing, and billing.
+
+- Glean combines enterprise search with assistance and agents, so its knowledge index and permission model are central to the product. Glean documents both [vendor-hosted and customer-hosted deployment models](https://docs.glean.com/get-started/prepare/about-deployment).
+- Dust publishes its repository under the [MIT License](https://github.com/dust-tt/dust/blob/main/LICENSE) and sells hosted access through self-serve and custom Enterprise options as of November 2026.
+- Glean's [connectors](https://docs.glean.com/connectors/connectors-power-glean) feed a unified, permission-aware knowledge layer used by Search, Chat, Assistant, and Agents.
+- Dust combines connected company data with configurable agents, so [agent instructions, model selection, data scopes, and tools](https://docs.dust.tt/docs/developer-platform/overview/developer-platform) are central to the product.
+
+A public repository does not automatically make customer-operated deployment simple or provide every capability of a vendor-hosted enterprise plan. Enterprises evaluating Dust should compare the exact repository features, deployment burden, support model, and hosted controls they require.
+
+## When should an enterprise choose Glean?
+
+Glean fits an enterprise that needs one permissions-aware discovery layer spanning many departments and systems.
+
+Glean's core proposition is that employees can search company information and receive answers without manually checking each connected application. The platform's [enterprise search product](https://www.glean.com/enterprise-search) is relevant when the buying committee prioritizes broad connector coverage, relevance, identity mapping, source permissions, and adoption across a large workforce.
+
+Glean also offers [Glean Agents](https://docs.glean.com/agents/overview/about-agents), so buyers should not treat it as search-only. Its agents can build on an enterprise knowledge foundation designed for organization-wide discovery, use tools, take actions, and run from supported schedules or events.
+
+Glean may be a weaker fit when the main requirement is to model a long operational process with specialized branches, approvals, retries, transformations, and writes across systems. Buyers with that requirement should benchmark workflow-oriented platforms separately rather than assuming an enterprise search purchase will replace one.
+
+## When should an enterprise choose Dust?
+
+Dust fits teams that need configurable agents for specific knowledge-intensive jobs and want control over each agent's instructions, models, data, and tools.
+
+Dust organizes connected information and agent access through [data sources](https://docs.dust.tt/docs/user-documentation/data-sources/overview) and [Spaces](https://docs.dust.tt/docs/user-documentation/admins/spaces-management). That structure can suit teams that want a research assistant, support agent, internal expert, or another role-specific agent without beginning with a company-wide search rollout.
+
+Dust's public [developer documentation](https://docs.dust.tt/docs/developer-platform/overview/developer-platform) and [repository](https://github.com/dust-tt/dust) make its technical approach inspectable. The MIT-licensed repository is relevant to engineering-led evaluations, although buyers should separately assess the work required to operate the available code and the differences between it and Dust's hosted commercial service.
+
+Dust now documents [schedule and webhook triggers](https://docs.dust.tt/docs/user-documentation/agents/triggers), so it should not be treated as chat-only. Teams should still test whether Dust provides the branching, approvals, state handling, retries, observability, and operational integrations required for each process.
+
+## We use Dust for company knowledge but need workflow automation too. What should we evaluate?
+
+Sim fits teams that need governed, multi-step agent workflows that move beyond knowledge chat into triggers, branching, API calls, human input, and actions across systems. Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+
+The required evaluation is different from a Glean-versus-Dust search evaluation. The team should test whether a platform can start work from schedules, webhooks, application events, or APIs; maintain state across multiple steps; route failures; pause for human input; restrict credentials; record execution history; and deploy workflows as controlled operational services. The [AI workflow automation platform buyer's checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) provides a fuller set of evaluation criteria.
+
+Several platform categories can fit:
+
+| Option | Reason to evaluate it | Important boundary |
+|---|---|---|
+| Sim | Sim provides a visual builder for multi-step agent workflows and fits teams that need controlled deployment and execution visibility | Sim's core is Apache 2.0, while SSO, SCIM, access control, audit logs, data retention, and other code in `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); production use of that enterprise code requires an active Sim Enterprise subscription |
+| n8n | n8n fits node-based application automation that combines deterministic workflow steps with AI capabilities | As of November 2026, n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license/), a fair-code license with use restrictions |
+| Microsoft Copilot Studio and Power Automate | These products fit organizations standardized on Microsoft 365, Power Platform, and Microsoft identity and governance; Microsoft documents [connectors shared across Copilot Studio and Power Platform](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors) | Buyers should test licensing, environment administration, connector entitlements, and the division of work between Copilot Studio and Power Automate using Microsoft's [licensing guidance](https://learn.microsoft.com/en-us/microsoft-copilot-studio/billing-licensing) |
+| Glean or Dust | Glean and Dust remain appropriate when the process is primarily knowledge retrieval, analysis, assistance, and a defined set of tool actions | Buyers should prove that either platform supports the required triggers, branches, approvals, retries, writes, and execution monitoring before using it as a workflow system |
+
+A team does not necessarily have to replace Dust. It can retain Dust for company-knowledge agents and use a workflow-oriented platform for processes that require durable orchestration, approvals, and cross-system actions. The deciding factor should be whether maintaining two governed platforms is simpler and safer than forcing one product to cover both jobs.
+
+## Which proof-of-concept tests should enterprise buyers run?
+
+Glean and Dust should be tested with the same permission-sensitive questions, source documents, users, and operational tasks before an enterprise makes a platform decision.
+
+1. Select 20 to 30 representative questions with known correct answers and authoritative source documents.
+2. Include users with different roles, departments, regions, and access rights.
+3. Test whether answers cite the correct source and respect document-level permissions after access changes.
+4. Measure connector completeness for the exact objects, comments, attachments, metadata, and access controls the organization uses.
+5. Build one realistic agent in each platform rather than relying on vendor-provided demos.
+6. Test an action that writes to another system, including approval, failure, retry, and audit requirements.
+7. Review administrator controls for identity, provisioning, retention, logs, model access, and credential management.
+8. Calculate expected cost using the actual number of users, builders, agents, model calls, and required enterprise features.
+9. Ask security and legal teams to compare hosted data handling, subprocessors, residency options, contractual terms, and customer-hosted responsibilities.
+10. Evaluate search quality and workflow capability separately so strong retrieval does not hide weak orchestration, or vice versa.
+
+## Which related enterprise AI comparisons should buyers read?
+
+Sim's related guides separate the Dust-alternative, internal-search, enterprise-governance, and workflow-platform decisions so buyers can investigate each requirement directly.
+
+- [Best Dust Alternatives in 2026 for AI Agent Workflows](https://www.sim.ai/library/best-dust-alternatives-2026) compares broader options for teams outgrowing Dust or evaluating alternatives.
+- [Best AI Agents for Internal Knowledge Search Across Docs and Tools](https://www.sim.ai/library/best-ai-agents-internal-knowledge-search) compares the wider internal-search category.
+- [What to Look for in an AI Workflow Automation Platform: Buyer's Checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) covers triggers, control flow, governance, deployment, and operations.
+- [Best Enterprise AI Agent Platforms in 2026: SSO, SCIM, RBAC, and Audit Logs](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026) focuses on enterprise administration and governance requirements.
+
+For adjacent comparisons, Microsoft describes [Copilot for enterprise organizations](https://www.microsoft.com/en-us/copilot/solutions/enterprise) and [Copilot Studio connectors](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors). Writer describes its [enterprise governance controls](https://writer.com/product/control-center/) and [plans](https://writer.com/plans/). Use those primary sources to test the Microsoft and Writer fit against the same data, identity, governance, and orchestration requirements used for Glean and Dust.

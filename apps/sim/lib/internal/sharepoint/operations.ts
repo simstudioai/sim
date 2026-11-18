@@ -17,6 +17,8 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
+import { graphPathSegment } from '@/tools/sharepoint/utils'
+import { assertNoDotPathSegments } from '@/tools/url-path'
 
 const logger = createLogger('SharePointOperations')
 export const MAX_SHAREPOINT_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -87,7 +89,14 @@ function buildUploadUrl(
   const folderPath = input.folderPath?.trim() || ''
   const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`
   const cleanPath = normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath
-  const uploadPath = folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`
+  // Drop "." folder segments (the URL parser would collapse them); ".." is rejected below
+  const uploadPath = (folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`)
+    .split('/')
+    .filter((segment, index, segments) => segment !== '.' || index === segments.length - 1)
+    .join('/')
+  if (uploadPath.split('/').some((segment) => segment.trim() === '.' || segment.trim() === '..')) {
+    throw new Error('Upload path cannot contain "." or ".." segments')
+  }
   const encodedPath = uploadPath
     .split('/')
     .map((segment) => (segment ? encodeURIComponent(segment) : ''))
@@ -95,8 +104,9 @@ function buildUploadUrl(
   const driveId = input.driveId?.trim()
   const siteId = input.siteId.trim() || 'root'
   const url = driveId
-    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:${encodedPath}:/content`
-    : `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drive/root:${encodedPath}:/content`
+    ? `https://graph.microsoft.com/v1.0/drives/${graphPathSegment(driveId, 'driveId')}/root:${encodedPath}:/content`
+    : `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/drive/root:${encodedPath}:/content`
+  assertNoDotPathSegments(url)
   return { url, replaceUrl: `${url}?@microsoft.graph.conflictBehavior=replace` }
 }
 
@@ -110,6 +120,12 @@ export async function executeSharePointUploadFile(
   }
   const userFiles = processFilesToUserFiles(input.files, context.requestId, logger)
   if (userFiles.length === 0) return failureResponse('No valid files to upload', 400)
+
+  try {
+    buildUploadUrl(input, input.fileName || userFiles[0]?.name || 'file')
+  } catch (error) {
+    return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
+  }
 
   const client = new SharePointClient(input.accessToken, context.signal)
   const uploadedFiles: SharePointUploadedItem[] = []
@@ -129,6 +145,18 @@ export async function executeSharePointUploadFile(
       if (denied) return denied
 
       const fileName = input.fileName || userFile.name
+      let uploadUrls: { url: string; replaceUrl: string }
+      try {
+        uploadUrls = buildUploadUrl(input, fileName)
+      } catch (error) {
+        errors.push({
+          name: fileName,
+          status: 400,
+          error: getErrorMessage(error, 'Invalid upload path'),
+        })
+        continue
+      }
+      const { url, replaceUrl } = uploadUrls
       const skipOversized = (size: number) => {
         skippedFiles.push({
           name: fileName,
@@ -158,7 +186,6 @@ export async function executeSharePointUploadFile(
         throw error
       }
 
-      const { url, replaceUrl } = buildUploadUrl(input, fileName)
       const contentType = downloadedContentType || userFile.type || 'application/octet-stream'
       const uploadResult = await client.upload(url, buffer, contentType)
       if (!uploadResult.ok) {

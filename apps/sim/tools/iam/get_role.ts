@@ -1,4 +1,5 @@
 import type { IAMGetRoleParams, IAMGetRoleResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleResponse> = {
@@ -6,6 +7,7 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
   name: 'IAM Get Role',
   description: 'Get detailed information about an IAM role',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -63,6 +65,8 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
         assumeRolePolicyDocument: data.assumeRolePolicyDocument ?? null,
         roleLastUsedDate: data.roleLastUsedDate ?? null,
         roleLastUsedRegion: data.roleLastUsedRegion ?? null,
+        permissionsBoundaryArn: data.permissionsBoundaryArn ?? null,
+        tags: data.tags ?? [],
       },
     }
   },
@@ -92,6 +96,16 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
     roleLastUsedRegion: {
       type: 'string',
       description: 'AWS region where the role was last used',
+      optional: true,
+    },
+    permissionsBoundaryArn: {
+      type: 'string',
+      description: 'ARN of the permissions boundary policy set on the role',
+      optional: true,
+    },
+    tags: {
+      type: 'json',
+      description: 'Tags attached to the role (key, value pairs)',
       optional: true,
     },
   },

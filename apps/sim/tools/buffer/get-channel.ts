@@ -7,6 +7,7 @@ import {
   mapBufferChannel,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bufferGetChannelTool: ToolConfig<BufferGetChannelParams, BufferChannelResponse> = {
@@ -15,6 +16,7 @@ export const bufferGetChannelTool: ToolConfig<BufferGetChannelParams, BufferChan
   description:
     'Get one connected channel, including its posting schedule, limits and network settings',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

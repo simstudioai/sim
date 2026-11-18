@@ -21,8 +21,9 @@ export interface RequestParams {
 export interface RequestResponse extends ToolResponse {
   output: {
     data: unknown
-    status: number
-    headers: Record<string, string>
+    /** The HTTP status code, or the body's own `status` for a legacy envelope. */
+    status: unknown
+    headers: Record<string, unknown>
   }
 }
 

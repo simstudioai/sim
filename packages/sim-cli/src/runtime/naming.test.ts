@@ -53,6 +53,25 @@ describe('a validation error restated in the spellings a caller can type', () =>
     expect(line).not.toContain('folderPath')
   })
 
+  /**
+   * The v2 envelope leads its message with where the request failed
+   * (`query.sortBy: ...`). Retyped word by word that became
+   * `query.--sort-by: ...`, naming neither the wire field nor a flag.
+   */
+  it('restates the location prefix as the flag the caller typed', () => {
+    const camelCase = retype(
+      'listLogs',
+      new SimApiError('query.sortBy: only "startedAt" can order job runs', 400, 'BAD_REQUEST')
+    )
+    expect(camelCase.message).toBe('--sort-by: only "startedAt" can order job runs')
+
+    const singleWord = retype(
+      'listLogs',
+      new SimApiError('query.limit: limit cannot be empty', 400, 'BAD_REQUEST')
+    )
+    expect(singleWord.message).toBe('--limit: limit cannot be empty')
+  })
+
   it('leaves a CLI-raised error and a non-API throw byte-identical', () => {
     const local = new SimApiError('--limit must be a whole number of 0 or more', 0)
     expect(retype('listLogs', local)).toBe(local)

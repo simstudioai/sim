@@ -1,11 +1,14 @@
 import type { GetDraftParams, GetDraftResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetDraftTool: ToolConfig<GetDraftParams, GetDraftResult> = {
   id: 'agentmail_get_draft',
   name: 'Get Draft',
   description: 'Get details of a specific email draft in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -30,7 +33,7 @@ export const agentmailGetDraftTool: ToolConfig<GetDraftParams, GetDraftResult> =
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts/${params.draftId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,17 +1,18 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GitLabCsvValidationError } from '@/connectors/gitlab/permission-config/parser'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadGitLabPermissionSnapshot,
   type PreparedGitLabPermissions,
   prepareGitLabPermissions,
 } from '@/connectors/gitlab/permission-config/repository'
 import type { GitLabPermissionInput } from '@/connectors/gitlab/permission-config/types'
-import { validateGitLabCsvToken } from '@/connectors/gitlab/permissions'
+import { discoverGitLabGroup, validateGitLabCsvToken } from '@/connectors/gitlab/permissions'
 
 /** Prepares private writes after the application has authorized the canonical connector owner. */
 export async function prepareGitLabPermissionChange(input: {
+  isSearchIndex?: boolean
   connectorType: string
   accessMode: string
   sourceConfig: Record<string, unknown>
@@ -38,6 +39,14 @@ export async function prepareGitLabPermissionChange(input: {
       'Token and CSV settings require permission-aware access.'
     )
   }
+  if (
+    input.sourceConfig.scope === 'group' &&
+    (input.isSearchIndex !== true || input.accessMode !== 'admin')
+  )
+    throw new OrchestrationError(
+      'validation',
+      'GitLab groups require an administrator-managed Search source.'
+    )
   const existing = input.existing ? await loadGitLabPermissionSnapshot(input.existing.id) : null
   if (input.accessMode !== 'admin' && !existing) return {}
   if (!input.permissions && !existing && !input.apiKey) return {}
@@ -59,38 +68,39 @@ export async function prepareGitLabPermissionChange(input: {
   const sameProject =
     existing &&
     previousConfig &&
+    !('group' in existing) &&
+    input.sourceConfig.scope !== 'group' &&
     previousConfig.host === input.sourceConfig.host &&
     previousConfig.project === input.sourceConfig.project
   const project =
-    sameProject && !input.apiKey && existing.mode === permissions.mode
+    sameProject &&
+    existing &&
+    !('group' in existing) &&
+    !input.apiKey &&
+    existing.mode === permissions.mode
       ? { host: existing.host, projectId: existing.projectId, projectPath: existing.projectPath }
-      : await validateGitLabCsvToken(
+      : await (input.sourceConfig.scope === 'group'
+          ? (token: string, config: Record<string, unknown>) =>
+              discoverGitLabGroup(token, config, permissions.mode)
+          : validateGitLabCsvToken)(
           input.apiKey ??
             (input.existing?.encryptedApiKey
               ? (await decryptApiKey(input.existing.encryptedApiKey)).decrypted
               : ''),
           input.sourceConfig
         ).catch((error: unknown) => {
+          const classified = asOrchestrationError(error)
+          if (classified) throw classified
+          if (error instanceof OutboundRoutingError) throw error
           throw new OrchestrationError(
             'validation',
             getErrorMessage(error, 'Unable to validate the GitLab token and project.')
           )
         })
-  try {
-    return {
-      permissions: prepareGitLabPermissions(
-        permissions,
-        project,
-        existing,
-        Boolean(input.existing)
-      ),
-      ...(input.existing && input.apiKey
-        ? { encryptedApiKey: (await encryptApiKey(input.apiKey)).encrypted }
-        : {}),
-    }
-  } catch (error) {
-    if (error instanceof GitLabCsvValidationError)
-      throw new OrchestrationError('validation', error.message)
-    throw error
+  return {
+    permissions: prepareGitLabPermissions(permissions, project, existing, Boolean(input.existing)),
+    ...(input.existing && input.apiKey
+      ? { encryptedApiKey: (await encryptApiKey(input.apiKey)).encrypted }
+      : {}),
   }
 }

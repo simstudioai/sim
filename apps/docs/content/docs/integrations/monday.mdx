@@ -158,6 +158,7 @@ Get items from a Monday.com board
 | `boardId` | string | Yes | The ID of the board to get items from |
 | `groupId` | string | No | Filter items by group ID |
 | `limit` | number | No | Maximum number of items to return \(default 25, max 500\) |
+| `cursor` | string | No | Pagination cursor from a previous Get Items response |
 
 #### Output
 
@@ -179,6 +180,7 @@ Get items from a Monday.com board
 |   ↳ `updatedAt` | string | Last updated timestamp |
 |   ↳ `url` | string | Item URL |
 | `count` | number | Number of items returned |
+| `cursor` | string | Pagination cursor for fetching the next page \(null when there are no more items\) |
 
 </ReferenceDetails>
 

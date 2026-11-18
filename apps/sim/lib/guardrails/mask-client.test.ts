@@ -69,8 +69,8 @@ describe('maskPIIBatchViaHttp', () => {
     fetchMock.mockImplementation(async () => new Response('down', { status: 503 }))
 
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
-    expect(fetchMock).toHaveBeenCalledTimes(8)
-    expect(mockSleep).toHaveBeenCalledTimes(7)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(mockSleep).toHaveBeenCalledTimes(2)
   })
 
   describe('with a failed-chunk placeholder', () => {

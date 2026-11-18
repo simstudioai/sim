@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, SearchCustomersParams } from '@/tools/square/types'
 import {
   CUSTOMER_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   name: 'Square Search Customers',
   description: 'Search customer profiles using filters such as email, phone, or creation date',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -44,7 +47,7 @@ export const squareSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/customers/search`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers/search`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

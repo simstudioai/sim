@@ -8,7 +8,11 @@ export function getVantaBaseUrl(apiDomain: string): string {
   return apiDomain
 }
 
-/** Expires a rejected saved-account token so the next authorized call can renew it. */
+/**
+ * Expires a rejected saved-account token so the next authorized call can renew it. A token minted
+ * within the last minute is kept, since Vanta limits token mints and the 401 may come from the
+ * endpoint rather than the token.
+ */
 export async function fetchVantaWithAuth(
   params: VantaCredentialParams,
   doFetch: (accessToken: string) => Promise<Response>,

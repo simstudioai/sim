@@ -32,6 +32,7 @@ export async function executeStsAssumeRole(input: StsAssumeRoleInput, signal?: A
       input.policyArns,
       input.tags,
       input.transitiveTagKeys,
+      input.sourceIdentity,
       signal
     )
   } finally {

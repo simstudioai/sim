@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsReactionResponse,
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const unsetReactionTool: ToolConfig<
   MicrosoftTeamsReactionParams,
@@ -76,11 +77,11 @@ export const unsetReactionTool: ToolConfig<
       if (params.teamId && params.channelId) {
         const teamId = params.teamId.trim()
         const channelId = params.channelId.trim()
-        return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/unsetReaction`
+        return `https://graph.microsoft.com/v1.0/teams/${safeUrlPathSegment(teamId, 'Team ID')}/channels/${safeUrlPathSegment(channelId, 'Channel ID')}/messages/${safeUrlPathSegment(messageId, 'Message ID')}/unsetReaction`
       }
       if (params.chatId) {
         const chatId = params.chatId.trim()
-        return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/unsetReaction`
+        return `https://graph.microsoft.com/v1.0/chats/${safeUrlPathSegment(chatId, 'Chat ID')}/messages/${safeUrlPathSegment(messageId, 'Message ID')}/unsetReaction`
       }
 
       throw new Error('Either (teamId and channelId) or chatId is required')

@@ -1,6 +1,7 @@
 import type { GoogleVaultRemoveMatterPermissionsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeMattersPermissionsTool: ToolConfig<GoogleVaultRemoveMatterPermissionsParams> = {
   id: 'google_vault_remove_matters_permissions',
@@ -36,7 +37,7 @@ export const removeMattersPermissionsTool: ToolConfig<GoogleVaultRemoveMatterPer
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}:removePermissions`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}:removePermissions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

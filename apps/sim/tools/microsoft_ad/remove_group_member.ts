@@ -3,6 +3,7 @@ import type {
   MicrosoftAdRemoveGroupMemberResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeGroupMemberTool: ToolConfig<
   MicrosoftAdRemoveGroupMemberParams,
@@ -43,7 +44,7 @@ export const removeGroupMemberTool: ToolConfig<
       const memberId = params.memberId?.trim()
       if (!groupId) throw new Error('Group ID is required')
       if (!memberId) throw new Error('Member ID is required')
-      return `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}/$ref`
+      return `https://graph.microsoft.com/v1.0/groups/${safeUrlPathSegment(groupId, 'groupId')}/members/${safeUrlPathSegment(memberId, 'memberId')}/$ref`
     },
     method: 'DELETE',
     headers: (params) => ({

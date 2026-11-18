@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmDeleteParameterParams, SsmDeleteParameterResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const deleteParameterTool: InternalToolConfig<
   name: 'SSM Delete Parameter',
   description: 'Delete a parameter from AWS Systems Manager Parameter Store',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

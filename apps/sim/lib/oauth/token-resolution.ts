@@ -2,17 +2,15 @@ import { AuditAction, AuditResourceType, recordAudit, recordAuditRollup } from '
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  impersonateEmailSchema,
-  type OAuthTokenResponse,
-} from '@/lib/api/contracts/oauth-connections'
+import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
-import type { AuthResult } from '@/lib/auth/hybrid'
+import { AuthType } from '@/lib/auth/hybrid'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   getCredential,
@@ -20,6 +18,7 @@ import {
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
   resolveServiceAccountToken,
+  type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
 import {
   extractMicrosoftDataverseEnvironmentUrl,
@@ -35,10 +34,28 @@ import {
 } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
+import type { QuickBooksEnvironment } from '@/tools/quickbooks/client'
 import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
+
+/**
+ * A failure Sim's side can't currently get past (the organization's egress gateway is down or
+ * refuses the route), or null. Never a sign the credential is bad, so the caller is told to
+ * retry rather than reconnect.
+ */
+function unavailableFailure(
+  error: unknown
+): Extract<ResolveCredentialTokenResult, { ok: false }> | null {
+  const classified = asOrchestrationError(error)
+  if (classified?.code !== 'unavailable') return null
+  return {
+    ok: false,
+    status: statusForOrchestrationError('unavailable'),
+    error: classified.message,
+  }
+}
 
 /**
  * Duck type of the inbound request, used only so audit rows record IP and user agent.
@@ -48,12 +65,27 @@ export interface CredentialAuditRequest {
   headers: { get(name: string): string | null }
 }
 
-/** Token material a resolved credential yields; taken from the contract so it cannot drift. */
-export type CredentialTokenPayload = OAuthTokenResponse
+/**
+ * Token material a resolved credential yields to the tool that consumes it: everything a
+ * service-account mint returns, plus the OAuth-only identity fields.
+ */
+export interface CredentialTokenPayload extends ServiceAccountTokenResult {
+  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
+  idToken?: string
+  realmId?: string
+  quickBooksEnvironment?: QuickBooksEnvironment
+}
 
-export interface ResolveCredentialTokenInput {
+interface ResolveCredentialTokenInput {
   /** Tool whose canonical provider and credential-kind policy applies before token minting. */
   toolId?: string
+  /**
+   * The call is an Assistant turn acting with the person's own connected account, so the
+   * tool's policy is the one the Assistant projects for it (GitHub tools bind the person's
+   * GitHub account, never a workspace token). Set only by the in-process executor for an
+   * authenticated Assistant turn.
+   */
+  assistantConnectedAccount?: boolean
   /** Correlation id used by the credential service's own logging. */
   requestId: string
   credentialId?: string
@@ -64,12 +96,13 @@ export interface ResolveCredentialTokenInput {
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
   impersonateEmail?: string
-  /**
-   * Asserted acting user. When the caller authenticated with an internal JWT it
-   * must equal the token subject, so a forged assertion cannot widen access.
-   */
+  /** Acting user whose credential access is enforced; absent when access is not enforced. */
   callerUserId?: string
-  auditRequest?: CredentialAuditRequest
+  /**
+   * User the server-side execution runs as, authorizing non-managed credentials.
+   * Managed OAuth credentials authenticate through delegation instead.
+   */
+  userId?: string
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
   resolvedCredential: ResolvedCredential | null
 }
@@ -83,7 +116,7 @@ interface OAuthCredentialContext {
   accountId?: string | null
 }
 
-export function validateOAuthCredentialContext(
+function validateOAuthCredentialContext(
   credential: OAuthCredentialContext
 ): { ok: true } | { ok: false; error: string } {
   if (credential.providerId !== 'quickbooks') return { ok: true }
@@ -220,7 +253,6 @@ export async function completeOAuthCredentialToken(params: {
   workspaceId: string | null
   workflowId?: string
   executionId?: string
-  auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
   const {
     requestId,
@@ -230,7 +262,6 @@ export async function completeOAuthCredentialToken(params: {
     workspaceId,
     workflowId,
     executionId,
-    auditRequest,
   } = params
   const contextValidation = validateOAuthCredentialContext(credential)
   if (!contextValidation.ok) {
@@ -249,7 +280,6 @@ export async function completeOAuthCredentialToken(params: {
         credentialType: 'oauth',
         workflowId,
         executionId,
-        auditRequest,
       })
     }
 
@@ -263,6 +293,11 @@ export async function completeOAuthCredentialToken(params: {
         errorCode: error.provider?.errorCode,
       })
       return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
+    }
+    const unavailable = unavailableFailure(error)
+    if (unavailable) {
+      logger.warn('Egress route unavailable for token refresh', { requestId })
+      return unavailable
     }
     logger.error('Failed to refresh access token:', error, { requestId })
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
@@ -283,16 +318,32 @@ function validateToolCredentialKind(
   }
 }
 
+/** The credential policy a tool call binds through: the registry's, or the Assistant's projection of it. */
+function toolCredentialPolicy(
+  toolId: string,
+  assistantConnectedAccount: boolean | undefined
+): OAuthConfig | undefined {
+  const tool = getToolMetadata(toolId)
+  if (!tool) return undefined
+  return (assistantConnectedAccount ? projectAssistantConnectedAccountTool(tool) : tool).oauth
+}
+
 function validateToolCredentialBinding(
   toolId: string | undefined,
+  assistantConnectedAccount: boolean | undefined,
   providerId: string | null | undefined,
   credentialKind: NonNullable<OAuthConfig['credentialKind']>
 ): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
   if (!toolId) return
-  const policy = getToolMetadata(toolId)?.oauth
+  const policy = toolCredentialPolicy(toolId, assistantConnectedAccount)
   const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
   if (kindError) return kindError
-  const service = policy?.required
+  /**
+   * A tool binds a credential through its declared provider. `required: false`
+   * marks a hybrid tool (inline keys or a saved credential) — the credential is
+   * optional, but when one is supplied it must still belong to that provider.
+   */
+  const service = policy
     ? (getServiceConfigByServiceId(policy.provider) ??
       getServiceConfigByProviderId(policy.provider))
     : undefined
@@ -307,15 +358,11 @@ function validateToolCredentialBinding(
 }
 
 /**
- * Resolves a plain OAuth or service-account credential to a token for an
- * authenticated caller. Managed OAuth credentials are dispatched one level up by
- * {@link resolveCredentialAccessToken}, which every server surface goes through,
- * so authorization, refresh, and audit cannot drift between surfaces.
- *
- * @param auth Result of authenticating the caller (session or internal JWT).
+ * Resolves a plain OAuth or service-account credential to a token for server-side
+ * execution. Managed OAuth credentials are dispatched one level up by
+ * {@link resolveCredentialAccessToken}.
  */
-export async function resolveCredentialToken(
-  auth: AuthResult,
+async function resolveCredentialToken(
   input: ResolveCredentialTokenInput
 ): Promise<ResolveCredentialTokenResult> {
   const {
@@ -326,7 +373,7 @@ export async function resolveCredentialToken(
     scopes,
     impersonateEmail,
     callerUserId,
-    auditRequest,
+    userId,
   } = input
 
   try {
@@ -341,19 +388,32 @@ export async function resolveCredentialToken(
     }
 
     const resolved = input.resolvedCredential
-    const authz = await authorizeCredentialUseForAuth(auth, {
-      credentialId,
-      workflowId,
-      callerUserId,
-    })
+    const authz = await authorizeCredentialUseForAuth(
+      { success: true, userId, authType: AuthType.INTERNAL_JWT },
+      {
+        credentialId,
+        workflowId,
+        callerUserId,
+      }
+    )
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
+      // A saved secret is released only to a tool of its own provider, never on a bare ID.
+      if (!input.toolId) {
+        return {
+          ok: false,
+          status: 400,
+          code: 'SERVICE_ACCOUNT_TOOL_REQUIRED',
+          error: 'A tool ID is required to use a saved credential',
+        }
+      }
       const bindingError = validateToolCredentialBinding(
         input.toolId,
+        input.assistantConnectedAccount,
         resolved.providerId,
         'service-account'
       )
@@ -367,7 +427,10 @@ export async function resolveCredentialToken(
           resolved.credentialId,
           resolved.providerId,
           scopes ?? [],
-          impersonateEmail
+          impersonateEmail,
+          {
+            service: toolCredentialPolicy(input.toolId, input.assistantConnectedAccount)?.provider,
+          }
         )
 
         if (saActorId) {
@@ -379,7 +442,6 @@ export async function resolveCredentialToken(
             credentialType: 'service_account',
             workflowId,
             executionId,
-            auditRequest,
           })
         }
 
@@ -391,12 +453,18 @@ export async function resolveCredentialToken(
             cloudId: result.cloudId,
             domain: result.domain,
             providerWorkspaceId: result.providerWorkspaceId,
+            applicationKey: result.applicationKey,
             instanceUrl: result.instanceUrl,
             apiDomain: result.apiDomain,
             authStyle: result.authStyle,
           },
         }
       } catch (error) {
+        const unavailable = unavailableFailure(error)
+        if (unavailable) {
+          logger.warn('Egress route unavailable for service account token', { requestId })
+          return unavailable
+        }
         logger.error('Service account token error:', error, { requestId })
         if (error instanceof TokenServiceAccountValidationError) {
           // Classified provider outages are infra failures, not bad credentials.
@@ -418,6 +486,16 @@ export async function resolveCredentialToken(
               error: 'Credential host not found — reconnect the credential with a valid host',
             }
           }
+          // The stored host is one Sim's egress policy refuses (a private or
+          // metadata address): a host problem, not a bad secret.
+          if (error.code === 'host_not_allowed') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error: 'Credential host is not allowed — reconnect the credential with a public host',
+            }
+          }
           // A revoked/rotated-away or misconfigured stored secret — surface the
           // code so runtime consumers can prompt to reconnect the credential
           // rather than showing a generic auth failure.
@@ -427,6 +505,50 @@ export async function resolveCredentialToken(
               status: 401,
               code: error.code,
               error: 'Credential rejected by the provider — reconnect the credential',
+            }
+          }
+          if (error.code === 'consent_required') {
+            return {
+              ok: false,
+              status: 401,
+              code: error.code,
+              error:
+                'The provider needs the impersonated user to grant consent — reconnect the credential to get the consent link',
+            }
+          }
+          if (error.code === 'unsupported_use') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error: error.userMessage ?? 'This credential cannot be used here',
+            }
+          }
+          if (error.code === 'cloud_mismatch') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'This credential signs in to a different Microsoft cloud than this service calls. Choose a credential registered in the cloud this service runs in',
+            }
+          }
+          if (error.code === 'grant_not_permitted') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'The provider does not allow this app’s client credentials for the connected account — check the app’s installation and organization, then reconnect the credential',
+            }
+          }
+          if (error.code === 'account_not_found') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'DocuSign found no account for this credential’s user. Check the Account ID on the credential, if one is set, and that the user belongs to an account in this environment, then reconnect the credential',
             }
           }
         }
@@ -449,7 +571,12 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
-    const bindingError = validateToolCredentialBinding(input.toolId, credential.providerId, 'oauth')
+    const bindingError = validateToolCredentialBinding(
+      input.toolId,
+      input.assistantConnectedAccount,
+      credential.providerId,
+      'oauth'
+    )
     if (bindingError) return bindingError
 
     return completeOAuthCredentialToken({
@@ -460,7 +587,6 @@ export async function resolveCredentialToken(
       workspaceId: authz.workspaceId ?? null,
       workflowId,
       executionId,
-      auditRequest,
     })
   } catch (error) {
     logger.error('Error getting access token', error, { requestId })
@@ -471,51 +597,41 @@ export async function resolveCredentialToken(
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
   /**
-   * Authenticates the caller for non-managed credentials. Invoked only when the
-   * credential is not managed OAuth, which authenticates through delegation instead.
-   */
-  authenticate: () => AuthResult | Promise<AuthResult>
-  /**
    * Proves a delegation for one managed credential: a workflow execution (the
-   * route verifies the delegation JWT header; the executor binds its delegation
-   * origin in-process) or a Chat turn acting as the signed-in user. Absent,
-   * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
+   * executor binds its delegation origin in-process) or a Chat turn acting as the
+   * signed-in user. Absent, managed credentials are rejected with
+   * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
    * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
   resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
 }
 
 /**
- * Authorized application dispatch behind `POST /api/auth/oauth/token`. Every server
- * surface that needs a credential token — the route and the in-process tool
- * executor — goes through here, so the managed / service-account / plain-OAuth
- * dispatch, authorization, refresh, audit, and analytics cannot drift between them.
+ * Authorized application dispatch for a credential token during server-side
+ * execution, so the managed / service-account / plain-OAuth dispatch,
+ * authorization, refresh, audit, and analytics run in one place.
  */
 export async function resolveCredentialAccessToken(
   input: ResolveCredentialAccessTokenInput
 ): Promise<ResolveCredentialTokenResult> {
-  const { requestId, credentialId, toolId, auditRequest } = input
+  const { requestId, credentialId, toolId } = input
 
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
-    const auth = await input.authenticate()
-    return resolveCredentialToken(auth, {
+    return resolveCredentialToken({
       requestId,
       credentialId,
       workflowId: input.workflowId,
       executionId: input.executionId,
       scopes: input.scopes,
-      /**
-       * In-process callers forward raw subblock state, where an untouched
-       * field is '' — treated as absent, matching what the wire contract
-       * (which rejects '') and the old truthy guards always produced.
-       */
+      // The executor forwards raw subblock state, where an untouched field is '': treated as absent.
       impersonateEmail: input.impersonateEmail || undefined,
       callerUserId: input.callerUserId,
-      auditRequest,
+      userId: input.userId,
       resolvedCredential: resolved,
       toolId,
+      assistantConnectedAccount: input.assistantConnectedAccount,
     })
   }
 
@@ -550,8 +666,8 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  const toolMetadata = getToolMetadata(toolId)
-  if (!toolMetadata?.oauth?.required) {
+  const toolPolicy = toolCredentialPolicy(toolId, input.assistantConnectedAccount)
+  if (!toolPolicy?.required) {
     logger.error('Tool is not configured for managed OAuth', { requestId, toolId })
     return {
       ok: false,
@@ -560,17 +676,16 @@ export async function resolveCredentialAccessToken(
       error: 'This tool is not configured to use managed credentials',
     }
   }
-  const kindError = validateToolCredentialKind(toolMetadata.oauth.credentialKind, 'oauth')
+  const kindError = validateToolCredentialKind(toolPolicy.credentialKind, 'oauth')
   if (kindError) return kindError
 
   const requiredScopes =
-    toolMetadata.oauth.requiredScopes ??
-    getDefaultToolScopesForProvider(toolMetadata.oauth.provider)
-  if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
+    toolPolicy.requiredScopes ?? getDefaultToolScopesForProvider(toolPolicy.provider)
+  if (requiredScopes.length === 0 && toolPolicy.requiredScopes === undefined) {
     logger.error('Tool has no trusted OAuth scope policy', {
       requestId,
       toolId,
-      providerId: toolMetadata.oauth.provider,
+      providerId: toolPolicy.provider,
     })
     return {
       ok: false,
@@ -585,11 +700,10 @@ export async function resolveCredentialAccessToken(
       principal,
       input: {
         credentialId: resolved.credentialId,
-        expectedProviderId: toolMetadata.oauth.provider,
+        expectedProviderId: toolPolicy.provider,
         requiredScopes,
         toolId,
       },
-      request: auditRequest,
     })
 
     const subject = resolvePrincipalSubject(principal)
@@ -599,7 +713,7 @@ export async function resolveCredentialAccessToken(
         'credential_used',
         {
           credential_type: 'managed_oauth',
-          provider_id: toolMetadata.oauth.provider,
+          provider_id: toolPolicy.provider,
           workspace_id: principal.workspaceId,
         },
         { groups: { workspace: principal.workspaceId } }
@@ -630,7 +744,10 @@ export async function resolveCredentialAccessToken(
       return {
         ok: false,
         status: statusForOrchestrationError(orchestrationError.code),
-        code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+        // An outage says nothing about the credential, so it carries no credential code.
+        ...(orchestrationError.code === 'unavailable'
+          ? {}
+          : { code: 'MANAGED_CREDENTIAL_UNAUTHORIZED' }),
         error: orchestrationError.message,
       }
     }

@@ -72,7 +72,7 @@ describe('readPausedWorkflowExecution', () => {
     async (principal) => {
       const result = await readPausedWorkflowExecution.execute({
         principal,
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
 
       expect(result).toBe(detail)
@@ -87,7 +87,7 @@ describe('readPausedWorkflowExecution', () => {
   it('finishes session authorization before loading paused execution detail', async () => {
     await readPausedWorkflowExecution.execute({
       principal: allowedPrincipals[0],
-      input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+      input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
     })
 
     expect(mockResolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
@@ -110,7 +110,7 @@ describe('readPausedWorkflowExecution', () => {
     await expect(
       readPausedWorkflowExecution.execute({
         principal,
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
     ).rejects.toMatchObject({ name: 'DelegatedServiceAuthorizationError' })
     expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
@@ -128,7 +128,7 @@ describe('readPausedWorkflowExecution', () => {
     await expect(
       readPausedWorkflowExecution.execute({
         principal,
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
     ).rejects.toMatchObject({ name: 'PrincipalKindAuthorizationError' })
     expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
@@ -142,7 +142,7 @@ describe('readPausedWorkflowExecution', () => {
           workspaceId: 'workspace-2',
           keyId: 'workspace-key-2',
         }),
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
@@ -154,7 +154,7 @@ describe('readPausedWorkflowExecution', () => {
     await expect(
       readPausedWorkflowExecution.execute({
         principal: allowedPrincipals[0],
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
     ).rejects.toMatchObject({ name: 'NoWorkspaceAccessError' })
     expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()
@@ -169,7 +169,7 @@ describe('readPausedWorkflowExecution', () => {
     await expect(
       readPausedWorkflowExecution.execute({
         principal: allowedPrincipals[1],
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
+        input: { workflowId: 'workflow-1', executionId: 'execution-1', includeSnapshot: true },
       })
     ).rejects.toMatchObject({ name: 'PersonalApiKeysDisabledError' })
     expect(mockGetPausedExecutionDetail).not.toHaveBeenCalled()

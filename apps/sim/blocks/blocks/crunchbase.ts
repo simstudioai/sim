@@ -2,6 +2,7 @@ import { Building, ListChecks, Search, Sprout, Trash, Users } from '@sim/emcn/ic
 import { CrunchbaseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import {
   CRUNCHBASE_CARD_COLLECTIONS,
   CRUNCHBASE_COLLECTIONS,
@@ -79,6 +80,8 @@ Return ONLY the JSON array.`
 
 export const CrunchbaseBlock: BlockConfig = {
   type: 'crunchbase',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'crunchbase_v2' },
   name: 'Crunchbase',
   description: 'Search and look up companies, people, funding rounds, and acquisitions',
   longDescription:
@@ -391,8 +394,8 @@ export const CrunchbaseBlock: BlockConfig = {
        * advanced field is serialized on non-emptiness alone, even while the UI
        * hides it. `undefined` is what actually drops one.
        */
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const isSearch = (SEARCH_OPERATIONS as readonly string[]).includes(operation)
         const isLookup = (LOOKUP_OPERATIONS as readonly string[]).includes(operation)
         const isCollectionScoped = (COLLECTION_OPERATIONS as readonly string[]).includes(operation)
@@ -403,13 +406,16 @@ export const CrunchbaseBlock: BlockConfig = {
         const paginates = isSearch || isCard || isDeleted
 
         let query: unknown
-        if (isSearch) query = params.searchQuery
-        else if (isAutocomplete) query = params.autocompleteQuery
+        if (isSearch) query = params.searchQuery ?? toolCallArg(context, params.query)
+        else if (isAutocomplete)
+          query = params.autocompleteQuery ?? toolCallArg(context, params.query)
 
         let collection: unknown
         if (isCollectionScoped) collection = params.collection
-        else if (isCard) collection = params.cardCollection
-        else if (isDeleted) collection = params.deletedCollection
+        else if (isCard)
+          collection = params.cardCollection ?? toolCallArg(context, params.collection)
+        else if (isDeleted)
+          collection = params.deletedCollection ?? toolCallArg(context, params.collection)
 
         return {
           apiKey: params.apiKey,
@@ -419,7 +425,7 @@ export const CrunchbaseBlock: BlockConfig = {
           cardId: isCard ? params.cardId : undefined,
           fieldIds:
             operation === 'search_entities'
-              ? params.searchFieldIds
+              ? (params.searchFieldIds ?? toolCallArg(context, params.fieldIds))
               : isSearch || isLookup
                 ? params.fieldIds
                 : undefined,
@@ -642,3 +648,17 @@ export const CrunchbaseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CrunchbaseV2Block: BlockConfig = {
+  ...CrunchbaseBlock,
+  type: 'crunchbase_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CrunchbaseBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'crunchbase',
+    title: 'Crunchbase Credential',
+  }),
+}

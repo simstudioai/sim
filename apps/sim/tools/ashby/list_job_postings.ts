@@ -1,4 +1,5 @@
 import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListJobPostingsParams {
@@ -48,6 +49,7 @@ export const listJobPostingsTool: ToolConfig<
   name: 'Ashby List Job Postings',
   description: 'Lists all job postings in Ashby.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

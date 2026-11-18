@@ -1,9 +1,12 @@
 import { IdentityCenterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const IdentityCenterBlock: BlockConfig = {
   type: 'identity_center',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'identity_center_v2' },
   name: 'AWS Identity Center',
   description: 'Manage account access in AWS IAM Identity Center',
   longDescription:
@@ -294,6 +297,15 @@ export const IdentityCenterBlock: BlockConfig = {
       },
     },
     {
+      id: 'filterAccountId',
+      title: 'Filter by AWS Account ID',
+      type: 'short-input',
+      placeholder: '123456789012',
+      condition: { field: 'operation', value: 'list_account_assignments' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'requestId',
       title: 'Request ID',
       type: 'short-input',
@@ -406,8 +418,8 @@ export const IdentityCenterBlock: BlockConfig = {
             throw new Error(`Invalid Identity Center operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, maxResults, ...rest } = params
+      params: (params, context) => {
+        const { maxResults, ...rest } = params
 
         const connectionConfig = {
           region: rest.region,
@@ -417,7 +429,7 @@ export const IdentityCenterBlock: BlockConfig = {
 
         const result: Record<string, unknown> = { ...connectionConfig }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_instances':
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
@@ -493,6 +505,8 @@ export const IdentityCenterBlock: BlockConfig = {
             result.instanceArn = rest.instanceArn
             result.principalId = rest.principalId
             result.principalType = rest.principalType
+            result.accountId =
+              rest.filterAccountId || toolCallArg(context, rest.accountId) || undefined
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
               if (!Number.isNaN(parsed)) result.maxResults = parsed
@@ -531,6 +545,10 @@ export const IdentityCenterBlock: BlockConfig = {
     userId: { type: 'string', description: 'Identity Store user ID' },
     groupId: { type: 'string', description: 'Identity Store group ID' },
     requestId: { type: 'string', description: 'Assignment creation/deletion request ID' },
+    filterAccountId: {
+      type: 'string',
+      description: 'Only list assignments for this AWS account ID (list_account_assignments)',
+    },
     maxResults: {
       type: 'number',
       description: 'Maximum number of results to return (1-100; List Accounts allows at most 20)',
@@ -567,6 +585,8 @@ export const IdentityCenterBlock: BlockConfig = {
     email: { type: 'string', description: 'Email address of the user' },
     userStatus: { type: 'string', description: 'User account status (ENABLED or DISABLED)' },
     title: { type: 'string', description: 'Job title of the user' },
+    givenName: { type: 'string', description: 'Given (first) name of the user' },
+    familyName: { type: 'string', description: 'Family (last) name of the user' },
     externalIds: {
       type: 'json',
       description: 'External identity provider IDs on the user or group (issuer, id)',
@@ -697,3 +717,17 @@ export const IdentityCenterBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const IdentityCenterV2Block: BlockConfig = {
+  ...IdentityCenterBlock,
+  type: 'identity_center_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(IdentityCenterBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

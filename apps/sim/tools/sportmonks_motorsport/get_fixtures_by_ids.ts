@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -36,6 +37,7 @@ export const sportmonksMotorsportGetFixturesByIdsTool: ToolConfig<
   description:
     'Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

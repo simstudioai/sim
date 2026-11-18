@@ -43,6 +43,7 @@ import {
 } from '@/lib/api/contracts/v2/chat-deployments'
 import {
   v2CreateCredentialConnectionContract,
+  v2CreateCredentialWorkloadIdentitySubjectContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
   v2ListCredentialMembersContract,
@@ -169,12 +170,14 @@ import {
   v2CreateOrganizationInvitationContract,
   v2GetOrganizationContract,
   v2GetOrganizationInvitationContract,
+  v2GetSearchSourcePermissionsContract,
   v2ListOrganizationInvitationsContract,
   v2ListOrganizationInvitationWorkspacesContract,
   v2ListOrganizationMembersContract,
   v2ListOrganizationsContract,
   v2ListOrganizationWorkspacesContract,
   v2RemoveOrganizationMemberContract,
+  v2ReplaceSearchSourcePermissionsContract,
   v2ResendOrganizationInvitationContract,
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
@@ -307,14 +310,18 @@ import {
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
   v2GetWorkflowDeploymentContract,
+  v2GetWorkflowOutlineContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
+  v2ListPausedRunsContract,
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
+  v2ListWorkspaceSchedulesContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
   v2RelocateWorkflowFolderContract,
@@ -326,6 +333,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -355,6 +363,9 @@ import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
+  v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
+  v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
 
@@ -440,7 +451,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ApplyWorkflowOperationsContract,
     summary: 'Apply workflow operations',
     description:
-      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect `skipped` and `inputValidationErrors` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With `atomic=true`, declined operations or dropped inputs return `409` (`OPERATIONS_NOT_APPLIED`) without saving. A `409` with code `CONFLICT` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned `mintedBlockIds` in later requests. `dryRun=true` evaluates without saving, auditing, or notifying. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/operations/route').then((route) => route.POST),
@@ -650,6 +661,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/credentials/connections/route').then((route) => route.POST),
   },
+  createCredentialWorkloadIdentitySubject: {
+    contract: v2CreateCredentialWorkloadIdentitySubjectContract,
+    summary: 'Create workload identity subject',
+    description:
+      "Start a keyless credential. Returns the issuer, audience, and a new subject to configure in the cloud's trust policy (or, when `subject` names one Sim is holding for you, that same subject with a renewed proof), plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Sim holds the subject for you until `subjectHeldUntil` (30 days, restarted by each renewal) unless a credential saves it first; pass it back as `subject` to renew the proof without changing the subject, so a trust policy that takes days to apply still matches. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. The returned `audience` is the default; set `audience` in `keylessConfig` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/workload-identity/subjects/route').then(
+        (route) => route.POST
+      ),
+  },
   createCustomTool: {
     contract: v2CreateCustomToolContract,
     summary: 'Create custom tool',
@@ -817,7 +839,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CreateServiceAccountCredentialContract,
     summary: 'Create service-account credential',
     description:
-      'Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its `keylessConfig` as `serviceAccountJson`. A refused keyless credential names its cause in `details.code`: `409` for `WORKLOAD_IDENTITY_SUBJECT_IN_USE` or `WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE`, otherwise `400`, such as `WORKLOAD_IDENTITY_PROOF_EXPIRED` (renew the proof by passing the subject to Create workload identity subject). Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/credentials/route').then((route) => route.POST),
   },
@@ -1246,7 +1268,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteWorkflowContract,
     summary: 'Execute workflow',
     description:
-      'Run the active deployment, or set `run.source: "manual"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: "failed"` and `error.code: "TIMEOUT"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.',
+      'Run the active deployment, set `run: { source: "deployment", version }` to run an earlier deployment version, or set `run.source: "manual"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth `api:write` scope; an unknown version returns `404`. Manual runs require a full-access personal API key or OAuth `api:write` scope, and workspace write access; workspace API keys are refused, and manual runs cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: "failed"` and `error.code: "TIMEOUT"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/execute/route').then((route) => route.POST),
   },
@@ -1279,7 +1301,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetBillingStatusContract,
     summary: 'Get billing status',
     description:
-      "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
+      "Get the current plan, billing standing, credit allowance, storage quota, and plan limits on runs. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both, but every caller reads `limits`. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/billing/status/route').then((route) => route.GET),
   },
   getBlock: {
@@ -1400,7 +1422,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetMetaContract,
     summary: 'Get API status',
     description:
-      'Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
+      'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/meta/route').then((route) => route.GET),
   },
   getNextKnowledgeTagSlot: {
@@ -1506,6 +1528,17 @@ export const V2_MCP_OPERATIONS = {
       'Get a sandbox’s dependency configuration, current build state, and any build failure. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.GET),
   },
+  getSearchSourcePermissions: {
+    contract: v2GetSearchSourcePermissionsContract,
+    summary: 'Get Search source permission revision',
+    description:
+      'Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
+      ).then((route) => route.GET),
+  },
   getSelector: {
     contract: v2GetSelectorContract,
     summary: 'Get selector option',
@@ -1601,7 +1634,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowContract,
     summary: 'Get workflow',
     description:
-      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
+      'Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; `inputSchema` describes the `input` an API run of the active deployment accepts. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/[workflowId]/route').then((route) => route.GET),
   },
   getWorkflowChatDeployment: {
@@ -1632,11 +1665,19 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workflow-mcp-servers/[serverId]/route').then((route) => route.GET),
   },
+  getWorkflowOutline: {
+    contract: v2GetWorkflowOutlineContract,
+    summary: 'Get workflow outline',
+    description:
+      'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and null values omitted. Fields hidden from agents are omitted too, some of them real configuration, as are blocks whose parent container no longer exists; compare with Get workflow state for the full configuration. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/outline/route').then((route) => route.GET),
+  },
   getWorkflowRun: {
     contract: v2GetWorkflowRunContract,
     summary: 'Get workflow run',
     description:
-      'Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.',
+      'Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in `paused.points`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/route').then((route) => route.GET),
   },
@@ -2024,6 +2065,13 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  listPausedRuns: {
+    contract: v2ListPausedRunsContract,
+    summary: 'List paused workflow runs',
+    description:
+      "List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with `includeOutput`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds 100 pause points.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/workflows/runs/paused/route').then((route) => route.GET),
+  },
   listPermissionGroupMembers: {
     contract: v2ListPermissionGroupMembersContract,
     summary: 'List permission group members',
@@ -2183,6 +2231,14 @@ export const V2_MCP_OPERATIONS = {
       'List active workflows in a workspace. Requires workspace read access.\n\nUse `scope=archived` to find workflows available for restoration. Filter by folder, deployment, or name; sort and page with the returned cursor. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workflows/route').then((route) => route.GET),
   },
+  listWorkflowTriggers: {
+    contract: v2ListWorkflowTriggersContract,
+    summary: 'List workflow triggers',
+    description:
+      "List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a `webhook` trigger's failures happen at the sender, so its `failedCount` stays 0. Empty while the workflow is not deployed. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/route').then((route) => route.GET),
+  },
   listWorkflowVersions: {
     contract: v2ListWorkflowVersionsContract,
     summary: 'List workflow versions',
@@ -2235,6 +2291,13 @@ export const V2_MCP_OPERATIONS = {
     description:
       'List active workspaces available to the calling credential. Personal API keys and OAuth tokens see accessible workspaces that permit user-held API credentials; a workspace API key sees only its bound workspace. Results use cursor pagination.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/workspaces/route').then((route) => route.GET),
+  },
+  listWorkspaceSchedules: {
+    contract: v2ListWorkspaceSchedulesContract,
+    summary: 'List workspace schedules',
+    description:
+      "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.\n\nOAuth scope: `api:read`.",
+    handler: () => import('@/app/api/v2/schedules/route').then((route) => route.GET),
   },
   moveFileItems: {
     contract: v2MoveFileItemsContract,
@@ -2431,12 +2494,34 @@ export const V2_MCP_OPERATIONS = {
         '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]/route'
       ).then((route) => route.DELETE),
   },
+  removeWorkspaceMember: {
+    contract: v2RemoveWorkspaceMemberContract,
+    summary: 'Remove workspace member',
+    description:
+      'Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end, since this endpoint is called with an API key or OAuth token rather than from a signed-in browser session. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
   renameFile: {
     contract: v2RenameFileContract,
     summary: 'Rename file',
     description:
       'Rename a workspace file without changing its containing folder.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/route').then((route) => route.PATCH),
+  },
+  replaceSearchSourcePermissions: {
+    contract: v2ReplaceSearchSourcePermissionsContract,
+    summary: 'Replace Search source permissions',
+    description:
+      'Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 8 MiB and 500,000 data rows each, within a 10 MiB limit for the complete JSON-encoded request. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
+      ).then((route) => route.PUT),
   },
   replaceWorkflowChatDeployment: {
     contract: v2ReplaceWorkflowChatDeploymentContract,
@@ -2529,7 +2614,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ResumeWorkflowContract,
     summary: 'Resume workflow run',
     description:
-      'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.',
+      "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route').then(
         (route) => route.POST
@@ -2952,6 +3037,16 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/deployment/route').then((route) => route.PATCH),
   },
+  updateWorkflowTrigger: {
+    contract: v2UpdateWorkflowTriggerContract,
+    summary: 'Update workflow trigger',
+    description:
+      "Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets `failedCount`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns `400`. A permission group that blocks webhook triggers returns `403` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive `404`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.\n\nOAuth scope: `api:write`.",
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route').then(
+        (route) => route.PATCH
+      ),
+  },
   updateWorkflowVersion: {
     contract: v2UpdateWorkflowVersionContract,
     summary: 'Update workflow version',
@@ -2961,6 +3056,15 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workflows/[workflowId]/versions/[version]/route').then(
         (route) => route.PATCH
       ),
+  },
+  updateWorkspace: {
+    contract: v2UpdateWorkspaceContract,
+    summary: 'Update workspace',
+    description:
+      'Rename a workspace or change its logo. Omitted fields remain unchanged; send `logoUrl: null` to remove the logo. Requires workspace Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/route').then((route) => route.PATCH),
   },
   updateWorkspaceForkExclusions: {
     contract: v2UpdateWorkspaceForkExclusionsContract,
@@ -2982,6 +3086,17 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/fork/mappings/route').then(
         (route) => route.PUT
+      ),
+  },
+  updateWorkspaceMember: {
+    contract: v2UpdateWorkspaceMemberContract,
+    summary: 'Update workspace member',
+    description:
+      'Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; anyone else is Not found, and people are added with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry, except that an organization Admin is refused whatever role is requested. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route').then(
+        (route) => route.PATCH
       ),
   },
   upsertCredentialMember: {

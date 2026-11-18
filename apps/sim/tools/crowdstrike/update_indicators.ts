@@ -2,6 +2,10 @@ import type {
   CrowdStrikeUpdateIndicatorsParams,
   CrowdStrikeUpdateIndicatorsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeUpdateIndicatorsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeUpdateIndicatorsTool: InternalToolConfig<
   description:
     'Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: omitted fields may be cleared, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeUpdateIndicatorsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     indicators: {
       type: 'json',
       required: true,
@@ -65,6 +71,7 @@ export const crowdstrikeUpdateIndicatorsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       comment: params.comment,
       ignoreWarnings: params.ignoreWarnings,
       indicators: params.indicators,

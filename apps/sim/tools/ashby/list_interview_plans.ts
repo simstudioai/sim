@@ -1,4 +1,5 @@
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface Params {
@@ -29,6 +30,7 @@ export const listInterviewPlansTool: ToolConfig<Params, Response> = {
   description:
     'Lists Ashby interview plans, including optional archived plans and incremental changes.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

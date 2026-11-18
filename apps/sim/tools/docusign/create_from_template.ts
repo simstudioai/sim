@@ -16,6 +16,7 @@ export const docusignCreateFromTemplateTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -24,6 +25,12 @@ export const docusignCreateFromTemplateTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     templateId: {
       type: 'string',
@@ -62,6 +69,7 @@ export const docusignCreateFromTemplateTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       templateId: params.templateId,
       emailSubject: params.emailSubject,
       emailBody: params.emailBody,

@@ -1,7 +1,8 @@
 import { omit } from '@sim/utils/object'
 import { DubIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 const GET_LINK_FIELD = ['linkId', 'getLinkExternalId', 'getLinkKey'] as const
 const BULK_UPDATE_TARGET_FIELD = ['bulkUpdateLinkIds', 'bulkUpdateExternalIds'] as const
@@ -12,7 +13,7 @@ export const DubBlock = {
   type: 'dub',
   name: 'Dub (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'dub_v2' },
+  sunset: { status: 'legacy', replacedBy: 'dub_v3' },
   description: 'Link management with Dub',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -1031,44 +1032,46 @@ export const DubBlock = {
     ],
     config: {
       tool: (params) => `dub_${params.operation}`,
-      params: (params) => {
+      params: (params, context?: BlockToolParamsContext) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
         const isLinkMutation =
-          params.operation === 'create_link' ||
-          params.operation === 'upsert_link' ||
-          params.operation === 'update_link'
+          operation === 'create_link' || operation === 'upsert_link' || operation === 'update_link'
 
-        // The executor merges { ...inputs, ...transformedParams }, so a raw subBlock
-        // id that shares its name with a tool param (e.g. 'domain', 'linkId') passes
-        // through untouched unless explicitly cleared here. These fields are only
-        // shown for the operations below; every other operation must null them out
-        // so a value left over from a previous operation selection can't leak in.
-        if (!isLinkMutation) {
-          result.domain = undefined
-          result.key = undefined
-          result.title = undefined
-          result.description = undefined
-          result.externalId = undefined
-          result.tagIds = undefined
-          result.tenantId = undefined
-          result.folderId = undefined
-          result.trackConversion = undefined
-        }
-        if (params.operation !== 'create_link' && params.operation !== 'upsert_link') {
-          result.url = undefined
-        }
-        if (
-          params.operation !== 'get_link' &&
-          params.operation !== 'update_link' &&
-          params.operation !== 'delete_link'
-        ) {
-          result.linkId = undefined
-        }
-        if (params.operation !== 'list_links') {
-          result.search = undefined
-          result.showArchived = undefined
-          result.page = undefined
-          result.pageSize = undefined
+        /**
+         * The canvas merges `{ ...inputs, ...mapped }`, so a raw subBlock id that shares its name
+         * with a tool param (e.g. `domain`, `linkId`) passes through unless cleared here, and a
+         * value left by another operation would leak in. A tool call carries the model's args
+         * under those same names for the selected tool, so nothing is cleared there.
+         */
+        if (!isToolCall(context)) {
+          if (!isLinkMutation) {
+            result.domain = undefined
+            result.key = undefined
+            result.title = undefined
+            result.description = undefined
+            result.externalId = undefined
+            result.tagIds = undefined
+            result.tenantId = undefined
+            result.folderId = undefined
+            result.trackConversion = undefined
+          }
+          if (operation !== 'create_link' && operation !== 'upsert_link') {
+            result.url = undefined
+          }
+          if (
+            operation !== 'get_link' &&
+            operation !== 'update_link' &&
+            operation !== 'delete_link'
+          ) {
+            result.linkId = undefined
+          }
+          if (operation !== 'list_links') {
+            result.search = undefined
+            result.showArchived = undefined
+            result.page = undefined
+            result.pageSize = undefined
+          }
         }
 
         if (isLinkMutation) {
@@ -1076,20 +1079,26 @@ export const DubBlock = {
           if (params.linkArchived === 'true') result.archived = true
           if (params.tenantId) result.tenantId = params.tenantId
           if (params.folderId) result.folderId = params.folderId
-          // Only ever send `true` or omit — an explicit `false` on update_link would
-          // silently disable conversion tracking on links that already had it enabled,
-          // since Dub's update is a partial PATCH (matches linkRewrite/linkArchived).
-          result.trackConversion = params.trackConversion === 'true' ? true : undefined
+          // The dropdown only ever sends `true` or omits: a stored `false` on update_link would
+          // disable tracking on links that had it, since Dub's update is a partial PATCH. A tool
+          // call keeps the model's own boolean.
+          result.trackConversion =
+            params.trackConversion === 'true'
+              ? true
+              : toolCallArg(
+                  context,
+                  typeof params.trackConversion === 'boolean' ? params.trackConversion : undefined
+                )
         }
-        if (params.operation === 'get_link') {
+        if (operation === 'get_link') {
           if (params.getLinkExternalId) result.externalId = params.getLinkExternalId
           if (params.getLinkDomain) result.domain = params.getLinkDomain
           if (params.getLinkKey) result.key = params.getLinkKey
         }
-        if (params.operation === 'update_link' && params.updateUrl) {
+        if (operation === 'update_link' && params.updateUrl) {
           result.url = params.updateUrl
         }
-        if (params.operation === 'list_links') {
+        if (operation === 'list_links') {
           if (params.listDomain) result.domain = params.listDomain
           if (params.listTagIds) result.tagIds = params.listTagIds
           if (params.listTenantId) result.tenantId = params.listTenantId
@@ -1100,7 +1109,7 @@ export const DubBlock = {
           if (params.startingAfter) result.startingAfter = params.startingAfter
           if (params.endingBefore) result.endingBefore = params.endingBefore
         }
-        if (params.operation === 'get_analytics') {
+        if (operation === 'get_analytics') {
           if (params.analyticsEvent) result.event = params.analyticsEvent
           if (params.analyticsGroupBy) result.groupBy = params.analyticsGroupBy
           if (params.analyticsLinkId) result.linkId = params.analyticsLinkId
@@ -1112,7 +1121,7 @@ export const DubBlock = {
           if (params.analyticsCountry) result.country = params.analyticsCountry
           if (params.analyticsTimezone) result.timezone = params.analyticsTimezone
         }
-        if (params.operation === 'get_links_count') {
+        if (operation === 'get_links_count') {
           if (params.countSearch) result.search = params.countSearch
           if (params.countDomain) result.domain = params.countDomain
           if (params.countTagIds) result.tagIds = params.countTagIds
@@ -1121,18 +1130,18 @@ export const DubBlock = {
           if (params.countShowArchived === 'true') result.showArchived = true
           if (params.countGroupBy) result.groupBy = params.countGroupBy
         }
-        if (params.operation === 'bulk_create_links') {
+        if (operation === 'bulk_create_links') {
           if (params.bulkLinks) result.links = params.bulkLinks
         }
-        if (params.operation === 'bulk_update_links') {
+        if (operation === 'bulk_update_links') {
           if (params.bulkUpdateLinkIds) result.linkIds = params.bulkUpdateLinkIds
           if (params.bulkUpdateExternalIds) result.externalIds = params.bulkUpdateExternalIds
           if (params.bulkUpdateData) result.data = params.bulkUpdateData
         }
-        if (params.operation === 'bulk_delete_links') {
+        if (operation === 'bulk_delete_links') {
           if (params.bulkDeleteLinkIds) result.linkIds = params.bulkDeleteLinkIds
         }
-        if (params.operation === 'get_events') {
+        if (operation === 'get_events') {
           if (params.eventsEvent) result.event = params.eventsEvent
           if (params.eventsLinkId) result.linkId = params.eventsLinkId
           if (params.eventsExternalId) result.externalId = params.eventsExternalId
@@ -1146,7 +1155,7 @@ export const DubBlock = {
           if (params.eventsPage) result.page = Number(params.eventsPage)
           if (params.eventsLimit) result.limit = Number(params.eventsLimit)
         }
-        if (params.operation === 'get_qr_code') {
+        if (operation === 'get_qr_code') {
           if (params.qrUrl) result.url = params.qrUrl
           if (params.qrLogo) result.logo = params.qrLogo
           if (params.qrSize) result.size = Number(params.qrSize)
@@ -1156,24 +1165,24 @@ export const DubBlock = {
           if (params.qrHideLogo === 'true') result.hideLogo = true
           if (params.qrMargin) result.margin = Number(params.qrMargin)
         }
-        if (params.operation === 'list_domains') {
+        if (operation === 'list_domains') {
           if (params.domainsSearch) result.search = params.domainsSearch
           if (params.domainsArchived === 'true') result.archived = true
           if (params.domainsPage) result.page = Number(params.domainsPage)
           if (params.domainsPageSize) result.pageSize = Number(params.domainsPageSize)
         }
-        if (params.operation === 'list_tags') {
+        if (operation === 'list_tags') {
           if (params.tagsSearch) result.search = params.tagsSearch
           if (params.tagsSortBy) result.sortBy = params.tagsSortBy
           if (params.tagsSortOrder) result.sortOrder = params.tagsSortOrder
           if (params.tagsPage) result.page = Number(params.tagsPage)
           if (params.tagsPageSize) result.pageSize = Number(params.tagsPageSize)
         }
-        if (params.operation === 'create_tag') {
+        if (operation === 'create_tag') {
           if (params.tagName) result.name = params.tagName
           if (params.tagColor) result.color = params.tagColor
         }
-        if (params.operation === 'list_folders') {
+        if (operation === 'list_folders') {
           if (params.foldersSearch) result.search = params.foldersSearch
           if (params.foldersPage) result.page = Number(params.foldersPage)
           if (params.foldersPageSize) result.pageSize = Number(params.foldersPageSize)
@@ -1285,8 +1294,8 @@ export const DubV2Block: BlockConfig = {
   ...DubBlock,
   type: 'dub_v2',
   name: 'Dub',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dub_v3' },
   tools: {
     ...DubBlock.tools,
     access: DubBlock.tools.access.map((toolId) =>
@@ -1406,3 +1415,17 @@ export const DubBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DubV3Block: BlockConfig = {
+  ...DubV2Block,
+  type: 'dub_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(DubV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'dub',
+    title: 'Dub Credential',
+  }),
+}

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveQueryActivitiesParams,
   ThriveQueryActivitiesResponse,
@@ -22,6 +23,7 @@ export const queryActivitiesTool: ToolConfig<
   name: 'Thrive Query Activities',
   description: 'Query activity records in Thrive with pagination and filtering options.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

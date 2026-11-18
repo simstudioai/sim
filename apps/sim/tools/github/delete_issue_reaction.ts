@@ -1,3 +1,5 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface DeleteIssueReactionParams {
@@ -27,6 +29,7 @@ export const deleteIssueReactionTool: ToolConfig<
   name: 'GitHub Delete Issue Reaction',
   description: 'Remove a reaction from an issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -63,7 +66,7 @@ export const deleteIssueReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/reactions/${params.reaction_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}/reactions/${githubPathSegment(params.reaction_id, 'reaction_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',
@@ -107,6 +110,7 @@ export const deleteIssueReactionV2Tool: ToolConfig<DeleteIssueReactionParams, an
   name: deleteIssueReactionTool.name,
   description: deleteIssueReactionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteIssueReactionTool.params,
   request: deleteIssueReactionTool.request,
 

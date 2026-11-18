@@ -1,5 +1,6 @@
 import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { CREDITS_PER_DOLLAR } from '@/lib/billing/constants'
+import { PricingFAQ } from '@/app/(landing)/pricing/components/pricing-faq'
 import { PricingPlans } from '@/app/(landing)/pricing/components/pricing-plans'
 import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricing-structured-data'
 
@@ -69,6 +70,7 @@ export default function Pricing() {
           . On Sim Cloud, one credit is worth ${1 / CREDITS_PER_DOLLAR}.
         </p>
       </section>
+      <PricingFAQ />
     </main>
   )
 }

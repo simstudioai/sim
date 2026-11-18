@@ -1,8 +1,14 @@
 import type { ToolMetadata } from '@/tools/metadata'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 
-/** Adapt legacy GitHub API-token operations only at the Assistant boundary; Build schemas stay unchanged. */
+/**
+ * Adapt GitHub API-token operations only at the Assistant boundary; Build schemas stay unchanged.
+ * Their optional saved-token policy (`github-token` service accounts) is a workflow credential, so the
+ * Assistant still swaps it for the person's own connected account.
+ */
 export function projectAssistantConnectedAccountTool<T extends ToolMetadata>(tool: T): T {
-  if (!/^github_[a-z0-9_]+$/.test(tool.id) || !tool.params.apiKey || tool.oauth) return tool
+  if (!/^github_[a-z0-9_]+$/.test(tool.id) || !tool.params.apiKey) return tool
+  if (tool.oauth && tool.oauth.provider !== GITHUB_CREDENTIAL_OAUTH.provider) return tool
   return {
     ...tool,
     oauth: {

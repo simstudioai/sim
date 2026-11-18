@@ -8,6 +8,9 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/hooks/queries/computer-use', () => ({
+  useComputerUseAvailability: () => ({ data: false }),
+}))
 vi.mock('@sim/emcn', () => ({
   ...emcnMock,
   Label: ({ children, htmlFor }: { children?: ReactNode; htmlFor?: string }) => (
@@ -66,7 +69,6 @@ async function render(device: { deviceId: string } | null) {
           changelog: false,
           'mothership-model-selector': false,
           'mothership-plan-mode': false,
-          'mothership-computer-use': false,
         }}
       >
         <Desktop />

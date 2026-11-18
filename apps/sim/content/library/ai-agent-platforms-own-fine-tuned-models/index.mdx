@@ -1,0 +1,172 @@
+---
+slug: ai-agent-platforms-own-fine-tuned-models
+title: 'AI Agent Platforms for Running Your Own Fine Tuned Models Compared'
+seoTitle: 'AI Agent Platforms for Fine Tuned Models'
+description: 'Compare AI agent platforms for connecting fine tuned models through hosted providers, OpenAI compatible endpoints, and local model runtimes.'
+date: 2026-11-09
+updated: 2026-11-09
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, Fine Tuned Models, Self Hosting, Sim]
+ogImage: /library/ai-agent-platforms-own-fine-tuned-models/cover.jpg
+draft: false
+faq:
+  - q: "Which AI agent platforms support fine tuning custom models?"
+    a: "Sim, n8n, Dify, and the archived Flowise project can call fine tuned or custom models through provider identifiers, deployment configurations, compatible endpoints, or local runtimes, but they generally do not train the model."
+  - q: "What are the top AI agent builders that let us plug in our own fine tuned model?"
+    a: "Sim fits self hosted fine tuned model endpoints, n8n fits broader automation, Dify fits provider plugins, and the archived Flowise project offered visual LangChain components."
+  - q: "Can I use a fine tuned model in an AI agent?"
+    a: "Sim can use a fine tuned model when the model is deployed through a supported provider or reachable self hosted endpoint and the selected model supports the capabilities the agent needs."
+  - q: "What is a custom model AI agent builder?"
+    a: "A custom model AI agent builder connects agent instructions, tools, memory, and workflow logic to a model selected by identifier, deployment, or endpoint."
+  - q: "Do AI agent platforms fine tune models?"
+    a: "The platforms in this comparison orchestrate agents around deployed models rather than providing the underlying fine tuning process."
+  - q: "Can Sim run a self hosted fine tuned model?"
+    a: "Sim can run agents against a fine tuned model served through Ollama, vLLM, LM Studio, or LiteLLM when Sim is self hosted and can reach the endpoint."
+  - q: "Can Sim Cloud connect to a local Ollama or vLLM model?"
+    a: "Sim documents Ollama, vLLM, LM Studio, and LiteLLM as self hosting capabilities, so teams should use a self hosted Sim deployment for those local endpoint paths."
+  - q: "Does Sim require Enterprise for local models?"
+    a: "Sim does not require Enterprise for Ollama, vLLM, LM Studio, or LiteLLM on a self hosted deployment."
+  - q: "Does Sim support BYOK for hosted fine tuned models?"
+    a: "Sim supports workspace BYOK on every Sim Cloud plan, but using a specific hosted fine tune still depends on the provider integration exposing that model."
+  - q: "Is BYOK the same as bringing your own model?"
+    a: "Sim BYOK is not the same as bringing your own model because BYOK supplies provider credentials while a custom model also needs an addressable model identifier, deployment, or endpoint."
+  - q: "Can n8n run custom models?"
+    a: "n8n can call custom models through documented model nodes such as Microsoft Foundry and Ollama or through a direct authenticated API request."
+  - q: "Does n8n train fine tuned models?"
+    a: "n8n orchestrates calls to a model that a provider or model runtime already serves rather than training the fine tuned model."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License, which is based on the fair-code model rather than an OSI-approved open source license."
+  - q: "Can Dify use an OpenAI compatible custom endpoint?"
+    a: "Dify supports model provider configuration in which users can supply a model name and base URL for an OpenAI compatible service."
+  - q: "Can Flowise use a local custom model?"
+    a: "The archived Flowise project can connect visual flows to local model services through integrations such as Ollama when the deployment can reach the runtime."
+  - q: "Do these AI agent platforms support Azure OpenAI deployments?"
+    a: "n8n and the archived Flowise project document Azure OpenAI model integrations, while support should be checked against the exact deployment, API version, authentication method, and model capability required."
+  - q: "What is the best AI agent platform for a vLLM endpoint?"
+    a: "Sim fits teams that need a visual builder and a documented base URL configuration for vLLM-compatible model access on a self hosted deployment."
+  - q: "What is the best AI agent platform for Ollama?"
+    a: "Sim fits teams building visual agents around Ollama on self hosted infrastructure, while n8n and Dify offer different orchestration approaches."
+  - q: "Is Sim open source?"
+    a: "Sim has separate core and enterprise licenses, and production use of enterprise features requires an active Sim Enterprise subscription."
+  - q: "Is Sim free to self host with a custom model?"
+    a: "Core custom-model capabilities do not require Enterprise, while production use of enterprise features requires an active Sim Enterprise subscription."
+  - q: "Is Sim a good n8n alternative for custom models?"
+    a: "Sim fits teams that want a visual agent workspace and documented self hosted support for Ollama, vLLM, LM Studio, and LiteLLM."
+  - q: "Is Sim a good Zapier alternative for custom model agents?"
+    a: "Sim fits custom model agent teams when self hosting and direct control over the model endpoint matter more than conventional application automation alone."
+  - q: "What should I test before using a fine tuned model in production?"
+    a: "Test model quality, tool calling, structured outputs, context limits, timeouts, concurrency, endpoint failures, and data handling before sending production traffic to a fine tuned model."
+---
+
+## TL;DR
+
+Sim, n8n, and Dify can connect agents to custom models through different routes. Sim fits teams that want a visual workspace with documented support for Ollama, vLLM, LM Studio, and LiteLLM on self hosted infrastructure. n8n fits general automation around model calls, while Dify fits applications organized around model provider plugins. Flowise previously offered composable LangChain-based model flows, but its maintainers [announced the project's wind-down](https://flowiseai.com/sunset) and archived the repository in August 2026, so teams should not select it for a new deployment.
+
+These platforms generally do not train a model. They orchestrate agents around a fine tuned model that is already available through a provider model identifier, an Azure OpenAI deployment, an OpenAI-compatible endpoint, or a local model runtime.
+
+As of November 2026, the documented connection options make Sim a fit for self hosted custom model endpoints, n8n a fit for general automation around model calls, and Dify a fit for model provider plugins.
+
+## Which AI agent platforms support fine tuning custom models?
+
+Sim, n8n, Dify, and the archived Flowise project can call custom or fine tuned models, although the connection method depends on where the model is hosted.
+
+| Platform | Fit | Documented connection paths |
+| --- | --- | --- |
+| Sim | Visual agents using self hosted custom endpoints | [Ollama, vLLM, LM Studio, and LiteLLM](https://docs.sim.ai/platform/self-hosting/environment-variables) on self hosted Sim, plus [provider keys for supported hosted models](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) |
+| n8n | Automation surrounding custom model calls | [Microsoft Foundry or Azure OpenAI](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatazureopenai/), [Ollama](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama/), and direct API requests |
+| Dify | LLM applications using model provider plugins | [Provider plugins and user-supplied OpenAI-compatible endpoints](https://docs.dify.ai/en/develop-plugin/features-and-specs/plugin-types/model-designing-rules), plus [local model services](https://docs.dify.ai/en/self-host/use-dify/nodes/llm) |
+| [Flowise (archived)](https://flowiseai.com/sunset) | Existing composable flows built with LangChain components | Azure ChatOpenAI, ChatOpenAI custom base URLs, and Ollama |
+
+A hosted fine tune is usually selected through the model identifier exposed by its provider. An Azure OpenAI model is selected through its deployment configuration. A model served by vLLM, Ollama, LM Studio, or LiteLLM is reached through a runtime endpoint available to the agent platform.
+
+This comparison evaluates the custom model connection path rather than the broader platform category. For that broader decision, see [AI agent platforms and builders compared](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+
+## What AI agent builders let us plug in our own fine tuned model?
+
+The useful distinction is not a ranking. Teams should match each platform's documented endpoint options, deployment controls, and orchestration model to their requirements.
+
+### When does Sim fit a self hosted custom model?
+
+A self hosted Sim deployment can connect to Ollama through `OLLAMA_URL` and to vLLM, LM Studio, or LiteLLM through the [documented environment variables](https://docs.sim.ai/platform/self-hosting/environment-variables). The [Sim self hosting documentation](https://docs.sim.ai/platform/self-hosting) explains the deployment model, and the [Docker documentation](https://docs.sim.ai/platform/self-hosting/docker) covers the production Compose stack.
+
+This setup lets a team serve a proprietary fine tune from infrastructure it controls and use that model inside Sim's visual builder. Local model support is a self-hosting capability and does not require Sim Enterprise.
+
+Workspace BYOK credentials work on every Sim Cloud plan for supported hosted model providers. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise, as described in the [Sim BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). BYOK is useful when a fine tune remains hosted by a supported provider, but it does not turn a provider model into a self hosted model.
+
+### When does n8n fit a custom model agent?
+
+n8n fits when the main requirement is automating applications and data flows around a custom model call.
+
+n8n documents an [Ollama Chat Model node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama/) and a [Microsoft Foundry Chat Model node](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatazureopenai/) that connects to Microsoft Foundry or Azure OpenAI resources. Its [HTTP Request node](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/) can also call an authenticated REST API directly. That flexibility can suit a team already using n8n for deterministic automation that wants to insert inference into a larger process.
+
+Direct API calls can require more manual request, response, and tool orchestration than a model integration designed around the endpoint.
+
+### When does Dify fit a custom model agent?
+
+Dify fits teams that want an LLM application environment organized around model provider plugins and reusable model configuration.
+
+Dify's [model provider documentation](https://docs.dify.ai/en/self-host/use-dify/workspace/model-providers) describes provider installation, workspace-wide keys, and custom endpoint fields. Its [model plugin specification](https://docs.dify.ai/en/develop-plugin/features-and-specs/plugin-types/model-designing-rules) documents user-supplied model names and base URLs for OpenAI-compatible endpoints. Teams can also [deploy Dify with Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose).
+
+This approach can suit teams that want to register a custom inference service and reuse it across application configurations.
+
+### What should existing Flowise users know?
+
+Flowise offered visual LangChain components for custom model calls. Its documentation covers [Ollama chat models](https://docs.flowiseai.com/integrations/langchain/chat-models/chatollama), [Azure ChatOpenAI](https://docs.flowiseai.com/integrations/langchain/chat-models/azure-chatopenai-1), and [custom base URLs for ChatOpenAI](https://docs.flowiseai.com/integrations/langchain/chat-models/azure-chatopenai).
+
+However, Flowise's maintainers announced that they were winding down operations and archived the repository in August 2026. Existing users can evaluate migration needs, but teams choosing a platform for a new project should use an actively maintained option.
+
+## What are the key facts about custom model support at a glance?
+
+Sim, n8n, Dify, and Flowise separate agent orchestration from model training, but their licenses, deployment models, and inference billing paths differ.
+
+1. Sim's core is Apache 2.0, while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); under that licensing split, Sim's core can be self hosted, and custom model inference is paid through the selected provider or infrastructure running the endpoint.
+
+2. n8n uses the source-available [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md). n8n supports [cloud and self hosted deployment options](https://docs.n8n.io/choose-how-to-use-n8n/), while model calls made with a team's own provider credentials are billed by that provider.
+
+3. Dify uses the [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE), a modified Apache 2.0 license with additional conditions. Dify can be self hosted, and custom provider inference is paid through the provider or the team's own infrastructure.
+
+4. Flowise is no longer an active option for a new deployment because its repository is archived and its maintainers announced a wind-down.
+
+These facts are current as of November 2026. They describe software licensing, maintenance status, and model inference responsibility, not a guarantee that every hosted plan exposes every connection method.
+
+## How do you use a fine tuned model in an AI agent?
+
+Sim can use a fine tuned model after the model is deployed behind a supported provider or self hosted inference endpoint and made reachable from the Sim deployment.
+
+1. Deploy the fine tuned model through its original provider, Azure OpenAI, or a runtime such as vLLM, Ollama, LM Studio, or LiteLLM.
+2. Record the model identifier, deployment name, base URL, authentication method, context limit, and expected request format.
+3. Choose an agent platform with a documented connection path for that hosting method.
+4. Configure credentials and endpoint settings without placing secrets inside prompts or workflow inputs.
+5. Select the model in the agent or workflow and connect only the tools the agent is allowed to use.
+6. Test ordinary requests, malformed inputs, timeouts, tool calls, structured outputs, and context limit failures.
+7. Compare the agent against a baseline model using the same evaluation set before moving production traffic.
+
+For self hosted Sim, use `OLLAMA_URL` for Ollama or the documented `VLLM_BASE_URL` and `LITELLM_BASE_URL` paths for compatible runtimes. Network access still matters because the Sim deployment must be able to reach the inference endpoint.
+
+## What is the difference between BYOK and bringing your own fine tuned model?
+
+Sim BYOK supplies credentials for a supported hosted model provider, while bringing a fine tuned model also requires the platform to address the specific model identifier, deployment, or custom endpoint.
+
+A provider key proves that the agent platform may call the provider. It does not specify which fine tune to use, expose a private endpoint, or make a local runtime reachable.
+
+For more context, read [how Sim's BYOK model works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) and the comparison of [agent builders for Claude, Gemini, GPT, and open models](https://www.sim.ai/library/ai-agent-builders-claude-gemini-gpt-open-models).
+
+## How should you choose a custom model AI agent builder?
+
+Sim fits a team that prioritizes a visual builder, self hosting, and documented local or OpenAI-compatible runtime paths. Choose n8n when the model call is one step inside a broader automation system. Choose Dify when model provider plugins and LLM application management are the central requirements. Do not start a new deployment on Flowise because the project has been wound down and archived.
+
+Before choosing a platform, confirm these requirements:
+
+1. The exact endpoint protocol and authentication method used by the deployed model.
+2. Support for the model identifier or Azure deployment name.
+3. Network connectivity from the agent runtime to the inference endpoint.
+4. Tool calling and structured output compatibility for the selected model.
+5. Context limits, timeout behavior, concurrency, and streaming support.
+6. Logging rules for prompts, outputs, credentials, and proprietary data.
+7. A fallback path when the custom model is unavailable or fails an evaluation.
+
+## Where can I compare related AI agent platform choices?
+
+Different comparisons answer different requirements. Read the broader [AI agent platform comparison](https://www.sim.ai/library/best-ai-agent-platforms-2026), the guide to [Claude, Gemini, GPT, and open model builders](https://www.sim.ai/library/ai-agent-builders-claude-gemini-gpt-open-models), the explanation of [BYOK for multi-model agents](https://www.sim.ai/library/byok-multi-model-ai-agent-builder), or the comparison of [self hosted AI workflow automation platforms](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026).

@@ -2,7 +2,7 @@
 title: Lemlist
 description: Manage outreach activities, leads, and send emails via Lemlist
 integration:
-  type: "lemlist"
+  type: "lemlist_v2"
   color: "#316BFF"
 ---
 
@@ -31,8 +31,7 @@ Retrieves campaign activities and steps performed, including email opens, clicks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Lemlist API key |
-| `type` | string | No | Filter by activity type \(e.g., emailOpened, emailClicked, emailReplied, paused\) |
+| `type` | string | No | Filter by activity type \(e.g., emailsOpened, emailsClicked, emailsReplied, emailsBounced, paused\) |
 | `campaignId` | string | No | Filter by campaign ID \(e.g., "cam_abc123def456"\) |
 | `leadId` | string | No | Filter by lead ID \(e.g., "lea_abc123def456"\) |
 | `isFirst` | boolean | No | Filter for first activity only |
@@ -65,7 +64,6 @@ Retrieves lead information by email address or lead ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Lemlist API key |
 | `leadIdentifier` | string | Yes | Lead email address \(e.g., "john@example.com"\) or lead ID \(e.g., "lea_abc123def456"\) |
 
 #### Output
@@ -96,12 +94,11 @@ Sends an email to a contact through the Lemlist inbox.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Lemlist API key |
 | `sendUserId` | string | Yes | Identifier for the user sending the message \(e.g., "usr_abc123def456"\) |
 | `sendUserEmail` | string | Yes | Email address of the sender \(e.g., "sales@company.com"\) |
 | `sendUserMailboxId` | string | Yes | Mailbox identifier for the sender \(e.g., "mbx_abc123def456"\) |
-| `contactId` | string | Yes | Recipient contact identifier \(e.g., "con_abc123def456"\) |
-| `leadId` | string | Yes | Associated lead identifier \(e.g., "lea_abc123def456"\) |
+| `contactId` | string | No | Recipient contact identifier \(e.g., "ctc_abc123def456"\). Provide this or the lead ID. |
+| `leadId` | string | No | Associated lead identifier \(e.g., "lea_abc123def456"\). Provide this or the contact ID. |
 | `subject` | string | Yes | Email subject line |
 | `message` | string | Yes | Email message body in HTML format |
 | `cc` | json | No | Array of CC email addresses |

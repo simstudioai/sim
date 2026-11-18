@@ -8,6 +8,7 @@ import {
   transformSearchResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CrunchbaseSearchEntitiesParams extends CrunchbaseSearchParams {
@@ -23,6 +24,7 @@ export const crunchbaseSearchEntitiesTool: ToolConfig<
   description:
     'Search any Crunchbase collection — events, jobs, ipos, funds, investments, press references, layoffs, insights, predictions, and more — with filter predicates.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

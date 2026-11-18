@@ -8,6 +8,7 @@ import {
   mapEmail,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const replyToEmailTool: ToolConfig<InstantlyReplyToEmailParams, InstantlyEmailResponse> = {
@@ -15,6 +16,7 @@ export const replyToEmailTool: ToolConfig<InstantlyReplyToEmailParams, Instantly
   name: 'Instantly Reply To Email',
   description: 'Sends an Instantly V2 reply to an existing Unibox email.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     eaccount: {

@@ -1,9 +1,11 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { PaymentIntentResponse, RetrievePaymentIntentParams } from '@/tools/stripe/types'
 import {
   PAYMENT_INTENT_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_INTENT_OUTPUT,
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrievePaymentIntentTool: ToolConfig<
   RetrievePaymentIntentParams,
@@ -13,6 +15,7 @@ export const stripeRetrievePaymentIntentTool: ToolConfig<
   name: 'Stripe Retrieve Payment Intent',
   description: 'Retrieve an existing Payment Intent by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -30,7 +33,8 @@ export const stripeRetrievePaymentIntentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}`,
+    url: (params) =>
+      `https://api.stripe.com/v1/payment_intents/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

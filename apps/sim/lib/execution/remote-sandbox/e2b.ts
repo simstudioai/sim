@@ -1156,6 +1156,9 @@ export const e2bProvider: SandboxProvider = {
         : undefined
     const createOptions = {
       apiKey,
+      // The SDK retries a create that hit a gateway error; the key lets E2B return the sandbox
+      // the first attempt already started instead of starting a second one.
+      idempotencyKey: generateId(),
       ...(effectiveLifetimeMs !== undefined ? { timeoutMs: effectiveLifetimeMs } : {}),
       ...(options?.sessionKey
         ? {

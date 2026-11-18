@@ -3,6 +3,7 @@ import {
   type IncidentioAlertsListParams,
   type IncidentioAlertsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** incident.io requires a page size on this endpoint, so fall back to its documented default. */
@@ -15,6 +16,7 @@ export const alertsListTool: ToolConfig<IncidentioAlertsListParams, IncidentioAl
     description:
       'List alerts in incident.io, optionally filtered by status, source, or created date',
     version: '1.0.0',
+    oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -27,7 +29,7 @@ export const alertsListTool: ToolConfig<IncidentioAlertsListParams, IncidentioAl
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results per page (e.g., 10, 25, 50). Default: 25',
+        description: 'Number of results per page (e.g., 10, 25, 50; max 50). Default: 25',
       },
       after: {
         type: 'string',

@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaListFunctionsParams, LambdaListFunctionsResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listFunctionsTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const listFunctionsTool: InternalToolConfig<
   name: 'Lambda List Functions',
   description: 'List Lambda functions with the version-specific configuration of each',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

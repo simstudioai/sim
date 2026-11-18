@@ -1,5 +1,7 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisIncrParams, UpstashRedisIncrResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisIncrTool: ToolConfig<UpstashRedisIncrParams, UpstashRedisIncrResponse> = {
   id: 'upstash_redis_incr',
@@ -7,6 +9,7 @@ export const upstashRedisIncrTool: ToolConfig<UpstashRedisIncrParams, UpstashRed
   description:
     'Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {
@@ -30,7 +33,7 @@ export const upstashRedisIncrTool: ToolConfig<UpstashRedisIncrParams, UpstashRed
   },
 
   request: {
-    url: (params) => `${params.restUrl}/incr/${encodeURIComponent(params.key)}`,
+    url: (params) => `${params.restUrl}/incr/${upstashPathSegment(params.key, 'key')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

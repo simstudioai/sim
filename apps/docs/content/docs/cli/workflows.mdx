@@ -280,6 +280,24 @@ sim workflows state replace <workflowId> [options]
 
 API request and response schemas: [replaceWorkflowState](/api-reference/workflows/replaceWorkflowState).
 
+### Show a workflow’s draft as a compact read-only outline
+
+```bash
+sim workflows outline <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
+
 ### Edit a workflow’s blocks, connections and settings with a batch of operations
 
 OAuth login or personal API key required.
@@ -430,6 +448,53 @@ sim workflows deployment update <workflowId> [options]
 </CommandTable>
 
 API request and response schemas: [updateWorkflowPublicApi](/api-reference/workflows/updateWorkflowPublicApi).
+
+### Show the health of every trigger the live deployment serves
+
+```bash
+sim workflows triggers list <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkflowTriggers](/api-reference/workflows/listWorkflowTriggers).
+
+### Enable or disable one trigger of the live deployment
+
+```bash
+sim workflows triggers update <workflowId> <blockId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `blockId` | Yes | Trigger block in the deployed workflow. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--enabled <true\|false>` | Yes | Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkflowTrigger](/api-reference/workflows/updateWorkflowTrigger).
 
 ### List workflow versions
 
@@ -740,6 +805,29 @@ sim workflows runs list [options]
 </CommandTable>
 
 API request and response schemas: [listWorkflowRuns](/api-reference/workflow-runs/listWorkflowRunsV2).
+
+### List runs waiting on human input across the workspace
+
+```bash
+sim workflows runs paused [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-output` | No | Include each pause point's reviewer `display` content when true. |
+| `--no-include-output` | No | Send --include-output as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "pausedAt". Accepted values: `pausedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listPausedRuns](/api-reference/workflow-runs/listPausedWorkflowRunsV2).
 
 ### Show run status
 
@@ -1200,5 +1288,6 @@ API request and response schemas: [createWorkflowFolder](/api-reference/workflow
 ## Related docs
 
 - [Workflow builder](/workflows)
+- [Build and run workflows with the API](/api-reference/build-and-run-workflows)
 - [Import and workspace sync](/cli/workflow-sync)
 - [Scripting and exit codes](/cli/scripting#exit-codes)

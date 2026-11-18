@@ -1,6 +1,7 @@
 import { TemporalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation, parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -665,56 +666,72 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `temporal_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
 
-        if (params.operation === 'start_workflow' || params.operation === 'signal_with_start') {
+        if (operation === 'start_workflow' || operation === 'signal_with_start') {
           result.executionTimeoutSeconds = toFiniteNumber(params.executionTimeoutSeconds)
           result.runTimeoutSeconds = toFiniteNumber(params.runTimeoutSeconds)
           if (!params.workflowIdReusePolicy) result.workflowIdReusePolicy = undefined
           if (!params.workflowIdConflictPolicy) result.workflowIdConflictPolicy = undefined
         }
 
-        if (params.operation === 'list_workflows' || params.operation === 'count_workflows') {
-          result.query = params.listQuery || undefined
+        if (operation === 'list_workflows' || operation === 'count_workflows') {
+          result.query = params.listQuery || toolCallArg(context, params.query) || undefined
         }
 
-        if (params.operation === 'list_workflows') {
+        if (operation === 'list_workflows') {
           result.pageSize = toFiniteNumber(params.pageSize)
         }
 
-        if (params.operation === 'get_workflow_history') {
-          result.maximumPageSize = toFiniteNumber(params.historyPageSize)
-          result.nextPageToken = params.historyNextPageToken || undefined
+        if (operation === 'get_workflow_history') {
+          result.maximumPageSize =
+            toFiniteNumber(params.historyPageSize) ??
+            toolCallArg(context, toFiniteNumber(params.maximumPageSize))
+          result.nextPageToken =
+            params.historyNextPageToken || toolCallArg(context, params.nextPageToken) || undefined
           if (!params.historyEventFilterType) result.historyEventFilterType = undefined
         }
 
-        if (params.operation === 'reset_workflow') {
+        if (operation === 'reset_workflow') {
           result.workflowTaskFinishEventId = toFiniteNumber(params.workflowTaskFinishEventId)
         }
 
-        if (params.operation === 'create_schedule') {
-          result.cronExpressions = params.scheduleCronExpressions || undefined
-          result.intervalSeconds = toFiniteNumber(params.scheduleIntervalSeconds)
-          result.timezone = params.scheduleTimezone || undefined
-          result.notes = params.scheduleNotes || undefined
-          result.paused = params.schedulePaused === 'true' ? true : undefined
+        if (operation === 'create_schedule') {
+          result.cronExpressions =
+            params.scheduleCronExpressions ||
+            toolCallArg(context, params.cronExpressions) ||
+            undefined
+          result.intervalSeconds =
+            toFiniteNumber(params.scheduleIntervalSeconds) ??
+            toolCallArg(context, toFiniteNumber(params.intervalSeconds))
+          result.timezone =
+            params.scheduleTimezone || toolCallArg(context, params.timezone) || undefined
+          result.notes = params.scheduleNotes || toolCallArg(context, params.notes) || undefined
+          result.paused =
+            params.schedulePaused === 'true'
+              ? true
+              : toolCallArg(context, parseOptionalBooleanInput(params.paused))
         }
 
-        if (params.operation === 'list_schedules') {
-          result.query = params.scheduleQuery || undefined
-          result.maximumPageSize = toFiniteNumber(params.schedulePageSize)
-          result.nextPageToken = params.scheduleNextPageToken || undefined
+        if (operation === 'list_schedules') {
+          result.query = params.scheduleQuery || toolCallArg(context, params.query) || undefined
+          result.maximumPageSize =
+            toFiniteNumber(params.schedulePageSize) ??
+            toolCallArg(context, toFiniteNumber(params.maximumPageSize))
+          result.nextPageToken =
+            params.scheduleNextPageToken || toolCallArg(context, params.nextPageToken) || undefined
         }
 
         if (
-          (params.operation === 'trigger_schedule' || params.operation === 'create_schedule') &&
+          (operation === 'trigger_schedule' || operation === 'create_schedule') &&
           !params.overlapPolicy
         ) {
           result.overlapPolicy = undefined
         }
 
-        if (params.operation === 'describe_task_queue' && !params.taskQueueType) {
+        if (operation === 'describe_task_queue' && !params.taskQueueType) {
           result.taskQueueType = undefined
         }
 

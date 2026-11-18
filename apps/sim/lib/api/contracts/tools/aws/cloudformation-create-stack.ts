@@ -58,6 +58,8 @@ const CreateStackSchema = z.object({
     .optional(),
   onFailure: z.enum(['ROLLBACK', 'DELETE', 'DO_NOTHING']).optional(),
   timeoutInMinutes: z.coerce.number().int().positive().optional(),
+  roleArn: z.string().min(1).optional(),
+  enableTerminationProtection: z.boolean().optional(),
 })
 
 const CreateStackResponseSchema = z.object({

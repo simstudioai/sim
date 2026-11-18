@@ -14,9 +14,25 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type ApiKeyAccessLevel, DAY_MS } from '@/lib/api/contracts/api-keys'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
+
+const EXPIRY_OPTIONS = [
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: '365', label: '1 year' },
+  { value: 'never', label: 'Never' },
+] as const
+
+type ExpiryOption = (typeof EXPIRY_OPTIONS)[number]['value']
+
+const DEFAULT_EXPIRY: ExpiryOption = 'never'
+
+function expiresAtFor(expiry: ExpiryOption): string | null {
+  return expiry === 'never' ? null : new Date(Date.now() + Number(expiry) * DAY_MS).toISOString()
+}
 
 interface CreateApiKeyModalProps {
   open: boolean
@@ -27,6 +43,8 @@ interface CreateApiKeyModalProps {
   canManageWorkspaceKeys?: boolean
   defaultKeyType?: 'personal' | 'workspace'
   source?: 'settings' | 'deploy_modal'
+  /** For a key created to run workflows: hides the access choice and always issues full access. */
+  fullAccessOnly?: boolean
   onKeyCreated?: (key: CreatedApiKey) => void
 }
 
@@ -45,14 +63,18 @@ export function CreateApiKeyModal({
   canManageWorkspaceKeys = false,
   defaultKeyType = 'personal',
   source = 'settings',
+  fullAccessOnly = false,
   onKeyCreated,
 }: CreateApiKeyModalProps) {
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
+  const [access, setAccess] = useState<ApiKeyAccessLevel>('write')
+  const [expiry, setExpiry] = useState<ExpiryOption>(DEFAULT_EXPIRY)
   const [createError, setCreateError] = useState<string | null>(null)
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
+  const canChooseAccess = !fullAccessOnly
 
   /**
    * The form is seeded when the modal OPENS, not when this component mounts.
@@ -73,6 +95,8 @@ export function CreateApiKeyModal({
     if (open) {
       setKeyName('')
       setKeyType(defaultKeyType)
+      setAccess('write')
+      setExpiry(DEFAULT_EXPIRY)
       setCreateError(null)
     }
   }
@@ -99,15 +123,16 @@ export function CreateApiKeyModal({
     setCreateError(null)
     try {
       if (keyType === 'workspace' && !workspaceId) return
+      const settings = {
+        name: trimmedName,
+        source,
+        access: canChooseAccess ? access : 'write',
+        expiresAt: expiresAtFor(expiry),
+      } as const
       const data = await createApiKeyMutation.mutateAsync(
         keyType === 'workspace' && workspaceId
-          ? {
-              workspaceId,
-              name: trimmedName,
-              keyType,
-              source,
-            }
-          : { keyType: 'personal', name: trimmedName, source }
+          ? { ...settings, workspaceId, keyType }
+          : { ...settings, keyType: 'personal' }
       )
 
       setNewKey(data.key)
@@ -168,6 +193,25 @@ export function CreateApiKeyModal({
             placeholder='e.g., Development, Production'
             autoComplete='off'
             required
+          />
+          {canChooseAccess && (
+            <ChipModalField type='custom' title='Access'>
+              <ChipButtonGroup
+                value={access}
+                onValueChange={(value) => setAccess(value as ApiKeyAccessLevel)}
+              >
+                <ChipButtonGroupItem value='write'>Full access</ChipButtonGroupItem>
+                <ChipButtonGroupItem value='read'>Read only</ChipButtonGroupItem>
+              </ChipButtonGroup>
+            </ChipModalField>
+          )}
+          <ChipModalField
+            type='dropdown'
+            title='Expires'
+            value={expiry}
+            onChange={(value) => setExpiry(value as ExpiryOption)}
+            options={EXPIRY_OPTIONS}
+            align='start'
           />
           {/* Hidden decoy fields to prevent browser autofill */}
           <input

@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneAddTaskDependenciesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneAddTaskDependenciesTool: ToolConfig<
   name: 'Rocketlane Add Task Dependencies',
   description: 'Add finish-to-start dependencies between a Rocketlane task and other tasks',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

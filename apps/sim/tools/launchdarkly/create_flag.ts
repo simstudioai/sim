@@ -3,6 +3,8 @@ import type {
   LaunchDarklyCreateFlagResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyCreateFlagTool: ToolConfig<
@@ -13,8 +15,10 @@ export const launchDarklyCreateFlagTool: ToolConfig<
   name: 'LaunchDarkly Create Flag',
   description: 'Create a new feature flag in a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -61,7 +65,7 @@ export const launchDarklyCreateFlagTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}`,
+      `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/flags/${encodeURIComponent(params.projectKey.trim())}`,
     method: 'POST',
     headers: (params) => ({
       Authorization: params.apiKey.trim(),

@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer'
 import type SESTransport from 'nodemailer/lib/ses-transport'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { sendViaNodemailer } from '@/lib/messaging/email/providers/send-via-nodemailer'
 import type { MailProvider } from '@/lib/messaging/email/types'
 
@@ -16,7 +17,11 @@ export function createSesProvider(): MailProvider | null {
   const region = env.AWS_SES_REGION
   if (!region) return null
 
-  const sesClient = new SESv2Client({ region, credentials: getAwsCredentials() })
+  const sesClient = new SESv2Client({
+    region,
+    credentials: getAwsCredentials(),
+    requestHandler: awsRequestHandler(),
+  })
   const sesOptions: SESTransport.Options = {
     SES: { sesClient, SendEmailCommand },
   }

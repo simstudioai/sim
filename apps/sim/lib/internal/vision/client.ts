@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
@@ -121,7 +122,7 @@ async function analyzeWithGemini(
   signal?.throwIfAborted()
   const base64Payload = await fetchGeminiImage(input, signal)
   const { mediaType, base64Data } = parseDataImage(base64Payload)
-  const ai = new GoogleGenAI({ apiKey: input.apiKey })
+  const ai = new GoogleGenAI({ apiKey: input.apiKey, httpOptions: { fetch: outboundFetch } })
   const response = await ai.models.generateContent({
     model: input.model,
     contents: [
@@ -197,7 +198,7 @@ async function analyzeWithHttpProvider(
   }
 
   signal?.throwIfAborted()
-  const response = await fetch(apiUrl, {
+  const response = await outboundFetch(apiUrl, {
     method: 'POST',
     headers,
     body: JSON.stringify(isClaude ? anthropicRequest(input) : openAiRequest(input)),

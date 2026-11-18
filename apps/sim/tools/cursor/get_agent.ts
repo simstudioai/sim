@@ -1,5 +1,7 @@
 import type { GetAgentParams, GetAgentResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const getAgentBase = {
   params: {
@@ -17,7 +19,8 @@ const getAgentBase = {
     },
   },
   request: {
-    url: (params: GetAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId.trim()}`,
+    url: (params: GetAgentParams) =>
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}`,
     method: 'GET',
     headers: (params: GetAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
@@ -30,6 +33,7 @@ export const getAgentTool: ToolConfig<GetAgentParams, GetAgentResponse> = {
   name: 'Cursor Get Agent',
   description: 'Retrieve the current status and results of a cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...getAgentBase,
 
@@ -83,6 +87,7 @@ export const getAgentV2Tool: ToolConfig<GetAgentParams, GetAgentV2Response> = {
   description:
     'Retrieve the current status and results of a cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

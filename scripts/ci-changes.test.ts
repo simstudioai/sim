@@ -55,7 +55,7 @@ function fixture() {
     ['packages/auth', '@sim/auth', { '@sim/security': 'workspace:*' }],
     ['packages/security', '@sim/security', {}],
     ['packages/db', '@sim/db', {}],
-    ['packages/ts-sdk', 'simstudio-ts-sdk', {}],
+    ['packages/sim-setup', 'sim-setup', {}],
     ['packages/sim-cli', 'sim', {}],
     [
       'packages/workflow-renderer',
@@ -172,16 +172,79 @@ afterEach(() => {
   for (const repo of fixtures.splice(0)) rmSync(repo, { recursive: true, force: true })
 })
 describe('CI task attribution through real Turborepo', () => {
+  describe('reviewed root audits', () => {
+    it.each([
+      { files: ['scripts/check-library-content.ts', 'scripts/check-library-content.test.ts'] },
+      { files: ['scripts/check-utils-enforcement.test.ts'] },
+    ])('runs audits and script tests without app infrastructure for $files', ({ files }) => {
+      const plan = classifyFiles(files)
+      expect(plan.fallback).toBeUndefined()
+      expect(plan.flags).toEqual({
+        docs: false,
+        docs_site: false,
+        docs_platform: false,
+        integration: false,
+        http: false,
+        production: false,
+        e2e_build: false,
+        desktop_live: false,
+        test: true,
+        test_app: false,
+        build: false,
+      })
+      expect(groups(plan)).toEqual([])
+      expect(plan.testPackages).toEqual([])
+      expect(plan.typecheckPackages).toEqual([])
+      expect(plan.docsGroups).toEqual([])
+    })
+    it.each(['apps/sim/lib/server.ts', 'scripts/check-example.ts', 'AGENTS.md'])(
+      'runs everything when a reviewed audit changes alongside %s',
+      (file) => {
+        const plan = classifyFiles(['scripts/check-library-content.ts', file])
+        expect(plan.fallback).toBeDefined()
+        expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+      }
+    )
+    it.each(['delete', 'move'])('runs everything for a reviewed audit %s', (operation) => {
+      const { repo } = fixture()
+      const file = 'scripts/check-library-content.ts'
+      write(repo, file, 'export const audit = true\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '--quiet', '-m', 'audit owner')
+      const base = git(repo, 'rev-parse', 'HEAD')
+      if (operation === 'delete') git(repo, 'rm', file)
+      else git(repo, 'mv', file, 'scripts/unknown-audit.ts')
+      git(repo, 'commit', '--quiet', '-am', 'remove audit owner')
+      const plan = classify(repo, base)
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+    it('requires PR merge provenance even for a reviewed audit', () => {
+      const { repo, base, environment } = pullRequestFixture(['scripts/check-library-content.ts'])
+      const plan = classify(repo, base, { ...environment, GITHUB_REF: 'refs/heads/staging' })
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+    it('keeps unscoped pushes full even for a reviewed audit', () => {
+      const { repo } = fixture()
+      write(repo, 'scripts/check-library-content.ts', 'export const audit = true\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '--quiet', '-m', 'audit change')
+      const plan = classify(repo, '', { GITHUB_EVENT_NAME: 'push' })
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+  })
   it('scopes a shallow multi-commit PR against its tested target after the event base goes stale', () => {
-    const files = ['packages/ts-sdk/src/index.ts', 'packages/ts-sdk/src/second.ts']
+    const files = ['packages/sim-setup/src/index.ts', 'packages/sim-setup/src/second.ts']
     const { repo, base, target, environment } = pullRequestFixture(files)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeUndefined()
     expect(plan.base).toBe(target)
     expect(plan.files).toEqual(files)
     expect(groups(plan)).toEqual([])
-    expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
-    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.testPackages).toEqual(['sim-setup'])
+    expect(plan.typecheckPackages).toEqual(['sim-setup'])
     expect(plan.flags).toMatchObject({
       test: true,
       test_app: false,
@@ -192,14 +255,14 @@ describe('CI task attribution through real Turborepo', () => {
       docs: false,
     })
   })
-  it('keeps an earlier server change when the final PR commit only changes the SDK', () => {
-    const files = ['apps/sim/lib/server.ts', 'packages/ts-sdk/src/second.ts']
+  it('keeps an earlier server change when the final PR commit only changes the setup package', () => {
+    const files = ['apps/sim/lib/server.ts', 'packages/sim-setup/src/second.ts']
     const { repo, base, target, environment } = pullRequestFixture(files)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeUndefined()
     expect(plan.base).toBe(target)
     expect(plan.files).toEqual(files)
-    expect(plan.testPackages).toContain('simstudio-ts-sdk')
+    expect(plan.testPackages).toContain('sim-setup')
     expect(plan.flags).toMatchObject({
       test_app: true,
       integration: true,
@@ -214,15 +277,15 @@ describe('CI task attribution through real Turborepo', () => {
     ['a different triggering SHA', { GITHUB_SHA: 'f'.repeat(40) }],
     ['a missing triggering SHA', { GITHUB_SHA: '' }],
   ])('runs everything for a PR checkout with %s', (_label, invalid) => {
-    const { repo, target, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'])
+    const { repo, target, environment } = pullRequestFixture(['packages/sim-setup/src/index.ts'])
     const plan = classify(repo, target, { ...environment, ...invalid })
     expect(plan.fallback).toBeDefined()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
   it('runs everything if a PR event checks out a non-merge commit', () => {
     const { repo, base } = fixture()
-    write(repo, 'packages/ts-sdk/src/index.ts', 'export const value = 2\n')
-    git(repo, 'commit', '--quiet', '-am', 'SDK change')
+    write(repo, 'packages/sim-setup/src/index.ts', 'export const value = 2\n')
+    git(repo, 'commit', '--quiet', '-am', 'setup package change')
     const plan = classify(repo, base, {
       GITHUB_EVENT_NAME: 'pull_request',
       GITHUB_REF: 'refs/pull/42/merge',
@@ -232,17 +295,17 @@ describe('CI task attribution through real Turborepo', () => {
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
   it('runs everything if a shallow PR checkout does not contain its merge parents', () => {
-    const { repo, base, environment } = pullRequestFixture(['packages/ts-sdk/src/index.ts'], 1)
+    const { repo, base, environment } = pullRequestFixture(['packages/sim-setup/src/index.ts'], 1)
     const plan = classify(repo, base, environment)
     expect(plan.fallback).toBeDefined()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
-  it('runs SDK tests without provisioning the app, browsers, or database', () => {
-    const plan = classifyFiles(['packages/ts-sdk/src/index.ts'])
+  it('runs standalone package tests without provisioning the app, browsers, or database', () => {
+    const plan = classifyFiles(['packages/sim-setup/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([])
-    expect(plan.testPackages).toEqual(['simstudio-ts-sdk'])
-    expect(plan.typecheckPackages).toEqual(['simstudio-ts-sdk'])
+    expect(plan.testPackages).toEqual(['sim-setup'])
+    expect(plan.typecheckPackages).toEqual(['sim-setup'])
     expect(plan.flags).toMatchObject({
       test: true,
       test_app: false,
@@ -263,6 +326,7 @@ describe('CI task attribution through real Turborepo', () => {
       'browser-extension-access',
       'browser-extension-composer',
       'browser-extension-navigation',
+      'markdown-viewer',
       'mobile',
       'organization-search',
       'seo',
@@ -298,6 +362,18 @@ describe('CI task attribution through real Turborepo', () => {
       integration: false,
       desktop_live: false,
       production: false,
+      test_app: true,
+      build: true,
+      e2e_build: true,
+    })
+  })
+  it('keeps landing route-group edits on the rendering and SEO path', () => {
+    const plan = classifyFiles(['apps/sim/app/(landing)/pricing/page.tsx'])
+    expect(plan.fallback).toBeUndefined()
+    expect(groups(plan)).toEqual(['seo'])
+    expect(plan.flags).toMatchObject({
+      integration: false,
+      desktop_live: false,
       test_app: true,
       build: true,
       e2e_build: true,
@@ -433,6 +509,7 @@ describe('CI task attribution through real Turborepo', () => {
   })
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
+    ['test-markdown-viewer-e2e.ts', 'markdown-viewer'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -476,6 +553,7 @@ describe('CI task attribution through real Turborepo', () => {
       'browser-extension-navigation',
       'cli',
       'desktop-inbox',
+      'markdown-viewer',
       'mobile',
       'organization-search',
       'project-files',

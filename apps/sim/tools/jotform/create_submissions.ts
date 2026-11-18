@@ -11,6 +11,7 @@ import {
   toJsonArray,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSubmissionsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const createSubmissionsTool: ToolConfig<
   description:
     'Submit several entries to a Jotform form in one call. Each entry is keyed by question ID.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

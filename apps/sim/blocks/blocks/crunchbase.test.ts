@@ -87,4 +87,23 @@ describe('CrunchbaseBlock', () => {
     expect(deleted.collection).toBe('people')
     expect(deleted.deletedCollection).toBeUndefined()
   })
+
+  /*
+   * A tool call merges the stored row with the model's args, keyed by the tool's
+   * param names, and carries the operation only in `context`.
+   */
+  it('keeps the model args a tool call sends under the tool param names', () => {
+    const args = {
+      apiKey: 'key',
+      collection: 'organizations',
+      query: [{ type: 'predicate', field_id: 'num_employees_enum' }],
+      fieldIds: ['identifier'],
+      limit: 10,
+    }
+    const params = { ...args, ...buildParams(args, { operation: 'search_entities' }) }
+    expect(params.collection).toBe('organizations')
+    expect(params.query).toEqual(args.query)
+    expect(params.fieldIds).toEqual(['identifier'])
+    expect(params.limit).toBe(10)
+  })
 })

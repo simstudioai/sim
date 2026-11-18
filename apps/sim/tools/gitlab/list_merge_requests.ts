@@ -2,7 +2,8 @@ import type {
   GitLabListMergeRequestsParams,
   GitLabListMergeRequestsResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListMergeRequestsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabListMergeRequestsTool: ToolConfig<
   name: 'GitLab List Merge Requests',
   description: 'List merge requests in a GitLab project',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -87,7 +89,7 @@ export const gitlabListMergeRequestsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       const queryParams = new URLSearchParams()
 
       if (params.state) queryParams.append('state', params.state)

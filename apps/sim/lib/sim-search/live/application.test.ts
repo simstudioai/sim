@@ -76,10 +76,9 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: (value: string) => ({ safe: true, value }),
 }))
 
+import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { withSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import {
-  decodeLiveReference,
-  encodeLiveReference,
   matchesLiveFilters,
   readLiveDocument,
   searchLiveKnowledge,
@@ -89,6 +88,11 @@ import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
+import {
+  decodeLiveReference,
+  encodeLiveReference,
+  liveReferenceOwner,
+} from '@/lib/sim-search/live/reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
@@ -1185,22 +1189,239 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toBe('user_stop:test')
   })
-  it('rejects cross-user document references before token resolution', async () => {
-    const search = await searchLiveKnowledge.execute({ principal, input })
-    const reference = decodeLiveReference(search.results[0].documentId)
-    mocks.resolveAccount.mockClear()
+  describe('read diagnostics', () => {
+    async function searchedDocumentId() {
+      const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+      if (!result) throw new Error('Expected the search fixture to return a result')
+      diagnosticsLogger.info.mockClear()
+      return result.documentId
+    }
+    const logged = (message: string) =>
+      diagnosticsLogger.info.mock.calls.filter(([logged]) => logged === message).map(([, f]) => f)
+
+    it('logs the source, kind, and size of each read without its title or text', async () => {
+      const documentId = await searchedDocumentId()
+      mocks.read.mockResolvedValue({
+        ...document,
+        kind: 'file',
+        title: 'Private roadmap',
+        content: 'private text '.repeat(2_500),
+      })
+      await readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          surface: 'mcp',
+          documentId,
+          limit: 3,
+          scaledWindow: true,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+      expect(logged('Knowledge search completed')).toEqual([
+        expect.objectContaining({
+          operation: 'read_document',
+          surface: 'mcp',
+          continued: false,
+          provider: 'google_drive',
+          documentKind: 'file',
+          contentCharacters: 32_500,
+          returnedCharacters: 20_000,
+          hasMore: true,
+          outcome: 'success',
+          stages: expect.objectContaining({
+            document_read: expect.objectContaining({ count: 1 }),
+          }),
+        }),
+      ])
+      expect(logged('Live search provider completed')).toEqual([
+        expect.objectContaining({ operation: 'read_document', provider: 'google_drive' }),
+      ])
+      const text = JSON.stringify(diagnosticsLogger.info.mock.calls)
+      expect(text).not.toContain('Private roadmap')
+      expect(text).not.toContain('private text')
+    })
+  })
+
+  describe('read window', () => {
+    const content = 'x'.repeat(30_000)
+    async function readWindow(extra: Record<string, unknown>, text = content) {
+      const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+      if (!result) throw new Error('Expected the search fixture to return a result')
+      mocks.read.mockResolvedValue({ ...document, content: text })
+      const read = await readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: result.documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          ...extra,
+        },
+      })
+      const [chunk] = read.chunks
+      if (!chunk) throw new Error('Expected the read to return a window')
+      return {
+        length: chunk.content.length,
+        encoded: JSON.stringify(chunk.content).length - 2,
+        next: read.next,
+      }
+    }
+
+    it('returns a longer window to a scaling caller, whatever its chunk limit', async () => {
+      for (const limit of [1, 3, 8]) {
+        const { length, next } = await readWindow({ limit, scaledWindow: true })
+        expect(length).toBe(20_000)
+        expect(next).toEqual({ startChunkIndex: 0, startOffset: 20_000 })
+      }
+    })
+
+    it('continues a longer window from where the previous one ended', async () => {
+      const { length, next } = await readWindow({ scaledWindow: true, startOffset: 20_000 })
+      expect(length).toBe(10_000)
+      expect(next).toBeNull()
+    })
+
+    it('keeps a quote-heavy window within its size once JSON-encoded', async () => {
+      const { length, encoded, next } = await readWindow({ scaledWindow: true }, '"'.repeat(30_000))
+      expect(encoded).toBeLessThanOrEqual(20_000)
+      expect(length).toBeGreaterThanOrEqual(8_000)
+      expect(next).toEqual({ startChunkIndex: 0, startOffset: length })
+    })
+
+    it('keeps the standard window for a caller that does not scale', async () => {
+      expect((await readWindow({ limit: 8 })).length).toBe(8_000)
+    })
+  })
+  it('refuses a chunk index other than zero before reading the document from its provider', async () => {
+    const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+    if (!result) throw new Error('Expected the search fixture to return a result')
+    mocks.read.mockClear()
     await expect(
       readLiveDocument.execute({
         principal,
         input: {
           workspaceId: 'workspace',
-          documentId: encodeLiveReference({ ...reference, user: 'someone-else' }),
-          limit: 3,
+          documentId: result.documentId,
+          limit: 1,
+          startChunkIndex: 3,
           resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
         },
       })
-    ).rejects.toThrow('Document not found')
-    expect(mocks.resolveAccount).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({ message: expect.stringContaining('next.startOffset') })
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
+  describe('live document IDs', () => {
+    const workspaceScope = resourceScopeKey(resourceScopeFromOwner({ workspaceId: 'workspace' }))
+    /** The earlier wire form, spelled out so these tests pin what older conversations hold. */
+    const legacyId = (fields: Record<string, string>) =>
+      `live:${Buffer.from(JSON.stringify({ v: 1, ...fields })).toString('base64url')}`
+    const readerOwner = liveReferenceOwner('reader', workspaceScope)
+    const fields = { account: 'account', provider: 'google_drive' as const, id: 'doc' }
+    const read = (documentId: string, extra: Record<string, unknown> = {}, as = principal) =>
+      readLiveDocument.execute({
+        principal: as,
+        input: {
+          workspaceId: 'workspace',
+          documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          ...extra,
+        },
+      })
+
+    it('mints a compact ID naming no reader or scope that reads back', async () => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      const [first] = search.results
+      if (!first) throw new Error('Expected a search result')
+      const { documentId } = first
+      expect(documentId).toBe(encodeLiveReference(fields, readerOwner))
+      expect(documentId).toMatch(/^live2:google_drive~account~doc~[0-9a-f]{6}$/)
+      const result = await read(documentId)
+      expect(result.documentId).toBe(documentId)
+      expect(result.chunks[0]?.content).toBe('Evidence')
+      expect(mocks.resolveAccount).toHaveBeenLastCalledWith(
+        expect.objectContaining({ workspaceId: 'workspace' }),
+        'reader',
+        'account',
+        expect.anything()
+      )
+    })
+    it("refuses another member's personal account through the reader's own account list", async () => {
+      mocks.resolveAccount.mockImplementation(async (_owner, _userId, accountId: string) => {
+        if (accountId !== 'account')
+          throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
+        return { account, accessToken: 'secret' }
+      })
+      const theirs = encodeLiveReference({ ...fields, account: 'their-account' }, readerOwner)
+      await expect(read(theirs)).rejects.toMatchObject({ code: 'unauthorized' })
+      expect(mocks.resolveAccount).toHaveBeenCalledWith(
+        expect.anything(),
+        'reader',
+        'their-account',
+        expect.anything()
+      )
+      expect(mocks.read).not.toHaveBeenCalled()
+    })
+    it.each([
+      ['another member', 'other-reader', workspaceScope],
+      [
+        'another scope',
+        'reader',
+        resourceScopeKey(resourceScopeFromOwner({ workspaceId: 'other' })),
+      ],
+    ])(
+      'refuses an ID minted for %s as not found before resolving any account',
+      async (_case, user, scope) => {
+        const theirs = encodeLiveReference(fields, liveReferenceOwner(user, scope))
+        await expect(read(theirs)).rejects.toThrow('Document not found in this search scope')
+        expect(mocks.resolveAccount).not.toHaveBeenCalled()
+        expect(mocks.read).not.toHaveBeenCalled()
+      }
+    )
+    it.each([
+      ['a missing field', 'live2:google_drive~account'],
+      ['an unknown provider', 'live2:nowhere~account~doc'],
+      ['a broken escape', 'live2:google_drive~account~%E0%A4'],
+      ['too many fields', 'live2:google_drive~a~b~c~d~e~f~g~h'],
+      ['an unreadable earlier form', 'live:not-a-reference'],
+      ['no prefix', 'google_drive~account~doc'],
+    ])('asks the caller to search again for %s', async (_case, documentId) => {
+      await expect(read(documentId)).rejects.toThrow('Search again')
+      expect(mocks.resolveAccount).not.toHaveBeenCalled()
+    })
+    it('still reads an earlier-form ID minted for this reader and scope', async () => {
+      const result = await read(legacyId({ user: 'reader', scope: workspaceScope, ...fields }))
+      expect(result.chunks[0]?.content).toBe('Evidence')
+    })
+    it.each([
+      ['reader', { user: 'someone-else', scope: workspaceScope }],
+      ['scope', { user: 'reader', scope: 'workspace:elsewhere' }],
+    ])(
+      'rejects an earlier-form ID minted for another %s before token resolution',
+      async (_case, binding) => {
+        await expect(read(legacyId({ ...binding, ...fields }))).rejects.toThrow(
+          'Document not found'
+        )
+        expect(mocks.resolveAccount).not.toHaveBeenCalled()
+      }
+    )
+    it('matches a selected document across the earlier and current forms', async () => {
+      const current = encodeLiveReference(fields, readerOwner)
+      const earlier = legacyId({ user: 'reader', scope: workspaceScope, ...fields })
+      await expect(read(current, { filters: { documentIds: [earlier] } })).resolves.toMatchObject({
+        documentId: current,
+      })
+      await expect(read(earlier, { filters: { documentIds: [current] } })).resolves.toBeDefined()
+      expect(
+        matchesLiveFilters(document, current, 'google_drive', { documentIds: [earlier] })
+      ).toBe(true)
+      await expect(
+        read(current, {
+          filters: { documentIds: [encodeLiveReference({ ...fields, id: 'other' }, readerOwner)] },
+        })
+      ).rejects.toThrow('outside the selected search filters')
+    })
   })
   it('rejects a document moved out of scope while its content was being read', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })

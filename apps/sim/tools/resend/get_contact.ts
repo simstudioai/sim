@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { GetContactParams, GetContactResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendGetContactTool')
@@ -9,6 +10,7 @@ export const resendGetContactTool: ToolConfig<GetContactParams, GetContactResult
   name: 'Get Contact',
   description: 'Retrieve details of a contact by ID or email',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     contactId: {

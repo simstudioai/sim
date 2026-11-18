@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_UPLOAD_OUTPUT_PROPERTIES,
   type SupabaseStorageUploadParams,
@@ -13,6 +14,7 @@ export const storageUploadTool: InternalToolConfig<
   name: 'Supabase Storage Upload',
   description: 'Upload a file to a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

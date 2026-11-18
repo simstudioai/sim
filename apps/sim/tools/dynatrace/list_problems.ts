@@ -17,6 +17,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProblemsTool: ToolConfig<
@@ -28,6 +29,7 @@ export const listProblemsTool: ToolConfig<
   description:
     'List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

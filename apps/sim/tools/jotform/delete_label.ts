@@ -6,6 +6,7 @@ import {
   requireValue,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteLabelTool: ToolConfig<JotformDeleteLabelParams, JotformMessageResponse> = {
@@ -13,6 +14,7 @@ export const deleteLabelTool: ToolConfig<JotformDeleteLabelParams, JotformMessag
   name: 'Jotform Delete Label',
   description: 'Delete a Jotform label along with all of its sublabels.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -176,6 +176,8 @@ async function initializeOpenTelemetry() {
     const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION, ATTR_DEPLOYMENT_ENVIRONMENT } = await import(
       '@opentelemetry/semantic-conventions/incubating'
     )
+    const { otlpExporterProxyOptions } = await import('@/lib/core/network/proxy-agent.server')
+    const exporterProxyOptions = otlpExporterProxyOptions()
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
     const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http')
     const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics')
@@ -236,6 +238,7 @@ async function initializeOpenTelemetry() {
       headers: otlpHeaders,
       timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
       keepAlive: false,
+      ...exporterProxyOptions,
     })
 
     // Surface export failures (BatchSpanProcessor swallows them otherwise).
@@ -273,6 +276,7 @@ async function initializeOpenTelemetry() {
             headers: otlpHeaders,
             timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
             keepAlive: false,
+            ...exporterProxyOptions,
           }),
           exportIntervalMillis: 60000,
         })
@@ -289,6 +293,7 @@ async function initializeOpenTelemetry() {
             headers: otlpHeaders,
             timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
             keepAlive: false,
+            ...exporterProxyOptions,
           }),
         })
 

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { ExaAgentParams, ExaAgentResponse } from '@/tools/exa/types'
 import { parseJsonSchema, requireCostTotal } from '@/tools/exa/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -121,6 +122,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
         structured: data.output?.structured ?? undefined,
         grounding: data.output?.grounding,
         __costDollars: data.costDollars,
+        __errorMessage: data.error?.message,
       },
     }
   },
@@ -152,7 +154,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
       elapsedTime += POLL_INTERVAL_MS
 
       try {
-        const statusResponse = await fetch(`https://api.exa.ai/agent/runs/${runId}`, {
+        const statusResponse = await outboundFetch(`https://api.exa.ai/agent/runs/${runId}`, {
           method: 'GET',
           headers: {
             'x-api-key': params.apiKey,
@@ -176,6 +178,7 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
           structured: runData.output?.structured ?? undefined,
           grounding: runData.output?.grounding,
           __costDollars: runData.costDollars,
+          __errorMessage: runData.error?.message,
         }
 
         return settle(result)
@@ -251,13 +254,14 @@ export const agentTool: ToolConfig<ExaAgentParams, ExaAgentResponse> = {
  * routing them through here keeps the two in step.
  */
 function settle(result: ExaAgentResponse): ExaAgentResponse {
-  const { status, stopReason } = result.output
+  const { status, stopReason, __errorMessage: errorMessage } = result.output
 
   if (status !== 'completed') {
+    const reason = errorMessage || stopReason
     return {
       ...result,
       success: false,
-      error: `Exa agent run ${status}${stopReason ? `: ${stopReason}` : ''}`,
+      error: `Exa agent run ${status}${reason ? `: ${reason}` : ''}`,
     }
   }
 

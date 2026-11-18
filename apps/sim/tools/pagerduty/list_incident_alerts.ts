@@ -1,8 +1,11 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   PagerDutyListIncidentAlertsParams,
   PagerDutyListIncidentAlertsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listIncidentAlertsTool: ToolConfig<
   PagerDutyListIncidentAlertsParams,
@@ -12,6 +15,7 @@ export const listIncidentAlertsTool: ToolConfig<
   name: 'PagerDuty List Incident Alerts',
   description: 'List the individual alerts attached to a PagerDuty incident.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -44,6 +48,13 @@ export const listIncidentAlertsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Offset to start pagination search results',
     },
+    includeTotal: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Populate the total result count in the response (PagerDuty returns null for total unless requested; slower)',
+    },
   },
 
   request: {
@@ -56,8 +67,9 @@ export const listIncidentAlertsTool: ToolConfig<
       }
       if (params.limit) query.set('limit', params.limit)
       if (params.offset) query.set('offset', params.offset)
+      if (toBooleanFromInput(params.includeTotal)) query.set('total', 'true')
       const qs = query.toString()
-      return `https://api.pagerduty.com/incidents/${params.incidentId.trim()}/alerts${qs ? `?${qs}` : ''}`
+      return `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/alerts${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

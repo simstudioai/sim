@@ -5,7 +5,6 @@ import {
   toPrincipalActor,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { withinDeadline } from '@/lib/core/utils/deadline'
@@ -16,6 +15,7 @@ import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/auth
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
@@ -95,17 +95,6 @@ function throwDeploymentFailure(
     throw new Error(fallback)
   }
   throw new OrchestrationError(result.errorCode, result.error ?? fallback)
-}
-
-async function requireMutableWorkflow(workflowId: string): Promise<void> {
-  try {
-    await assertWorkflowMutable(workflowId)
-  } catch (error) {
-    if (error instanceof WorkflowLockedError) {
-      throw new OrchestrationError('locked', error.message)
-    }
-    throw error
-  }
 }
 
 /**

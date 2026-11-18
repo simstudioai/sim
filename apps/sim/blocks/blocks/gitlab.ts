@@ -1,6 +1,7 @@
 import { GitLabIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import {
   coerceGitLabAccessLevel,
   GITLAB_ACCESS_LEVEL_OPTIONS,
@@ -103,11 +104,15 @@ const USER_ID_REQUIRED_OPS = USER_ID_OPS.filter((op) => op !== 'gitlab_add_membe
 
 /**
  * Parses an optional JSON text field at execution time. Returns undefined for
- * blank input and throws a field-specific error for malformed JSON.
+ * blank input and throws a field-specific error for malformed JSON. A tool call
+ * may already carry the parsed object or array, which passes through.
  */
-function parseJsonParam(raw: unknown, label: string): any {
+function parseJsonParam(
+  raw: unknown,
+  label: string
+): Record<string, unknown> | unknown[] | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
-  let parsed = raw
+  let parsed: unknown = raw
   if (typeof raw === 'string') {
     try {
       parsed = JSON.parse(raw)
@@ -119,7 +124,18 @@ function parseJsonParam(raw: unknown, label: string): any {
   if (typeof parsed !== 'object') {
     throw new Error(`${label} must be a JSON object or array.`)
   }
-  return parsed
+  return Array.isArray(parsed) ? parsed : (parsed as Record<string, unknown>)
+}
+
+/**
+ * Parses CI variables (pipeline or job) and normalizes the `{KEY: value}`
+ * shorthand to GitLab's `[{ key, value }]` array form.
+ */
+function parseCiVariables(raw: unknown, label: string): unknown[] | undefined {
+  const parsed = parseJsonParam(raw, label)
+  if (parsed === undefined) return undefined
+  if (Array.isArray(parsed)) return parsed
+  return Object.entries(parsed).map(([key, value]) => ({ key, value: String(value) }))
 }
 
 /** Maps a "Leave unchanged / Yes / No" dropdown value to true, false, or undefined. */
@@ -129,8 +145,66 @@ function parseTriState(raw: unknown): boolean | undefined {
   return undefined
 }
 
+/**
+ * Trimmed text of a string or finite-number input, `''` for anything else. The
+ * canvas sends text, while a tool call can carry a numeric id (`projectId: 42`).
+ */
+function inputText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return ''
+}
+
+/** {@link inputText}, or `undefined` when blank. */
+function optionalText(value: unknown): string | undefined {
+  return inputText(value) || undefined
+}
+
+/**
+ * A model's explicit `''` on a tool call, which GitLab update endpoints read as
+ * "clear this field". The canvas never forwards a blank field, so this is
+ * `undefined` there.
+ */
+function toolCallClear(
+  value: unknown,
+  context: BlockToolParamsContext | undefined
+): '' | undefined {
+  return toolCallArg(context, value === '' ? '' : undefined)
+}
+
+/**
+ * Numeric ids from a comma-separated string (canvas) or the array or number a
+ * tool call sends.
+ */
+function parseIdList(value: unknown): number[] | undefined {
+  if (Array.isArray(value)) return value.map((id) => Number(id))
+  if (typeof value === 'number') return [value]
+  if (typeof value !== 'string' || !value) return undefined
+  return value.split(',').map((id) => Number(id.trim()))
+}
+
+/** Titles from a comma-separated string (canvas) or the array a tool call sends. */
+function parseTitleList(value: unknown): string[] | undefined {
+  const items = Array.isArray(value)
+    ? value.map((title) => String(title))
+    : typeof value === 'string' && value
+      ? value.split(',')
+      : undefined
+  return items?.map((title) => title.trim()).filter(Boolean)
+}
+
+/**
+ * A switch input: the canvas drops an off switch as before, while a tool call
+ * keeps the model's explicit `false`.
+ */
+function switchInput(value: unknown, context: BlockToolParamsContext | undefined): unknown {
+  return value || toolCallArg(context, value === false ? false : undefined)
+}
+
 export const GitLabBlock: BlockConfig = {
   type: 'gitlab',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gitlab_v2' },
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
   authMode: AuthMode.ApiKey,
@@ -603,6 +677,16 @@ Return ONLY the title - no explanations, no extra text.`,
       },
     },
     {
+      id: 'updateTitle',
+      title: 'Title',
+      type: 'short-input',
+      placeholder: 'New title (leave blank to keep the current title)',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_issue', 'gitlab_update_merge_request'],
+      },
+    },
+    {
       id: 'description',
       title: 'Description',
       type: 'long-input',
@@ -972,11 +1056,22 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       id: 'sha',
       title: 'Commit SHA',
       type: 'short-input',
-      placeholder: 'Optional HEAD SHA to approve',
+      placeholder: 'Optional HEAD SHA of the source branch',
       mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['gitlab_approve_merge_request'],
+      },
+    },
+    {
+      id: 'mergeSha',
+      title: 'Commit SHA',
+      type: 'short-input',
+      placeholder: 'Optional HEAD SHA of the source branch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_merge_merge_request'],
       },
     },
     {
@@ -1027,6 +1122,34 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
           'gitlab_create_merge_request',
           'gitlab_update_merge_request',
         ],
+      },
+    },
+    {
+      id: 'dueDate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_issue'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a due date in YYYY-MM-DD format based on the user's description.
+
+Return ONLY the date string - no explanations, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday")...',
+      },
+    },
+    {
+      id: 'confidential',
+      title: 'Confidential',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_issue'],
       },
     },
     {
@@ -1112,6 +1235,38 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       condition: {
         field: 'operation',
         value: ['gitlab_create_merge_request', 'gitlab_merge_merge_request'],
+      },
+    },
+    {
+      id: 'draft',
+      title: 'Draft',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_merge_request'],
+      },
+    },
+    {
+      id: 'mergeWhenPipelineSucceeds',
+      title: 'Merge When Checks Pass',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Set the merge request to auto-merge once its checks pass',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_merge_merge_request'],
+      },
+    },
+    {
+      id: 'squashCommitMessage',
+      title: 'Squash Commit Message',
+      type: 'long-input',
+      placeholder: 'Custom squash commit message (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_merge_merge_request'],
       },
     },
     // Tri-state variants for Update MR: a switch cannot express "turn this
@@ -2167,59 +2322,70 @@ Return ONLY the JSON array - no explanations, no extra text.`,
       tool: (params) => {
         return params.operation || 'gitlab_list_projects'
       },
-      params: (params) => {
-        const baseParams: Record<string, any> = {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const baseParams: Record<string, unknown> = {
           accessToken: params.accessToken,
-          host: params.host?.trim() || undefined,
+          host: optionalText(params.host),
         }
+        const projectId = inputText(params.projectId)
+        const groupId = inputText(params.groupId)
+        const resourceId = inputText(params.resourceId)
+        const pagination = {
+          perPage: params.perPage ? Number(params.perPage) : undefined,
+          page: params.page ? Number(params.page) : undefined,
+        }
+        const sort = params.sortOrder || toolCallArg(context, params.sort) || undefined
+        /** A block text field, or on a tool call the model's arg under the tool's param name. */
+        const textOrToolArg = (blockValue: unknown, toolValue: unknown) =>
+          inputText(blockValue) || inputText(toolCallArg(context, toolValue))
 
-        switch (params.operation) {
+        switch (operation) {
           case 'gitlab_list_projects':
             return {
               ...baseParams,
               owned: params.owned || undefined,
               membership: params.membership || undefined,
-              search: params.searchQuery?.trim() || undefined,
+              search: optionalText(params.searchQuery) || toolCallArg(context, params.search),
               visibility: params.visibility || undefined,
-              orderBy: params.projectOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              orderBy: params.projectOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
           case 'gitlab_get_project':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
             }
 
           case 'gitlab_list_groups':
             return {
               ...baseParams,
               owned: params.owned || undefined,
-              search: params.searchQuery?.trim() || undefined,
-              topLevelOnly: params.groupsTopLevelOnly || undefined,
+              search: optionalText(params.searchQuery) || toolCallArg(context, params.search),
+              topLevelOnly:
+                params.groupsTopLevelOnly || toolCallArg(context, params.topLevelOnly) || undefined,
               visibility: params.visibility || undefined,
               minAccessLevel: params.groupMinAccessLevel
                 ? Number(params.groupMinAccessLevel)
-                : undefined,
-              allAvailable: params.groupAllAvailable || undefined,
-              orderBy: params.groupOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+                : toolCallArg(context, params.minAccessLevel),
+              allAvailable: params.groupAllAvailable || toolCallArg(context, params.allAvailable),
+              orderBy: params.groupOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
           case 'gitlab_get_group':
-            if (!params.groupId?.trim()) {
+            if (!groupId) {
               throw new Error('Group ID is required.')
             }
             return {
               ...baseParams,
-              groupId: params.groupId.trim(),
+              groupId,
             }
 
           case 'gitlab_list_user_memberships': {
@@ -2231,21 +2397,22 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               ...baseParams,
               userId: membershipUserId,
               membershipType: params.membershipType || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              ...pagination,
             }
           }
 
           case 'gitlab_list_issues':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              state: params.issueState !== 'all' ? params.issueState : undefined,
-              labels: params.labels?.trim() || undefined,
-              search: params.searchQuery?.trim() || undefined,
+              projectId,
+              state:
+                (params.issueState !== 'all' ? params.issueState : undefined) ||
+                toolCallArg(context, params.state),
+              labels: optionalText(params.labels),
+              search: optionalText(params.searchQuery) || toolCallArg(context, params.search),
               assigneeId: (() => {
                 const raw = String(params.assigneeId ?? '').trim()
                 if (!raw) return undefined
@@ -2253,479 +2420,483 @@ Return ONLY the JSON array - no explanations, no extra text.`,
                 if (Number.isNaN(parsed)) throw new Error('Assignee ID must be a number.')
                 return parsed
               })(),
-              milestoneTitle: params.milestoneTitle?.trim() || undefined,
-              orderBy: params.issueOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              milestoneTitle: optionalText(params.milestoneTitle),
+              orderBy: params.issueOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
           case 'gitlab_get_issue':
-            if (!params.projectId?.trim() || !params.issueIid) {
+            if (!projectId || !params.issueIid) {
               throw new Error('Project ID and Issue Number are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               issueIid: Number(params.issueIid),
             }
 
-          case 'gitlab_create_issue':
-            if (!params.projectId?.trim() || !params.title?.trim()) {
+          case 'gitlab_create_issue': {
+            const title = inputText(params.title)
+            if (!projectId || !title) {
               throw new Error('Project ID and title are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              title: params.title.trim(),
-              description: params.description?.trim() || undefined,
-              labels: params.labels?.trim() || undefined,
-              assigneeIds: params.assigneeIds
-                ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
-                : undefined,
+              projectId,
+              title,
+              description: optionalText(params.description),
+              labels: optionalText(params.labels),
+              assigneeIds: parseIdList(params.assigneeIds),
               milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
+              dueDate: optionalText(params.dueDate),
+              confidential: switchInput(params.confidential, context),
             }
+          }
 
           case 'gitlab_update_issue':
-            if (!params.projectId?.trim() || !params.issueIid) {
+            if (!projectId || !params.issueIid) {
               throw new Error('Project ID and Issue IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               issueIid: Number(params.issueIid),
-              title: params.title?.trim() || undefined,
-              description: params.description?.trim() || undefined,
-              labels: params.labels?.trim() || undefined,
-              assigneeIds: params.assigneeIds
-                ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
-                : undefined,
-              milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
+              title: optionalText(params.updateTitle) || optionalText(params.title),
+              description:
+                optionalText(params.description) ?? toolCallClear(params.description, context),
+              labels: optionalText(params.labels) ?? toolCallClear(params.labels, context),
+              assigneeIds: parseIdList(params.assigneeIds),
+              milestoneId: params.milestoneId
+                ? Number(params.milestoneId)
+                : toolCallArg(context, params.milestoneId === 0 ? 0 : undefined),
               stateEvent: params.stateEvent || undefined,
+              dueDate: toolCallArg(context, params.dueDate),
+              confidential: toolCallArg(context, params.confidential),
             }
 
           case 'gitlab_delete_issue':
-            if (!params.projectId?.trim() || !params.issueIid) {
+            if (!projectId || !params.issueIid) {
               throw new Error('Project ID and Issue IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               issueIid: Number(params.issueIid),
             }
 
-          case 'gitlab_create_issue_note':
-            if (!params.projectId?.trim() || !params.issueIid || !params.body?.trim()) {
+          case 'gitlab_create_issue_note': {
+            const body = inputText(params.body)
+            if (!projectId || !params.issueIid || !body) {
               throw new Error('Project ID, Issue IID, and comment body are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               issueIid: Number(params.issueIid),
-              body: params.body.trim(),
-              internal: params.internalNote || undefined,
+              body,
+              internal: params.internalNote || toolCallArg(context, params.internal) || undefined,
             }
+          }
 
           case 'gitlab_list_merge_requests':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              state: params.mrState !== 'all' ? params.mrState : undefined,
-              labels: params.labels?.trim() || undefined,
-              sourceBranch: params.sourceBranchFilter?.trim() || undefined,
-              targetBranch: params.targetBranchFilter?.trim() || undefined,
-              orderBy: params.mrOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              projectId,
+              state:
+                (params.mrState !== 'all' ? params.mrState : undefined) ||
+                toolCallArg(context, params.state),
+              labels: optionalText(params.labels),
+              sourceBranch:
+                textOrToolArg(params.sourceBranchFilter, params.sourceBranch) || undefined,
+              targetBranch:
+                textOrToolArg(params.targetBranchFilter, params.targetBranch) || undefined,
+              orderBy: params.mrOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
           case 'gitlab_get_merge_request':
-            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+            if (!projectId || !params.mergeRequestIid) {
               throw new Error('Project ID and Merge Request IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
             }
 
-          case 'gitlab_create_merge_request':
-            if (
-              !params.projectId?.trim() ||
-              !params.title?.trim() ||
-              !params.sourceBranch?.trim() ||
-              !params.targetBranch?.trim()
-            ) {
+          case 'gitlab_create_merge_request': {
+            const title = inputText(params.title)
+            const sourceBranch = inputText(params.sourceBranch)
+            const targetBranch = inputText(params.targetBranch)
+            if (!projectId || !title || !sourceBranch || !targetBranch) {
               throw new Error('Project ID, title, source branch, and target branch are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              title: params.title.trim(),
-              sourceBranch: params.sourceBranch.trim(),
-              targetBranch: params.targetBranch.trim(),
-              description: params.description?.trim() || undefined,
-              labels: params.labels?.trim() || undefined,
-              assigneeIds: params.assigneeIds
-                ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
-                : undefined,
+              projectId,
+              title,
+              sourceBranch,
+              targetBranch,
+              description: optionalText(params.description),
+              labels: optionalText(params.labels),
+              assigneeIds: parseIdList(params.assigneeIds),
               milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
-              removeSourceBranch: params.removeSourceBranch || undefined,
-              squash: params.squash || undefined,
+              removeSourceBranch: switchInput(params.removeSourceBranch, context),
+              squash: switchInput(params.squash, context),
+              draft: switchInput(params.draft, context),
             }
+          }
 
           case 'gitlab_update_merge_request':
-            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+            if (!projectId || !params.mergeRequestIid) {
               throw new Error('Project ID and Merge Request IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
-              title: params.title?.trim() || undefined,
-              description: params.description?.trim() || undefined,
-              labels: params.labels?.trim() || undefined,
-              assigneeIds: params.assigneeIds
-                ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
-                : undefined,
-              milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
+              title: optionalText(params.updateTitle) || optionalText(params.title),
+              description:
+                optionalText(params.description) ?? toolCallClear(params.description, context),
+              labels: optionalText(params.labels) ?? toolCallClear(params.labels, context),
+              assigneeIds:
+                parseIdList(params.assigneeIds) ?? toolCallClear(params.assigneeIds, context),
+              milestoneId: params.milestoneId
+                ? Number(params.milestoneId)
+                : toolCallArg(context, params.milestoneId === 0 ? 0 : undefined),
               stateEvent: params.stateEvent || undefined,
-              removeSourceBranch: parseTriState(params.updateRemoveSourceBranch),
-              squash: parseTriState(params.updateSquash),
+              removeSourceBranch:
+                parseTriState(params.updateRemoveSourceBranch) ??
+                parseTriState(toolCallArg(context, params.removeSourceBranch)),
+              squash:
+                parseTriState(params.updateSquash) ??
+                parseTriState(toolCallArg(context, params.squash)),
+              draft: toolCallArg(context, params.draft),
             }
 
           case 'gitlab_merge_merge_request':
-            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+            if (!projectId || !params.mergeRequestIid) {
               throw new Error('Project ID and Merge Request IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
-              mergeCommitMessage: params.mergeCommitMessage?.trim() || undefined,
-              squash: params.squash || undefined,
-              shouldRemoveSourceBranch: params.removeSourceBranch || undefined,
+              mergeCommitMessage: optionalText(params.mergeCommitMessage),
+              squashCommitMessage: optionalText(params.squashCommitMessage),
+              squash: switchInput(params.squash, context),
+              shouldRemoveSourceBranch:
+                params.removeSourceBranch || toolCallArg(context, params.shouldRemoveSourceBranch),
+              mergeWhenPipelineSucceeds: switchInput(params.mergeWhenPipelineSucceeds, context),
+              sha: textOrToolArg(params.mergeSha, params.sha) || undefined,
             }
 
-          case 'gitlab_create_merge_request_note':
-            if (!params.projectId?.trim() || !params.mergeRequestIid || !params.body?.trim()) {
+          case 'gitlab_create_merge_request_note': {
+            const body = inputText(params.body)
+            if (!projectId || !params.mergeRequestIid || !body) {
               throw new Error('Project ID, Merge Request IID, and comment body are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
-              body: params.body.trim(),
-              internal: params.internalNote || undefined,
+              body,
+              internal: params.internalNote || toolCallArg(context, params.internal) || undefined,
             }
+          }
 
           case 'gitlab_list_pipelines':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              status: params.pipelineStatus || undefined,
-              ref: params.ref?.trim() || undefined,
-              orderBy: params.pipelineOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              projectId,
+              status: params.pipelineStatus || toolCallArg(context, params.status) || undefined,
+              ref: optionalText(params.ref),
+              orderBy: params.pipelineOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
           case 'gitlab_get_pipeline':
-            if (!params.projectId?.trim() || !params.pipelineId) {
+            if (!projectId || !params.pipelineId) {
               throw new Error('Project ID and Pipeline ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               pipelineId: Number(params.pipelineId),
             }
 
-          case 'gitlab_create_pipeline':
-            if (!params.projectId?.trim() || !params.ref?.trim()) {
+          case 'gitlab_create_pipeline': {
+            const ref = inputText(params.ref)
+            if (!projectId || !ref) {
               throw new Error('Project ID and branch/tag ref are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              ref: params.ref.trim(),
-              variables: (() => {
-                const parsed = parseJsonParam(params.pipelineVariables, 'Pipeline Variables')
-                if (parsed === undefined) return undefined
-                // Accept {KEY: value} shorthand and normalize to GitLab's array form.
-                if (!Array.isArray(parsed) && typeof parsed === 'object') {
-                  return Object.entries(parsed).map(([key, value]) => ({
-                    key,
-                    value: String(value),
-                  }))
-                }
-                return parsed
-              })(),
-              inputs: parseJsonParam(params.pipelineInputs, 'Pipeline Inputs'),
+              projectId,
+              ref,
+              variables:
+                parseCiVariables(params.pipelineVariables, 'Pipeline Variables') ??
+                parseCiVariables(toolCallArg(context, params.variables), 'Pipeline Variables'),
+              inputs:
+                parseJsonParam(params.pipelineInputs, 'Pipeline Inputs') ??
+                parseJsonParam(toolCallArg(context, params.inputs), 'Pipeline Inputs'),
             }
+          }
 
           case 'gitlab_retry_pipeline':
           case 'gitlab_cancel_pipeline':
-            if (!params.projectId?.trim() || !params.pipelineId) {
+            if (!projectId || !params.pipelineId) {
               throw new Error('Project ID and Pipeline ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               pipelineId: Number(params.pipelineId),
             }
 
           case 'gitlab_list_repository_tree':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              path: params.path?.trim() || undefined,
-              ref: params.ref?.trim() || undefined,
+              projectId,
+              path: optionalText(params.path),
+              ref: optionalText(params.ref),
               recursive: params.recursive || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              ...pagination,
             }
 
-          case 'gitlab_get_file':
-            if (!params.projectId?.trim() || !params.filePath?.trim() || !params.ref?.trim()) {
+          case 'gitlab_get_file': {
+            const filePath = inputText(params.filePath)
+            const ref = inputText(params.ref)
+            if (!projectId || !filePath || !ref) {
               throw new Error('Project ID, file path, and ref are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              filePath: params.filePath.trim(),
-              ref: params.ref.trim(),
+              projectId,
+              filePath,
+              ref,
             }
+          }
 
           case 'gitlab_create_file':
-          case 'gitlab_update_file':
-            if (
-              !params.projectId?.trim() ||
-              !params.filePath?.trim() ||
-              !params.branch?.trim() ||
-              !params.content ||
-              !params.commitMessage?.trim()
-            ) {
+          case 'gitlab_update_file': {
+            const filePath = inputText(params.filePath)
+            const branch = inputText(params.branch)
+            const commitMessage = inputText(params.commitMessage)
+            if (!projectId || !filePath || !branch || !params.content || !commitMessage) {
               throw new Error(
                 'Project ID, file path, branch, content, and commit message are required.'
               )
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              filePath: params.filePath.trim(),
-              branch: params.branch.trim(),
+              projectId,
+              filePath,
+              branch,
               content: params.content,
-              commitMessage: params.commitMessage.trim(),
-              startBranch: params.startBranch?.trim() || undefined,
-              authorName: params.authorName?.trim() || undefined,
-              authorEmail: params.authorEmail?.trim() || undefined,
+              commitMessage,
+              startBranch: optionalText(params.startBranch),
+              authorName: optionalText(params.authorName),
+              authorEmail: optionalText(params.authorEmail),
               executeFilemode: parseTriState(params.executeFilemode),
-              ...(params.operation === 'gitlab_update_file'
-                ? { lastCommitId: params.lastCommitId?.trim() || undefined }
+              ...(operation === 'gitlab_update_file'
+                ? { lastCommitId: optionalText(params.lastCommitId) }
                 : {}),
             }
+          }
 
-          case 'gitlab_create_branch':
-            if (!params.projectId?.trim() || !params.branch?.trim() || !params.ref?.trim()) {
+          case 'gitlab_create_branch': {
+            const branch = inputText(params.branch)
+            const ref = inputText(params.ref)
+            if (!projectId || !branch || !ref) {
               throw new Error('Project ID, branch name, and source ref are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              branch: params.branch.trim(),
-              ref: params.ref.trim(),
+              projectId,
+              branch,
+              ref,
             }
+          }
 
           case 'gitlab_list_branches':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              search: params.query?.trim() || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              projectId,
+              search: optionalText(params.query) || toolCallArg(context, params.search),
+              ...pagination,
             }
 
-          case 'gitlab_delete_branch':
-            if (!params.projectId?.trim() || !params.branch?.trim()) {
+          case 'gitlab_delete_branch': {
+            const branch = inputText(params.branch)
+            if (!projectId || !branch) {
               throw new Error('Project ID and branch name are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              branch: params.branch.trim(),
+              projectId,
+              branch,
             }
+          }
 
-          case 'gitlab_compare_branches':
-            if (
-              !params.projectId?.trim() ||
-              !params.compareFrom?.trim() ||
-              !params.compareTo?.trim()
-            ) {
+          case 'gitlab_compare_branches': {
+            const from = textOrToolArg(params.compareFrom, params.from)
+            const to = textOrToolArg(params.compareTo, params.to)
+            if (!projectId || !from || !to) {
               throw new Error('Project ID, from ref, and to ref are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              from: params.compareFrom.trim(),
-              to: params.compareTo.trim(),
+              projectId,
+              from,
+              to,
               straight: params.straight || undefined,
-              fromProjectId: params.fromProjectId?.trim() || undefined,
+              fromProjectId: optionalText(params.fromProjectId),
               unidiff: params.unidiff || undefined,
             }
+          }
 
           case 'gitlab_list_commits':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              refName: params.refName?.trim() || undefined,
-              since: params.since?.trim() || undefined,
-              until: params.until?.trim() || undefined,
-              path: params.path?.trim() || undefined,
-              author: params.author?.trim() || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              projectId,
+              refName: optionalText(params.refName),
+              since: optionalText(params.since),
+              until: optionalText(params.until),
+              path: optionalText(params.path),
+              author: optionalText(params.author),
+              ...pagination,
             }
 
           case 'gitlab_get_merge_request_changes':
-            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+            if (!projectId || !params.mergeRequestIid) {
               throw new Error('Project ID and Merge Request IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
             }
 
           case 'gitlab_approve_merge_request':
-            if (!params.projectId?.trim() || !params.mergeRequestIid) {
+            if (!projectId || !params.mergeRequestIid) {
               throw new Error('Project ID and Merge Request IID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               mergeRequestIid: Number(params.mergeRequestIid),
-              sha: params.sha?.trim() || undefined,
+              sha: optionalText(params.sha),
             }
 
           case 'gitlab_list_pipeline_jobs':
-            if (!params.projectId?.trim() || !params.pipelineId) {
+            if (!projectId || !params.pipelineId) {
               throw new Error('Project ID and Pipeline ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               pipelineId: Number(params.pipelineId),
               scope: params.scope || undefined,
               includeRetried: params.includeRetried || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              ...pagination,
             }
 
           case 'gitlab_get_job_log':
-            if (!params.projectId?.trim() || !params.jobId) {
+            if (!projectId || !params.jobId) {
               throw new Error('Project ID and Job ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               jobId: Number(params.jobId),
             }
 
           case 'gitlab_play_job':
-            if (!params.projectId?.trim() || !params.jobId) {
+            if (!projectId || !params.jobId) {
               throw new Error('Project ID and Job ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
+              projectId,
               jobId: Number(params.jobId),
-              jobVariables: (() => {
-                const parsed = parseJsonParam(params.jobVariables, 'Job Variables')
-                if (parsed === undefined) return undefined
-                if (!Array.isArray(parsed) && typeof parsed === 'object') {
-                  return Object.entries(parsed).map(([key, value]) => ({
-                    key,
-                    value: String(value),
-                  }))
-                }
-                return parsed
-              })(),
+              jobVariables: parseCiVariables(params.jobVariables, 'Job Variables'),
             }
 
           case 'gitlab_list_releases':
-            if (!params.projectId?.trim()) {
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              orderBy: params.releaseOrderBy || undefined,
-              sort: params.sortOrder || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              projectId,
+              orderBy: params.releaseOrderBy || toolCallArg(context, params.orderBy) || undefined,
+              sort,
+              ...pagination,
             }
 
-          case 'gitlab_create_release':
-            if (!params.projectId?.trim() || !params.tagName?.trim()) {
+          case 'gitlab_create_release': {
+            const tagName = inputText(params.tagName)
+            if (!projectId || !tagName) {
               throw new Error('Project ID and tag name are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectId.trim(),
-              tagName: params.tagName.trim(),
-              name: params.releaseName?.trim() || undefined,
-              description: params.description?.trim() || undefined,
-              ref: params.ref?.trim() || undefined,
-              releasedAt: params.releasedAt?.trim() || undefined,
-              tagMessage: params.tagMessage?.trim() || undefined,
+              projectId,
+              tagName,
+              name: textOrToolArg(params.releaseName, params.name) || undefined,
+              description: optionalText(params.description),
+              ref: optionalText(params.ref),
+              releasedAt: optionalText(params.releasedAt),
+              tagMessage: optionalText(params.tagMessage),
               assetLinks: parseJsonParam(params.assetLinks, 'Asset Links'),
-              milestones: params.releaseMilestones
-                ? params.releaseMilestones
-                    .split(',')
-                    .map((title: string) => title.trim())
-                    .filter(Boolean)
-                : undefined,
+              milestones:
+                parseTitleList(params.releaseMilestones) ??
+                parseTitleList(toolCallArg(context, params.milestones)),
             }
+          }
 
           case 'gitlab_list_members':
-            if (!params.resourceId?.trim()) {
+            if (!resourceId) {
               throw new Error('Project / Group ID is required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              directOnly: params.directMembersOnly || undefined,
-              query: params.query?.trim() || undefined,
-              userIds: params.memberUserIds?.trim() || undefined,
-              state: params.memberState || undefined,
+              resourceId,
+              directOnly:
+                params.directMembersOnly || toolCallArg(context, params.directOnly) || undefined,
+              query: optionalText(params.query),
+              userIds: textOrToolArg(params.memberUserIds, params.userIds) || undefined,
+              state: params.memberState || toolCallArg(context, params.state) || undefined,
               showSeatInfo: params.showSeatInfo || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              ...pagination,
             }
 
           case 'gitlab_add_member': {
             const addMemberUserId = String(params.userId ?? '').trim()
+            const username = inputText(params.username)
             if (
-              !params.resourceId?.trim() ||
-              (!addMemberUserId && !params.username?.trim()) ||
+              !resourceId ||
+              (!addMemberUserId && !username) ||
               !hasGitLabAccessLevel(params.accessLevel)
             ) {
               throw new Error(
@@ -2735,85 +2906,89 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
+              resourceId,
               userId: addMemberUserId ? Number(addMemberUserId) : undefined,
-              username: params.username?.trim() || undefined,
+              username: username || undefined,
               accessLevel: coerceGitLabAccessLevel(params.accessLevel),
-              expiresAt: params.expiresAt?.trim() || undefined,
+              expiresAt: optionalText(params.expiresAt),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
           }
 
-          case 'gitlab_update_member':
-            if (
-              !params.resourceId?.trim() ||
-              !params.userId ||
-              !hasGitLabAccessLevel(params.memberAccessLevel)
-            ) {
+          case 'gitlab_update_member': {
+            const level = hasGitLabAccessLevel(params.memberAccessLevel)
+              ? params.memberAccessLevel
+              : toolCallArg(context, params.accessLevel)
+            if (!resourceId || !params.userId || !hasGitLabAccessLevel(level)) {
               throw new Error('Project / Group ID, User ID, and Access Level are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
+              resourceId,
               userId: Number(params.userId),
-              accessLevel: coerceGitLabAccessLevel(params.memberAccessLevel),
-              expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
+              accessLevel: coerceGitLabAccessLevel(level),
+              expiresAt: params.clearExpiresAt
+                ? ''
+                : (optionalText(params.expiresAt) ?? toolCallClear(params.expiresAt, context)),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
+          }
 
           case 'gitlab_remove_member':
-            if (!params.resourceId?.trim() || !params.userId) {
+            if (!resourceId || !params.userId) {
               throw new Error('Project / Group ID and User ID are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
+              resourceId,
               userId: Number(params.userId),
               skipSubresources: params.skipSubresources || undefined,
               unassignIssuables: params.unassignIssuables || undefined,
             }
 
-          case 'gitlab_invite_member':
-            if (
-              !params.resourceId?.trim() ||
-              !params.email?.trim() ||
-              !hasGitLabAccessLevel(params.accessLevel)
-            ) {
+          case 'gitlab_invite_member': {
+            const email = inputText(params.email)
+            if (!resourceId || !email || !hasGitLabAccessLevel(params.accessLevel)) {
               throw new Error('Project / Group ID, Email, and Access Level are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              email: params.email.trim(),
+              resourceId,
+              email,
               accessLevel: coerceGitLabAccessLevel(params.accessLevel),
-              expiresAt: params.expiresAt?.trim() || undefined,
+              expiresAt: optionalText(params.expiresAt),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
-              inviteSource: params.inviteSource?.trim() || undefined,
+              inviteSource: optionalText(params.inviteSource),
             }
+          }
 
           case 'gitlab_list_invitations':
-            if (!params.resourceId?.trim()) {
+            if (!resourceId) {
               throw new Error('Project / Group ID is required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              query: params.query?.trim() || undefined,
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              resourceId,
+              query: optionalText(params.query),
+              ...pagination,
             }
 
-          case 'gitlab_update_invitation':
-            if (!params.resourceId?.trim() || !params.email?.trim()) {
+          case 'gitlab_update_invitation': {
+            const email = inputText(params.email)
+            if (!resourceId || !email) {
               throw new Error('Project / Group ID and Email are required.')
             }
+            const level = hasGitLabAccessLevel(params.invitationAccessLevel)
+              ? params.invitationAccessLevel
+              : toolCallArg(context, params.accessLevel)
             if (
-              !hasGitLabAccessLevel(params.invitationAccessLevel) &&
-              !params.expiresAt?.trim() &&
+              !hasGitLabAccessLevel(level) &&
+              !inputText(params.expiresAt) &&
+              toolCallClear(params.expiresAt, context) === undefined &&
               !params.clearExpiresAt
             ) {
               throw new Error(
@@ -2823,47 +2998,49 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              email: params.email.trim(),
+              resourceId,
+              email,
               // Only send access_level when a level is chosen; "Leave unchanged"
               // ('') keeps the invitation's current level instead of resetting it.
-              accessLevel: hasGitLabAccessLevel(params.invitationAccessLevel)
-                ? coerceGitLabAccessLevel(params.invitationAccessLevel)
-                : undefined,
-              expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
+              accessLevel: hasGitLabAccessLevel(level) ? coerceGitLabAccessLevel(level) : undefined,
+              expiresAt: params.clearExpiresAt
+                ? ''
+                : (optionalText(params.expiresAt) ?? toolCallClear(params.expiresAt, context)),
             }
+          }
 
-          case 'gitlab_revoke_invitation':
-            if (!params.resourceId?.trim() || !params.email?.trim()) {
+          case 'gitlab_revoke_invitation': {
+            const email = inputText(params.email)
+            if (!resourceId || !email) {
               throw new Error('Project / Group ID and Email are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              email: params.email.trim(),
+              resourceId,
+              email,
             }
+          }
 
           case 'gitlab_list_access_requests':
-            if (!params.resourceId?.trim()) {
+            if (!resourceId) {
               throw new Error('Project / Group ID is required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              resourceId,
+              ...pagination,
             }
 
           case 'gitlab_approve_access_request':
-            if (!params.resourceId?.trim() || !params.userId) {
+            if (!resourceId || !params.userId) {
               throw new Error('Project / Group ID and User ID are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
+              resourceId,
               userId: Number(params.userId),
               accessLevel: hasGitLabAccessLevel(params.accessLevel)
                 ? coerceGitLabAccessLevel(params.accessLevel)
@@ -2871,92 +3048,90 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             }
 
           case 'gitlab_deny_access_request':
-            if (!params.resourceId?.trim() || !params.userId) {
+            if (!resourceId || !params.userId) {
               throw new Error('Project / Group ID and User ID are required.')
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
-              resourceId: params.resourceId.trim(),
+              resourceId,
               userId: Number(params.userId),
             }
 
           case 'gitlab_list_saml_group_links':
-            if (!params.groupId?.trim()) {
+            if (!groupId) {
               throw new Error('Group ID is required.')
             }
             return {
               ...baseParams,
-              groupId: params.groupId.trim(),
+              groupId,
             }
 
-          case 'gitlab_add_saml_group_link':
-            if (
-              !params.groupId?.trim() ||
-              !params.samlGroupName?.trim() ||
-              !hasGitLabAccessLevel(params.accessLevel)
-            ) {
+          case 'gitlab_add_saml_group_link': {
+            const samlGroupName = inputText(params.samlGroupName)
+            if (!groupId || !samlGroupName || !hasGitLabAccessLevel(params.accessLevel)) {
               throw new Error('Group ID, SAML Group Name, and Access Level are required.')
             }
             return {
               ...baseParams,
-              groupId: params.groupId.trim(),
-              samlGroupName: params.samlGroupName.trim(),
+              groupId,
+              samlGroupName,
               accessLevel: coerceGitLabAccessLevel(params.accessLevel),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
-              provider: params.samlProvider?.trim() || undefined,
+              provider: textOrToolArg(params.samlProvider, params.provider) || undefined,
             }
+          }
 
-          case 'gitlab_delete_saml_group_link':
-            if (!params.groupId?.trim() || !params.samlGroupName?.trim()) {
+          case 'gitlab_delete_saml_group_link': {
+            const samlGroupName = inputText(params.samlGroupName)
+            if (!groupId || !samlGroupName) {
               throw new Error('Group ID and SAML Group Name are required.')
             }
             return {
               ...baseParams,
-              groupId: params.groupId.trim(),
-              samlGroupName: params.samlGroupName.trim(),
-              provider: params.samlProvider?.trim() || undefined,
+              groupId,
+              samlGroupName,
+              provider: textOrToolArg(params.samlProvider, params.provider) || undefined,
             }
+          }
 
-          case 'gitlab_search_users':
-            if (!params.userSearch?.trim()) {
+          case 'gitlab_search_users': {
+            const search = textOrToolArg(params.userSearch, params.search)
+            if (!search) {
               throw new Error('Search query is required.')
             }
             return {
               ...baseParams,
-              search: params.userSearch.trim(),
-              perPage: params.perPage ? Number(params.perPage) : undefined,
-              page: params.page ? Number(params.page) : undefined,
+              search,
+              ...pagination,
             }
+          }
 
-          case 'gitlab_create_user':
-            if (
-              !params.userAdminEmail?.trim() ||
-              !params.userAdminUsername?.trim() ||
-              !params.userAdminName?.trim()
-            ) {
+          case 'gitlab_create_user': {
+            const email = textOrToolArg(params.userAdminEmail, params.email)
+            const username = textOrToolArg(params.userAdminUsername, params.username)
+            const name = textOrToolArg(params.userAdminName, params.name)
+            const password = textOrToolArg(params.userAdminPassword, params.password)
+            if (!email || !username || !name) {
               throw new Error('Email, Username, and Full Name are required.')
             }
-            if (
-              !params.userAdminPassword?.trim() &&
-              !params.resetPassword &&
-              !params.forceRandomPassword
-            ) {
+            if (!password && !params.resetPassword && !params.forceRandomPassword) {
               throw new Error(
                 'One of Password, Send Password Reset Link, or Force Random Password is required.'
               )
             }
             return {
               ...baseParams,
-              email: params.userAdminEmail.trim(),
-              username: params.userAdminUsername.trim(),
-              name: params.userAdminName.trim(),
-              password: params.userAdminPassword?.trim() || undefined,
+              email,
+              username,
+              name,
+              password: password || undefined,
               resetPassword: params.resetPassword || undefined,
               forceRandomPassword: params.forceRandomPassword || undefined,
-              admin: params.userAdminIsAdmin || undefined,
+              admin: params.userAdminIsAdmin || toolCallArg(context, params.admin) || undefined,
               skipConfirmation: params.skipConfirmation || undefined,
             }
+          }
 
           case 'gitlab_update_user':
             if (!params.userId) {
@@ -2965,14 +3140,19 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...baseParams,
               userId: Number(params.userId),
-              email: params.userAdminEmail?.trim() || undefined,
-              username: params.userAdminUsername?.trim() || undefined,
-              name: params.userAdminName?.trim() || undefined,
+              email: textOrToolArg(params.userAdminEmail, params.email) || undefined,
+              username: textOrToolArg(params.userAdminUsername, params.username) || undefined,
+              name: textOrToolArg(params.userAdminName, params.name) || undefined,
               // Only pass a real boolean: an explicit `false` demotes the user,
               // while an untouched switch serializes as `null` and must be
               // dropped so an unrelated update never touches the admin flag.
               admin:
-                typeof params.userAdminIsAdmin === 'boolean' ? params.userAdminIsAdmin : undefined,
+                typeof params.userAdminIsAdmin === 'boolean'
+                  ? params.userAdminIsAdmin
+                  : toolCallArg(
+                      context,
+                      typeof params.admin === 'boolean' ? params.admin : undefined
+                    ),
             }
 
           case 'gitlab_delete_user':
@@ -3001,15 +3181,17 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               userId: Number(params.userId),
             }
 
-          case 'gitlab_delete_user_identity':
-            if (!params.userId || !params.provider?.trim()) {
+          case 'gitlab_delete_user_identity': {
+            const provider = inputText(params.provider)
+            if (!params.userId || !provider) {
               throw new Error('User ID and Identity Provider are required.')
             }
             return {
               ...baseParams,
               userId: Number(params.userId),
-              provider: params.provider.trim(),
+              provider,
             }
+          }
 
           default:
             return baseParams
@@ -3026,6 +3208,18 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     mergeRequestIid: { type: 'number', description: 'Merge request internal ID' },
     pipelineId: { type: 'number', description: 'Pipeline ID' },
     title: { type: 'string', description: 'Title for issue or merge request' },
+    updateTitle: {
+      type: 'string',
+      description: 'New title when updating an issue or merge request',
+    },
+    dueDate: { type: 'string', description: 'Issue due date (YYYY-MM-DD)' },
+    confidential: { type: 'boolean', description: 'Create the issue as confidential' },
+    draft: { type: 'boolean', description: 'Create the merge request as a draft' },
+    mergeWhenPipelineSucceeds: {
+      type: 'boolean',
+      description: 'Auto-merge the merge request once its checks pass',
+    },
+    squashCommitMessage: { type: 'string', description: 'Custom squash commit message' },
     description: { type: 'string', description: 'Description (Markdown supported)' },
     body: { type: 'string', description: 'Comment body' },
     sourceBranch: { type: 'string', description: 'Source branch for merge request' },
@@ -3112,6 +3306,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     scope: { type: 'string', description: 'Job scope filter' },
     includeRetried: { type: 'boolean', description: 'Include retried jobs in the listing' },
     sha: { type: 'string', description: 'Commit SHA' },
+    mergeSha: { type: 'string', description: 'Source branch HEAD SHA required to merge' },
     compareFrom: { type: 'string', description: 'Branch, tag, or commit SHA to compare from' },
     compareTo: { type: 'string', description: 'Branch, tag, or commit SHA to compare to' },
     straight: { type: 'boolean', description: 'Compare directly instead of using the merge base' },
@@ -3409,3 +3604,16 @@ export const GitLabBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GitLabV2Block: BlockConfig = {
+  ...GitLabBlock,
+  type: 'gitlab_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    GitLabBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'gitlab', title: 'GitLab Credential' },
+    { required: true }
+  ),
+}

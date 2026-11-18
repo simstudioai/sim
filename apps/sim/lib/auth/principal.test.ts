@@ -49,6 +49,7 @@ describe('principal subject users', () => {
         kind: 'personal_api_key',
         userId: 'key-user',
         keyId: 'key-1',
+        access: 'write',
       })
     ).toBe('key-user')
     expect(
@@ -124,6 +125,7 @@ describe('principal subject users', () => {
       resolvePrincipalSubjectUserId({
         kind: 'workspace_api_key',
         keyId: 'key-1',
+        access: 'write',
         workspaceId: 'workspace-1',
       })
     ).toBeUndefined()
@@ -177,6 +179,7 @@ describe('principal subject users', () => {
       requirePrincipalSubjectUserId({
         kind: 'workspace_api_key',
         keyId: 'key-1',
+        access: 'write',
         workspaceId: 'workspace-1',
       })
     ).toThrow(PrincipalSubjectUserRequiredError)
@@ -225,6 +228,43 @@ describe('principal persistence', () => {
 
     expect(restored).toEqual(principal)
     expect(restored.kind === 'delegated' && restored.issuedAt).toBeInstanceOf(Date)
+  })
+
+  /**
+   * A queued run is parsed by whichever deployment dequeues it, so a write key
+   * must keep the shape an older parser accepts, and a principal written before
+   * keys had an access level must come back as the full-access key it was.
+   */
+  it('keeps API-key access across deploys without widening a read key', () => {
+    const writeKey = {
+      kind: 'workspace_api_key' as const,
+      workspaceId: 'workspace-1',
+      keyId: 'key-1',
+      access: 'write' as const,
+    }
+    const readKey = {
+      kind: 'personal_api_key' as const,
+      userId: 'user-1',
+      keyId: 'key-2',
+      access: 'read' as const,
+    }
+
+    expect(serializePrincipal(writeKey).principal).not.toHaveProperty('access')
+    expect(parsePrincipal(structuredClone(serializePrincipal(writeKey)))).toEqual(writeKey)
+    expect(serializePrincipal(readKey).principal).toMatchObject({ access: 'read' })
+    expect(parsePrincipal(structuredClone(serializePrincipal(readKey)))).toEqual(readKey)
+    expect(
+      parsePrincipal({
+        version: 1,
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-3' },
+      })
+    ).toEqual({ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-3', access: 'write' })
+    expect(() =>
+      parsePrincipal({
+        version: 1,
+        principal: { ...readKey, access: 'admin' },
+      })
+    ).toThrow('access must be read or write')
   })
 
   it('rejects unknown versions, fields, and invalid dates', () => {
@@ -453,6 +493,7 @@ describe('principal actors', () => {
       resolvePrincipalAuditAttribution({
         kind: 'workspace_api_key',
         keyId: 'key-1',
+        access: 'write',
         workspaceId: 'workspace-1',
       })
     ).toEqual({
@@ -484,7 +525,12 @@ describe('principal actors', () => {
 
   it('projects principals into their shared actor identity', () => {
     expect(
-      toPrincipalActor({ kind: 'personal_api_key', keyId: 'key-1', userId: 'user-1' })
+      toPrincipalActor({
+        kind: 'personal_api_key',
+        keyId: 'key-1',
+        access: 'write',
+        userId: 'user-1',
+      })
     ).toEqual({ kind: 'personal_api_key', keyId: 'key-1', userId: 'user-1' })
 
     expect(
@@ -509,7 +555,7 @@ describe('principal actors', () => {
   it('uses the workspace billing owner for workspace-key attribution', () => {
     expect(
       resolvePrincipalAttribution(
-        { kind: 'workspace_api_key', keyId: 'key-1', workspaceId: 'workspace-1' },
+        { kind: 'workspace_api_key', keyId: 'key-1', access: 'write', workspaceId: 'workspace-1' },
         { workspaceBillingOwnerUserId: 'billing-owner-1' }
       )
     ).toEqual({
@@ -526,6 +572,7 @@ describe('principal actors', () => {
       resolvePrincipalAttribution({
         kind: 'personal_api_key',
         keyId: 'key-1',
+        access: 'write',
         userId: 'user-2',
       })
     ).toMatchObject({ attributedUserId: 'user-2' })
@@ -588,6 +635,7 @@ describe('principal actors', () => {
       resolvePrincipalAttribution({
         kind: 'workspace_api_key',
         keyId: 'key-1',
+        access: 'write',
         workspaceId: 'workspace-1',
       })
     ).toThrow('Workspace API key attribution requires a workspace billing owner')

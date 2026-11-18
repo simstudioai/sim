@@ -22,9 +22,9 @@ export const executeGitHubTool: InternalToolOperationHandler = async (request) =
   try {
     switch (request.toolId) {
       case 'github_comment':
-        return executeToolOperationImplementation(executeGitHubCommentOperation, request)
+        return await executeToolOperationImplementation(executeGitHubCommentOperation, request)
       case 'github_comment_v2':
-        return executeToolOperationImplementation(executeGitHubCommentV2Operation, request)
+        return await executeToolOperationImplementation(executeGitHubCommentV2Operation, request)
       case 'github_latest_commit':
       case 'github_latest_commit_v2': {
         const parsed = inputSchema.safeParse(request.input)

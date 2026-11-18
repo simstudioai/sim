@@ -1,5 +1,6 @@
 import type { Ec2StartInstancesParams, Ec2StartInstancesResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const startInstancesTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const startInstancesTool: InternalToolConfig<
   name: 'EC2 Start Instances',
   description: 'Start one or more stopped EC2 instances',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

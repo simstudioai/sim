@@ -2,6 +2,10 @@ import type {
   CrowdStrikeGetSensorDetailsParams,
   CrowdStrikeGetSensorDetailsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Identity Protection sensor details for one or more device IDs (POST /identity-protection/entities/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the "Identity Protection Entities: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     ids: {
       type: 'json',
       required: true,
@@ -46,6 +52,7 @@ export const crowdstrikeGetSensorDetailsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       ids: params.ids,
       operation: 'crowdstrike_get_sensor_details',
     }),

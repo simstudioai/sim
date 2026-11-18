@@ -6,6 +6,7 @@ import {
   member,
   organization,
   outboxEvent,
+  subscription,
   user,
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -17,13 +18,16 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const PRODUCT = 'product-placeholder'
+/** A second listing, sold as platform access plus metered usage. */
+const USAGE_PRODUCT = 'usage-product-placeholder'
 /** New SaaS products: ResolveCustomer names the buyer by account ID, never `CustomerIdentifier`. */
 const ACCOUNT = '000000000000'
 const AGREEMENT = 'agmt-placeholder'
 const CONTACT = { contactEmail: 'buyer@example.test', companyName: 'Example Co' }
 
 const { meteringSend, entitlementSend, queueSend } = vi.hoisted(() => {
-  process.env.AWS_MARKETPLACE_PRODUCT_CODE = 'product-placeholder'
+  process.env.AWS_MARKETPLACE_PRODUCTS =
+    'product-placeholder=contract,usage-product-placeholder=platform-with-usage'
   process.env.AWS_MARKETPLACE_EVENTS_QUEUE_URL =
     'https://queue.example.test/aws-marketplace-placeholder'
   process.env.ADMIN_API_KEY = 'admin-key-placeholder'
@@ -300,13 +304,18 @@ function deliverOnce(events: Array<Record<string, unknown>>) {
   return deleted
 }
 
-function licenseUpdated(licenseArn: string, agreementId?: string, time?: Date) {
+function licenseUpdated(
+  licenseArn: string,
+  agreementId?: string,
+  time?: Date,
+  productCode = PRODUCT
+) {
   return {
     'detail-type': 'License Updated - Manufacturer',
     ...(time && { time: time.toISOString() }),
     detail: {
       license: { arn: licenseArn },
-      product: { code: PRODUCT },
+      product: { code: productCode },
       ...(agreementId && { agreement: { id: agreementId } }),
     },
   }
@@ -344,6 +353,7 @@ afterAll(async () => {
     .delete(awsMarketplaceLicense)
     .where(inArray(awsMarketplaceLicense.licenseArn, licenseArns))
   if (organizationIds.length) {
+    await db.delete(subscription).where(inArray(subscription.referenceId, organizationIds))
     await db.delete(organization).where(inArray(organization.id, organizationIds))
   }
   if (userIds.length) {
@@ -388,6 +398,39 @@ describe('POST /api/marketplace/aws/register', () => {
     expect(response.headers.get('set-cookie')).toBeNull()
     expect(await readLicense(licenseArn)).toBeUndefined()
     expect(meteringSend.mock.calls[0][0].input.RegistrationToken).toBe('opaque+token')
+  })
+
+  it('admits a buyer of the usage listing only on a current platform entitlement', async () => {
+    const usageOnly = uniqueArn()
+    resolvesTo(usageOnly, USAGE_PRODUCT)
+    entitlementsByLicense.set(usageOnly, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+    ])
+
+    const unconfirmed = await registration('x-amzn-marketplace-token=usage-only-token')
+
+    expect(claimTokenOf(unconfirmed)).not.toBeNull()
+    expect(entitlementSend).toHaveBeenCalledTimes(3)
+    expect(await readLicense(usageOnly)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'pending',
+    })
+
+    const withPlatform = uniqueArn()
+    resolvesTo(withPlatform, USAGE_PRODUCT)
+    entitlementsByLicense.set(withPlatform, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'platform' }),
+    ])
+
+    const admitted = await registration('x-amzn-marketplace-token=platform-token')
+
+    expect(claimTokenOf(admitted)).not.toBeNull()
+    expect(await readLicense(withPlatform)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'active',
+      dimension: 'platform',
+    })
   })
 
   it('records a lapsed license as inactive and issues no claim', async () => {
@@ -702,6 +745,28 @@ describe('linking a claimed license', () => {
     })
   })
 
+  it('starts the license usage at the first link and keeps it when the same organization links again', async () => {
+    const fresh = await createClaimedLicense()
+    entitlementsByLicense.set(fresh.licenseArn, [currentEntitlement()])
+    const before = Date.now()
+
+    await link(ownerId, { licenseId: fresh.id, claimToken: fresh.token })
+
+    const linkedAt = (await readLicense(fresh.licenseArn))?.organizationLinkedAt
+    expect(linkedAt?.getTime()).toBeGreaterThanOrEqual(before - 1000)
+
+    const firstLinkedAt = new Date(Date.now() - 5 * 60 * 60 * 1000)
+    const relinked = await createClaimedLicense({
+      organizationId,
+      organizationLinkedAt: firstLinkedAt,
+    })
+    entitlementsByLicense.set(relinked.licenseArn, [currentEntitlement()])
+
+    await link(ownerId, { licenseId: relinked.id, claimToken: relinked.token })
+
+    expect((await readLicense(relinked.licenseArn))?.organizationLinkedAt).toEqual(firstLinkedAt)
+  })
+
   it('refuses to move a license already linked to another organization', async () => {
     const otherOwnerId = await createUser()
     const otherOrganizationId = await createOrganization([{ userId: otherOwnerId, role: 'owner' }])
@@ -714,6 +779,72 @@ describe('linking a claimed license', () => {
 
     expect(error).toMatchObject({ code: 'conflict' })
     expect((await readLicense(license.licenseArn))?.organizationId).toBe(otherOrganizationId)
+  })
+
+  it('refuses an organization with a live Stripe self-serve subscription, but not Enterprise or an abandoned checkout', async () => {
+    async function organizationWith(sub: { plan: string; status: string; bound: boolean }) {
+      const planOwnerId = await createUser()
+      const id = await createOrganization([{ userId: planOwnerId, role: 'owner' }])
+      await db.insert(subscription).values({
+        id: generateId(),
+        plan: sub.plan,
+        referenceId: id,
+        status: sub.status,
+        stripeSubscriptionId: sub.bound ? `sub_${generateId()}` : null,
+        metadata: { plan: sub.plan, referenceId: id, seats: 10, monthlyPrice: 100 },
+      })
+      return { id, planOwnerId }
+    }
+    async function linkTo(organization: { id: string; planOwnerId: string }) {
+      const license = await createClaimedLicense()
+      entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+      const refusal = await linkAwsMarketplaceLicense
+        .execute({
+          principal: createSessionPrincipal({ userId: organization.planOwnerId }),
+          input: {
+            ...CONTACT,
+            organizationId: organization.id,
+            licenseId: license.id,
+            claimToken: license.token,
+          },
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      return { license, refusal }
+    }
+
+    const trial = await linkTo(
+      await organizationWith({ plan: 'team_6000', status: 'trialing', bound: true })
+    )
+    const onEnterprise = await organizationWith({
+      plan: 'enterprise',
+      status: 'active',
+      bound: true,
+    })
+    const enterprise = await linkTo(onEnterprise)
+    const abandoned = await organizationWith({
+      plan: 'team_6000',
+      status: 'incomplete',
+      bound: false,
+    })
+    const afterAbandoned = await linkTo(abandoned)
+
+    expect(trial.refusal).toMatchObject({
+      code: 'conflict',
+      message: expect.stringMatching(/already pays/),
+    })
+    expect(await readLicense(trial.license.licenseArn)).toMatchObject({
+      organizationId: null,
+      claimTokenHash: hashClaimToken(trial.license.token),
+    })
+    expect(enterprise.refusal).toBeNull()
+    expect(afterAbandoned.refusal).toBeNull()
+    expect((await readLicense(enterprise.license.licenseArn))?.organizationId).toBe(onEnterprise.id)
+    expect((await readLicense(afterAbandoned.license.licenseArn))?.organizationId).toBe(
+      abandoned.id
+    )
   })
 
   it('links under a newer active read without overwriting it with its own older one', async () => {
@@ -1379,6 +1510,57 @@ describe('reconcileAwsMarketplaceLicenses', () => {
     expect((await readLicense(healthyArn))?.lastVerifiedAt.getTime()).toBeGreaterThan(
       Date.now() - 60_000
     )
+  })
+})
+
+describe('license events across listings', () => {
+  it('records a usage listing license seen first by event as pending until AWS reports platform', async () => {
+    const licenseArn = uniqueArn()
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+    ])
+    const deleted = deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
+    expect(deleted).toEqual(['r-0'])
+    expect(await readLicense(licenseArn)).toMatchObject({
+      productCode: USAGE_PRODUCT,
+      status: 'pending',
+      dimension: null,
+    })
+    expect(await emailsTo(TEAM)).toEqual([
+      expect.objectContaining({ text: expect.stringMatching(/Unconfirmed/) }),
+    ])
+  })
+
+  it("applies a usage listing's event under its own plan: a lapsed platform ends access", async () => {
+    const { licenseArn } = await insertLicense({ productCode: USAGE_PRODUCT, status: 'active' })
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'llm_credits' }),
+      currentEntitlement({
+        ProductCode: USAGE_PRODUCT,
+        Dimension: 'platform',
+        ExpirationDate: new Date(Date.now() - 60_000),
+      }),
+    ])
+    const deleted = deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+
+    expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
+    expect(deleted).toEqual(['r-0'])
+    const lapsed = await readLicense(licenseArn)
+    expect(lapsed).toMatchObject({ status: 'inactive', dimension: 'platform' })
+    expect(lapsed?.endedAt).toBeInstanceOf(Date)
+
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect((await readLicense(licenseArn))?.endedAt).toEqual(lapsed?.endedAt)
+
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'platform' }),
+    ])
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect(await readLicense(licenseArn)).toMatchObject({ status: 'active', endedAt: null })
   })
 })
 

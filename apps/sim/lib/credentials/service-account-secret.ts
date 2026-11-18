@@ -1,11 +1,18 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
+  AtlassianValidationError,
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
+import {
+  AwsCredentialError,
+  verifyAndEncryptAwsCredential,
+} from '@/lib/credentials/aws-service-account.server'
 import {
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountFieldId,
@@ -19,7 +26,29 @@ import {
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { invalidateCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
+import {
+  DATABASE_CONNECTION_DESCRIPTORS,
+  type DatabaseConnectionProviderId,
+} from '@/lib/credentials/database-connections/descriptors'
+import {
+  DatabaseConnectionVerificationError,
+  verifyAndEncryptDatabaseConnection,
+} from '@/lib/credentials/database-connections/server'
+import {
+  DatabricksCredentialError,
+  verifyAndEncryptDatabricksCredential,
+} from '@/lib/credentials/databricks-service-account.server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import {
+  GoogleWorkloadIdentityError,
+  isGoogleWorkloadIdentitySubmission,
+  verifyAndEncryptGoogleWorkloadIdentityCredential,
+} from '@/lib/credentials/google-workload-identity.server'
+import {
+  MicrosoftAppCredentialError,
+  verifyAndEncryptMicrosoftAppCredential,
+} from '@/lib/credentials/microsoft-app-service-account.server'
 import { verifyAndEncryptOciApiKeyCredential } from '@/lib/credentials/oci-api-key-service-account.server'
 import { verifyAndEncryptOracleDatabaseCredential } from '@/lib/credentials/oracledb-service-account.server'
 import {
@@ -28,19 +57,42 @@ import {
 } from '@/lib/credentials/principal'
 import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
+  SnowflakeCredentialError,
+  verifyAndEncryptSnowflakeConnection,
+} from '@/lib/credentials/snowflake-service-account.server'
+import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
+import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
+  isTokenServiceAccountFieldRequired,
   isTokenServiceAccountProviderId,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+  type TokenServiceAccountAuthMethod,
+  type TokenServiceAccountDescriptor,
+  type TokenServiceAccountField,
+  tokenFieldBelongsToAuthMethod,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getTokenServiceAccountValidator,
+  type TokenServiceAccountClientCredentialBlob,
   type TokenServiceAccountSecretBlob,
+  type TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
+import {
+  KeylessCredentialRefusedError,
+  type WorkloadIdentityCredentialOwner,
+} from '@/lib/credentials/workload-identity/subject'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -71,6 +123,12 @@ export interface ServiceAccountSecretFields {
   fingerprint?: string
   privateKeyPassphrase?: string
   region?: string
+  /**
+   * Who owns the credential and who is saving it. Only providers whose secret
+   * is bound to its owner read it (an AWS OIDC role subject is bound to the
+   * workspace and the person who prepared it); every other builder ignores it.
+   */
+  owner?: WorkloadIdentityCredentialOwner
 }
 
 export interface ServiceAccountSecretResult {
@@ -87,6 +145,16 @@ export interface ServiceAccountSecretResult {
   principal: ServiceAccountPrincipal | null
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
+  /**
+   * When the vendor stops accepting the saved token, for a pasted token whose vendor states it at
+   * verification. Absent when the token never expires or the vendor does not say.
+   */
+  tokenExpiresAt?: Date
+  /**
+   * Keyless AWS, Databricks, Snowflake, Microsoft app, or Google: a subject this save binds that
+   * the credential did not already hold, which must not belong to another credential of the owner.
+   */
+  newWorkloadIdentitySubject?: string
 }
 
 /** Thrown when a service-account secret is missing or fails provider verification. */
@@ -103,7 +171,11 @@ export class ServiceAccountSecretError extends Error {
 async function buildAtlassianServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
-  const { apiToken, domain } = fields
+  if (fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD) {
+    return buildAtlassianClientCredentialSecret(fields)
+  }
+  const apiToken = fields.apiToken?.trim()
+  const { domain } = fields
   if (!apiToken || !domain) {
     throw new ServiceAccountSecretError(
       'apiToken and domain are required for Atlassian service account credentials'
@@ -143,6 +215,83 @@ async function buildAtlassianServiceAccountSecret(
 }
 
 /**
+ * Proves a client-credentials token with the provider's own identity check. Minted tokens are
+ * shared across every credential for one application, so the token served can have been revoked
+ * before its stated expiry (an app reinstall, a scope change). When the provider rejects it, that
+ * token is expired and one freshly minted token is proven instead, so saving or reconnecting the
+ * credential always recovers from a revoked token.
+ */
+async function proveMintedToken<T>(
+  mint: () => Promise<{ accessToken: string }>,
+  prove: (accessToken: string) => Promise<T>
+): Promise<T> {
+  const { accessToken } = await mint()
+  try {
+    return await prove(accessToken)
+  } catch (error) {
+    const rejected =
+      (error instanceof TokenServiceAccountValidationError ||
+        error instanceof AtlassianValidationError) &&
+      error.code === 'invalid_credentials'
+    if (!rejected) throw error
+    await invalidateCoordinatedClientToken(accessToken)
+    return prove((await mint()).accessToken)
+  }
+}
+
+/**
+ * Builds an Atlassian service-account secret for an OAuth 2.0 credential: mints a token with the
+ * client ID and secret, proves it against the product's identity endpoint exactly as a scoped
+ * API token is proven, and stores the client credentials so execution re-mints.
+ */
+async function buildAtlassianClientCredentialSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domain = fields.domain?.trim()
+  if (!clientId || !clientSecret || !domain) {
+    throw new ServiceAccountSecretError(
+      'clientId, clientSecret, and domain are required for Atlassian OAuth 2.0 credentials'
+    )
+  }
+  const product = fields.atlassianProduct ?? 'jira'
+  const normalizedDomain = normalizeAtlassianDomain(domain)
+  const validation = await proveMintedToken(
+    () => mintAtlassianServiceAccountToken(clientId, clientSecret),
+    (accessToken) => validateAtlassianServiceAccount(accessToken, normalizedDomain, product)
+  )
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: validation.accountId,
+    ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
+  }
+  const blob = JSON.stringify({
+    type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
+    domain: normalizedDomain,
+    cloudId: validation.cloudId,
+    atlassianProduct: product,
+    atlassianAccountId: validation.accountId,
+    metadata: serviceAccountPrincipalMetadata(principal),
+  })
+  const { encrypted } = await encryptSecret(blob)
+  return {
+    providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: {
+      atlassianDomain: normalizedDomain,
+      atlassianCloudId: validation.cloudId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+  }
+}
+
+/**
  * Builds a custom Slack bot secret. The workspace/team identity is derived via
  * `auth.test` and never trusted from the client.
  */
@@ -155,6 +304,14 @@ async function buildSlackCustomBotSecret(
       'signingSecret and botToken are required for a custom Slack bot credential'
     )
   }
+  // Rotation-enabled apps issue `xoxe.`-prefixed access tokens that expire in 12 hours and
+  // `xoxe-` refresh tokens; refreshing needs the app's client ID and secret, which Sim
+  // never holds, so such a token would pass auth.test today and fail every run tomorrow.
+  if (/^\s*xoxe[.-]/.test(botToken)) {
+    throw new ServiceAccountSecretError(
+      'This Slack app has token rotation turned on, so its tokens expire within 12 hours and Sim cannot refresh them. Use the Bot User OAuth Token (xoxb-) of a Slack app with token rotation off.'
+    )
+  }
   let teamId: string
   let botUserId: string | undefined
   let teamName: string | undefined
@@ -164,6 +321,7 @@ async function buildSlackCustomBotSecret(
     botUserId = auth.userId
     teamName = auth.teamName
   } catch (error) {
+    if (isUnavailableFailure(error)) throw error
     throw new ServiceAccountSecretError(
       `Could not verify the Slack bot token: ${getErrorMessage(error)}`
     )
@@ -207,6 +365,9 @@ async function buildGoogleServiceAccountSecret(
       'serviceAccountJson is required for service account credentials'
     )
   }
+  if (isGoogleWorkloadIdentitySubmission(serviceAccountJson)) {
+    return buildGoogleWorkloadIdentitySecret(serviceAccountJson, fields.owner)
+  }
   const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
   if (!jsonParseResult.success) {
     throw new ServiceAccountSecretError(
@@ -233,6 +394,139 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
+/**
+ * Rethrows a keyless-capable provider's verification failure as the save reports it: a keyless
+ * refusal and an unavailable egress route keep their own class (the surface maps both), the
+ * provider's own error becomes its message, and anything else is named for `label`.
+ */
+function throwVerificationFailure(
+  error: unknown,
+  ProviderError: abstract new (...args: never[]) => Error,
+  label: string
+): never {
+  if (error instanceof KeylessCredentialRefusedError || isUnavailableFailure(error)) {
+    throw error
+  }
+  if (error instanceof ProviderError) throw new ServiceAccountSecretError(error.message)
+  throw new ServiceAccountSecretError(
+    `Could not verify the ${label}: ${getErrorMessage(error, 'Unknown error')}`
+  )
+}
+
+/**
+ * A keyless Google credential: Workload Identity Federation, no stored key,
+ * optionally with domain-wide delegation to one Workspace user.
+ */
+async function buildGoogleWorkloadIdentitySecret(
+  serviceAccountJson: string,
+  owner: ServiceAccountSecretFields['owner']
+): Promise<ServiceAccountSecretResult> {
+  if (!owner) throw new ServiceAccountSecretError('Google Cloud credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptGoogleWorkloadIdentityCredential(serviceAccountJson, owner)
+  } catch (error) {
+    throwVerificationFailure(error, GoogleWorkloadIdentityError, 'Google Cloud keyless credential')
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.serviceAccountEmail }
+  return {
+    providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.serviceAccountEmail,
+    auditMetadata: {
+      googleClientEmail: result.serviceAccountEmail,
+      googleWorkloadIdentityProvider: result.workloadIdentityProvider,
+      ...(result.delegation
+        ? {
+            googleDelegatedUser: result.delegation.user,
+            googleDelegatedServices: result.delegation.services.join(','),
+          }
+        : {}),
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
+  }
+}
+
+async function buildAwsServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('AWS credential configuration is required')
+  if (!fields.owner) throw new ServiceAccountSecretError('AWS credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptAwsCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    throwVerificationFailure(error, AwsCredentialError, 'AWS credential')
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.callerArn }
+  return {
+    providerId: AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.callerArn,
+    auditMetadata: serviceAccountPrincipalMetadata(principal),
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
+  }
+}
+
+async function buildDatabricksServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Databricks credential configuration is required')
+  if (!fields.owner) throw new ServiceAccountSecretError('Databricks credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptDatabricksCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    throwVerificationFailure(error, DatabricksCredentialError, 'Databricks credential')
+  }
+  const principal: ServiceAccountPrincipal = { kind: 'user', id: result.identity }
+  return {
+    providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.identity,
+    auditMetadata: serviceAccountPrincipalMetadata(principal),
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
+  }
+}
+
+async function buildMicrosoftAppServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson)
+    throw new ServiceAccountSecretError('Microsoft app credential configuration is required')
+  if (!fields.owner)
+    throw new ServiceAccountSecretError('Microsoft app credential owner is required')
+  let result
+  try {
+    result = await verifyAndEncryptMicrosoftAppCredential(fields.serviceAccountJson, fields.owner)
+  } catch (error) {
+    throwVerificationFailure(error, MicrosoftAppCredentialError, 'Microsoft app credential')
+  }
+  // The app's service principal is the identity every app-only token acts as.
+  const principal: ServiceAccountPrincipal = {
+    kind: 'user',
+    id: result.servicePrincipalId,
+    label: result.displayName,
+  }
+  return {
+    providerId: MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID,
+    encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+    displayName: result.displayName,
+    auditMetadata: {
+      microsoftTenantId: result.tenantId,
+      ...serviceAccountPrincipalMetadata(principal),
+    },
+    principal,
+    newWorkloadIdentitySubject: result.newSubject,
+  }
+}
+
 async function buildOracleDatabaseServiceAccountSecret(
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
@@ -253,6 +547,37 @@ async function buildOracleDatabaseServiceAccountSecret(
     displayName: result.username,
     auditMetadata: serviceAccountPrincipalMetadata(principal),
     principal,
+  }
+}
+
+/**
+ * Builds a saved PostgreSQL, MySQL, or SQL Server connection: the submitted
+ * connection JSON is proven with `SELECT 1` and stored encrypted.
+ */
+function databaseConnectionSecretBuilder(
+  providerId: DatabaseConnectionProviderId
+): ServiceAccountSecretBuilder {
+  const { label } = DATABASE_CONNECTION_DESCRIPTORS[providerId]
+  return async (fields) => {
+    if (!fields.serviceAccountJson)
+      throw new ServiceAccountSecretError(`${label} connection configuration is required`)
+    let result
+    try {
+      result = await verifyAndEncryptDatabaseConnection(providerId, fields.serviceAccountJson)
+    } catch (error) {
+      if (!(error instanceof DatabaseConnectionVerificationError)) throw error
+      throw new ServiceAccountSecretError(
+        `Could not verify the ${label} connection. Check the connection details, network access, and database permissions.`
+      )
+    }
+    const principal: ServiceAccountPrincipal = { kind: 'user', id: result.username }
+    return {
+      providerId,
+      encryptedServiceAccountKey: result.encryptedServiceAccountKey,
+      displayName: result.displayName,
+      auditMetadata: serviceAccountPrincipalMetadata(principal),
+      principal,
+    }
   }
 }
 
@@ -301,25 +626,50 @@ async function buildTokenServiceAccountSecret(
       `No validator registered for service-account provider ${providerId}`
     )
   }
-  const apiToken = fields.apiToken?.trim()
-  const domain = fields.domain?.trim()
-  const requiresDomain = descriptor.fields.some((field) => field.id === 'domain')
+  if (
+    descriptor.clientCredentials &&
+    fields.authMethod?.trim() === CLIENT_CREDENTIALS_AUTH_METHOD
+  ) {
+    return buildTokenClientCredentialSecret(descriptor, validator, fields)
+  }
+  const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
+    ? fields.apiToken
+    : fields.apiToken?.trim()
+  const domainField = tokenModeField(descriptor, 'domain', TOKEN_AUTH_METHOD)
+  const domain = fields.domain?.trim() || domainField?.defaultValue
+  const requiresDomain = Boolean(
+    domainField && isTokenServiceAccountFieldRequired(domainField, TOKEN_AUTH_METHOD)
+  )
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
-  const requiresWorkspace = descriptor.fields.some((field) => field.id === 'providerWorkspaceId')
-  if (!apiToken || (requiresDomain && !domain) || (requiresWorkspace && !providerWorkspaceId)) {
-    const required = descriptor.fields.map((field) => field.id).join(' and ')
+  const workspaceField = tokenModeField(descriptor, 'providerWorkspaceId', TOKEN_AUTH_METHOD)
+  const requiresWorkspace = Boolean(
+    workspaceField && isTokenServiceAccountFieldRequired(workspaceField, TOKEN_AUTH_METHOD)
+  )
+  if (
+    !apiToken ||
+    !apiToken.trim() ||
+    (requiresDomain && !domain) ||
+    (requiresWorkspace && !providerWorkspaceId)
+  ) {
+    const requiredFields = descriptor.fields.filter((field) =>
+      isTokenServiceAccountFieldRequired(field, TOKEN_AUTH_METHOD)
+    )
     throw new ServiceAccountSecretError(
-      `${required} ${descriptor.fields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
+      `${requiredFields.map((field) => field.id).join(' and ')} ${requiredFields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
   }
   const validation = await validator({ apiToken, domain, providerWorkspaceId })
+  const storedDomain = validation.normalizedDomain ?? domain
+  const storedWorkspaceId = validation.normalizedWorkspaceId ?? providerWorkspaceId
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const blob: TokenServiceAccountSecretBlob = {
     type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
     providerId,
     apiToken,
-    ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
-    ...(requiresWorkspace ? { providerWorkspaceId } : {}),
+    ...(domainField && (requiresDomain || storedDomain) ? { domain: storedDomain } : {}),
+    ...(workspaceField && (requiresWorkspace || storedWorkspaceId)
+      ? { providerWorkspaceId: storedWorkspaceId }
+      : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
@@ -329,6 +679,109 @@ async function buildTokenServiceAccountSecret(
     displayName: validation.displayName,
     auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
     principal: validation.principal,
+    ...(validation.expiresAt ? { tokenExpiresAt: validation.expiresAt } : {}),
+  }
+}
+
+/** The descriptor field with this id that the given sign-in mode shows and stores. */
+function tokenModeField(
+  descriptor: TokenServiceAccountDescriptor,
+  id: TokenServiceAccountField['id'],
+  authMethod: TokenServiceAccountAuthMethod
+): TokenServiceAccountField | undefined {
+  return descriptor.fields.find(
+    (field) => field.id === id && tokenFieldBelongsToAuthMethod(field, authMethod)
+  )
+}
+
+/**
+ * Builds a token provider's client-credentials secret: mints a token with the submitted client
+ * ID and secret, proves it with the provider's own token check (the same request the pasted-token
+ * mode verifies with), and stores the client credentials instead of a token so execution re-mints.
+ */
+async function buildTokenClientCredentialSecret(
+  descriptor: TokenServiceAccountDescriptor,
+  validator: TokenServiceAccountValidator,
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { providerId } = descriptor
+  const mint = getTokenClientCredentialMinter(providerId)
+  if (!mint) {
+    throw new ServiceAccountSecretError(
+      `No client-credentials grant registered for service-account provider ${providerId}`
+    )
+  }
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const domainField = tokenModeField(descriptor, 'domain', CLIENT_CREDENTIALS_AUTH_METHOD)
+  const domain = domainField ? fields.domain?.trim() || domainField.defaultValue : undefined
+  const requiresDomain = Boolean(
+    domainField && isTokenServiceAccountFieldRequired(domainField, CLIENT_CREDENTIALS_AUTH_METHOD)
+  )
+  if (!clientId || !clientSecret || (requiresDomain && !domain)) {
+    throw new ServiceAccountSecretError(
+      `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`
+    )
+  }
+  const validation = await proveMintedToken(
+    () => mint({ clientId, clientSecret, ...(domain ? { domain } : {}) }),
+    (accessToken) =>
+      validator({
+        apiToken: accessToken,
+        ...(domain ? { domain } : {}),
+        authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+      })
+  )
+  const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
+  const blob: TokenServiceAccountClientCredentialBlob = {
+    type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+    providerId,
+    authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+    clientId,
+    clientSecret,
+    ...(domain ? { domain: validation.normalizedDomain ?? domain } : {}),
+    metadata: { ...validation.storedMetadata, ...principalMetadata },
+  }
+  const { encrypted } = await encryptSecret(JSON.stringify(blob))
+  return {
+    providerId,
+    encryptedServiceAccountKey: encrypted,
+    displayName: validation.displayName,
+    auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
+    principal: validation.principal,
+  }
+}
+
+/**
+ * Builds a Snowflake secret. A JSON configuration is the keyless mode (no
+ * stored secret) or the key-pair mode, as its `authType` says; otherwise the
+ * pasted programmatic access token goes through the token-paste builder
+ * exactly as before. Snowflake's own refusals keep the shared validation codes
+ * so callers report them like any token check.
+ */
+async function buildSnowflakeServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  if (!fields.serviceAccountJson) {
+    return buildTokenServiceAccountSecret(SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, fields)
+  }
+  if (fields.apiToken) {
+    throw new ServiceAccountSecretError(
+      'Send either a programmatic access token or a connection configuration, not both'
+    )
+  }
+  if (!fields.owner) throw new ServiceAccountSecretError('Snowflake credential owner is required')
+  try {
+    const result = await verifyAndEncryptSnowflakeConnection(
+      fields.serviceAccountJson,
+      fields.owner
+    )
+    return { providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID, ...result }
+  } catch (error) {
+    if (error instanceof SnowflakeCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw error
   }
 }
 
@@ -379,6 +832,7 @@ async function buildClientCredentialAccountSecret(
       : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
+    apiToken: usesField('apiToken') ? fields.apiToken?.trim() || undefined : undefined,
   }
 
   // Requirements are per-auth-method, not per-provider: Salesforce's JWT
@@ -427,6 +881,16 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciApiKeyServiceAccountSecret,
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOracleDatabaseServiceAccountSecret,
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: buildAwsServiceAccountSecret,
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: buildDatabricksServiceAccountSecret,
+  [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: buildMicrosoftAppServiceAccountSecret,
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: buildSnowflakeServiceAccountSecret,
+  ...Object.fromEntries(
+    Object.values(DATABASE_CONNECTION_DESCRIPTORS).map(({ providerId }) => [
+      providerId,
+      databaseConnectionSecretBuilder(providerId),
+    ])
+  ),
 }
 
 /**

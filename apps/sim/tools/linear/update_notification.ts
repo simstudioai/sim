@@ -30,7 +30,8 @@ export const linearUpdateNotificationTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timestamp to mark as read (ISO format). Pass null or omit to mark as unread',
+      description:
+        'ISO timestamp to mark the notification read at. Omit it to mark it read now; pass null to mark it unread.',
     },
   },
 
@@ -49,8 +50,7 @@ export const linearUpdateNotificationTool: ToolConfig<
     body: (params) => {
       const input: Record<string, any> = {}
 
-      // If readAt is provided, use it; if explicitly null, mark as unread; if omitted, mark as read now
-      if (params.readAt !== undefined) {
+      if (params.readAt !== undefined && params.readAt !== '') {
         input.readAt = params.readAt
       } else {
         input.readAt = new Date().toISOString()
@@ -66,9 +66,11 @@ export const linearUpdateNotificationTool: ToolConfig<
                 type
                 createdAt
                 readAt
-                issue {
-                  id
-                  title
+                ... on IssueNotification {
+                  issue {
+                    id
+                    title
+                  }
                 }
               }
             }
@@ -119,7 +121,11 @@ export const linearUpdateNotificationTool: ToolConfig<
         type: { type: 'string', description: 'Notification type' },
         createdAt: { type: 'string', description: 'Creation timestamp' },
         readAt: { type: 'string', description: 'Read timestamp' },
-        issue: { type: 'object', description: 'Related issue' },
+        issue: {
+          type: 'object',
+          description: 'Related issue (only for issue notifications)',
+          optional: true,
+        },
       },
     },
   },

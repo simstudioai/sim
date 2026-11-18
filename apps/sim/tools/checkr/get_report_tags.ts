@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapTags,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetReportTagsTool: ToolConfig<CheckrReportIdParams, CheckrReportTagsResponse> = {
@@ -18,6 +19,7 @@ export const checkrGetReportTagsTool: ToolConfig<CheckrReportIdParams, CheckrRep
   name: 'Checkr Get Report Tags',
   description: 'List the tags on a report.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

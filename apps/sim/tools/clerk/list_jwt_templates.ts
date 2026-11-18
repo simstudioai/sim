@@ -5,6 +5,7 @@ import type {
   ClerkListJwtTemplatesParams,
   ClerkListJwtTemplatesResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListJwtTemplates')
@@ -17,6 +18,7 @@ export const clerkListJwtTemplatesTool: ToolConfig<
   name: 'List JWT Templates from Clerk',
   description: 'List custom JWT templates configured on your Clerk instance',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

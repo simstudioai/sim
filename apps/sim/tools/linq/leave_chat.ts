@@ -1,6 +1,8 @@
 import type { LinqChatActionParams, LinqQueuedResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResult> = {
   id: 'linq_leave_chat',
@@ -8,6 +10,7 @@ export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResul
   description:
     'Leave an iMessage group chat (4+ active participants; not supported for direct chats)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -25,7 +28,7 @@ export const linqLeaveChatTool: ToolConfig<LinqChatActionParams, LinqQueuedResul
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/leave`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/leave`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
   },

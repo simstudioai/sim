@@ -3,6 +3,7 @@ import type {
   PersonaImportAccountsResponse,
 } from '@/tools/persona/types'
 import { IMPORTER_OUTPUT_PROPERTIES } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const personaImportAccountsTool: InternalToolConfig<
@@ -14,6 +15,7 @@ export const personaImportAccountsTool: InternalToolConfig<
   description:
     'Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

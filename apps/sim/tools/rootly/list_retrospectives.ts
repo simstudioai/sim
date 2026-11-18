@@ -2,6 +2,8 @@ import type {
   RootlyListRetrospectivesParams,
   RootlyListRetrospectivesResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListRetrospectivesTool: ToolConfig<
@@ -12,6 +14,7 @@ export const rootlyListRetrospectivesTool: ToolConfig<
   name: 'Rootly List Retrospectives',
   description: 'List incident retrospectives (post-mortems) from Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -69,7 +72,7 @@ export const rootlyListRetrospectivesTool: ToolConfig<
       return {
         success: false,
         output: { retrospectives: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

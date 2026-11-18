@@ -2,6 +2,7 @@ import type {
   CloudWatchQueryLogsParams,
   CloudWatchQueryLogsResponse,
 } from '@/tools/cloudwatch/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryLogsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const queryLogsTool: InternalToolConfig<
   name: 'CloudWatch Query Logs',
   description: 'Run a CloudWatch Log Insights query against one or more log groups',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -90,6 +92,7 @@ export const queryLogsTool: InternalToolConfig<
         results: data.output.results,
         statistics: data.output.statistics,
         status: data.output.status,
+        queryId: data.output.queryId ?? null,
       },
     }
   },
@@ -114,6 +117,11 @@ export const queryLogsTool: InternalToolConfig<
     status: {
       type: 'string',
       description: 'Query completion status (Complete, Failed, Cancelled, or Timeout)',
+    },
+    queryId: {
+      type: 'string',
+      description: 'ID of the Logs Insights query',
+      optional: true,
     },
   },
 }

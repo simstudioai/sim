@@ -2,6 +2,7 @@ import type {
   GrafanaListContactPointsParams,
   GrafanaListContactPointsResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listContactPointsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listContactPointsTool: ToolConfig<
   name: 'Grafana List Contact Points',
   description: 'List all alert notification contact points',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

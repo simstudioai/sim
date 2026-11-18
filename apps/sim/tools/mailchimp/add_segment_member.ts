@@ -3,7 +3,9 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpAddSegmentMemberParams {
   apiKey: string
@@ -28,6 +30,7 @@ export const mailchimpAddSegmentMemberTool: ToolConfig<
   name: 'Add Member to Segment in Mailchimp',
   description: 'Add a member to a specific segment in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -60,7 +63,7 @@ export const mailchimpAddSegmentMemberTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/segments/${params.segmentId}/members`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/segments/${safeUrlPathSegment(params.segmentId, 'segmentId')}/members`
       ),
     method: 'POST',
     headers: (params) => ({

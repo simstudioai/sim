@@ -18,17 +18,17 @@ import {
   type OAuthResource,
   parseOAuthResource,
 } from '@/lib/auth/oauth-resource'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
-import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchScopedCredentialConnection } from '@/lib/credentials/application/launch-scoped-credential-connection'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import {
+  OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM,
+  OAUTH_LINK_UNAVAILABLE_ERROR,
+} from '@/lib/credentials/draft-constants'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_AUTHORIZATION_URL } from '@/lib/oauth/quickbooks-constants'
@@ -209,37 +209,48 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(authorizeOAuth2Contract, request, {})
   if (!parsed.success) return parsed.response
-  const { draftId } = parsed.data.query
-  let { providerId, workspaceId, callbackURL: requestedCallback, credentialId } = parsed.data.query
+  const { draftId, callbackURL: requestedCallback } = parsed.data.query
 
-  try {
-    let organizationId: string | undefined
-    let fromConnectionDraft = false
-    let connectionDraftId: string | undefined
-    let encryptedQuickBooksClientConfig: string | null | undefined
-    if (draftId) {
-      try {
-        const { draft } = await launchScopedCredentialConnection({
-          principal,
-          input: { draftId },
-          request,
-        })
-        providerId = draft.providerId
-        workspaceId = draft.workspaceId ?? undefined
-        organizationId = draft.organizationId ?? undefined
-        credentialId = draft.credentialId ?? undefined
-        connectionDraftId = draft.id
-        encryptedQuickBooksClientConfig = draft.oauthConfig
-        fromConnectionDraft = true
-      } catch (error) {
-        if (!(error instanceof OrchestrationError)) throw error
-        logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
-        return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
-      }
+  // A connect link names only a workspace and provider, so anyone can craft one,
+  // and a same-origin hop (a sign-in, a client-side redirect) makes it look like
+  // the user's own navigation. It never starts a connection itself: the
+  // confirmation page does, on the user's click, and returns here with its draft.
+  if (!draftId) {
+    const confirmUrl = new URL('/oauth/connect', baseUrl)
+    for (const [name, value] of Object.entries(parsed.data.query)) {
+      if (value) confirmUrl.searchParams.set(name, value)
     }
+    return NextResponse.redirect(confirmUrl)
+  }
 
-    if (!providerId || (!workspaceId && !organizationId)) {
-      throw new Error('Validated OAuth authorization request is missing its target')
+  let providerId: string | undefined
+  try {
+    const launched = await launchScopedCredentialConnection({
+      principal,
+      input: { draftId },
+      request,
+    }).catch((error: unknown) => {
+      if (!(error instanceof OrchestrationError)) throw error
+      logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
+      return error
+    })
+    if (launched instanceof OrchestrationError) {
+      // A draft is looked up by its id and the signed-in user together, so one
+      // that is unknown, expired, or another account's all read as not found.
+      // The reason names every case and does not say which one applied.
+      if (launched.code === 'not_found') {
+        const unavailableUrl = new URL('/oauth/credential-connected', baseUrl)
+        unavailableUrl.searchParams.set('error', OAUTH_LINK_UNAVAILABLE_ERROR)
+        return NextResponse.redirect(unavailableUrl)
+      }
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
+    }
+    const { draft } = launched
+    providerId = draft.providerId
+    const connectionDraftId = draft.id
+
+    if (!draft.workspaceId && !draft.organizationId) {
+      throw new Error('OAuth connection draft is missing its owner')
     }
     if (providerId !== 'quickbooks') {
       requireConfiguredOAuthClient(providerId)
@@ -247,70 +258,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const connectionCompleteUrl = new URL('/oauth/credential-connected', baseUrl)
     connectionCompleteUrl.searchParams.set('result', 'connected')
-    const callbackURL = fromConnectionDraft
-      ? requestedCallback && isSameOrigin(requestedCallback)
-        ? requestedCallback
-        : connectionCompleteUrl.toString()
-      : requestedCallback?.startsWith(`${baseUrl}/`)
-        ? requestedCallback
-        : `${baseUrl}${APP_ENTRY_PATH}`
-
-    if (!fromConnectionDraft) {
-      if (!workspaceId) throw new Error('Workspace OAuth launch is missing its owner')
-      try {
-        const connection = await createCredentialConnection.execute({
-          principal,
-          input: credentialId
-            ? { workspaceId, credentialId, assertedProviderId: providerId }
-            : { workspaceId, providerId },
-          request,
-        })
-        providerId = connection.providerId
-        workspaceId = connection.workspaceId
-        credentialId = connection.credentialId
-        connectionDraftId = connection.draftId
-      } catch (error) {
-        if (error instanceof CredentialConnectionProviderMismatchError) {
-          return NextResponse.redirect(
-            `${baseUrl}${APP_ENTRY_PATH}?error=credential_provider_mismatch`
-          )
-        }
-        if (
-          credentialId &&
-          error instanceof ForbiddenOperationError &&
-          error.detailCode === 'CREDENTIAL_ADMIN_ACCESS_REQUIRED'
-        ) {
-          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=credential_access_denied`)
-        }
-        if (error instanceof OrchestrationError && error.code === 'not_found') {
-          return NextResponse.redirect(
-            `${baseUrl}${APP_ENTRY_PATH}?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
-          )
-        }
-        if (error instanceof OrchestrationError && error.code === 'forbidden') {
-          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=workspace_access_denied`)
-        }
-        throw error
-      }
-    }
-
-    if (!connectionDraftId) {
-      throw new Error('OAuth authorization is missing its credential draft id')
-    }
+    const callerReturnUrl =
+      requestedCallback && isSameOrigin(requestedCallback) ? requestedCallback : null
+    const callbackURL = callerReturnUrl ?? connectionCompleteUrl.toString()
 
     if (providerId === 'quickbooks') {
-      if (!encryptedQuickBooksClientConfig) {
-        const { draft } = await launchScopedCredentialConnection({
-          principal,
-          input: { draftId: connectionDraftId },
-          request,
-        })
-        encryptedQuickBooksClientConfig = draft.oauthConfig
-      }
-      if (!encryptedQuickBooksClientConfig) {
+      if (!draft.oauthConfig) {
         throw new Error('QuickBooks OAuth client configuration is missing')
       }
-      const clientConfig = await decryptQuickBooksOAuthClientConfig(encryptedQuickBooksClientConfig)
+      const clientConfig = await decryptQuickBooksOAuthClientConfig(draft.oauthConfig)
       const redirectUri = `${baseUrl}/api/auth/oauth2/callback/quickbooks`
       const state = createQuickBooksOAuthState({
         userId,
@@ -342,9 +298,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         providerId,
         callbackURL: stateCallbackUrl.toString(),
         ...(scopes && { scopes }),
-        ...(fromConnectionDraft
-          ? { errorCallbackURL: `${baseUrl}/oauth/credential-connected?result=failed` }
-          : {}),
+        // A caller that named its return page reads the outcome itself (the chat
+        // chips watch for the provider error page); otherwise failures land on
+        // the status page beside the success one.
+        ...(callerReturnUrl
+          ? {}
+          : { errorCallbackURL: `${baseUrl}/oauth/credential-connected?result=failed` }),
       },
       headers: request.headers,
       asResponse: true,

@@ -1,4 +1,5 @@
 import type { AlgoliaSearchParams, AlgoliaSearchResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> = {
@@ -6,6 +7,7 @@ export const searchTool: ToolConfig<AlgoliaSearchParams, AlgoliaSearchResponse> 
   name: 'Algolia Search',
   description: 'Search an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

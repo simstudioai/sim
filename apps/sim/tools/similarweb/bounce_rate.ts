@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebBounceRateParams,
   SimilarwebBounceRateResponse,
@@ -12,6 +13,7 @@ export const similarwebBounceRateTool: ToolConfig<
   name: 'SimilarWeb Bounce Rate',
   description: 'Get website bounce rate over time (desktop and mobile combined)',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

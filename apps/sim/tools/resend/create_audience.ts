@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { CreateAudienceParams, CreateAudienceResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendCreateAudienceTool')
@@ -9,6 +10,7 @@ export const resendCreateAudienceTool: ToolConfig<CreateAudienceParams, CreateAu
   name: 'Create Audience',
   description: 'Create a new audience in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     audienceName: {

@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { isAPIError } from 'better-auth/api'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { isSignInProviderAllowed } from '@/lib/auth/constants'
-import { isSsoCallbackPath } from '@/lib/auth/sso/callback-provider'
+import { isSsoCallbackPath, SSO_PROVIDER_ID_PATTERN } from '@/lib/auth/sso/callback-provider'
 
 const logger = createLogger('AuthenticationAudit')
 
@@ -127,7 +127,7 @@ export async function recordAuthenticationAudit(input: AuthenticationAuditInput)
     if (!subject && outcome !== 'failure') return
     let organizationId = subject?.organizationId
     let providerId = isSignInProviderAllowed(input.providerId) ? input.providerId : undefined
-    if (method === 'sso' && input.providerId && /^[a-zA-Z0-9_.:-]{1,128}$/.test(input.providerId)) {
+    if (method === 'sso' && input.providerId && SSO_PROVIDER_ID_PATTERN.test(input.providerId)) {
       const [provider] = await db
         .select({ organizationId: ssoProvider.organizationId, providerId: ssoProvider.providerId })
         .from(ssoProvider)

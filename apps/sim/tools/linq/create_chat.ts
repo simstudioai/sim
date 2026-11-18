@@ -5,6 +5,7 @@ import {
   LINQ_API_BASE,
   linqHeaders,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqCreateChatTool: ToolConfig<LinqCreateChatParams, LinqCreateChatResult> = {
@@ -12,6 +13,7 @@ export const linqCreateChatTool: ToolConfig<LinqCreateChatParams, LinqCreateChat
   name: 'Create Chat',
   description: 'Start a new iMessage, SMS, or RCS chat and send the first message',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

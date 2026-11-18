@@ -8,6 +8,8 @@ export const langchainProfile: CompetitorProfile = {
   mentions: ['LangChain', 'LangGraph'],
   website: 'https://www.langchain.com',
   isWorkflowBuilder: false,
+  migrationSteps:
+    'Start with one representative agent. Write down its inputs, model calls, tools, and decision points. Map the chain or agent logic into a Sim workflow, then compare its output with the existing prototype. Add a Human in the Loop block wherever a person must approve an action, use run logs to inspect each step, and choose Sim cloud or self-hosting once the workflow behaves as expected.',
   brand: {
     icon: LangChainIcon,
     selfFramed: false,

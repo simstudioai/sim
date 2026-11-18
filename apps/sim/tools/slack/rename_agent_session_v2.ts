@@ -4,6 +4,7 @@ import type {
 } from '@/tools/slack/types'
 import {
   assertSlackApiSuccess,
+  optionalSlackThreadTs,
   requireSlackString,
   resolveSlackAccessToken,
 } from '@/tools/slack/utils'
@@ -56,9 +57,10 @@ export const slackRenameAgentSessionV2Tool: ToolConfig<
     },
     threadTs: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Timestamp of the thread associated with the agent session',
+      description:
+        'Timestamp of the thread root message the session is scoped to. Required for thread-based sessions in regular channels and DMs; omit for session channels.',
     },
     title: {
       type: 'string',
@@ -79,7 +81,7 @@ export const slackRenameAgentSessionV2Tool: ToolConfig<
       if (title.length > 200) throw new Error('Session Title must be 200 characters or fewer')
       return {
         channel_id: requireSlackString(params.channel, 'Channel'),
-        thread_ts: requireSlackString(params.threadTs, 'Thread Timestamp'),
+        ...optionalSlackThreadTs(params.threadTs),
         title,
       }
     },

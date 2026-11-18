@@ -147,8 +147,8 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
 
       if (params.summaryQuery) {
         body.summary = { query: params.summaryQuery }
-      } else if (params.summary !== undefined) {
-        body.summary = params.summary
+      } else if (String(params.summary) === 'true') {
+        body.summary = true
       }
 
       if (params.subpages !== undefined) body.subpages = Number(params.subpages)

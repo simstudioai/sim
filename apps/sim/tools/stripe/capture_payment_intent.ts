@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -9,6 +10,7 @@ import {
   PAYMENT_INTENT_OUTPUT,
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_capture_payment_intent',
@@ -23,6 +25,7 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
   name: 'Stripe Capture Payment Intent',
   description: 'Capture an authorized Payment Intent',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -47,7 +50,8 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/capture`,
+    url: (params) =>
+      `https://api.stripe.com/v1/payment_intents/${safeUrlPathSegment(params.id, 'id')}/capture`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

@@ -1,5 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteMergeFieldParams {
   apiKey: string
@@ -19,6 +21,7 @@ export const mailchimpDeleteMergeFieldTool: ToolConfig<
   name: 'Delete Merge Field from Mailchimp Audience',
   description: 'Delete a merge field from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -43,7 +46,10 @@ export const mailchimpDeleteMergeFieldTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/merge-fields/${params.mergeId}`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/merge-fields/${safeUrlPathSegment(params.mergeId, 'mergeId')}`
+      ),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

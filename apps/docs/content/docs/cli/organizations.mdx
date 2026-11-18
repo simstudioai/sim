@@ -229,6 +229,73 @@ sim organizations members remove <userId> [options]
 
 API request and response schemas: [removeOrganizationMember](/api-reference/organizations/removeOrganizationMember).
 
+## Search source permissions
+
+### Get search source permission revision
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations search sources permissions get <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getSearchSourcePermissions](/api-reference/organizations/getSearchSourcePermissions).
+
+### Replace search source permissions
+
+OAuth login or personal API key required.
+
+This replaces the source’s permission grants. Readers omitted from the new grants lose access.
+
+```bash
+sim organizations search sources permissions replace <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--expected-revision <value>` | Yes | Permission revision read before exporting the grants. |
+| `--permissions <json\|@file>` | Yes | Complete permission grants in the source provider’s format. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [replaceSearchSourcePermissions](/api-reference/organizations/replaceSearchSourcePermissions).
+
 ## Invitations
 
 ### List organization invitations

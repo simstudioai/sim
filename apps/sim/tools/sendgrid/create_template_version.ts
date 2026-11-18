@@ -3,7 +3,10 @@ import type {
   SendGridTemplateVersionRequest,
   TemplateVersionResult,
 } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']
 
@@ -23,8 +26,10 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
   name: 'SendGrid Create Template Version',
   description: 'Create a new version of an email template in SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -70,7 +75,8 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/templates/${params.templateId}/versions`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${safeUrlPathSegment(params.templateId, 'templateId')}/versions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

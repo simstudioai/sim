@@ -1,4 +1,5 @@
 import type { AthenaListDatabasesParams, AthenaListDatabasesResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listDatabasesTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const listDatabasesTool: InternalToolConfig<
   name: 'Athena List Databases',
   description: 'List the databases available in an Athena data catalog',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

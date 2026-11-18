@@ -11,7 +11,15 @@ import type {
   TablePredicate,
   TablePredicateInput,
 } from '@/lib/table/types'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockToolParamsContext } from '@/blocks/types'
+import {
+  failToolCallOnError,
+  mapperOperation,
+  resolveTableColumnSelection,
+  TABLE_OUTPUT_COLUMNS_INPUT,
+  TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+  toolCallArg,
+} from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
@@ -57,9 +65,12 @@ interface TableBlockParams {
   columns?: unknown
   filterInput?: unknown
   sortInput?: unknown
-  limit?: string
+  /** A string on the canvas; a number when a model supplies it on a tool call. */
+  limit?: string | number
   cursor?: string
   conflictColumn?: string
+  /** The tool's own `conflictTarget` param, set in an Agent tool row. */
+  conflictTarget?: string
 }
 
 /**
@@ -81,35 +92,28 @@ function resolveFilter(params: TableBlockParams): TablePredicate | undefined {
   return normalizeTablePredicate(predicate)
 }
 
+/**
+ * A sort-spec array (`[{field, direction}]`), as a model passes the tool's `order` arg, rather
+ * than the visual builder's rules, which always carry `column`.
+ */
+function isSortSpec(raw: unknown[]): raw is SortSpec {
+  return (
+    raw.length > 0 &&
+    raw.every(
+      (entry) =>
+        typeof entry === 'object' && entry !== null && 'field' in entry && !('column' in entry)
+    )
+  )
+}
+
 function resolveOrder(params: TableBlockParams): SortSpec | undefined {
   const raw = params.sortInput
   if (Array.isArray(raw)) {
+    if (isSortSpec(raw)) return raw
     return raw.length > 0 ? (sortRulesToSortSpec(raw as SortRule[]) ?? undefined) : undefined
   }
   const parsed = parseJSON(raw, 'Sort')
   return (parsed as SortSpec | undefined) || undefined
-}
-
-/**
- * Resolves the "Columns to Return" selection. Only an absent value (`undefined`,
- * `null`, the dependsOn-cleared `''`, or `[]`) means "all columns"; anything
- * else must be a list of column ids/names. A malformed value fails fast rather
- * than silently widening a deliberately narrowed query to every column — the
- * same stance `parseOptionalLimit` takes for a malformed limit. A JSON string is
- * accepted because an agent-authored block config serializes arrays that way.
- */
-function resolveOutputColumns(raw: unknown): string[] | undefined {
-  if (raw === undefined || raw === null || raw === '') return undefined
-  const parsed = typeof raw === 'string' ? parseJSON(raw, 'Columns to Return') : raw
-  if (!Array.isArray(parsed)) {
-    throw new Error('Invalid Columns to Return: expected a list of column ids or names')
-  }
-  if (parsed.length === 0) return undefined
-  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
-  if (columns.some((column) => column.length === 0)) {
-    throw new Error('Invalid Columns to Return: every entry must be a non-empty column id or name')
-  }
-  return columns
 }
 
 interface ParsedParams {
@@ -129,11 +133,11 @@ interface ParsedParams {
  * Fail-fast limit parsing for bulk ops: an unparseable limit must never
  * silently widen the operation to every matching row.
  */
-function parseOptionalLimit(raw: string | undefined): number | undefined {
-  if (!raw) return undefined
-  const value = Number.parseInt(raw, 10)
+function parseOptionalLimit(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const value = typeof raw === 'number' ? Math.trunc(raw) : Number.parseInt(String(raw), 10)
   if (Number.isNaN(value)) {
-    throw new Error(`Invalid Limit "${raw}" — expected a number.`)
+    throw new Error(`Invalid Limit "${String(raw)}" — expected a number.`)
   }
   return value
 }
@@ -147,16 +151,20 @@ function resolveCursor(raw: string | undefined): string | undefined {
   return raw
 }
 
-const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
+const paramTransformers: Record<
+  string,
+  (params: TableBlockParams, context: BlockToolParamsContext | undefined) => ParsedParams
+> = {
   insert_row: (params) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
   }),
 
-  upsert_row: (params) => ({
+  upsert_row: (params, context) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
-    conflictTarget: params.conflictColumn || undefined,
+    conflictTarget:
+      params.conflictColumn || toolCallArg(context, params.conflictTarget) || undefined,
   }),
 
   batch_insert_rows: (params) => ({
@@ -200,9 +208,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 
   query_rows: (params) => ({
     tableId: params.tableId,
-    // The canvas selection wins; a model-supplied `columns` (Agent tool use) is the
-    // fallback so it is not clobbered by an empty canvas value when merged.
-    columns: resolveOutputColumns(params.outputColumns) ?? resolveOutputColumns(params.columns),
+    columns: resolveTableColumnSelection(params),
     filter: resolveFilter(params),
     order: resolveOrder(params),
     // Omitted limit returns the entire result (server fails fast over 5MB);
@@ -342,19 +348,7 @@ export const TableV2Block: BlockConfig = {
       required: true,
     },
 
-    {
-      id: 'outputColumns',
-      title: 'Columns to Return',
-      type: 'dropdown',
-      selectorKey: 'table.outputColumns',
-      multiSelect: true,
-      searchable: true,
-      preserveLabelCase: true,
-      placeholder: 'All columns',
-      description: 'Only include these columns in each returned row. Leave empty for all columns.',
-      dependsOn: { any: ['tableSelector', 'manualTableId'] },
-      condition: { field: 'operation', value: 'query_rows' },
-    },
+    TABLE_OUTPUT_COLUMNS_SUBBLOCK,
 
     {
       id: 'rowId',
@@ -573,11 +567,11 @@ Return ONLY the JSON object:`,
         }
         return toolMap[params.operation] || 'table_query_rows_v2'
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
-        const transformer = paramTransformers[operation]
+        const transformer = paramTransformers[mapperOperation(params, context)]
         if (transformer) {
-          return transformer(rest as TableBlockParams)
+          return failToolCallOnError(context, () => transformer(rest as TableBlockParams, context))
         }
         return rest
       },
@@ -590,10 +584,7 @@ Return ONLY the JSON object:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
-    outputColumns: {
-      type: 'array',
-      description: 'Table columns to include in each queried row; omit for all columns',
-    },
+    outputColumns: TABLE_OUTPUT_COLUMNS_INPUT,
     filterInput: {
       type: 'json',
       description:

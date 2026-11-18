@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevEnvVarActionResponse,
   TriggerDevEnvVarWriteParams,
@@ -13,6 +14,7 @@ export const triggerDevCreateEnvVarTool: ToolConfig<
   name: 'Trigger.dev Create Env Var',
   description: 'Create an environment variable in a Trigger.dev project environment.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

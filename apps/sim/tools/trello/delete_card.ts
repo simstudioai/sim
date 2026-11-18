@@ -2,6 +2,7 @@ import { env } from '@/lib/core/config/env'
 import { extractTrelloErrorMessage, TRELLO_API_BASE_URL } from '@/tools/trello/shared'
 import type { TrelloDeleteCardParams, TrelloDeleteCardResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloDeleteCardTool: ToolConfig<TrelloDeleteCardParams, TrelloDeleteCardResponse> = {
   id: 'trello_delete_card',
@@ -40,7 +41,9 @@ export const trelloDeleteCardTool: ToolConfig<TrelloDeleteCardParams, TrelloDele
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
 

@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetSplitDnsParams,
   TailscaleSetSplitDnsResponse,
@@ -15,6 +16,7 @@ export const tailscaleSetSplitDnsTool: ToolConfig<
   name: 'Tailscale Set Split DNS',
   description: 'Replace all split DNS resolvers',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

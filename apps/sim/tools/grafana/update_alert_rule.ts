@@ -1,4 +1,5 @@
 import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const updateAlertRuleTool: InternalToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
@@ -6,6 +7,7 @@ export const updateAlertRuleTool: InternalToolConfig<GrafanaUpdateAlertRuleParam
   name: 'Grafana Update Alert Rule',
   description: 'Update an existing alert rule. Fetches the current rule and merges your changes.',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

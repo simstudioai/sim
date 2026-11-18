@@ -1,8 +1,11 @@
-import type {
-  GoogleGroupsUpdateSettingsParams,
-  GoogleGroupsUpdateSettingsResponse,
+import {
+  type GoogleGroupsUpdateSettingsParams,
+  type GoogleGroupsUpdateSettingsResponse,
+  mapGroupSettings,
+  SETTINGS_OBJECT_OUTPUT,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateSettingsTool: ToolConfig<
   GoogleGroupsUpdateSettingsParams,
@@ -238,8 +241,10 @@ export const updateSettingsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedEmail = encodeURIComponent(params.groupEmail.trim())
-      return `https://www.googleapis.com/groups/v1/groups/${encodedEmail}`
+      const encodedEmail = safeUrlPathSegment(params.groupEmail, 'groupEmail', {
+        allowSeparators: true,
+      })
+      return `https://www.googleapis.com/groups/v1/groups/${encodedEmail}?alt=json`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -296,7 +301,7 @@ export const updateSettingsTool: ToolConfig<
         body.enableCollaborativeInbox = params.enableCollaborativeInbox
       if (params.whoCanDiscoverGroup !== undefined)
         body.whoCanDiscoverGroup = params.whoCanDiscoverGroup
-      if (params.defaultSender !== undefined) body.defaultSender = params.defaultSender
+      if (params.defaultSender !== undefined) body.default_sender = params.defaultSender
       return JSON.stringify(body)
     },
   },
@@ -306,43 +311,10 @@ export const updateSettingsTool: ToolConfig<
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to update group settings')
     }
+    const settings = mapGroupSettings(data)
     return {
       success: true,
-      output: {
-        email: data.email ?? null,
-        name: data.name ?? null,
-        description: data.description ?? null,
-        whoCanJoin: data.whoCanJoin ?? null,
-        whoCanViewMembership: data.whoCanViewMembership ?? null,
-        whoCanViewGroup: data.whoCanViewGroup ?? null,
-        whoCanPostMessage: data.whoCanPostMessage ?? null,
-        allowExternalMembers: data.allowExternalMembers ?? null,
-        allowWebPosting: data.allowWebPosting ?? null,
-        primaryLanguage: data.primaryLanguage ?? null,
-        isArchived: data.isArchived ?? null,
-        archiveOnly: data.archiveOnly ?? null,
-        messageModerationLevel: data.messageModerationLevel ?? null,
-        spamModerationLevel: data.spamModerationLevel ?? null,
-        replyTo: data.replyTo ?? null,
-        customReplyTo: data.customReplyTo ?? null,
-        includeCustomFooter: data.includeCustomFooter ?? null,
-        customFooterText: data.customFooterText ?? null,
-        sendMessageDenyNotification: data.sendMessageDenyNotification ?? null,
-        defaultMessageDenyNotificationText: data.defaultMessageDenyNotificationText ?? null,
-        membersCanPostAsTheGroup: data.membersCanPostAsTheGroup ?? null,
-        includeInGlobalAddressList: data.includeInGlobalAddressList ?? null,
-        whoCanLeaveGroup: data.whoCanLeaveGroup ?? null,
-        whoCanContactOwner: data.whoCanContactOwner ?? null,
-        favoriteRepliesOnTop: data.favoriteRepliesOnTop ?? null,
-        whoCanApproveMembers: data.whoCanApproveMembers ?? null,
-        whoCanBanUsers: data.whoCanBanUsers ?? null,
-        whoCanModerateMembers: data.whoCanModerateMembers ?? null,
-        whoCanModerateContent: data.whoCanModerateContent ?? null,
-        whoCanAssistContent: data.whoCanAssistContent ?? null,
-        enableCollaborativeInbox: data.enableCollaborativeInbox ?? null,
-        whoCanDiscoverGroup: data.whoCanDiscoverGroup ?? null,
-        defaultSender: data.defaultSender ?? null,
-      },
+      output: { ...settings, settings },
     }
   },
 
@@ -395,5 +367,6 @@ export const updateSettingsTool: ToolConfig<
     },
     whoCanDiscoverGroup: { type: 'string', description: 'Who can discover the group' },
     defaultSender: { type: 'string', description: 'Default sender identity' },
+    settings: SETTINGS_OBJECT_OUTPUT,
   },
 }

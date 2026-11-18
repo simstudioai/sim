@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { parseTriggerEnvSyncTargets } from './trigger-env'
+import { buildTriggerEnvVars, parseTriggerEnvSyncTargets } from './trigger-env'
+
+describe('buildTriggerEnvVars', () => {
+  it('leaves the worker-specific network endpoints to the Trigger.dev environment', () => {
+    const synced = buildTriggerEnvVars({
+      REDIS_URL: 'rediss://vpc-redis:6379',
+      INTERNAL_API_BASE_URL: 'http://app.internal',
+      OUTBOUND_GATEWAYS: '{"gw":{"url":"https://vpc-lb:8443"}}',
+      OUTBOUND_GATEWAY_CREDENTIALS: '{"gw":{"token":"t"}}',
+      OUTBOUND_ROUTING_SOURCE: 'appconfig',
+    }).map((v) => v.name)
+    expect(synced).not.toContain('REDIS_URL')
+    expect(synced).not.toContain('INTERNAL_API_BASE_URL')
+    expect(synced).not.toContain('OUTBOUND_GATEWAYS')
+    expect(synced).toContain('OUTBOUND_GATEWAY_CREDENTIALS')
+    expect(synced).toContain('OUTBOUND_ROUTING_SOURCE')
+  })
+})
 
 describe('parseTriggerEnvSyncTargets', () => {
   it('reads an exact comma list', () => {

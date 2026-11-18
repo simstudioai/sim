@@ -2,6 +2,7 @@ import type {
   FathomListMeetingTypesParams,
   FathomListMeetingTypesResponse,
 } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMeetingTypesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listMeetingTypesTool: ToolConfig<
   name: 'Fathom List Meeting Types',
   description: 'List meeting types configured in your Fathom organization.',
   version: '1.0.0',
+  oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

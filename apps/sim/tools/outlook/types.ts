@@ -25,6 +25,45 @@ export const OUTLOOK_MESSAGE_BODY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Output definition for a Graph dateTimeTimeZone value on a message flag.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/datetimetimezone
+ */
+const OUTLOOK_FLAG_DATETIME_OUTPUT_PROPERTIES = {
+  dateTime: { type: 'string', description: 'Date and time (ISO 8601)', optional: true },
+  timeZone: { type: 'string', description: 'Time zone name', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for a message follow-up flag.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/followupflag
+ */
+const OUTLOOK_FLAG_OUTPUT_PROPERTIES = {
+  flagStatus: {
+    type: 'string',
+    description: 'Flag status (notFlagged, flagged, complete)',
+    optional: true,
+  },
+  startDateTime: {
+    type: 'object',
+    description: 'When the follow-up starts',
+    optional: true,
+    properties: OUTLOOK_FLAG_DATETIME_OUTPUT_PROPERTIES,
+  },
+  dueDateTime: {
+    type: 'object',
+    description: 'When the follow-up is due',
+    optional: true,
+    properties: OUTLOOK_FLAG_DATETIME_OUTPUT_PROPERTIES,
+  },
+  completedDateTime: {
+    type: 'object',
+    description: 'When the follow-up was completed',
+    optional: true,
+    properties: OUTLOOK_FLAG_DATETIME_OUTPUT_PROPERTIES,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Output definition for cleaned message objects returned by our tools.
  */
 export const OUTLOOK_MESSAGE_OUTPUT_PROPERTIES = {
@@ -86,6 +125,57 @@ export const OUTLOOK_MESSAGE_OUTPUT_PROPERTIES = {
     description: 'Message importance (low, normal, high)',
     optional: true,
   },
+  bccRecipients: {
+    type: 'array',
+    description: 'BCC recipients (only visible on messages you sent or drafted)',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+    },
+  },
+  replyTo: {
+    type: 'array',
+    description: 'Addresses replies should go to, when the sender set Reply-To',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+    },
+  },
+  internetMessageId: {
+    type: 'string',
+    description: 'RFC 2822 Message-ID header value',
+    optional: true,
+  },
+  conversationId: {
+    type: 'string',
+    description: 'ID of the conversation (thread) the message belongs to',
+    optional: true,
+  },
+  parentFolderId: {
+    type: 'string',
+    description: 'ID of the mail folder containing the message',
+    optional: true,
+  },
+  categories: {
+    type: 'array',
+    description: 'Category names assigned to the message',
+    optional: true,
+    items: { type: 'string' },
+  },
+  flag: {
+    type: 'object',
+    description: 'Follow-up flag',
+    optional: true,
+    properties: OUTLOOK_FLAG_OUTPUT_PROPERTIES,
+  },
+  isDraft: { type: 'boolean', description: 'Whether the message is a draft', optional: true },
+  webLink: {
+    type: 'string',
+    description: 'URL that opens the message in Outlook on the web',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -107,6 +197,8 @@ export interface OutlookSendParams {
   replyToMessageId?: string
   cc?: string
   bcc?: string
+  replyTo?: string
+  importance?: 'low' | 'normal' | 'high'
   attachments?: UserFile[]
 }
 
@@ -140,6 +232,8 @@ export interface OutlookDraftParams {
   subject: string
   body: string
   contentType?: 'text' | 'html'
+  replyTo?: string
+  importance?: 'low' | 'normal' | 'high'
   attachments?: UserFile[]
 }
 
@@ -156,8 +250,28 @@ interface OutlookEmailAddress {
   address: string
 }
 
-interface OutlookRecipient {
+export interface OutlookRecipient {
   emailAddress: OutlookEmailAddress
+}
+
+interface OutlookDateTimeTimeZone {
+  dateTime?: string
+  timeZone?: string
+}
+
+/** @see https://learn.microsoft.com/en-us/graph/api/resources/followupflag */
+export interface OutlookFollowupFlag {
+  flagStatus?: string
+  startDateTime?: OutlookDateTimeTimeZone
+  dueDateTime?: OutlookDateTimeTimeZone
+  completedDateTime?: OutlookDateTimeTimeZone
+}
+
+export interface CleanedOutlookFlag {
+  flagStatus: string | null
+  startDateTime: OutlookDateTimeTimeZone | null
+  dueDateTime: OutlookDateTimeTimeZone | null
+  completedDateTime: OutlookDateTimeTimeZone | null
 }
 
 interface OutlookMessageBody {
@@ -196,6 +310,7 @@ export interface OutlookMessage {
   webLink?: string
   inferenceClassification?: string
   replyTo?: OutlookRecipient[]
+  flag?: OutlookFollowupFlag
 }
 
 export interface OutlookMessagesResponse {
@@ -243,6 +358,21 @@ export interface CleanedOutlookMessage {
   attachments?: OutlookAttachment[] | any[]
   isRead?: boolean
   importance?: string
+  bccRecipients?: Array<{
+    name?: string
+    address?: string
+  }>
+  replyTo?: Array<{
+    name?: string
+    address?: string
+  }>
+  internetMessageId?: string | null
+  conversationId?: string | null
+  parentFolderId?: string | null
+  categories?: string[]
+  flag?: CleanedOutlookFlag | null
+  isDraft?: boolean | null
+  webLink?: string | null
 }
 
 export interface OutlookForwardParams {
@@ -250,6 +380,8 @@ export interface OutlookForwardParams {
   messageId: string
   to: string
   comment?: string
+  cc?: string
+  bcc?: string
 }
 
 export interface OutlookForwardResponse extends ToolResponse {
@@ -403,6 +535,8 @@ export interface OutlookReplyParams {
   accessToken: string
   messageId: string
   comment?: string
+  cc?: string
+  bcc?: string
 }
 
 export interface OutlookReplyResponse extends ToolResponse {

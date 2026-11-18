@@ -188,6 +188,30 @@ export async function createSSHConnection(
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
+/**
+ * Collects one output stream up to {@link MAX_OUTPUT_BYTES}. Chunks are decoded once at the end, so a
+ * multi-byte UTF-8 character split across two chunks is not replaced with U+FFFD.
+ */
+function createCappedOutput() {
+  const chunks: Buffer[] = []
+  let bytes = 0
+  let truncated = false
+  return {
+    append: (data: Buffer) => {
+      const remaining = MAX_OUTPUT_BYTES - bytes
+      if (data.length > remaining) truncated = true
+      if (remaining <= 0) return
+      const chunk = data.subarray(0, remaining)
+      chunks.push(chunk)
+      bytes += chunk.length
+    },
+    text: (label: string) => {
+      const text = Buffer.concat(chunks, bytes).toString('utf8').trim()
+      return truncated ? `${text}\n[${label} truncated: exceeded 16MB limit]` : text
+    },
+  }
+}
+
 /** Executes a command while bounding stdout and stderr independently to 16 MiB. */
 export function executeSSHCommand(
   client: Client,
@@ -224,51 +248,22 @@ export function executeSSHCommand(
         return
       }
 
-      let stdout = ''
-      let stderr = ''
-      let stdoutBytes = 0
-      let stderrBytes = 0
-      let stdoutTruncated = false
-      let stderrTruncated = false
+      const stdout = createCappedOutput()
+      const stderr = createCappedOutput()
 
       channel.on('error', (streamError: Error) => finish(() => reject(streamError)))
       channel.on('close', (code: number) => {
         finish(() =>
           resolve({
-            stdout: stdoutTruncated
-              ? `${stdout.trim()}\n[output truncated: exceeded 16MB limit]`
-              : stdout.trim(),
-            stderr: stderrTruncated
-              ? `${stderr.trim()}\n[stderr truncated: exceeded 16MB limit]`
-              : stderr.trim(),
+            stdout: stdout.text('output'),
+            stderr: stderr.text('stderr'),
             exitCode: code ?? -1,
           })
         )
       })
 
-      channel.on('data', (data: Buffer) => {
-        const remaining = MAX_OUTPUT_BYTES - stdoutBytes
-        if (remaining <= 0) {
-          stdoutTruncated = true
-          return
-        }
-        const chunk = data.subarray(0, remaining)
-        stdout += chunk.toString()
-        stdoutBytes += chunk.length
-        if (data.length > remaining) stdoutTruncated = true
-      })
-
-      channel.stderr.on('data', (data: Buffer) => {
-        const remaining = MAX_OUTPUT_BYTES - stderrBytes
-        if (remaining <= 0) {
-          stderrTruncated = true
-          return
-        }
-        const chunk = data.subarray(0, remaining)
-        stderr += chunk.toString()
-        stderrBytes += chunk.length
-        if (data.length > remaining) stderrTruncated = true
-      })
+      channel.on('data', stdout.append)
+      channel.stderr.on('data', stderr.append)
     })
   })
 }

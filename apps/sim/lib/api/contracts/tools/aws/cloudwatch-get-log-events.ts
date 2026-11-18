@@ -29,6 +29,7 @@ const GetLogEventsSchema = z.object({
       .max(10000, 'limit must be at most 10000 (CloudWatch Logs GetLogEvents limit)')
       .optional()
   ),
+  nextToken: z.string().optional(),
 })
 
 const GetLogEventsResponseSchema = z.object({
@@ -41,6 +42,8 @@ const GetLogEventsResponseSchema = z.object({
         ingestionTime: z.number().optional(),
       })
     ),
+    nextForwardToken: z.string().nullable(),
+    nextBackwardToken: z.string().nullable(),
   }),
 })
 

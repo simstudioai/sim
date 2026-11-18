@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundBotsReportParams, ProfoundBotsReportResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundBotsReportTool: ToolConfig<
   name: 'Profound Bots Report',
   description: 'Query bot traffic report with hourly granularity for a domain in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

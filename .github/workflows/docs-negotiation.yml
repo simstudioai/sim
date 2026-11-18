@@ -268,6 +268,7 @@ jobs:
       DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
       DOCS_COMPATIBILITY_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/compatibility.json
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
+      GITLAB_EXPORT_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/gitlab-export.json
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -292,6 +293,8 @@ jobs:
       - name: Verify native header edge cases
         if: ${{ !cancelled() && steps.generators.outcome != 'skipped' }}
         run: bun run --cwd apps/docs test:headers:e2e
+      - name: Verify GitLab CSV export over HTTPS
+        run: python3 apps/docs/scripts/test-gitlab-export-e2e.py
       - name: Bound the generated content cache
         if: always()
         run: bash .github/actions/docs-content-cache/prune.sh content
@@ -358,13 +361,13 @@ jobs:
         run: tar -I zstd -xf docs-build.tar.zst -C apps/docs
       - name: Set up Java for copied request examples
         if: matrix.group == 'http'
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '17'
       - name: Set up .NET for copied request examples
         if: matrix.group == 'http'
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '8.0.x'
       - name: Set up Go for copied request examples

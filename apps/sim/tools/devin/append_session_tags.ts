@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinAppendSessionTagsParams, DevinSessionTagsResponse } from './types'
 import { normalizeTags } from './utils'
 
@@ -10,6 +12,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
   name: 'Devin Append Session Tags',
   description: 'Add tags to a Devin session without removing existing tags (max 50 tags total).',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -40,7 +43,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/tags`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/tags`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

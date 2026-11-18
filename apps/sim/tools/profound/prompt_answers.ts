@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundPromptAnswersParams, ProfoundPromptAnswersResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundPromptAnswersTool: ToolConfig<
   name: 'Profound Prompt Answers',
   description: 'Get raw prompt answers data for a category in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -34,7 +34,6 @@ import {
   loadActiveFolderPathIndex,
   wouldCreateFolderCycle,
 } from '@/lib/folders/queries'
-import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 
 const logger = createLogger('FolderOrchestration')
@@ -82,7 +81,7 @@ export interface DeleteFolderParams {
 export interface DeleteFolderResult {
   success: boolean
   error?: string
-  errorCode?: FolderMutationErrorCode
+  errorCode?: OrchestrationErrorCode
   deletedItems?: FolderCascadeCountsApi
 }
 

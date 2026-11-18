@@ -20,12 +20,15 @@ export interface TelegramMessage {
 }
 
 export interface TelegramAudio extends TelegramMessage {
-  voice: {
-    duration: 2
-    mime_type: string
+  audio?: {
+    duration: number
+    performer?: string
+    title?: string
+    file_name?: string
+    mime_type?: string
     file_id: string
     file_unique_id: string
-    file_size: number
+    file_size?: number
   }
 }
 
@@ -39,7 +42,28 @@ export interface TelegramPhoto extends TelegramMessage {
   }
 }
 
+interface TelegramMediaFile {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  duration: number
+  thumbnail?: {
+    file_id: string
+    file_unique_id: string
+    file_size?: number
+    width: number
+    height: number
+  }
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
 export interface TelegramMedia extends TelegramMessage {
+  video?: TelegramMediaFile
+  animation?: TelegramMediaFile
+  /** Never populated: the Message object has no `format` field. Kept for the declared output key. */
   format?: {
     file_name: string
     mime_type: string
@@ -47,13 +71,6 @@ export interface TelegramMedia extends TelegramMessage {
     width: number
     height: number
     thumbnail: {
-      file_id: string
-      file_unique_id: string
-      file_size: number
-      width: number
-      height: number
-    }
-    thumb: {
       file_id: string
       file_unique_id: string
       file_size: number
@@ -68,13 +85,6 @@ export interface TelegramMedia extends TelegramMessage {
     file_name: string
     mime_type: string
     thumbnail: {
-      file_id: string
-      file_unique_id: string
-      file_size: number
-      width: number
-      height: number
-    }
-    thumb: {
       file_id: string
       file_unique_id: string
       file_size: number

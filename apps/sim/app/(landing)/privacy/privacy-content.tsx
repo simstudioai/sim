@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 4, 2026',
+  lastUpdated: 'November 12, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -263,7 +263,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
             ],
             [
               'Behavioral remarketing',
-              'Cookie and pixel identifiers, ad click identifiers, browser and Device data, campaign attribution, website interaction data, and, for Freebuff sign-up conversions, a pseudonymous Sim Account identifier and the sign-up time',
+              'Cookie and pixel identifiers, ad click identifiers, browser and Device data, campaign attribution, and website interaction data',
               'Consent — Article 6(1)(a)',
               'Marketing cookies and ad personalization require Marketing consent. Google Ads may load earlier with ad storage denied and send limited cookieless consent signals. Consent may be changed or withdrawn through the cookie preferences link.',
             ],
@@ -577,7 +577,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Sim advertises through Google Ads, X, and Freebuff, and measures which ads lead to sign-ups and demo bookings. These services use non-essential Cookies, pixels, and similar technologies. Marketing Cookies and ad personalization are enabled only after You consent to the Marketing category in the cookie banner.'
+            'Sim advertises through Google Ads and X, and measures which ads lead to sign-ups and demo bookings. These services use non-essential Cookies, pixels, and similar technologies. Marketing Cookies and ad personalization are enabled only after You consent to the Marketing category in the cookie banner.'
           ),
         },
         {
@@ -590,12 +590,6 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           kind: 'paragraph',
           content: richText(
             "**X.** The X pixel loads on Sim's marketing pages only after Marketing consent. It reports page views and demo bookings."
-          ),
-        },
-        {
-          kind: 'paragraph',
-          content: richText(
-            '**Freebuff.** After Marketing consent, the Freebuff tag stores the click identifier from a Freebuff ad. When You sign up, Sim sends Freebuff that click identifier, the event type, a pseudonymous Sim Account identifier, and the sign-up time so the sign-up can be credited to the ad. Sim does not send Your name or email address.'
           ),
         },
         {
@@ -620,9 +614,6 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
             richText('Google Ads: [Google Ads Settings](https://adssettings.google.com/)'),
             richText(
               'X: [Personalization and data settings](https://x.com/settings/privacy_and_safety)'
-            ),
-            richText(
-              'Freebuff: withdraw Marketing consent through the cookie preferences link; Sim then deletes the Freebuff click identifier cookie'
             ),
           ],
         },
@@ -987,7 +978,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'We do not sell Personal Information for money. When Marketing Cookies are enabled, Sim makes identifiers and internet activity on sim.ai available to Google, X, and Freebuff for advertising and ad measurement. This includes cookie and click identifiers, pages visited, and conversion events. California law may treat this as a "sale" or "sharing" of Personal Information. You may opt out at any time through the cookie preferences link, by sending a Global Privacy Control signal, or by emailing privacy@sim.ai. Sim does not knowingly sell or share the Personal Information of consumers under 16.'
+            'We do not sell Personal Information for money. When Marketing Cookies are enabled, Sim makes identifiers and internet activity on sim.ai available to Google and X for advertising and ad measurement. This includes cookie and click identifiers, pages visited, and conversion events. California law may treat this as a "sale" or "sharing" of Personal Information. You may opt out at any time through the cookie preferences link, by sending a Global Privacy Control signal, or by emailing privacy@sim.ai. Sim does not knowingly sell or share the Personal Information of consumers under 16.'
           ),
         },
         { kind: 'subheading', text: 'Global Privacy Control' },

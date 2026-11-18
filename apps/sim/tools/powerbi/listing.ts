@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
@@ -70,7 +71,7 @@ export async function listPowerBIOptions(input: {
   let response: Response | undefined
   try {
     // boundary-raw-fetch: Power BI's fixed external origin uses the shared bounded provider reader.
-    response = await fetch(url, { headers, signal: providerSignal, redirect: 'error' })
+    response = await outboundFetch(url, { headers, signal: providerSignal, redirect: 'error' })
     providerSignal.throwIfAborted()
   } catch {
     await response?.body?.cancel().catch(() => undefined)

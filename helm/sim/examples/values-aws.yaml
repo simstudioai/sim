@@ -74,16 +74,16 @@ app:
     # SOCKET_SERVER_URL is auto-detected (uses internal service http://sim-realtime:3002)
     NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"  # Public WebSocket URL for browsers
     
-    # Security settings (REQUIRED - replace with your own secure secrets)
-    # Generate using: openssl rand -hex 32
-    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
-    ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
-    INTERNAL_API_SECRET: "your-secure-production-internal-api-secret-here"
-    CRON_SECRET: "your-secure-production-cron-secret-here"
+    # Security settings (REQUIRED - pass with --set or an external secret manager;
+    # the install fails while any is empty). Generate using: openssl rand -hex 32
+    BETTER_AUTH_SECRET: ""
+    ENCRYPTION_KEY: ""
+    INTERNAL_API_SECRET: ""
+    CRON_SECRET: ""
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate 64-character hex string using: openssl rand -hex 32
-    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
+    API_ENCRYPTION_KEY: ""  # Optional but recommended
     
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
@@ -134,7 +134,7 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
     BETTER_AUTH_URL: "https://simstudio.acme.com"
-    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    BETTER_AUTH_SECRET: ""  # Inherits app.env.BETTER_AUTH_SECRET when empty
     ALLOWED_ORIGINS: "https://simstudio.acme.com"
     NODE_ENV: "production"
 
@@ -162,7 +162,7 @@ postgresql:
   # Database authentication (REQUIRED - set secure credentials)
   auth:
     username: postgres
-    password: "your-secure-postgres-password"
+    password: ""  # Set via --set flag or external secret manager
     database: simstudio
   
   # Resource allocation optimized for AWS EKS

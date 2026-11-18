@@ -1,5 +1,5 @@
 import type { SharepointPublishPageResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const publishPageTool: ToolConfig<SharepointToolParams, SharepointPublishPageResponse> = {
@@ -46,7 +46,7 @@ export const publishPageTool: ToolConfig<SharepointToolParams, SharepointPublish
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       const pageId = optionalTrim(params.pageId)
       if (!pageId) throw new Error('pageId must be provided')
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage/publish`
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/pages/${graphPathSegment(pageId, 'pageId')}/microsoft.graph.sitePage/publish`
     },
     method: 'POST',
     headers: (params) => ({

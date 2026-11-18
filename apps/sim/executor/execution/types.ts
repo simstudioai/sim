@@ -75,6 +75,12 @@ export interface ExecutionMetadata {
     variables?: Record<string, unknown>
     deploymentVersionId?: string
   }
+  /**
+   * Deployment version a deployed run executes instead of the active one, chosen
+   * and validated by the application use case. A resumed run ignores it: resume
+   * reloads the version its durable log admitted.
+   */
+  pinnedDeploymentVersionId?: string
   largeValueExecutionIds?: string[]
   largeValueKeys?: string[]
   fileKeys?: string[]

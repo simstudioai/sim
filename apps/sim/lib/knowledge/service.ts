@@ -189,8 +189,8 @@ async function readKnowledgeBaseRows(
 }
 
 /**
- * Pages bases before counting the documents `access` admits. Explicit document base IDs keep
- * the count selective instead of scanning a shared ACL token across tenants before the join.
+ * Pages bases before counting the documents `access` admits, so a small page never counts the
+ * rest of its workspace or another tenant's documents.
  */
 async function readCountedKnowledgeBaseRows(
   where: SQL | undefined,
@@ -202,34 +202,24 @@ async function readCountedKnowledgeBaseRows(
 > {
   const scope = 'get' in access ? await access.get() : access
   const rows = await readKnowledgeBaseRows(where, orderBy, limit)
-  const totals =
-    rows.length > 0
-      ? await countDocumentsByKnowledgeBase(
-          sql`${document.knowledgeBaseId} = ANY(${textArrayLiteral(rows.map((kb) => kb.id))})`,
-          knowledgeAccessCondition(scope)
-        )
-      : []
+  if (rows.length === 0) return []
+  /**
+   * The bases to count: an unpaged list is bounded by its own filter, a page by its row IDs.
+   * Every count below runs once for the whole list, so a workspace with tens of thousands of
+   * bases never turns into hundreds of per-batch round trips.
+   */
+  const subject =
+    limit === undefined && where
+      ? where
+      : sql`${knowledgeBase.id} = ANY(${textArrayLiteral(rows.map((kb) => kb.id))})`
+  const totals = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
   const counts = new Map(totals.map((total) => [total.knowledgeBaseId, total]))
-
   /**
    * The counts above already include everything the reader's stored ACL admits. Only a
-   * provider can add documents a live source (GitHub, Confluence) authorizes beyond that,
-   * and that supplement is resolved once for the whole list: an unpaged list is bounded by
-   * its own filter, a page by its row IDs, so a workspace with tens of thousands of bases
-   * never turns into hundreds of per-batch round trips.
+   * provider can add documents a live source (GitHub, Confluence) authorizes beyond that.
    */
   const liveCounts =
-    'get' in access && rows.length > 0
-      ? await readLiveSourceDocumentCounts(
-          limit === undefined && where
-            ? where
-            : inArray(
-                knowledgeBase.id,
-                rows.map((kb) => kb.id)
-              ),
-          access
-        )
-      : undefined
+    'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
   return rows.map((kb) => ({
     ...kb,
     docCount: (counts.get(kb.id)?.docCount ?? 0) + (liveCounts?.get(kb.id)?.docCount ?? 0),
@@ -244,23 +234,43 @@ const ACTIVE_DOCUMENT_CONDITIONS = [
 ] as const
 
 /**
- * Document totals per knowledge base for one access predicate, restricted to the bases
- * `subject` selects. `subject` may reference `knowledge_base` columns.
+ * Document totals per knowledge base for one access predicate, one row per base `subject`
+ * selects from `knowledge_base` (zero when it has no readable documents).
+ *
+ * Each base is counted on its own. One grouped scan over many bases lets the planner
+ * over-estimate their documents and AND the base index with bitmaps of every tenant's documents
+ * (the shared-token ACL index, a partial index of unarchived documents) before it reads a row;
+ * correlated on one base ID, the count is a plain scan of that base's active documents.
  */
 async function countDocumentsByKnowledgeBase(
   subject: SQL,
   accessCondition: SQL
 ): Promise<Array<{ knowledgeBaseId: string; docCount: number; tokenCount: number }>> {
-  return db
+  const totals = db
     .select({
-      knowledgeBaseId: document.knowledgeBaseId,
-      docCount: count(),
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+      docCount: count().as('readable_doc_count'),
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`
+        .mapWith(Number)
+        .as('readable_token_count'),
     })
     .from(document)
-    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(and(subject, ...ACTIVE_DOCUMENT_CONDITIONS, accessCondition))
-    .groupBy(document.knowledgeBaseId)
+    .where(
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        ...ACTIVE_DOCUMENT_CONDITIONS,
+        accessCondition
+      )
+    )
+    .as('totals')
+  return db
+    .select({
+      knowledgeBaseId: knowledgeBase.id,
+      docCount: totals.docCount,
+      tokenCount: totals.tokenCount,
+    })
+    .from(knowledgeBase)
+    .crossJoinLateral(totals)
+    .where(subject)
 }
 
 /**
@@ -952,18 +962,18 @@ export async function getActiveKnowledgeBaseReferences(
  * operation that only resolves its context pays for neither the count nor the connector read.
  */
 export async function attachKnowledgeBaseConnectors(
-  knowledgeBase: ActiveKnowledgeBaseReference,
+  base: ActiveKnowledgeBaseReference,
   access: KnowledgeReadAccess
 ): Promise<KnowledgeBaseWithCounts> {
-  const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
+  const subject = eq(knowledgeBase.id, base.id)
   const scope = 'get' in access ? await access.get() : access
   const [ordinary] = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
   const live = 'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
   const [withConnectors] = await attachConnectorTypes([
     {
-      ...knowledgeBase,
-      docCount: Number(ordinary?.docCount ?? 0) + (live?.get(knowledgeBase.id)?.docCount ?? 0),
-      tokenCount: (ordinary?.tokenCount ?? 0) + (live?.get(knowledgeBase.id)?.tokenCount ?? 0),
+      ...base,
+      docCount: Number(ordinary?.docCount ?? 0) + (live?.get(base.id)?.docCount ?? 0),
+      tokenCount: (ordinary?.tokenCount ?? 0) + (live?.get(base.id)?.tokenCount ?? 0),
     },
   ])
   return withConnectors

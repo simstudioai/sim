@@ -16,6 +16,7 @@ import {
   buildTableRecordUrl,
   transformRecordResponse,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIncidentTool: ToolConfig<
@@ -27,6 +28,7 @@ export const updateIncidentTool: ToolConfig<
   description:
     'Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

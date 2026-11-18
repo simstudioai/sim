@@ -33,7 +33,12 @@ describe('defineOperation', () => {
 
 describe('assertOperationPrincipal', () => {
   it('accepts a principal kind the operation names', () => {
-    const principal: Principal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
+    const principal: Principal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+      access: 'write',
+    }
 
     expect(() => assertOperationPrincipal(principal, readSelf)).not.toThrow()
   })

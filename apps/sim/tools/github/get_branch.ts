@@ -1,5 +1,7 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { BranchResponse, GetBranchParams } from '@/tools/github/types'
 import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
@@ -8,6 +10,7 @@ export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
   description:
     'Get detailed information about a specific branch in a GitHub repository, including commit details and protection status.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -38,7 +41,7 @@ export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/branches/${params.branch}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/branches/${githubRefPath(params.branch, 'branch')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -97,6 +100,7 @@ export const getBranchV2Tool: ToolConfig<GetBranchParams, any> = {
   name: getBranchTool.name,
   description: getBranchTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getBranchTool.params,
   request: getBranchTool.request,
 

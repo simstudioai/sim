@@ -52,6 +52,11 @@ interface RaceWorkflowToolClientPickupParams {
   deadlineAt?: number
   graceMs: number
   /**
+   * Asked once when the grace ends with no result: how much longer a view that attached during
+   * the grace should get (0 for none). Bounded by `timeoutMs` like the grace itself.
+   */
+  extendGrace?: () => Promise<number>
+  /**
    * How long to wait for a browser's run before settling the call still running (the frame's
    * `waitTimeoutMs`); the browser's run goes on. Undefined waits until it settles.
    */
@@ -191,10 +196,29 @@ export async function raceWorkflowToolClientPickup(
   // would outlive the wait it is supposed to bound.
   const effectiveGraceMs = Math.min(graceMs, timeoutMs)
 
-  const first = await Promise.race([
-    clientWait.then((completion) => ({ kind: 'client' as const, completion })),
-    sleep(effectiveGraceMs).then(() => ({ kind: 'grace' as const })),
-  ])
+  const clientDone = clientWait.then((completion) => ({ kind: 'client' as const, completion }))
+  const raceGrace = (ms: number) =>
+    Promise.race([clientDone, sleep(ms).then(() => ({ kind: 'grace' as const }))])
+
+  let first = await raceGrace(effectiveGraceMs)
+  if (first.kind === 'grace' && params.extendGrace) {
+    // The check counts toward the extension, and a result that lands during it wins at once.
+    const checkStartedAt = Date.now()
+    const extension = await Promise.race([
+      clientDone,
+      params
+        .extendGrace()
+        .catch(() => 0)
+        .then((ms) => ({ kind: 'extend' as const, ms })),
+    ])
+    if (extension.kind === 'client') {
+      first = extension
+    } else {
+      const extraMs =
+        Math.min(extension.ms, timeoutMs - effectiveGraceMs) - (Date.now() - checkStartedAt)
+      if (extraMs > 0) first = await raceGrace(extraMs)
+    }
+  }
 
   // A non-null client result inside the grace window is the normal path.
   // A null one means the wait itself already expired (timeoutMs <= graceMs), so

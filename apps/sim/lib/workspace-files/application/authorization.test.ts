@@ -51,6 +51,7 @@ describe('file operation authorization', () => {
       kind: 'workspace_api_key',
       workspaceId: 'workspace-2',
       keyId: 'key-2',
+      access: 'write',
     })
   })
 

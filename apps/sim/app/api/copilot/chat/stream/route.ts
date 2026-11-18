@@ -35,6 +35,7 @@ import {
   encodeSSEEnvelope,
   findReplayGap,
   forwardRunReplay,
+  holdStreamViewer,
   isTerminalStreamStatus,
   openRunReplay,
   RunReplayUnavailableError,
@@ -397,6 +398,8 @@ async function handleResumeRequestBody({
       controllerClosed = true
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
+    // An attached reader is a chat view that starts this turn's workflow tools.
+    const releaseViewer = await holdStreamViewer(streamId)
 
     /** Delivers the ring's events after the cursor, or returns null if it trimmed the next one. */
     const flushEvents = async (): Promise<number | null> => {
@@ -591,6 +594,7 @@ async function handleResumeRequestBody({
       }
       markSpanForError(rootSpan, error)
     } finally {
+      releaseViewer()
       request.signal.removeEventListener('abort', abortListener)
       // Read before closing: closing the controller here is this route ending, not the client.
       const clientDisconnected = controllerClosed

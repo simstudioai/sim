@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadLeadListResponse } from '@/tools/smartlead/types'
 import {
   leadListOutputs,
@@ -20,6 +21,7 @@ export const createLeadListTool: ToolConfig<CreateLeadListParams, SmartleadLeadL
   name: 'Smartlead Create Lead List',
   description: 'Creates a lead list on the Smartlead account.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

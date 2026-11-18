@@ -3,6 +3,7 @@ import type {
   GoogleSheetsV2GetSpreadsheetResponse,
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getSpreadsheetV2Tool: ToolConfig<
   GoogleSheetsV2GetSpreadsheetParams,
@@ -48,7 +49,7 @@ export const getSpreadsheetV2Tool: ToolConfig<
       }
 
       const includeGridData = params.includeGridData ? 'true' : 'false'
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=${includeGridData}`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}?includeGridData=${includeGridData}`
     },
     method: 'GET',
     headers: (params) => {

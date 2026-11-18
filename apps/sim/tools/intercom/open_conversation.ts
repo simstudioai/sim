@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomOpenConversationParams {
   accessToken: string
@@ -40,7 +42,9 @@ const openConversationBase = {
 
   request: {
     url: (params: IntercomOpenConversationParams) =>
-      buildIntercomUrl(`/conversations/${params.conversationId}/parts`),
+      buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/parts`
+      ),
     method: 'POST',
     headers: (params: IntercomOpenConversationParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -64,6 +68,7 @@ export const intercomOpenConversationV2Tool: ToolConfig<
   name: 'Open Conversation in Intercom',
   description: 'Open a closed or snoozed conversation in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

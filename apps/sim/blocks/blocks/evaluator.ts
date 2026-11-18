@@ -3,6 +3,7 @@ import { ChartBarIcon } from '@/components/icons'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import {
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
   getModelOptions,
   getProviderCredentialSubBlocks,
   getSerializedModelProviderId,
@@ -170,7 +171,7 @@ export const EvaluatorBlock: BlockConfig = {
       defaultValue: 'claude-sonnet-5-5',
       options: getModelOptions,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
     {
       id: 'temperature',
@@ -277,6 +278,7 @@ export const EvaluatorBlock: BlockConfig = {
     },
     model: { type: 'string' as ParamType, description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number' as ParamType,

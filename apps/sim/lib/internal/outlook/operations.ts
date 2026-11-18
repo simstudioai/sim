@@ -49,6 +49,8 @@ interface OutlookMessagePayload {
   toRecipients: OutlookRecipient[]
   ccRecipients?: OutlookRecipient[]
   bccRecipients?: OutlookRecipient[]
+  replyTo?: OutlookRecipient[]
+  importance?: 'low' | 'normal' | 'high'
   attachments?: OutlookFileAttachment[]
 }
 
@@ -148,6 +150,8 @@ async function buildMessage(
   }
   if (input.cc) message.ccRecipients = recipients(input.cc)
   if (input.bcc) message.bccRecipients = recipients(input.bcc)
+  if (input.replyTo) message.replyTo = recipients(input.replyTo)
+  if (input.importance) message.importance = input.importance
   const attachments = await resolveAttachments(input.attachments, context, kind)
   if (attachments.length > 0) message.attachments = attachments
   return message
@@ -334,9 +338,7 @@ export async function executeOutlookSend(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        replyToMessageId ? { comment: input.body, message } : { message, saveToSentItems: true }
-      ),
+      body: JSON.stringify(replyToMessageId ? { message } : { message, saveToSentItems: true }),
     },
     'Failed to send email',
     context.signal

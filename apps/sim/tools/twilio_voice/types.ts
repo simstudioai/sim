@@ -71,6 +71,7 @@ export interface TwilioListCallsParams {
   startTimeAfter?: string
   startTimeBefore?: string
   pageSize?: number
+  pageToken?: string
 }
 
 export interface TwilioListCallsOutput extends ToolResponse {
@@ -93,6 +94,7 @@ export interface TwilioListCallsOutput extends ToolResponse {
     total?: number
     page?: number
     pageSize?: number
+    nextPageToken?: string | null
     error?: string
   }
 }

@@ -22,7 +22,10 @@ export async function executeDynamodbGet(input: AwsDynamodbGetBody, signal?: Abo
   signal?.throwIfAborted()
   const client = createDynamoDBClient(input)
   try {
-    const result = await getItem(client, input.tableName, input.key, input.consistentRead, signal)
+    const result = await getItem(client, input.tableName, input.key, input.consistentRead, signal, {
+      projectionExpression: input.projectionExpression,
+      expressionAttributeNames: input.expressionAttributeNames,
+    })
     signal?.throwIfAborted()
     return {
       message: result.item ? 'Item retrieved successfully' : 'Item not found',
@@ -37,7 +40,7 @@ export async function executeDynamodbPut(input: AwsDynamodbPutBody, signal?: Abo
   signal?.throwIfAborted()
   const client = createDynamoDBClient(input)
   try {
-    await putItem(
+    const result = await putItem(
       client,
       input.tableName,
       input.item,
@@ -45,11 +48,16 @@ export async function executeDynamodbPut(input: AwsDynamodbPutBody, signal?: Abo
         conditionExpression: input.conditionExpression,
         expressionAttributeNames: input.expressionAttributeNames,
         expressionAttributeValues: input.expressionAttributeValues,
+        returnValues: input.returnValues,
       },
       signal
     )
     signal?.throwIfAborted()
-    return { message: 'Item created successfully', item: input.item }
+    return {
+      message: 'Item created successfully',
+      item: input.item,
+      ...(input.returnValues === 'ALL_OLD' && { attributes: result.attributes }),
+    }
   } finally {
     client.destroy()
   }
@@ -71,6 +79,8 @@ export async function executeDynamodbQuery(input: AwsDynamodbQueryBody, signal?:
         limit: input.limit,
         exclusiveStartKey: input.exclusiveStartKey,
         scanIndexForward: input.scanIndexForward,
+        projectionExpression: input.projectionExpression,
+        consistentRead: input.consistentRead,
       },
       signal
     )
@@ -79,6 +89,7 @@ export async function executeDynamodbQuery(input: AwsDynamodbQueryBody, signal?:
       message: `Query returned ${result.count} items`,
       items: result.items,
       count: result.count,
+      scannedCount: result.scannedCount,
       ...(result.lastEvaluatedKey && { lastEvaluatedKey: result.lastEvaluatedKey }),
     }
   } finally {
@@ -100,6 +111,10 @@ export async function executeDynamodbScan(input: AwsDynamodbScanBody, signal?: A
         expressionAttributeValues: input.expressionAttributeValues,
         limit: input.limit,
         exclusiveStartKey: input.exclusiveStartKey,
+        indexName: input.indexName,
+        consistentRead: input.consistentRead,
+        segment: input.segment,
+        totalSegments: input.totalSegments,
       },
       signal
     )
@@ -108,6 +123,7 @@ export async function executeDynamodbScan(input: AwsDynamodbScanBody, signal?: A
       message: `Scan returned ${result.count} items`,
       items: result.items,
       count: result.count,
+      scannedCount: result.scannedCount,
       ...(result.lastEvaluatedKey && { lastEvaluatedKey: result.lastEvaluatedKey }),
     }
   } finally {
@@ -128,6 +144,7 @@ export async function executeDynamodbUpdate(input: AwsDynamodbUpdateBody, signal
         expressionAttributeNames: input.expressionAttributeNames,
         expressionAttributeValues: input.expressionAttributeValues,
         conditionExpression: input.conditionExpression,
+        returnValues: input.returnValues,
       },
       signal
     )
@@ -142,7 +159,7 @@ export async function executeDynamodbDelete(input: AwsDynamodbDeleteBody, signal
   signal?.throwIfAborted()
   const client = createDynamoDBClient(input)
   try {
-    await deleteItem(
+    const result = await deleteItem(
       client,
       input.tableName,
       input.key,
@@ -150,11 +167,15 @@ export async function executeDynamodbDelete(input: AwsDynamodbDeleteBody, signal
         conditionExpression: input.conditionExpression,
         expressionAttributeNames: input.expressionAttributeNames,
         expressionAttributeValues: input.expressionAttributeValues,
+        returnValues: input.returnValues,
       },
       signal
     )
     signal?.throwIfAborted()
-    return { message: 'Item deleted successfully' }
+    return {
+      message: 'Item deleted successfully',
+      ...(input.returnValues === 'ALL_OLD' && { attributes: result.attributes }),
+    }
   } finally {
     client.destroy()
   }

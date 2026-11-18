@@ -51,6 +51,7 @@ Create a new blog post in WordPress.com
 | `tags` | string | No | Comma-separated tag IDs |
 | `featuredMedia` | number | No | Featured image media ID |
 | `slug` | string | No | URL slug for the post |
+| `date` | string | No | Publish date in the site timezone, ISO 8601 \(e.g., 2026-12-01T09:00:00\). A future date with status publish schedules the post |
 
 #### Output
 
@@ -94,6 +95,7 @@ Update an existing blog post in WordPress.com
 | `tags` | string | No | Comma-separated tag IDs |
 | `featuredMedia` | number | No | Featured image media ID |
 | `slug` | string | No | URL slug for the post |
+| `date` | string | No | Publish date in the site timezone, ISO 8601 \(e.g., 2026-12-01T09:00:00\). A future date with status publish schedules the post |
 
 #### Output
 
@@ -247,12 +249,13 @@ Create a new page in WordPress.com
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
 | `title` | string | Yes | Page title |
 | `content` | string | No | Page content \(HTML or plain text\) |
-| `status` | string | No | Page status: publish, draft, pending, private |
+| `status` | string | No | Page status: publish, draft, pending, private, or future |
 | `excerpt` | string | No | Page excerpt |
 | `parent` | number | No | Parent page ID for hierarchical pages |
 | `menuOrder` | number | No | Order in page menu |
 | `featuredMedia` | number | No | Featured image media ID |
 | `slug` | string | No | URL slug for the page |
+| `date` | string | No | Publish date in the site timezone, ISO 8601 \(e.g., 2026-12-01T09:00:00\). A future date with status publish schedules the page |
 
 #### Output
 
@@ -290,12 +293,13 @@ Update an existing page in WordPress.com
 | `pageId` | number | Yes | The ID of the page to update |
 | `title` | string | No | Page title |
 | `content` | string | No | Page content \(HTML or plain text\) |
-| `status` | string | No | Page status: publish, draft, pending, private |
+| `status` | string | No | Page status: publish, draft, pending, private, or future |
 | `excerpt` | string | No | Page excerpt |
 | `parent` | number | No | Parent page ID for hierarchical pages |
 | `menuOrder` | number | No | Order in page menu |
 | `featuredMedia` | number | No | Featured image media ID |
 | `slug` | string | No | URL slug for the page |
+| `date` | string | No | Publish date in the site timezone, ISO 8601 \(e.g., 2026-12-01T09:00:00\). A future date with status publish schedules the page |
 
 #### Output
 
@@ -631,10 +635,11 @@ List comments from WordPress.com with optional filters
 | `perPage` | number | No | Number of comments per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `postId` | number | No | Filter by post ID \(e.g., 123, 456\) |
-| `status` | string | No | Filter by comment status: approved, hold, spam, trash |
+| `status` | string | No | Filter by comment status: approve, hold, spam, trash, all |
 | `search` | string | No | Search term to filter comments \(e.g., "question", "feedback"\) |
 | `orderBy` | string | No | Order by field: date, id, parent |
 | `order` | string | No | Order direction: asc or desc |
+| `context` | string | No | Response context: view \(default\) or edit. edit returns author_email but requires the moderate_comments capability |
 
 #### Output
 
@@ -646,7 +651,7 @@ List comments from WordPress.com with optional filters
 |   ↳ `parent` | number | Parent comment ID |
 |   ↳ `author` | number | Author user ID |
 |   ↳ `author_name` | string | Author display name |
-|   ↳ `author_email` | string | Author email |
+|   ↳ `author_email` | string | Author email \(edit context only\) |
 |   ↳ `author_url` | string | Author URL |
 |   ↳ `date` | string | Comment date |
 |   ↳ `content` | object | Comment content object |
@@ -1082,6 +1087,7 @@ List users from WordPress.com (requires admin privileges)
 | `search` | string | No | Search term to filter users \(e.g., "john", "admin"\) |
 | `roles` | string | No | Comma-separated role names to filter by \(e.g., "administrator,editor"\) |
 | `order` | string | No | Order direction: asc or desc |
+| `context` | string | No | Response context: view \(default\) or edit. edit returns username, first_name, last_name, email and roles but requires the list_users capability |
 
 #### Output
 
@@ -1089,16 +1095,16 @@ List users from WordPress.com (requires admin privileges)
 | --------- | ---- | ----------- |
 | `users` | array | List of users |
 |   ↳ `id` | number | User ID |
-|   ↳ `username` | string | Username |
+|   ↳ `username` | string | Username \(edit context only\) |
 |   ↳ `name` | string | Display name |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `email` | string | Email address |
+|   ↳ `first_name` | string | First name \(edit context only\) |
+|   ↳ `last_name` | string | Last name \(edit context only\) |
+|   ↳ `email` | string | Email address \(edit context only\) |
 |   ↳ `url` | string | User website URL |
 |   ↳ `description` | string | User bio |
 |   ↳ `link` | string | Author archive URL |
 |   ↳ `slug` | string | User slug |
-|   ↳ `roles` | array | User roles |
+|   ↳ `roles` | array | User roles \(edit context only\) |
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
 | `total` | number | Total number of users |
 | `totalPages` | number | Total number of result pages |
@@ -1124,16 +1130,16 @@ Get a specific user from WordPress.com by ID
 | --------- | ---- | ----------- |
 | `user` | object | The retrieved user |
 |   ↳ `id` | number | User ID |
-|   ↳ `username` | string | Username |
+|   ↳ `username` | string | Username \(edit context only\) |
 |   ↳ `name` | string | Display name |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `email` | string | Email address |
+|   ↳ `first_name` | string | First name \(edit context only\) |
+|   ↳ `last_name` | string | Last name \(edit context only\) |
+|   ↳ `email` | string | Email address \(edit context only\) |
 |   ↳ `url` | string | User website URL |
 |   ↳ `description` | string | User bio |
 |   ↳ `link` | string | Author archive URL |
 |   ↳ `slug` | string | User slug |
-|   ↳ `roles` | array | User roles |
+|   ↳ `roles` | array | User roles \(edit context only\) |
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
 
 </ReferenceDetails>
@@ -1160,7 +1166,7 @@ Search across all content types in WordPress.com (posts, pages, media)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Search results |
-|   ↳ `id` | number | Content ID |
+|   ↳ `id` | number | Content ID \(a string slug for post-format results\) |
 |   ↳ `title` | string | Content title |
 |   ↳ `url` | string | Content URL |
 |   ↳ `type` | string | Content type \(post, term, or post-format\) |

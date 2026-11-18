@@ -1,5 +1,11 @@
-import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  mailchimpMemberSegment,
+} from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteMemberParams {
   apiKey: string
@@ -20,6 +26,7 @@ export const mailchimpDeleteMemberTool: ToolConfig<
   description:
     'Archive a member from a Mailchimp audience without permanently deleting their data.',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -44,7 +51,10 @@ export const mailchimpDeleteMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members/${params.subscriberEmail}`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}`
+      ),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

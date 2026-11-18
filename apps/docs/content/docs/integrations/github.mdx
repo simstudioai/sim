@@ -2,7 +2,7 @@
 title: GitHub
 description: Interact with GitHub or trigger workflows from GitHub events
 integration:
-  type: "github_v2"
+  type: "github_v3"
   color: "#181C1E"
 ---
 
@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 [GitHub](https://github.com/) hosts repositories and their pull requests, issues, and commit history. Use this integration to read repository content, automate code-review and issue workflows, and respond to GitHub events. Select an action below for its required repository identifiers, permissions, and inputs.
+
+Connect GitHub with a saved personal access token: in **Integrations**, open GitHub, click **Add to Sim**, and choose **Add personal access token**. Prefer a [fine-grained token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) limited to the repositories and permissions the workflow needs; a classic token with the `repo` scope also works. Sim verifies the token against `api.github.com/user`. GitHub answers **404 Not Found** or **403 Forbidden** when a token cannot reach a repository (a fine-grained token sees only the repositories it was given, plus public ones), and an organization that requires approval leaves a new fine-grained token read-only on public repositories until an owner approves it. GitHub Enterprise Server is not supported.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -32,7 +34,6 @@ Fetch PR details including diff and files changed
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `pullNumber` | number | Yes | Pull request number |
-| `apiKey` | string | Yes | GitHub API token |
 | `includeFiles` | boolean | No | Whether to fetch changed-file details from the separate files endpoint |
 
 #### Output
@@ -112,7 +113,8 @@ Create comments on GitHub PRs
 | `path` | string | No | File path for review comment |
 | `commentType` | string | No | Type of comment \(pr_comment or file_comment\) |
 | `line` | number | No | Line number for review comment |
-| `apiKey` | string | Yes | GitHub API token |
+| `side` | string | No | Side of the diff \(LEFT or RIGHT\) |
+| `commitId` | string | No | The SHA of the commit to comment on. Defaults to the pull request head commit. |
 
 #### Output
 
@@ -148,7 +150,6 @@ Read GitHub repository metadata, including stars, forks, issues, and primary lan
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -204,12 +205,13 @@ Retrieve the latest commit from a GitHub repository
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | No | Branch name \(defaults to the repository's default branch\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `sha` | string | Commit SHA |
+| `html_url` | string | GitHub web URL |
 | `commit` | object | Core commit data |
 |   ↳ `url` | string | Commit API URL |
 |   ↳ `message` | string | Commit message |
@@ -248,8 +250,6 @@ Retrieve the latest commit from a GitHub repository
 |   ↳ `html_url` | string | Profile page URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-| `sha` | string | Commit SHA |
-| `html_url` | string | GitHub web URL |
 
 </ReferenceDetails>
 
@@ -267,7 +267,6 @@ Create a comment on a GitHub issue
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `body` | string | Yes | Comment content |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -307,7 +306,6 @@ List all comments on a GitHub issue
 | `since` | string | No | Only show comments updated after this ISO 8601 timestamp |
 | `per_page` | number | No | Number of results per page \(max 100\) |
 | `page` | number | No | Page number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -347,7 +345,6 @@ Update an existing comment on a GitHub issue or pull request
 | `repo` | string | Yes | Repository name |
 | `comment_id` | number | Yes | Comment ID |
 | `body` | string | Yes | Updated comment content |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -384,7 +381,6 @@ Delete a comment on a GitHub issue or pull request
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `comment_id` | number | Yes | Comment ID |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -413,7 +409,6 @@ List all review comments on a GitHub pull request
 | `since` | string | No | Only show comments updated after this ISO 8601 timestamp |
 | `per_page` | number | No | Number of results per page \(max 100\) |
 | `page` | number | No | Page number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -460,7 +455,6 @@ Create a new pull request in a GitHub repository
 | `base` | string | Yes | The name of the branch you want the changes pulled into |
 | `body` | string | No | Pull request description \(Markdown\) |
 | `draft` | boolean | No | Create as draft pull request |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -500,7 +494,6 @@ Update an existing pull request in a GitHub repository
 | `body` | string | No | New pull request description \(Markdown\) |
 | `state` | string | No | New state \(open or closed\) |
 | `base` | string | No | New base branch name |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -538,7 +531,6 @@ Merge a pull request in a GitHub repository
 | `commit_title` | string | No | Title for the merge commit |
 | `commit_message` | string | No | Extra detail to append to merge commit message |
 | `merge_method` | string | No | Merge method: merge, squash, or rebase |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -569,7 +561,6 @@ List pull requests in a GitHub repository
 | `direction` | string | No | Sort direction: asc or desc |
 | `per_page` | number | No | Results per page \(max 100\) |
 | `page` | number | No | Page number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -623,7 +614,6 @@ Get the list of files changed in a pull request
 | `pullNumber` | number | Yes | Pull request number |
 | `per_page` | number | No | Results per page \(max 100\) |
 | `page` | number | No | Page number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -641,7 +631,7 @@ Get the list of files changed in a pull request
 |   ↳ `contents_url` | string | Contents API URL |
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
-| `count` | number | Total number of files |
+| `count` | number | Number of files in this page |
 
 </ReferenceDetails>
 
@@ -658,7 +648,6 @@ Close a pull request in a GitHub repository
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `pullNumber` | number | Yes | Pull request number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -696,7 +685,6 @@ Request reviewers for a pull request
 | `pullNumber` | number | Yes | Pull request number |
 | `reviewers` | string | No | Comma-separated list of user logins to request reviews from \(at least one of reviewers or team_reviewers is required\) |
 | `team_reviewers` | string | No | Comma-separated list of team slugs to request reviews from |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -728,7 +716,6 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | `body` | string | No | The body text of the review \(required for REQUEST_CHANGES and COMMENT\) |
 | `commit_id` | string | No | The SHA of the commit that needs a review \(required when posting inline comments; defaults to the most recent commit otherwise\) |
 | `comments` | array | No | Optional inline comments with required path, body, line, and side fields |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -764,7 +751,6 @@ Get the content of a file from a GitHub repository. Supports files up to 1MB. Co
 | `repo` | string | Yes | Repository name |
 | `path` | string | Yes | Path to the file in the repository \(e.g., "src/index.ts"\) |
 | `ref` | string | No | Branch name, tag, or commit SHA \(defaults to repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -801,7 +787,6 @@ Create a new file in a GitHub repository. The file content will be automatically
 | `message` | string | Yes | Commit message for this file creation |
 | `content` | string | Yes | File content \(plain text, will be Base64 encoded automatically\) |
 | `branch` | string | No | Branch to create the file in \(defaults to repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -829,7 +814,6 @@ Update an existing file in a GitHub repository. Requires the file SHA. Content w
 | `content` | string | Yes | New file content \(plain text, will be Base64 encoded automatically\) |
 | `sha` | string | Yes | The blob SHA of the file being replaced \(get from github_get_file_content\) |
 | `branch` | string | No | Branch to update the file in \(defaults to repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -856,7 +840,6 @@ Delete a file from a GitHub repository. Requires the file SHA. This operation ca
 | `message` | string | Yes | Commit message for this file deletion |
 | `sha` | string | Yes | The blob SHA of the file being deleted \(get from github_get_file_content\) |
 | `branch` | string | No | Branch to delete the file from \(defaults to repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -881,7 +864,6 @@ Get the contents of a directory in a GitHub repository. Returns a list of files 
 | `repo` | string | Yes | Repository name |
 | `path` | string | No | Directory path \(e.g., "src/components"\). Leave empty for root directory. |
 | `ref` | string | No | Branch name, tag, or commit SHA \(defaults to repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -915,7 +897,6 @@ Get the preferred README for a GitHub repository, with its content decoded to pl
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `ref` | string | No | The name of the commit/branch/tag to read the README from \(defaults to the repository default branch\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -946,7 +927,6 @@ List tags for a GitHub repository. Returns tag names with their commit SHA and d
 | `repo` | string | Yes | Repository name |
 | `per_page` | number | No | Number of results per page \(max 100\) |
 | `page` | number | No | Page number of the results to fetch |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -979,7 +959,6 @@ List all branches in a GitHub repository. Optionally filter by protected status 
 | `protected` | boolean | No | Filter branches by protection status |
 | `per_page` | number | No | Number of results per page \(max 100, default 30\) |
 | `page` | number | No | Page number for pagination \(default 1\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1008,7 +987,6 @@ Get detailed information about a specific branch in a GitHub repository, includi
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Branch name |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1038,7 +1016,6 @@ Create a new branch in a GitHub repository by creating a git reference pointing 
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Name of the branch to create |
 | `sha` | string | Yes | Commit SHA to point the branch to |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1064,7 +1041,6 @@ Delete a branch from a GitHub repository by removing its git reference. Protecte
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Name of the branch to delete |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1088,7 +1064,6 @@ Get the branch protection rules for a specific branch, including status checks, 
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Branch name |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1125,7 +1100,6 @@ Update branch protection rules for a specific branch, including status checks, r
 | `enforce_admins` | boolean | No | Whether to enforce restrictions for administrators. Omit to disable admin enforcement — GitHub receives an explicit null. |
 | `required_pull_request_reviews` | object | No | PR review requirements. Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews. Omit to disable review requirements — GitHub receives an explicit null. |
 | `restrictions` | object | No | Push restrictions, available only for organization-owned repositories. Object with users \(string array\), teams \(string array\) and optional apps \(string array\). Omit to disable push restrictions — GitHub receives an explicit null. |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1162,7 +1136,6 @@ Create a new issue in a GitHub repository
 | `assignees` | string | No | Comma-separated list of usernames to assign to this issue |
 | `labels` | string | No | Comma-separated list of label names to add to this issue |
 | `milestone` | number | No | Milestone number to associate with this issue |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1235,7 +1208,6 @@ Update an existing issue in a GitHub repository
 | `state` | string | No | Issue state \(open or closed\) |
 | `labels` | array | No | Array of label names \(replaces all existing labels\) |
 | `assignees` | array | No | Array of usernames \(replaces all existing assignees\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1310,7 +1282,6 @@ List issues in a GitHub repository. Note: This includes pull requests as PRs are
 | `direction` | string | No | Sort direction: asc or desc \(default: desc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1341,7 +1312,6 @@ Get detailed information about a specific issue in a GitHub repository
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1415,8 +1385,7 @@ Close an issue in a GitHub repository
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
-| `state_reason` | string | No | Reason for closing: completed or not_planned |
-| `apiKey` | string | Yes | GitHub API token |
+| `state_reason` | string | No | Reason for closing: completed, not_planned, or duplicate |
 
 #### Output
 
@@ -1469,7 +1438,6 @@ Add labels to an issue in a GitHub repository
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `labels` | string | Yes | Comma-separated list of label names to add to the issue |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1498,7 +1466,6 @@ Remove a label from an issue in a GitHub repository
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `name` | string | Yes | Label name to remove |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1527,7 +1494,6 @@ Add assignees to an issue in a GitHub repository
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `assignees` | string | Yes | Comma-separated list of usernames to assign to the issue |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -1565,7 +1531,6 @@ Create a new release for a GitHub repository. Specify tag name, target commit, t
 | `body` | string | No | Text describing the contents of the release \(markdown supported\) |
 | `draft` | boolean | No | true to create a draft \(unpublished\) release, false to create a published one |
 | `prerelease` | boolean | No | true to identify the release as a prerelease, false to identify as a full release |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1630,7 +1595,6 @@ Update an existing GitHub release. Modify tag name, target commit, title, descri
 | `body` | string | No | Text describing the contents of the release \(markdown supported\) |
 | `draft` | boolean | No | true to set as draft, false to publish |
 | `prerelease` | boolean | No | true to identify as a prerelease, false for a full release |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1690,7 +1654,6 @@ List all releases for a GitHub repository. Returns release information including
 | `repo` | string | Yes | Repository name |
 | `per_page` | number | No | Number of results per page \(max 100\) |
 | `page` | number | No | Page number of the results to fetch |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1751,7 +1714,6 @@ Get detailed information about a specific GitHub release by ID. Returns release 
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `release_id` | number | Yes | The unique identifier of the release |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1809,7 +1771,6 @@ Get the latest published, non-draft, non-prerelease release for a GitHub reposit
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1868,7 +1829,6 @@ Delete a GitHub release by ID. This permanently removes the release but does not
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `release_id` | number | Yes | The unique identifier of the release to delete |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1893,7 +1853,6 @@ List all workflows in a GitHub repository. Returns workflow details including ID
 | `repo` | string | Yes | Repository name |
 | `per_page` | number | No | Number of results per page \(default: 30, max: 100\) |
 | `page` | number | No | Page number of results to fetch \(default: 1\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1928,7 +1887,6 @@ Get details of a specific GitHub Actions workflow by ID or filename. Returns wor
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `workflow_id` | string | Yes | Workflow ID \(number\) or workflow filename \(e.g., "main.yaml"\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1963,7 +1921,6 @@ Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow mu
 | `workflow_id` | string | Yes | Workflow ID \(number\) or workflow filename \(e.g., "main.yaml"\) |
 | `ref` | string | Yes | Git reference \(branch or tag name\) to run the workflow on |
 | `inputs` | object | No | Input keys and values configured in the workflow file |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -1991,10 +1948,9 @@ List workflow runs for a repository, or for a single workflow when a workflow ID
 | `actor` | string | No | Filter by user who triggered the workflow |
 | `branch` | string | No | Filter by branch name |
 | `event` | string | No | Filter by event type \(e.g., push, pull_request, workflow_dispatch\) |
-| `status` | string | No | Filter by status \(queued, in_progress, completed, waiting, requested, pending\) |
+| `status` | string | No | Filter by check run status or conclusion: queued, in_progress, completed, waiting, requested, pending, success, failure, cancelled, skipped, timed_out, action_required, neutral, or stale. Omit \(or pass "all"\) for every run. |
 | `per_page` | number | No | Number of results per page \(default: 30, max: 100\) |
 | `page` | number | No | Page number of results to fetch \(default: 1\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -2021,7 +1977,6 @@ Get detailed information about a specific workflow run by ID. Returns status, co
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `run_id` | number | Yes | Workflow run ID |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -2079,7 +2034,6 @@ Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `run_id` | number | Yes | Workflow run ID to cancel |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -2104,7 +2058,6 @@ Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201
 | `repo` | string | Yes | Repository name |
 | `run_id` | number | Yes | Workflow run ID to rerun |
 | `enable_debug_logging` | boolean | No | Enable debug logging for the rerun \(default: false\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -2127,7 +2080,6 @@ List GitHub Projects V2 for an organization or user. Returns up to 20 projects w
 | --------- | ---- | -------- | ----------- |
 | `owner_type` | string | Yes | Owner type: "org" for organization or "user" for user |
 | `owner_login` | string | Yes | Organization or user login name |
-| `apiKey` | string | Yes | GitHub Personal Access Token with project read permissions |
 
 #### Output
 
@@ -2158,7 +2110,6 @@ Get detailed information about a specific GitHub Project V2 by its number. Retur
 | `owner_type` | string | Yes | Owner type: "org" for organization or "user" for user |
 | `owner_login` | string | Yes | Organization or user login name |
 | `project_number` | number | Yes | Project number |
-| `apiKey` | string | Yes | GitHub Personal Access Token with project read permissions |
 
 #### Output
 
@@ -2189,7 +2140,6 @@ Create a new GitHub Project V2. Requires the owner Node ID (not login name). Ret
 | --------- | ---- | -------- | ----------- |
 | `owner_id` | string | Yes | Node ID of the owning user or organization, not a project ID or login name. Retrieve the owner id through the GitHub GraphQL API. |
 | `title` | string | Yes | Project title |
-| `apiKey` | string | Yes | GitHub Personal Access Token with project write permissions |
 
 #### Output
 
@@ -2220,7 +2170,6 @@ Update an existing GitHub Project V2. Can update title, description, visibility 
 | `shortDescription` | string | No | New project short description |
 | `project_public` | boolean | No | Set project visibility \(true = public, false = private\) |
 | `closed` | boolean | No | Set project status \(true = closed, false = open\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token with project write permissions |
 
 #### Output
 
@@ -2247,7 +2196,6 @@ Delete a GitHub Project V2. This action is permanent and cannot be undone. Requi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `project_id` | string | Yes | Project Node ID \(format: PVT_...\) |
-| `apiKey` | string | Yes | GitHub Personal Access Token with project admin permissions |
 
 #### Output
 
@@ -2271,11 +2219,10 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | Search query with optional qualifiers \(repo:, language:, path:, extension:, user:, org:\) |
-| `sort` | string | No | Sort by indexed date \(default: best match\) |
-| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `sort` | string | No | Sort by "indexed" \(how recently GitHub indexed the file\); default is best match. GitHub has deprecated this parameter and is closing it down. |
+| `order` | string | No | Sort order: asc or desc \(default: desc\). Ignored unless sort is set; GitHub has deprecated this parameter and is closing it down. |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2336,7 +2283,6 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 | `order` | string | No | Sort order: asc or desc \(default: desc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2423,7 +2369,6 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 | `order` | string | No | Sort order: asc or desc \(default: desc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2515,7 +2460,6 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 | `order` | string | No | Sort order: asc or desc \(default: desc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2579,7 +2523,6 @@ Search for users and organizations on GitHub. Use qualifiers like type:user, typ
 | `order` | string | No | Sort order: asc or desc \(default: desc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2627,7 +2570,6 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 | `until` | string | No | Only commits before this date \(ISO 8601 format\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2687,7 +2629,7 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 
 ### GitHub Get Commit
 
-Get detailed information about a specific commit including files changed and stats
+Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit.
 
 <ReferenceDetails>
 
@@ -2698,7 +2640,6 @@ Get detailed information about a specific commit including files changed and sta
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `ref` | string | Yes | Commit SHA, branch name, or tag name |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2784,9 +2725,8 @@ Compare two commits or branches to see the diff, commits between them, and chang
 | `repo` | string | Yes | Repository name |
 | `base` | string | Yes | Base branch/tag/SHA for comparison |
 | `head` | string | Yes | Head branch/tag/SHA for comparison |
-| `per_page` | number | No | Results per page for files \(max 100, default: 30\) |
-| `page` | number | No | Page number for files \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
+| `per_page` | number | No | Commits per page \(max 100\). Setting per_page or page paginates the commit list, and changed files are returned only on page 1. Leave both unset to get up to 250 commits and every changed file in one response. |
+| `page` | number | No | Page of the commit list. Changed files are returned only on page 1. Omit both page and per_page to get up to 250 commits in one response. |
 
 #### Output
 
@@ -2914,7 +2854,6 @@ Create a new gist with one or more files
 | `description` | string | No | Description of the gist |
 | `files` | json | Yes | JSON object with filenames as keys and content as values. Example: \{"file.txt": \{"content": "Hello"\}\} |
 | `public` | boolean | No | Whether the gist is public \(default: false\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -2959,7 +2898,6 @@ Get a gist by ID including its file contents
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `gist_id` | string | Yes | The gist ID |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3007,7 +2945,6 @@ List gists for a user or the authenticated user
 | `since` | string | No | Only gists updated after this time \(ISO 8601\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3056,7 +2993,6 @@ Update a gist description or files. To delete a file, set its value to null in f
 | `gist_id` | string | Yes | The gist ID to update |
 | `description` | string | No | New description for the gist |
 | `files` | json | No | JSON object with filenames as keys. Set to null to delete, or provide content to update/add |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3101,7 +3037,6 @@ Delete a gist by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `gist_id` | string | Yes | The gist ID to delete |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3123,7 +3058,6 @@ Fork a gist to create your own copy
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `gist_id` | string | Yes | The gist ID to fork |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3150,7 +3084,6 @@ Star a gist
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `gist_id` | string | Yes | The gist ID to star |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3172,7 +3105,6 @@ Unstar a gist
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `gist_id` | string | Yes | The gist ID to unstar |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3198,7 +3130,6 @@ Fork a repository to your account or an organization
 | `organization` | string | No | Organization to fork into \(omit to fork to your account\) |
 | `name` | string | No | Custom name for the forked repository |
 | `default_branch_only` | boolean | No | Only fork the default branch \(default: false\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3254,7 +3185,6 @@ List forks of a repository
 | `sort` | string | No | Sort by: newest, oldest, stargazers, watchers \(default: newest\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3312,7 +3242,6 @@ Create a milestone in a repository
 | `state` | string | No | State: open or closed \(default: open\) |
 | `description` | string | No | Milestone description |
 | `due_on` | string | No | Due date \(ISO 8601 format, e.g., 2024-12-31T23:59:59Z\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3358,7 +3287,6 @@ Get a specific milestone by number
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `milestone_number` | number | Yes | Milestone number |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3408,7 +3336,6 @@ List milestones in a repository
 | `direction` | string | No | Sort direction: asc or desc \(default: asc\) |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3460,7 +3387,6 @@ Update a milestone in a repository
 | `state` | string | No | New state: open or closed |
 | `description` | string | No | New description |
 | `due_on` | string | No | New due date \(ISO 8601 format\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3506,7 +3432,6 @@ Delete a milestone from a repository
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `milestone_number` | number | Yes | Milestone number to delete |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3531,7 +3456,6 @@ Add a reaction to an issue
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `content` | string | Yes | Reaction type: +1 \(thumbs up\), -1 \(thumbs down\), laugh, confused, heart, hooray, rocket, eyes |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3564,7 +3488,6 @@ Remove a reaction from an issue
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
 | `reaction_id` | number | Yes | Reaction ID to delete |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3589,7 +3512,6 @@ Add a reaction to an issue comment
 | `repo` | string | Yes | Repository name |
 | `comment_id` | number | Yes | Comment ID |
 | `content` | string | Yes | Reaction type: +1 \(thumbs up\), -1 \(thumbs down\), laugh, confused, heart, hooray, rocket, eyes |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3622,7 +3544,6 @@ Remove a reaction from an issue comment
 | `repo` | string | Yes | Repository name |
 | `comment_id` | number | Yes | Comment ID |
 | `reaction_id` | number | Yes | Reaction ID to delete |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3645,7 +3566,6 @@ Star a repository
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3669,7 +3589,6 @@ Remove star from a repository
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3693,7 +3612,6 @@ Check if you have starred a repository
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3719,7 +3637,6 @@ List users who have starred a repository
 | `repo` | string | Yes | Repository name |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
-| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -3760,7 +3677,6 @@ List one page of a pull request's review threads with their comments, plus the n
 | `threadsPerPage` | number | No | Review threads to fetch in this page \(1-100\) |
 | `commentsPerThread` | number | No | Comments to fetch per thread \(1-100\) |
 | `cursor` | string | No | Cursor from a previous page \(endCursor\) to continue from |
-| `apiKey` | string | Yes | GitHub API token with pull request read access |
 
 #### Output
 

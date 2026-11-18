@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioQueryListEntriesParams, AttioQueryListEntriesResponse } from './types'
 import { LIST_ENTRY_OUTPUT_PROPERTIES } from './types'
 
@@ -60,7 +61,8 @@ export const attioQueryListEntriesTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}/entries/query`,
+    url: (params) =>
+      `https://api.attio.com/v2/lists/${safeUrlPathSegment(params.list, 'list')}/entries/query`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -73,14 +75,14 @@ export const attioQueryListEntriesTool: ToolConfig<
           body.filter =
             typeof params.filter === 'string' ? JSON.parse(params.filter) : params.filter
         } catch {
-          body.filter = {}
+          throw new Error('Invalid JSON provided for filter')
         }
       }
       if (params.sorts) {
         try {
           body.sorts = typeof params.sorts === 'string' ? JSON.parse(params.sorts) : params.sorts
         } catch {
-          body.sorts = []
+          throw new Error('Invalid JSON provided for sorts')
         }
       }
       if (params.limit != null) body.limit = params.limit

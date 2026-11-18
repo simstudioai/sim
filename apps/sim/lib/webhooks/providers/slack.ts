@@ -9,10 +9,17 @@ import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  assertSlackFileHost,
+  isExternalSlackFile,
+  slackFileDownloadUrl,
+} from '@/lib/internal/slack/file-download'
 import {
   getSlackBotCredential,
   refreshAccessTokenIfNeeded,
@@ -285,9 +292,9 @@ function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
 async function resolveSlackFileInfo(
   fileId: string,
   botToken: string
-): Promise<{ url_private?: string; name?: string; mimetype?: string; size?: number } | null> {
+): Promise<Record<string, unknown> | null> {
   try {
-    const response = await fetch(
+    const response = await outboundFetch(
       `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
       { headers: { Authorization: `Bearer ${botToken}` } }
     )
@@ -300,12 +307,7 @@ async function resolveSlackFileInfo(
       logger.warn('Slack files.info failed', { fileId, error: data.error })
       return null
     }
-    return {
-      url_private: data.file.url_private as string | undefined,
-      name: data.file.name as string | undefined,
-      mimetype: data.file.mimetype as string | undefined,
-      size: data.file.size as number | undefined,
-    }
+    return data.file
   } catch (error) {
     logger.error('Error calling Slack files.info', {
       fileId,
@@ -323,30 +325,19 @@ async function downloadSlackFiles(
   const downloaded: Array<{ name: string; data: string; mimeType: string; size: number }> = []
 
   for (const file of filesToProcess) {
-    const f = file as Record<string, unknown>
-    let urlPrivate = f.url_private as string | undefined
-    let fileName = f.name as string | undefined
-    let fileMimeType = f.mimetype as string | undefined
-    let fileSize = f.size as number | undefined
-
-    if (!urlPrivate && f.id) {
+    let f = file as Record<string, unknown>
+    if (!f.url_private_download && f.id && !isExternalSlackFile(f)) {
       const resolved = await resolveSlackFileInfo(f.id as string, botToken)
-      if (resolved?.url_private) {
-        urlPrivate = resolved.url_private
-        fileName = fileName || resolved.name
-        fileMimeType = fileMimeType || resolved.mimetype
-        fileSize = fileSize ?? resolved.size
-      }
+      if (resolved) f = { ...f, ...resolved }
     }
 
-    if (!urlPrivate) {
-      logger.warn('Slack file has no url_private and could not be resolved, skipping', {
-        fileId: f.id,
-      })
+    const downloadUrl = slackFileDownloadUrl(f)?.href
+    if (!downloadUrl) {
+      logger.warn('Slack file has no Slack-hosted download URL, skipping', { fileId: f.id })
       continue
     }
 
-    const reportedSize = Number(fileSize) || 0
+    const reportedSize = Number(f.size) || 0
     if (reportedSize > SLACK_MAX_FILE_SIZE) {
       logger.warn('Slack file exceeds size limit, skipping', {
         fileId: f.id,
@@ -357,18 +348,19 @@ async function downloadSlackFiles(
     }
 
     try {
-      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private', 'contentFetch')
+      const urlValidation = await validateUrlWithDNS(downloadUrl, 'downloadUrl', 'contentFetch')
       if (!urlValidation.isValid) {
-        logger.warn('Slack file url_private failed DNS validation, skipping', {
+        logger.warn('Slack file download URL failed DNS validation, skipping', {
           fileId: f.id,
           error: urlValidation.error,
         })
         continue
       }
 
-      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP, {
+      const response = await secureFetchWithPinnedIP(downloadUrl, urlValidation.resolvedIP, {
         profile: 'contentFetch',
         headers: { Authorization: `Bearer ${botToken}` },
+        assertRedirectTarget: assertSlackFileHost,
       })
 
       if (!response.ok) {
@@ -392,9 +384,9 @@ async function downloadSlackFiles(
       }
 
       downloaded.push({
-        name: fileName || 'download',
+        name: (f.name as string | undefined) || 'download',
         data: buffer.toString('base64'),
-        mimeType: fileMimeType || 'application/octet-stream',
+        mimeType: (f.mimetype as string | undefined) || 'application/octet-stream',
         size: buffer.length,
       })
     } catch (error) {
@@ -432,7 +424,7 @@ async function fetchSlackMessageText(
 ): Promise<string> {
   try {
     const params = new URLSearchParams({ channel, timestamp: messageTs })
-    const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
+    const response = await outboundFetch(`https://slack.com/api/reactions.get?${params}`, {
       headers: { Authorization: `Bearer ${botToken}` },
     })
     const data = (await response.json()) as {
@@ -486,7 +478,7 @@ export async function fetchSlackTeamId(botToken: string): Promise<{
   userId: string | undefined
   teamName: string | undefined
 }> {
-  const response = await fetch('https://slack.com/api/auth.test', {
+  const response = await outboundFetch('https://slack.com/api/auth.test', {
     headers: { Authorization: `Bearer ${botToken}` },
   })
   const data = (await response.json()) as {
@@ -962,8 +954,18 @@ export const slackHandler: WebhookProviderHandler = {
           .where(eq(account.id, resolved.accountId))
           .limit(1)
         if (owner?.userId) {
-          botToken =
-            (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
+          try {
+            botToken =
+              (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
+          } catch (error) {
+            // An egress outage degrades the event (no reaction text or file downloads) rather
+            // than failing it, matching a missing token.
+            if (!isUnavailableFailure(error)) throw error
+            logger.warn('Slack bot token unavailable during an egress outage', {
+              credentialId,
+              requestId,
+            })
+          }
         }
       }
     }

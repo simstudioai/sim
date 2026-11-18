@@ -5,7 +5,7 @@ description: Choose an API key or delegated OAuth token and understand its acces
 
 import { Callout } from '@/components/ui/callout'
 
-Authenticate API requests with a Sim API key, or an OAuth access token when your deployment enables OAuth. The Python and TypeScript SDKs use API keys. The CLI and registered OAuth applications can act with the permissions you approve.
+Authenticate API requests with a Sim API key, or an OAuth access token when your deployment enables OAuth. The CLI and registered OAuth applications can act with the permissions you approve.
 
 ## Choose a key [#key-types]
 
@@ -24,7 +24,7 @@ Workspace Admins can turn off **Allow personal API keys**. The workspace policy 
 ## Create and store a key [#generating-api-keys]
 
 1. Open **Account settings → Sim API keys** to create a personal key, or **Workspace settings → Sim API keys** to create a workspace key.
-2. Select **Create API key**, enter a name, and create it. Workspace-key creation requires workspace **Admin** access and the applicable key-management permission.
+2. Select **Create API key** and enter a name. Choose its **Access** and when it **Expires**, then create it. Workspace-key creation requires workspace **Admin** access and the applicable key-management permission.
 3. Copy the key and store it in a server-side environment variable such as `SIM_API_KEY`.
 
 <Callout type="warn">
@@ -32,6 +32,23 @@ Sim shows the complete key once, immediately after creation. Copy it before clos
 </Callout>
 
 Delete a key from the same settings page to revoke it. Update applications that used it with a replacement key.
+
+### Access [#key-access]
+
+| Access | Allows |
+| --- | --- |
+| **Full access** | Everything the key's identity can do: reads, changes, deploys, and workflow runs |
+| **Read only** | The operations the [`api:read` scope](#oauth-access-tokens) allows, including searches sent as POST requests and search chat |
+
+A read-only key cannot change workspace resources or run, resume, or cancel workflows. Reads can still cost credits: searches use embedding credits, and search chat uses model credits and keeps a private conversation history. Selector lookups call third-party services with your connected accounts.
+
+A refused request fails with `403` and the message `This API key is read-only and cannot perform this operation. Use a full-access API key.` Where the surface carries a code, it is `READ_ONLY_API_KEY`: in `error.details.code` on the v2 API and the Sim MCP server, in `details.code` on the v1 API and workflow execution, and in `error.data.code` on a workflow MCP server.
+
+Access narrows a key; it never grants more than the key's identity already has. Access is fixed at creation, so create a new key to change it. Keys created before access levels existed have full access. Keys created from the deploy modal or for a workflow MCP server always have full access, because they exist to run workflows.
+
+### Expiration [#key-expiration]
+
+A key expires 30 days, 90 days, or 1 year after creation, or never. The settings page defaults to never. After it expires, every request with the key fails with `401`. The v1 and v2 APIs, both MCP servers, and workflow execution answer with the message `API key has expired`. Create a replacement before then. The key list shows each key's expiration date. `GET /api/v2/meta` reports the calling key's `expiresAt` and `scopes`.
 
 ## Send an API key [#using-api-keys]
 
@@ -45,7 +62,7 @@ curl --fail-with-body -X POST \
   -d '{"input": {}}'
 ```
 
-This runs the active deployment. Use your deployment's origin for self-hosted requests. [Getting started](/api-reference/getting-started) includes complete HTTP examples and response handling; [Python](/api-reference/python) and [TypeScript](/api-reference/typescript) show SDK calls.
+This runs the active deployment. Use your deployment's origin for self-hosted requests. [Getting started](/api-reference/getting-started) includes complete HTTP examples and response handling.
 
 Keys authenticate workflow execution, logs, deployed MCP servers, and other API resources that accept their key type. See each endpoint for its required access.
 
@@ -72,8 +89,6 @@ Scopes limit the application's actions; your current workspace membership, role,
 
 Manage grants in **Settings → General → Authorized apps**. Revoking an application revokes all its logins for your account. For an OAuth login, `sim logout` revokes the current login and removes it locally; the CLI reports if server revocation fails. Removing a locally stored API key does not revoke that key on the server.
 
-The Python and TypeScript SDKs do not manage OAuth sign-in or token refresh.
-
 ## Protect credentials [#security]
 
 Keep API keys and OAuth tokens on your server. A browser application should call an authenticated backend that checks which resources the caller may use before sending a Sim request. Do not put keys in client-side code or source control.
@@ -85,4 +100,3 @@ Sim supports modern `sk-sim-` and legacy `sim_` API keys. On self-hosted deploym
 - [API getting started](/api-reference/getting-started)
 - [CLI authentication](/cli/authentication)
 - [Permissions](/platform/permissions)
-- [Python SDK](/api-reference/python) and [TypeScript SDK](/api-reference/typescript)

@@ -6,7 +6,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
-import { classifyExecutionError } from '@/executor/utils/errors'
+import { classifyRecordedExecutionError } from '@/executor/utils/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +45,15 @@ export const GET = defineV2JsonRoute({
       startedAt: status.startedAt,
       endedAt: status.endedAt,
       durationMs: status.totalDurationMs,
-      paused: status.paused ? v2WorkflowRunStatusSchema.shape.paused.parse(status.paused) : null,
+      version: status.deploymentVersion ?? null,
+      paused: status.paused
+        ? v2WorkflowRunStatusSchema.shape.paused.parse({
+            ...status.paused,
+            points: status.pausePoints ?? [],
+          })
+        : null,
       cost: status.cost,
-      error: status.error ? classifyExecutionError(new Error(status.error)) : null,
+      error: status.error ? classifyRecordedExecutionError(status.error, status.failedBlock) : null,
       output: status.finalOutput,
       blockOutputs: status.blockOutputs,
       files: status.files,

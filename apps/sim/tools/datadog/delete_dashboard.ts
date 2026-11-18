@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteDashboardTool: ToolConfig<DeleteDashboardParams, DeleteDashboardResponse> = {
@@ -12,6 +13,7 @@ export const deleteDashboardTool: ToolConfig<DeleteDashboardParams, DeleteDashbo
   name: 'Datadog Delete Dashboard',
   description: 'Delete a dashboard by ID.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     dashboardId: {

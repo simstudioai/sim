@@ -15,7 +15,12 @@ vi.mock('@/lib/uploads/upload-session/application', () => ({
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 
 const workspaceId = '7727ef3f-8cf6-4686-b063-2bb006a10785'
-const principal = { kind: 'personal_api_key', userId: 'reader', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'reader',
+  keyId: 'key',
+  access: 'write',
+} as const
 const endpoint = 'https://sim.test'
 const path = '/api/v2/files/uploads'
 const source = {

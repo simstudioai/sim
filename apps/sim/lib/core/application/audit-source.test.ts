@@ -19,9 +19,12 @@ describe('principalAuditSource', () => {
 
   it.each([
     [{ kind: 'session', userId: 'user-1', sessionId: 'session-1' }, 'session'],
-    [{ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }, 'personal_api_key'],
     [
-      { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
+      'personal_api_key',
+    ],
+    [
+      { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1', access: 'write' },
       'workspace_api_key',
     ],
   ] as const)('names the credential class for %#', (principal, expected) => {

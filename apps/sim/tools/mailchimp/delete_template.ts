@@ -1,5 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteTemplateParams {
   apiKey: string
@@ -18,6 +20,7 @@ export const mailchimpDeleteTemplateTool: ToolConfig<
   name: 'Delete Template from Mailchimp',
   description: 'Delete a template from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -35,7 +38,11 @@ export const mailchimpDeleteTemplateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/templates/${params.templateId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/templates/${safeUrlPathSegment(params.templateId, 'templateId')}`
+      ),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

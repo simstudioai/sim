@@ -84,3 +84,11 @@ export function extractMondayError(data: Record<string, unknown>): string | null
   }
   return null
 }
+
+/**
+ * Render a value for a GraphQL `JSON` scalar argument. monday expects the JSON as a string
+ * literal, so an object (for example a resolved block reference) is serialized first.
+ */
+export function toGraphqlJsonArg(value: unknown): string {
+  return JSON.stringify(typeof value === 'string' ? value : JSON.stringify(value))
+}

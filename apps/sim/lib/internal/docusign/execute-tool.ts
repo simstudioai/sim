@@ -19,7 +19,10 @@ import type {
   InternalToolOperationHandler,
 } from '@/lib/internal/tool-operations/types'
 
-const auth = { accessToken: z.string().min(1, 'Access token is required') }
+const auth = {
+  accessToken: z.string().min(1, 'Access token is required'),
+  instanceUrl: z.string().optional(),
+}
 const schemas = {
   docusign_create_from_template: z.object({
     ...auth,
@@ -41,13 +44,15 @@ const schemas = {
     toDate: z.string().optional(),
     envelopeStatus: z.string().optional(),
     searchText: z.string().optional(),
-    count: z.string().optional(),
+    count: z.union([z.string(), z.number()]).transform(String).optional(),
+    startPosition: z.union([z.string(), z.number()]).transform(String).optional(),
   }),
   docusign_list_recipients: z.object({ ...auth, envelopeId: z.string().min(1) }),
   docusign_list_templates: z.object({
     ...auth,
     searchText: z.string().optional(),
-    count: z.string().optional(),
+    count: z.union([z.string(), z.number()]).transform(String).optional(),
+    startPosition: z.union([z.string(), z.number()]).transform(String).optional(),
   }),
   docusign_send_envelope: z.object({
     ...auth,

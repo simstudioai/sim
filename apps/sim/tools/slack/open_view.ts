@@ -37,10 +37,10 @@ export const slackOpenViewTool: ToolConfig<SlackOpenViewParams, SlackOpenViewRes
     },
     triggerId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Exchange a trigger to post to the user. Obtained from an interaction payload (e.g., slash command, button click)',
+        'Exchange a trigger to post to the user. Obtained from an interaction payload (e.g., slash command, button click). Provide this or interactivityPointer.',
     },
     interactivityPointer: {
       type: 'string',
@@ -75,6 +75,10 @@ export const slackOpenViewTool: ToolConfig<SlackOpenViewParams, SlackOpenViewRes
 
       if (params.interactivityPointer) {
         body.interactivity_pointer = params.interactivityPointer.trim()
+      }
+
+      if (!body.trigger_id && !body.interactivity_pointer) {
+        throw new Error('Provide a Trigger ID or an Interactivity Pointer')
       }
 
       return body

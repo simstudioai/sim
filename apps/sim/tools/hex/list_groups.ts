@@ -1,13 +1,18 @@
 import type { HexListGroupsParams, HexListGroupsResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsResponse> = {
   id: 'hex_list_groups',
   name: 'Hex List Groups',
-  description: 'List all groups in the Hex workspace with optional sorting.',
+  description:
+    'List all groups in the Hex workspace with optional sorting, or only the groups a user belongs to.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -32,6 +37,12 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       visibility: 'user-only',
       description: 'Sort direction: ASC or DESC',
     },
+    userId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return only groups this user UUID belongs to',
+    },
     after: {
       type: 'string',
       required: false,
@@ -52,10 +63,11 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.sortBy) searchParams.set('sortBy', params.sortBy)
       if (params.sortDirection) searchParams.set('sortDirection', params.sortDirection)
+      if (params.userId) searchParams.set('userId', params.userId.trim())
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/groups${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/groups${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerDeleteTaskResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerDeleteTask')
 
@@ -15,6 +17,7 @@ export const deleteTaskTool: ToolConfig<
   name: 'Delete Microsoft Planner Task',
   description: 'Delete a task from Microsoft Planner',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -48,7 +51,7 @@ export const deleteTaskTool: ToolConfig<
       if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
     },
     method: 'DELETE',
     headers: (params) => {

@@ -1,3 +1,4 @@
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Base64Url, sha256Hex } from '@sim/security/hash'
 import type { CliAuthScope } from '@/lib/api/contracts/cli-auth'
@@ -42,6 +43,10 @@ interface ApprovalRecord {
   workspaceId?: string
   /** Whether to mint a key scoped to `workspaceId`. Admin-verified at approval. */
   workspaceBound?: boolean
+  /** Platform scope only: the approved access. Absent on older records, which mint full access. */
+  access?: ApiKeyAccess
+  /** Platform scope only: the approved lifetime in days. Absent means the key never expires. */
+  expiresInDays?: number
   createdAt: number
 }
 
@@ -50,6 +55,8 @@ export interface ApprovalGrant {
   scope: CliAuthScope
   workspaceId: string | null
   workspaceBound: boolean
+  access: ApiKeyAccess
+  expiresInDays: number | null
 }
 
 export type PollResult = { status: 'pending' } | ({ status: 'approved' } & ApprovalGrant)
@@ -82,7 +89,13 @@ export async function createApproval(
   userId: string,
   requestId: string,
   challenge: string,
-  grant: { scope: CliAuthScope; workspaceId?: string; workspaceBound?: boolean } = {
+  grant: {
+    scope: CliAuthScope
+    workspaceId?: string
+    workspaceBound?: boolean
+    access?: ApiKeyAccess
+    expiresInDays?: number
+  } = {
     scope: 'copilot',
   }
 ): Promise<void> {
@@ -94,6 +107,8 @@ export async function createApproval(
     ...(grant.workspaceId
       ? { workspaceId: grant.workspaceId, workspaceBound: grant.workspaceBound === true }
       : {}),
+    ...(grant.access ? { access: grant.access } : {}),
+    ...(grant.expiresInDays ? { expiresInDays: grant.expiresInDays } : {}),
     createdAt: Date.now(),
   }
   await redis.set(approvalKey(requestId), JSON.stringify(record), 'PX', APPROVAL_TTL_MS)
@@ -134,6 +149,8 @@ export async function pollApproval(requestId: string, pollSecret: string): Promi
     scope: record.scope ?? 'copilot',
     workspaceId: record.workspaceId ?? null,
     workspaceBound: record.workspaceBound === true,
+    access: record.access ?? 'write',
+    expiresInDays: record.expiresInDays ?? null,
   }
 }
 

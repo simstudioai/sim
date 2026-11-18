@@ -31,6 +31,15 @@ export function toV2Credential(row: PublicCredentialSource): V2Credential {
   }
 }
 
+/**
+ * When a credential's saved token stops working. Only a service account's pasted token and a
+ * personal token keep their expiry on the row; an OAuth grant's tokens live on its account.
+ */
+function savedTokenExpiresAt(row: CredentialRow | VisibleWorkspaceCredential): Date | null {
+  if (row.type !== 'service_account' && row.type !== 'personal_token') return null
+  return row.accessTokenExpiresAt ?? null
+}
+
 /** Serializes credential metadata for the internal workspace surface. */
 export function toWorkspaceCredential(
   row: CredentialRow | VisibleWorkspaceCredential,
@@ -44,6 +53,7 @@ export function toWorkspaceCredential(
     ? 'admin'
     : (access?.member?.role ?? ('role' in row ? row.role : undefined))
   const status = access?.member?.status ?? (access?.isAdmin ? 'active' : undefined)
+  const expiresAt = savedTokenExpiresAt(row)
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -59,6 +69,7 @@ export function toWorkspaceCredential(
     ...(row.type === 'personal_token' && row.providerTenantId
       ? { instanceUrl: row.providerTenantId }
       : {}),
+    ...(expiresAt ? { expiresAt: expiresAt.toISOString() } : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -77,6 +88,7 @@ export function toOrganizationCredential(row: CredentialRow): OrganizationCreden
   ) {
     throw new Error('Organization credential presentation requires an organization connection')
   }
+  const expiresAt = savedTokenExpiresAt(row)
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -89,6 +101,7 @@ export function toOrganizationCredential(row: CredentialRow): OrganizationCreden
     accountId: row.accountId,
     envKey: null,
     envOwnerUserId: null,
+    ...(expiresAt ? { expiresAt: expiresAt.toISOString() } : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

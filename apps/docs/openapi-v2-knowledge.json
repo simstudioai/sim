@@ -6018,6 +6018,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -6047,6 +6048,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -6928,7 +6933,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",
@@ -7150,7 +7155,7 @@
             "description": "Registered connector type."
           },
           "credentialId": {
-            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.",
+            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255
@@ -7326,7 +7331,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",

@@ -60,6 +60,7 @@ test('native file tools remember folder consent across chats and restarts until 
       stdin: {
         contents: `import { createRoot } from 'react-dom/client';
 import { ToastProvider } from '@sim/emcn';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
 import { Desktop } from '@/app/workspace/[workspaceId]/settings/components/desktop/desktop';
@@ -70,11 +71,11 @@ const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () =
 createRoot(document.getElementById('settings')).render(
   <AppRouterContext.Provider value={router}>
     <PathParamsContext.Provider value={{ workspaceId: 'fixture' }}>
-      <ToastProvider><SettingsHeaderProvider><SettingsHeaderShell>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><SettingsHeaderProvider><SettingsHeaderShell>
         <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
           <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
         </FeatureFlagsProvider>
-      </SettingsHeaderShell></SettingsHeaderProvider></ToastProvider>
+      </SettingsHeaderShell></SettingsHeaderProvider></ToastProvider></QueryClientProvider>
     </PathParamsContext.Provider>
   </AppRouterContext.Provider>
 );`,

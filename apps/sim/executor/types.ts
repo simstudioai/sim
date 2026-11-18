@@ -81,6 +81,12 @@ export type ResumeStatus = 'paused' | 'resumed' | 'failed' | 'queued' | 'resumin
 export interface PausePoint {
   contextId: string
   blockId?: string
+  /**
+   * The paused block's name as the run executed it, recorded when the pause is captured.
+   * Points persisted before names were recorded lack it; readers name those from the run's
+   * deployment version instead of the execution snapshot.
+   */
+  blockName?: string
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
@@ -97,6 +103,26 @@ export interface PausePoint {
   }
   pauseKind: PauseKind
   resumeAt?: string
+  /**
+   * Set when {@link display} and {@link inputFields} were scrubbed of the run's resolved
+   * secrets as the pause was captured. Points persisted before scrubbing existed lack it, and
+   * readers must expose neither field for them: their `response` was stored unscrubbed.
+   */
+  displayScrubbed?: boolean
+  /** Reviewer-facing pause content without resume links or API-mode status and headers. */
+  display?: unknown
+  /** Fields a human pause asks the resumer to fill, without their default values. */
+  inputFields?: PauseInputField[] | null
+}
+
+export interface PauseInputField {
+  name: string
+  label: string
+  type: string
+  description?: string
+  placeholder?: string
+  required: boolean
+  options?: unknown[]
 }
 
 export interface SerializedSnapshot {

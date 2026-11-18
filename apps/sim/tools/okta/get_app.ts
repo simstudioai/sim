@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaApplication, OktaGetAppParams, OktaGetAppResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetApp')
 
@@ -12,6 +14,7 @@ export const oktaGetAppTool: ToolConfig<OktaGetAppParams, OktaGetAppResponse> = 
   description:
     'Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,7 @@ export const oktaGetAppTool: ToolConfig<OktaGetAppParams, OktaGetAppResponse> = 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}`
+      return `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

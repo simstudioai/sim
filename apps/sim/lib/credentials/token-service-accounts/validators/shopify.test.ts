@@ -37,6 +37,7 @@ describe('validateShopifyServiceAccount', () => {
           'X-Shopify-Access-Token': 'shpat_abc',
         },
         body: JSON.stringify({ query: '{ shop { name myshopifyDomain } }' }),
+        redirect: 'error',
         signal: expect.any(AbortSignal),
       }
     )

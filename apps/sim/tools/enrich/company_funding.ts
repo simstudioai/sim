@@ -1,4 +1,5 @@
 import type { EnrichCompanyFundingParams, EnrichCompanyFundingResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const companyFundingTool: ToolConfig<
@@ -10,6 +11,7 @@ export const companyFundingTool: ToolConfig<
   description:
     'Retrieve company funding history, traffic metrics, and executive information by domain.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

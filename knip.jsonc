@@ -7,7 +7,7 @@
   // On by default: every workspace's `exports` map serves only this monorepo, so an entry export
   // no workspace imports is dead. The workspaces below turn it off because their entries are
   // public or standalone: the apps (framework entries such as Next routes and Trigger tasks), the
-  // published packages (cli, sim-cli, sim-setup, ts-sdk), db (standalone scripts), and the root
+  // published packages (cli, sim-cli, sim-setup), db (standalone scripts), and the root
   // (scripts). A new private package is checked without opting in.
   "includeEntryExports": true,
   "workspaces": {
@@ -144,7 +144,6 @@
       "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }
     },
     "apps/pii": { "includeEntryExports": false },
-    "packages/cli": { "includeEntryExports": false },
     "packages/db": {
       "includeEntryExports": false,
       "entry": [
@@ -152,6 +151,13 @@
         "script-migrations/*.ts",
         "**/*.integration.ts",
         "vitest.integration.setup.ts"
+      ],
+      // Integration tests spawn `bun <script>` with an explicit cwd (this package, or apps/sim
+      // for backfill-projects.ts); knip resolves the path from the test file's own directory.
+      "ignoreUnresolved": [
+        "scripts/push.ts",
+        "./scripts/purge-search-projection.ts",
+        "scripts/backfill-projects.ts"
       ]
     },
     // The contract audit reads this snapshot by filename.
@@ -169,7 +175,6 @@
       "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
     },
     "packages/sim-setup": { "includeEntryExports": false },
-    "packages/ts-sdk": { "includeEntryExports": false, "entry": ["examples/*.ts"] },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }

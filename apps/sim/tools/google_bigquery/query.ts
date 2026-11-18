@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryQueryResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryQueryTool: ToolConfig<
   GoogleBigQueryQueryParams,
@@ -65,7 +66,7 @@ export const googleBigQueryQueryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/queries`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/queries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -79,7 +80,7 @@ export const googleBigQueryQueryTool: ToolConfig<
       if (params.maxResults !== undefined) body.maxResults = Number(params.maxResults)
       if (params.defaultDatasetId) {
         body.defaultDataset = {
-          projectId: params.projectId,
+          projectId: String(params.projectId).trim(),
           datasetId: params.defaultDatasetId,
         }
       }

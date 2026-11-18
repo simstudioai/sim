@@ -20,6 +20,12 @@ import {
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
 import {
+  extractOpticsHtmlMacroText,
+  loadStorageBody,
+  mayHoldOpticsHtmlMacro,
+  readOpticsHtmlMacroText,
+} from '@/connectors/confluence/app-macros'
+import {
   getConfluenceAttachment,
   isConfluenceAttachment,
   listConfluenceAttachments,
@@ -348,11 +354,7 @@ export interface ConfluenceStorageText {
  * inclusion and third-party macros may render differently for each reader.
  */
 export function extractConfluenceStorageText(storage: string): ConfluenceStorageText {
-  const $ = cheerio.load(
-    storage,
-    { xml: { xmlMode: false, recognizeCDATA: true, recognizeSelfClosing: true } },
-    false
-  )
+  const $ = loadStorageBody(storage)
   let droppedDynamicContent = false
 
   for (const element of $(ADF_NODE_SELECTOR).toArray().reverse()) {
@@ -374,9 +376,13 @@ export function extractConfluenceStorageText(storage: string): ConfluenceStorage
   }
 
   $(STORAGE_MACRO_SELECTOR).each((_, element) => {
-    if (!LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) {
+    if (LOCAL_STORAGE_MACROS.has($(element).attr('ac:name') ?? '')) return
+    const opticsText = readOpticsHtmlMacroText($, element)
+    if (opticsText === null) {
       droppedDynamicContent = true
       $(element).remove()
+    } else {
+      $(element).replaceWith($('<p></p>').text(opticsText))
     }
   })
 
@@ -890,15 +896,20 @@ export const confluenceConnector: ConnectorConfig = {
     const bodyFormat = scopedContent ? 'storage' : 'view'
     let page: Record<string, unknown> | null = null
     let contentType: 'page' | 'blogpost' = 'page'
-    for (const endpoint of ['pages', 'blogposts'] as const) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=${bodyFormat}&include-labels=true`
-      const response = await fetchWithRetry(url, {
+    const contentUrl = (endpoint: 'pages' | 'blogposts') =>
+      `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}`
+    const fetchContent = (url: string) =>
+      fetchWithRetry(url, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
       })
+    for (const endpoint of ['pages', 'blogposts'] as const) {
+      const response = await fetchContent(
+        `${contentUrl(endpoint)}?body-format=${bodyFormat}&include-labels=true`
+      )
 
       if (response.ok) {
         page = await response.json()
@@ -919,7 +930,21 @@ export const confluenceConnector: ConnectorConfig = {
     }
     const rawContent = representation.value
     const scoped = scopedContent ? extractConfluenceStorageText(rawContent) : null
-    const plainText = scoped ? scoped.text : confluenceViewToPlainText(rawContent)
+    let plainText = scoped ? scoped.text : confluenceViewToPlainText(rawContent)
+    if (!scoped && mayHoldOpticsHtmlMacro(rawContent, plainText)) {
+      const endpoint = contentType === 'page' ? 'pages' : 'blogposts'
+      const response = await fetchContent(`${contentUrl(endpoint)}?body-format=storage`)
+      if (response.status === 401) throw await createRetryableHttpError(response)
+      if (!response.ok) {
+        throw new Error(`Failed to get Confluence storage body: ${response.status}`)
+      }
+      const storagePage = (await response.json()) as { body?: { storage?: { value?: unknown } } }
+      const storage = storagePage.body?.storage?.value
+      if (typeof storage !== 'string') {
+        throw new Error('Confluence content is missing its storage body')
+      }
+      plainText = [plainText, extractOpticsHtmlMacroText(storage)].filter(Boolean).join(' ')
+    }
 
     const links = page._links as Record<string, unknown> | undefined
     const stub = pageToStub(

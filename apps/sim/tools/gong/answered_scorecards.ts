@@ -2,7 +2,8 @@ import type {
   GongAnsweredScorecardsParams,
   GongAnsweredScorecardsResponse,
 } from '@/tools/gong/types'
-import { getGongErrorMessage, parseGongIdList } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization, parseGongIdList } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const answeredScorecardsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const answeredScorecardsTool: ToolConfig<
   name: 'Gong Answered Scorecards',
   description: 'Retrieve answered scorecards for reviewed users or by date range from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -80,7 +82,7 @@ export const answeredScorecardsTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
     body: (params) => {
       const filter: Record<string, unknown> = {}

@@ -7,6 +7,7 @@ import {
   toFormBody,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateSettingsTool: ToolConfig<JotformUpdateSettingsParams, JotformUserResponse> = {
@@ -15,6 +16,7 @@ export const updateSettingsTool: ToolConfig<JotformUpdateSettingsParams, Jotform
   description:
     'Update account settings such as name, email, website, company, industry, or time zone. Only the supplied fields change.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

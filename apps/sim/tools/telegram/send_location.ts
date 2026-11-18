@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramMessage,
   TelegramSendLocationParams,
@@ -15,6 +16,7 @@ export const telegramSendLocationTool: ToolConfig<
   name: 'Telegram Send Location',
   description: 'Send a point on the map to a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

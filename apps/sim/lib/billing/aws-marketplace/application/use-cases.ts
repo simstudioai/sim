@@ -1,12 +1,16 @@
-import { AuditAction, AuditResourceType } from '@sim/audit'
+import { AuditAction, type AuditActionType, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
 import { awsMarketplaceOperations } from '@/lib/billing/aws-marketplace/application/operations'
 import { hashClaimToken } from '@/lib/billing/aws-marketplace/claim'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import {
+  findAwsMarketplaceProduct,
+  isAwsMarketplaceEnabled,
+} from '@/lib/billing/aws-marketplace/config'
 import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
 import {
   type AwsMarketplaceLicenseRecord,
+  type BuyerContact,
   consumeLicenseClaim,
   findLicenseByClaimHash,
   isNewerRead,
@@ -14,6 +18,7 @@ import {
   listAdministeredOrganizations,
   listOrganizationLicenses,
   lockLicense,
+  paysForSelfServePlan,
   recordLicenseVerification,
   saveLicenseContact,
 } from '@/lib/billing/aws-marketplace/repository'
@@ -25,12 +30,18 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/autho
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationSubjectMembership } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbTransaction } from '@/lib/db/types'
 
 /** The same answer as an unknown route, so a deployment that does not sell on AWS shows nothing. */
-function requireProductCode(): string {
-  const productCode = getAwsMarketplaceProductCode()
-  if (!productCode) throw new OrchestrationError('not_found', 'Not found')
-  return productCode
+function requireMarketplaceEnabled(): void {
+  if (!isAwsMarketplaceEnabled()) throw new OrchestrationError('not_found', 'Not found')
+}
+
+/** The listing a license was sold under; one this deployment no longer sells reads as unknown. */
+function requireLicenseProduct(license: AwsMarketplaceLicenseRecord) {
+  const product = findAwsMarketplaceProduct(license.productCode)
+  if (!product) throw new OrchestrationError('not_found', 'Not found')
+  return product
 }
 
 function isClaimOpen(license: AwsMarketplaceLicenseRecord, now: Date): boolean {
@@ -85,6 +96,22 @@ export function requireLinkableTo(
   }
 }
 
+/**
+ * AWS bills a linked organization for the listing, so one already paying Stripe for a plan would
+ * pay twice. Its subscription is cancelled first, by its owner or by support.
+ */
+export async function requireNotBilledThroughStripe(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<void> {
+  if (await paysForSelfServePlan(tx, organizationId)) {
+    throw new OrchestrationError(
+      'conflict',
+      'This organization already pays for a Sim plan. Cancel that subscription, or contact support, before linking an AWS Marketplace subscription to it.'
+    )
+  }
+}
+
 /** Enough for a buyer to recognize their account, and no more for someone holding their claim. */
 function maskAwsAccount(accountId: string): string {
   return `••••${accountId.slice(-4)}`
@@ -115,7 +142,7 @@ export const readAwsMarketplaceClaim: OperationUseCase<
   operation: awsMarketplaceOperations.readClaim,
   async execute({ principal, input }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.readClaim)
-    requireProductCode()
+    requireMarketplaceEnabled()
     if (!input.claimToken) return { status: 'missing' }
     const license = await findLicenseByClaimHash(hashClaimToken(input.claimToken))
     if (!license || !isClaimOpen(license, new Date())) return { status: 'missing' }
@@ -141,12 +168,6 @@ interface ClaimInput {
   claimToken: string | null
 }
 
-interface BuyerContact {
-  /** Whom to contact about provisioning; AWS asks the registration page to collect it. */
-  contactEmail: string
-  companyName: string | null
-}
-
 type TakeInput = ClaimInput & BuyerContact
 
 interface LinkLicenseInput extends TakeInput {
@@ -159,8 +180,20 @@ interface LinkedLicense {
   newlyLinked: boolean
 }
 
-function contactOf(input: BuyerContact) {
-  return { email: input.contactEmail, companyName: input.companyName }
+/** The license this browser's claim names, refused unless the claim is still open. */
+async function findOpenClaim(input: ClaimInput) {
+  const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
+  const claimed = requireOpenClaim(
+    claimHash ? await findLicenseByClaimHash(claimHash) : null,
+    input.licenseId,
+    claimHash
+  )
+  return { claimHash, claimed }
+}
+
+/** Locks the claimed license and checks the claim again, so two tabs racing it take it once. */
+async function lockOpenClaim(tx: DbTransaction, input: ClaimInput, claimHash: string | null) {
+  return requireOpenClaim(await lockLicense(tx, input.licenseId), input.licenseId, claimHash)
 }
 
 /**
@@ -169,22 +202,17 @@ function contactOf(input: BuyerContact) {
  * rechecks the claim under the row lock, so two tabs racing one claim take it at most once.
  */
 async function verifyClaimedLicense(input: ClaimInput, organizationId: string | null) {
-  const productCode = requireProductCode()
-  const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
-  const claimed = requireOpenClaim(
-    claimHash ? await findLicenseByClaimHash(claimHash) : null,
-    input.licenseId,
-    claimHash
-  )
+  requireMarketplaceEnabled()
+  const { claimHash, claimed } = await findOpenClaim(input)
   requireLinkableTo(claimed, organizationId)
 
   const verifiedAt = new Date()
-  const summary = await verifyLicense(productCode, claimed.licenseArn)
+  const summary = await verifyLicense(requireLicenseProduct(claimed), claimed.licenseArn)
   const verification = { summary, verifiedAt }
   if (!summary.active) {
     const outcome = await recordLicenseVerification({
       licenseArn: claimed.licenseArn,
-      productCode,
+      productCode: claimed.productCode,
       verification,
     })
     throw new OrchestrationError(
@@ -197,11 +225,25 @@ async function verifyClaimedLicense(input: ClaimInput, organizationId: string | 
   return { claimHash, verification }
 }
 
-export function licenseAuditMetadata(license: AwsMarketplaceLicenseRecord) {
+/** The audit entry for a license changing hands; `metadata` adds to its terms. */
+export function licenseAuditEntry(
+  license: AwsMarketplaceLicenseRecord,
+  action: AuditActionType,
+  description: string,
+  metadata: Record<string, unknown> = {}
+) {
   return {
-    dimension: license.dimension,
-    quantity: license.quantity,
-    expiresAt: license.expiresAt?.toISOString() ?? null,
+    action,
+    resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
+    resourceId: license.id,
+    resourceName: license.dimension ?? 'AWS Marketplace license',
+    description,
+    metadata: {
+      dimension: license.dimension,
+      quantity: license.quantity,
+      expiresAt: license.expiresAt?.toISOString() ?? null,
+      ...metadata,
+    },
   }
 }
 
@@ -218,11 +260,7 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   }: OrganizationUseCaseContext<LinkLicenseInput>): Promise<LinkedLicense> {
     const { claimHash, verification } = await verifyClaimedLicense(input, input.organizationId)
     return db.transaction(async (tx) => {
-      const locked = requireOpenClaim(
-        await lockLicense(tx, input.licenseId),
-        input.licenseId,
-        claimHash
-      )
+      const locked = await lockOpenClaim(tx, input, claimHash)
       requireLinkableTo(locked, input.organizationId)
       requireNotOverruled(locked, verification.verifiedAt)
       // Holds the admin's membership until commit, so a concurrent demotion waits for the link.
@@ -235,9 +273,10 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
         { executor: tx, forShare: true }
       )
       const newlyLinked = locked.organizationId !== input.organizationId
+      if (newlyLinked) await requireNotBilledThroughStripe(tx, input.organizationId)
       const license = await consumeLicenseClaim(tx, locked, {
         link: newlyLinked ? { organizationId: input.organizationId, userId: context.userId } : null,
-        contact: contactOf(input),
+        contact: input,
         verification,
       })
       return { license, newlyLinked }
@@ -245,14 +284,11 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   },
   projectAudit: ({ result }) =>
     result.newlyLinked
-      ? {
-          action: AuditAction.AWS_MARKETPLACE_LICENSE_LINKED,
-          resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
-          resourceId: result.license.id,
-          resourceName: result.license.dimension ?? 'AWS Marketplace license',
-          description: 'Linked an AWS Marketplace subscription to the organization',
-          metadata: licenseAuditMetadata(result.license),
-        }
+      ? licenseAuditEntry(
+          result.license,
+          AuditAction.AWS_MARKETPLACE_LICENSE_LINKED,
+          'Linked an AWS Marketplace subscription to the organization'
+        )
       : [],
 })
 
@@ -272,17 +308,13 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
     assertOperationPrincipal(principal, awsMarketplaceOperations.registerToAccount)
     const { claimHash, verification } = await verifyClaimedLicense(input, null)
     const { license, newlyRegistered } = await db.transaction(async (tx) => {
-      const locked = requireOpenClaim(
-        await lockLicense(tx, input.licenseId),
-        input.licenseId,
-        claimHash
-      )
+      const locked = await lockOpenClaim(tx, input, claimHash)
       requireLinkableTo(locked, null)
       requireNotOverruled(locked, verification.verifiedAt)
       const newlyRegistered = locked.linkedByUserId !== principal.userId
       const consumed = await consumeLicenseClaim(tx, locked, {
         link: newlyRegistered ? { organizationId: null, userId: principal.userId } : null,
-        contact: contactOf(input),
+        contact: input,
         verification,
       })
       return { license: consumed, newlyRegistered }
@@ -294,14 +326,11 @@ export const registerAwsMarketplaceLicenseToAccount: OperationUseCase<
         principal,
         request,
         [
-          {
-            action: AuditAction.AWS_MARKETPLACE_LICENSE_REGISTERED,
-            resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
-            resourceId: license.id,
-            resourceName: license.dimension ?? 'AWS Marketplace license',
-            description: 'Registered an AWS Marketplace subscription to an account',
-            metadata: licenseAuditMetadata(license),
-          },
+          licenseAuditEntry(
+            license,
+            AuditAction.AWS_MARKETPLACE_LICENSE_REGISTERED,
+            'Registered an AWS Marketplace subscription to an account'
+          ),
         ]
       )
     }
@@ -321,23 +350,14 @@ export const saveAwsMarketplaceClaimContact: OperationUseCase<
   operation: awsMarketplaceOperations.saveClaimContact,
   async execute({ principal, input }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.saveClaimContact)
-    const productCode = requireProductCode()
-    const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
-    const claimed = requireOpenClaim(
-      claimHash ? await findLicenseByClaimHash(claimHash) : null,
-      input.licenseId,
-      claimHash
-    )
+    requireMarketplaceEnabled()
+    const { claimHash, claimed } = await findOpenClaim(input)
     const verifiedAt = new Date()
-    const summary = await verifyLicense(productCode, claimed.licenseArn)
+    const summary = await verifyLicense(requireLicenseProduct(claimed), claimed.licenseArn)
     return db.transaction(async (tx) => {
-      const locked = requireOpenClaim(
-        await lockLicense(tx, input.licenseId),
-        input.licenseId,
-        claimHash
-      )
+      const locked = await lockOpenClaim(tx, input, claimHash)
       const license = await saveLicenseContact(tx, locked, {
-        contact: contactOf(input),
+        contact: input,
         verification: { summary, verifiedAt },
       })
       return { status: license.status }
@@ -360,7 +380,7 @@ function toLicenseStatusList(rows: Awaited<ReturnType<typeof listOrganizationLic
 export const listOrganizationAwsMarketplaceLicenses = defineAuthorizedOrganizationUseCase({
   operation: awsMarketplaceOperations.listOrganizationLicenses,
   async execute({ context }: OrganizationUseCaseContext<{ organizationId: string }>) {
-    if (!getAwsMarketplaceProductCode()) return []
+    if (!isAwsMarketplaceEnabled()) return []
     return toLicenseStatusList(await listOrganizationLicenses(context.organizationId))
   },
 })
@@ -374,7 +394,7 @@ export const listAccountAwsMarketplaceLicenses: OperationUseCase<
   operation: awsMarketplaceOperations.listAccountLicenses,
   async execute({ principal }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.listAccountLicenses)
-    if (!getAwsMarketplaceProductCode()) return []
+    if (!isAwsMarketplaceEnabled()) return []
     return toLicenseStatusList(await listAccountLicenses(principal.userId))
   },
 }

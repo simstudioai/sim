@@ -2,6 +2,7 @@ import type {
   AthenaCreatePreparedStatementParams,
   AthenaCreatePreparedStatementResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createPreparedStatementTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const createPreparedStatementTool: InternalToolConfig<
   description:
     'Create a parameterized prepared statement in an Athena workgroup for use with EXECUTE or execution parameters',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

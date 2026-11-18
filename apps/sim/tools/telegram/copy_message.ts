@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TelegramCopyMessageParams, TelegramCopyMessageResponse } from '@/tools/telegram/types'
 import { telegramApiUrl } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -12,6 +13,7 @@ export const telegramCopyMessageTool: ToolConfig<
   description:
     'Copy a message to another Telegram chat without a forward header through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

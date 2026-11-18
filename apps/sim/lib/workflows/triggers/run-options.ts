@@ -307,6 +307,18 @@ export function resolveTriggerRunOptions(
   )
 }
 
+/**
+ * JSON Schema for the `input` an API run of these blocks accepts, or null when
+ * no block can start an API run. Describes the start block the executor itself
+ * picks for an API run, so the description cannot drift from what it runs.
+ */
+export function resolveApiRunInputSchema(
+  blocks: Record<string, TriggerBlockLike>
+): Record<string, unknown> | null {
+  const [entry] = resolveStartCandidates(blocks, { execution: 'api' })
+  return entry ? buildTriggerRunOption(entry, true).inputSchema : null
+}
+
 /** Strips internal fields so the option can be returned to the agent. */
 export function toPublicRunOption(option: TriggerRunOption): {
   triggerBlockId: string

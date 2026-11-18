@@ -4,7 +4,7 @@ import type {
   SharepointToolParams,
   SharepointUpdatePageResponse,
 } from '@/tools/sharepoint/types'
-import { escapeHtml, optionalTrim } from '@/tools/sharepoint/utils'
+import { escapeHtml, graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointUpdatePage')
@@ -66,7 +66,7 @@ export const updatePageTool: ToolConfig<SharepointToolParams, SharepointUpdatePa
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
       const pageId = optionalTrim(params.pageId)
       if (!pageId) throw new Error('pageId must be provided')
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/pages/${encodeURIComponent(pageId)}/microsoft.graph.sitePage`
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/pages/${graphPathSegment(pageId, 'pageId')}/microsoft.graph.sitePage`
     },
     method: 'PATCH',
     headers: (params) => ({

@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { DNS_CONFIGURATION_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleDnsConfiguration,
@@ -17,6 +18,7 @@ export const tailscaleSetDnsConfigurationTool: ToolConfig<
   name: 'Tailscale Set DNS Configuration',
   description: 'Replace the full tailnet DNS configuration',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

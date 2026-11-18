@@ -1,5 +1,6 @@
 import type { LinqListChatsParams, LinqListChatsResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqListChatsTool: ToolConfig<LinqListChatsParams, LinqListChatsResult> = {
@@ -7,6 +8,7 @@ export const linqListChatsTool: ToolConfig<LinqListChatsParams, LinqListChatsRes
   name: 'List Chats',
   description: 'List chats, optionally filtered by sender or participant handle',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

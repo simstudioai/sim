@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleDeleteDeviceAttributeResponse,
   TailscaleDeviceAttributeParams,
@@ -14,6 +15,7 @@ export const tailscaleDeleteDeviceAttributeTool: ToolConfig<
   name: 'Tailscale Delete Device Attribute',
   description: 'Remove a custom posture attribute from a device',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

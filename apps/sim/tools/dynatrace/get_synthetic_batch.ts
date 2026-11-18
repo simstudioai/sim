@@ -9,6 +9,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSyntheticBatchTool: ToolConfig<
@@ -20,6 +21,7 @@ export const getSyntheticBatchTool: ToolConfig<
   description:
     'Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

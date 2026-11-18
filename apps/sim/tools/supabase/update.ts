@@ -1,4 +1,5 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SupabaseUpdateParams, SupabaseUpdateResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   name: 'Supabase Update Row',
   description: 'Update rows in a Supabase table based on filter criteria',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

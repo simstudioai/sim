@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TIME_OFF_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateTimeOffTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneCreateTimeOffTool: ToolConfig<
   description:
     'Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration.',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

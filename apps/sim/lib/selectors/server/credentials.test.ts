@@ -110,6 +110,7 @@ describe('authorizeSelectorCredential', () => {
       expectedProviderId: 'google-email',
       requiredScopes: ['gmail.modify'],
       impersonateEmail: undefined,
+      service: 'gmail',
     })
   })
 
@@ -268,7 +269,7 @@ describe('resolveSelectorOAuthAccessToken', () => {
     expect(liveProtectedValues.contains('shared-access-token')).toBe(true)
     expect(mocks.resolveCredentialTokenBundle).toHaveBeenCalledTimes(2)
     for (const call of mocks.resolveCredentialTokenBundle.mock.calls) {
-      expect(call[5]).toEqual({ privacyMode: 'selector' })
+      expect(call[5]).toEqual({ privacyMode: 'selector', service: 'gmail' })
       expect(call).not.toContain(canceledController.signal)
       expect(call).not.toContain(liveController.signal)
     }

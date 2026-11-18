@@ -1,5 +1,6 @@
 import type { CbInsightsAuthParams, CbInsightsListResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsLookupOrganizationsParams extends CbInsightsAuthParams {
@@ -19,6 +20,7 @@ export const cbinsightsLookupOrganizationsTool: InternalToolConfig<
   description:
     'Resolve company names or websites to CB Insights organization IDs. The integration contract describes lookup as credit-free; confirm current credit terms with CB Insights before requesting paid datasets.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

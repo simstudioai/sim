@@ -9,7 +9,10 @@ import { AuthShell } from '@/app/(auth)/components'
 import { resolveCliAuthRequest } from '@/app/cli/auth/cli-auth-request'
 import { CliAuthView } from '@/app/cli/auth/cli-auth-view'
 import { CliAuthLoading } from '@/app/cli/auth/loading'
-import { cliAuthSearchParamsCache } from '@/app/cli/auth/search-params'
+import {
+  cliAuthSearchParamsCache,
+  serializeCliAuthSearchParams,
+} from '@/app/cli/auth/search-params'
 
 export const metadata: Metadata = {
   title: 'Connect your terminal',
@@ -50,14 +53,9 @@ export default async function CliAuthPage({
   const resolution = resolveCliAuthRequest(params)
 
   if (resolution.valid && !session?.user) {
-    const query = new URLSearchParams({
-      request: resolution.request.request,
-      challenge: resolution.request.challenge,
-      pairing: resolution.request.pairing,
-    })
     redirect(
       buildAuthCrossLink(isRegistrationDisabled ? '/login' : '/signup', {
-        callbackUrl: `/cli/auth?${query}`,
+        callbackUrl: serializeCliAuthSearchParams('/cli/auth', params),
         isInviteFlow: false,
       })
     )

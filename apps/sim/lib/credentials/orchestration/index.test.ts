@@ -24,7 +24,9 @@ const {
   mockGetClientCredentialAccountDescriptor,
   mockDeleteConnectionCredential,
   mockDeleteOrphanedOAuthAccount,
+  mockAssertReconnectedSubjectUnclaimed,
 } = vi.hoisted(() => ({
+  mockAssertReconnectedSubjectUnclaimed: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
   mockIsClientCredentialAccountProviderId: vi.fn(() => false),
   // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
@@ -51,6 +53,12 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   verifyAndBuildServiceAccountSecret: mockVerifyAndBuildServiceAccountSecret,
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
+vi.mock('@/lib/credentials/workload-identity/subject', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/credentials/workload-identity/subject')>()
+  mockAssertReconnectedSubjectUnclaimed.mockImplementation(actual.assertReconnectedSubjectUnclaimed)
+  return { ...actual, assertReconnectedSubjectUnclaimed: mockAssertReconnectedSubjectUnclaimed }
+})
 vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
   CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: {},
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
@@ -76,6 +84,7 @@ vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   createServiceAccountCredential,
   deleteCredentialRecord,
@@ -169,6 +178,23 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(updatePayload().encryptedServiceAccountKey).toBe('new-cipher')
     expect(result.updatedFields).toContain('displayName')
     expect(result.previousDisplayName).toBe(OLD_EMAIL)
+  })
+
+  it('surfaces an unavailable egress route instead of an internal failure', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        serviceAccountJson: NEW_GOOGLE_KEY,
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('requires the complete OCI tuple and treats an omitted passphrase as clearing it', async () => {
@@ -306,6 +332,66 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
+  it.each([
+    [
+      'shopify-service-account',
+      {
+        type: 'token_service_account',
+        providerId: 'shopify-service-account',
+        authMethod: 'client_credentials',
+      },
+      { domain: 'acme.myshopify.com' },
+    ],
+    [
+      'atlassian-service-account',
+      { type: 'atlassian_service_account', authMethod: 'client_credentials' },
+      { domain: 'acme.atlassian.net' },
+    ],
+  ])(
+    'keeps a %s credential on client credentials when a reconnect sends only a new secret',
+    async (providerId, storedBlob, extraFields) => {
+      mockCredential({ providerId, displayName: 'Fixture' })
+      mockStoredBlob(storedBlob)
+
+      await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        clientId: 'cid',
+        clientSecret: 'rotated-secret',
+        ...extraFields,
+      })
+
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        providerId,
+        expect.objectContaining({
+          authMethod: 'client_credentials',
+          clientSecret: 'rotated-secret',
+        })
+      )
+    }
+  )
+
+  it('switches a client-credentials credential to a pasted token when the reconnect sends one', async () => {
+    mockCredential({ providerId: 'shopify-service-account', displayName: 'Fixture' })
+    mockStoredBlob({
+      type: 'token_service_account',
+      providerId: 'shopify-service-account',
+      authMethod: 'client_credentials',
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      apiToken: 'shpat_new',
+      domain: 'acme.myshopify.com',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'shopify-service-account',
+      expect.objectContaining({ apiToken: 'shpat_new', authMethod: undefined })
+    )
+  })
+
   it('carries the stored dataCenter forward for a client-credential reconnect', async () => {
     mockCredential({ providerId: 'zoho-desk-service-account', displayName: 'Acme Desk' })
     mockIsClientCredentialAccountProviderId.mockReturnValue(true)
@@ -330,6 +416,41 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       expect.objectContaining({ dataCenter: 'eu' })
     )
   })
+
+  it.each([
+    { domain: undefined, expected: 'eu' },
+    { domain: '  ', expected: 'eu' },
+    { domain: 'federal', expected: 'federal' },
+  ])(
+    'sends region $expected when a token credential stored on eu is reconnected with $domain',
+    async ({ domain, expected }) => {
+      mockCredential({ providerId: 'launchdarkly-service-account', displayName: 'Flags (eu)' })
+      mockStoredBlob({
+        type: 'token_service_account',
+        providerId: 'launchdarkly-service-account',
+        apiToken: 'old-token',
+        domain: 'eu',
+      })
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+        providerId: 'launchdarkly-service-account',
+        encryptedServiceAccountKey: 'new-cipher',
+        displayName: `LaunchDarkly (${expected})`,
+        auditMetadata: {},
+      })
+
+      await performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        apiToken: 'new-token',
+        ...(domain === undefined ? {} : { domain }),
+      })
+
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'launchdarkly-service-account',
+        expect.objectContaining({ apiToken: 'new-token', domain: expected })
+      )
+    }
+  )
 
   it('fails the reconnect when the stored secret cannot be decrypted', async () => {
     mockCredential()
@@ -404,6 +525,62 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(result).not.toHaveProperty('providerErrorCode')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused keyless rebuild with its stable code', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
+    const { WorkloadIdentityNotConfiguredError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentityNotConfiguredError()
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(refusal)
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: '{}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('reports a reconnect onto a subject another credential holds with the create code', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'google_workload_identity_v1', config: { subject: 'sim:old' } })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'google-service-account',
+      encryptedServiceAccountKey: 'rotated-cipher',
+      displayName: OLD_EMAIL,
+      auditMetadata: {},
+      principal: null,
+    })
+    const { WorkloadIdentitySubjectError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentitySubjectError(
+      'Another credential already uses this trust setup.',
+      'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+    )
+    mockAssertReconnectedSubjectUnclaimed.mockRejectedValueOnce(refusal)
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: '{"authType":"workload_identity"}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('conceals managed OAuth credentials from the ordinary update path', async () => {
@@ -537,6 +714,23 @@ describe('createServiceAccountCredential', () => {
     }
   )
 
+  it('surfaces an unavailable egress route instead of an internal failure', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      createServiceAccountCredential({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        providerId: 'google-service-account',
+        displayName: 'Google signer',
+        serviceAccountJson: NEW_GOOGLE_KEY,
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('rejects an existing service-account source instead of discarding the submitted secret', async () => {
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'zoom-service-account',
@@ -577,6 +771,32 @@ describe('createServiceAccountCredential', () => {
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(mockGetCredentialActorContext).toHaveBeenCalledWith('credential-1', 'user-1', {})
+  })
+
+  it('carries a refused keyless credential’s code into the create result', async () => {
+    const { WorkloadIdentitySubjectError } = await import(
+      '@/lib/credentials/workload-identity/subject'
+    )
+    const refusal = new WorkloadIdentitySubjectError(
+      'This trust setup has expired.',
+      'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+    )
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValue(refusal)
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'aws-service-account',
+      displayName: 'AWS (keyless)',
+      serviceAccountJson: '{"authType":"oidc_role"}',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      keylessRefusal: refusal,
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('returns an accessible credential for an exact non-token secret replay', async () => {

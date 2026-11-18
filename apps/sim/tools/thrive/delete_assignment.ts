@@ -1,6 +1,8 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteAssignmentParams, ThriveDeleteResponse } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteAssignmentTool: ToolConfig<ThriveDeleteAssignmentParams, ThriveDeleteResponse> =
   {
@@ -8,6 +10,7 @@ export const deleteAssignmentTool: ToolConfig<ThriveDeleteAssignmentParams, Thri
     name: 'Thrive Delete Assignment',
     description: 'Delete a compliance assignment in Thrive.',
     version: '1.0.0',
+    oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {
       tenantId: {
@@ -44,7 +47,7 @@ export const deleteAssignmentTool: ToolConfig<ThriveDeleteAssignmentParams, Thri
 
     request: {
       url: (params) =>
-        `${getThriveBaseUrl(params.host, 'v1')}/assignments/${encodeURIComponent(params.assignmentId)}`,
+        `${getThriveBaseUrl(params.host, 'v1')}/assignments/${safeUrlPathSegment(params.assignmentId, 'assignmentId')}`,
       method: 'DELETE',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
       body: (params) => ({ audienceId: params.audienceId }),

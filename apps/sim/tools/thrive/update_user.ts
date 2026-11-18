@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveUpdateUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -7,12 +8,14 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserResponse> = {
   id: 'thrive_update_user',
   name: 'Thrive Update User',
   description: 'Update an existing user in Thrive by ref. Only the fields provided are changed.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -127,7 +130,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${encodeURIComponent(params.ref)}`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

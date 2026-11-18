@@ -1,4 +1,5 @@
 import type { IAMAttachPolicyResponse, IAMAttachRolePolicyParams } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const attachRolePolicyTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const attachRolePolicyTool: InternalToolConfig<
   name: 'IAM Attach Role Policy',
   description: 'Attach a managed policy to an IAM role',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

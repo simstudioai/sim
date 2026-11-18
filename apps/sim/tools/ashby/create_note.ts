@@ -1,5 +1,6 @@
 import type { AshbyCreateNoteParams, AshbyCreateNoteResponse } from '@/tools/ashby/types'
 import { ASHBY_ON_BEHALF_OF_PARAM, ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteResponse> = {
@@ -8,6 +9,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
   description:
     'Creates a note on a candidate in Ashby. Supports plain text and HTML content (bold, italic, underline, links, lists, code).',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

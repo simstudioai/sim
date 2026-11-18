@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaPublishVersionParams, LambdaPublishVersionResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const publishVersionTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const publishVersionTool: InternalToolConfig<
   name: 'Lambda Publish Version',
   description: 'Publish an immutable version from the current code and configuration of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

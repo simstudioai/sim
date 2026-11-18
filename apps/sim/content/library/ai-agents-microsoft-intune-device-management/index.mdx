@@ -1,0 +1,234 @@
+---
+slug: ai-agents-microsoft-intune-device-management
+title: 'How Do You Build a Governed AI Agent for Microsoft Intune Device Management?'
+seoTitle: 'Microsoft Intune AI Agent Governance Guide'
+description: 'Learn how to build a governed Microsoft Intune AI agent with least privilege, human approvals, deterministic controls, and auditable device actions.'
+date: 2026-11-14
+updated: 2026-11-14
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Microsoft Intune, IT Operations, Governance, Sim]
+ogImage: /library/ai-agents-microsoft-intune-device-management/cover.jpg
+draft: false
+faq:
+  - q: "What is Microsoft Intune workflow automation?"
+    a: "Microsoft Intune workflow automation connects endpoint data and supported administrative actions to triggers, rules, approvals, notifications, and other IT systems."
+  - q: "Can Sim build an Intune AI agent?"
+    a: "Sim can be used to build an Intune AI agent through its Microsoft Intune integration, but teams should confirm that the current integration exposes every operation required by their workflow."
+  - q: "Should an Intune AI agent be allowed to make device changes automatically?"
+    a: "A Microsoft Intune AI agent should not make consequential device changes without deterministic authorization checks and explicit human approval unless the organization has formally approved a narrowly scoped exception."
+  - q: "Can Claude directly change devices in Microsoft Intune?"
+    a: "Claude should not directly control Microsoft Intune; a governed workflow should hold the credential, restrict available operations, validate Claude’s structured output, and require approval before a supported change."
+  - q: "What data should an Intune AI agent send to a language model?"
+    a: "A Microsoft Intune AI agent should send only the minimum device, request, and policy context required for the task, with unnecessary personal, credential, and security-sensitive fields removed."
+  - q: "How do you stop an Intune AI agent after an approval is rejected?"
+    a: "Sim stops the rejected path when a downstream Condition checks the Human in the Loop response and routes rejection away from every Intune change action."
+  - q: "What should happen when an Intune AI agent cannot identify a device?"
+    a: "A Microsoft Intune AI agent should stop the automated path, preserve the available evidence, and route the request to a human rather than guessing which device the requester meant."
+  - q: "How do you test an Intune AI agent before production?"
+    a: "A Microsoft Intune AI agent should be tested in a non-production scope with approved sample devices, rejected approvals, invalid identifiers, permission failures, duplicate requests, malformed model output, and simulated service errors."
+  - q: "Can an Intune AI agent help with compliance without changing devices?"
+    a: "A Microsoft Intune AI agent can provide value through read-only compliance summaries, exception reports, ticket enrichment, and drafted follow-up messages without receiving permission to change devices."
+  - q: "Who should approve Intune policy and app assignment requests?"
+    a: "Microsoft Intune policy and app assignment requests should be approved by the organization’s designated endpoint, application, security, or change-management owner according to the target and risk level."
+  - q: "What should an Intune AI agent audit record contain?"
+    a: "A Microsoft Intune AI agent audit record should contain the requester, workflow version, target, evidence used, proposed action, approval decision, approver, timestamps, execution result, and relevant errors."
+  - q: "Is an Intune integration enough to make an AI agent production-ready?"
+    a: "A Microsoft Intune integration is not enough to make an AI agent production-ready because production use also requires least privilege, approval enforcement, testing, monitoring, failure recovery, and accountable ownership."
+---
+
+## TL;DR
+
+Microsoft Intune AI agents can help IT teams inspect endpoint data, prepare recommended actions, enrich service-desk tickets, and execute approved changes through governed workflows. The safest design keeps credentials outside the model, grants the workflow only the permissions it needs, and requires a named person to approve every device-changing action.
+
+## What is an Intune AI agent?
+
+A Microsoft Intune AI agent is a governed workflow that combines endpoint-management data and actions with a language model, deterministic rules, approval gates, and an audit trail.
+
+The model can interpret a request, summarize device data, or recommend a response. [Microsoft Intune](https://learn.microsoft.com/en-us/intune/fundamentals/what-is-intune) remains the system of record for managed devices, compliance state, apps, and policies. The workflow controls what information reaches the model and whether a proposed action is allowed to continue.
+
+That distinction matters because an agent should not receive unrestricted administrative access. A production design should separate:
+
+1. **The request:** A ticket, form, chat message, schedule, or identity event starts the workflow.
+2. **The evidence:** The workflow retrieves only the endpoint and identity data needed for that request.
+3. **The recommendation:** The model summarizes the evidence or proposes an action.
+4. **The policy check:** Deterministic conditions check scope, risk, and required fields.
+5. **The approval:** A named reviewer approves or rejects any device-changing action.
+6. **The execution:** The workflow performs only a supported, explicitly authorized Intune operation.
+7. **The record:** The result, approver, target, and relevant timestamps are retained for review.
+
+This architecture gives IT teams useful AI assistance without treating a model response as authorization.
+
+## What should IT leaders know at a glance about Intune AI agents?
+
+Microsoft Intune AI agents are most useful when they accelerate investigation and coordination while leaving authorization with IT.
+
+- **Best starting point:** Read-only inventory, compliance summaries, and ticket enrichment.
+- **Safest change pattern:** Request, retrieve evidence, propose action, pause for approval, check the decision with a condition, and then execute.
+- **Credential boundary:** Store Intune credentials in the workflow connection rather than exposing them in prompts.
+- **Permission model:** Use a dedicated identity with the narrowest supported permissions and scope.
+- **Model role:** Let the model interpret and summarize; use deterministic workflow logic for authorization and routing.
+- **Audit requirement:** Record the requester, target, proposed action, approver, outcome, and errors.
+- **Operational requirement:** Add timeouts, rejection paths, idempotency controls, and escalation to a human queue.
+
+## Which Microsoft Intune workflows should IT teams automate with AI agents?
+
+Microsoft Intune workflows should begin with high-volume, evidence-heavy tasks where an agent can save investigation time without silently changing a device.
+
+The exact Intune actions and fields available to a workflow can change, so teams should select only operations currently exposed by the [Microsoft Intune integration](https://www.sim.ai/integrations/microsoft-intune) or another connection their administrators have reviewed. As of November 2026, Sim's Intune block includes inventory and compliance reads plus device sync, restart, remote lock, and retirement operations. It does not expose policy assignment, so that use case requires another reviewed connection or should remain a planning and approval workflow.
+
+### How can an Intune AI agent send device inventory reports to Slack or Microsoft Teams?
+
+A Microsoft Intune AI agent can turn approved device inventory fields into a scheduled exception report for Slack or Microsoft Teams.
+
+A practical workflow is:
+
+1. Run on an approved schedule.
+2. Retrieve only the device fields needed for the report.
+3. Normalize operating-system, ownership, enrollment, and status values.
+4. Apply deterministic filters for stale, missing, or unexpected data.
+5. Ask the model to summarize trends and exceptions without inventing missing values.
+6. Send the report to the designated IT channel.
+7. Store the run result and retrieval errors for review.
+
+The report should distinguish facts retrieved from Intune from model-generated commentary. It should also link operators back to the underlying record rather than presenting the summary as the system of record.
+
+### How can an Intune AI agent follow up on noncompliant devices?
+
+A Microsoft Intune AI agent can collect compliance evidence, draft context-aware outreach, and route uncertain cases to an endpoint administrator.
+
+The workflow should retrieve the relevant compliance state and permitted device context, map the result to an approved response template, and let the model adapt the explanation for the recipient. Deterministic rules should decide the destination, escalation window, and whether the case requires a ticket.
+
+An agent should not infer that a user intentionally violated policy, and it should not claim a remediation succeeded unless Intune returns a successful result. Repeated failures, ambiguous ownership, and high-risk devices should move to a human queue.
+
+### How do you automate Intune policy assignment for session hosts?
+
+Microsoft Intune policy assignment for session hosts should be automated as a controlled request-and-approval process rather than as an unrestricted model decision. Because Sim's current Intune block does not expose assignment, the workflow should execute only through a separate connection that administrators have reviewed and authorized.
+
+A safe sequence is:
+
+1. Accept the requested policy, target group, environment, justification, and change window.
+2. Retrieve the current target and assignment context using approved read operations.
+3. Reject requests with missing identifiers, conflicting scope, or an unauthorized requester.
+4. Produce a human-readable change summary showing the proposed policy, target, and expected scope.
+5. Pause for approval from the endpoint or change-management owner.
+6. Route the approval result through a deterministic condition.
+7. Execute the assignment only if the required operation is supported and the approval result is explicit.
+8. Record the result and escalate partial or failed changes.
+
+Session-host changes can affect many users at once, so the workflow should support canary groups, maintenance windows, and rollback procedures defined by the endpoint team. The model may explain the request, but deterministic controls should decide whether execution is permitted.
+
+### How can an Intune AI agent support employee offboarding?
+
+A Microsoft Intune AI agent can support offboarding by checking managed-device status against an approved identity event and presenting discrepancies to IT.
+
+The identity event may come from the organization's approved identity or offboarding system. The agent can correlate approved identifiers, summarize assigned devices, flag missing or unexpected records, and create a review task.
+
+Any retire, wipe, reassignment, or other device-changing request should remain behind explicit human approval. The workflow should also account for shared devices, legal holds, ownership type, failed identity matches, and users with multiple devices. Sim's current Intune block supports retirement but does not expose wipe or reassignment, so those actions require a separately reviewed connection.
+
+### How can an Intune AI agent enrich ServiceNow or Jira Service Management tickets?
+
+A Microsoft Intune AI agent can enrich endpoint tickets with relevant device and compliance context before a technician begins triage.
+
+The workflow can extract an approved user or device identifier from the ticket, retrieve the minimum required Intune data, summarize the evidence, and append a structured note. It can then suggest the next approved diagnostic step without executing a device change.
+
+This pattern complements broader [AI agents for IT helpdesk teams](https://www.sim.ai/library/best-ai-agents-for-it-helpdesk-teams) because it focuses on endpoint evidence rather than general ticket resolution or password resets.
+
+## How can an organization connect Claude to Microsoft Intune for governed device management actions?
+
+Sim can connect a Claude-powered workflow to Microsoft Intune while keeping the Intune credential in the integration layer and placing approval logic between Claude's recommendation and any device change.
+
+In the workflow, Claude should receive only the fields needed to classify the request, summarize evidence, or draft a proposed response. Claude should not receive the Intune credential, decide its own permission scope, or turn free-form text directly into an unrestricted administrative call.
+
+A governed pattern in Sim is:
+
+1. Start from an authenticated request, ticket, or approved trigger.
+2. Validate required identifiers and requester context.
+3. Retrieve permitted Intune information through the reviewed connection.
+4. Send a minimized evidence set to Claude with a structured-output requirement.
+5. Check the proposed action against deterministic policy conditions.
+6. Pause the run with Sim's Human in the Loop block.
+7. Capture approval or rejection as a form field.
+8. Use a downstream Condition to inspect that field.
+9. Execute the supported action only on the approved branch.
+10. Notify the requester and record the result.
+
+Sim's Human in the Loop block pauses a run and resumes it with submitted form fields. Approval does not enforce itself, so a downstream Condition must route on the approve-or-reject value. Teams comparing model options can also review [AI Agent Builders for Claude, Gemini, GPT, and Open Models Compared](https://www.sim.ai/library/ai-agent-builders-claude-gemini-gpt-open-models).
+
+## How should permissions, least privilege, and audit logs work for an Intune AI agent?
+
+A Microsoft Intune AI agent should use a dedicated identity, narrowly scoped permissions, protected credentials, and records that connect every consequential action to its requester and approver.
+
+Use these controls:
+
+- **Separate read and change privileges:** A reporting workflow should not inherit permissions needed for policy or device changes.
+- **Limit administrative scope:** Restrict the identity to the smallest supported device, group, or administrative scope.
+- **Separate environments:** Keep development and test credentials away from production devices.
+- **Protect secrets:** Store credentials in the platform's credential system, not in prompts, model memory, tickets, or chat messages.
+- **Minimize model input:** Remove fields that are not required for the stated task.
+- **Authorize deterministically:** Use conditions and policy rules rather than asking the model whether a requester is authorized.
+- **Require named approval:** Record who approved the exact action, target, and scope.
+- **Capture outcomes:** Store successful, rejected, timed-out, partial, and failed results.
+- **Review access regularly:** Reassess permissions when workflows, Intune roles, or organizational responsibilities change.
+
+Sim's core is available under the OSI-approved Apache License 2.0, while code in `apps/sim/ee` covering enterprise capabilities such as access control and audit logs is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). It is free for development, testing, and internal non-production use, while production use requires an active Sim Enterprise subscription. As of November 2026, teams should evaluate the deployment and governance features they require rather than assuming every capability is part of Sim's Apache-licensed core.
+
+For broader requirements such as data residency, regulated deployment, and organizational controls, see the [Enterprise AI Agent Compliance and Deployment Guide](https://www.sim.ai/library/enterprise-ai-agent-compliance-deployment-guide).
+
+## How should IT teams evaluate Intune AI agent tools?
+
+IT teams should evaluate Intune AI agent tools by testing the exact endpoint operations, permission boundaries, approval behavior, failure handling, and evidence trail required in production.
+
+A useful proof of concept should answer these questions with an actual test tenant:
+
+| Criterion | Evidence to require |
+|---|---|
+| Intune coverage | The exact read and change operations required by the workflow |
+| Approval enforcement | A paused run plus a deterministic condition that blocks rejected, missing, or expired approval |
+| Credential isolation | Proof that the model and end user cannot retrieve the Intune credential |
+| Least privilege | A documented permission set and administrative scope for each workflow |
+| Model controls | Structured outputs, input minimization, and handling for malformed or unsupported requests |
+| Auditability | Requester, target, proposed action, approver, timestamp, result, and error records |
+| Failure handling | Retry limits, duplicate prevention, timeouts, escalation, and partial-success behavior |
+| Deployment | A model and hosting approach compatible with the organization's security requirements |
+| Operations | Versioning, testing, monitoring, ownership, and an emergency disable procedure |
+| Cost | A quote based on expected workflow runs, model usage, hosting, support, and enterprise controls |
+
+The pilot should include rejected approvals, unavailable records, duplicate requests, expired sessions, permission failures, malformed model output, and an attempted out-of-scope target. A tool is not production-ready merely because its happy path succeeds.
+
+## What are agentic IT management tools that integrate with Microsoft 365 and Intune pricing and features?
+
+Agentic IT management tools for Microsoft 365 and Intune should be compared by verified operation coverage and total production cost, not by a generic integration count.
+
+As of November 2026, pricing and plan limits should come from a current first-party quote or vendor pricing page for the intended deployment. The comparison should include platform fees, workflow or execution units, model usage, hosting, support, identity controls, audit retention, and any enterprise feature requirements.
+
+Feature evaluation should focus on:
+
+- The precise Intune operations needed by the use case
+- Microsoft 365 connections required around the endpoint workflow
+- Human approval with an enforceable post-approval condition
+- Credential storage and permission scoping
+- Logs that identify the requester, approver, target, and outcome
+- Model choice and bring-your-own-key support
+- Self-hosting or network-boundary requirements
+- Error recovery, retries, and duplicate prevention
+- Testing, versioning, and deployment controls
+
+For workflows spanning Outlook, Teams, SharePoint, and Excel, use the separate [Microsoft 365 AI agents guide](https://www.sim.ai/library/microsoft-365-ai-agents-outlook-teams-sharepoint-excel) rather than treating Microsoft 365 as a single undifferentiated connector.
+
+## Should IT teams use Sim or n8n for Intune automation?
+
+Sim fits teams that need AI reasoning, model choice, and governed human approval at the center of an Intune workflow. [n8n](https://n8n.io/) fits teams already operating its general-purpose workflows and agents.
+
+The decision should be based on a live test of the required Intune operations, credentials, approval path, and failure modes. Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, and its Microsoft Intune integration provides the starting point for the supported workflows in this guide.
+
+Licensing also differs. As of November 2026, Sim's core uses the OSI-approved Apache License 2.0, with `apps/sim/ee` under the separate Sim Enterprise License. [n8n uses the Sustainable Use License and a separate Enterprise License](https://docs.n8n.io/n8n-community-license), which are fair-code licenses rather than OSI-approved open-source licenses. Organizations should review both vendors' current license terms alongside technical fit and total production cost.
+
+## Omnissa vs Microsoft Intune for AI agent governance?
+
+[Microsoft Intune](https://learn.microsoft.com/en-us/intune/fundamentals/what-is-intune) and [Omnissa Workspace ONE UEM](https://www.omnissa.com/products/workspace-one-unified-endpoint-management/) should be compared as endpoint-management systems, while AI agent governance should be evaluated in the orchestration layer that controls model access, credentials, approvals, execution, and logs.
+
+The endpoint product determines which devices, policies, compliance signals, and administrative actions are available. The agent platform determines how a model may interpret requests, which tools it can invoke, when a person must approve an action, and what evidence is retained.
+
+An evaluation should therefore test the same governed workflow against each organization's actual endpoint environment. Compare operation coverage, administrative scope, identity integration, approval enforcement, audit evidence, deployment constraints, and failure recovery instead of assuming the endpoint platform alone governs the agent.

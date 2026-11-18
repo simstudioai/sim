@@ -6,6 +6,7 @@ import type { SecureFetchResponse } from '@/lib/core/security/input-validation.s
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { gitLabGroupMatchesConfig, gitLabGroupScopeSchema } from '@/connectors/gitlab/group'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import { gitLabPermissionConfig } from '@/connectors/gitlab/permission-config/capability'
 import {
@@ -15,6 +16,7 @@ import {
 import {
   getGitLabDocumentAcls,
   openGitLabDirectory,
+  validateGitLabGroupToken,
   validateGitLabPermissionToken,
 } from '@/connectors/gitlab/permissions'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -1331,6 +1333,41 @@ export const gitlabConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
+    if (sourceConfig.scope === 'group' || syncContext?.gitLabGroupScope) {
+      if (syncContext?.isSearchIndex !== true || syncContext.mirrorsSourceAcls !== true)
+        return {
+          valid: false,
+          error: 'GitLab groups require an administrator-managed Search source.',
+        }
+      const scope = gitLabGroupScopeSchema.safeParse(syncContext.gitLabGroupScope)
+      const mode = syncContext.gitLabPermissionMode
+      if (
+        !scope.success ||
+        (mode !== 'csv' && mode !== 'administrator') ||
+        !gitLabGroupMatchesConfig(scope.data, sourceConfig)
+      )
+        return {
+          valid: false,
+          error: 'Save the GitLab group with its token and permission settings.',
+        }
+      try {
+        const current = await validateGitLabGroupToken(accessToken, sourceConfig, mode)
+        if (
+          current.group.id !== scope.data.group.id ||
+          current.group.path !== scope.data.group.path
+        )
+          return {
+            valid: false,
+            error: 'The GitLab group identity changed. Update the source and its permissions.',
+          }
+        return { valid: true }
+      } catch (error) {
+        return {
+          valid: false,
+          error: getErrorMessage(error, 'Could not validate the GitLab group.'),
+        }
+      }
+    }
     const project = (sourceConfig.project as string)?.trim()
     if (!project) {
       return { valid: false, error: 'Project is required' }

@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetScoutingReportTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const cbinsightsGetScoutingReportTool: InternalToolConfig<
   description:
     'Generate an AI-written Scouting Report on a private company covering its business model, market position, strengths, and opportunities. Only active companies are eligible, and generation can take several minutes.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

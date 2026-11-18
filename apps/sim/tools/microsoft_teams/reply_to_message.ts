@@ -2,7 +2,9 @@ import type {
   MicrosoftTeamsReplyParams,
   MicrosoftTeamsWriteResponse,
 } from '@/tools/microsoft_teams/types'
+import { buildMessageBody } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const replyToMessageTool: ToolConfig<
   MicrosoftTeamsReplyParams,
@@ -49,7 +51,13 @@ export const replyToMessageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The reply content (plain text or HTML formatted message)',
+      description: 'The reply content (plain text, or HTML when contentType is "html")',
+    },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Body format: "text" (default) or "html"',
     },
   },
 
@@ -57,17 +65,24 @@ export const replyToMessageTool: ToolConfig<
     success: { type: 'boolean', description: 'Whether the reply was successful' },
     messageId: { type: 'string', description: 'ID of the reply message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully sent' },
+    createdTime: {
+      type: 'string',
+      description: 'Timestamp when the reply was created',
+      optional: true,
+    },
+    url: { type: 'string', description: 'Web URL to the reply', optional: true },
+    replyToId: { type: 'string', description: 'ID of the parent message', optional: true },
   },
 
   request: {
     url: (params) => {
-      const teamId = params.teamId?.trim()
-      const channelId = params.channelId?.trim()
-      const messageId = params.messageId?.trim()
-      if (!teamId || !channelId || !messageId) {
+      if (!params.teamId?.trim() || !params.channelId?.trim() || !params.messageId?.trim()) {
         throw new Error('Team ID, Channel ID, and Message ID are required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/replies`
+      const teamId = safeUrlPathSegment(params.teamId, 'Team ID')
+      const channelId = safeUrlPathSegment(params.channelId, 'Channel ID')
+      const messageId = safeUrlPathSegment(params.messageId, 'Message ID')
+      return `https://graph.microsoft.com/v1.0/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies`
     },
     method: 'POST',
     headers: (params) => {
@@ -83,12 +98,7 @@ export const replyToMessageTool: ToolConfig<
       if (!params.content) {
         throw new Error('Content is required')
       }
-      return {
-        body: {
-          contentType: 'text',
-          content: params.content,
-        },
-      }
+      return { body: buildMessageBody(params.content, params.contentType) }
     },
   },
 
@@ -109,6 +119,10 @@ export const replyToMessageTool: ToolConfig<
       output: {
         updatedContent: true,
         metadata,
+        messageId: metadata.messageId,
+        createdTime: metadata.createdTime,
+        url: metadata.url,
+        replyToId: data.replyToId ?? null,
       },
     }
   },

@@ -629,6 +629,7 @@ export async function refreshConnectorDirectory(
         connector,
         userId: credentialUserId,
         requestId,
+        scope: resourceScopeFromOwner(connector),
         sourceConfig,
       })
       if (!token) return 'unusable'

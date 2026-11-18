@@ -23,6 +23,11 @@ const GetQueryResultsResponseSchema = z.object({
       z.object({
         name: z.string(),
         type: z.string(),
+        label: z.string().nullable(),
+        precision: z.number().nullable(),
+        scale: z.number().nullable(),
+        nullable: z.string().nullable(),
+        caseSensitive: z.boolean().nullable(),
       })
     ),
     rows: z.array(z.record(z.string(), z.string())),

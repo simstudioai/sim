@@ -2,7 +2,9 @@ import type {
   IncidentioIncidentsShowParams,
   IncidentioIncidentsShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentsShowTool: ToolConfig<
   IncidentioIncidentsShowParams,
@@ -13,6 +15,7 @@ export const incidentsShowTool: ToolConfig<
   description:
     'Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -30,7 +33,7 @@ export const incidentsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incidents/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/incidents/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -87,6 +90,16 @@ export const incidentsShowTool: ToolConfig<
               value_text: value.value_text,
               value_link: value.value_link,
               value_numeric: value.value_numeric,
+              value_option: value.value_option
+                ? { id: value.value_option.id, value: value.value_option.value }
+                : undefined,
+              value_catalog_entry: value.value_catalog_entry
+                ? {
+                    id: value.value_catalog_entry.id,
+                    name: value.value_catalog_entry.name,
+                    external_id: value.value_catalog_entry.external_id,
+                  }
+                : undefined,
             })),
           })),
           incident_role_assignments: incident.incident_role_assignments?.map((assignment: any) => ({
@@ -156,7 +169,8 @@ export const incidentsShowTool: ToolConfig<
         visibility: { type: 'string', description: 'Incident visibility' },
         custom_field_entries: {
           type: 'array',
-          description: 'Custom field values for the incident',
+          description:
+            'Custom field values for the incident. Each value carries one of value_text, value_link, value_numeric, value_option ({id, value}), or value_catalog_entry ({id, name, external_id}).',
         },
         incident_role_assignments: {
           type: 'array',

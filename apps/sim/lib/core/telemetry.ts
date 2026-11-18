@@ -212,7 +212,7 @@ const BLOCK_TYPE_MAPPING: Record<
  * Convert a TraceSpan to an OpenTelemetry span
  * Creates a proper OTel span with all the metadata from the trace span
  */
-export function createOTelSpanFromTraceSpan(traceSpan: TraceSpan, parentSpan?: Span): Span | null {
+function createOTelSpanFromTraceSpan(traceSpan: TraceSpan, parentSpan?: Span): Span | null {
   try {
     const tracer = getTracer()
 
@@ -377,7 +377,7 @@ export function createOTelSpansForWorkflowExecution(params: {
 /**
  * Track platform events (workflow creation, knowledge base operations, etc.)
  */
-export function trackPlatformEvent(
+function trackPlatformEvent(
   eventName: string,
   attributes: Record<string, string | number | boolean | string[]>
 ): void {

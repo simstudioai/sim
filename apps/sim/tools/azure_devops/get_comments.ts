@@ -4,7 +4,8 @@ import type {
   GetCommentsResponse,
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawComment } from '@/tools/azure_devops/utils'
-import { formatComment, mapComment } from '@/tools/azure_devops/utils'
+import { azureDevOpsProjectUrl, formatComment, mapComment } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCommentsTool: ToolConfig<GetCommentsParams, GetCommentsResponse> = {
@@ -12,6 +13,7 @@ export const getCommentsTool: ToolConfig<GetCommentsParams, GetCommentsResponse>
   name: 'Azure DevOps Get Comments',
   description: 'List comments for an Azure DevOps work item.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -74,7 +76,7 @@ export const getCommentsTool: ToolConfig<GetCommentsParams, GetCommentsResponse>
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
+        `${azureDevOpsProjectUrl(params)}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
       url.searchParams.set('api-version', '7.2-preview.4')
       if (params.top) url.searchParams.set('$top', Number(params.top).toString())

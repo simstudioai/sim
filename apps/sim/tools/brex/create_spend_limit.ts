@@ -6,12 +6,30 @@ import {
 import type { BrexCreateSpendLimitParams, BrexCreateSpendLimitResponse } from '@/tools/brex/types'
 import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson, splitBrexIdList } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DELIVERY = defineBrexKeyedSite(
   'brex_create_spend_limit',
   'a second card program of the same size would be created, doubling the spend the company has authorized'
 )
+
+/**
+ * True when an optional canvas value was left blank. Saved workflows can carry `null` or `''`
+ * for a cleared field, which `Number()` would silently turn into `0`.
+ */
+function isUnset(value: unknown): value is undefined | null | '' {
+  return value === undefined || value === null || (typeof value === 'string' && !value.trim())
+}
+
+/** Brex accepts `limit_buffer_percentage` only as a 0-100 integer; reject anything else before the request. */
+function toLimitBufferPercentage(value: number): number {
+  const percentage = Number(value)
+  if (!Number.isInteger(percentage) || percentage < 0 || percentage > 100) {
+    throw new Error('Limit buffer percentage must be a whole number from 0 to 100')
+  }
+  return percentage
+}
 
 export const brexCreateSpendLimitTool: ToolConfig<
   BrexCreateSpendLimitParams & BrexDeliveryContextParams,
@@ -21,6 +39,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
   name: 'Brex Create Spend Limit',
   description: 'Create a new spend limit (hard-authorization card program) in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -118,7 +137,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Flexible buffer on the limit as a 0-100 percentage',
+      description: 'Flexible buffer on the limit as a whole-number percentage from 0 to 100',
     },
     description: {
       type: 'string',
@@ -191,8 +210,8 @@ export const brexCreateSpendLimitTool: ToolConfig<
           },
           authorization_type: params.authorizationType,
           rollover_refresh_rate: params.rolloverRefreshRate,
-          ...(params.limitBufferPercentage !== undefined
-            ? { limit_buffer_percentage: params.limitBufferPercentage }
+          ...(!isUnset(params.limitBufferPercentage)
+            ? { limit_buffer_percentage: toLimitBufferPercentage(params.limitBufferPercentage) }
             : {}),
         },
       }
@@ -200,7 +219,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
       if (params.parentBudgetId) body.parent_budget_id = params.parentBudgetId
       if (params.startDate) body.start_date = params.startDate
       if (params.endDate) body.end_date = params.endDate
-      if (params.transactionLimitAmount !== undefined) {
+      if (!isUnset(params.transactionLimitAmount)) {
         body.transaction_limit = { amount: params.transactionLimitAmount, currency }
       }
       const ownerUserIds = splitBrexIdList(params.ownerUserIds)

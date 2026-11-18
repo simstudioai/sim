@@ -1,6 +1,8 @@
 import { defaultMockEnv, envFlagsMock, resetEnvFlagsMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  normalizeHttpBaseUrl,
+  refuseUnsafeTypedUrl,
   validateAirtableId,
   validateCallbackUrl,
   validateEnum,
@@ -661,5 +663,45 @@ describe('validateSupabaseProjectId', () => {
     'a'.repeat(41),
   ])('rejects %j', (value) => {
     expect(validateSupabaseProjectId(value).isValid).toBe(false)
+  })
+})
+
+describe('typed base URLs', () => {
+  it('refuses a mistyped scheme instead of reading the scheme as a host', () => {
+    expect(() => normalizeHttpBaseUrl('https:/grafana.example.com')).toThrow(/scheme/)
+    expect(() => refuseUnsafeTypedUrl('https:/evil.com')).toThrow(/scheme/)
+    expect(() => refuseUnsafeTypedUrl('HTTP:evil.com')).toThrow(/scheme/)
+    // The URL parser drops tabs and newlines, so they must not hide a scheme from the guard.
+    expect(() => refuseUnsafeTypedUrl('ht\ntps:/evil.com')).toThrow(/scheme/)
+    expect(() => normalizeHttpBaseUrl('ht\ttps:/evil.com')).toThrow(/scheme/)
+    expect(refuseUnsafeTypedUrl('https://grafana.example.com')).toBe('https://grafana.example.com')
+    expect(normalizeHttpBaseUrl('grafana.example.com:3000/')).toBe(
+      'https://grafana.example.com:3000'
+    )
+  })
+
+  it.each([
+    ['ftp:/evil.com', 'another scheme with one slash'],
+    ['ftp:evil.com', 'another scheme with no slashes'],
+    ['javascript:alert(1)', 'a script URL'],
+    ['evil.com:/path', 'a host followed by a colon but no port'],
+    ['//evil.com', 'a protocol-relative URL'],
+    ['//user:pass@evil.com', 'a protocol-relative URL with credentials'],
+    ['/\\evil.com', 'a slash and backslash the parser reads as an authority'],
+    ['https:///user:pass@evil.com', 'an extra slash hiding credentials from the authority'],
+    ['https:///evil.com', 'an extra slash after the scheme'],
+  ])('refuses %j (%s) in both helpers', (typed) => {
+    expect(() => refuseUnsafeTypedUrl(typed)).toThrow()
+    expect(() => normalizeHttpBaseUrl(typed)).toThrow()
+  })
+
+  it.each([
+    ['grafana.example.com', 'https://grafana.example.com'],
+    ['localhost:8080/api', 'https://localhost:8080/api'],
+    ['10.0.0.5:8443', 'https://10.0.0.5:8443'],
+    ['http://grafana.example.com/', 'http://grafana.example.com'],
+  ])('still takes %j as an http(s) base URL', (typed, normalized) => {
+    expect(refuseUnsafeTypedUrl(typed)).toBe(typed)
+    expect(normalizeHttpBaseUrl(typed)).toBe(normalized)
   })
 })

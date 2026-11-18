@@ -3,7 +3,9 @@ import {
   handleIntercomError,
   INTERCOM_CONTACT_OUTPUT_PROPERTIES,
 } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomGetContactParams {
   accessToken: string
@@ -38,7 +40,8 @@ const intercomGetContactBase = {
   },
 
   request: {
-    url: (params: IntercomGetContactParams) => buildIntercomUrl(`/contacts/${params.contactId}`),
+    url: (params: IntercomGetContactParams) =>
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`),
     method: 'GET',
     headers: (params: IntercomGetContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -57,6 +60,7 @@ export const intercomGetContactTool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...intercomGetContactBase,
 
@@ -113,6 +117,7 @@ export const intercomGetContactV2Tool: ToolConfig<
   name: 'Get Single Contact from Intercom',
   description: 'Get a single contact by ID from Intercom. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

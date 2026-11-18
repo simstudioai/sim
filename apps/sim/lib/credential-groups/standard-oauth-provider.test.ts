@@ -1,14 +1,18 @@
 import { createHash } from 'node:crypto'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
-const { mockGetToken, mockVerifyIdentity } = vi.hoisted(() => ({
+const { connectorState, mockGetToken, mockVerifyIdentity } = vi.hoisted(() => ({
+  connectorState: { builtInExchange: false },
   mockGetToken: vi.fn(),
   mockVerifyIdentity: vi.fn(),
 }))
+
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
   getManagedOAuthConnectorProviderConfig: (providerId: string) => {
@@ -22,7 +26,7 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
         redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/google-calendar',
         accessType: 'offline',
         scopes: ['calendar.read', 'profile'],
-        getToken: mockGetToken,
+        getToken: connectorState.builtInExchange ? undefined : mockGetToken,
         managedOAuth: {
           additionalScopes: ['openid'],
           requiresRefreshToken: true,
@@ -71,6 +75,9 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
   },
 }))
 
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example.com')
@@ -138,6 +145,12 @@ async function exchange() {
 }
 
 describe('standard OAuth Credential Group provider', () => {
+  afterEach(() => {
+    connectorState.builtInExchange = false
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+    networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
+  })
+
   beforeEach(() => {
     mockGetToken.mockResolvedValue({
       tokenType: 'Bearer',
@@ -232,6 +245,12 @@ describe('standard OAuth Credential Group provider', () => {
     })
   })
 
+  it('classifies an egress outage during identity verification as unavailable, not an invalid identity', async () => {
+    mockVerifyIdentity.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    const failure = await exchange().catch((error: unknown) => error)
+    expect(statusForOrchestrationError(asOrchestrationError(failure)?.code)).toBe(503)
+  })
+
   it('uses the existing Atlassian callback and state-bound identity verification', async () => {
     const requiredScopes = ['read:me', 'read:jira-work', 'offline_access']
     const context: CredentialGroupOAuthContext = {
@@ -311,5 +330,24 @@ describe('standard OAuth Credential Group provider', () => {
       refreshToken: 'refresh-1',
     })
     await expect(exchange()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it("fails a connector's built-in code exchange closed with 503 when its organization's gateway is unavailable", async () => {
+    connectorState.builtInExchange = true
+    const sharedIpFetch = vi.fn(async () =>
+      Response.json({ token_type: 'Bearer', access_token: 'access-1' })
+    )
+    vi.stubGlobal('fetch', sharedIpFetch)
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValue(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    const failure = await runWithOutboundOrganization('org-1', exchange).catch(
+      (error: unknown) => error
+    )
+    expect(statusForOrchestrationError(asOrchestrationError(failure)?.code)).toBe(503)
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
+    expect(sharedIpFetch).not.toHaveBeenCalled()
   })
 })

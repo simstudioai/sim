@@ -1,6 +1,8 @@
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SendGridOperationError } from '@/lib/internal/sendgrid/errors'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 
 const MAX_SENDGRID_ERROR_BYTES = 64 * 1024
 
@@ -17,13 +19,15 @@ function errorMessage(value: unknown): string {
   return 'Failed to send email'
 }
 
+/** Sends one mail with a SendGrid key through the API host of its region (global or eu). */
 export async function sendSendGridMail(
   apiKey: string,
+  region: string | undefined,
   body: Record<string, unknown>,
   signal?: AbortSignal
 ): Promise<string | undefined> {
   signal?.throwIfAborted()
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+  const response = await outboundFetch(`${SENDGRID_REGIONS.apiBase(region)}/mail/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

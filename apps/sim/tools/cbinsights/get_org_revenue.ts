@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetOrgRevenueTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
@@ -8,6 +9,7 @@ export const cbinsightsGetOrgRevenueTool: InternalToolConfig<CbInsightsOrgParams
   description:
     'Retrieve reported and estimated revenue by calendar year for one organization, with the sources behind each figure.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

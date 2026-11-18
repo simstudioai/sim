@@ -133,6 +133,7 @@ describe('internal executor delegation claims', () => {
         kind: 'workspace_api_key',
         workspaceId: 'workspace-1',
         keyId: 'key-1',
+        access: 'write',
       },
     })
 
@@ -144,6 +145,7 @@ describe('internal executor delegation claims', () => {
         kind: 'workspace_api_key',
         workspaceId: 'workspace-1',
         keyId: 'key-1',
+        access: 'write',
       },
     })
     expect(decodeJwt(token).sub).toBeUndefined()
@@ -257,6 +259,7 @@ describe('internal executor delegation claims', () => {
           kind: 'workspace_api_key',
           workspaceId: 'workspace-1',
           keyId: 'key-1',
+          access: 'write',
         },
       })
     ).rejects.toThrow('Actorless workflow principals cannot be represented as Sim users')

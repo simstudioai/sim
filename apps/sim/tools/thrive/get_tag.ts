@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveGetTagParams, ThriveTagResponse } from '@/tools/thrive/types'
 import { THRIVE_TAG_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
   id: 'thrive_get_tag',
   name: 'Thrive Get Tag',
   description: 'Get a single tag in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/tags/${encodeURIComponent(params.tagId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

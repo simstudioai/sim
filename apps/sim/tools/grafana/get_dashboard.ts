@@ -1,4 +1,5 @@
 import type { GrafanaGetDashboardParams, GrafanaGetDashboardResponse } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getDashboardTool: ToolConfig<GrafanaGetDashboardParams, GrafanaGetDashboardResponse> =
@@ -7,6 +8,7 @@ export const getDashboardTool: ToolConfig<GrafanaGetDashboardParams, GrafanaGetD
     name: 'Grafana Get Dashboard',
     description: 'Get a dashboard by its UID',
     version: '1.0.0',
+    oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

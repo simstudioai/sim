@@ -81,6 +81,7 @@ export async function createLiveServiceSession(input: {
     connector: source,
     userId: credentialUserId,
     requestId: 'live-source-search',
+    scope: { kind: 'organization', organizationId: source.organizationId },
     sourceConfig: source.config,
     signal,
   })

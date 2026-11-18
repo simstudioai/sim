@@ -1,9 +1,12 @@
 import { GranolaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GranolaBlock: BlockConfig = {
   type: 'granola',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'granola_v2' },
   name: 'Granola',
   description: 'Access meeting notes, transcripts, and audit events from Granola',
   longDescription:
@@ -532,3 +535,17 @@ export const GranolaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GranolaV2Block: BlockConfig = {
+  ...GranolaBlock,
+  type: 'granola_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GranolaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'granola',
+    title: 'Granola Credential',
+  }),
+}

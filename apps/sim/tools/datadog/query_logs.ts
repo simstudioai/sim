@@ -5,6 +5,7 @@ import type {
   QueryLogsResponse,
 } from '@/tools/datadog/types'
 import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
@@ -13,6 +14,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
   description:
     'Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     query: {
@@ -40,7 +42,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of logs to return (e.g., 50, 100, max: 1000)',
+      description: 'Maximum number of logs to return (default: 50, max: 5000)',
     },
     cursor: {
       type: 'string',

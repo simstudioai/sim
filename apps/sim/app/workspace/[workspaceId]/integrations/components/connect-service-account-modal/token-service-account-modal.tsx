@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -20,10 +21,15 @@ import {
 } from '@/lib/core/resource-scope'
 import type { ServiceAccountSecretFields } from '@/lib/credentials/service-account-secret'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountErrorMessage,
+  isTokenServiceAccountFieldRequired,
+  type TokenServiceAccountAuthMethod,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
+  tokenFieldBelongsToAuthMethod,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credentials-fields'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateScopedCredential,
@@ -95,8 +101,46 @@ function TokenServiceAccountModalForm({
   onSubmitCredentials,
   submitPending,
 }: TokenServiceAccountModalProps) {
+  const clientCredentials = descriptor.clientCredentials
+  const [selectedAuthMethod, setSelectedAuthMethod] =
+    useState<TokenServiceAccountAuthMethod | null>(null)
+  /**
+   * A reconnect cannot pre-select the mode: the stored one lives inside the encrypted secret and
+   * is never returned to the client, so the admin restates it while retyping the secret. Until
+   * then neither mode's fields show, so a reconnect never switches modes by default.
+   */
+  const mustRestateAuthMethod = Boolean(clientCredentials && credentialId && !selectedAuthMethod)
+  const authMethod: TokenServiceAccountAuthMethod | null =
+    selectedAuthMethod ??
+    (mustRestateAuthMethod
+      ? null
+      : clientCredentials?.preferred
+        ? CLIENT_CREDENTIALS_AUTH_METHOD
+        : 'token')
+  const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+  /** A field that belongs to one sign-in mode (ServiceNow's username) shows once that mode is chosen. */
+  const shownField = (id: TokenServiceAccountField['id']) =>
+    descriptor.fields.find(
+      (field) =>
+        field.id === id &&
+        (authMethod
+          ? tokenFieldBelongsToAuthMethod(field, authMethod)
+          : !field.requiredForAuthMethods)
+    )
+  const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
+  const domainField = shownField('domain')
+  const workspaceField = shownField('providerWorkspaceId')
+  /**
+   * A new connection starts on the domain's default (the region or host it had before the field
+   * existed). A reconnect starts blank, which keeps the stored value: the server carries it
+   * forward, since the stored one is never returned to the client.
+   */
+  const initialDomain = credentialId ? '' : (domainField?.defaultValue ?? '')
+
   const [apiToken, setApiToken] = useState('')
-  const [domain, setDomain] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [domain, setDomain] = useState(initialDomain)
   const [providerWorkspaceId, setProviderWorkspaceId] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
@@ -105,18 +149,20 @@ function TokenServiceAccountModalForm({
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
 
-  const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
-
   const trimmedToken = apiToken.trim()
-  const normalizedDomain = normalizeDomainInput(domain)
+  const normalizedDomain = domainField?.url ? domain.trim() : normalizeDomainInput(domain)
+  const trimmedWorkspaceId = providerWorkspaceId.trim()
   const isPending =
     createCredential.isPending || updateCredential.isPending || submitPending === true
+  const isFieldRequired = (field: TokenServiceAccountField): boolean =>
+    isTokenServiceAccountFieldRequired(field) ||
+    (field.requiredForDomain !== undefined &&
+      normalizedDomain.toLowerCase() === field.requiredForDomain)
   const isDisabled =
-    !trimmedToken ||
-    (Boolean(domainField) && !normalizedDomain) ||
-    (Boolean(workspaceField) && !providerWorkspaceId.trim()) ||
+    !authMethod ||
+    (usesClientCredentials ? !clientId.trim() || !clientSecret.trim() : !trimmedToken) ||
+    Boolean(domainField && isFieldRequired(domainField) && !normalizedDomain) ||
+    Boolean(workspaceField && isFieldRequired(workspaceField) && !trimmedWorkspaceId) ||
     isPending
 
   const hintFor = (field: TokenServiceAccountField, value: string): string | undefined => {
@@ -124,14 +170,64 @@ function TokenServiceAccountModalForm({
     return field.hintPattern.test(value) ? undefined : field.hintMessage
   }
 
+  const renderConnectionField = (
+    field: TokenServiceAccountField,
+    value: string,
+    setValue: (value: string) => void,
+    formatError?: string
+  ) => {
+    const onChange = (next: string) => {
+      setValue(next)
+      if (error) setError(null)
+    }
+    const placeholder =
+      credentialId && field.defaultValue !== undefined
+        ? `Keep the current ${field.label.toLowerCase()}`
+        : field.placeholder
+    if (field.options) {
+      return (
+        <ChipModalField
+          type='dropdown'
+          title={field.label}
+          value={value || undefined}
+          onChange={onChange}
+          options={field.options}
+          placeholder={placeholder}
+          align='start'
+          required={isFieldRequired(field)}
+        />
+      )
+    }
+    return (
+      <ChipModalField
+        type='input'
+        title={field.label}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete='off'
+        required={isFieldRequired(field)}
+        error={formatError}
+      />
+    )
+  }
+
   const handleSubmit = async () => {
     setError(null)
     if (isDisabled) return
     try {
       const secretFields = {
-        apiToken: trimmedToken,
-        ...(workspaceField ? { providerWorkspaceId: providerWorkspaceId.trim() } : {}),
-        ...(domainField ? { domain: normalizedDomain } : {}),
+        ...(usesClientCredentials
+          ? {
+              authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
+              clientId: clientId.trim(),
+              clientSecret: clientSecret.trim(),
+            }
+          : { apiToken: tokenField?.preserveWhitespace ? apiToken : trimmedToken }),
+        ...(workspaceField && trimmedWorkspaceId
+          ? { providerWorkspaceId: trimmedWorkspaceId }
+          : {}),
+        ...(domainField && normalizedDomain ? { domain: normalizedDomain } : {}),
       }
       if (onSubmitCredentials) {
         const savedId = await onSubmitCredentials({
@@ -170,7 +266,8 @@ function TokenServiceAccountModalForm({
         getTokenServiceAccountErrorMessage(
           descriptor,
           code,
-          onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined
+          onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined,
+          authMethod ?? undefined
         )
       )
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
@@ -187,56 +284,95 @@ function TokenServiceAccountModalForm({
         Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>
-        {tokenField && (
+        {clientCredentials && (
+          <ChipModalField
+            type='dropdown'
+            title='Authentication'
+            value={authMethod ?? undefined}
+            onChange={(value) => {
+              setSelectedAuthMethod(value as TokenServiceAccountAuthMethod)
+              if (error) setError(null)
+            }}
+            options={[
+              { value: CLIENT_CREDENTIALS_AUTH_METHOD, label: clientCredentials.label },
+              { value: 'token', label: clientCredentials.tokenLabel },
+            ]}
+            required
+          />
+        )}
+
+        {clientCredentials && usesClientCredentials && (
+          <ClientCredentialsFields
+            clientId={clientId}
+            clientSecret={clientSecret}
+            onClientIdChange={(value) => {
+              setClientId(value)
+              if (error) setError(null)
+            }}
+            onClientSecretChange={(value) => {
+              setClientSecret(value)
+              if (error) setError(null)
+            }}
+            clientIdHint={clientCredentials.helpText}
+            secretInputName={`${descriptor.providerId}_client_secret`}
+          />
+        )}
+
+        {tokenField && authMethod === 'token' && (
           <ChipModalField
             type='custom'
             title={tokenField.label}
             required
             hint={hintFor(tokenField, trimmedToken) ?? descriptor.helpText}
           >
-            <SecretInput
-              value={apiToken}
-              onChange={(value) => {
-                setApiToken(value)
-                if (error) setError(null)
-              }}
-              placeholder={tokenField.placeholder}
-              name={`${descriptor.providerId}_api_token`}
-              autoComplete='new-password'
-              autoCorrect='off'
-              autoCapitalize='off'
-              data-lpignore='true'
-              data-form-type='other'
-            />
+            {tokenField.multiline ? (
+              (aria) => (
+                <ChipTextarea
+                  {...aria}
+                  value={apiToken}
+                  onChange={(event) => {
+                    setApiToken(event.target.value)
+                    if (error) setError(null)
+                  }}
+                  placeholder={tokenField.placeholder}
+                  className='min-h-[120px] font-mono'
+                  // Spell-check and autofill would ship a pasted private key to third parties.
+                  spellCheck={false}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              )
+            ) : (
+              <SecretInput
+                value={apiToken}
+                onChange={(value) => {
+                  setApiToken(value)
+                  if (error) setError(null)
+                }}
+                placeholder={tokenField.placeholder}
+                name={`${descriptor.providerId}_api_token`}
+                autoComplete='new-password'
+                autoCorrect='off'
+                autoCapitalize='off'
+                data-lpignore='true'
+                data-form-type='other'
+              />
+            )}
           </ChipModalField>
         )}
 
-        {workspaceField && (
-          <ChipModalField
-            type='input'
-            title={workspaceField.label}
-            value={providerWorkspaceId}
-            onChange={setProviderWorkspaceId}
-            placeholder={workspaceField.placeholder}
-            required
-            autoComplete='off'
-          />
-        )}
-        {domainField && (
-          <ChipModalField
-            type='input'
-            title={domainField.label}
-            value={domain}
-            onChange={(value) => {
-              setDomain(value)
-              if (error) setError(null)
-            }}
-            placeholder={domainField.placeholder}
-            autoComplete='off'
-            required
-            error={hintFor(domainField, normalizedDomain)}
-          />
-        )}
+        {workspaceField &&
+          renderConnectionField(workspaceField, providerWorkspaceId, setProviderWorkspaceId)}
+        {domainField &&
+          renderConnectionField(
+            domainField,
+            domain,
+            setDomain,
+            hintFor(domainField, normalizedDomain)
+          )}
 
         <ChipModalField
           type='input'

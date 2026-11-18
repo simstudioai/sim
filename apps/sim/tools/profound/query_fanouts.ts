@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundQueryFanoutsParams, ProfoundQueryFanoutsResponse } from './types'
 
@@ -10,6 +11,7 @@ export const profoundQueryFanoutsTool: ToolConfig<
   description:
     'Query fanout report showing how AI models expand prompts into sub-queries in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

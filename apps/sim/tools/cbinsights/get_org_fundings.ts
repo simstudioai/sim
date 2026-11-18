@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export interface CbInsightsOrgFundingsParams extends CbInsightsOrgParams {
@@ -16,6 +17,7 @@ export const cbinsightsGetOrgFundingsTool: InternalToolConfig<
   description:
     'Retrieve the funding rounds one organization has received, its cap table history, and AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

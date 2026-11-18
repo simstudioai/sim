@@ -2,6 +2,7 @@ import type {
   AlgoliaCopyMoveIndexParams,
   AlgoliaCopyMoveIndexResponse,
 } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const copyMoveIndexTool: ToolConfig<
@@ -12,6 +13,7 @@ export const copyMoveIndexTool: ToolConfig<
   name: 'Algolia Copy/Move Index',
   description: 'Copy or move an Algolia index to a new destination',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

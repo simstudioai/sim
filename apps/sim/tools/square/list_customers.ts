@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/square/types'
 import {
   CUSTOMER_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   name: 'Square List Customers',
   description: 'List customer profiles in the Square customer directory',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -50,7 +53,7 @@ export const squareListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
 
   request: {
     url: (params) => {
-      const url = new URL(`${SQUARE_BASE_URL}/v2/customers`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers`)
       if (params.limit !== undefined) url.searchParams.append('limit', params.limit.toString())
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       if (params.sortField) url.searchParams.append('sort_field', params.sortField)

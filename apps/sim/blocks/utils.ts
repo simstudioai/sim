@@ -4,8 +4,11 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import type { SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
+import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -20,9 +23,14 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import {
+  SAVED_CREDENTIAL_OAUTH,
+  type SavedCredentialService,
+} from '@/tools/shared/saved-credentials'
 
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
@@ -48,6 +56,180 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
     mode: 'both',
   },
 ]
+
+/** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */
+interface SavedCredentialPicker {
+  id: 'credential'
+  type: 'oauth-input'
+  serviceId: SavedCredentialService
+  title: string
+  credentialKind?: 'service-account' | 'any'
+}
+
+interface SavedCredentialOptions {
+  /** Selectors that authenticate from the replaced fields, mapped to their saved-credential twins. */
+  selectorKeys?: Partial<Record<SelectorKey, SelectorKey>>
+  /** Replaces the tool params builder when the legacy one validates the replaced fields. */
+  params?: NonNullable<BlockConfig['tools']['config']>['params']
+  /**
+   * When the credential is required. Defaults to the replaced secret's own
+   * `required`; a block whose operations also run without a key (public
+   * endpoints, keyless self-hosted servers) passes a condition or `false`.
+   */
+  required?: SubBlockConfig['required']
+  /**
+   * Where the picker shows. Defaults to the replaced secret's own `condition`;
+   * `null` shows it in every operation, for a block whose replaced fields show
+   * differently (a key every operation sends beside one only some send).
+   */
+  condition?: SubBlockConfig['condition'] | null
+}
+
+/**
+ * The fields of a credential-only successor to a block that takes inline
+ * secrets. The legacy block keeps its own definition and keeps running; the
+ * successor spreads it, then these fields swap its secret fields for a
+ * saved-credential picker right under the operation picker (or where the
+ * secret was, when the block has none). Fields that depended on
+ * a replaced secret depend on the credential instead.
+ */
+export function withSavedCredential(
+  legacy: BlockConfig,
+  picker: SavedCredentialPicker,
+  options: SavedCredentialOptions = {}
+): Pick<BlockConfig, 'subBlocks' | 'inputs' | 'tools'> {
+  const replaced = new Set<string>(
+    SAVED_CREDENTIAL_OAUTH[picker.serviceId].credentialSuppliedParams
+  )
+  // Trigger fields can share a secret's id (a webhook registers with its own key);
+  // they belong to the trigger, not the tools, so they are left exactly as they are.
+  // A basic/advanced pair shares its canonical id, so both halves are replaced.
+  const isReplaced = (subBlock: SubBlockConfig) =>
+    replaced.has(subBlock.canonicalParamId ?? subBlock.id) && !isTriggerModeSubBlock(subBlock)
+  const at = legacy.subBlocks.findIndex(isReplaced)
+  if (at === -1) {
+    throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
+  }
+
+  // The picker shows and is required exactly where the secrets it replaces were,
+  // unless the successor states where; replaced fields must agree on whatever it inherits.
+  const { condition: secretCondition, required: secretRequired } = legacy.subBlocks[at]
+  const inherited = (subBlock: SubBlockConfig) =>
+    JSON.stringify([
+      options.condition === undefined ? (subBlock.condition ?? null) : null,
+      options.required === undefined ? (subBlock.required ?? null) : null,
+    ])
+  if (new Set(legacy.subBlocks.filter(isReplaced).map(inherited)).size > 1) {
+    throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
+  }
+  const condition = options.condition === null ? undefined : (options.condition ?? secretCondition)
+  const conditionFields = (value: SubBlockConfig['condition']): string[] =>
+    value && typeof value !== 'function'
+      ? [value.field, ...conditionFields(value.and as SubBlockConfig['condition'])]
+      : []
+  if (
+    typeof condition === 'function' ||
+    conditionFields(condition).some((field) => replaced.has(field))
+  ) {
+    throw new Error(
+      `Block "${legacy.type}": the picker's condition cannot depend on a replaced secret`
+    )
+  }
+  const required = options.required ?? secretRequired ?? true
+
+  const usedSelectorKeys = new Set<string>()
+  const subBlocks = legacy.subBlocks
+    .filter((subBlock) => !isReplaced(subBlock))
+    .map((subBlock) =>
+      isTriggerModeSubBlock(subBlock)
+        ? subBlock
+        : dependOnCredential(subBlock, replaced, options.selectorKeys, usedSelectorKeys)
+    )
+  const unusedSelectorKeys = Object.keys(options.selectorKeys ?? {}).filter(
+    (key) => !usedSelectorKeys.has(key)
+  )
+  if (unusedSelectorKeys.length > 0) {
+    throw new Error(
+      `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
+    )
+  }
+  // Under the operation picker because that is the first field a user sets.
+  const operationAt = subBlocks.findIndex(
+    (subBlock) => subBlock.id === 'operation' && !isTriggerModeSubBlock(subBlock)
+  )
+  subBlocks.splice(
+    operationAt === -1 ? at : operationAt + 1,
+    0,
+    {
+      ...picker,
+      credentialKind: picker.credentialKind ?? 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      // 'AWS Credential' → 'Select AWS credential': sentence case, brand casing kept.
+      placeholder: `Select ${picker.title.replace(/\s(\S+)$/, (_, noun: string) => ` ${noun.toLowerCase()}`)}`,
+      ...(condition ? { condition } : {}),
+      required,
+    },
+    {
+      id: 'manualCredential',
+      title: picker.title,
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      ...(condition ? { condition } : {}),
+      required,
+    }
+  )
+
+  const inputs = Object.fromEntries(
+    Object.entries(legacy.inputs).filter(([key]) => !replaced.has(key))
+  )
+  const { params } = options
+  const config = legacy.tools.config
+  let tools = legacy.tools
+  if (params) {
+    if (!config) throw new Error(`Block "${legacy.type}" has no tool params builder to replace`)
+    tools = { ...legacy.tools, config: { ...config, params } }
+  }
+
+  return {
+    subBlocks,
+    inputs: { oauthCredential: { type: 'string', description: `${picker.title} ID` }, ...inputs },
+    tools,
+  }
+}
+
+function dependOnCredential(
+  subBlock: SubBlockConfig,
+  replaced: ReadonlySet<string>,
+  selectorKeys: SavedCredentialOptions['selectorKeys'],
+  usedSelectorKeys: Set<string>
+): SubBlockConfig {
+  const { dependsOn } = subBlock
+  if (!dependsOn) return subBlock
+  if (!getDependsOnFields(dependsOn).some((field) => replaced.has(field))) return subBlock
+
+  const selectorKey = subBlock.selectorKey && selectorKeys?.[subBlock.selectorKey]
+  if (subBlock.selectorKey && !selectorKey) {
+    throw new Error(`Selector "${subBlock.selectorKey}" needs a saved-credential twin`)
+  }
+  if (subBlock.selectorKey) usedSelectorKeys.add(subBlock.selectorKey)
+  const swap = (list: string[]) =>
+    list.some((field) => replaced.has(field))
+      ? ['credential', ...list.filter((field) => !replaced.has(field) && field !== 'credential')]
+      : list
+  return {
+    ...subBlock,
+    ...(selectorKey ? { selectorKey } : {}),
+    dependsOn: Array.isArray(dependsOn)
+      ? swap(dependsOn)
+      : {
+          ...(dependsOn.all ? { all: swap(dependsOn.all) } : {}),
+          ...(dependsOn.any ? { any: swap(dependsOn.any) } : {}),
+        },
+  }
+}
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.
@@ -300,7 +482,7 @@ export function getCohereRerankerApiKeyCondition() {
 
 /**
  * Whether `model` can only run with credentials that live on the block beyond an
- * API key: a Vertex OAuth credential, Bedrock AWS keys, or an Azure endpoint,
+ * API key: a Vertex credential, Bedrock AWS keys, or an Azure endpoint,
  * unless the deployment supplies them server-side (the same env flags that hide
  * those fields). The fields render only while the block's own `model` is in
  * that provider family, so nothing outside the family can inherit them.
@@ -332,12 +514,144 @@ function getModelProviderCondition(...providerIds: ProviderId[]) {
 }
 
 /**
+ * Whether a block's Bedrock call signs with a saved AWS credential. The one rule
+ * behind both the fields a block shows and serializes and the credential its
+ * call uses: only an explicit `bedrockAuthMode: 'credential'` selects one, so a
+ * block saved before the mode existed (no `bedrockAuthMode`) keeps its access keys.
+ */
+function usesSavedBedrockCredential(values: { bedrockAuthMode?: unknown } | undefined): boolean {
+  return values?.bedrockAuthMode === 'credential'
+}
+
+/**
+ * Bedrock fields shown for one AWS authentication mode, decided by
+ * {@link usesSavedBedrockCredential}. Like {@link getModelProviderCondition}, the
+ * answer is folded into a single `model` clause.
+ */
+function getBedrockAuthModeCondition(mode: 'access_keys' | 'credential') {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    return buildModelVisibilityCondition(
+      model,
+      findProviderFromModel(model.trim()) === 'bedrock' &&
+        usesSavedBedrockCredential(values) === (mode === 'credential')
+    )
+  }
+}
+
+/**
+ * The saved AWS credential ID a block's Bedrock call signs with, or undefined
+ * when the block uses access keys (see {@link usesSavedBedrockCredential}). A
+ * block set to a saved credential whose ID resolves blank (an empty reference)
+ * is refused, so its call never falls back to inline keys or the deployment's
+ * own AWS credentials.
+ */
+export function getSelectedBedrockCredential(values: {
+  bedrockAuthMode?: unknown
+  bedrockCredential?: unknown
+}): string | undefined {
+  if (!usesSavedBedrockCredential(values)) return undefined
+  const credentialId =
+    typeof values.bedrockCredential === 'string' ? values.bedrockCredential.trim() : ''
+  if (credentialId) return credentialId
+  throw new Error(
+    'Select an AWS credential for Bedrock, or switch AWS Authentication to access keys'
+  )
+}
+
+/**
+ * The Bedrock fields of {@link getProviderCredentialSubBlocks}. With
+ * `savedCredential`, an AWS Authentication choice swaps the access keys for a
+ * saved AWS credential; without it the block keeps its access keys alone.
+ */
+function getBedrockCredentialSubBlocks(savedCredential: boolean): SubBlockConfig[] {
+  const accessKeyCondition = savedCredential
+    ? getBedrockAuthModeCondition('access_keys')
+    : getModelProviderCondition('bedrock')
+  const savedCredentialSubBlocks: SubBlockConfig[] = [
+    {
+      id: 'bedrockAuthMode',
+      title: 'AWS Authentication',
+      type: 'dropdown',
+      options: [
+        { label: 'Access keys', id: 'access_keys' },
+        { label: 'Saved AWS credential', id: 'credential' },
+      ],
+      value: () => 'access_keys',
+      connectionDroppable: false,
+      condition: getModelProviderCondition('bedrock'),
+    },
+    {
+      id: 'bedrockCredential',
+      title: 'AWS Credential',
+      type: 'oauth-input',
+      serviceId: 'aws',
+      canonicalParamId: 'bedrockCredential',
+      credentialKind: 'service-account',
+      mode: 'basic',
+      placeholder: 'Select AWS credential',
+      required: true,
+      condition: getBedrockAuthModeCondition('credential'),
+    },
+    {
+      id: 'bedrockManualCredential',
+      title: 'AWS Credential',
+      type: 'short-input',
+      canonicalParamId: 'bedrockCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+      condition: getBedrockAuthModeCondition('credential'),
+    },
+  ]
+  return [
+    ...(savedCredential ? savedCredentialSubBlocks : []),
+    {
+      id: 'bedrockAccessKeyId',
+      title: 'AWS Access Key ID',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your AWS Access Key ID',
+      connectionDroppable: false,
+      required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
+      condition: accessKeyCondition,
+    },
+    {
+      id: 'bedrockSecretKey',
+      title: 'AWS Secret Access Key',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your AWS Secret Access Key',
+      connectionDroppable: false,
+      required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
+      condition: accessKeyCondition,
+    },
+    {
+      id: 'bedrockRegion',
+      title: 'AWS Region',
+      type: 'short-input',
+      placeholder: 'us-east-1',
+      connectionDroppable: false,
+      condition: getModelProviderCondition('bedrock'),
+    },
+  ]
+}
+
+/**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
  * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock config.
  *
+ * Pass `bedrockSavedCredential` only from a block that forwards
+ * {@link getSelectedBedrockCredential} to its Bedrock call and spreads
+ * {@link BEDROCK_SAVED_CREDENTIAL_INPUTS}; any other block keeps Bedrock access keys only.
+ *
  * Usage: Spread into your block's subBlocks array after block-specific fields
  */
-export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
+export function getProviderCredentialSubBlocks(
+  options: { bedrockSavedCredential?: boolean } = {}
+): SubBlockConfig[] {
   return [
     {
       id: 'vertexCredential',
@@ -345,6 +659,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'oauth-input',
       serviceId: 'vertex-ai',
       canonicalParamId: 'vertexCredential',
+      credentialKind: 'any',
       mode: 'basic',
       requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
@@ -409,36 +724,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: getModelProviderCondition('vertex'),
     },
-    {
-      id: 'bedrockAccessKeyId',
-      title: 'AWS Access Key ID',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Access Key ID',
-      connectionDroppable: false,
-      required: true,
-      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: getModelProviderCondition('bedrock'),
-    },
-    {
-      id: 'bedrockSecretKey',
-      title: 'AWS Secret Access Key',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Secret Access Key',
-      connectionDroppable: false,
-      required: true,
-      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: getModelProviderCondition('bedrock'),
-    },
-    {
-      id: 'bedrockRegion',
-      title: 'AWS Region',
-      type: 'short-input',
-      placeholder: 'us-east-1',
-      connectionDroppable: false,
-      condition: getModelProviderCondition('bedrock'),
-    },
+    ...getBedrockCredentialSubBlocks(options.bedrockSavedCredential ?? false),
   ]
 }
 
@@ -454,11 +740,29 @@ export const PROVIDER_CREDENTIAL_INPUTS = {
   vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
   vertexCredential: {
     type: 'string',
-    description: 'Google Cloud OAuth credential ID for Vertex AI',
+    description:
+      'Google Cloud credential ID for Vertex AI (OAuth account or Google service account)',
   },
   bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
   bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
   bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
+} as const
+
+/**
+ * Input definitions for a saved AWS credential on Bedrock. Spread only by a
+ * block that also passes `bedrockSavedCredential` to
+ * {@link getProviderCredentialSubBlocks} and forwards the credential to its call.
+ */
+export const BEDROCK_SAVED_CREDENTIAL_INPUTS = {
+  bedrockAuthMode: {
+    type: 'string',
+    description: "How Bedrock authenticates: 'access_keys' (default) or 'credential'",
+  },
+  bedrockCredential: {
+    type: 'string',
+    description:
+      "Saved AWS credential ID for Bedrock, used instead of access keys when bedrockAuthMode is 'credential'",
+  },
 } as const
 
 /**
@@ -527,6 +831,60 @@ export function parseOptionalJsonInput<T = unknown>(value: unknown, label: strin
   return value as T
 }
 
+const COLUMN_SELECTION_LABEL = 'Columns to Return'
+
+function parseColumnSelection(raw: unknown): string[] | undefined {
+  const parsed = parseOptionalJsonInput<unknown>(raw, COLUMN_SELECTION_LABEL)
+  if (parsed === undefined || parsed === null) return undefined
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Invalid ${COLUMN_SELECTION_LABEL}: expected a list of column ids or names`)
+  }
+  if (parsed.length === 0) return undefined
+  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
+  if (columns.some((column) => column.length === 0)) {
+    throw new Error(
+      `Invalid ${COLUMN_SELECTION_LABEL}: every entry must be a non-empty column id or name`
+    )
+  }
+  return columns
+}
+
+/**
+ * Resolves a Table block's "Columns to Return" for a query. The canvas selection wins; a
+ * model-supplied `columns` (Agent tool use) is the fallback, so an empty canvas value does not
+ * clobber it. Only an absent value (`undefined`, `null`, `''`, or `[]`) means "all columns";
+ * anything else must be a list of column ids/names, and a malformed value fails fast rather than
+ * silently widening a deliberately narrowed query. A JSON string is accepted because an
+ * agent-authored block config serializes arrays that way.
+ */
+export function resolveTableColumnSelection(params: {
+  outputColumns?: unknown
+  columns?: unknown
+}): string[] | undefined {
+  return parseColumnSelection(params.outputColumns) ?? parseColumnSelection(params.columns)
+}
+
+/** The Table blocks' "Columns to Return" picker, shown for Query Rows. */
+export const TABLE_OUTPUT_COLUMNS_SUBBLOCK: SubBlockConfig = {
+  id: 'outputColumns',
+  title: COLUMN_SELECTION_LABEL,
+  type: 'dropdown',
+  selectorKey: 'table.outputColumns',
+  multiSelect: true,
+  searchable: true,
+  preserveLabelCase: true,
+  placeholder: 'All columns',
+  description: 'Only include these columns in each returned row. Leave empty for all columns.',
+  dependsOn: { any: ['tableSelector', 'manualTableId'] },
+  condition: { field: 'operation', value: 'query_rows' },
+}
+
+/** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
+export const TABLE_OUTPUT_COLUMNS_INPUT = {
+  type: 'array',
+  description: 'Table columns to include in each queried row; omit for all columns',
+} as const
+
 /**
  * Parses an optional numeric block input value.
  * Returns `undefined` for empty values and throws when the provided value is not a valid number.
@@ -572,6 +930,65 @@ export function parseOptionalNumberInput(
   }
 
   return parsed
+}
+
+/**
+ * Whether a block's `tools.config.params` mapper is running for a tool call (agent, Pi, Human v2),
+ * whose model-supplied args arrive under the tool's own param names. The canvas calls the mapper
+ * with no context, where those raw keys can hold a value stored for another operation.
+ */
+export function isToolCall(context: BlockToolParamsContext | undefined): boolean {
+  return Boolean(context?.operation)
+}
+
+/** `value` on a tool call, `undefined` on the canvas (see {@link isToolCall}). */
+export function toolCallArg<T>(
+  context: BlockToolParamsContext | undefined,
+  value: T
+): T | undefined {
+  return isToolCall(context) ? value : undefined
+}
+
+/**
+ * What the model is told when a block rejects a tool call's params. Deliberately static: a
+ * mapper's own message can quote the value it rejected (`Invalid Limit "…"`, a JSON parse
+ * snippet), and by then a model-written `{{SECRET}}` placeholder has been resolved to plaintext.
+ */
+const TOOL_CALL_PARAMS_REJECTED_MESSAGE =
+  'The tool was not run: its arguments could not be mapped to the tool inputs. Check the argument values (filters, sort, row data, limit) and try again.'
+
+/**
+ * Runs a mapper body, and on a tool call turns any failure into a {@link ToolCallParamsError} so
+ * the call fails instead of running on the raw merged params. Use it where those raw params are
+ * unsafe: a pinned value under a block-only key (a filter builder) drops out of them, leaving the
+ * model's own argument for the same tool param in its place. The original error stays on `cause`
+ * for server logs; the canvas rethrows it unchanged.
+ */
+export function failToolCallOnError<T>(
+  context: BlockToolParamsContext | undefined,
+  map: () => T
+): T {
+  try {
+    return map()
+  } catch (error) {
+    if (!isToolCall(context) || error instanceof ToolCallParamsError) throw error
+    throw new ToolCallParamsError(TOOL_CALL_PARAMS_REJECTED_MESSAGE, { cause: error })
+  }
+}
+
+/**
+ * The operation a block's `tools.config.params` mapper runs for. A tool call passes it only in
+ * `context`: a stored tool row keeps its operation outside its params, and a tool that declares its
+ * own `operation` param (Slack `edit_canvas`) gets the model's value there. The canvas passes no
+ * context, so the block's serialized `operation` input is used. Returns `''` when neither supplies
+ * one, so a default needs `||`, not `??`.
+ */
+export function mapperOperation(
+  params: { operation?: unknown },
+  context: BlockToolParamsContext | undefined
+): string {
+  if (context?.operation) return context.operation
+  return typeof params.operation === 'string' ? params.operation : ''
 }
 
 /**

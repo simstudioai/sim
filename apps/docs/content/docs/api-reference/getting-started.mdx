@@ -14,7 +14,7 @@ Sim Cloud uses `https://www.sim.ai`, with API paths under `/api/v2`. There is no
 
 Download the [OpenAPI 3.1 specification](/openapi.json) for client generation, request validation, and API tooling.
 
-Official SDKs wrap these calls: [TypeScript](/api-reference/typescript) (`bun add simstudio-ts-sdk`) and [Python](/api-reference/python) (`pip install simstudio-sdk`). The [CLI](/cli) (`bun add -g sim`) runs workflows and manages resources from a terminal.
+The [CLI](/cli) (`bun add -g sim`) runs workflows and manages resources from a terminal.
 
 ## Run a deployed workflow [#quick-start]
 
@@ -174,10 +174,13 @@ Rejected v2 requests use HTTP error status codes and a stable code/message envel
 {
   "error": {
     "code": "NOT_FOUND",
-    "message": "Workflow not found"
+    "message": "Workflow not found",
+    "requestId": "3f9a1c7e"
   }
 }
 ```
+
+Every response carries an `x-request-id` header, and an error repeats the same id as `error.requestId`. Quote it when you contact support about a failed request.
 
 | Status | Meaning | Action |
 | --- | --- | --- |
@@ -195,13 +198,13 @@ Other statuses and endpoint-specific recovery are documented in each reference. 
 
 V2 validates path parameters, query strings, and bodies against the published schema. Unknown fields return `400`; for example, `?limt=20` is an error. The rule also applies to endpoints with no query parameters: omit tracking tags, cache busters, and other undeclared fields.
 
-A validation error can look like:
+The message names the first rejected field, prefixed with where it was sent (`path`, `query`, `header`, or `body`); `error.details` lists every issue. A validation error can look like:
 
 ```json
 {
   "error": {
     "code": "BAD_REQUEST",
-    "message": "Invalid request",
+    "message": "query: Unrecognized key: \"limt\"",
     "details": [
       { "code": "unrecognized_keys", "keys": ["limt"], "path": [], "message": "Unrecognized key: \"limt\"" }
     ]
@@ -243,6 +246,5 @@ A rate-limited request returns `429`; `Retry-After` gives seconds to wait. Inspe
 ## Related docs
 
 - [Authentication](/api-reference/authentication)
-- [Python SDK](/api-reference/python) and [TypeScript SDK](/api-reference/typescript)
 - [Execute workflow](/api-reference/workflows/executeWorkflowV2)
 - [Workflow imports and workspace sync](/api-reference/workflow-sync)

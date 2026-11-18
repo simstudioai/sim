@@ -1,7 +1,12 @@
 import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Yes/No dropdowns serialize as `'true'`/`'false'` strings; the tools expect booleans. */
@@ -19,6 +24,8 @@ const UPLOAD_FILE_FIELD = ['uploadFile', 'uploadFileRef'] as const
 
 export const WhatsAppBlock: BlockConfig = {
   type: 'whatsapp',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'whatsapp_v2' },
   name: 'WhatsApp',
   description: 'Send WhatsApp messages',
   authMode: AuthMode.ApiKey,
@@ -524,7 +531,8 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `whatsapp_${params.operation || 'send_message'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           interactiveType,
           file: uploadedFile,
@@ -541,7 +549,9 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
           previewUrl: toOptionalBoolean(params.previewUrl),
           showTypingIndicator: toOptionalBoolean(params.showTypingIndicator),
           ...(file ? { file } : {}),
-          ...(params.operation === 'get_media' ? { mediaId: downloadMediaId } : {}),
+          ...(operation === 'get_media'
+            ? { mediaId: downloadMediaId || toolCallArg(context, params.mediaId) }
+            : {}),
         }
       },
     },
@@ -816,3 +826,17 @@ export const WhatsAppBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const WhatsAppV2Block: BlockConfig = {
+  ...WhatsAppBlock,
+  type: 'whatsapp_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(WhatsAppBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'whatsapp',
+    title: 'WhatsApp Credential',
+  }),
+}

@@ -4,6 +4,8 @@ import type {
   SendGridContactObject,
   SendGridContactRequest,
 } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult> = {
@@ -11,8 +13,10 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
   name: 'SendGrid Add Contact',
   description: 'Add a new contact to SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -53,7 +57,7 @@ export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult>
   },
 
   request: {
-    url: () => 'https://api.sendgrid.com/v3/marketing/contacts',
+    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/contacts`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

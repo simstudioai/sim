@@ -1,5 +1,8 @@
 import type { SentryCreateDeployParams, SentryCreateDeployResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreateDeployResponse> = {
   id: 'sentry_releases_deploy',
@@ -7,8 +10,10 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
   description:
     'Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -62,7 +67,7 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/organizations/${params.organizationSlug}/releases/${encodeURIComponent(params.version)}/deploys/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/releases/${safeUrlPathSegment(params.version, 'version', { allowSeparators: true })}/deploys/`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -47,9 +47,10 @@ sim login [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates a permanent key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
+| `--method <method>` | No | Credential to obtain: oauth requires OAuth support; api-key creates an API key through pairing (auto-selects when omitted). Accepted values: `oauth`, `api-key`. |
 | `--no-browser` | No | Print the approval URL without opening it (either login method). |
 | `--read-only` | No | Ask only for permission to read, never to change anything. |
+| `--expires-in <days>` | No | Log in with an API key that expires after this many days (1-365); without it an API key never expires. |
 | `--callback-port <port>` | No | Pin the local port the browser returns to. |
 | `-y, --yes` | No | Overwrite an existing API-key profile without prompting. |
 
@@ -773,7 +774,79 @@ sim credentials create <providerId> [options]
 
 </CommandTable>
 
+--credentials takes the provider's fields, or the keylessConfig from `sim credentials keyless-subject` (with the required fields filled in). Pass @path or @- to keep secrets out of shell history.
+
+Keyless (workload identity) credentials take two steps.
+
+Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.
+
+The printed audience is the default. To have Sim sign tokens for your own audience instead, set audience in keylessConfig and trust that value. Google Cloud prints no audience: its default is the credential's own workload identity pool provider.
+
+Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.
+
+The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently.
+
+If creation reports WORKLOAD_IDENTITY_PROOF_EXPIRED, renew the proof and retry. If it reports WORKLOAD_IDENTITY_PROOF_INVALID, WORKLOAD_IDENTITY_SUBJECT_REQUIRED, WORKLOAD_IDENTITY_SUBJECT_IN_USE, run step 1 again, trust the new subject, and retry.
+
+**Examples**
+
+```bash
+sim credentials keyless-subject aws-service-account --output json > subject.json
+jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json
+sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json
+```
+
 API request and response schemas: [createServiceAccountCredential](/api-reference/credentials/createServiceAccountCredential).
+
+### sim credentials keyless-subject
+
+Issue the subject and proof for a new keyless (workload identity) credential (OAuth login or personal API key required)
+
+```bash
+sim credentials keyless-subject <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Service-account provider for the keyless credential |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--subject <subject>` | No | Renew the proof for a subject Sim issued to you earlier, instead of issuing a new one. |
+
+</CommandTable>
+
+Keyless (workload identity) credentials take two steps.
+
+Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.
+
+The printed audience is the default. To have Sim sign tokens for your own audience instead, set audience in keylessConfig and trust that value. Google Cloud prints no audience: its default is the credential's own workload identity pool provider.
+
+Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.
+
+The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently.
+
+If creation reports WORKLOAD_IDENTITY_PROOF_EXPIRED, renew the proof and retry. If it reports WORKLOAD_IDENTITY_PROOF_INVALID, WORKLOAD_IDENTITY_SUBJECT_REQUIRED, WORKLOAD_IDENTITY_SUBJECT_IN_USE, run step 1 again, trust the new subject, and retry.
+
+**Examples**
+
+```bash
+sim credentials keyless-subject aws-service-account --output json > subject.json
+jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json
+sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json
+```
+
+API request and response schemas: [createCredentialWorkloadIdentitySubject](/api-reference/credentials/createCredentialWorkloadIdentitySubject).
 
 ### sim credentials connect
 
@@ -2590,7 +2663,7 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--connector-type <value>` | Yes | Registered connector type. |
-| `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors. |
+| `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors. |
 | `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference. |
 | `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. Defaults to 1440. |
@@ -4536,6 +4609,71 @@ sim organizations usage events [options]
 
 API request and response schemas: [listOrganizationUsageEvents](/api-reference/organizations/listOrganizationUsageEvents).
 
+### sim organizations search sources permissions get
+
+Get search source permission revision (OAuth login or personal API key required)
+
+```bash
+sim organizations search sources permissions get <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getSearchSourcePermissions](/api-reference/organizations/getSearchSourcePermissions).
+
+### sim organizations search sources permissions replace
+
+Replace search source permissions (OAuth login or personal API key required)
+
+This replaces the source’s permission grants. Readers omitted from the new grants lose access.
+
+```bash
+sim organizations search sources permissions replace <sourceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sourceId` | Yes | Identifier of the configured Search source. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--expected-revision <value>` | Yes | Permission revision read before exporting the grants. |
+| `--permissions <json\|@file>` | Yes | Complete permission grants in the source provider’s format. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [replaceSearchSourcePermissions](/api-reference/organizations/replaceSearchSourcePermissions).
+
 ### sim organizations list
 
 List organizations (OAuth login or personal API key required)
@@ -4982,6 +5120,37 @@ sim sandboxes update <sandboxId> [options]
 
 API request and response schemas: [updateSandbox](/api-reference/sandboxes/updateSandbox).
 
+## sim schedules
+
+List the schedules deployed workflows run across a workspace.
+
+A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.
+
+Also spelled `sim schedule`.
+
+### sim schedules list
+
+Show the timing and health of every schedule the workspace’s deployments run
+
+```bash
+sim schedules list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceSchedules](/api-reference/workflows/listWorkspaceSchedules).
+
 ## sim secrets
 
 Set and manage workspace or personal secrets.
@@ -5103,7 +5272,7 @@ sim selectors get [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--selector-key <value>` | Yes | Registered selector key from an import or sync preview, such as `gmail.labels`. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gauge.organizations`, `gauge.categories`, `gauge.topics`, `gauge.prompts`, `gauge.tags`, `gauge.answers`, `fivetran.groups`, `fivetran.connections`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `jama.projects`, `jama.itemTypes`, `flow.projects`, `flow.categories`, `flow.branches`, `helpscout.mailboxes`, `helpscout.assignees`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
+| `--selector-key <value>` | Yes | Registered selector key from an import or sync preview, such as `gmail.labels`. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gauge.organizations`, `gauge.categories`, `gauge.topics`, `gauge.prompts`, `gauge.tags`, `gauge.answers`, `fivetran.groups`, `fivetran.connections`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `jama.projects`, `jama.itemTypes`, `flow.projects`, `flow.categories`, `flow.branches`, `helpscout.mailboxes`, `helpscout.assignees`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `planetscale.savedDatabases`, `planetscale.savedBranches`, `planetscale.savedBackups`, `planetscale.savedDeployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `cloudwatch.savedLogGroups`, `cloudwatch.savedLogStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
 | `--context <json\|@file>` | No | Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization. Defaults to &#123;&#125;. (JSON, or @path / @- to read a file or stdin). |
 | `--id <value>` | Yes | Provider option ID to resolve with the same selector and declared context. |
 
@@ -5125,7 +5294,7 @@ sim selectors list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--selector-key <value>` | Yes | Registered selector key from an import or sync preview, such as `gmail.labels`. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gauge.organizations`, `gauge.categories`, `gauge.topics`, `gauge.prompts`, `gauge.tags`, `gauge.answers`, `fivetran.groups`, `fivetran.connections`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `jama.projects`, `jama.itemTypes`, `flow.projects`, `flow.categories`, `flow.branches`, `helpscout.mailboxes`, `helpscout.assignees`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
+| `--selector-key <value>` | Yes | Registered selector key from an import or sync preview, such as `gmail.labels`. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gauge.organizations`, `gauge.categories`, `gauge.topics`, `gauge.prompts`, `gauge.tags`, `gauge.answers`, `fivetran.groups`, `fivetran.connections`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `jama.projects`, `jama.itemTypes`, `flow.projects`, `flow.categories`, `flow.branches`, `helpscout.mailboxes`, `helpscout.assignees`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `planetscale.savedDatabases`, `planetscale.savedBranches`, `planetscale.savedBackups`, `planetscale.savedDeployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `cloudwatch.savedLogGroups`, `cloudwatch.savedLogStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
 | `--context <json\|@file>` | No | Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization. Defaults to &#123;&#125;. (JSON, or @path / @- to read a file or stdin). |
 | `--search <value>` | No | Provider option search text. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
@@ -7374,6 +7543,31 @@ sim workflows runs get <runId> [options]
 
 API request and response schemas: [getWorkflowRun](/api-reference/workflow-runs/getWorkflowRunV2).
 
+### sim workflows runs paused
+
+List runs waiting on human input across the workspace
+
+```bash
+sim workflows runs paused [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-output` | No | Include each pause point's reviewer `display` content when true. |
+| `--no-include-output` | No | Send --include-output as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "pausedAt". Accepted values: `pausedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listPausedRuns](/api-reference/workflow-runs/listPausedWorkflowRunsV2).
+
 ### sim workflows runs list
 
 List runs for a workflow
@@ -8047,6 +8241,26 @@ sim workflows deployment update <workflowId> [options]
 
 API request and response schemas: [updateWorkflowPublicApi](/api-reference/workflows/updateWorkflowPublicApi).
 
+### sim workflows outline
+
+Show a workflow’s draft as a compact read-only outline
+
+```bash
+sim workflows outline <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
+
 ### sim workflows state get
 
 Get workflow state
@@ -8162,6 +8376,57 @@ sim workflows list [options]
 </CommandTable>
 
 API request and response schemas: [listWorkflows](/api-reference/workflows/listWorkflows).
+
+### sim workflows triggers list
+
+Show the health of every trigger the live deployment serves
+
+```bash
+sim workflows triggers list <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkflowTriggers](/api-reference/workflows/listWorkflowTriggers).
+
+### sim workflows triggers update
+
+Enable or disable one trigger of the live deployment
+
+```bash
+sim workflows triggers update <workflowId> <blockId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `blockId` | Yes | Trigger block in the deployed workflow. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--enabled <true\|false>` | Yes | Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkflowTrigger](/api-reference/workflows/updateWorkflowTrigger).
 
 ### sim workflows move
 
@@ -8784,12 +9049,12 @@ sim workspaces fork-resources [options]
 
 API request and response schemas: [listWorkspaceForkResources](/api-reference/workspace-sync/listWorkspaceForkResources).
 
-### sim workspaces members
+### sim workspaces members list [#sim-workspaces-members]
 
 List workspace members
 
 ```bash
-sim workspaces members [options]
+sim workspaces members list [options]
 ```
 
 **Options**
@@ -8803,6 +9068,68 @@ sim workspaces members [options]
 </CommandTable>
 
 API request and response schemas: [listWorkspaceMembers](/api-reference/workspaces/listWorkspaceMembers).
+
+### sim workspaces members remove
+
+Remove workspace member (OAuth login or personal API key required)
+
+This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.
+
+```bash
+sim workspaces members remove <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [removeWorkspaceMember](/api-reference/workspaces/removeWorkspaceMember).
+
+### sim workspaces members update
+
+Update workspace member (OAuth login or personal API key required)
+
+```bash
+sim workspaces members update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--role <value>` | Yes | New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here. Accepted values: `admin`, `write`, `read`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspaceMember](/api-reference/workspaces/updateWorkspaceMember).
 
 ### sim workspaces list
 
@@ -9006,6 +9333,27 @@ sim workspaces unlink [options]
 </CommandTable>
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
+
+### sim workspaces update
+
+Update workspace (OAuth login or personal API key required)
+
+```bash
+sim workspaces update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New workspace display name. |
+| `--logo-url <value>` | No | New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP (--logo-url null sends the word, not JSON null). |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspace](/api-reference/workspaces/updateWorkspace).
 
 ### sim workspaces sync-exclusions
 

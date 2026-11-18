@@ -5,6 +5,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListDepartmentsTool: ToolConfig<
@@ -15,6 +16,7 @@ export const brexListDepartmentsTool: ToolConfig<
   name: 'Brex List Departments',
   description: 'List departments in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   AlgoliaBrowseRecordsParams,
   AlgoliaBrowseRecordsResponse,
 } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const browseRecordsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const browseRecordsTool: ToolConfig<
   name: 'Algolia Browse Records',
   description: 'Browse and iterate over all records in an Algolia index using cursor pagination',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

@@ -10,6 +10,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   extractCustomTools: vi.fn(),
+  loadStoredGraph: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence/load', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadStoredGraph,
 }))
 
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
@@ -85,6 +90,7 @@ describe('replaceWorkflowNormalizedState', () => {
     mocks.prepare.mockReturnValue({ state: PREPARED, warnings: [] })
     mockSave.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
+    mocks.loadStoredGraph.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
   /**
@@ -101,7 +107,7 @@ describe('replaceWorkflowNormalizedState', () => {
     const result = await replaceWorkflowNormalizedState(input())
 
     expect(mocks.prepare).toHaveBeenCalledWith({
-      blocks: { 'block-1': BLOCK },
+      blocks: { 'block-1': { ...BLOCK, locked: false } },
       edges: [],
     })
     expect(mockSave).toHaveBeenCalledWith(

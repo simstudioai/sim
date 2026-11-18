@@ -2,7 +2,7 @@
 title: Mem0
 description: Agent memory management
 integration:
-  type: "mem0"
+  type: "mem0_v2"
   color: "#181C1E"
 ---
 
@@ -31,7 +31,6 @@ Add memories to Mem0 for persistent storage and retrieval
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | Yes | User ID associated with the memory \(e.g., "user_123", "alice@example.com"\) |
 | `messages` | json | Yes | Array of message objects with role and content \(e.g., \[\{"role": "user", "content": "Hello"\}\]\) |
-| `apiKey` | string | Yes | Your Mem0 API key |
 
 #### Output
 
@@ -56,7 +55,6 @@ Search for memories in Mem0 using semantic search
 | `userId` | string | Yes | User ID to search memories for \(e.g., "user_123", "alice@example.com"\) |
 | `query` | string | Yes | Search query to find relevant memories \(e.g., "What are my favorite foods?"\) |
 | `limit` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
-| `apiKey` | string | Yes | Your Mem0 API key |
 
 #### Output
 
@@ -95,7 +93,6 @@ Retrieve memories from Mem0 by ID or filter criteria
 | `endDate` | string | No | End date for filtering by created_at \(e.g., "2024-12-31"\) |
 | `limit` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
 | `page` | number | No | Page number to retrieve for paginated list results |
-| `apiKey` | string | Yes | Your Mem0 API key |
 
 #### Output
 

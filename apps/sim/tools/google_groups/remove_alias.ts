@@ -3,6 +3,7 @@ import type {
   GoogleGroupsRemoveAliasResponse,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeAliasTool: ToolConfig<
   GoogleGroupsRemoveAliasParams,
@@ -42,8 +43,10 @@ export const removeAliasTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey.trim())
-      const encodedAlias = encodeURIComponent(params.alias.trim())
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
+      const encodedAlias = safeUrlPathSegment(params.alias, 'alias', { allowSeparators: true })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}/aliases/${encodedAlias}`
     },
     method: 'DELETE',

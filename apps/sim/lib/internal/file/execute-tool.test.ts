@@ -252,6 +252,7 @@ describe('executeFileTool', () => {
       kind: 'personal_api_key',
       userId: 'user-1',
       keyId: 'key-1',
+      access: 'write',
     }
     const call = request('file_read', MANAGE_INPUTS.file_read)
     call.context.callerPrincipal = callerPrincipal
@@ -267,7 +268,12 @@ describe('executeFileTool', () => {
 
   it('never falls back to a direct caller after invalid executor delegation', async () => {
     const call = request('file_read', MANAGE_INPUTS.file_read)
-    call.context.callerPrincipal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
+    call.context.callerPrincipal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+      access: 'write',
+    }
     mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValueOnce(
       new InvalidInternalDelegationBindingError()
     )
@@ -282,7 +288,12 @@ describe('executeFileTool', () => {
       request('file_read', MANAGE_INPUTS.file_read, {
         context: {
           workflowId: '',
-          callerPrincipal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          callerPrincipal: {
+            kind: 'personal_api_key',
+            userId: 'user-1',
+            keyId: 'key-1',
+            access: 'write',
+          },
         },
       })
     )

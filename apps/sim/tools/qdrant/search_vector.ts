@@ -3,13 +3,16 @@ import {
   QDRANT_RESPONSE_OUTPUT_PROPERTIES,
   SCORED_POINT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
+import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
   id: 'qdrant_search_vector',
   name: 'Qdrant Search Vector',
   description: 'Search for similar vectors in a Qdrant collection',
   version: '1.0',
+  oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {
     url: {
@@ -72,7 +75,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   request: {
     method: 'POST',
     url: (params) =>
-      `${params.url.replace(/\/$/, '')}/collections/${encodeURIComponent(params.collection)}/points/query`,
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true })}/points/query`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

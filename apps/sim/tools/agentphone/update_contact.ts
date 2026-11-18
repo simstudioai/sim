@@ -2,7 +2,9 @@ import type {
   AgentPhoneUpdateContactParams,
   AgentPhoneUpdateContactResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneUpdateContactTool: ToolConfig<
   AgentPhoneUpdateContactParams,
@@ -12,6 +14,7 @@ export const agentphoneUpdateContactTool: ToolConfig<
   name: 'Update Contact',
   description: "Update a contact's fields",
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -53,7 +56,8 @@ export const agentphoneUpdateContactTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/contacts/${params.contactId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

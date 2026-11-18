@@ -4,6 +4,7 @@ import type {
 } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, encodeDynatraceId } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateProblemCommentTool: ToolConfig<
@@ -14,6 +15,7 @@ export const updateProblemCommentTool: ToolConfig<
   name: 'Dynatrace Update Problem Comment',
   description: 'Replace the text of an existing comment on a Dynatrace problem.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

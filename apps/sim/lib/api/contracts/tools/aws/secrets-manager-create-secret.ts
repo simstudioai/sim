@@ -13,6 +13,11 @@ const CreateSecretSchema = z.object({
   name: z.string().min(1, 'Secret name is required'),
   secretValue: z.string().min(1, 'Secret value is required'),
   description: z.string().nullish(),
+  kmsKeyId: z.string().nullish(),
+  tags: z
+    .array(z.object({ key: z.string().min(1).max(128), value: z.string().max(256) }))
+    .max(50)
+    .nullish(),
 })
 
 const CreateSecretResponseSchema = z.object({

@@ -1,11 +1,14 @@
 import type { RipplingGetEmploymentTypeParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentTypeParams> = {
   id: 'rippling_get_employment_type',
   name: 'Rippling Get Employment Type',
   description: 'Get a specific employment type by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -17,7 +20,7 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/employment-types/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/employment-types/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

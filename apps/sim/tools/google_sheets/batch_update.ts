@@ -2,7 +2,13 @@ import type {
   GoogleSheetsV2BatchUpdateParams,
   GoogleSheetsV2BatchUpdateResponse,
 } from '@/tools/google_sheets/types'
+import {
+  mapValueRange,
+  RESPONSE_RENDER_PARAMS,
+  UPDATED_DATA_OUTPUT,
+} from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const batchUpdateV2Tool: ToolConfig<
   GoogleSheetsV2BatchUpdateParams,
@@ -36,7 +42,7 @@ export const batchUpdateV2Tool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of value ranges to update. Each item should have "range" (e.g., "Sheet1!A1:D10") and "values" (2D array).',
+        'Array of value ranges to update. Each item should have "range" (e.g., "Sheet1!A1:D10"), "values" (2D array), and optionally "majorDimension" ("ROWS" default, or "COLUMNS").',
     },
     valueInputOption: {
       type: 'string',
@@ -45,6 +51,14 @@ export const batchUpdateV2Tool: ToolConfig<
       description:
         'How input data should be interpreted: "RAW" or "USER_ENTERED" (default). USER_ENTERED parses formulas.',
     },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether each entry in responses should include updatedData with the values of the updated cells. Defaults to false.',
+    },
+    ...RESPONSE_RENDER_PARAMS,
   },
 
   request: {
@@ -54,7 +68,7 @@ export const batchUpdateV2Tool: ToolConfig<
         throw new Error('Spreadsheet ID is required')
       }
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values:batchUpdate`
     },
     method: 'POST',
     headers: (params) => {
@@ -78,7 +92,15 @@ export const batchUpdateV2Tool: ToolConfig<
         data: data.map((item: any) => ({
           range: item.range,
           values: item.values,
+          ...(item.majorDimension ? { majorDimension: item.majorDimension } : {}),
         })),
+        ...(params.includeValuesInResponse ? { includeValuesInResponse: true } : {}),
+        ...(params.responseValueRenderOption
+          ? { responseValueRenderOption: params.responseValueRenderOption }
+          : {}),
+        ...(params.responseDateTimeRenderOption
+          ? { responseDateTimeRenderOption: params.responseDateTimeRenderOption }
+          : {}),
       }
     },
   },
@@ -93,6 +115,7 @@ export const batchUpdateV2Tool: ToolConfig<
         updatedRows: r.updatedRows ?? 0,
         updatedColumns: r.updatedColumns ?? 0,
         updatedCells: r.updatedCells ?? 0,
+        updatedData: mapValueRange(r.updatedData),
       })) ?? []
 
     const spreadsheetId = data.spreadsheetId ?? ''
@@ -134,6 +157,7 @@ export const batchUpdateV2Tool: ToolConfig<
             description: 'Number of columns updated in this range',
           },
           updatedCells: { type: 'number', description: 'Number of cells updated in this range' },
+          updatedData: UPDATED_DATA_OUTPUT,
         },
       },
     },

@@ -2,6 +2,8 @@ import type {
   IncidentioEscalationsCreateParams,
   IncidentioEscalationsCreateResponse,
 } from '@/tools/incidentio/types'
+import { parseIncidentioList } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const escalationsCreateTool: ToolConfig<
@@ -10,8 +12,10 @@ export const escalationsCreateTool: ToolConfig<
 > = {
   id: 'incidentio_escalations_create',
   name: 'Create Escalation',
-  description: 'Create a new escalation policy in incident.io',
+  description:
+    'Page users or an escalation path (create an escalation) in incident.io. Provide either escalation_path_id or user_ids, not both. To create a reusable escalation policy, use Create Escalation Path instead.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -44,7 +48,20 @@ export const escalationsCreateTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of user IDs to notify (required if escalation_path_id not provided)',
+        'Comma-separated list of user IDs to page directly (required if escalation_path_id not provided)',
+    },
+    incident_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of an incident to link this escalation to; it appears in the escalation\'s related incidents (e.g., "01H0J1EXE7AXZ2C93K61WBPYEH")',
+    },
+    description: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Additional details included with the page (e.g., "Database CPU above 90%")',
     },
   },
 
@@ -56,7 +73,7 @@ export const escalationsCreateTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         idempotency_key: params.idempotency_key,
         title: params.title,
       }
@@ -66,8 +83,12 @@ export const escalationsCreateTool: ToolConfig<
       }
 
       if (params.user_ids) {
-        body.user_ids = params.user_ids.split(',').map((id: string) => id.trim())
+        body.user_ids = parseIncidentioList(params.user_ids)
       }
+
+      const incidentId = params.incident_id?.trim()
+      if (incidentId) body.incident_id = incidentId
+      if (params.description) body.description = params.description
 
       return body
     },

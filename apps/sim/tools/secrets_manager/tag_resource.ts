@@ -2,6 +2,7 @@ import type {
   SecretsManagerTagResourceParams,
   SecretsManagerTagResourceResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tagResourceTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const tagResourceTool: InternalToolConfig<
   name: 'Secrets Manager Tag Resource',
   description: 'Attach tags to a secret in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

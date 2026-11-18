@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUpdateTaskTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneUpdateTaskTool: ToolConfig<
   name: 'Rocketlane Update Task',
   description: 'Update the properties of an existing Rocketlane task by its unique identifier',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

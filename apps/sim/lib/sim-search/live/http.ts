@@ -6,7 +6,7 @@ import {
   type SearchFailureReason,
   withSearchRequestDiagnostics,
 } from '@/lib/knowledge/search/diagnostics'
-import type { NativeClient } from '@/lib/sim-search/live/types'
+import type { NativeClient, NativeRequestOptions } from '@/lib/sim-search/live/types'
 import {
   isGoogleQuotaReason,
   safeGoogleErrorReasons,
@@ -30,7 +30,34 @@ export const NATIVE_SEARCH_REQUEST_BUDGET = 30
 /** Decoded bytes allowed in any native provider response, including file downloads. */
 export const NATIVE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 
-/** Tokens only go to a code-selected provider origin; redirects never carry credentials. */
+/**
+ * Sibling hosts a provider's token may reach, each only from its own provider origin: Google
+ * serves Sheets apart from Drive, and Slack serves file contents apart from its Web API. Slack's
+ * file host follows redirects only within itself: Slack sends a token it will not serve to a
+ * workspace sign-in page, which must be refused rather than read as the file.
+ */
+const NATIVE_SERVICES = {
+  sheets: {
+    origin: 'https://www.googleapis.com',
+    hostname: 'sheets.googleapis.com',
+    maxRedirects: 0,
+  },
+  slackFiles: { origin: 'https://slack.com', hostname: 'files.slack.com', maxRedirects: 3 },
+} as const
+
+function assertSameHost(requested: URL, target: string) {
+  const next = new URL(target)
+  if (next.origin !== requested.origin)
+    throw new NativeSearchError(
+      'unavailable',
+      `The provider redirected this file to ${next.hostname}, outside its file host. Open the source.`
+    )
+}
+
+/** A sibling host a request may target instead of its client's provider origin. */
+export type NativeService = keyof typeof NATIVE_SERVICES
+
+/** Tokens only go to a code-selected provider origin; a redirect never carries them elsewhere. */
 export function createNativeClient(input: {
   origin: string
   accessToken: string
@@ -46,12 +73,7 @@ export function createNativeClient(input: {
   async function request<T>(
     path: string,
     options:
-      | {
-          query?: Record<string, string | string[]>
-          body?: unknown
-          googleService?: 'sheets'
-          signal?: AbortSignal
-        }
+      | (NativeRequestOptions & { query?: Record<string, string | string[]>; body?: unknown })
       | undefined,
     read: (response: Awaited<ReturnType<typeof secureFetchWithValidation>>) => Promise<T>
   ) {
@@ -69,9 +91,10 @@ export function createNativeClient(input: {
             'request_budget_exceeded'
           )
         const url = new URL(input.origin)
-        if (options?.googleService === 'sheets') {
-          if (url.origin !== 'https://www.googleapis.com') throw new Error('Invalid Google service')
-          url.hostname = 'sheets.googleapis.com'
+        const service = options?.service ? NATIVE_SERVICES[options.service] : undefined
+        if (service) {
+          if (url.origin !== service.origin) throw new Error('Invalid provider service')
+          url.hostname = service.hostname
         }
         if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\'))
           throw new Error('Invalid provider path')
@@ -96,7 +119,10 @@ export function createNativeClient(input: {
           signal,
           timeout: 10_000,
           maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
-          maxRedirects: 0,
+          maxRedirects: service?.maxRedirects ?? 0,
+          ...(service?.maxRedirects
+            ? { assertRedirectTarget: (target: string) => assertSameHost(url, target) }
+            : {}),
           acceptCompressed: true,
           connectionPool: input.pool,
         })
@@ -164,8 +190,10 @@ export function createNativeClient(input: {
     },
     async bytes(path, query, options) {
       try {
-        return await request(path, { query, signal: options?.signal }, async (response) =>
-          Buffer.from(await response.arrayBuffer())
+        return await request(
+          path,
+          { query, service: options?.service, signal: options?.signal },
+          async (response) => Buffer.from(await response.arrayBuffer())
         )
       } catch (error) {
         input.signal.throwIfAborted()
@@ -173,7 +201,11 @@ export function createNativeClient(input: {
       }
     },
     async text(path, query, options) {
-      return request(path, { query, signal: options?.signal }, (response) => response.text())
+      return request(
+        path,
+        { query, service: options?.service, signal: options?.signal },
+        (response) => response.text()
+      )
     },
   })
 }
@@ -191,8 +223,10 @@ export function withRequestSignal(client: NativeClient, signal: AbortSignal): Na
         path,
         options?.memo && !options.body ? options : { ...options, signal: scoped(options?.signal) }
       ),
-    text: (path, query, options) => client.text(path, query, { signal: scoped(options?.signal) }),
-    bytes: (path, query, options) => client.bytes(path, query, { signal: scoped(options?.signal) }),
+    text: (path, query, options) =>
+      client.text(path, query, { ...options, signal: scoped(options?.signal) }),
+    bytes: (path, query, options) =>
+      client.bytes(path, query, { ...options, signal: scoped(options?.signal) }),
   }
 }
 
@@ -208,7 +242,7 @@ export function withJsonMemo(client: NativeClient): NativeClient {
     json(...request) {
       const [path, options] = request
       if (!options?.memo || options.body) return client.json(...request)
-      const key = JSON.stringify([path, options.query, options.googleService])
+      const key = JSON.stringify([path, options.query, options.service])
       let pending = memo.get(key)
       if (!pending) {
         pending = client.json(...request)

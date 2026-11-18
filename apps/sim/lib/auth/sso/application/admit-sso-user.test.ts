@@ -383,6 +383,7 @@ describe('SSO JIT admission', () => {
           kind: 'workspace_api_key',
           workspaceId: 'workspace-1',
           keyId: 'key-1',
+          access: 'write',
         },
         input: { providerId: 'acme-sso' },
       })

@@ -479,6 +479,31 @@ export const selectorManifest = {
       detail: true,
     }
   ),
+  'planetscale.savedDatabases': providerSelector(['organization'], {
+    readiness: { all: ['oauthCredential', 'organization'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'planetscale.savedBranches': providerSelector(['organization', 'database'], {
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'planetscale.savedBackups': providerSelector(['organization', 'database', 'branch'], {
+    sourceFields: { branch: ['branch', 'parentBranch'] },
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: false,
+    detail: true,
+  }),
+  'planetscale.savedDeployRequests': providerSelector(['organization', 'database'], {
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: false,
+    detail: true,
+  }),
   'cloudwatch.logGroups': rawProviderSelector(
     ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     {
@@ -501,6 +526,18 @@ export const selectorManifest = {
       detail: true,
     }
   ),
+  'cloudwatch.savedLogGroups': providerSelector(['awsRegion'], {
+    readiness: { all: ['oauthCredential', 'awsRegion'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'cloudwatch.savedLogStreams': providerSelector(['awsRegion', 'logGroupName'], {
+    readiness: { all: ['oauthCredential', 'awsRegion', 'logGroupName'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'imap.mailboxes': rawProviderSelector(['host', 'port', 'secure', 'username', 'password'], {
     readiness: { all: ['host', 'username', 'password'] },
     sensitive: ['username', 'password'],

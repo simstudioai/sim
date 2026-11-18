@@ -64,6 +64,9 @@ export function connectorFailureBackoffMinutes(failures: number): number {
   )
 }
 
+/** How long a sync waits to retry after the organization's egress route was unavailable. */
+export const EGRESS_RETRY_DELAY_MS = connectorFailureBackoffMinutes(1) * 60 * 1000
+
 /** Interval between refreshes of the running connector's dedicated lease timestamp. */
 export const SYNC_LOCK_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000
 

@@ -86,15 +86,15 @@ const v2LogDetailCostSchema = z
  *
  * That pass-through is also why this field disagrees with the run resources for the
  * same run, and the disagreement is documented rather than reconciled. The run list
- * projects `paused` over the persisted value whenever the run holds a `paused` or
- * `partially_resumed` row in `paused_executions` (`executionStatus` in
- * `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
+ * projects `paused` over the persisted value while the run holds a `paused` or
+ * `partially_resumed` row in `paused_executions` with a point still to resume
+ * (`executionStatus` in `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
  * pause reads `paused` there and `pending` here. Adopting the overlay would need this
  * read to join `paused_executions`, and would silently move live runs between the
  * `pending` and `paused` buckets of a shipped field that internal log consumers read
  * from the same query — a breaking change, not a correction. Callers that need the
- * pause distinction read the run resources, which also carry the `paused` object that
- * separates "waiting on a human" from "a resume attempt failed".
+ * pause distinction read the run resources, which also carry the `paused` object with the
+ * pause kind, resume time, and any automatic-resume waiting reason.
  */
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)

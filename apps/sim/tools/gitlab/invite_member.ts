@@ -1,5 +1,6 @@
 import type { GitLabInviteMemberParams, GitLabInviteMemberResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabInviteMemberTool: ToolConfig<
@@ -11,6 +12,7 @@ export const gitlabInviteMemberTool: ToolConfig<
   name: 'GitLab Invite Member',
   description: 'Invite a person to a GitLab project or group by email address',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -48,7 +50,7 @@ export const gitlabInviteMemberTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner). 5 (Minimal access) is also valid for a top-level group on Premium and Ultimate.',
     },
     expiresAt: {
       type: 'string',

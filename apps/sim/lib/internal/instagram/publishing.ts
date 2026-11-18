@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import {
   getFileExtension,
@@ -291,7 +292,7 @@ export async function resolveIgUserId(
 ): Promise<string> {
   if (igUserId?.trim()) return igUserId.trim()
 
-  const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
+  const response = await outboundFetch(graphUrl('/me', { fields: 'user_id' }), {
     headers: bearerHeaders(accessToken),
     signal,
   })
@@ -316,10 +317,13 @@ async function getContainerStatus(
   containerId: string,
   signal?: AbortSignal
 ): Promise<{ statusCode: ContainerStatusCode | null; status: string | null }> {
-  const response = await fetch(graphUrl(`/${containerId}`, { fields: 'status_code,status' }), {
-    headers: bearerHeaders(accessToken),
-    signal,
-  })
+  const response = await outboundFetch(
+    graphUrl(`/${containerId}`, { fields: 'status_code,status' }),
+    {
+      headers: bearerHeaders(accessToken),
+      signal,
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to get container status: ${await readGraphError(response)}`)
   }
@@ -393,7 +397,7 @@ async function postGraphForm(
     if (value !== undefined && value !== null) form.set(key, String(value))
   }
 
-  return fetch(graphUrl(path), {
+  return outboundFetch(graphUrl(path), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,

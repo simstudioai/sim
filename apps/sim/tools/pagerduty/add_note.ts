@@ -1,11 +1,14 @@
 import type { PagerDutyAddNoteParams, PagerDutyAddNoteResponse } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteResponse> = {
   id: 'pagerduty_add_note',
   name: 'PagerDuty Add Note',
   description: 'Add a note to an existing PagerDuty incident.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -35,7 +38,8 @@ export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteRes
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId.trim()}/notes`,
+    url: (params) =>
+      `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/notes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

@@ -1365,7 +1365,7 @@ test.describe('browser tools', () => {
     expect(await formState()).toMatchObject({ name: 'Observed value' })
     const result = fill.result as { observation: { result: { matches: { elementId: number }[] } } }
     const freshId = result.observation.result.matches[0].elementId
-    expect(freshId).not.toBe(ref('Name'))
+    expect(freshId).toBe(ref('Name'))
     const clear = await execute('browser_type', { elementId: freshId, text: '', observe: {} })
     expect(clear.ok, clear.error).toBe(true)
     expect(clear.result).toMatchObject({ observation: { ok: true } })

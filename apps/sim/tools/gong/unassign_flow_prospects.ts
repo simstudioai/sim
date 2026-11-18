@@ -2,7 +2,8 @@ import type {
   GongUnassignFlowProspectsParams,
   GongUnassignFlowProspectsResponse,
 } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const unassignFlowProspectsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const unassignFlowProspectsTool: ToolConfig<
   description:
     'Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -54,7 +56,7 @@ export const unassignFlowProspectsTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { UpdateContactParams, UpdateContactResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendUpdateContactTool')
@@ -9,6 +10,7 @@ export const resendUpdateContactTool: ToolConfig<UpdateContactParams, UpdateCont
   name: 'Update Contact',
   description: 'Update an existing contact in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     contactId: {

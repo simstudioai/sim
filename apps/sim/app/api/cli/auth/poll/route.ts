@@ -1,8 +1,11 @@
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { pollCliAuthContract } from '@/lib/api/contracts'
+import { DAY_MS } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
 import {
+  apiKeyCreationErrorStatus,
   performCreatePersonalApiKey,
   performCreateWorkspaceApiKey,
 } from '@/lib/api-key/orchestration'
@@ -42,23 +45,39 @@ function cliKeyName(): string {
 }
 
 /**
+ * Slack added to an approved lifetime. Key creation refuses an expiry under one
+ * day from its own clock reading, which comes a moment after this one, so a
+ * one-day approval would otherwise always be refused.
+ */
+const EXPIRY_SLACK_MS = 60_000
+
+/** The expiry the approval asked for, counted from now; null for a key that never expires. */
+function approvedExpiresAt(grant: ApprovalGrant): string | null {
+  if (grant.expiresInDays === null) return null
+  return new Date(Date.now() + grant.expiresInDays * DAY_MS + EXPIRY_SLACK_MS).toISOString()
+}
+
+/**
  * Mints from the key space the approval recorded.
  *
  * A name collision is still surfaced rather than retried under a suffixed name:
  * with second precision it means something genuinely unexpected, and silently
  * accumulating near-identical rows would hide it.
  */
-async function mintForGrant(
-  grant: ApprovalGrant
-): Promise<
-  { ok: true; key: { id: string; apiKey: string } } | { ok: false; status: number; message: string }
+async function mintForGrant(grant: ApprovalGrant): Promise<
+  | {
+      ok: true
+      key: { id: string; apiKey: string; name: string }
+      settings?: { access: ApiKeyAccess; expiresAt: string | null }
+    }
+  | { ok: false; status: number; message: string }
 > {
   const name = cliKeyName()
 
   if (grant.scope === 'copilot') {
     try {
       const key = await generateCopilotApiKey(grant.userId, name)
-      return { ok: true, key }
+      return { ok: true, key: { id: key.id, apiKey: key.apiKey, name } }
     } catch (error) {
       const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
       return { ok: false, status: status ?? 500, message: 'Failed to generate copilot API key' }
@@ -69,7 +88,9 @@ async function mintForGrant(
   // key to it is a separate decision made at approval, where the session exists
   // to check workspace-admin permission and the `api_keys.manage` capability.
   // Nothing in the poll body can set it, so this branch can only be reached by
-  // an approval that already passed both.
+  // an approval that already passed both. Access and lifetime come from the
+  // same approval, for the same reason.
+  const settings = { access: grant.access, expiresAt: approvedExpiresAt(grant) }
   const result =
     grant.workspaceBound && grant.workspaceId
       ? await performCreateWorkspaceApiKey({
@@ -77,18 +98,31 @@ async function mintForGrant(
           userId: grant.userId,
           name,
           source: 'cli',
+          ...settings,
         })
-      : await performCreatePersonalApiKey({ userId: grant.userId, name, source: 'cli' })
+      : await performCreatePersonalApiKey({
+          userId: grant.userId,
+          name,
+          source: 'cli',
+          ...settings,
+        })
 
   if (!result.success || !result.key) {
     return {
       ok: false,
-      status: result.errorCode === 'conflict' ? 409 : 500,
+      status: apiKeyCreationErrorStatus(result.errorCode),
       message: result.error ?? 'Failed to generate API key',
     }
   }
 
-  return { ok: true, key: { id: result.key.id, apiKey: result.key.key } }
+  return {
+    ok: true,
+    key: { id: result.key.id, apiKey: result.key.key, name },
+    settings: {
+      access: result.key.access,
+      expiresAt: result.key.expiresAt?.toISOString() ?? null,
+    },
+  }
 }
 
 /**
@@ -133,6 +167,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     scope: result.scope,
     workspaceId: result.workspaceId,
     workspaceBound: result.workspaceBound,
+    access: minted.settings?.access,
+    expiresAt: minted.settings?.expiresAt,
   })
   return NextResponse.json({
     status: 'complete',
@@ -140,5 +176,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     scope: result.scope,
     workspaceId: result.workspaceId,
     workspaceBound: result.workspaceBound,
+    ...minted.settings,
   })
 })

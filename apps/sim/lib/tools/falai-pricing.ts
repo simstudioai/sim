@@ -90,7 +90,9 @@ function getNumber(value: unknown): number | undefined {
 function getFalAIFallbackProviderCostDollars(endpointId: string): number {
   const normalizedEndpointId = endpointId.toLowerCase()
 
-  if (normalizedEndpointId.split('/').includes('text-to-video')) {
+  // Checked before the image match below, which every image-to-video endpoint id also contains.
+  const segments = normalizedEndpointId.split('/')
+  if (segments.includes('text-to-video') || segments.includes('image-to-video')) {
     return FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
   }
 
@@ -149,6 +151,8 @@ async function fetchFalAIBillingEvent(
 
   let response: Response
   try {
+    // egress-direct: meters Sim's own fal billing account; the generation call itself is the
+    // workspace's request and is routed whichever key it carries
     response = await fetch(url, {
       headers: {
         Authorization: `Key ${apiKey}`,
@@ -197,6 +201,8 @@ async function estimateFalAICallCost(
 ): Promise<{ costDollars?: number; error?: string }> {
   let response: Response
   try {
+    // egress-direct: meters Sim's own fal billing account; the generation call itself is the
+    // workspace's request and is routed whichever key it carries
     response = await fetch('https://api.fal.ai/v1/models/pricing/estimate', {
       method: 'POST',
       headers: {

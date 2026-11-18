@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetCategoryParams,
@@ -34,7 +35,8 @@ export const getCategoryTool: ToolConfig<WordPressGetCategoryParams, WordPressGe
     },
 
     request: {
-      url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories/${params.categoryId}`,
+      url: (params) =>
+        `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}`,
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/json',

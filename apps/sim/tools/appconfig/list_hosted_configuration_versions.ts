@@ -2,6 +2,7 @@ import type {
   AppConfigListHostedConfigurationVersionsParams,
   AppConfigListHostedConfigurationVersionsResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listHostedConfigurationVersionsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listHostedConfigurationVersionsTool: InternalToolConfig<
   name: 'AppConfig List Hosted Configuration Versions',
   description: 'List hosted configuration versions for an AWS AppConfig configuration profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

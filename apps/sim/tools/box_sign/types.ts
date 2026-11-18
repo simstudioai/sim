@@ -91,7 +91,12 @@ const SIGNER_OUTPUT_PROPERTIES = {
 const SOURCE_FILE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'File ID' },
   type: { type: 'string', description: 'File type' },
-  name: { type: 'string', description: 'File name', optional: true },
+  name: {
+    type: 'string',
+    description:
+      'File name (Box Sign returns source files without a name, so this is usually empty)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const SIGN_REQUEST_OUTPUT_PROPERTIES = {
@@ -99,7 +104,7 @@ export const SIGN_REQUEST_OUTPUT_PROPERTIES = {
   status: {
     type: 'string',
     description:
-      'Request status (converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing)',
+      'Request status (converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing)',
   },
   name: { type: 'string', description: 'Sign request name', optional: true },
   shortId: { type: 'string', description: 'Human-readable short ID', optional: true },

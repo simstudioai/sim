@@ -12,7 +12,24 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zoom](https://zoom.us/) to manage meetings, retrieve invitations and recordings, and list past participants. Meeting and recording webhooks can start workflows.
 
-Connect a Zoom account from the block or **Integrations** in your workspace sidebar. For account-level authentication, follow the [Server-to-Server OAuth setup](/integrations/zoom-service-account). Manage or disconnect the saved credential from **Integrations**.
+### Connect your account
+
+Connect from a Zoom block or from **Integrations** in your workspace. For an account-level connection, use [Server-to-Server OAuth](/integrations/zoom-service-account).
+
+1. Open **Integrations → Zoom** in your workspace and select **Add to Sim → Connect with OAuth**.
+2. Give the connection a name you will recognize in the workflow's **Zoom Account** picker.
+3. On Zoom's authorization page, check the signed-in account. Select **Switch account** if needed, then authorize Sim.
+4. Return to your workflow and select that saved connection in the Zoom block. For a read-only check, choose **List Meetings** with user ID `me`.
+
+The picker lists saved connection names. If you have several Zoom accounts, give each connection a distinct name and select the one you want in each block.
+
+### Disconnect
+
+Manage the saved connection in **Integrations** to disconnect it from Sim. Workflows that use it will need another connection. To revoke the Zoom grant, open **Zoom App Marketplace → My Library**, find Sim, and select **More → Remove**. Revoking the grant can affect other Sim connections using that same Zoom account and app.
+
+Disconnecting does not delete Zoom meetings, recordings, or existing Sim workflow logs. Contact [help@sim.ai](mailto:help@sim.ai) for support or data-deletion requests.
+
+[Zoom Search](/search/zoom) uses a separate read-only app and connection. A workflow connection does not authorize Search.
 {/* MANUAL-CONTENT-END */}
 
 Connection guides: [Server-to-server OAuth apps](/integrations/zoom-service-account).
@@ -250,7 +267,7 @@ Update an existing Zoom meeting
 | `joinBeforeHost` | boolean | No | Allow participants to join before host |
 | `muteUponEntry` | boolean | No | Mute participants upon entry |
 | `waitingRoom` | boolean | No | Enable waiting room |
-| `autoRecording` | string | No | Auto recording setting: local, cloud, or none |
+| `autoRecording` | string | No | Auto recording setting: local or cloud. Omit to leave unchanged; turning auto recording off is not supported on update. |
 
 #### Output
 
@@ -272,8 +289,8 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Yes | The meeting ID to delete \(e.g., "1234567890" or "85746065432"\) |
 | `occurrenceId` | string | No | Occurrence ID for deleting a specific occurrence of a recurring meeting |
-| `scheduleForReminder` | boolean | No | Send cancellation reminder email to registrants |
-| `cancelMeetingReminder` | boolean | No | Send cancellation email to registrants and alternative hosts |
+| `scheduleForReminder` | boolean | No | Email the host and alternative hosts about the cancellation |
+| `cancelMeetingReminder` | boolean | No | Email the meeting registrants about the cancellation |
 
 #### Output
 
@@ -314,8 +331,8 @@ List all cloud recordings for a Zoom user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address. |
-| `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
-| `to` | string | No | End date in yyyy-mm-dd format |
+| `from` | string | No | Start date in yyyy-mm-dd format \(UTC\). Zoom allows at most a one-month range and defaults to today when omitted |
+| `to` | string | No | End date in yyyy-mm-dd format \(UTC\) |
 | `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
 | `trash` | boolean | No | Set to true to list recordings from trash |
@@ -415,7 +432,7 @@ Delete cloud recordings for a Zoom meeting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
-| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings. |
+| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings of the meeting, which needs the cloud_recording:delete:meeting_recording scope. |
 | `action` | string | No | Delete action: "trash" \(move to trash\) or "delete" \(permanently delete\) |
 
 #### Output

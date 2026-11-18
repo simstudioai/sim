@@ -75,7 +75,18 @@ export const workspaceSyncOpenApiRoutes = [
         v2PreviewWorkspaceForkContract.response.schema,
         'PreviewWorkspaceForkResponse',
         'Preview workspace fork response',
-        'Deployed source workflows, selected-copy count, and a preview fingerprint.'
+        'Deployed source workflows, selected-copy count, and a preview fingerprint.',
+        [
+          {
+            data: {
+              previewFingerprint: PREVIEW_FINGERPRINT_EXAMPLE,
+              sourceWorkspaceId: '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94',
+              workflows: [],
+              selectedResourceCount: 0,
+              draftOnly: true,
+            },
+          },
+        ]
       ),
     }
   ),
@@ -175,7 +186,23 @@ export const workspaceSyncOpenApiRoutes = [
         v2PreviewWorkspacePushContract.response.schema,
         'PreviewWorkspacePushResponse',
         'Preview workspace push response',
-        'Current-to-other workflow actions, required choices, and preview fingerprint.'
+        'Current-to-other workflow actions, required choices, and preview fingerprint.',
+        [
+          {
+            data: {
+              previewFingerprint: PREVIEW_FINGERPRINT_EXAMPLE,
+              sourceWorkspaceId: 'e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13',
+              targetWorkspaceId: '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94',
+              ready: true,
+              workflows: [],
+              unresolvedBindings: [],
+              configuration: [],
+              excludedTargets: [],
+              triggerSlots: [],
+              triggerUrlChanges: [],
+            },
+          },
+        ]
       ),
     }
   ),
@@ -276,7 +303,23 @@ export const workspaceSyncOpenApiRoutes = [
         v2PreviewWorkspacePullContract.response.schema,
         'PreviewWorkspacePullResponse',
         'Preview workspace pull response',
-        'Other-to-current workflow actions, required choices, and preview fingerprint.'
+        'Other-to-current workflow actions, required choices, and preview fingerprint.',
+        [
+          {
+            data: {
+              previewFingerprint: PREVIEW_FINGERPRINT_EXAMPLE,
+              sourceWorkspaceId: '9f4c2a10-3b7e-4d58-8f6a-2c1d0e5b7a94',
+              targetWorkspaceId: 'e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13',
+              ready: true,
+              workflows: [],
+              unresolvedBindings: [],
+              configuration: [],
+              excludedTargets: [],
+              triggerSlots: [],
+              triggerUrlChanges: [],
+            },
+          },
+        ]
       ),
     }
   ),
@@ -683,7 +726,20 @@ export const workspaceSyncOpenApiRoutes = [
         v2PreviewWorkflowImportContract.response.schema,
         'PreviewWorkflowImportResponse',
         'Preview workflow import response',
-        'Import readiness, unresolved bindings, and destination discovery instructions.'
+        'Import readiness, unresolved bindings, and destination discovery instructions.',
+        [
+          {
+            data: {
+              previewFingerprint: PREVIEW_FINGERPRINT_EXAMPLE,
+              ready: true,
+              bindings: [],
+              unresolvedBindings: [],
+              configuration: [],
+              unresolvedConfiguration: [],
+              discovery: [],
+            },
+          },
+        ]
       ),
     }
   ),

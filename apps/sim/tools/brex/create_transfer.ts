@@ -6,6 +6,7 @@ import {
 import type { BrexCreateTransferParams, BrexCreateTransferResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DELIVERY = defineBrexKeyedSite(
@@ -21,6 +22,7 @@ export const brexCreateTransferTool: ToolConfig<
   name: 'Brex Create Transfer',
   description: 'Create a money transfer from a Brex cash account to a vendor',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

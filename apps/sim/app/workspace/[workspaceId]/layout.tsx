@@ -7,7 +7,6 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -134,7 +133,6 @@ async function WorkspaceContent({
     workflowTestsEnabled,
     changelogEnabled,
     desktopExecutorRegistered,
-    computerUseEnabled,
     projectsEnabled,
     simLinkOrganizationId,
   ] = await Promise.all([
@@ -154,7 +152,6 @@ async function WorkspaceContent({
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
-    isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
     resolveSimLinkOrganization(principal),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
@@ -170,7 +167,6 @@ async function WorkspaceContent({
           'workflow-tests': workflowTestsEnabled,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
-          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           projects: projectsEnabled,
         }}

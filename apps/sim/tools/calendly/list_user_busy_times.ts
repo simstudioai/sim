@@ -3,6 +3,7 @@ import type {
   CalendlyListUserBusyTimesResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUserBusyTimesTool: ToolConfig<
@@ -14,6 +15,7 @@ export const listUserBusyTimesTool: ToolConfig<
   description:
     "Retrieve a user's internal and external busy times within a date range, based on their connected calendars",
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

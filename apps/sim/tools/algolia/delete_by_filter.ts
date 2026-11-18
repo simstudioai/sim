@@ -2,6 +2,7 @@ import type {
   AlgoliaDeleteByFilterParams,
   AlgoliaDeleteByFilterResponse,
 } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteByFilterTool: ToolConfig<
@@ -12,6 +13,7 @@ export const deleteByFilterTool: ToolConfig<
   name: 'Algolia Delete By Filter',
   description: 'Delete all records matching a filter from an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

@@ -44,13 +44,26 @@ export const jsmGetRequestsTool: InternalToolConfig<JsmGetRequestsParams, JsmGet
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS',
+          'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ORGANIZATION (with organizationId), ALL_ORGANIZATIONS, ALL_REQUESTS',
       },
       requestStatus: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
         description: 'Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS',
+      },
+      approvalStatus: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Filter approver requests: MY_PENDING_APPROVAL or MY_HISTORY_APPROVAL (only with requestOwnership APPROVER)',
+      },
+      organizationId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Filter by customer organization ID (only with requestOwnership ORGANIZATION)',
       },
       requestTypeId: {
         type: 'string',
@@ -93,6 +106,8 @@ export const jsmGetRequestsTool: InternalToolConfig<JsmGetRequestsParams, JsmGet
         serviceDeskId: params.serviceDeskId,
         requestOwnership: params.requestOwnership,
         requestStatus: params.requestStatus,
+        approvalStatus: params.approvalStatus,
+        organizationId: params.organizationId,
         requestTypeId: params.requestTypeId,
         searchTerm: params.searchTerm,
         expand: params.expand,

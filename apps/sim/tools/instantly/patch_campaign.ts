@@ -11,7 +11,9 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const patchCampaignTool: ToolConfig<
   InstantlyPatchCampaignParams,
@@ -21,6 +23,7 @@ export const patchCampaignTool: ToolConfig<
   name: 'Instantly Patch Campaign',
   description: 'Updates documented Instantly V2 campaign fields.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {
@@ -105,7 +108,8 @@ export const patchCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}`),
+    url: (params) =>
+      instantlyUrl(`/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}`),
     method: 'PATCH',
     headers: instantlyHeaders,
     body: (params) =>

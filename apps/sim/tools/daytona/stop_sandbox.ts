@@ -8,6 +8,7 @@ import {
   parseDaytonaJson,
   resolveSandboxId,
 } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, DaytonaSandboxResponse> =
@@ -16,6 +17,7 @@ export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, Dayton
     name: 'Daytona Stop Sandbox',
     description: 'Stop a running Daytona sandbox',
     version: '1.0.0',
+    oauth: DAYTONA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

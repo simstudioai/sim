@@ -30,4 +30,18 @@ describe('Jama credential validation', () => {
       ).rejects.toMatchObject({ code: expectedCode, status })
     }
   )
+
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockResolvedValueOnce(
+      Response.json({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(
+      mintJamaServiceAccountToken({
+        orgId: 'https://example.jamacloud.com',
+        clientId: 'client-id',
+        clientSecret: 'client-secret',
+      })
+    ).rejects.toMatchObject({ code: 'provider_unavailable', status: 429, retryAfterMs: 7_000 })
+  })
 })

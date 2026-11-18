@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -177,7 +178,7 @@ export const rootlyHandler: WebhookProviderHandler = {
         },
       }
 
-      const response = await fetch('https://api.rootly.com/v1/webhooks/endpoints', {
+      const response = await outboundFetch('https://api.rootly.com/v1/webhooks/endpoints', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -260,13 +261,16 @@ export const rootlyHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(`https://api.rootly.com/v1/webhooks/endpoints/${externalId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: 'application/vnd.api+json',
-        },
-      })
+      const response = await outboundFetch(
+        `https://api.rootly.com/v1/webhooks/endpoints/${externalId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'application/vnd.api+json',
+          },
+        }
+      )
 
       if (response.ok || response.status === 404) {
         await response.body?.cancel()

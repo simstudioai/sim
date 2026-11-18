@@ -41,10 +41,31 @@ sim workspaces get
 
 API request and response schemas: [getWorkspace](/api-reference/workspaces/getWorkspace).
 
+### Update workspace
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New workspace display name. |
+| `--logo-url <value>` | No | New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP (--logo-url null sends the word, not JSON null). |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspace](/api-reference/workspaces/updateWorkspace).
+
 ### List workspace members
 
 ```bash
-sim workspaces members [options]
+sim workspaces members list [options]
 ```
 
 **Options**
@@ -58,6 +79,68 @@ sim workspaces members [options]
 </CommandTable>
 
 API request and response schemas: [listWorkspaceMembers](/api-reference/workspaces/listWorkspaceMembers).
+
+### Update workspace member
+
+OAuth login or personal API key required.
+
+```bash
+sim workspaces members update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--role <value>` | Yes | New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here. Accepted values: `admin`, `write`, `read`. |
+
+</CommandTable>
+
+API request and response schemas: [updateWorkspaceMember](/api-reference/workspaces/updateWorkspaceMember).
+
+### Remove workspace member
+
+OAuth login or personal API key required.
+
+This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.
+
+```bash
+sim workspaces members remove <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the workspace member, as returned by List workspace members. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [removeWorkspaceMember](/api-reference/workspaces/removeWorkspaceMember).
 
 ### Create workspace invitations
 

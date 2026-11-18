@@ -3,7 +3,9 @@ import type {
   AgentPhoneGetCallTranscriptResult,
   AgentPhoneTranscriptEntry,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneGetCallTranscriptTool: ToolConfig<
   AgentPhoneGetCallTranscriptParams,
@@ -13,6 +15,7 @@ export const agentphoneGetCallTranscriptTool: ToolConfig<
   name: 'Get Call Transcript',
   description: 'Get the full ordered transcript for a call',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -30,7 +33,8 @@ export const agentphoneGetCallTranscriptTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/calls/${params.callId.trim()}/transcript`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/calls/${safeUrlPathSegment(params.callId, 'callId')}/transcript`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -39,7 +43,7 @@ export const agentphoneGetCallTranscriptTool: ToolConfig<
 
   transformResponse: async (response, params): Promise<AgentPhoneGetCallTranscriptResult> => {
     const data = await response.json()
-    const callId = params?.callId?.trim() ?? ''
+    const callId = String(params?.callId ?? '').trim()
 
     if (!response.ok) {
       return {

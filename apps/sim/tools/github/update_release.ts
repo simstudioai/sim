@@ -1,9 +1,11 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { ReleaseResponse, UpdateReleaseParams } from '@/tools/github/types'
 import {
   RELEASE_ASSET_OUTPUT_PROPERTIES,
   RELEASE_OUTPUT_PROPERTIES,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse> = {
@@ -12,6 +14,7 @@ export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse>
   description:
     'Update an existing GitHub release. Modify tag name, target commit, title, description, draft status, or prerelease status.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -78,7 +81,7 @@ export const updateReleaseTool: ToolConfig<UpdateReleaseParams, ReleaseResponse>
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/releases/${params.release_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases/${githubPathSegment(params.release_id, 'release_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

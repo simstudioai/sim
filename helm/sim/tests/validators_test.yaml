@@ -82,4 +82,45 @@ tests:
       postgresql.auth.password: xxxxxxxx
     asserts:
       - failedTemplate:
-          errorPattern: "must not use the default placeholder value"
+          errorMessage: "app.env.BETTER_AUTH_SECRET must not use a placeholder value. Generate a secure value with: openssl rand -hex 32"
+
+  - it: rejects a placeholder CRON_SECRET
+    set:
+      app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: your-production-cron-secret-here
+      postgresql.auth.password: xxxxxxxx
+    asserts:
+      - failedTemplate:
+          errorPattern: "app.env.CRON_SECRET must not use a placeholder value"
+
+  - it: rejects a placeholder realtime BETTER_AUTH_SECRET
+    set:
+      app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      realtime.env.BETTER_AUTH_SECRET: your-secure-production-auth-secret-here
+      postgresql.auth.password: xxxxxxxx
+    asserts:
+      - failedTemplate:
+          errorPattern: "realtime.env.BETTER_AUTH_SECRET must not use a placeholder value"
+
+  - it: rejects a placeholder postgresql.auth.password
+    set:
+      app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      app.env.INTERNAL_API_SECRET: x
+      app.env.CRON_SECRET: x
+      postgresql.auth.password: your-secure-postgres-password
+    asserts:
+      - failedTemplate:
+          errorPattern: "postgresql.auth.password must not use a placeholder value"
+
+  - it: fails the production example when its required secrets are not supplied
+    values:
+      - ../examples/values-production.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "app.env.BETTER_AUTH_SECRET is required for production deployment"

@@ -1,6 +1,7 @@
 import type { WorkflowsListParams, WorkflowsListResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListResponse> = {
@@ -8,6 +9,7 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
   name: 'incident.io Workflows List',
   description: 'List all workflows in your incident.io workspace.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

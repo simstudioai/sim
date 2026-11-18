@@ -7,6 +7,7 @@ import {
   toStringOrNull,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getHistoryTool: ToolConfig<JotformGetHistoryParams, JotformGetHistoryResponse> = {
@@ -15,6 +16,7 @@ export const getHistoryTool: ToolConfig<JotformGetHistoryParams, JotformGetHisto
   description:
     'Read the account activity log: forms created, updated, deleted or purged, and account logins.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

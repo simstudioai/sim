@@ -1,4 +1,6 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ProfoundCategoryPromptsParams, ProfoundCategoryPromptsResponse } from './types'
 
 export const profoundCategoryPromptsTool: ToolConfig<
@@ -9,6 +11,7 @@ export const profoundCategoryPromptsTool: ToolConfig<
   name: 'Profound Category Prompts',
   description: 'List prompts for a specific category in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -76,7 +79,7 @@ export const profoundCategoryPromptsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.tryprofound.com/v1/org/categories/${encodeURIComponent(params.categoryId)}/prompts`
+        `https://api.tryprofound.com/v1/org/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}/prompts`
       )
       if (params.limit != null) url.searchParams.set('limit', String(params.limit))
       if (params.cursor) url.searchParams.set('cursor', params.cursor)

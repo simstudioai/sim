@@ -18,6 +18,7 @@ import {
   normalizeBitbucketCommit,
   normalizeBitbucketPage,
 } from '@/tools/bitbucket/utils'
+import { optionalBitbucketString, optionalBitbucketStringArray } from '@/tools/bitbucket/validation'
 import type { ToolConfig } from '@/tools/types'
 
 export const bitbucketListCommitsTool: ToolConfig<
@@ -29,13 +30,50 @@ export const bitbucketListCommitsTool: ToolConfig<
   description: 'List repository commits in reverse chronological order',
   version: '1.0.0',
   oauth: { required: true, provider: 'bitbucket', requiredScopes: ['repository'] },
-  params: { ...BITBUCKET_REPOSITORY_PARAMS, ...BITBUCKET_PAGINATION_PARAMS },
+  params: {
+    ...BITBUCKET_REPOSITORY_PARAMS,
+    include: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Branches, tags, or commit hashes whose history to include; omit to list commits on every ref',
+      items: { type: 'string' },
+    },
+    exclude: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Branches, tags, or commit hashes whose reachable commits to leave out',
+      items: { type: 'string' },
+    },
+    path: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only list commits that changed this file or directory',
+    },
+    ...BITBUCKET_PAGINATION_PARAMS,
+  },
   request: {
-    url: (params) =>
-      bitbucketApiUrl(`${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/commits`, {
-        nextUrl: params.nextUrl,
-        pageLen: params.pageLen,
-      }),
+    url: (params) => {
+      const include = optionalBitbucketStringArray(params.include, 'include', 'include ref')
+      const exclude = optionalBitbucketStringArray(params.exclude, 'exclude', 'exclude ref')
+      const path = optionalBitbucketString(params.path, 'path')
+      const url = bitbucketApiUrl(
+        `${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/commits`,
+        {
+          nextUrl: params.nextUrl,
+          pageLen: params.pageLen,
+          query: { path },
+        }
+      )
+      if (params.nextUrl !== undefined) return url
+      const withRefs = new URL(url)
+      for (const ref of include ?? []) withRefs.searchParams.append('include', ref)
+      for (const ref of exclude ?? []) withRefs.searchParams.append('exclude', ref)
+      return withRefs.toString()
+    },
     method: 'GET',
     headers: (params) => bitbucketHeaders(params.accessToken),
     retry: BITBUCKET_READ_RETRY,

@@ -1,11 +1,14 @@
 import type { UpdateThreadParams, UpdateThreadResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThreadResult> = {
   id: 'agentmail_update_thread',
   name: 'Update Thread Labels',
   description: 'Add or remove labels on an email thread in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -42,7 +45,7 @@ export const agentmailUpdateThreadTool: ToolConfig<UpdateThreadParams, UpdateThr
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/threads/${params.threadId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

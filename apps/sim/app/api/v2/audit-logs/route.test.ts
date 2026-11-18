@@ -23,7 +23,12 @@ import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET as listLogs } from '@/app/api/v2/audit-logs/route'
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'admin-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'admin-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'user:admin-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,

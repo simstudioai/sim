@@ -2,7 +2,7 @@
 title: Grain
 description: Access meeting recordings, transcripts, and AI summaries
 integration:
-  type: "grain_v2"
+  type: "grain_v3"
   color: "#F6FAF9"
 ---
 
@@ -31,7 +31,6 @@ List recordings from Grain with optional filters and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 | `cursor` | string | No | Pagination cursor for next page \(returned from previous response\) |
 | `beforeDatetime` | string | No | Only recordings before this ISO8601 timestamp \(e.g., "2024-01-15T00:00:00Z"\) |
 | `afterDatetime` | string | No | Only recordings after this ISO8601 timestamp \(e.g., "2024-01-01T00:00:00Z"\) |
@@ -75,7 +74,6 @@ Get details of a single recording by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 | `recordingId` | string | Yes | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 | `includeHighlights` | boolean | No | Include highlights/clips |
 | `includeParticipants` | boolean | No | Include participant list |
@@ -119,7 +117,6 @@ Get the full transcript of a recording
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 | `recordingId` | string | Yes | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
 #### Output
@@ -145,7 +142,6 @@ List all teams in the workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 
 #### Output
 
@@ -167,7 +163,6 @@ List all meeting types in the workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 
 #### Output
 
@@ -190,7 +185,6 @@ Create a webhook for a specific Grain event type (v2 API)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
 | `hookUrl` | string | Yes | Webhook endpoint URL. Grain performs a reachability test on creation — the endpoint must respond 2xx. |
 | `hookType` | string | Yes | Event type the hook subscribes to. One of: recording_added, recording_updated, recording_deleted, highlight_added, highlight_updated, highlight_deleted, story_added, story_updated, story_deleted, upload_status |
 | `include` | json | No | Optional include object controlling payload richness. For recording hooks: \{"participants": true, "highlights": true, "ai_summary": true\}. For highlight hooks: \{"transcript": true, "speakers": true\}. |
@@ -218,7 +212,6 @@ List webhooks for the account (v2 API)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
 | `hookType` | string | No | Only return hooks with this event type. One of: recording_added, recording_updated, recording_deleted, highlight_added, highlight_updated, highlight_deleted, story_added, story_updated, story_deleted, upload_status |
 | `state` | string | No | Only return hooks that are "enabled" or "disabled" |
 
@@ -246,7 +239,6 @@ Delete a webhook by ID (v2 API)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
 | `hookId` | string | Yes | The hook UUID to delete \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
 #### Output

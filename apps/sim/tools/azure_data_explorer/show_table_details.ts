@@ -7,6 +7,7 @@ import {
   renderEntityName,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerShowTableDetailsTool: InternalToolConfig<
@@ -18,6 +19,7 @@ export const azureDataExplorerShowTableDetailsTool: InternalToolConfig<
   description:
     'Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

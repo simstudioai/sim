@@ -117,6 +117,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
                 groupId: 'fixture-group',
                 optionId: 'fixture-option',
                 status: 'active',
+                sites: [],
               },
             ]
           : [],

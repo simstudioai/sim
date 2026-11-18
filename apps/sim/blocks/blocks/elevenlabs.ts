@@ -1,6 +1,11 @@
 import { ElevenLabsIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const VOICE_OPERATIONS = [
   'tts',
@@ -28,6 +33,8 @@ const toBoolean = (value: unknown): boolean | undefined => {
 
 export const ElevenLabsBlock: BlockConfig = {
   type: 'elevenlabs',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'elevenlabs_v2' },
   name: 'ElevenLabs',
   description: 'Generate and transform audio with ElevenLabs',
   authMode: AuthMode.ApiKey,
@@ -329,8 +336,9 @@ export const ElevenLabsBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `elevenlabs_${params.operation || 'tts'}`,
-      params: (params) => {
+      params: (params, context) => {
         const audioFile = normalizeFileInput(params.audioFile, { single: true })
+        const isEditVoiceSettings = mapperOperation(params, context) === 'edit_voice_settings'
         return {
           apiKey: params.apiKey,
           text: params.text,
@@ -341,17 +349,18 @@ export const ElevenLabsBlock: BlockConfig = {
           category: params.category || undefined,
           nextPageToken: params.nextPageToken || undefined,
           pageSize: toNumber(params.pageSize),
-          stability: toNumber(
-            params.operation === 'edit_voice_settings' ? params.editStability : params.stability
-          ),
-          similarityBoost: toNumber(
-            params.operation === 'edit_voice_settings'
-              ? params.editSimilarityBoost
-              : params.similarityBoost
-          ),
-          style: toNumber(params.editStyle),
-          speed: toNumber(params.editSpeed),
-          useSpeakerBoost: toBoolean(params.editUseSpeakerBoost),
+          stability: isEditVoiceSettings
+            ? (toNumber(params.editStability) ?? toNumber(toolCallArg(context, params.stability)))
+            : toNumber(params.stability),
+          similarityBoost: isEditVoiceSettings
+            ? (toNumber(params.editSimilarityBoost) ??
+              toNumber(toolCallArg(context, params.similarityBoost)))
+            : toNumber(params.similarityBoost),
+          style: toNumber(params.editStyle) ?? toNumber(toolCallArg(context, params.style)),
+          speed: toNumber(params.editSpeed) ?? toNumber(toolCallArg(context, params.speed)),
+          useSpeakerBoost:
+            toBoolean(params.editUseSpeakerBoost) ??
+            toBoolean(toolCallArg(context, params.useSpeakerBoost)),
           durationSeconds: toNumber(params.durationSeconds),
           promptInfluence: toNumber(params.promptInfluence),
           loop: toBoolean(params.loop),
@@ -619,3 +628,17 @@ export const ElevenLabsBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ElevenLabsV2Block: BlockConfig = {
+  ...ElevenLabsBlock,
+  type: 'elevenlabs_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ElevenLabsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'elevenlabs',
+    title: 'ElevenLabs Credential',
+  }),
+}

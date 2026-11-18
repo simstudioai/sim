@@ -1,11 +1,14 @@
+import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformGetFormParams, TypeformGetFormResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormResponse> = {
   id: 'typeform_get_form',
   name: 'Typeform Get Form',
   description: 'Retrieve complete details and structure of a specific form',
   version: '1.0.0',
+  oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +27,7 @@ export const getFormTool: ToolConfig<TypeformGetFormParams, TypeformGetFormRespo
 
   request: {
     url: (params: TypeformGetFormParams) => {
-      return `https://api.typeform.com/forms/${params.formId}`
+      return `https://api.typeform.com/forms/${safeUrlPathSegment(params.formId, 'formId')}`
     },
     method: 'GET',
     headers: (params) => ({

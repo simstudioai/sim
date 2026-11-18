@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevDeleteScheduleResponse,
   TriggerDevScheduleIdParams,
@@ -17,6 +18,7 @@ export const triggerDevDeleteScheduleTool: ToolConfig<
   name: 'Trigger.dev Delete Schedule',
   description: 'Delete an imperative Trigger.dev schedule by its ID.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -20,6 +20,11 @@ const Admin = dynamic(() =>
     (module) => module.Admin
   )
 )
+const Desktop = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then(
+    (module) => module.Desktop
+  )
+)
 const Mothership = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
     (module) => module.Mothership
@@ -34,6 +39,7 @@ export function AccountSettingsRenderer({ section }: AccountSettingsRendererProp
   useCaptureWhenReady('settings_tab_viewed', { plane: 'account', section }, section)
 
   if (section === 'general') return <General />
+  if (section === 'desktop') return <Desktop />
   if (section === 'billing') return <Billing scope='account' />
   if (section === 'api-keys') return <ApiKeys scope='personal' />
   if (section === 'admin') return <Admin />

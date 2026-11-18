@@ -40,6 +40,7 @@ import {
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
   type OperationUseCase,
+  ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
@@ -231,7 +232,7 @@ export function v2InvalidBodyResponse(request: Request): NextResponse {
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
   invalidJsonResponse: v2InvalidJsonResponse,
-  validationErrorResponse: v2ValidationError,
+  validationErrorResponseBySlice: v2ValidationError,
   /** See {@link blankQueryValueValidationError}. */
   rejectBlankQueryValues: true,
   /** See {@link duplicateQueryValueValidationError}. */
@@ -357,7 +358,11 @@ async function admitAuthenticatedV2Request(
   try {
     requireOAuthOperationScope(auth.principal, operation)
   } catch (error) {
-    if (error instanceof InsufficientScopeError || error instanceof OAuthAccessTokenExpiredError) {
+    if (
+      error instanceof InsufficientScopeError ||
+      error instanceof ReadOnlyApiKeyError ||
+      error instanceof OAuthAccessTokenExpiredError
+    ) {
       const response = v2CaughtOrchestrationError(error)
       if (response) return { success: false, response }
     }
@@ -477,7 +482,10 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * {@link requireHeadAuthorizableUseCase}.
    */
   headSafe?: boolean
-  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  parseOptions?: Omit<
+    ParseRequestOptions,
+    'validationErrorResponse' | 'validationErrorResponseBySlice'
+  >
   beforeParse?(args: {
     request: NextRequest
     principal: Principal
@@ -552,7 +560,7 @@ export function defineV2JsonRoute<
         ...V2_PARSE_DEFAULTS,
         invalidJsonResponse: () => v2InvalidBodyResponse(request),
         ...options.parseOptions,
-        validationErrorResponse: v2ValidationError,
+        validationErrorResponseBySlice: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
 

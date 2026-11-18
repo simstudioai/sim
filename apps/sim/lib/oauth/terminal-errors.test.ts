@@ -68,6 +68,14 @@ describe('isCredentialRevocationError', () => {
       expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(false)
     }
   )
+
+  it.each([undefined, 'facebook', 'microsoft'])(
+    "treats Meta's code 190 as a revocation only for Instagram, not %s",
+    (providerId) => {
+      expect(isCredentialRevocationError('190', 'instagram')).toBe(true)
+      expect(isCredentialRevocationError('190', providerId)).toBe(false)
+    }
+  )
 })
 
 describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {

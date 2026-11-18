@@ -1,4 +1,5 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SupabaseRpcParams, SupabaseRpcResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
   name: 'Supabase RPC',
   description: 'Call a PostgreSQL function in Supabase',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

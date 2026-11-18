@@ -2,7 +2,7 @@
 title: LaunchDarkly
 description: Manage feature flags with LaunchDarkly
 integration:
-  type: "launchdarkly"
+  type: "launchdarkly_v2"
   color: "#191919"
 ---
 
@@ -21,7 +21,7 @@ Create a personal access token or service token under **Organization settings > 
 
 ## Use the block [#usage-instructions]
 
-List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.
+List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs.
 
 ## Actions
 
@@ -35,7 +35,6 @@ Create a new feature flag in a LaunchDarkly project.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key to create the flag in |
 | `name` | string | Yes | Human-readable name for the feature flag |
 | `key` | string | Yes | Unique key for the feature flag \(used in code\) |
@@ -75,7 +74,6 @@ Delete a feature flag from a LaunchDarkly project.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `flagKey` | string | Yes | The feature flag key to delete |
 
@@ -97,7 +95,6 @@ List audit log entries from your LaunchDarkly account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `limit` | number | No | Maximum number of entries to return \(default 10, max 20\) |
 | `spec` | string | No | Resource specifier filter \(e.g. "proj/*:env/*:flag/*" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment\) |
 
@@ -129,7 +126,6 @@ Get a single feature flag by key from a LaunchDarkly project.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `flagKey` | string | Yes | The feature flag key |
 | `environmentKey` | string | No | Filter flag configuration to a specific environment |
@@ -167,7 +163,6 @@ Get the status of a feature flag across environments (active, inactive, launched
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `flagKey` | string | Yes | The feature flag key |
 | `environmentKey` | string | Yes | The environment key |
@@ -192,7 +187,6 @@ List environments in a LaunchDarkly project.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key to list environments for |
 | `limit` | number | No | Maximum number of environments to return \(default 20\) |
 
@@ -222,7 +216,6 @@ List feature flags in a LaunchDarkly project.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key to list flags for |
 | `environmentKey` | string | No | Filter flag configurations to a specific environment |
 | `tag` | string | No | Filter flags by tag name |
@@ -262,7 +255,6 @@ List account members in your LaunchDarkly organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `limit` | number | No | Maximum number of members to return \(default 20\) |
 
 #### Output
@@ -292,7 +284,6 @@ List all projects in your LaunchDarkly account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `limit` | number | No | Maximum number of projects to return \(default 20\) |
 
 #### Output
@@ -318,7 +309,6 @@ List user segments in a LaunchDarkly project and environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `environmentKey` | string | Yes | The environment key |
 | `limit` | number | No | Maximum number of segments to return \(default 20\) |
@@ -350,7 +340,6 @@ Toggle a feature flag on or off in a specific LaunchDarkly environment.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `flagKey` | string | Yes | The feature flag key to toggle |
 | `environmentKey` | string | Yes | The environment key to toggle the flag in |
@@ -389,7 +378,6 @@ Update feature flag metadata (name, description, tags, temporary, archived) usin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LaunchDarkly API key |
 | `projectKey` | string | Yes | The project key |
 | `flagKey` | string | Yes | The feature flag key to update |
 | `updateName` | string | No | New name for the flag |

@@ -7,6 +7,7 @@ import type {
   GitLabPermissionUploadInput,
 } from '@/lib/api/contracts/knowledge/gitlab-permissions'
 import { parseGitLabCsv } from '@/connectors/gitlab/permission-config/parser'
+import { getGitLabUploadSizeError } from '@/connectors/gitlab/permission-config/request-size'
 import {
   GITLAB_CSV_MAX_BYTES,
   type GitLabCsvKind,
@@ -55,12 +56,17 @@ export function useGitLabPermissionForm(initial?: GitLabPermissionData) {
     }),
     [files, mode, saved]
   )
+  const uploadError = useMemo(
+    () =>
+      input.mode === 'csv' ? getGitLabUploadSizeError({ permissionConfig: input }) : undefined,
+    [input]
+  )
   const selectFile = useCallback(async (kind: GitLabCsvKind, file: File) => {
     const generation = ++generations.current[kind]
     setFiles((previous) => ({ ...previous, [kind]: { loading: true } }))
     let selected: SelectedFile
     try {
-      if (file.size > GITLAB_CSV_MAX_BYTES) throw new Error('The file must be 4 MiB or smaller.')
+      if (file.size > GITLAB_CSV_MAX_BYTES) throw new Error('The file must be 8 MiB or smaller.')
       const content = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
       const upload = { filename: file.name, content }
       const rows = parseGitLabCsv(upload, kind)
@@ -89,7 +95,8 @@ export function useGitLabPermissionForm(initial?: GitLabPermissionData) {
     apiKey,
     setApiKey,
     input,
-    complete,
+    complete: complete && !uploadError,
+    uploadError,
     dirty,
     selectFile,
     reset,

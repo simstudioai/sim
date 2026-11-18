@@ -146,6 +146,30 @@ Return ONLY the Gmail search query, no explanations or markdown.`,
         type: 'string',
         description: 'CC recipients',
       },
+      bcc: {
+        type: 'string',
+        description: 'BCC recipients (only present on messages you sent)',
+      },
+      replyTo: {
+        type: 'string',
+        description: 'Reply-To header',
+      },
+      rfcMessageId: {
+        type: 'string',
+        description: 'RFC Message-ID header (not the Gmail message ID)',
+      },
+      inReplyTo: {
+        type: 'string',
+        description: 'In-Reply-To header (RFC Message-ID of the parent message)',
+      },
+      references: {
+        type: 'string',
+        description: 'References header (RFC Message-IDs in the thread)',
+      },
+      snippet: {
+        type: 'string',
+        description: 'Short excerpt of the message text',
+      },
       date: {
         type: 'string',
         description: 'Email date in ISO format',

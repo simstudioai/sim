@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   DevinListSessionAttachmentsParams,
   DevinListSessionAttachmentsResponse,
@@ -13,6 +15,7 @@ export const devinListSessionAttachmentsTool: ToolConfig<
   name: 'Devin List Session Attachments',
   description: 'List the files uploaded to or produced by a Devin session.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,7 @@ export const devinListSessionAttachmentsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/attachments`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/attachments`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

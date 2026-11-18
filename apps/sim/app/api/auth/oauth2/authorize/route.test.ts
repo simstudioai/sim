@@ -8,17 +8,14 @@ import {
 } from '@sim/testing'
 import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
 const mocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   getSession: vi.fn(),
   linkAccount: vi.fn(),
   requireClient: vi.fn(),
-  createConnection: vi.fn(),
   launchConnection: vi.fn(),
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
@@ -45,12 +42,6 @@ vi.mock('@/lib/core/config/env-capabilities.server', () => ({
     execute: vi.fn(),
   }),
 }))
-vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
-  createCredentialConnection: {
-    operation: { id: 'credentials.connections.create' },
-    execute: mocks.createConnection,
-  },
-}))
 vi.mock('@/lib/credentials/application/launch-scoped-credential-connection', () => ({
   launchScopedCredentialConnection: mocks.launchConnection,
 }))
@@ -62,17 +53,21 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
   createQuickBooksOAuthState: mocks.createQuickBooksState,
 }))
 
-import { GET } from '@/app/api/auth/oauth2/authorize/route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OAUTH_LINK_UNAVAILABLE_ERROR } from '@/lib/credentials/draft-constants'
+import { GET as routeGET } from '@/app/api/auth/oauth2/authorize/route'
+
+const GET = (req: NextRequest) => routeGET(req, { params: Promise.resolve({}) })
 
 const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = oauthUtilsMockFns
 
 const BASE_URL = 'https://sim.test'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
-function request(query: Record<string, string>) {
+function request(query: Record<string, string>, headers: Record<string, string> = {}) {
   const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
-  return createMockRequest('GET', undefined, {}, url.toString())
+  return createMockRequest('GET', undefined, headers, url.toString())
 }
 
 function linkResponse(url = 'https://provider.example/authorize') {
@@ -93,13 +88,6 @@ describe('OAuth2 authorize route', () => {
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
-    })
-    mocks.createConnection.mockResolvedValue({
-      providerId: 'google-email',
-      workspaceId: WORKSPACE_ID,
-      draftId: 'draft-1',
-      expiresAt: new Date('2026-08-14T12:00:00.000Z'),
-      authorizationUrl: `${BASE_URL}/api/auth/oauth2/authorize?draftId=draft-1`,
     })
     mocks.launchConnection.mockResolvedValue({
       draft: {
@@ -439,58 +427,65 @@ describe('OAuth2 authorize route', () => {
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
-  it('requires a configured OAuth client before creating a legacy draft', async () => {
-    mocks.requireClient.mockImplementationOnce(() => {
-      throw new Error('OAuth client is not configured')
-    })
-
-    const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
-
-    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_failed`)
-    expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
-    expect(mocks.createConnection).not.toHaveBeenCalled()
-  })
-
-  it('maps a provider mismatch without exposing the credential', async () => {
-    mocks.createConnection.mockRejectedValue(
-      new CredentialConnectionProviderMismatchError('google-email', 'slack')
-    )
-
+  it('sends a workspace connect link to the confirmation page without starting it', async () => {
+    const callbackURL = `${BASE_URL}/workspace/${WORKSPACE_ID}`
     const response = await GET(
-      request({
-        providerId: 'slack',
-        workspaceId: WORKSPACE_ID,
-        credentialId: 'credential-1',
-      })
-    )
-
-    expect(response.headers.get('location')).toBe(
-      `${BASE_URL}/home?error=credential_provider_mismatch`
-    )
-  })
-
-  it('maps credential and workspace authorization failures separately', async () => {
-    mocks.createConnection.mockRejectedValueOnce(
-      new ForbiddenOperationError(
-        'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
-        'Credential admin permission required'
+      request(
+        {
+          providerId: 'google-email',
+          workspaceId: WORKSPACE_ID,
+          credentialId: 'credential-1',
+          callbackURL,
+        },
+        { 'sec-fetch-site': 'same-origin' }
       )
     )
-    const credentialResponse = await GET(
-      request({
-        providerId: 'google-email',
-        workspaceId: WORKSPACE_ID,
-        credentialId: 'credential-1',
-      })
-    )
-    mocks.createConnection.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Write permission required')
-    )
-    const workspaceResponse = await GET(
-      request({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
+
+    const location = new URL(response.headers.get('location') ?? '')
+    expect(`${location.origin}${location.pathname}`).toBe(`${BASE_URL}/oauth/connect`)
+    expect(Object.fromEntries(location.searchParams)).toEqual({
+      providerId: 'google-email',
+      workspaceId: WORKSPACE_ID,
+      credentialId: 'credential-1',
+      callbackURL,
+    })
+    expect(mocks.launchConnection).not.toHaveBeenCalled()
+    expect(mocks.linkAccount).not.toHaveBeenCalled()
+  })
+
+  it('starts a cross-site launch of the signed-in user’s own connection draft', async () => {
+    const response = await GET(request({ draftId: 'draft-1' }, { 'sec-fetch-site': 'cross-site' }))
+
+    expect(mocks.launchConnection).toHaveBeenCalledOnce()
+    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+  })
+
+  it('tells a user who cannot open a draft to sign in as its creator, without saying whether it exists', async () => {
+    mocks.launchConnection.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'OAuth connection link is invalid or expired')
     )
 
-    expect(credentialResponse.headers.get('location')).toContain('credential_access_denied')
-    expect(workspaceResponse.headers.get('location')).toContain('workspace_access_denied')
+    const response = await GET(request({ draftId: 'someone-elses-draft' }))
+
+    const location = new URL(response.headers.get('location') ?? '')
+    expect(`${location.origin}${location.pathname}`).toBe(`${BASE_URL}/oauth/credential-connected`)
+    expect(Object.fromEntries(location.searchParams)).toEqual({
+      error: OAUTH_LINK_UNAVAILABLE_ERROR,
+    })
   })
+
+  it.each([
+    {
+      callbackURL: undefined,
+      errorCallbackURL: `${BASE_URL}/oauth/credential-connected?result=failed`,
+    },
+    { callbackURL: `${BASE_URL}/oauth/chat-complete`, errorCallbackURL: undefined },
+  ])(
+    'sends a failed draft launch to the status page only when no return page was named: %o',
+    async ({ callbackURL, errorCallbackURL }) => {
+      await GET(request({ draftId: 'draft-1', ...(callbackURL && { callbackURL }) }))
+
+      expect(mocks.linkAccount.mock.calls[0][0].body.errorCallbackURL).toBe(errorCallbackURL)
+    }
+  )
 })

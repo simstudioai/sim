@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapNode,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetNodeTool: ToolConfig<CheckrGetNodeParams, CheckrNodeResponse> = {
@@ -18,6 +19,7 @@ export const checkrGetNodeTool: ToolConfig<CheckrGetNodeParams, CheckrNodeRespon
   name: 'Checkr Get Node',
   description: 'Retrieve an account hierarchy node by its custom ID.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

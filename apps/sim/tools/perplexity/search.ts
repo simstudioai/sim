@@ -117,11 +117,11 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
       }
 
       if (params.search_after_date) {
-        body.search_after_date = params.search_after_date
+        body.search_after_date_filter = params.search_after_date
       }
 
       if (params.search_before_date) {
-        body.search_before_date = params.search_before_date
+        body.search_before_date_filter = params.search_before_date
       }
 
       return body

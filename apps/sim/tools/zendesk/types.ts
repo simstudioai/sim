@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import type { OutputProperty } from '@/tools/types'
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
+import type { OutputProperty, ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Zendesk')
 
@@ -22,12 +23,81 @@ export function buildZendeskUrl(subdomain: string, path: string): string {
   return `https://${subdomain}.zendesk.com/api/v2${path}`
 }
 
-// Helper function for consistent error handling
-export function handleZendeskError(data: any, status: number, operation: string): never {
+/** Every input that decides how a Zendesk request authenticates. */
+export interface ZendeskAuthParams {
+  email?: string
+  apiToken?: string
+  /** Set by the executor from a saved Zendesk credential, never by the caller. */
+  accessToken?: string
+  /** `basic` when the saved credential is an API token sign-in; absent means a bearer token. */
+  authStyle?: string
+}
+
+/**
+ * The Basic credential a Zendesk API token signs in with: `{email}/token:{apiToken}`, base64
+ * encoded. A saved credential stores exactly this, so saved and inline sign-ins never differ.
+ * @see https://developer.zendesk.com/api-reference/introduction/security-and-auth/
+ */
+export function zendeskApiTokenCredential(email: string, apiToken: string): string {
+  return Buffer.from(`${email}/token:${apiToken}`).toString('base64')
+}
+
+/**
+ * The Authorization header a Zendesk request sends. A saved credential resolves to either an
+ * OAuth bearer token or the already-encoded API-token Basic credential; without one, the
+ * block's own email and API token sign in exactly as before.
+ */
+export function zendeskAuthorization(params: ZendeskAuthParams): string {
+  if (params.accessToken) {
+    return params.authStyle === 'basic'
+      ? `Basic ${params.accessToken}`
+      : `Bearer ${params.accessToken}`
+  }
+  return `Basic ${zendeskApiTokenCredential(params.email ?? '', params.apiToken ?? '')}`
+}
+
+/** Hidden params a saved Zendesk credential fills; every Zendesk tool declares them. */
+export const ZENDESK_CREDENTIAL_PARAMS = {
+  accessToken: savedCredentialTokenParam('Zendesk'),
+  authStyle: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Token type injected by the executor from the selected Zendesk credential',
+  },
+} satisfies ToolConfig['params']
+
+/**
+ * Throws the most specific message a Zendesk error body carries. Zendesk returns either
+ * `{ error, description, details }` (where `error` is a code such as `RecordInvalid`, or an
+ * object with `title`/`message`) or `{ errors: [{ title, detail }] }`.
+ * @see https://developer.zendesk.com/api-reference/introduction/requests/#400-range
+ */
+export function handleZendeskError(data: unknown, status: number, operation: string): never {
   logger.error(`Zendesk API request failed for ${operation}`, { data, status })
 
-  const errorMessage = data.error || data.description || data.message || 'Unknown error'
-  throw new Error(`Zendesk ${operation} failed: ${errorMessage}`)
+  const body = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+  const text = (value: unknown): string | undefined =>
+    typeof value === 'string' && value ? value : undefined
+  const error = body.error
+  const errorObject =
+    error && typeof error === 'object' ? (error as Record<string, unknown>) : undefined
+  const firstError = Array.isArray(body.errors)
+    ? (body.errors[0] as Record<string, unknown> | undefined)
+    : undefined
+  const summary =
+    text(body.description) ??
+    text(errorObject?.message) ??
+    text(errorObject?.title) ??
+    text(firstError?.detail) ??
+    text(firstError?.title) ??
+    text(error) ??
+    text(body.message) ??
+    `HTTP ${status}`
+  const code = text(error)
+  const details = body.details ? ` ${JSON.stringify(body.details)}` : ''
+  const prefix = code && code !== summary ? `${code}: ` : ''
+  throw new Error(`Zendesk ${operation} failed: ${prefix}${summary}${details}`)
 }
 
 /**

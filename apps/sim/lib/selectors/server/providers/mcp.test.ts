@@ -22,7 +22,7 @@ function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelec
     request,
     scope: { kind: 'workspace', workspaceId: 'destination' },
     workspaceId: 'destination',
-    principal: { kind: 'personal_api_key', userId: 'user', keyId: 'key' },
+    principal: { kind: 'personal_api_key', userId: 'user', keyId: 'key', access: 'write' },
     requesterUserId: 'user',
     references: new Map(),
     protectedValues: createSelectorProtectedValues(),

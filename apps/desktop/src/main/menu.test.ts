@@ -23,6 +23,7 @@ function makeDeps(origin = 'https://sim.ai'): MenuDeps {
     openFolderAccess: vi.fn(),
     newWindow: vi.fn(),
     newChat: vi.fn(),
+    openQuickChat: vi.fn(),
     handleFocusedResourceShortcut: vi.fn(() => false),
     toggleSidebar: vi.fn(),
     openSearch: vi.fn(),

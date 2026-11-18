@@ -1,9 +1,12 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const HuggingFaceBlock: BlockConfig = {
   type: 'huggingface',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'huggingface_v2' },
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',
   authMode: AuthMode.ApiKey,
@@ -104,7 +107,12 @@ export const HuggingFaceBlock: BlockConfig = {
           model: params.model,
           content: params.content,
           systemPrompt: params.systemPrompt,
-          temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
+          temperature:
+            params.temperature === undefined ||
+            params.temperature === null ||
+            params.temperature === ''
+              ? undefined
+              : Number.parseFloat(params.temperature),
           maxTokens: params.maxTokens ? Number.parseInt(params.maxTokens) : undefined,
           stream: false, // Always false
         }
@@ -222,3 +230,17 @@ export const HuggingFaceBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const HuggingFaceV2Block: BlockConfig = {
+  ...HuggingFaceBlock,
+  type: 'huggingface_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(HuggingFaceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'huggingface',
+    title: 'Hugging Face Credential',
+  }),
+}

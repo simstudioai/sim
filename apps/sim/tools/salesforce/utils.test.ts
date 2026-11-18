@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { salesforceDeleteLeadTool } from '@/tools/salesforce/delete_lead'
+import { salesforceQueryMoreTool } from '@/tools/salesforce/query_more'
+import { salesforceRunReportTool } from '@/tools/salesforce/run_report'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
+import type { ToolConfig } from '@/tools/types'
 
 /** Builds an unsigned JWT carrying the given payload, which is all the decoder reads. */
 function idTokenWith(payload: Record<string, unknown>): string {
@@ -88,4 +92,45 @@ describe('getInstanceUrl', () => {
       'Salesforce instance URL is required'
     )
   })
+})
+
+/** Resolves a tool's request URL for the given params. */
+function requestUrl<P>(tool: ToolConfig<P>, params: P): string {
+  const { url } = tool.request
+  return typeof url === 'function' ? url(params) : url
+}
+
+describe('request paths', () => {
+  const ORG = 'https://acme.my.salesforce.com'
+  const auth = { accessToken: 'token', instanceUrl: ORG }
+
+  it('requests an absolute nextRecordsUrl on the connected instance as a path', () => {
+    expect(
+      requestUrl(salesforceQueryMoreTool, {
+        ...auth,
+        nextRecordsUrl: `${ORG}/services/data/v59.0/query/01gxx000000B5OgAAK-2000`,
+      })
+    ).toBe(`${ORG}/services/data/v59.0/query/01gxx000000B5OgAAK-2000`)
+  })
+
+  it.each([
+    ['another host', 'https://other.my.salesforce.com/services/data/v59.0/query/01g-2000'],
+    ['a path outside the data API', '/secur/logout.jsp'],
+    ['a dot segment', '/services/data/v59.0/query/../../../secur/logout.jsp'],
+  ])('rejects a nextRecordsUrl on %s', (_label, nextRecordsUrl) => {
+    expect(() => requestUrl(salesforceQueryMoreTool, { ...auth, nextRecordsUrl })).toThrow()
+  })
+
+  it('trims a report id carried in from another block', () => {
+    expect(
+      requestUrl(salesforceRunReportTool, { ...auth, reportId: ' 00Oxx0000001abcEAA\n' })
+    ).toBe(`${ORG}/services/data/v59.0/analytics/reports/00Oxx0000001abcEAA?includeDetails=true`)
+  })
+
+  it.each(['..', '00Qxx/../../sobjects/Account/001xx'])(
+    'rejects a record id that would leave its sObject path: %s',
+    (leadId) => {
+      expect(() => requestUrl(salesforceDeleteLeadTool, { ...auth, leadId })).toThrow()
+    }
+  )
 })

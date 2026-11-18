@@ -124,6 +124,7 @@ describe.skipIf(!fixtureFile || !serviceAccountFile)(
       kind: 'workspace_api_key',
       workspaceId: input.workspaceId,
       keyId: 'drive-member-live',
+      access: 'write',
     })
     const sourceConfig = () => ({ folderId: [sharedFolderId, privateFolderId], maxFiles: 0 })
 

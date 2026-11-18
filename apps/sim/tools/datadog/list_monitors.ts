@@ -1,5 +1,6 @@
 import type { ListMonitorsParams, ListMonitorsResponse, MonitorData } from '@/tools/datadog/types'
 import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsResponse> = {
@@ -7,6 +8,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
   name: 'Datadog List Monitors',
   description: 'List all monitors in Datadog with optional filtering by name, tags, or state.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     groupStates: {

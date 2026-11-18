@@ -15,7 +15,12 @@ import {
   workflowSelectorValidator,
 } from '@/lib/workflows/references/selector-values'
 
-const principal = { kind: 'personal_api_key', userId: 'user', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'user',
+  keyId: 'key',
+  access: 'write',
+} as const
 
 describe('workflow selector validation', () => {
   beforeEach(() => {

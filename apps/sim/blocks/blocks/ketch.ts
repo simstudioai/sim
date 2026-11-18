@@ -1,6 +1,7 @@
 import { KetchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const KetchBlock: BlockConfig = {
   type: 'ketch',
@@ -118,7 +119,7 @@ export const KetchBlock: BlockConfig = {
       title: 'Purposes',
       type: 'code',
       placeholder:
-        '{"analytics": {"allowed": "granted", "legalBasisCode": "consent_optin"}, "marketing": {"allowed": "denied"}}',
+        '{"analytics": {"allowed": "true", "legalBasisCode": "consent_optin"}, "marketing": {"allowed": "false", "legalBasisCode": "consent_optin"}}',
       language: 'json',
       condition: { field: 'operation', value: 'set_consent' },
       required: { field: 'operation', value: 'set_consent' },
@@ -159,7 +160,7 @@ export const KetchBlock: BlockConfig = {
       placeholder: '{"email": "user@example.com", "firstName": "John", "lastName": "Doe"}',
       language: 'json',
       condition: { field: 'operation', value: 'invoke_right' },
-      mode: 'advanced',
+      required: { field: 'operation', value: 'invoke_right' },
     },
     {
       id: 'collectedAt',
@@ -186,7 +187,8 @@ export const KetchBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `ketch_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {
           organizationCode: params.organizationCode,
           propertyCode: params.propertyCode,
@@ -203,20 +205,20 @@ export const KetchBlock: BlockConfig = {
               : params.identities
         }
 
-        if (params.operation === 'get_consent' && params.purposesFilter) {
+        if (operation === 'get_consent' && params.purposesFilter) {
           result.purposes =
             typeof params.purposesFilter === 'string'
               ? JSON.parse(params.purposesFilter)
               : params.purposesFilter
         }
 
-        if (params.operation === 'set_consent' && params.purposes) {
+        if (operation === 'set_consent' && params.purposes) {
           result.purposes =
             typeof params.purposes === 'string' ? JSON.parse(params.purposes) : params.purposes
           if (params.collectedAt) result.collectedAt = Number(params.collectedAt)
         }
 
-        if (params.operation === 'set_subscriptions') {
+        if (operation === 'set_subscriptions') {
           if (params.topics) {
             result.topics =
               typeof params.topics === 'string' ? JSON.parse(params.topics) : params.topics
@@ -227,7 +229,7 @@ export const KetchBlock: BlockConfig = {
           }
         }
 
-        if (params.operation === 'invoke_right') {
+        if (operation === 'invoke_right') {
           if (params.rightCode) result.rightCode = params.rightCode
           if (params.userData) {
             result.userData =
@@ -254,7 +256,7 @@ export const KetchBlock: BlockConfig = {
   },
   outputs: {
     purposes: { type: 'json', description: 'Consent status per purpose (allowed, legalBasisCode)' },
-    vendors: { type: 'json', description: 'Vendor consent statuses' },
+    vendors: { type: 'json', description: 'TCF vendor IDs returned with the consent record' },
     topics: {
       type: 'json',
       description: 'Subscription topic statuses per contact method',

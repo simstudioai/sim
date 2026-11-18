@@ -1,10 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerReadResponse,
   MicrosoftPlannerToolParams,
+  PlannerTaskSummary,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+function identityUserId(value: unknown): string | null {
+  return toStringOrNull(toRecord(toRecord(value).user).id)
+}
 
 const logger = createLogger('MicrosoftPlannerReadTask')
 
@@ -45,49 +53,19 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
 
   request: {
     url: (params) => {
-      let finalUrl: string
-
-      // If taskId is provided, get specific task
       if (params.taskId) {
-        // Validate and clean task ID
-        const cleanTaskId = params.taskId.trim()
-        if (!cleanTaskId) {
-          throw new Error('Task ID cannot be empty')
-        }
-
-        // Log the task ID for debugging
-        logger.info('Fetching task with ID:', cleanTaskId)
-        logger.info('Task ID length:', cleanTaskId.length)
-        logger.info('Task ID has special chars:', /[^a-zA-Z0-9_-]/.test(cleanTaskId))
-
-        finalUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${cleanTaskId}`
+        return `https://graph.microsoft.com/v1.0/planner/tasks/${safeUrlPathSegment(params.taskId, 'taskId')}`
       }
-      // Else if planId is provided, get tasks from plan
-      else if (params.planId) {
-        const cleanPlanId = params.planId.trim()
-        if (!cleanPlanId) {
-          throw new Error('Plan ID cannot be empty')
-        }
-        logger.info('Fetching tasks for plan:', cleanPlanId)
-        finalUrl = `https://graph.microsoft.com/v1.0/planner/plans/${cleanPlanId}/tasks`
+      if (params.planId) {
+        return `https://graph.microsoft.com/v1.0/planner/plans/${safeUrlPathSegment(params.planId, 'planId')}/tasks`
       }
-      // Else get all user tasks
-      else {
-        logger.info('Fetching all user tasks')
-        finalUrl = 'https://graph.microsoft.com/v1.0/me/planner/tasks'
-      }
-
-      logger.info('Microsoft Planner URL:', finalUrl)
-      return finalUrl
+      return 'https://graph.microsoft.com/v1.0/me/planner/tasks'
     },
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
-      logger.info('Access token present:', !!params.accessToken)
-      logger.info('Access token length:', params.accessToken.length)
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
@@ -98,38 +76,52 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    logger.info('Raw response data:', data)
 
-    const rawTasks = data.value ? data.value : Array.isArray(data) ? data : [data]
+    const rawTasks: unknown[] = data.value ? data.value : Array.isArray(data) ? data : [data]
 
-    const tasks = rawTasks.map((task: any) => {
-      let etagValue = task['@odata.etag'] ?? null
-      logger.info('ETag value extracted (raw):', {
-        raw: etagValue,
-        type: typeof etagValue,
-        length: etagValue?.length,
-      })
-
-      if (etagValue && typeof etagValue === 'string') {
-        if (etagValue.includes('\\"')) {
-          etagValue = etagValue.replace(/\\"/g, '"')
-          logger.info('Unescaped etag quotes:', { cleaned: etagValue })
-        }
+    const tasks: PlannerTaskSummary[] = rawTasks.map((value) => {
+      const task = toRecord(value)
+      let etagValue = toStringOrNull(task['@odata.etag'])
+      if (etagValue?.includes('\\"')) {
+        etagValue = etagValue.replace(/\\"/g, '"')
       }
 
+      const assignments = toRecord(task.assignments)
+
       return {
-        id: task.id,
-        title: task.title,
-        planId: task.planId,
-        bucketId: task.bucketId ?? null,
-        percentComplete: task.percentComplete,
-        priority: task.priority,
-        dueDateTime: task.dueDateTime ?? null,
-        createdDateTime: task.createdDateTime,
-        completedDateTime: task.completedDateTime ?? null,
-        hasDescription: task.hasDescription,
-        assignments: task.assignments ? Object.keys(task.assignments) : [],
+        id: toStringOrNull(task.id) ?? undefined,
+        title: toStringOrNull(task.title) ?? undefined,
+        planId: toStringOrNull(task.planId) ?? undefined,
+        bucketId: toStringOrNull(task.bucketId),
+        percentComplete: toNumberOrNull(task.percentComplete) ?? undefined,
+        priority: toNumberOrNull(task.priority) ?? undefined,
+        dueDateTime: toStringOrNull(task.dueDateTime),
+        createdDateTime: toStringOrNull(task.createdDateTime) ?? undefined,
+        completedDateTime: toStringOrNull(task.completedDateTime),
+        hasDescription: toBooleanOrNull(task.hasDescription) ?? undefined,
+        assignments: Object.keys(assignments),
         etag: etagValue,
+        startDateTime: toStringOrNull(task.startDateTime),
+        orderHint: toStringOrNull(task.orderHint),
+        assigneePriority: toStringOrNull(task.assigneePriority),
+        appliedCategories: Object.entries(toRecord(task.appliedCategories))
+          .filter(([, applied]) => applied === true)
+          .map(([category]) => category),
+        previewType: toStringOrNull(task.previewType),
+        checklistItemCount: toNumberOrNull(task.checklistItemCount),
+        activeChecklistItemCount: toNumberOrNull(task.activeChecklistItemCount),
+        referenceCount: toNumberOrNull(task.referenceCount),
+        conversationThreadId: toStringOrNull(task.conversationThreadId),
+        createdBy: identityUserId(task.createdBy),
+        completedBy: identityUserId(task.completedBy),
+        assignees: Object.entries(assignments).map(([userId, assignment]) => {
+          const details = toRecord(assignment)
+          return {
+            userId,
+            assignedDateTime: toStringOrNull(details.assignedDateTime),
+            assignedBy: identityUserId(details.assignedBy),
+          }
+        }),
       }
     })
 
@@ -148,13 +140,137 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       },
     }
 
-    logger.info('Successfully transformed response with', tasks.length, 'tasks')
+    logger.info('Transformed Planner tasks', { count: tasks.length })
     return result
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether tasks were retrieved successfully' },
-    tasks: { type: 'array', description: 'Array of task objects with filtered properties' },
+    tasks: {
+      type: 'array',
+      description: 'Array of task objects with filtered properties',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Task ID' },
+          title: { type: 'string', description: 'Task title' },
+          planId: { type: 'string', description: 'Parent plan ID' },
+          bucketId: { type: 'string', description: 'Bucket ID', nullable: true },
+          percentComplete: {
+            type: 'number',
+            description: 'Completion percentage; 100 means completed',
+          },
+          priority: {
+            type: 'number',
+            description:
+              'Priority from 0 (highest) to 10 (lowest); Planner uses 1 urgent, 3 important, 5 medium, 9 low',
+          },
+          dueDateTime: { type: 'string', description: 'Due date (ISO 8601)', nullable: true },
+          createdDateTime: { type: 'string', description: 'Creation time (ISO 8601)' },
+          completedDateTime: {
+            type: 'string',
+            description: 'Completion time (ISO 8601)',
+            nullable: true,
+          },
+          hasDescription: {
+            type: 'boolean',
+            description: 'Whether the task details have a description',
+          },
+          assignments: {
+            type: 'array',
+            description: 'User IDs the task is assigned to',
+            items: { type: 'string' },
+          },
+          etag: {
+            type: 'string',
+            description: 'Task ETag for Update Task and Delete Task (not for Update Task Details)',
+            nullable: true,
+          },
+          startDateTime: {
+            type: 'string',
+            description: 'Start date (ISO 8601)',
+            optional: true,
+            nullable: true,
+          },
+          orderHint: { type: 'string', description: 'Order hint', optional: true, nullable: true },
+          assigneePriority: {
+            type: 'string',
+            description: 'Order hint for the assignee view',
+            optional: true,
+            nullable: true,
+          },
+          appliedCategories: {
+            type: 'array',
+            description: 'Applied category labels, such as category1',
+            optional: true,
+            items: { type: 'string' },
+          },
+          previewType: {
+            type: 'string',
+            description: 'Preview type shown on the task card',
+            optional: true,
+            nullable: true,
+          },
+          checklistItemCount: {
+            type: 'number',
+            description: 'Number of checklist items',
+            optional: true,
+            nullable: true,
+          },
+          activeChecklistItemCount: {
+            type: 'number',
+            description: 'Number of unchecked checklist items',
+            optional: true,
+            nullable: true,
+          },
+          referenceCount: {
+            type: 'number',
+            description: 'Number of external references',
+            optional: true,
+            nullable: true,
+          },
+          conversationThreadId: {
+            type: 'string',
+            description: 'Group conversation thread ID for the task',
+            optional: true,
+            nullable: true,
+          },
+          createdBy: {
+            type: 'string',
+            description: 'User ID of the task creator',
+            optional: true,
+            nullable: true,
+          },
+          completedBy: {
+            type: 'string',
+            description: 'User ID of the user who completed the task',
+            optional: true,
+            nullable: true,
+          },
+          assignees: {
+            type: 'array',
+            description: 'Assignment details per assignee',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                userId: { type: 'string', description: 'Assignee user ID' },
+                assignedDateTime: {
+                  type: 'string',
+                  description: 'When the user was assigned',
+                  nullable: true,
+                },
+                assignedBy: {
+                  type: 'string',
+                  description: 'User ID of who made the assignment',
+                  nullable: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     metadata: {
       type: 'object',
       description: 'Metadata including planId, userId, and planUrl',

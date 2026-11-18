@@ -1,5 +1,8 @@
 import type { SentryGetEventParams, SentryGetEventResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventResponse> = {
   id: 'sentry_events_get',
@@ -7,8 +10,10 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
   description:
     'Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -37,7 +42,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/events/${params.eventId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

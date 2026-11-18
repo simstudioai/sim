@@ -1,4 +1,6 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { PRResponse, UpdatePRParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
@@ -6,6 +8,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
   name: 'GitHub Update Pull Request',
   description: 'Update an existing pull request in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -60,7 +63,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -71,7 +74,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
       const body: Record<string, any> = {}
       if (params.title !== undefined) body.title = params.title
       if (params.body !== undefined) body.body = params.body
-      if (params.state !== undefined) body.state = params.state
+      if (params.state) body.state = params.state
       if (params.base !== undefined) body.base = params.base
       return body
     },

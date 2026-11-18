@@ -29,7 +29,7 @@ import { receiveSimControls, startSimReceivers } from '@/lib/mothership/transpor
 const mocks = {
   fetch: mothershipGoFetchMockFns.mockFetchGo,
   execute,
-  sleep: utilsHelpersMockFns.mockSleep,
+  sleep: utilsHelpersMockFns.mockInterruptibleSleep,
 }
 
 function request() {
@@ -231,4 +231,78 @@ describe('outbound receiver lifecycle', () => {
       }
     }
   )
+})
+
+describe('outbound receiver backoff', () => {
+  const logger = () => getMockLogger('MothershipTransportReceiver')
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    mocks.sleep.mockResolvedValue(undefined)
+  })
+
+  /** Runs the receiver over scripted poll outcomes and returns each wait it took. */
+  async function delaysFor(outcomes: (() => Response)[]): Promise<number[]> {
+    const controller = new AbortController()
+    let polls = 0
+    mocks.fetch.mockImplementation(async () => {
+      const next = outcomes[polls++]
+      if (next) return next()
+      controller.abort()
+      throw new Error('shutdown')
+    })
+    await receiveSimControls('https://worker.test', 'a'.repeat(64), controller.signal)
+    for (const [, signal] of mocks.sleep.mock.calls) expect(signal).toBe(controller.signal)
+    return mocks.sleep.mock.calls.map(([ms]) => ms)
+  }
+
+  const refused = (status: number) => () => new Response(null, { status })
+  const lost = () => {
+    throw new Error('connection lost')
+  }
+  const empty = () => Response.json({ requests: [] })
+
+  it.each([401, 403])(
+    'waits minutes, not seconds, between polls the worker refuses (%i)',
+    async (status) => {
+      const delays = await delaysFor(Array.from({ length: 8 }, () => refused(status)))
+      expect(delays).toHaveLength(8)
+      expect(Math.min(...delays)).toBeGreaterThanOrEqual(24_000)
+      expect(delays[7]).toBeGreaterThanOrEqual(480_000)
+      expect(Math.max(...delays)).toBeLessThanOrEqual(720_000)
+      expect(logger().warn).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('backs off transient failures to a ceiling under the 5 s run-control deadline, warning once', async () => {
+    const delays = await delaysFor(Array.from({ length: 8 }, () => lost))
+    expect(delays[0]).toBeLessThanOrEqual(1200)
+    expect(delays[7]).toBeGreaterThanOrEqual(3200)
+    expect(Math.max(...delays)).toBeLessThan(5000)
+    expect(logger().warn).toHaveBeenCalledOnce()
+  })
+
+  it('starts over after a poll succeeds and says it reconnected', async () => {
+    const delays = await delaysFor([lost, lost, lost, empty, lost])
+    expect(delays).toHaveLength(4)
+    expect(delays[2]).toBeGreaterThanOrEqual(3200)
+    expect(delays[3]).toBeLessThanOrEqual(1200)
+    expect(logger().warn).toHaveBeenCalledTimes(2)
+    expect(logger().info).toHaveBeenCalledOnce()
+  })
+
+  it('keeps backing off while polls succeed but their batches cannot be read', async () => {
+    const malformed = () => Response.json({ requests: 'not a list' })
+    const delays = await delaysFor(Array.from({ length: 5 }, () => malformed))
+    expect(delays[4]).toBeGreaterThanOrEqual(3200)
+    expect(logger().warn).toHaveBeenCalledOnce()
+    expect(logger().info).not.toHaveBeenCalled()
+  })
+
+  it('warns again, and backs off from the start, when an outage turns into a refused key', async () => {
+    const delays = await delaysFor([lost, lost, lost, refused(401), refused(401)])
+    expect(delays[3]).toBeLessThanOrEqual(36_000)
+    expect(delays[4]).toBeGreaterThanOrEqual(48_000)
+    expect(logger().warn).toHaveBeenCalledTimes(2)
+  })
 })

@@ -1,4 +1,5 @@
 import type { AlgoliaListIndicesParams, AlgoliaListIndicesResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIndicesResponse> = {
@@ -6,6 +7,7 @@ export const listIndicesTool: ToolConfig<AlgoliaListIndicesParams, AlgoliaListIn
   name: 'Algolia List Indices',
   description: 'List all indices in an Algolia application',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

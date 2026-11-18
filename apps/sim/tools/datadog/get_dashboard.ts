@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getDashboardTool: ToolConfig<GetDashboardParams, GetDashboardResponse> = {
@@ -12,6 +13,7 @@ export const getDashboardTool: ToolConfig<GetDashboardParams, GetDashboardRespon
   name: 'Datadog Get Dashboard',
   description: 'Get the full definition of a dashboard, including its widgets.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     dashboardId: {

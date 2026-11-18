@@ -1,5 +1,6 @@
 import type { GitLabCreateUserParams, GitLabUserResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUserResponse> = {
@@ -9,6 +10,7 @@ export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUser
   description:
     'Create a new GitLab user. Requires an administrator token with admin_mode on the instance.',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

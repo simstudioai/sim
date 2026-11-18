@@ -22,7 +22,12 @@ export const ORACLE_CONNECTION_PARAMS = {
   },
 } as const
 
-export const oracleDatabaseOAuth = { enabled: true, required: true, provider: 'oracledb' } as const
+export const oracleDatabaseOAuth = {
+  enabled: true,
+  required: true,
+  provider: 'oracledb',
+  credentialKind: 'service-account',
+} as const
 
 /** Only the credential reference authorized by the executor crosses into the operation. */
 export function buildOracleConnectionInput(params: OracleConnectionConfig) {

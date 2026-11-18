@@ -16,7 +16,12 @@ import {
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'
 import { getBlock } from '@/blocks/registry'
 
-const principal = { kind: 'personal_api_key', userId: 'user', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'user',
+  keyId: 'key',
+  access: 'write',
+} as const
 const agent = { type: 'agent', subBlocks: [{ id: 'tools', type: 'tool-input' }] } as BlockConfig
 const mcp = {
   type: 'mcp',

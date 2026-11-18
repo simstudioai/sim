@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaResetFactorParams, OktaResetFactorResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaResetFactor')
 
@@ -12,6 +14,7 @@ export const oktaResetFactorTool: ToolConfig<OktaResetFactorParams, OktaResetFac
   description:
     'Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -50,7 +53,7 @@ export const oktaResetFactorTool: ToolConfig<OktaResetFactorParams, OktaResetFac
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors/${encodeURIComponent(params.factorId.trim())}`
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/factors/${safeUrlPathSegment(params.factorId, 'factorId')}`
       return params.removeRecoveryEnrollment === undefined
         ? base
         : `${base}?removeRecoveryEnrollment=${isOktaFlagEnabled(params.removeRecoveryEnrollment)}`

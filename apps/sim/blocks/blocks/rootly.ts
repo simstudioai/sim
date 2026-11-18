@@ -1,10 +1,443 @@
 import { RootlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
+
+/**
+ * Maps the block's per-operation fields onto the selected tool's params. Most block fields carry an
+ * operation prefix and are renamed to their tool param here. A few share the tool param's id
+ * (`title`, `resolveRelatedIncidents`, `mitigationMessage`, `resolutionMessage`,
+ * `cancellationMessage`), so on tool calls they hold the model's typed value and any coercion must
+ * accept it.
+ */
+function buildOperationParams(
+  params: Record<string, unknown>,
+  operation: string
+): Record<string, unknown> {
+  const baseParams: Record<string, unknown> = {
+    apiKey: params.apiKey,
+  }
+
+  switch (operation) {
+    case 'rootly_create_incident':
+      return {
+        ...baseParams,
+        title: params.title,
+        summary: params.createSummary,
+        severityId: params.createSeverityId,
+        status: params.createStatus,
+        kind: params.createKind,
+        serviceIds: params.createServiceIds,
+        environmentIds: params.createEnvironmentIds,
+        groupIds: params.createGroupIds,
+        incidentTypeIds: params.createIncidentTypeIds,
+        functionalityIds: params.createFunctionalityIds,
+        labels: params.createLabels,
+        private: params.createPrivate ? params.createPrivate === 'true' : undefined,
+      }
+
+    case 'rootly_get_incident':
+      return {
+        ...baseParams,
+        incidentId: params.getIncidentId,
+      }
+
+    case 'rootly_update_incident':
+      return {
+        ...baseParams,
+        incidentId: params.updateIncidentId,
+        title: params.updateTitle,
+        summary: params.updateSummary,
+        status: params.updateStatus,
+        severityId: params.updateSeverityId,
+        kind: params.updateKind,
+        private: params.updatePrivate ? params.updatePrivate === 'true' : undefined,
+        mitigationMessage: params.mitigationMessage,
+        resolutionMessage: params.resolutionMessage,
+        cancellationMessage: params.cancellationMessage,
+        serviceIds: params.updateServiceIds,
+        environmentIds: params.updateEnvironmentIds,
+        groupIds: params.updateGroupIds,
+        incidentTypeIds: params.updateIncidentTypeIds,
+        functionalityIds: params.updateFunctionalityIds,
+        labels: params.updateLabels,
+      }
+
+    case 'rootly_list_incidents':
+      return {
+        ...baseParams,
+        status: params.listIncidentsStatus,
+        search: params.listIncidentsSearch,
+        severity: params.listIncidentsSeverity,
+        services: params.listIncidentsServices,
+        teams: params.listIncidentsTeams,
+        environments: params.listIncidentsEnvironments,
+        sort: params.listIncidentsSort,
+        pageSize: params.listIncidentsPageSize ? Number(params.listIncidentsPageSize) : undefined,
+        pageNumber: params.listIncidentsPageNumber
+          ? Number(params.listIncidentsPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_create_alert':
+      return {
+        ...baseParams,
+        summary: params.alertSummary,
+        description: params.alertDescription,
+        source: params.alertSource,
+        status: params.alertStatus,
+        serviceIds: params.alertServiceIds,
+        groupIds: params.alertGroupIds,
+        environmentIds: params.alertEnvironmentIds,
+        externalId: params.alertExternalId,
+        deduplicationKey: params.alertDeduplicationKey,
+        externalUrl: params.alertExternalUrl,
+      }
+
+    case 'rootly_list_alerts':
+      return {
+        ...baseParams,
+        status: params.listAlertsStatus,
+        source: params.listAlertsSource,
+        services: params.listAlertsServices,
+        environments: params.listAlertsEnvironments,
+        groups: params.listAlertsGroups,
+        pageSize: params.listAlertsPageSize ? Number(params.listAlertsPageSize) : undefined,
+        pageNumber: params.listAlertsPageNumber ? Number(params.listAlertsPageNumber) : undefined,
+      }
+
+    case 'rootly_add_incident_event':
+      return {
+        ...baseParams,
+        incidentId: params.eventIncidentId,
+        event: params.eventText,
+        visibility: params.eventVisibility,
+      }
+
+    case 'rootly_list_services':
+      return {
+        ...baseParams,
+        search: params.servicesSearch,
+        pageSize: params.servicesPageSize ? Number(params.servicesPageSize) : undefined,
+        pageNumber: params.servicesPageNumber ? Number(params.servicesPageNumber) : undefined,
+      }
+
+    case 'rootly_list_severities':
+      return {
+        ...baseParams,
+        search: params.severitiesSearch,
+        pageSize: params.severitiesPageSize ? Number(params.severitiesPageSize) : undefined,
+        pageNumber: params.severitiesPageNumber ? Number(params.severitiesPageNumber) : undefined,
+      }
+
+    case 'rootly_list_teams':
+      return {
+        ...baseParams,
+        search: params.teamsSearch,
+        pageSize: params.teamsPageSize ? Number(params.teamsPageSize) : undefined,
+        pageNumber: params.teamsPageNumber ? Number(params.teamsPageNumber) : undefined,
+      }
+
+    case 'rootly_list_environments':
+      return {
+        ...baseParams,
+        search: params.environmentsSearch,
+        pageSize: params.environmentsPageSize ? Number(params.environmentsPageSize) : undefined,
+        pageNumber: params.environmentsPageNumber
+          ? Number(params.environmentsPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_list_incident_types':
+      return {
+        ...baseParams,
+        search: params.incidentTypesSearch,
+        pageSize: params.incidentTypesPageSize ? Number(params.incidentTypesPageSize) : undefined,
+        pageNumber: params.incidentTypesPageNumber
+          ? Number(params.incidentTypesPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_list_functionalities':
+      return {
+        ...baseParams,
+        search: params.functionalitiesSearch,
+        pageSize: params.functionalitiesPageSize
+          ? Number(params.functionalitiesPageSize)
+          : undefined,
+        pageNumber: params.functionalitiesPageNumber
+          ? Number(params.functionalitiesPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_list_retrospectives':
+      return {
+        ...baseParams,
+        status: params.retrospectivesStatus,
+        search: params.retrospectivesSearch,
+        pageSize: params.retrospectivesPageSize ? Number(params.retrospectivesPageSize) : undefined,
+        pageNumber: params.retrospectivesPageNumber
+          ? Number(params.retrospectivesPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_delete_incident':
+      return {
+        ...baseParams,
+        incidentId: params.deleteIncidentId,
+      }
+
+    case 'rootly_get_alert':
+      return {
+        ...baseParams,
+        alertId: params.getAlertId,
+      }
+
+    case 'rootly_update_alert':
+      return {
+        ...baseParams,
+        alertId: params.updateAlertId,
+        summary: params.updateAlertSummary,
+        description: params.updateAlertDescription,
+        source: params.updateAlertSource,
+        serviceIds: params.updateAlertServiceIds,
+        groupIds: params.updateAlertGroupIds,
+        environmentIds: params.updateAlertEnvironmentIds,
+        externalId: params.updateAlertExternalId,
+        externalUrl: params.updateAlertExternalUrl,
+        deduplicationKey: params.updateAlertDeduplicationKey,
+      }
+
+    case 'rootly_acknowledge_alert':
+      return {
+        ...baseParams,
+        alertId: params.ackAlertId,
+      }
+
+    case 'rootly_resolve_alert':
+      return {
+        ...baseParams,
+        alertId: params.resolveAlertId,
+        resolutionMessage: params.resolveResolutionMessage,
+        resolveRelatedIncidents: parseOptionalBooleanInput(params.resolveRelatedIncidents),
+      }
+
+    case 'rootly_create_action_item':
+      return {
+        ...baseParams,
+        incidentId: params.actionItemIncidentId,
+        summary: params.actionItemSummary,
+        description: params.actionItemDescription,
+        kind: params.actionItemKind,
+        priority: params.actionItemPriority,
+        status: params.actionItemStatus,
+        assignedToUserId: params.actionItemAssignedToUserId,
+        dueDate: params.actionItemDueDate,
+      }
+
+    case 'rootly_list_action_items':
+      return {
+        ...baseParams,
+        incidentId: params.listActionItemsIncidentId,
+        pageSize: params.listActionItemsPageSize
+          ? Number(params.listActionItemsPageSize)
+          : undefined,
+        pageNumber: params.listActionItemsPageNumber
+          ? Number(params.listActionItemsPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_list_users':
+      return {
+        ...baseParams,
+        search: params.usersSearch,
+        email: params.usersEmail,
+        pageSize: params.usersPageSize ? Number(params.usersPageSize) : undefined,
+        pageNumber: params.usersPageNumber ? Number(params.usersPageNumber) : undefined,
+      }
+
+    case 'rootly_list_on_calls':
+      return {
+        ...baseParams,
+        scheduleIds: params.onCallsScheduleIds,
+        escalationPolicyIds: params.onCallsEscalationPolicyIds,
+        userIds: params.onCallsUserIds,
+        serviceIds: params.onCallsServiceIds,
+      }
+
+    case 'rootly_list_schedules':
+      return {
+        ...baseParams,
+        search: params.schedulesSearch,
+        pageSize: params.schedulesPageSize ? Number(params.schedulesPageSize) : undefined,
+        pageNumber: params.schedulesPageNumber ? Number(params.schedulesPageNumber) : undefined,
+      }
+
+    case 'rootly_list_escalation_policies':
+      return {
+        ...baseParams,
+        search: params.escalationPoliciesSearch,
+        pageSize: params.escalationPoliciesPageSize
+          ? Number(params.escalationPoliciesPageSize)
+          : undefined,
+        pageNumber: params.escalationPoliciesPageNumber
+          ? Number(params.escalationPoliciesPageNumber)
+          : undefined,
+      }
+
+    case 'rootly_list_causes':
+      return {
+        ...baseParams,
+        search: params.causesSearch,
+        pageSize: params.causesPageSize ? Number(params.causesPageSize) : undefined,
+        pageNumber: params.causesPageNumber ? Number(params.causesPageNumber) : undefined,
+      }
+
+    case 'rootly_list_playbooks':
+      return {
+        ...baseParams,
+        pageSize: params.playbooksPageSize ? Number(params.playbooksPageSize) : undefined,
+        pageNumber: params.playbooksPageNumber ? Number(params.playbooksPageNumber) : undefined,
+      }
+
+    case 'rootly_mitigate_incident':
+      return {
+        ...baseParams,
+        incidentId: params.mitigateIncidentId,
+        mitigationMessage: params.mitigateMessage,
+      }
+
+    case 'rootly_resolve_incident':
+      return {
+        ...baseParams,
+        incidentId: params.resolveIncidentId,
+        resolutionMessage: params.resolveIncidentMessage,
+      }
+
+    case 'rootly_assign_incident_role':
+      return {
+        ...baseParams,
+        incidentId: params.assignRoleIncidentId,
+        userId: params.assignRoleUserId,
+        incidentRoleId: params.assignRoleId,
+      }
+
+    case 'rootly_unassign_incident_role':
+      return {
+        ...baseParams,
+        incidentId: params.unassignRoleIncidentId,
+        userId: params.unassignRoleUserId,
+        incidentRoleId: params.unassignRoleId,
+      }
+
+    case 'rootly_add_subscribers':
+      return {
+        ...baseParams,
+        incidentId: params.addSubsIncidentId,
+        userIds: params.addSubsUserIds,
+      }
+
+    case 'rootly_remove_subscribers':
+      return {
+        ...baseParams,
+        incidentId: params.removeSubsIncidentId,
+        userIds: params.removeSubsUserIds,
+      }
+
+    case 'rootly_create_status_page_event':
+      return {
+        ...baseParams,
+        incidentId: params.statusEventIncidentId,
+        event: params.statusEventText,
+        status: params.statusEventStatus,
+        statusPageId: params.statusEventStatusPageId,
+        notifySubscribers: params.statusEventNotify
+          ? params.statusEventNotify === 'true'
+          : undefined,
+        shouldTweet: params.statusEventTweet ? params.statusEventTweet === 'true' : undefined,
+      }
+
+    case 'rootly_update_action_item':
+      return {
+        ...baseParams,
+        actionItemId: params.updateActionItemId,
+        summary: params.updateActionItemSummary,
+        description: params.updateActionItemDescription,
+        status: params.updateActionItemStatus,
+        priority: params.updateActionItemPriority,
+        kind: params.updateActionItemKind,
+        assignedToUserId: params.updateActionItemAssignee,
+        dueDate: params.updateActionItemDueDate,
+      }
+
+    case 'rootly_delete_action_item':
+      return {
+        ...baseParams,
+        actionItemId: params.deleteActionItemId,
+      }
+
+    case 'rootly_snooze_alert':
+      return {
+        ...baseParams,
+        alertId: params.snoozeAlertId,
+        delayMinutes: params.snoozeDelayMinutes ? Number(params.snoozeDelayMinutes) : undefined,
+      }
+
+    case 'rootly_escalate_alert':
+      return {
+        ...baseParams,
+        alertId: params.escalateAlertId,
+        escalationPolicyId: params.escalatePolicyId,
+        escalationPolicyLevel: params.escalatePolicyLevel
+          ? Number(params.escalatePolicyLevel)
+          : undefined,
+      }
+
+    case 'rootly_list_incident_events':
+      return {
+        ...baseParams,
+        incidentId: params.listEventsIncidentId,
+        pageSize: params.listEventsPageSize ? Number(params.listEventsPageSize) : undefined,
+        pageNumber: params.listEventsPageNumber ? Number(params.listEventsPageNumber) : undefined,
+      }
+
+    case 'rootly_run_workflow':
+      return {
+        ...baseParams,
+        workflowId: params.runWorkflowId,
+        incidentId: params.runWorkflowIncidentId,
+        alertId: params.runWorkflowAlertId,
+        immediate: params.runWorkflowImmediate ? params.runWorkflowImmediate === 'true' : undefined,
+        checkConditions: params.runWorkflowCheckConditions
+          ? params.runWorkflowCheckConditions === 'true'
+          : undefined,
+      }
+
+    case 'rootly_list_incident_roles':
+      return {
+        ...baseParams,
+        search: params.incidentRolesSearch,
+        pageSize: params.incidentRolesPageSize ? Number(params.incidentRolesPageSize) : undefined,
+        pageNumber: params.incidentRolesPageNumber
+          ? Number(params.incidentRolesPageNumber)
+          : undefined,
+      }
+
+    default:
+      return baseParams
+  }
+}
 
 export const RootlyBlock: BlockConfig = {
   type: 'rootly',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rootly_v2' },
   name: 'Rootly',
   description: 'Manage incidents, alerts, and on-call with Rootly',
   authMode: AuthMode.ApiKey,
@@ -1884,445 +2317,16 @@ export const RootlyBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
-        const baseParams: Record<string, unknown> = {
-          apiKey: params.apiKey,
-        }
-
-        switch (params.operation) {
-          case 'rootly_create_incident':
-            return {
-              ...baseParams,
-              title: params.title,
-              summary: params.createSummary,
-              severityId: params.createSeverityId,
-              status: params.createStatus,
-              kind: params.createKind,
-              serviceIds: params.createServiceIds,
-              environmentIds: params.createEnvironmentIds,
-              groupIds: params.createGroupIds,
-              incidentTypeIds: params.createIncidentTypeIds,
-              functionalityIds: params.createFunctionalityIds,
-              labels: params.createLabels,
-              private: params.createPrivate ? params.createPrivate === 'true' : undefined,
-            }
-
-          case 'rootly_get_incident':
-            return {
-              ...baseParams,
-              incidentId: params.getIncidentId,
-            }
-
-          case 'rootly_update_incident':
-            return {
-              ...baseParams,
-              incidentId: params.updateIncidentId,
-              title: params.updateTitle,
-              summary: params.updateSummary,
-              status: params.updateStatus,
-              severityId: params.updateSeverityId,
-              kind: params.updateKind,
-              private: params.updatePrivate ? params.updatePrivate === 'true' : undefined,
-              mitigationMessage: params.mitigationMessage,
-              resolutionMessage: params.resolutionMessage,
-              cancellationMessage: params.cancellationMessage,
-              serviceIds: params.updateServiceIds,
-              environmentIds: params.updateEnvironmentIds,
-              groupIds: params.updateGroupIds,
-              incidentTypeIds: params.updateIncidentTypeIds,
-              functionalityIds: params.updateFunctionalityIds,
-              labels: params.updateLabels,
-            }
-
-          case 'rootly_list_incidents':
-            return {
-              ...baseParams,
-              status: params.listIncidentsStatus,
-              search: params.listIncidentsSearch,
-              severity: params.listIncidentsSeverity,
-              services: params.listIncidentsServices,
-              teams: params.listIncidentsTeams,
-              environments: params.listIncidentsEnvironments,
-              sort: params.listIncidentsSort,
-              pageSize: params.listIncidentsPageSize
-                ? Number(params.listIncidentsPageSize)
-                : undefined,
-              pageNumber: params.listIncidentsPageNumber
-                ? Number(params.listIncidentsPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_create_alert':
-            return {
-              ...baseParams,
-              summary: params.alertSummary,
-              description: params.alertDescription,
-              source: params.alertSource,
-              status: params.alertStatus,
-              serviceIds: params.alertServiceIds,
-              groupIds: params.alertGroupIds,
-              environmentIds: params.alertEnvironmentIds,
-              externalId: params.alertExternalId,
-              deduplicationKey: params.alertDeduplicationKey,
-              externalUrl: params.alertExternalUrl,
-            }
-
-          case 'rootly_list_alerts':
-            return {
-              ...baseParams,
-              status: params.listAlertsStatus,
-              source: params.listAlertsSource,
-              services: params.listAlertsServices,
-              environments: params.listAlertsEnvironments,
-              groups: params.listAlertsGroups,
-              pageSize: params.listAlertsPageSize ? Number(params.listAlertsPageSize) : undefined,
-              pageNumber: params.listAlertsPageNumber
-                ? Number(params.listAlertsPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_add_incident_event':
-            return {
-              ...baseParams,
-              incidentId: params.eventIncidentId,
-              event: params.eventText,
-              visibility: params.eventVisibility,
-            }
-
-          case 'rootly_list_services':
-            return {
-              ...baseParams,
-              search: params.servicesSearch,
-              pageSize: params.servicesPageSize ? Number(params.servicesPageSize) : undefined,
-              pageNumber: params.servicesPageNumber ? Number(params.servicesPageNumber) : undefined,
-            }
-
-          case 'rootly_list_severities':
-            return {
-              ...baseParams,
-              search: params.severitiesSearch,
-              pageSize: params.severitiesPageSize ? Number(params.severitiesPageSize) : undefined,
-              pageNumber: params.severitiesPageNumber
-                ? Number(params.severitiesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_teams':
-            return {
-              ...baseParams,
-              search: params.teamsSearch,
-              pageSize: params.teamsPageSize ? Number(params.teamsPageSize) : undefined,
-              pageNumber: params.teamsPageNumber ? Number(params.teamsPageNumber) : undefined,
-            }
-
-          case 'rootly_list_environments':
-            return {
-              ...baseParams,
-              search: params.environmentsSearch,
-              pageSize: params.environmentsPageSize
-                ? Number(params.environmentsPageSize)
-                : undefined,
-              pageNumber: params.environmentsPageNumber
-                ? Number(params.environmentsPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_incident_types':
-            return {
-              ...baseParams,
-              search: params.incidentTypesSearch,
-              pageSize: params.incidentTypesPageSize
-                ? Number(params.incidentTypesPageSize)
-                : undefined,
-              pageNumber: params.incidentTypesPageNumber
-                ? Number(params.incidentTypesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_functionalities':
-            return {
-              ...baseParams,
-              search: params.functionalitiesSearch,
-              pageSize: params.functionalitiesPageSize
-                ? Number(params.functionalitiesPageSize)
-                : undefined,
-              pageNumber: params.functionalitiesPageNumber
-                ? Number(params.functionalitiesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_retrospectives':
-            return {
-              ...baseParams,
-              status: params.retrospectivesStatus,
-              search: params.retrospectivesSearch,
-              pageSize: params.retrospectivesPageSize
-                ? Number(params.retrospectivesPageSize)
-                : undefined,
-              pageNumber: params.retrospectivesPageNumber
-                ? Number(params.retrospectivesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_delete_incident':
-            return {
-              ...baseParams,
-              incidentId: params.deleteIncidentId,
-            }
-
-          case 'rootly_get_alert':
-            return {
-              ...baseParams,
-              alertId: params.getAlertId,
-            }
-
-          case 'rootly_update_alert':
-            return {
-              ...baseParams,
-              alertId: params.updateAlertId,
-              summary: params.updateAlertSummary,
-              description: params.updateAlertDescription,
-              source: params.updateAlertSource,
-              serviceIds: params.updateAlertServiceIds,
-              groupIds: params.updateAlertGroupIds,
-              environmentIds: params.updateAlertEnvironmentIds,
-              externalId: params.updateAlertExternalId,
-              externalUrl: params.updateAlertExternalUrl,
-              deduplicationKey: params.updateAlertDeduplicationKey,
-            }
-
-          case 'rootly_acknowledge_alert':
-            return {
-              ...baseParams,
-              alertId: params.ackAlertId,
-            }
-
-          case 'rootly_resolve_alert':
-            return {
-              ...baseParams,
-              alertId: params.resolveAlertId,
-              resolutionMessage: params.resolveResolutionMessage,
-              resolveRelatedIncidents: params.resolveRelatedIncidents
-                ? params.resolveRelatedIncidents === 'true'
-                : undefined,
-            }
-
-          case 'rootly_create_action_item':
-            return {
-              ...baseParams,
-              incidentId: params.actionItemIncidentId,
-              summary: params.actionItemSummary,
-              description: params.actionItemDescription,
-              kind: params.actionItemKind,
-              priority: params.actionItemPriority,
-              status: params.actionItemStatus,
-              assignedToUserId: params.actionItemAssignedToUserId,
-              dueDate: params.actionItemDueDate,
-            }
-
-          case 'rootly_list_action_items':
-            return {
-              ...baseParams,
-              incidentId: params.listActionItemsIncidentId,
-              pageSize: params.listActionItemsPageSize
-                ? Number(params.listActionItemsPageSize)
-                : undefined,
-              pageNumber: params.listActionItemsPageNumber
-                ? Number(params.listActionItemsPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_users':
-            return {
-              ...baseParams,
-              search: params.usersSearch,
-              email: params.usersEmail,
-              pageSize: params.usersPageSize ? Number(params.usersPageSize) : undefined,
-              pageNumber: params.usersPageNumber ? Number(params.usersPageNumber) : undefined,
-            }
-
-          case 'rootly_list_on_calls':
-            return {
-              ...baseParams,
-              scheduleIds: params.onCallsScheduleIds,
-              escalationPolicyIds: params.onCallsEscalationPolicyIds,
-              userIds: params.onCallsUserIds,
-              serviceIds: params.onCallsServiceIds,
-            }
-
-          case 'rootly_list_schedules':
-            return {
-              ...baseParams,
-              search: params.schedulesSearch,
-              pageSize: params.schedulesPageSize ? Number(params.schedulesPageSize) : undefined,
-              pageNumber: params.schedulesPageNumber
-                ? Number(params.schedulesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_escalation_policies':
-            return {
-              ...baseParams,
-              search: params.escalationPoliciesSearch,
-              pageSize: params.escalationPoliciesPageSize
-                ? Number(params.escalationPoliciesPageSize)
-                : undefined,
-              pageNumber: params.escalationPoliciesPageNumber
-                ? Number(params.escalationPoliciesPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_list_causes':
-            return {
-              ...baseParams,
-              search: params.causesSearch,
-              pageSize: params.causesPageSize ? Number(params.causesPageSize) : undefined,
-              pageNumber: params.causesPageNumber ? Number(params.causesPageNumber) : undefined,
-            }
-
-          case 'rootly_list_playbooks':
-            return {
-              ...baseParams,
-              pageSize: params.playbooksPageSize ? Number(params.playbooksPageSize) : undefined,
-              pageNumber: params.playbooksPageNumber
-                ? Number(params.playbooksPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_mitigate_incident':
-            return {
-              ...baseParams,
-              incidentId: params.mitigateIncidentId,
-              mitigationMessage: params.mitigateMessage,
-            }
-
-          case 'rootly_resolve_incident':
-            return {
-              ...baseParams,
-              incidentId: params.resolveIncidentId,
-              resolutionMessage: params.resolveIncidentMessage,
-            }
-
-          case 'rootly_assign_incident_role':
-            return {
-              ...baseParams,
-              incidentId: params.assignRoleIncidentId,
-              userId: params.assignRoleUserId,
-              incidentRoleId: params.assignRoleId,
-            }
-
-          case 'rootly_unassign_incident_role':
-            return {
-              ...baseParams,
-              incidentId: params.unassignRoleIncidentId,
-              userId: params.unassignRoleUserId,
-              incidentRoleId: params.unassignRoleId,
-            }
-
-          case 'rootly_add_subscribers':
-            return {
-              ...baseParams,
-              incidentId: params.addSubsIncidentId,
-              userIds: params.addSubsUserIds,
-            }
-
-          case 'rootly_remove_subscribers':
-            return {
-              ...baseParams,
-              incidentId: params.removeSubsIncidentId,
-              userIds: params.removeSubsUserIds,
-            }
-
-          case 'rootly_create_status_page_event':
-            return {
-              ...baseParams,
-              incidentId: params.statusEventIncidentId,
-              event: params.statusEventText,
-              status: params.statusEventStatus,
-              statusPageId: params.statusEventStatusPageId,
-              notifySubscribers: params.statusEventNotify
-                ? params.statusEventNotify === 'true'
-                : undefined,
-              shouldTweet: params.statusEventTweet ? params.statusEventTweet === 'true' : undefined,
-            }
-
-          case 'rootly_update_action_item':
-            return {
-              ...baseParams,
-              actionItemId: params.updateActionItemId,
-              summary: params.updateActionItemSummary,
-              description: params.updateActionItemDescription,
-              status: params.updateActionItemStatus,
-              priority: params.updateActionItemPriority,
-              kind: params.updateActionItemKind,
-              assignedToUserId: params.updateActionItemAssignee,
-              dueDate: params.updateActionItemDueDate,
-            }
-
-          case 'rootly_delete_action_item':
-            return {
-              ...baseParams,
-              actionItemId: params.deleteActionItemId,
-            }
-
-          case 'rootly_snooze_alert':
-            return {
-              ...baseParams,
-              alertId: params.snoozeAlertId,
-              delayMinutes: params.snoozeDelayMinutes
-                ? Number(params.snoozeDelayMinutes)
-                : undefined,
-            }
-
-          case 'rootly_escalate_alert':
-            return {
-              ...baseParams,
-              alertId: params.escalateAlertId,
-              escalationPolicyId: params.escalatePolicyId,
-              escalationPolicyLevel: params.escalatePolicyLevel
-                ? Number(params.escalatePolicyLevel)
-                : undefined,
-            }
-
-          case 'rootly_list_incident_events':
-            return {
-              ...baseParams,
-              incidentId: params.listEventsIncidentId,
-              pageSize: params.listEventsPageSize ? Number(params.listEventsPageSize) : undefined,
-              pageNumber: params.listEventsPageNumber
-                ? Number(params.listEventsPageNumber)
-                : undefined,
-            }
-
-          case 'rootly_run_workflow':
-            return {
-              ...baseParams,
-              workflowId: params.runWorkflowId,
-              incidentId: params.runWorkflowIncidentId,
-              alertId: params.runWorkflowAlertId,
-              immediate: params.runWorkflowImmediate
-                ? params.runWorkflowImmediate === 'true'
-                : undefined,
-              checkConditions: params.runWorkflowCheckConditions
-                ? params.runWorkflowCheckConditions === 'true'
-                : undefined,
-            }
-
-          case 'rootly_list_incident_roles':
-            return {
-              ...baseParams,
-              search: params.incidentRolesSearch,
-              pageSize: params.incidentRolesPageSize
-                ? Number(params.incidentRolesPageSize)
-                : undefined,
-              pageNumber: params.incidentRolesPageNumber
-                ? Number(params.incidentRolesPageNumber)
-                : undefined,
-            }
-
-          default:
-            return baseParams
-        }
+      params: (params, context) => {
+        const mapped = buildOperationParams(params, mapperOperation(params, context))
+        if (!isToolCall(context)) return mapped
+        // Model args arrive under the tool's param names; keep one wherever its block field is empty.
+        return Object.fromEntries(
+          Object.entries(mapped).map(([key, value]) => [
+            key,
+            value === undefined || value === '' ? params[key] : value,
+          ])
+        )
       },
     },
   },
@@ -2720,3 +2724,17 @@ export const RootlyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RootlyV2Block: BlockConfig = {
+  ...RootlyBlock,
+  type: 'rootly_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(RootlyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'rootly',
+    title: 'Rootly Credential',
+  }),
+}

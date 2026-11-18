@@ -1,4 +1,5 @@
 import type { IAMAddUserToGroupParams, IAMGroupMembershipResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const addUserToGroupTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const addUserToGroupTool: InternalToolConfig<
   name: 'IAM Add User to Group',
   description: 'Add an IAM user to a group',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

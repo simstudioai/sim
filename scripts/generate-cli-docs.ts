@@ -183,6 +183,12 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Manage reusable dependency sets for Function blocks.',
     related: [['Function sandboxes', '/workflows/blocks/function#sandboxes']],
   },
+  schedules: {
+    description: 'List the schedules deployed workflows run across a workspace.',
+    notes: [
+      'A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.',
+    ],
+  },
   secrets: {
     description: 'Set and manage workspace or personal secrets.',
     notes: [
@@ -230,6 +236,7 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Build, deploy, run, and inspect workflows from the terminal.',
     related: [
       ['Workflow builder', '/workflows'],
+      ['Build and run workflows with the API', '/api-reference/build-and-run-workflows'],
       ['Import and workspace sync', '/cli/workflow-sync'],
       ['Scripting and exit codes', '/cli/scripting#exit-codes'],
     ],
@@ -308,6 +315,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   organizations: [
     { title: 'Organizations and workspaces', prefixes: ['list', 'get', 'workspaces'] },
     { title: 'Members and credit limits', prefixes: ['members'] },
+    { title: 'Search source permissions', prefixes: ['search sources permissions'] },
     { title: 'Invitations', prefixes: ['invitations'] },
     { title: 'Usage', prefixes: ['usage summary', 'usage breakdown', 'usage events'] },
     {
@@ -388,14 +396,31 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
       title: 'Workflows',
       prefixes: ['list', 'get', 'create', 'update', 'duplicate', 'move', 'mv', 'delete', 'restore'],
     },
-    { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
+    { title: 'Draft state and edits', prefixes: ['state', 'outline', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
-      prefixes: ['deploy', 'deployment', 'versions', 'activate', 'revert', 'rollback', 'undeploy'],
+      prefixes: [
+        'deploy',
+        'deployment',
+        'triggers',
+        'versions',
+        'activate',
+        'revert',
+        'rollback',
+        'undeploy',
+      ],
     },
     {
       title: 'Run and inspect',
-      prefixes: ['run', 'runs list', 'runs get', 'runs wait', 'runs resume', 'runs cancel'],
+      prefixes: [
+        'run',
+        'runs list',
+        'runs paused',
+        'runs get',
+        'runs wait',
+        'runs resume',
+        'runs cancel',
+      ],
     },
     { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
     { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },
@@ -404,7 +429,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   workspaces: [
     {
       title: 'Workspace access',
-      prefixes: ['list', 'get', 'members', 'invitations', 'permission-config'],
+      prefixes: ['list', 'get', 'update', 'members', 'invitations', 'permission-config'],
     },
     {
       title: 'Access requests',
@@ -463,6 +488,15 @@ const LEGACY_COMMAND_ANCHORS: Record<string, string> = {
   'workflows chat publish': 'publish-or-replace-a-workflows-chat-deployment',
   'workspaces operations wait':
     'wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout',
+}
+
+/**
+ * Reference-page anchors a renamed command keeps, so links to the spelling it
+ * shipped under still land on it. `workspaces members` became a group whose
+ * default subcommand is `list`.
+ */
+const LEGACY_REFERENCE_ANCHORS: Record<string, string> = {
+  'workspaces members list': 'sim-workspaces-members',
 }
 
 const VERB_ORDER = [
@@ -912,7 +946,9 @@ function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): s
   const description = entry.command.description()
   const operation = operationOf(entry.command)
   const spec = operation ? CLI_CONTRACT[operation] : undefined
-  const anchor = commandHeadings ? undefined : LEGACY_COMMAND_ANCHORS[entry.path.join(' ')]
+  const anchor = (commandHeadings ? LEGACY_REFERENCE_ANCHORS : LEGACY_COMMAND_ANCHORS)[
+    entry.path.join(' ')
+  ]
   const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}${anchor ? ` [#${anchor}]` : ''}`, '']
   if (commandHeadings && description) lines.push(escapeProse(sentenceCase(description)), '')
   if (!commandHeadings) {

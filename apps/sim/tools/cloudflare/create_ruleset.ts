@@ -12,6 +12,7 @@ import {
   parseJsonArrayParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -24,6 +25,7 @@ export const createRulesetTool: ToolConfig<
   description:
     'Creates a zone ruleset for a phase, optionally seeded with its first rules. Use this when a phase has no entry point ruleset yet — reading the entry point returns 404 on a zone that has never had a rule in that phase, and rules can only be appended to a ruleset that already exists. Create the entry point with kind "zone" and the target phase (for example http_ratelimit for rate limiting rules or http_request_firewall_custom for WAF custom rules), then use the returned ruleset ID for later rule operations. Requires an API token with Zone WAF Edit (or another matching ruleset Edit permission).',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     dry_run: {

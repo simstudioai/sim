@@ -416,7 +416,11 @@ export interface SubBlockConfig {
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   modalId?: string // Registry key when type is 'modal'; see sub-block/components/modal-registry.ts
-  value?: (params: Record<string, any>) => string
+  /**
+   * Default value. Returning `undefined` (for example when the default depends on an operation
+   * the caller did not pass) defers to the field's own default, such as a dropdown's first option.
+   */
+  value?: (params: Record<string, any>) => string | undefined
   grouped?: boolean
   scrollable?: boolean
   maxHeight?: number
@@ -611,6 +615,12 @@ export type CanvasSentence = readonly CanvasSentenceClause[]
 export interface BlockToolParamsContext {
   /** Operation selected by the configuring surface. */
   operation?: string
+  /**
+   * Ids of the values the tool row itself stores non-empty (as stored, before canonical
+   * resolution). A model argument never overrides one of these, so a mapper can tell a pinned
+   * value from one the model chose when two params name the same thing.
+   */
+  pinnedParams?: ReadonlySet<string>
 }
 
 export interface BlockConfig {
@@ -739,3 +749,8 @@ export interface BlockConfig {
     available: string[] // List of trigger IDs this block supports
   }
 }
+
+/** The params a block's `tools.config.params` builder receives. */
+export type BlockToolParams = Parameters<
+  NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
+>[0]

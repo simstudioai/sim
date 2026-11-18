@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAddUsersResponse, ThriveAudienceManagersParams } from '@/tools/thrive/types'
 import { THRIVE_ADD_USERS_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -7,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addAudienceManagersTool: ToolConfig<
   ThriveAudienceManagersParams,
@@ -16,6 +18,7 @@ export const addAudienceManagersTool: ToolConfig<
   name: 'Thrive Add Audience Managers',
   description: 'Add managers to a Thrive audience with their permissions.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -53,7 +56,7 @@ export const addAudienceManagersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/managers`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/managers`,
     method: 'POST',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => JSON.stringify(parseThriveArray(params.managers, 'managers')),

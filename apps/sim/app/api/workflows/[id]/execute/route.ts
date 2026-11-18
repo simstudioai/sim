@@ -1,4 +1,4 @@
-import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { isReadOnlyApiKeyPrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -16,7 +16,11 @@ import {
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
 import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
-import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
+import {
+  PERSONAL_KEY_DENIED,
+  READ_ONLY_API_KEY_DENIED,
+  WORKSPACE_KEY_SCOPE_DENIED,
+} from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -550,6 +554,14 @@ async function handleExecutePost(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    /** Running a workflow changes state, and this route authorizes outside the operation funnel. */
+    if (auth.success && auth.principal && isReadOnlyApiKeyPrincipal(auth.principal)) {
+      return NextResponse.json(
+        { error: READ_ONLY_API_KEY_DENIED, details: { code: 'READ_ONLY_API_KEY' } },
+        { status: 403 }
+      )
+    }
+
     const executionModeHeader = req.headers.get('X-Execution-Mode')
     const isAsyncMode = executionModeHeader === 'async'
     const trustedDeadlineHeader =
@@ -945,7 +957,7 @@ async function handleExecutePost(
         ? false
         : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
-      useDraftState || workflowStateOverride || rawRunFromBlock
+      shouldUseDraftState || workflowStateOverride || rawRunFromBlock
     )
 
     if (req.signal.aborted) {
@@ -987,11 +999,12 @@ async function handleExecutePost(
     }
 
     /**
-     * Interactive sessions and personal keys preserve the authenticated human
-     * as actor. Preprocessing resolves the workspace payer independently.
+     * Sessions and personal keys act as the authenticated human. Keyed on auth
+     * type, not the body's `isClientSession`, so a session cannot opt out and
+     * run its editable draft on the billing account's credentials.
      */
     const useAuthenticatedUserAsActor =
-      isClientSession ||
+      auth.authType === AuthType.SESSION ||
       (auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal') ||
       useMcpBridgeAuthenticatedUserAsActor
 

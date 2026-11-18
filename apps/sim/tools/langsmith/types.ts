@@ -24,11 +24,13 @@ export interface LangsmithRunPayload {
 
 export interface LangsmithCreateRunParams extends Omit<LangsmithRunPayload, 'outputs'> {
   apiKey: string
+  region?: string
   run_outputs?: Record<string, unknown>
 }
 
 export interface LangsmithCreateRunsBatchParams {
   apiKey: string
+  region?: string
   post?: LangsmithRunPayload[]
   patch?: LangsmithRunPayload[]
 }
@@ -52,6 +54,7 @@ export interface LangsmithCreateRunsBatchResponse extends ToolResponse {
 
 export interface LangsmithUpdateRunParams {
   apiKey: string
+  region?: string
   runId: string
   name?: string
   end_time?: string
@@ -73,6 +76,7 @@ export interface LangsmithUpdateRunResponse extends ToolResponse {
 
 export interface LangsmithGetRunParams {
   apiKey: string
+  region?: string
   runId: string
 }
 
@@ -101,6 +105,7 @@ type LangsmithFeedbackSourceType = 'api' | 'app' | 'model'
 
 export interface LangsmithCreateFeedbackParams {
   apiKey: string
+  region?: string
   runId: string
   key: string
   score?: number

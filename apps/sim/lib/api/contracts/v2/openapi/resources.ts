@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/v2/catalog'
 import {
   v2CreateCredentialConnectionContract,
+  v2CreateCredentialWorkloadIdentitySubjectContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
   v2ListCredentialProvidersContract,
@@ -91,6 +92,9 @@ import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
+  v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceContract,
+  v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import {
   defineOpenApiDocument,
@@ -105,7 +109,12 @@ import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
-import { workspaceOperations } from '@/lib/workspaces/application/operations'
+import {
+  workspaceMemberOperations,
+  workspaceOperations,
+  workspacePermissionOperations,
+  workspaceUpdateOperations,
+} from '@/lib/workspaces/application/operations'
 
 const BLOCK_SUMMARY_EXAMPLE = {
   id: 'slack',
@@ -597,7 +606,28 @@ const SERVICE_ACCOUNT_PROVIDER_EXAMPLE = {
 
 const CREDENTIAL_CONNECTION_EXAMPLE = {
   authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
+  draftId: 'draft-123',
   expiresAt: '2026-06-20T14:17:11.000Z',
+} as const
+
+const WORKLOAD_IDENTITY_SUBJECT = 'sim:workspace:<workspaceId>:credential:<subjectId>'
+const WORKLOAD_IDENTITY_SUBJECT_PROOF = '<subjectProof from Create workload identity subject>'
+
+const WORKLOAD_IDENTITY_SUBJECT_EXAMPLE = {
+  issuer: 'https://www.sim.ai/oidc/workload',
+  audience: 'sts.amazonaws.com',
+  subject: WORKLOAD_IDENTITY_SUBJECT,
+  subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
+  expiresAt: '2026-06-21T14:17:11.000Z',
+  subjectIssuedAt: '2026-06-20T14:17:11.000Z',
+  subjectHeldUntil: '2026-07-20T14:17:11.000Z',
+  keylessConfig: {
+    authType: 'oidc_role',
+    subject: WORKLOAD_IDENTITY_SUBJECT,
+    subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
+  },
+  requiredConfigFields: ['roleArn'],
+  optionalConfigFields: ['stsRegion', 'sessionDurationSeconds', 'audience'],
 } as const
 
 const SECRET_EXAMPLE = {
@@ -720,6 +750,40 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2UpdateWorkspaceContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: workspaceUpdateOperations.updateIdentity,
+      operationId: 'updateWorkspace',
+      summary: 'Update workspace',
+      description: `Rename a workspace or change its logo. Omitted fields remain unchanged; send \`logoUrl: null\` to remove the logo. Requires workspace Admin access. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The updated workspace.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateWorkspaceContract.params,
+        'UpdateWorkspaceParams',
+        'Update workspace parameters',
+        'Workspace selected for update.'
+      ),
+      query: v2UpdateWorkspaceContract.query,
+      body: documentedSchema(
+        v2UpdateWorkspaceContract.body,
+        'UpdateWorkspaceBody',
+        'Update workspace body',
+        'The workspace fields to change.',
+        [{ name: 'Platform Engineering' }]
+      ),
+      response: documentedSchema(
+        v2UpdateWorkspaceContract.response.schema,
+        'UpdateWorkspaceResponse',
+        'Update workspace response',
+        'The workspace after the update.',
+        [{ data: { ...WORKSPACE_EXAMPLE, name: 'Platform Engineering' } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListWorkspaceMembersContract,
     resourceOperation('Workspaces', {
       applicationOperation: workspaceOperations.listPublicMembers,
@@ -749,6 +813,67 @@ const declaredRoutes = [
         'List workspace members response',
         'A cursor-paginated page of effective workspace members.',
         [{ data: [WORKSPACE_MEMBER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkspaceMemberContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: workspacePermissionOperations.update,
+      operationId: 'updateWorkspaceMember',
+      summary: 'Update workspace member',
+      description: `Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; anyone else is Not found, and people are added with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry, except that an organization Admin is refused whatever role is requested. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The member with their updated workspace role.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateWorkspaceMemberContract.params,
+        'UpdateWorkspaceMemberParams',
+        'Update workspace member parameters',
+        'Workspace and member identifiers.'
+      ),
+      query: v2UpdateWorkspaceMemberContract.query,
+      body: documentedSchema(
+        v2UpdateWorkspaceMemberContract.body,
+        'UpdateWorkspaceMemberBody',
+        'Update workspace member body',
+        'The new workspace role for this member.',
+        [{ role: 'write' }]
+      ),
+      response: documentedSchema(
+        v2UpdateWorkspaceMemberContract.response.schema,
+        'UpdateWorkspaceMemberResponse',
+        'Update workspace member response',
+        'The member with their updated workspace role.',
+        [{ data: { ...WORKSPACE_MEMBER_EXAMPLE, role: 'write' } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RemoveWorkspaceMemberContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: workspaceMemberOperations.remove,
+      operationId: 'removeWorkspaceMember',
+      summary: 'Remove workspace member',
+      description: `Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end, since this endpoint is called with an API key or OAuth token rather than from a signed-in browser session. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Acknowledgement that workspace access was removed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RemoveWorkspaceMemberContract.params,
+        'RemoveWorkspaceMemberParams',
+        'Remove workspace member parameters',
+        'Workspace and member identifiers.'
+      ),
+      query: v2RemoveWorkspaceMemberContract.query,
+      response: documentedSchema(
+        v2RemoveWorkspaceMemberContract.response.schema,
+        'RemoveWorkspaceMemberResponse',
+        'Remove workspace member response',
+        'Acknowledgement that workspace access was removed.',
+        [{ data: { userId: 'user-123', deleted: true, organizationMembershipRemoved: false } }]
       ),
     }
   ),
@@ -1619,7 +1744,7 @@ const declaredRoutes = [
       applicationOperation: credentialOperations.createServiceAccount,
       operationId: 'createServiceAccountCredential',
       summary: 'Create service-account credential',
-      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its \`keylessConfig\` as \`serviceAccountJson\`. A refused keyless credential names its cause in \`details.code\`: \`409\` for \`WORKLOAD_IDENTITY_SUBJECT_IN_USE\` or \`WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE\`, otherwise \`400\`, such as \`WORKLOAD_IDENTITY_PROOF_EXPIRED\` (renew the proof by passing the subject to Create workload identity subject). Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         byStatus: {
@@ -1643,6 +1768,20 @@ const declaredRoutes = [
             displayName: 'Zoom automation',
             credentials:
               '{"clientId":"YOUR_CLIENT_ID","clientSecret":"YOUR_CLIENT_SECRET","orgId":"YOUR_ACCOUNT_ID"}',
+          },
+          {
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'aws-service-account',
+            displayName: 'AWS production (keyless)',
+            credentials: JSON.stringify({
+              serviceAccountJson: JSON.stringify({
+                authType: 'oidc_role',
+                roleArn: 'arn:aws:iam::123456789012:role/SimWorkflows',
+                subject: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE.subject,
+                subjectProof: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE.subjectProof,
+              }),
+            }),
           },
         ]
       ),
@@ -1694,6 +1833,41 @@ const declaredRoutes = [
         'Create credential connection response',
         'Short-lived Sim browser entrypoint and its expiry.',
         [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateCredentialWorkloadIdentitySubjectContract,
+    resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.prepareWorkloadIdentity,
+      operationId: 'createCredentialWorkloadIdentitySubject',
+      summary: 'Create workload identity subject',
+      description: `Start a keyless credential. Returns the issuer, audience, and a new subject to configure in the cloud's trust policy (or, when \`subject\` names one Sim is holding for you, that same subject with a renewed proof), plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Sim holds the subject for you until \`subjectHeldUntil\` (30 days, restarted by each renewal) unless a credential saves it first; pass it back as \`subject\` to renew the proof without changing the subject, so a trust policy that takes days to apply still matches. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. The returned \`audience\` is the default; set \`audience\` in \`keylessConfig\` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'A subject and proof for one new keyless credential.' },
+    }),
+    {
+      query: v2CreateCredentialWorkloadIdentitySubjectContract.query,
+      body: documentedSchema(
+        v2CreateCredentialWorkloadIdentitySubjectContract.body,
+        'CreateCredentialWorkloadIdentitySubjectRequest',
+        'Create workload identity subject request',
+        'Workspace that will own the keyless credential, the service-account provider it will be created under, and optionally a held subject whose proof to renew.',
+        [
+          { workspaceId: WORKSPACE_ID, providerId: 'aws-service-account' },
+          {
+            workspaceId: WORKSPACE_ID,
+            providerId: 'aws-service-account',
+            subject: WORKLOAD_IDENTITY_SUBJECT,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateCredentialWorkloadIdentitySubjectContract.response.schema,
+        'CreateCredentialWorkloadIdentitySubjectResponse',
+        'Create workload identity subject response',
+        'Trust values to configure in the cloud, and the proof to submit when creating the credential.',
+        [{ data: WORKLOAD_IDENTITY_SUBJECT_EXAMPLE }]
       ),
     }
   ),
@@ -1855,9 +2029,11 @@ const declaredRoutes = [
       operationId: 'getApiMeta',
       summary: 'Get API status',
       description:
-        'Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
+        'Get the calling credential’s type, identity, expiry, and API scopes, plus links to the OpenAPI document, API docs, and Sim MCP server. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.',
       errors: META_ERRORS,
-      success: { description: 'Availability and lifecycle facts about the calling credential.' },
+      success: {
+        description: 'Identity, availability, and lifecycle facts about the calling credential.',
+      },
     }),
     {
       query: v2GetMetaContract.query,
@@ -1865,8 +2041,25 @@ const declaredRoutes = [
         v2GetMetaContract.response.schema,
         'GetApiMetaResponse',
         'API status response',
-        'API availability, credential type, and expiry for the caller.',
-        [{ data: { v2Enabled: true, keyType: 'personal', expiresAt: null } }]
+        'API availability, credential type and identity, expiry, scopes, and discovery links for the caller.',
+        [
+          {
+            data: {
+              v2Enabled: true,
+              keyType: 'personal',
+              expiresAt: null,
+              scopes: ['api:read', 'api:write', 'search:read'],
+              keyId: 'key_7f3a9c2e',
+              userId: 'user-123',
+              workspaceId: null,
+              links: {
+                openapi: 'https://docs.sim.ai/openapi.json',
+                docs: 'https://docs.sim.ai/api-reference/getting-started',
+                mcp: 'https://mcp.sim.ai/mcp',
+              },
+            },
+          },
+        ]
       ),
     }
   ),

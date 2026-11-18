@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getQuestionTool: ToolConfig<JotformGetQuestionParams, JotformQuestionResponse> = {
@@ -14,6 +15,7 @@ export const getQuestionTool: ToolConfig<JotformGetQuestionParams, JotformQuesti
   description:
     'Get every property of a single form question, including its validation rules and field-specific settings.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -233,6 +233,7 @@ export async function executeTableQueryRows(
       legacyKeying: 'names',
       limit: query.limit,
       offset: query.offset,
+      columns: query.columns,
       includeTotal: query.includeTotal,
       includeRunState: query.limit !== undefined && query.limit <= TABLE_LIMITS.MAX_QUERY_LIMIT,
       allowExpandedLimit: true,

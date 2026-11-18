@@ -1,6 +1,12 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  withSearchDiagnostics,
+  withSearchProviderDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { searchCalendar, searchDrive } from '@/lib/sim-search/live/google'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -151,7 +157,7 @@ describe('native search endpoints', () => {
         query: 'launch',
         channel_types: ['public_channel', 'im'],
         include_archived_channels: true,
-        content_types: ['messages'],
+        content_types: ['messages', 'channels'],
         include_context_messages: true,
         limit: 20,
         term_clauses: ['launch OR release'],
@@ -186,6 +192,69 @@ describe('native search endpoints', () => {
     const api = client()
     await expect(searchSlack(api, input)).rejects.toMatchObject({ status: 'reconnect' })
     expect(api.json).not.toHaveBeenCalled()
+  })
+})
+
+describe('Slack file hits', () => {
+  const fileHits = async (files: Record<string, unknown>[]) => {
+    const api = client()
+    api.json.mockResolvedValue({ ok: true, results: { files } })
+    const { documents } = await searchSlack(api, {
+      ...input,
+      scopes: ['search:read.public', 'search:read.files'],
+    })
+    return documents.map(({ content }) => content)
+  }
+  const hit = (fields: Record<string, unknown>) => ({
+    file_id: 'F1',
+    title: 'Q3 plan',
+    content: 'Q3 plan',
+    permalink: 'https://team.slack.com/files/U1/F1',
+    ...fields,
+  })
+
+  it('says what each file is and whether a read can return its text, instead of echoing its title', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', size: 245760 }),
+        hit({ file_type: 'application/vnd.slack-docs' }),
+        hit({ file_type: 'text/csv; charset=utf-8' }),
+        hit({ file_type: 'image/png' }),
+        hit({ file_type: 'application/vnd.slack-list' }),
+      ])
+    ).toEqual([
+      'PDF, 240 KB. Reading it can return its full text.',
+      'Canvas. Reading it can return its full text.',
+      'CSV. Reading it can return its full text.',
+      'Image. Its contents cannot be read here; open the source.',
+      'List. Its contents cannot be read here; open the source.',
+    ])
+  })
+
+  it('keeps text Slack returns beyond the title and describes a file of unknown type plainly', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', content: 'Revenue grew 12% in Q3' }),
+        hit({ content: '' }),
+        hit({ file_type: 'application/x-unknown', title: 'Plan v2.1 final', content: '' }),
+      ])
+    ).toEqual([
+      'PDF. Reading it can return its full text.\nRevenue grew 12% in Q3',
+      'File. Its contents cannot be read here; open the source.',
+      'File. Its contents cannot be read here; open the source.',
+    ])
+  })
+
+  it('offers no full text for a file above the read limit or an empty one', async () => {
+    expect(
+      await fileHits([
+        hit({ file_type: 'application/pdf', size: 5 * 1024 * 1024 }),
+        hit({ file_type: 'text/plain', size: 0 }),
+      ])
+    ).toEqual([
+      'PDF, 5 MB. Too large to read in full here; open the source.',
+      'Text, 0 Bytes. The file is empty.',
+    ])
   })
 })
 
@@ -382,5 +451,194 @@ describe('Slack RTS pages', () => {
         native: { provider: 'slack', query: 'launch' },
       })
     ).rejects.toMatchObject({ status: 'rate_limited' })
+  })
+})
+
+describe('Slack channels', () => {
+  const scopes = ['search:read.public', 'search:read.private']
+  const channel = (id: string, name: string, archived = false) => ({
+    name,
+    is_archived: archived,
+    permalink: `https://team.slack.com/archives/${id}`,
+  })
+  const rts = (channels: unknown[], messages: unknown[] = []) => ({
+    ok: true,
+    results: { messages, channels },
+  })
+
+  it('names the channels a query matches that the source settings let it search', async () => {
+    const api = client()
+    api.json.mockResolvedValue(
+      rts([
+        channel('C1', 'announcements'),
+        channel('G2', 'announce-leads'),
+        channel('C3', 'announce-old', true),
+      ])
+    )
+    const result = await searchSlack(api, {
+      ...input,
+      scopes,
+      policy: { ...defaultLiveSearchPolicy('slack'), excluded: ['G2'], includeArchived: false },
+      native: { provider: 'slack', query: 'announcements' },
+    })
+    expect(result.message).toContain('Channels matching the query: #announcements (in:<#C1>).')
+    expect(result.message).not.toContain('announce-leads')
+    expect(result.message).not.toContain('announce-old')
+  })
+
+  it('says a filtered channel exists when none of its messages match', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([channel('C9', 'launch-team'), channel('C8', 'launch-team-ops')]))
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#Launch-Team' },
+    })
+    expect(result.documents).toEqual([])
+    expect(result.message).toContain(
+      '#launch-team (in:<#C9>) exists; none of its messages matched this query and date window.'
+    )
+  })
+
+  it('says no channel has the filtered name and names the similar ones', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([channel('C7', 'company-announcements')]))
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(result.message).toContain('No channel named #announcements can be searched here.')
+    expect(result.message).toContain(
+      'Channels with similar names: #company-announcements (in:<#C7>).'
+    )
+  })
+
+  it('does not call a channel missing while the lookup has more channels to return', async () => {
+    const api = client()
+    api.json.mockResolvedValueOnce(rts([])).mockResolvedValueOnce({
+      ...rts([channel('C7', 'company-announcements')]),
+      response_metadata: { next_cursor: 'more' },
+    })
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(api.json.mock.calls[1]?.[1]?.body).toMatchObject({ limit: 20 })
+    expect(result.message).not.toContain('No channel named')
+    expect(result.message).toContain('Channels with similar names: #company-announcements')
+  })
+
+  it('says nothing about the filtered channel while Slack has another page of results', async () => {
+    const api = client()
+    api.json.mockResolvedValueOnce({ ...rts([]), response_metadata: { next_cursor: 'page-2' } })
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(result.message).not.toContain('#announcements')
+  })
+
+  it('looks up no channel when the query is already scoped to a channel ID', async () => {
+    const api = client()
+    api.json.mockResolvedValue(rts([]))
+    const result = await searchSlack(api, {
+      ...input,
+      scopes,
+      native: { provider: 'slack', query: 'launch in:<#C1>', modifiers: 'in:#announcements' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(1)
+    expect(result.message).not.toContain('#announcements')
+  })
+
+  it.each([
+    ['in:#launch-team.', 'launch-team'],
+    ['in:#équipe_ventes,', 'équipe_ventes'],
+    ['in:#हिंदी-टीम', 'हिंदी-टीम'],
+  ])('looks up the whole channel name in %s', async (modifiers, name) => {
+    const api = client()
+    api.json.mockResolvedValue(rts([]))
+    await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers },
+    })
+    expect(api.json.mock.calls[1]?.[1]?.body).toMatchObject({
+      query: name,
+      content_types: ['channels'],
+    })
+  })
+
+  it('counts what each channel lookup concluded on the Slack provider summary', async () => {
+    const api = client()
+    const filtered = (modifiers: string) =>
+      searchSlack(api, {
+        ...input,
+        query: '',
+        scopes,
+        filters: { startDate: '2026-10-30T00:00:00Z' },
+        native: { provider: 'slack', query: '', modifiers },
+      })
+    api.json
+      .mockResolvedValueOnce(rts([channel('C1', 'launch-team'), channel('C2', 'launch-ops')]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([channel('C1', 'launch-team')]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce({ ...rts([]), response_metadata: { next_cursor: 'more' } })
+      .mockResolvedValueOnce(rts([]))
+      .mockRejectedValueOnce(new Error('lookup failed'))
+    await withSearchDiagnostics({ surface: 'mcp' }, () =>
+      withSearchProviderDiagnostics({ provider: 'slack', accountIndex: 0 }, async () => {
+        await searchSlack(api, { ...input, scopes, native: { provider: 'slack', query: 'launch' } })
+        await filtered('in:#launch-team')
+        await filtered('in:#launch-tem')
+        await filtered('in:#launch')
+        await filtered('in:#launch-crew')
+      })
+    )
+    const summary = getMockLogger('KnowledgeSearchDiagnostics').info.mock.calls.find(
+      ([message]) => message === 'Live search provider completed'
+    )?.[1]
+    expect(summary?.signals).toEqual({
+      'slack.channels_listed': 2,
+      'slack.channel_filter_exists': 1,
+      'slack.channel_filter_missing': 1,
+      'slack.channel_filter_unresolved': 1,
+      'slack.channel_lookup_failed': 1,
+    })
+  })
+
+  it('keeps the empty search when the channel lookup fails', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce({ ok: false, error: 'ratelimited' })
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(result.documents).toEqual([])
+    expect(result.message).not.toContain('#announcements')
   })
 })

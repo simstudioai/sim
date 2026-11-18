@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { findAwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/config'
 import {
   AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
   AWS_MARKETPLACE_TEAM_NOTICE_EVENT,
@@ -60,6 +61,7 @@ async function describeLicense(license: AwsMarketplaceLicenseRecord): Promise<st
     license.organizationId ? `${organizationName ?? 'Unknown'} (${license.organizationId})` : 'None'
   }
 License ID: ${license.id}
+Listing: ${license.productCode} (${findAwsMarketplaceProduct(license.productCode)?.plan.id ?? 'no longer sold'})
 License: ${license.licenseArn}
 AWS account: ${license.customerAwsAccountId}
 Agreement: ${license.agreementId ?? 'Not provided'}
@@ -101,7 +103,6 @@ async function teamNoticeCopy(
     case 'new-license': {
       const linked = await listOrganizationsLinkedToAccount({
         customerAwsAccountId: license.customerAwsAccountId,
-        productCode: license.productCode,
         excludingLicenseArn: license.licenseArn,
       })
       const others = linked.length

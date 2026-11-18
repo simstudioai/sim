@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   assertKnownSizeWithinLimit,
   readResponseTextWithLimit,
@@ -235,7 +236,7 @@ async function uploadChunk(options: {
 
   for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
     throwIfAborted(options.signal)
-    const response = await fetch(options.uploadUrl, {
+    const response = await outboundFetch(options.uploadUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': options.mimeType,

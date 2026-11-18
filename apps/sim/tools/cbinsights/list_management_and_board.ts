@@ -1,5 +1,6 @@
 import type { CbInsightsOrgListParams, CbInsightsOrgListResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsListManagementAndBoardParams extends CbInsightsOrgListParams {
@@ -15,6 +16,7 @@ export const cbinsightsListManagementAndBoardTool: InternalToolConfig<
   description:
     'Retrieve leadership teams, board members, and the Management factor of the Mosaic Score for up to 100 organizations at once.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

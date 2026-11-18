@@ -1,12 +1,15 @@
 import { ApifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const RUN_OPERATIONS = ['apify_run_actor_sync', 'apify_run_actor_async']
 const RUN_OR_TASK_OPERATIONS = [...RUN_OPERATIONS, 'apify_run_task']
 
 export const ApifyBlock: BlockConfig = {
   type: 'apify',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'apify_v2' },
   name: 'Apify',
   description: 'Run Apify actors and retrieve results',
   authMode: AuthMode.ApiKey,
@@ -373,3 +376,17 @@ export const ApifyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ApifyV2Block: BlockConfig = {
+  ...ApifyBlock,
+  type: 'apify_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ApifyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'apify',
+    title: 'Apify Credential',
+  }),
+}

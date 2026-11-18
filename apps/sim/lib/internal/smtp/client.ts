@@ -7,6 +7,7 @@ export interface SmtpClientConfig {
   host: string
   port: number
   secure: boolean
+  requireTLS: boolean
   auth: { user: string; pass: string }
   name?: string
   tls: { rejectUnauthorized: boolean; servername: string }

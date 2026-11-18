@@ -1,6 +1,7 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 /** Mutually exclusive person identifiers — first one supplied is the match key. */
 const PERSON_MATCH_FIELD = ['email', 'profile', 'phone', 'first_name'] as const
@@ -492,9 +493,9 @@ export const PeopleDataLabsBlock: BlockConfig = {
             return 'pdl_person_enrich'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = { ...params }
-        const op = params.operation
+        const op = mapperOperation(params, context)
 
         // Strip alternate-operation aliases so stale values from prior operations
         // can't leak into the current request.
@@ -554,9 +555,8 @@ export const PeopleDataLabsBlock: BlockConfig = {
         // accept `size` at all.
         result.size = undefined
         if (op === 'pdl_autocomplete') {
-          if (params.autocomplete_size !== undefined) {
-            result.size = Number(params.autocomplete_size)
-          }
+          const size = params.autocomplete_size ?? toolCallArg(context, params.size)
+          if (size !== undefined) result.size = Number(size)
         } else if (op === 'pdl_person_search' || op === 'pdl_company_search') {
           if (params.size !== undefined) result.size = Number(params.size)
         }

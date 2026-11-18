@@ -6,6 +6,7 @@ import {
   transformEntityResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const crunchbaseGetOrganizationTool: ToolConfig<
@@ -17,6 +18,7 @@ export const crunchbaseGetOrganizationTool: ToolConfig<
   description:
     'Look up a single Crunchbase organization by permalink or UUID, returning the requested fields and related cards.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

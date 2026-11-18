@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioCreateAttributeParams, AttioCreateAttributeResponse } from './types'
 import { ATTRIBUTE_OUTPUT_PROPERTIES } from './types'
 
@@ -92,7 +93,7 @@ export const attioCreateAttributeTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.attio.com/v2/${params.target.trim()}/${params.identifier.trim()}/attributes`,
+      `https://api.attio.com/v2/${safeUrlPathSegment(params.target, 'target')}/${safeUrlPathSegment(params.identifier, 'identifier')}/attributes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

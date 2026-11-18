@@ -58,7 +58,7 @@ export const contextDevMapTool: ToolConfig<ContextDevMapParams, ContextDevMapRes
       appendParam(url.searchParams, 'domain', params.domain)
       appendParam(url.searchParams, 'maxLinks', params.maxLinks)
       appendParam(url.searchParams, 'urlRegex', params.urlRegex)
-      appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+      appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
       return url.toString()
     },
     headers: (params) => contextDevHeaders(params.apiKey),

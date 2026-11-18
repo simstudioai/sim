@@ -5,6 +5,7 @@ import {
   mapOpenings,
   OPENINGS_OUTPUT,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface Params {
@@ -19,6 +20,7 @@ export const getOpeningTool: ToolConfig<Params, Response> = {
   name: 'Ashby Get Opening',
   description: 'Retrieves one Ashby headcount opening by UUID.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

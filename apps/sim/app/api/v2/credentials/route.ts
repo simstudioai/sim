@@ -9,17 +9,23 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { renderV2CredentialProviderError } from '@/lib/credentials/api/route-policies'
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toV2Credential } from '@/lib/credentials/application/presentation'
 import { createServiceAccountCredentialUseCase } from '@/lib/credentials/application/service-account'
-import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  readSortedCursor,
+  v2CaughtOrchestrationError,
+  writeSortedCursor,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const credentialWorkspaceErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Workspace not found',
+  render: (error) => renderV2CredentialProviderError(error) ?? v2CaughtOrchestrationError(error),
 })
 
 /** Every param that changes which credentials, in which order, this list returns. */

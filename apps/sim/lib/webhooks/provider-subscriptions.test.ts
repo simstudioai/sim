@@ -5,6 +5,8 @@ import {
 } from '@sim/testing/mocks/billing-attribution.mock'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 
 const { mockGetEffectiveDecryptedEnv, mockGetExecutionEnvironment } = environmentUtilsMockFns
 
@@ -56,6 +58,25 @@ describe('createExternalWebhookSubscription', () => {
       ).rejects.toMatchObject({ message: `Provider refused ${replacement}`, status: 429 })
     }
   )
+
+  it('keeps an egress outage classified as unavailable', async () => {
+    mockGetProviderHandler.mockReturnValue({
+      createSubscription: async () => {
+        throw new Error('Provider call failed', {
+          cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+        })
+      },
+    })
+    const failure = await createExternalWebhookSubscription(
+      {} as NextRequest,
+      { provider: 'ashby', providerConfig: {} },
+      { workspaceId: 'ws-1' },
+      'user-1',
+      'req-1'
+    ).catch((error: unknown) => error)
+
+    expect(isUnavailableFailure(failure)).toBe(true)
+  })
 
   it('resolves {{ENV_VAR}} references in providerConfig before calling the provider', async () => {
     const createSubscription = vi.fn().mockResolvedValue({

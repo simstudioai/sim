@@ -5,6 +5,7 @@ import type {
 import { ASSIGNED_LICENSE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { parseIdList } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const assignLicenseTool: ToolConfig<
   MicrosoftAdAssignLicenseParams,
@@ -59,7 +60,7 @@ export const assignLicenseTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/assignLicense`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/assignLicense`
     },
     method: 'POST',
     headers: (params) => ({

@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRemoveUserFromAppParams, OktaRemoveUserFromAppResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRemoveUserFromApp')
 
@@ -15,6 +17,7 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
   description:
     'Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -52,7 +55,7 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const base = `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
+      const base = `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}/users/${safeUrlPathSegment(params.userId, 'userId')}`
       return params.sendEmail === undefined
         ? base
         : `${base}?sendEmail=${isOktaFlagEnabled(params.sendEmail)}`

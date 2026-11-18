@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAssignmentResponse, ThriveGetAssignmentParams } from '@/tools/thrive/types'
 import { THRIVE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getAssignmentTool: ToolConfig<ThriveGetAssignmentParams, ThriveAssignmentResponse> = {
   id: 'thrive_get_assignment',
   name: 'Thrive Get Assignment',
   description: 'Get a single compliance assignment in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getAssignmentTool: ToolConfig<ThriveGetAssignmentParams, ThriveAssi
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${encodeURIComponent(params.assignmentId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${safeUrlPathSegment(params.assignmentId, 'assignmentId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

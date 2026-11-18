@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import * as jose from 'jose'
 import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -271,7 +272,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       if (direction === 'in' || direction === 'out') filter.direction = direction
     }
 
-    const response = await fetch(`${apiDomain}/api/v1/webhooks`, {
+    const response = await outboundFetch(`${apiDomain}/api/v1/webhooks`, {
       method: 'POST',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
@@ -364,7 +365,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
         : await resolveZohoDeskApiDomain(owner.accountId)
 
     const webhookPath = safeUrlPathSegment(externalId, 'externalId')
-    const response = await fetch(`${apiDomain}/api/v1/webhooks/${webhookPath}`, {
+    const response = await outboundFetch(`${apiDomain}/api/v1/webhooks/${webhookPath}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,

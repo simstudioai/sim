@@ -41,7 +41,7 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 - Run a deployed workflow: \`POST ${SIM_SITE_URL}/api/v2/workflows/{workflowId}/execute\` with a JSON body like \`{ "input": { "fieldName": "value" } }\`.
 - Authenticate API keys with the \`X-API-Key\` header. \`Authorization: Bearer\` accepts only Sim OAuth access tokens, never API keys.
 - Responses wrap the payload in \`data\`. A synchronous run returns \`200 { "data": { "runId", "status", "output", ... } }\`; with \`"async": true\` in the body it returns \`202 { "data": { "runId", "statusUrl" } }\` and you poll \`statusUrl\`.
-- SDKs: \`simstudio-ts-sdk\` (npm) and \`simstudio-sdk\` (PyPI). Full reference: [API getting started](${baseUrl}/api-reference/getting-started).
+- Full reference: [API getting started](${baseUrl}/api-reference/getting-started).
 
 ## Documentation Overview
 

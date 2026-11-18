@@ -3,6 +3,7 @@ import {
   type IncidentioTeamsListParams,
   type IncidentioTeamsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const teamsListTool: ToolConfig<IncidentioTeamsListParams, IncidentioTeamsListResponse> = {
@@ -10,6 +11,7 @@ export const teamsListTool: ToolConfig<IncidentioTeamsListParams, IncidentioTeam
   name: 'List Teams',
   description: 'List all teams in the incident.io organisation, along with their members',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -35,6 +36,7 @@ export const sportmonksOddsGetBookmakersByFixtureTool: ToolConfig<
   name: 'Get Bookmakers by Fixture',
   description: 'Retrieve all bookmakers available for a fixture from the Sportmonks Odds API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

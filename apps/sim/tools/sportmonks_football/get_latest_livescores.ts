@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -27,6 +28,7 @@ export const sportmonksGetLatestLivescoresTool: ToolConfig<
   name: 'Get Latest Updated Livescores',
   description: 'Retrieve all livescores that have received updates within the last 10 seconds',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

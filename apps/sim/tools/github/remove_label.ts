@@ -1,4 +1,6 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { LabelsResponse, RemoveLabelParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
@@ -6,6 +8,7 @@ export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
   name: 'GitHub Remove Label',
   description: 'Remove a label from an issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -42,7 +45,7 @@ export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/labels/${encodeURIComponent(params.name)}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}/labels/${encodeURIComponent(params.name)}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

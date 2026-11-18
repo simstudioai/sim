@@ -1,6 +1,7 @@
 import { OktaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Coerces a numeric subBlock value, dropping anything that is not a real number.
@@ -31,6 +32,7 @@ const CURSOR_FIELD_BY_OPERATION: Record<string, string> = {
   okta_list_users: 'after',
   okta_list_groups: 'groupsAfter',
   okta_list_group_members: 'groupMembersAfter',
+  okta_list_user_groups: 'userGroupsAfter',
   okta_get_logs: 'logsAfter',
   okta_list_apps: 'appsAfter',
   okta_list_app_users: 'appUsersAfter',
@@ -45,6 +47,8 @@ function blankToUndefined(value: unknown): unknown {
 
 export const OktaBlock: BlockConfig = {
   type: 'okta',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'okta_v2' },
   name: 'Okta',
   description: 'Manage users, groups, apps, and MFA in Okta',
   longDescription:
@@ -80,6 +84,11 @@ export const OktaBlock: BlockConfig = {
         okta_deactivate_user: [{ text: 'Deactivate user', field: 'userId', core: true }],
         okta_suspend_user: [{ text: 'Suspend user', field: 'userId', core: true }],
         okta_unsuspend_user: [{ text: 'Unsuspend user', field: 'userId', core: true }],
+        okta_unlock_user: [{ text: 'Unlock user', field: 'userId', core: true }],
+        okta_list_user_groups: [
+          { text: 'List the groups of user', field: 'userId', core: true },
+          { text: ', up to', field: 'limit' },
+        ],
         okta_reset_password: [{ text: 'Reset the password of user', field: 'userId', core: true }],
         okta_delete_user: [{ text: 'Permanently delete user', field: 'userId', core: true }],
         okta_list_groups: [
@@ -211,6 +220,7 @@ export const OktaBlock: BlockConfig = {
         { label: 'Deactivate User', id: 'okta_deactivate_user' },
         { label: 'Suspend User', id: 'okta_suspend_user' },
         { label: 'Unsuspend User', id: 'okta_unsuspend_user' },
+        { label: 'Unlock User', id: 'okta_unlock_user' },
         { label: 'Reset Password', id: 'okta_reset_password' },
         { label: 'Delete User', id: 'okta_delete_user' },
         { label: 'List Groups', id: 'okta_list_groups' },
@@ -221,6 +231,7 @@ export const OktaBlock: BlockConfig = {
         { label: 'Add User to Group', id: 'okta_add_user_to_group' },
         { label: 'Remove User from Group', id: 'okta_remove_user_from_group' },
         { label: 'List Group Members', id: 'okta_list_group_members' },
+        { label: 'List User Groups', id: 'okta_list_user_groups' },
         { label: 'List Group Rules', id: 'okta_list_group_rules' },
         { label: 'Get Group Rule', id: 'okta_get_group_rule' },
         { label: 'Create Group Rule', id: 'okta_create_group_rule' },
@@ -327,7 +338,7 @@ export const OktaBlock: BlockConfig = {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      placeholder: 'User ID or login (email)',
+      placeholder: 'Okta user ID (some operations also accept a login)',
       condition: {
         field: 'operation',
         value: [
@@ -337,6 +348,8 @@ export const OktaBlock: BlockConfig = {
           'okta_deactivate_user',
           'okta_suspend_user',
           'okta_unsuspend_user',
+          'okta_unlock_user',
+          'okta_list_user_groups',
           'okta_reset_password',
           'okta_delete_user',
           'okta_add_user_to_group',
@@ -363,6 +376,8 @@ export const OktaBlock: BlockConfig = {
           'okta_deactivate_user',
           'okta_suspend_user',
           'okta_unsuspend_user',
+          'okta_unlock_user',
+          'okta_list_user_groups',
           'okta_reset_password',
           'okta_delete_user',
           'okta_add_user_to_group',
@@ -636,6 +651,7 @@ export const OktaBlock: BlockConfig = {
       title: 'Factor Type',
       type: 'dropdown',
       options: [
+        { label: 'Select a factor type', id: '' },
         { label: 'SMS', id: 'sms' },
         { label: 'Voice Call', id: 'call' },
         { label: 'Email', id: 'email' },
@@ -653,6 +669,7 @@ export const OktaBlock: BlockConfig = {
       title: 'Factor Provider',
       type: 'dropdown',
       options: [
+        { label: 'Select a provider', id: '' },
         { label: 'Okta', id: 'OKTA' },
         { label: 'Google', id: 'GOOGLE' },
         { label: 'FIDO', id: 'FIDO' },
@@ -802,6 +819,7 @@ export const OktaBlock: BlockConfig = {
       title: 'Role Type',
       type: 'dropdown',
       options: [
+        { label: 'Select a role', id: '' },
         { label: 'Super Admin', id: 'SUPER_ADMIN' },
         { label: 'Org Admin', id: 'ORG_ADMIN' },
         { label: 'App Admin', id: 'APP_ADMIN' },
@@ -900,6 +918,7 @@ export const OktaBlock: BlockConfig = {
       title: 'Sort Order',
       type: 'dropdown',
       options: [
+        { label: 'Default (ascending)', id: '' },
         { label: 'Ascending', id: 'ASCENDING' },
         { label: 'Descending', id: 'DESCENDING' },
       ],
@@ -918,6 +937,7 @@ export const OktaBlock: BlockConfig = {
           'okta_list_users',
           'okta_list_groups',
           'okta_list_group_members',
+          'okta_list_user_groups',
           'okta_get_logs',
           'okta_list_apps',
           'okta_list_app_users',
@@ -958,6 +978,14 @@ export const OktaBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'nextCursor from a previous run',
       condition: { field: 'operation', value: 'okta_list_group_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'userGroupsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_user_groups' },
       mode: 'advanced',
     },
     {
@@ -1012,6 +1040,7 @@ export const OktaBlock: BlockConfig = {
       'okta_deactivate_user',
       'okta_suspend_user',
       'okta_unsuspend_user',
+      'okta_unlock_user',
       'okta_reset_password',
       'okta_delete_user',
       'okta_list_groups',
@@ -1022,6 +1051,7 @@ export const OktaBlock: BlockConfig = {
       'okta_add_user_to_group',
       'okta_remove_user_from_group',
       'okta_list_group_members',
+      'okta_list_user_groups',
       'okta_list_group_rules',
       'okta_get_group_rule',
       'okta_create_group_rule',
@@ -1063,8 +1093,8 @@ export const OktaBlock: BlockConfig = {
        * (`update_user` is a POST merge) would overwrite the stored Okta value
        * with an empty string rather than leaving it untouched.
        */
-      params: (params) => {
-        const operation = String(params.operation)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const cursorField = CURSOR_FIELD_BY_OPERATION[operation]
 
         const result: Record<string, unknown> = {
@@ -1077,8 +1107,9 @@ export const OktaBlock: BlockConfig = {
           description: blankToUndefined(params.groupDescription),
           /** Group rules get their own keyword field but the same wire param. */
           search:
-            params.operation === 'okta_list_group_rules'
-              ? blankToUndefined(params.ruleSearch)
+            operation === 'okta_list_group_rules'
+              ? (blankToUndefined(params.ruleSearch) ??
+                toolCallArg(context, blankToUndefined(params.search)))
               : blankToUndefined(params.search),
           /**
            * Keyed off the operation rather than `??`: both switches are advanced,
@@ -1088,14 +1119,19 @@ export const OktaBlock: BlockConfig = {
            */
           sendEmail: SEND_EMAIL_DEFAULT_ON.has(operation)
             ? blankToUndefined(params.sendEmail)
-            : blankToUndefined(params.sendDeactivationEmail),
+            : (blankToUndefined(params.sendDeactivationEmail) ??
+              toolCallArg(context, blankToUndefined(params.sendEmail))),
           /** Same stale-advanced-value hazard: pick the toggle for this operation. */
           activate:
             operation === 'okta_enroll_factor'
-              ? blankToUndefined(params.activateFactor)
+              ? (blankToUndefined(params.activateFactor) ??
+                toolCallArg(context, blankToUndefined(params.activate)))
               : blankToUndefined(params.activate),
           /** A cursor is only valid on the endpoint that minted it. */
-          after: cursorField ? blankToUndefined(params[cursorField]) : undefined,
+          after: cursorField
+            ? (blankToUndefined(params[cursorField]) ??
+              toolCallArg(context, blankToUndefined(params.after)))
+            : undefined,
         }
 
         const mappedKeys = new Set([
@@ -1158,6 +1194,7 @@ export const OktaBlock: BlockConfig = {
     after: { type: 'string', description: 'Cursor for the next page of users' },
     groupsAfter: { type: 'string', description: 'Cursor for the next page of groups' },
     groupMembersAfter: { type: 'string', description: 'Cursor for the next page of group members' },
+    userGroupsAfter: { type: 'string', description: 'Cursor for the next page of user groups' },
     logsAfter: { type: 'string', description: 'Cursor for the next page of System Log events' },
     appsAfter: { type: 'string', description: 'Cursor for the next page of applications' },
     appUsersAfter: {
@@ -1265,6 +1302,7 @@ export const OktaBlock: BlockConfig = {
     deactivated: { type: 'boolean', description: 'Whether user was deactivated' },
     suspended: { type: 'boolean', description: 'Whether user was suspended' },
     unsuspended: { type: 'boolean', description: 'Whether user was unsuspended' },
+    unlocked: { type: 'boolean', description: 'Whether user was unlocked' },
     activated: {
       type: 'string',
       description:
@@ -1490,3 +1528,17 @@ export const OktaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const OktaV2Block: BlockConfig = {
+  ...OktaBlock,
+  type: 'okta_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(OktaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'okta',
+    title: 'Okta Credential',
+  }),
+}

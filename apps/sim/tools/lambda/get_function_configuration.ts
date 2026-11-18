@@ -3,6 +3,7 @@ import type {
   LambdaGetFunctionConfigurationParams,
   LambdaGetFunctionConfigurationResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getFunctionConfigurationTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getFunctionConfigurationTool: InternalToolConfig<
   name: 'Lambda Get Function Configuration',
   description: "Get a function's version-specific configuration",
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

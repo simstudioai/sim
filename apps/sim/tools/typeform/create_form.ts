@@ -1,3 +1,4 @@
+import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformCreateFormParams, TypeformCreateFormResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
   name: 'Typeform Create Form',
   description: 'Create a new form with fields and settings',
   version: '1.0.0',
+  oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +26,8 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Form type (default: "form"). Options: "form", "quiz"',
+      description:
+        'Form type: "quiz", "classification", "score", "branching", "classification_branching", or "score_branching" (Typeform default: "quiz")',
     },
     workspaceId: {
       type: 'string',

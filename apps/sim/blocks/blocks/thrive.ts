@@ -1,5 +1,6 @@
 import { ThriveIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const PAGINATED_OPS = [
   'search_users',
@@ -71,6 +72,8 @@ const STATUS_FILTER_FIELD = ['userStatus', 'statuses'] as const
 
 export const ThriveBlock: BlockConfig = {
   type: 'thrive',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'thrive_v2' },
   name: 'Thrive',
   description: 'Manage users, audiences, learning and CPD on Thrive',
   longDescription:
@@ -1185,3 +1188,16 @@ export const ThriveBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ThriveV2Block: BlockConfig = {
+  ...ThriveBlock,
+  type: 'thrive_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    ThriveBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'thrive', title: 'Thrive Credential' },
+    { required: true }
+  ),
+}

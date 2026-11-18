@@ -4,6 +4,7 @@ import {
   type Parameter,
   type Tag,
 } from '@aws-sdk/client-cloudformation'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 export interface CloudFormationConnectionConfig {
   region: string
@@ -15,11 +16,7 @@ export function createCloudFormationClient(
   config: CloudFormationConnectionConfig
 ): CloudFormationClient {
   return new CloudFormationClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

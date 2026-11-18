@@ -1,5 +1,6 @@
 import type { CbInsightsListResponse, CbInsightsOrgListParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsListInvestmentsParams extends CbInsightsOrgListParams {
@@ -16,6 +17,7 @@ export const cbinsightsListInvestmentsTool: InternalToolConfig<
   description:
     'Retrieve the rounds up to 100 organizations participated in as investors, with AI-generated insights extracting the key themes of each deal.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

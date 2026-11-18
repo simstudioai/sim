@@ -7,6 +7,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaApproveInquiryTool: ToolConfig<
@@ -18,6 +19,7 @@ export const personaApproveInquiryTool: ToolConfig<
   description:
     'Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

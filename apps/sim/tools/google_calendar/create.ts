@@ -4,16 +4,23 @@ import {
   type GoogleCalendarApiEventResponse,
   type GoogleCalendarCreateParams,
   type GoogleCalendarCreateResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarEventRequestBody,
 } from '@/tools/google_calendar/types'
 import {
+  applyEventOptions,
   assertRecurringTimeZone,
   buildEventDateTime,
+  buildEventDetails,
   buildGoogleMeetConferenceData,
+  EVENT_DETAIL_OUTPUTS,
+  EVENT_OPTION_PARAMS,
   normalizeAttendees,
+  normalizeOptionalAttendees,
   normalizeRecurrence,
 } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCreateResponse> = {
   id: 'google_calendar_create',
@@ -84,6 +91,13 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       visibility: 'user-or-llm',
       description: 'Array of attendee email addresses',
     },
+    optionalAttendees: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Array of attendee email addresses to invite as optional guests (comma-separated string also accepted)',
+    },
     recurrence: {
       type: 'string',
       required: false,
@@ -103,6 +117,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       visibility: 'user-only',
       description: 'How to send updates to attendees: all, externalOnly, or none',
     },
+    ...EVENT_OPTION_PARAMS,
   },
 
   request: {
@@ -118,7 +133,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       }
 
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events${queryString ? `?${queryString}` : ''}`
     },
     method: 'POST',
     headers: (params: GoogleCalendarCreateParams) => ({
@@ -148,8 +163,12 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       }
 
       const attendees = normalizeAttendees(params.attendees)
-      if (attendees.length > 0) {
-        eventData.attendees = attendees
+      const requiredEmails = new Set(attendees.map(({ email }) => email.toLowerCase()))
+      const optionalAttendees = normalizeOptionalAttendees(params.optionalAttendees).filter(
+        ({ email }) => !requiredEmails.has(email.toLowerCase())
+      )
+      if (attendees.length > 0 || optionalAttendees.length > 0) {
+        eventData.attendees = [...attendees, ...optionalAttendees]
       }
 
       if (isRecurring) {
@@ -159,6 +178,8 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       if (params.addGoogleMeet) {
         eventData.conferenceData = buildGoogleMeetConferenceData()
       }
+
+      applyEventOptions(eventData, params)
 
       return eventData
     },
@@ -172,6 +193,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       output: {
         content: `Event "${data.summary}" created successfully`,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           hangoutLink: data.hangoutLink,
@@ -201,7 +223,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
 
 interface GoogleCalendarCreateV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     hangoutLink: string | null
@@ -233,6 +255,7 @@ export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendar
       return {
         success: true,
         output: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           hangoutLink: data.hangoutLink ?? null,
@@ -250,6 +273,7 @@ export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendar
       }
     },
     outputs: {
+      ...EVENT_DETAIL_OUTPUTS,
       id: { type: 'string', description: 'Event ID' },
       htmlLink: { type: 'string', description: 'Event link' },
       hangoutLink: { type: 'string', description: 'Google Meet link', optional: true },

@@ -20,6 +20,7 @@ import { isNonEmpty } from '@/tools/merge-params'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { buildSubBlockForToolParam } from '@/tools/param-shape'
 import { safeAssign } from '@/tools/safe-assign'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 import type {
   ExecutableToolConfig,
   OAuthConfig,
@@ -277,6 +278,12 @@ export function createUserToolSchema(
     properties: {},
     required: [],
   }
+  // A hybrid tool takes either its inline values or a saved credential that
+  // supplies them, so Copilot may send credentialId in place of those values.
+  const savedCredentialParams =
+    surface === 'copilot' && toolConfig.oauth?.required === false
+      ? (toolConfig.oauth.credentialSuppliedParams ?? [])
+      : undefined
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     if (!param) continue
@@ -306,8 +313,22 @@ export function createUserToolSchema(
     }
     schema.properties[paramId] = propertySchema
 
-    if (param.required && paramId !== hostedApiKeyParam) {
+    if (
+      param.required &&
+      paramId !== hostedApiKeyParam &&
+      !savedCredentialParams?.includes(paramId)
+    ) {
       schema.required.push(paramId)
+    }
+  }
+
+  const credentialReplaces = savedCredentialParams?.filter(
+    (paramId) => paramId in schema.properties
+  )
+  if (credentialReplaces?.length) {
+    schema.properties.credentialId = {
+      type: 'string',
+      description: `Optional ID of a saved credential to use for this call, from environment/credentials.json. It supplies ${credentialReplaces.join(', ')}; without it, pass those yourself.`,
     }
   }
 
@@ -322,6 +343,22 @@ export function createUserToolSchema(
 
   return schema
 }
+
+/**
+ * Undeclared params a model must not inject into a hybrid tool: the saved
+ * credential selectors (which would swap the author's inline keys for another
+ * workspace credential) and the values the executor resolves from one. A tool's
+ * own `authoritativeParams` join these, and so do the params a selected saved
+ * credential supplies (`credentialSuppliedParams`).
+ */
+const HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS = [
+  'credential',
+  'credentialId',
+  'oauthCredential',
+  'manualCredential',
+  'accessToken',
+  'sessionToken',
+]
 
 export async function createLLMToolSchema(
   toolConfig: ExecutableToolConfig,
@@ -341,6 +378,25 @@ export async function createLLMToolSchema(
   const modelBlockedParams = Object.entries(toolConfig.params)
     .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
     .map(([paramId]) => paramId)
+  // A hybrid tool (inline secrets or an optional saved credential) never takes its
+  // credential selection, or the values the executor derives from it, from a model.
+  // With a saved credential selected, the executor fills its supplied params, so
+  // the model is neither asked for them nor allowed to send them.
+  const credentialSupplied = new Set<string>(
+    toolConfig.oauth?.required === false &&
+      ['credential', 'oauthCredential', 'credentialId'].some((key) =>
+        isNonEmpty(userProvidedParams[key])
+      )
+      ? (toolConfig.oauth.credentialSuppliedParams ?? [])
+      : []
+  )
+  if (toolConfig.oauth?.required === false) {
+    modelBlockedParams.push(
+      ...HYBRID_CREDENTIAL_MODEL_BLOCKED_PARAMS,
+      ...(toolConfig.oauth.authoritativeParams ?? []),
+      ...credentialSupplied
+    )
+  }
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
@@ -369,7 +425,7 @@ export async function createLLMToolSchema(
     }
 
     if (!isWorkflowInputMapping) {
-      if (isNonEmpty(userProvidedParams[paramId])) {
+      if (isNonEmpty(userProvidedParams[paramId]) || credentialSupplied.has(paramId)) {
         continue
       }
 
@@ -882,9 +938,10 @@ export function getSubBlocksForToolInput(
     }
 
     const claimedParamIds = buildClaimedParamIds(allSubBlocks, canonicalIndex)
+    const credentialSupplied = credentialSuppliedParamsFor(toolConfig.oauth, allSubBlocks)
 
     for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
-      if (claimedParamIds.has(paramId)) continue
+      if (claimedParamIds.has(paramId) || credentialSupplied.has(paramId)) continue
 
       const visibility = toolParamVisibility[paramId]
       if (visibility === 'hidden' || visibility === 'llm-only') continue

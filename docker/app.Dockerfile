@@ -252,12 +252,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bu
 # - apps/sim/.next/cache: the Next image optimizer's disk cache
 #   (.next/cache/images) and the data cache for `fetch` calls with
 #   `next.revalidate`.
+# - apps/sim/.next/server/route-cache: where Next writes every revalidated
+#   (ISR) page and route handler response.
 # Keep the VOLUME line after every step that writes to these paths: the
 # classic builder discards later build-time changes to a declared volume.
-RUN mkdir -p apps/sim/.next/cache && \
-    chown -R nextjs:nodejs apps/sim/.next/cache && \
+RUN mkdir -p apps/sim/.next/cache apps/sim/.next/server/route-cache && \
+    chown -R nextjs:nodejs apps/sim/.next/cache apps/sim/.next/server/route-cache && \
     chmod 1777 /tmp
-VOLUME ["/tmp", "/app/apps/sim/.next/cache"]
+VOLUME ["/tmp", "/app/apps/sim/.next/cache", "/app/apps/sim/.next/server/route-cache"]
 
 # Switch to non-root user
 USER nextjs

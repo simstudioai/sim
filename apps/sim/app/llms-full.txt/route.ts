@@ -22,6 +22,7 @@ import {
   linkLine,
   markdownResponse,
   navMenuLines,
+  SECURITY_LINES,
   SOLUTION_LINES,
   section,
   toLlmsMarkdown,
@@ -160,7 +161,7 @@ export async function GET() {
       LLMS_HEADER,
       `This file holds the full text of Sim’s public library, customer stories, and comparison facts. The link index is [llms.txt](${toSiteUrl('/llms.txt')}); the product documentation is at [${DOCS_URL}/llms-full.txt](${DOCS_URL}/llms-full.txt).`,
       section('Overview', [
-        'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the API and SDKs. Sim is open source under the Apache 2.0 license and runs as a managed cloud service or self-hosted with Docker or Kubernetes.',
+        'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the REST API and the Sim CLI. Sim is open source under the Apache 2.0 license and runs as a managed cloud service or self-hosted with Docker or Kubernetes.',
         '',
         ...CONCEPTS.map(([term, definition]) => `- **${term}**: ${definition}`),
       ]),
@@ -172,6 +173,7 @@ export async function GET() {
         `- ${max.name}: $${max.dollars} per user per month, ${max.credits.toLocaleString('en-US')} credits.`,
         '- Enterprise: custom limits, infrastructure, and governance for large organizations.',
       ]),
+      section('Security and governance', SECURITY_LINES),
       section('Solutions', SOLUTION_LINES),
       section(
         'Customer stories',

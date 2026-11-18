@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   MONITOR_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const uptimeRobotPauseMonitorTool: ToolConfig<
   name: 'UptimeRobot Pause Monitor',
   description: 'Pause an UptimeRobot monitor so it stops running checks',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

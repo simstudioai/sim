@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapProgram,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetProgramTool: ToolConfig<CheckrProgramIdParams, CheckrProgramResponse> = {
@@ -18,6 +19,7 @@ export const checkrGetProgramTool: ToolConfig<CheckrProgramIdParams, CheckrProgr
   name: 'Checkr Get Program',
   description: 'Retrieve a program by ID, including its package and geo IDs.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

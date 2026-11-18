@@ -9,6 +9,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addLabelResourcesTool: ToolConfig<
@@ -19,6 +20,7 @@ export const addLabelResourcesTool: ToolConfig<
   name: 'Jotform Add Label Resources',
   description: 'Assign forms, workflows, sheets, or apps to a Jotform label.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

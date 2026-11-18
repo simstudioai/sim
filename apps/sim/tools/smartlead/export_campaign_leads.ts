@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadExportLeadsResponse,
@@ -54,6 +55,7 @@ export const exportCampaignLeadsTool: ToolConfig<
   description:
     'Exports every lead in a Smartlead campaign as CSV, including engagement counts and the sequence step last sent to each lead.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

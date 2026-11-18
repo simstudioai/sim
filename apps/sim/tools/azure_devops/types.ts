@@ -31,6 +31,7 @@ export interface ListPipelinesResponse extends ToolResponse {
     metadata: {
       count: number
       pipelines: AzureDevOpsPipeline[]
+      continuationToken?: string | null
     }
   }
 }
@@ -129,6 +130,12 @@ export interface ListBuildsParams extends AzureDevOpsBaseParams {
   statusFilter?: string
   resultFilter?: string
   branchName?: string
+  reasonFilter?: string
+  requestedFor?: string
+  minTime?: string
+  maxTime?: string
+  queryOrder?: string
+  continuationToken?: string
 }
 
 interface AzureDevOpsBuild {
@@ -146,6 +153,9 @@ interface AzureDevOpsBuild {
     name: string
   }
   webUrl: string
+  reason?: string | null
+  requestedFor?: string | null
+  tags?: string[]
 }
 
 export interface ListBuildsResponse extends ToolResponse {
@@ -154,6 +164,7 @@ export interface ListBuildsResponse extends ToolResponse {
     metadata: {
       count: number
       builds: AzureDevOpsBuild[]
+      continuationToken?: string | null
     }
   }
 }
@@ -217,6 +228,9 @@ export interface AzureDevOpsBuildTimelineRecord {
   warningCount: number
   startTime: string
   finishTime: string
+  parentId?: string | null
+  state?: string | null
+  issues: Array<{ type: string; category: string | null; message: string }>
 }
 
 export interface GetBuildTimelineResponse extends ToolResponse {
@@ -257,6 +271,13 @@ export interface GetWorkItemsBetweenBuildsResponse extends ToolResponse {
 
 export interface QueryWorkItemsParams extends AzureDevOpsBaseParams {
   wiqlQuery: string
+  top?: number
+}
+
+export interface AzureDevOpsWorkItemLink {
+  rel: string | null
+  sourceId: number | null
+  targetId: number | null
 }
 
 export interface AzureDevOpsWorkItem {
@@ -267,6 +288,26 @@ export interface AzureDevOpsWorkItem {
   assignedTo: string | null
   areaPath: string
   url: string
+  rev?: number | null
+  description?: string | null
+  iterationPath?: string | null
+  reason?: string | null
+  tags?: string | null
+  priority?: number | null
+  assignedToUniqueName?: string | null
+  createdBy?: string | null
+  createdDate?: string | null
+  changedBy?: string | null
+  changedDate?: string | null
+  webUrl?: string | null
+  relations?: AzureDevOpsWorkItemRelation[] | null
+  fields?: Record<string, unknown>
+}
+
+interface AzureDevOpsWorkItemRelation {
+  rel: string
+  url: string
+  attributes: Record<string, unknown>
 }
 
 export interface QueryWorkItemsResponse extends ToolResponse {
@@ -276,6 +317,7 @@ export interface QueryWorkItemsResponse extends ToolResponse {
       count: number
       totalMatched?: number
       workItems: AzureDevOpsWorkItem[]
+      workItemRelations?: AzureDevOpsWorkItemLink[]
     }
   }
 }
@@ -369,6 +411,7 @@ export interface UpdateWorkItemParams extends AzureDevOpsBaseParams {
   /** Microsoft.VSTS.Scheduling.CompletedWork — Task only in the Basic process. */
   completedWork?: number
   areaPath?: string
+  iterationPath?: string
   state?: string
   tags?: string
 }
@@ -387,6 +430,7 @@ export interface UpdateWorkItemResponse extends ToolResponse {
 export interface AddCommentParams extends AzureDevOpsBaseParams {
   workItemId: number
   text: string
+  format?: string
 }
 
 export interface AzureDevOpsComment {

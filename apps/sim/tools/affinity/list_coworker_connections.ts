@@ -10,6 +10,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListCoworkerConnectionsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const affinityListCoworkerConnectionsTool: ToolConfig<
   description:
     'Find warm paths into a company through shared work history: who in your Affinity data once worked alongside the people you want to reach. Grouped by target, strongest first.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

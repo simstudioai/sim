@@ -1,4 +1,5 @@
 import type { GrainListTeamsParams, GrainListTeamsResponse } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainListTeamsTool: ToolConfig<GrainListTeamsParams, GrainListTeamsResponse> = {
@@ -6,6 +7,7 @@ export const grainListTeamsTool: ToolConfig<GrainListTeamsParams, GrainListTeams
   name: 'Grain List Teams',
   description: 'List all teams in the workspace',
   version: '1.0.0',
+  oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

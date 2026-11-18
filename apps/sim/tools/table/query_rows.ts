@@ -1,5 +1,5 @@
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
-import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { TABLE_COLUMNS_PARAM, TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -31,6 +31,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
       description: 'Sort order as {field: "asc"|"desc"}',
       visibility: 'user-or-llm',
     },
+    columns: TABLE_COLUMNS_PARAM,
     limit: {
       type: 'number',
       required: false,
@@ -59,6 +60,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
         workspaceId,
         ...(params.filter ? { filter: JSON.stringify(params.filter) } : {}),
         ...(params.sort ? { sort: JSON.stringify(params.sort) } : {}),
+        ...(params.columns?.length ? { columns: JSON.stringify(params.columns) } : {}),
         ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
         ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
       }

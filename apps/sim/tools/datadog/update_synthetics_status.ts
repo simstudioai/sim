@@ -8,6 +8,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateSyntheticsStatusTool: ToolConfig<
@@ -18,6 +19,7 @@ export const updateSyntheticsStatusTool: ToolConfig<
   name: 'Datadog Pause Or Start Synthetic Test',
   description: 'Pause or resume a Synthetic test by setting its status to "paused" or "live".',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     publicId: {

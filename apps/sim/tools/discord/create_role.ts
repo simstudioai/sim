@@ -1,5 +1,7 @@
 import type { DiscordCreateRoleParams, DiscordCreateRoleResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordCreateRoleResponse> =
   {
@@ -7,6 +9,7 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
     name: 'Discord Create Role',
     description: 'Create a new role in a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {
@@ -49,7 +52,7 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
 
     request: {
       url: (params: DiscordCreateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles`
       },
       method: 'POST',
       headers: (params) => ({
@@ -57,12 +60,12 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
         Authorization: `Bot ${params.botToken.trim()}`,
       }),
       body: (params: DiscordCreateRoleParams) => {
-        const body: any = {
+        const body: Record<string, unknown> = {
           name: params.name,
         }
         if (params.color !== undefined) body.color = Number(params.color)
-        if (params.hoist !== undefined) body.hoist = params.hoist
-        if (params.mentionable !== undefined) body.mentionable = params.mentionable
+        if (typeof params.hoist === 'boolean') body.hoist = params.hoist
+        if (typeof params.mentionable === 'boolean') body.mentionable = params.mentionable
         return body
       },
     },

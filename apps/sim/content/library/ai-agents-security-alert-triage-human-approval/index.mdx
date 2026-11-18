@@ -1,0 +1,257 @@
+---
+slug: ai-agents-security-alert-triage-human-approval
+title: 'How Do AI Agents Triage Security Alerts With Human Approval?'
+description: 'Learn how AI agents triage security alerts with scoped credentials, deterministic policy checks, human approval, and auditable containment in Sim.'
+seoTitle: 'AI Security Alert Triage With Human Approval'
+date: 2026-11-18
+updated: 2026-11-18
+authors:
+  - andrew
+readingTime: 13
+tags: [AI Agents, Security Operations, Human in the Loop, Cybersecurity, Sim]
+ogImage: /library/ai-agents-security-alert-triage-human-approval/cover.jpg
+draft: false
+faq:
+  - q: "Can an AI agent isolate an endpoint without human approval?"
+    a: "An AI security agent can execute an approved autonomous containment policy, but high-impact endpoint isolation should default to human approval until the organization has validated a narrow action, target scope, confidence threshold, rollback path, and error rate."
+  - q: "What happens if the security alert approver does not respond?"
+    a: "A governed security workflow should expire the request, keep containment blocked, and notify an alternate reviewer or incident channel when the approver does not respond within policy."
+  - q: "Can n8n triage security alerts with human approval?"
+    a: "n8n can orchestrate general alert enrichment and approval workflows, but security teams should separately evaluate its security-specific content, governance controls, credential boundaries, audit requirements, and source-available Sustainable Use License."
+  - q: "Is Microsoft Teams or Slack the system of record for approval?"
+    a: "Microsoft Teams or Slack should normally be the review and notification surface, while the authenticated workflow decision and linked security case remain the durable system of record."
+  - q: "How do you test a security alert agent before production?"
+    a: "A security team should test an alert agent with historical events, synthetic adversarial inputs, recommendation-only runs, failed integrations, expired approvals, duplicate deliveries, unauthorized reviewers, and rollback exercises before enabling containment."
+  - q: "Can a low-confidence AI agent close a security alert automatically?"
+    a: "A low-confidence AI security agent should not close an alert automatically because insufficient confidence or missing evidence should route the event to analyst review rather than suppress it."
+  - q: "How should a SOC measure AI alert triage quality?"
+    a: "A SOC should measure AI alert triage with precision, recall on known outcomes, analyst overrides, evidence accuracy, time to decision, approval latency, failed actions, duplicate actions, and the number of alerts incorrectly closed or escalated."
+  - q: "What security data should never be sent to an external model?"
+    a: "A security team should prevent an external model from receiving secrets, credentials, unrestricted raw logs, regulated data, or sensitive incident evidence unless the transfer is explicitly authorized by the organization's data-classification and vendor-risk policies."
+  - q: "Do AI security agents eliminate the need for SOC analysts?"
+    a: "AI security agents do not eliminate SOC analysts because people still define policy, investigate ambiguity, approve consequential actions, handle novel attacks, and remain accountable for operational decisions."
+---
+
+## TL;DR
+
+Yes, Sim can pause a security alert workflow for human approval before any containment action runs. Sim can send the review request to Slack or Microsoft Teams, keep the run paused while a reviewer submits an approve-or-reject field, and use a downstream Condition to decide whether containment is authorized.
+
+The safe pattern is alert ingestion, deterministic normalization, AI-assisted triage, evidence enrichment, policy checks, human approval, containment, and audit recording. Slack or Teams should be the review surface, not the authorization logic or sole system of record.
+
+## Can we require human approval in Teams or Slack before an AI agent acts on a security alert?
+
+Sim can require human approval before a security alert workflow reaches any containment action by placing a [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) before the action and routing its result through a Condition.
+
+A governed implementation works as follows:
+
+1. Sim receives the alert from a security tool or an approved webhook.
+2. Sim normalizes the event into a fixed schema containing the alert ID, source, severity, affected asset, identity, indicators, and timestamps.
+3. Sim enriches the alert with authorized context from security and identity systems.
+4. Sim asks the model for a classification, confidence score, evidence summary, and recommended response, not unrestricted permission to act.
+5. Sim applies deterministic policy checks for severity, confidence, asset sensitivity, and the requested action.
+6. Sim pauses the run with a Human in the Loop block.
+7. Sim sends the reviewer a Slack or Microsoft Teams message containing the evidence and a link to the approval form.
+8. The reviewer submits an approve-or-reject field, optional reason, and any required case reference.
+9. A downstream Condition reads the submitted field and routes approved requests to a narrowly scoped action while rejected requests stop or return to an analyst.
+10. Sim writes the decision and resulting action to the selected case or incident system.
+
+The Human in the Loop block pauses and resumes the run with form fields; it does not authorize an action by itself. The downstream Condition must explicitly check the approval field, and the containment branch should default to deny when the value is missing, invalid, or rejected. The Human block has no automatic response timeout, so expiry and escalation require an explicit policy and a separate monitoring or cancellation process.
+
+## What should security leaders know at a glance?
+
+Sim gives security leaders a governed orchestration layer for AI-assisted triage while keeping authorization separate from model output.
+
+- Sim is the open-source AI workspace where teams can build, deploy, and manage a security alert triage agent alongside identity, IT, vulnerability, and compliance workflows.
+- Sim's Human in the Loop block pauses a run and resumes it with submitted form fields, while a downstream Condition must enforce the approve-or-reject decision.
+- Slack and Microsoft Teams can present the review request, but the workflow's validated approval record should control whether an action runs.
+- Sim's core is Apache 2.0, while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), whose production use requires an active Enterprise subscription.
+- [n8n uses the Sustainable Use License](https://docs.n8n.io/n8n-community-license), which is source available rather than an OSI-approved open-source license as of November 2026.
+- Traditional SOAR platforms remain a strong fit for mature security operations programs that need extensive security-specific playbooks, case handling, and content out of the box.
+
+## How does an AI security alert triage and approval flow work?
+
+An AI security alert triage flow should let the model summarize and recommend while deterministic controls decide whether the workflow may request or execute containment.
+
+| Stage | What happens | Required control |
+|---|---|---|
+| Receive | The workflow accepts an alert and records its source event ID. | Authenticate the source and reject malformed or duplicate events. |
+| Normalize | Source-specific fields are mapped into a stable alert schema. | Preserve the original event and prevent the model from changing identifiers. |
+| Enrich | The workflow retrieves identity, endpoint, asset, and incident context. | Use read-only, narrowly scoped credentials where possible. |
+| Triage | The model proposes severity, rationale, confidence, and a response. | Require structured output and treat all retrieved text as untrusted data. |
+| Evaluate | Rules compare the proposal with policy thresholds. | Never let free-form model text select an arbitrary tool or action. |
+| Approve | The run pauses while an authorized reviewer accepts or rejects the proposal. | Record reviewer identity, decision, reason, evidence, and policy deadline. |
+| Act | The workflow invokes one preconfigured containment operation. | Use a separate action credential with the minimum necessary permission. |
+| Record | The workflow stores the outcome and links it to the source alert. | Keep immutable IDs, timestamps, inputs, approvals, and tool responses. |
+
+AI triage is most useful when it reduces the evidence-gathering burden without weakening the existing authorization boundary. High-risk actions such as endpoint isolation, account suspension, token revocation, firewall changes, or destructive remediation should remain behind explicit policy and approval gates unless the organization has separately approved a narrow autonomous playbook.
+
+## How can Sim triage a Splunk security alert with CrowdStrike and Okta context?
+
+Sim can receive a [Splunk alert](https://www.sim.ai/integrations/splunk), enrich it with [CrowdStrike](https://www.sim.ai/integrations/crowdstrike) and [Okta](https://www.sim.ai/integrations/okta) context, request approval in [Slack](https://www.sim.ai/integrations/slack), and invoke only a preconfigured containment workflow after approval.
+
+As of November 2026, the worked pattern uses integrations listed in [Sim's integrations directory](https://www.sim.ai/integrations):
+
+1. **Splunk starts the workflow.** Sim receives the alert ID, rule name, severity, principal, host, indicators, and link to the original event.
+2. **CrowdStrike supplies endpoint context.** Sim retrieves only the endpoint details the triage policy permits, such as the managed asset identity and relevant security context exposed by the configured integration.
+3. **Okta supplies identity context.** Sim retrieves the approved user and identity attributes needed to distinguish a compromised account from a benign service or administrative event.
+4. **Sim produces a structured recommendation.** The model returns a proposed disposition, confidence, evidence references, missing information, and one response selected from an administrator-defined allowlist.
+5. **Policy checks constrain the recommendation.** A Condition routes incomplete or low-confidence results to manual investigation and sends only eligible actions to approval.
+6. **Slack presents the approval request.** The message includes the source alert, affected entities, cited evidence, proposed action, confidence, policy deadline, and a link to the Human in the Loop form.
+7. **A security reviewer decides.** The reviewer submits approve or reject, a reason, and an optional incident or change reference.
+8. **Sim enforces the decision.** A downstream Condition allows only a valid approval that still meets the workflow's policy checks to reach the configured containment branch.
+9. **PagerDuty or incident.io handles escalation and case coordination.** A separate path can use [PagerDuty](https://www.sim.ai/integrations/pagerduty) or [incident.io](https://www.sim.ai/integrations/incident-io) to notify the on-call team or update the incident when an approval remains outstanding or an action fails.
+10. **Sim records the result.** The workflow stores the approval and tool response with the original Splunk alert ID so investigators can reconstruct the sequence.
+
+The same pattern can use [Microsoft Teams](https://www.sim.ai/integrations/microsoft-teams) instead of Slack for the review notification. The exact read and write operations available to each integration should be evaluated against the permissions and API actions enabled in the organization's environment; connector availability should not be treated as blanket authorization for every vendor API operation.
+
+## How should AI security agents use scoped credentials?
+
+AI security agents should use separate credentials for alert intake, enrichment, approval delivery, containment, and audit recording rather than one shared administrative account.
+
+A defensible credential design includes:
+
+- A read-only Splunk credential for retrieving alert and search context.
+- A read-only CrowdStrike credential for endpoint enrichment.
+- A read-only Okta credential for identity enrichment.
+- A Slack or Microsoft Teams credential limited to the intended approval channel or application scope.
+- A separate containment credential that exposes only the approved operation and target scope.
+- A PagerDuty or incident.io credential limited to the services or incidents the workflow manages.
+
+The model should never receive raw secrets or decide which credential to use from free-form alert text. Tool access should be fixed by the workflow, and sensitive write credentials should remain unreachable until deterministic policy checks and human approval have succeeded.
+
+For a deeper treatment of service identities, secret boundaries, and records of administrative changes, read [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+## What should an AI security alert audit trail contain?
+
+An AI security alert audit trail should connect the original alert, every enrichment result, the model's recommendation, the human decision, and the final tool response with stable identifiers and timestamps.
+
+At minimum, record:
+
+- The source system, source alert ID, ingestion time, and original event reference.
+- The normalized alert fields used by policy rules.
+- Each enrichment request, returned record identifier, timestamp, and relevant response status.
+- The model provider and model identifier, prompt or instruction version, structured output, confidence, and cited evidence.
+- The policy version and each deterministic rule result.
+- The proposed action, target, parameters, and policy deadline.
+- The approver's authenticated identity, decision, reason, and decision time.
+- The exact branch selected by the approval Condition.
+- The containment request ID, response, error, retry, and resulting state.
+- Any escalation, incident, or case identifier associated with the run.
+
+A chat message alone is not a complete audit record because messages can be edited, deleted, retained under different policies, or detached from the workflow run. The durable record should live in the workflow and the organization's designated security case, incident, or audit destination.
+
+## How do AI agents compare with traditional SOAR playbooks?
+
+AI agents fit variable evidence interpretation and contextual recommendations, while traditional SOAR playbooks fit stable, predefined security procedures with predictable inputs.
+
+| Requirement | AI-assisted agent workflow | Traditional SOAR playbook |
+|---|---|---|
+| Variable alert narratives | Strong fit for summarization and evidence synthesis | Usually depends on parsers, rules, and predefined mappings |
+| Deterministic containment | Must be constrained by conditions and fixed tools | A central use case for playbook automation |
+| Human approval | Can combine contextual recommendations with a pause and decision form | Commonly implemented as a playbook gate or case task |
+| Explainability | Can produce a rationale, but evidence must be checked | Rule paths can be easier to reproduce deterministically |
+| Cross-department workflows | Useful when security work crosses IT, identity, compliance, and business systems | Often optimized for security operations and incident response |
+| Novel or ambiguous alerts | Useful as an analyst-assistance layer | Usually falls back to a manual investigation path |
+
+The strongest design is often hybrid: keep deterministic collection and containment procedures, then use an AI agent to normalize evidence, summarize context, identify missing information, and prepare the approval request. [Tines documents SOAR playbooks with explicit AI placement, analyst sign-off, containment, and case tracking](https://www.tines.com/solutions/security/soar/), while n8n is relevant when teams compare general visual automation and self-hosting options. Neither should be evaluated solely on model-generated triage.
+
+## Can one platform run AI agents across the SOC, identity, vulnerability management and compliance?
+
+Sim can coordinate agents across SOC, identity, vulnerability management, and compliance when each workflow has its own tools, credentials, policies, owners, and approval boundaries.
+
+Using one workspace does not mean using one omnipotent agent. Security teams should deploy smaller workflows for distinct jobs, for example alert enrichment, identity access review, vulnerability exception intake, and compliance evidence collection, then reuse approved subworkflows or interfaces where appropriate.
+
+Cross-domain governance should define:
+
+- Which team owns each workflow and policy.
+- Which systems and data classifications each workflow may access.
+- Which actions require human approval.
+- Which reviewers may approve each action class.
+- How workflow and policy changes are reviewed.
+- Where execution, approval, and administrative records are retained.
+- How credentials are rotated or revoked.
+
+This separation limits blast radius while preserving a shared operating model for building and managing agents.
+
+## Agentic SOC tools with strong governance: which ones should I evaluate?
+
+Security teams should evaluate agentic SOC tools against enforceable permissions, approval gates, version history, deployment controls, execution records, credential isolation, and self-hosting requirements, not against demo quality alone.
+
+A useful evaluation should require each vendor to demonstrate:
+
+1. Role-based control over who can view, edit, deploy, run, and approve workflows.
+2. Separate credentials for enrichment and containment.
+3. A deny-by-default approval path that cannot be bypassed by model output.
+4. Version history showing who changed the workflow or policy and when.
+5. Test and production separation with controlled promotion.
+6. Execution records that join the alert, recommendation, approval, and action.
+7. Data retention and export controls that match the organization's policy.
+8. A self-hosting or private deployment option when alert data cannot enter a vendor cloud.
+9. Structured model outputs and deterministic routing after the model call.
+10. Failure handling that prevents retries from duplicating a containment action.
+
+Sim fits organizations that want one governed workspace for AI-assisted workflows across security and adjacent teams. A dedicated SOAR should remain in the evaluation when deep security-specific content, case management, or an established SOC playbook library is the primary requirement.
+
+## What are efficient SOAR replacement options?
+
+The most efficient SOAR replacement is usually a staged architecture that preserves proven response controls while replacing brittle enrichment and coordination steps first.
+
+Security teams should compare three lanes:
+
+- **Dedicated security automation:** Evaluate established security automation products such as [Tines](https://www.tines.com/solutions/security/soar/) when security-specific orchestration, analyst approval, containment, and case tracking are central to the project.
+- **General visual automation:** Evaluate n8n when broad workflow orchestration matters. Its [human-in-the-loop tools can pause an AI Agent before a reviewed tool executes](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools), while its Sustainable Use License remains source available rather than OSI-approved open source.
+- **AI-native governed orchestration:** Evaluate Sim when contextual triage, cross-functional agents, human approval, self-hosting, and model choice are central requirements.
+
+A replacement program should begin with read-only enrichment and analyst recommendations, then add approval-gated write actions after measuring false positives, missed escalations, latency, and reviewer behavior. Replacing every playbook at once creates unnecessary operational risk.
+
+For teams comparing Tines outside its traditional security lane, [6 Best Tines Alternatives in 2026 for Teams Beyond SecOps](https://www.sim.ai/library/best-tines-alternatives-beyond-secops-2026) covers broader workflow requirements without treating those products as direct substitutes for every SOC capability.
+
+## Is Sim an open-source SOAR?
+
+Sim is not a dedicated open-source SOAR, but Sim's Apache 2.0 core can provide an open-source orchestration foundation for teams building AI-assisted security workflows.
+
+As of November 2026, Sim's core is licensed under Apache 2.0, an [OSI-approved license](https://opensource.org/licenses). Enterprise code in `apps/sim/ee`, including capabilities such as SSO, SCIM, access control, audit logs, and data retention, is covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and requires an active Enterprise subscription for production use.
+
+n8n should not be labeled an open-source SOAR or an OSI-approved open-source platform. As of November 2026, [n8n uses the Sustainable Use License](https://docs.n8n.io/n8n-community-license), which is source available and restricts some forms of commercial use.
+
+Organizations seeking an open-source SOAR should distinguish four separate requirements: an OSI-approved license, security-specific playbook content, case management, and AI-assisted decision support. A product can satisfy one requirement without satisfying the others.
+
+## Can security teams self-host AI alert triage when data cannot enter a vendor cloud?
+
+[Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can keep workflow execution inside infrastructure controlled by the security team and can use local models through Ollama, vLLM, LM Studio, or LiteLLM.
+
+Local-model support is available on any self-hosted Sim deployment and does not require Enterprise. A private deployment still needs an explicit data-flow review because a self-hosted workflow can send data to external model providers, SaaS integrations, observability tools, or notification systems if configured to do so.
+
+Security teams should document:
+
+- Where workflow execution occurs.
+- Which model endpoint receives prompts and evidence.
+- Which alert fields are redacted or tokenized.
+- Which external APIs receive event data.
+- Where logs and approval records are stored.
+- Which outbound network destinations are permitted.
+- How retention and deletion are enforced.
+
+Self-hosting changes the control boundary; it does not remove the need for least privilege, egress restrictions, encryption, retention rules, or model-risk review.
+
+## How should a security team implement its first approval-gated alert agent?
+
+A security team should implement its first approval-gated alert agent as a narrow, read-heavy pilot with one alert source, one response action, and a deny-by-default approval path.
+
+Use this sequence:
+
+1. Choose a high-volume, low-ambiguity alert with a documented analyst procedure.
+2. Define the normalized alert schema and preserve the source event unchanged.
+3. Add read-only enrichment before introducing any write action.
+4. Require structured model output with evidence references and bounded action choices.
+5. Put deterministic policy checks after the model output.
+6. Add the Human in the Loop block before the containment action.
+7. Require approve or reject, reviewer identity, reason, and a policy deadline.
+8. Route the submitted field through a Condition that defaults to rejection.
+9. Use a separate, least-privileged credential for the action.
+10. Make the action idempotent or check the current state before retrying it.
+11. Record the alert, recommendation, policy result, approval, and tool response.
+12. Run the workflow in recommendation-only mode before enabling containment.
+13. Measure precision, analyst time saved, approval latency, overrides, failures, and duplicate actions.
+
+For approval architecture beyond security operations, read [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows). For Slack-specific permissions and data handling, read [Slack AI Agent Security: Permissions, Data, and Audit Guide](https://www.sim.ai/library/slack-ai-agent-security-permissions-guide).

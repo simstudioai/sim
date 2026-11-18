@@ -50,8 +50,8 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.19.2",
-    "@xyflow/react": "12.12.0",
+    "@xyflow/react": "12.12.1",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

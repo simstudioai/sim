@@ -5,6 +5,7 @@ import {
   parseFunctionArgs,
   transformFunctionCallResponse,
 } from '@/tools/convex/utils'
+import { CONVEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const runFunctionTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCallResponse> = {
@@ -13,6 +14,7 @@ export const runFunctionTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctio
   description:
     'Run any Convex function (query, mutation, or action) by path without specifying its type',
   version: '1.0.0',
+  oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {
     deploymentUrl: {

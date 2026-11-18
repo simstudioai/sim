@@ -104,6 +104,43 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     text: { type: 'string', description: 'Message body (HTML or text)' },
     created_at: { type: 'string', description: 'Message timestamp' },
     attachments: { type: 'file[]', description: 'Uploaded attachments as files' },
+    change_type: {
+      type: 'string',
+      description: 'Graph change type that fired the notification: created or updated',
+    },
+    from_id: { type: 'string', description: 'Sender user or application (bot) ID' },
+    from_type: { type: 'string', description: 'Sender kind: user, application, or device' },
+    from_identity: {
+      type: 'json',
+      description:
+        'Sender identity set: user, application (bot), or device, each with id and displayName',
+    },
+    message_type: {
+      type: 'string',
+      description: 'Graph message type (message, systemEventMessage)',
+    },
+    content_type: { type: 'string', description: 'Body content type: text or html' },
+    subject: { type: 'string', description: 'Message subject' },
+    importance: { type: 'string', description: 'Message importance: normal, high, or urgent' },
+    web_url: { type: 'string', description: 'Link to the message in Teams' },
+    last_modified_at: {
+      type: 'string',
+      description: 'When the message or its reactions last changed',
+    },
+    last_edited_at: { type: 'string', description: 'When the message was last edited' },
+    deleted_at: { type: 'string', description: 'When the message was deleted' },
+    mentions: {
+      type: 'json',
+      description: 'Mentioned entities: id, mentionText, mentioned (user/application/...)',
+    },
+    reactions: {
+      type: 'json',
+      description: 'Reactions: reactionType, displayName, createdDateTime, userId, userDisplayName',
+    },
+    attachment_metadata: {
+      type: 'json',
+      description: 'Attachment references from Graph (id, contentType, contentUrl, name)',
+    },
   },
 
   webhook: {

@@ -22,6 +22,18 @@ const WORKFLOW_READ_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
+/** Every caller, including a workflow run's executor delegation. */
+const EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY = {
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
 const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
@@ -342,6 +354,34 @@ export const workflowOperations = {
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
+  // permission-group-exempt: trigger health is deployment state, governed by workspace role like the deployment read that already lists webhook URLs
+  readTriggers: defineWorkspaceOperation({
+    id: 'workflows.triggers.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
+  /**
+   * Pausing or resuming one trigger of the live deployment. Not a deploy: the
+   * deployed graph and its provider registrations are untouched, so it is a
+   * write rather than an admin act, and a workspace key may perform it.
+   * A workflow run's executor delegation may too, as it could before this
+   * moved onto the use case.
+   *
+   * permission-group-exempt: `triggers.webhook` is asserted inside the use case and only for enabling a webhook-table row, because a group that withholds inbound webhooks must still let a member switch a live one off
+   */
+  setTriggerEnabled: defineWorkspaceOperation({
+    id: 'workflows.triggers.set_enabled',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
     oauthScope: 'api:write',
@@ -443,6 +483,16 @@ export const workflowOperations = {
     contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: running a chosen deployment version is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
+  executeVersion: defineWorkspaceOperation({
+    id: 'workflows.execute_version',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'sourced',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManual: defineWorkspaceOperation({
     id: 'workflows.manual.execute',
@@ -483,6 +533,16 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     capability: 'none',
     contentDelivery: 'sourced',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  // permission-group-exempt: listing a workspace's paused runs is governed by workspace role, as reading one run is; logs.trace_spans withholds the pause points' resolved fields inside the list, not the right to read it
+  listPausedRuns: defineWorkspaceOperation({
+    id: 'workflows.runs.list_paused',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here

@@ -1,5 +1,6 @@
 import type { GongGetBriefParams, GongGetBriefResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> = {
@@ -8,6 +9,7 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
   description:
     'Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -92,7 +94,7 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
   },
 

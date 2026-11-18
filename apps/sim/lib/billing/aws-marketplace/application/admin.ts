@@ -1,9 +1,10 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import type { AdminMutationActor } from '@/lib/admin/dashboard'
 import {
-  licenseAuditMetadata,
+  licenseAuditEntry,
   requireLinkableTo,
+  requireNotBilledThroughStripe,
 } from '@/lib/billing/aws-marketplace/application/use-cases'
 import {
   countUnlinkedLicenses,
@@ -57,6 +58,7 @@ export async function linkAwsMarketplaceLicenseAsAdmin(
     if (locked.organizationId === input.organizationId) {
       return { license: locked, newlyLinked: false }
     }
+    await requireNotBilledThroughStripe(tx, input.organizationId)
     return {
       license: await linkLicenseForTeam(tx, input.licenseId, input.organizationId),
       newlyLinked: true,
@@ -67,12 +69,12 @@ export async function linkAwsMarketplaceLicenseAsAdmin(
       actorId: actor.id,
       actorName: actor.name,
       actorEmail: actor.email,
-      action: AuditAction.AWS_MARKETPLACE_LICENSE_LINKED,
-      resourceType: AuditResourceType.AWS_MARKETPLACE_LICENSE,
-      resourceId: license.id,
-      resourceName: license.dimension ?? 'AWS Marketplace license',
-      description: 'Admin linked an AWS Marketplace subscription to an organization',
-      metadata: { ...licenseAuditMetadata(license), organizationId: input.organizationId },
+      ...licenseAuditEntry(
+        license,
+        AuditAction.AWS_MARKETPLACE_LICENSE_LINKED,
+        'Admin linked an AWS Marketplace subscription to an organization',
+        { organizationId: input.organizationId }
+      ),
     })
   }
   return { id: license.id, organizationId: input.organizationId }

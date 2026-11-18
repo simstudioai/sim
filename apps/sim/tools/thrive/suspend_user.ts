@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveSuspendUserParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_LIFECYCLE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const suspendUserTool: ToolConfig<ThriveSuspendUserParams, ThriveUserResponse> = {
   id: 'thrive_suspend_user',
   name: 'Thrive Suspend User',
   description: 'Suspend a user in Thrive by ref, marking the account inactive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -44,7 +47,7 @@ export const suspendUserTool: ToolConfig<ThriveSuspendUserParams, ThriveUserResp
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${encodeURIComponent(params.ref)}/suspend`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}/suspend`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

@@ -1,4 +1,6 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import { REPO_FULL_OUTPUT_PROPERTIES, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListForksParams {
@@ -36,6 +38,7 @@ export const listForksTool: ToolConfig<ListForksParams, ListForksResponse> = {
   name: 'GitHub List Forks',
   description: 'List forks of a repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -81,7 +84,9 @@ export const listForksTool: ToolConfig<ListForksParams, ListForksResponse> = {
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/forks`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/forks`
+      )
       if (params.sort) url.searchParams.append('sort', params.sort)
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))
@@ -167,6 +172,7 @@ export const listForksV2Tool: ToolConfig<ListForksParams, any> = {
   name: listForksTool.name,
   description: listForksTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listForksTool.params,
   request: listForksTool.request,
 

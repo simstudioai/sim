@@ -46,6 +46,10 @@ export interface AgentInputs {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  /** A saved AWS credential ID; Bedrock signs with it instead of inline keys. */
+  bedrockCredential?: string
+  /** `'credential'` when the block signs Bedrock calls with {@link bedrockCredential}. */
+  bedrockAuthMode?: string
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string

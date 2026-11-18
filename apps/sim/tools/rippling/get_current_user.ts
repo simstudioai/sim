@@ -1,4 +1,5 @@
 import type { RipplingGetCurrentUserParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
   name: 'Rippling Get Current User',
   description: 'Get SSO information for the current user',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

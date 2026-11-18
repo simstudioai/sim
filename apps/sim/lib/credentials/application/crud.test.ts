@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -154,6 +155,7 @@ describe('updateWorkspaceCredentialUseCase', () => {
       credentialId: credential.id,
       displayName: 'Zoom prod',
       credential,
+      actorUserId: requirePrincipalSubjectUserId(apiKeyPrincipal),
     })
     expect(mocks.updateRecord.mock.calls[0][0]).not.toHaveProperty('assertedWorkspaceId')
   })

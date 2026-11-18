@@ -1,3 +1,4 @@
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 export type OrchestrationErrorCode =
@@ -13,6 +14,12 @@ export type OrchestrationErrorCode =
   | 'conflict'
   | 'locked'
   | 'payload_too_large'
+  /**
+   * A dependency Sim reaches on the caller's behalf is temporarily unreachable —
+   * the organization's egress gateway, say. Retryable; nothing about the caller
+   * or its credentials is wrong.
+   */
+  | 'unavailable'
   | 'internal'
 
 /**
@@ -28,6 +35,7 @@ export function statusForOrchestrationError(code: OrchestrationErrorCode | undef
   if (code === 'conflict') return 409
   if (code === 'locked') return 423
   if (code === 'payload_too_large') return 413
+  if (code === 'unavailable') return 503
   return 500
 }
 
@@ -67,9 +75,10 @@ export function messageForOrchestrationError(
 export class OrchestrationError extends Error {
   constructor(
     readonly code: OrchestrationErrorCode,
-    message: string
+    message: string,
+    options?: { cause?: unknown }
   ) {
-    super(message)
+    super(message, options)
     this.name = 'OrchestrationError'
   }
 }
@@ -93,6 +102,9 @@ export function throwOrchestrationFailure(
   )
 }
 
+/** The fixed caller-facing text for an organization egress outage; the routing code stays in logs. */
+export const EGRESS_UNAVAILABLE_MESSAGE = "The organization's egress route is unavailable"
+
 /**
  * The {@link OrchestrationError} in `error`'s cause chain, or `null` when the
  * failure is not a classified one.
@@ -101,6 +113,13 @@ export function throwOrchestrationFailure(
  * raised inside a transaction callback in a `DrizzleQueryError` whose own
  * message is the failed SQL — the same reason the message-matching this
  * replaced had to dig for a root cause before it could classify anything.
+ *
+ * An {@link OutboundRoutingError} anywhere in the chain is the organization's
+ * egress route failing, so it classifies as `unavailable` with a fixed message:
+ * its routing code stays in server logs. `MISSING_SCOPE` is the exception: a
+ * request issued without a workspace scope (or for a workspace that no longer
+ * exists) is a programming or missing-resource error, not a retryable outage,
+ * so it stays unclassified.
  */
 export function asOrchestrationError(error: unknown): OrchestrationError | null {
   let current: unknown = error
@@ -108,9 +127,20 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
     if (current instanceof OrchestrationError) return current
     if (isPayloadSizeLimitError(current))
       return new OrchestrationError('payload_too_large', current.message)
+    if (current instanceof OutboundRoutingError && current.code !== 'MISSING_SCOPE')
+      return new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE, { cause: current })
     current = current.cause
   }
   return null
+}
+
+/**
+ * Whether `error` is a failure Sim's side cannot currently get past (an `unavailable` failure,
+ * such as the organization's egress route being down): never a verdict on the caller, its
+ * credentials, or the resource, so nothing may be recorded against them.
+ */
+export function isUnavailableFailure(error: unknown): boolean {
+  return asOrchestrationError(error)?.code === 'unavailable'
 }
 
 /** Transport metadata available to an application operation for audit capture. */

@@ -684,11 +684,17 @@ export function normalizeBitbucketFileMetadata(value: unknown): BitbucketFileMet
 function normalizePullRequestEndpoint(value: unknown): BitbucketPullRequestEndpoint | null {
   const data = toRecordOrNull(value)
   if (!data) return null
+  const branch = readRecord(data, 'branch')
+  const mergeStrategies = branch?.merge_strategies
   return {
-    branchName: readString(readRecord(data, 'branch'), 'name'),
+    branchName: readString(branch, 'name'),
     commitHash: readString(readRecord(data, 'commit'), 'hash'),
     repositoryUuid: readString(readRecord(data, 'repository'), 'uuid'),
     repositoryFullName: readString(readRecord(data, 'repository'), 'full_name'),
+    mergeStrategies: Array.isArray(mergeStrategies)
+      ? mergeStrategies.filter((strategy): strategy is string => typeof strategy === 'string')
+      : null,
+    defaultMergeStrategy: readString(branch, 'default_merge_strategy'),
   }
 }
 

@@ -273,6 +273,28 @@ describe('selector pagination metadata', () => {
   })
 })
 
+describe('a list whose contract caps its page below the CLI default', () => {
+  it('never asks for more per page than the contract accepts, and keeps paging to the total', async () => {
+    const maximum = V2_OPERATIONS.listPausedRuns.query?.limit?.maximum
+    expect(maximum).toBe(25)
+    request
+      .mockResolvedValueOnce({ data: [{ runId: 'run_1' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ data: [{ runId: 'run_2' }], nextCursor: null })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    const commandSpec = CLI_CONTRACT.listPausedRuns
+    if (!commandSpec) throw new Error('listPausedRuns has no CLI command')
+    await executeOperation('listPausedRuns', commandSpec, V2_OPERATIONS.listPausedRuns, [
+      { limit: '30' },
+      leaf('listPausedRuns'),
+    ])
+
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls.map(([, options]) => options.query.limit)).toEqual([25, 25])
+  })
+})
+
 describe('an in-band run failure', () => {
   it('fails the process when a synchronous run reports status failed', async () => {
     request.mockResolvedValue({

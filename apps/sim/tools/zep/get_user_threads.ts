@@ -1,4 +1,6 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
 import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
 
@@ -7,6 +9,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Threads',
   description: 'List all conversation threads for a specific user',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     userId: {
@@ -33,7 +36,10 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   request: {
     url: (params) => {
       const limit = Number(params.limit || 10)
-      return `https://api.getzep.com/api/v2/users/${params.userId}/threads?limit=${limit}`
+      return `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}/threads?limit=${limit}`
     },
     method: 'GET',
     headers: (params) => ({

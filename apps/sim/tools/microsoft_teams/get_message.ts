@@ -2,7 +2,9 @@ import type {
   MicrosoftTeamsGetMessageParams,
   MicrosoftTeamsReadResponse,
 } from '@/tools/microsoft_teams/types'
+import { extractMessageDetails } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getMessageTool: ToolConfig<
   MicrosoftTeamsGetMessageParams,
@@ -72,24 +74,77 @@ export const getMessageTool: ToolConfig<
         messageCount: { type: 'number', description: 'Number of messages' },
       },
     },
+    messageId: { type: 'string', description: 'Message ID', optional: true },
+    sender: { type: 'string', description: 'Sender display name', optional: true },
+    messageType: { type: 'string', description: 'Graph message type', optional: true },
+    createdTime: { type: 'string', description: 'Message creation timestamp', optional: true },
+    url: { type: 'string', description: 'Web URL to the message', optional: true },
+    from: {
+      type: 'json',
+      description:
+        'Sender identity set: user, application (bot), or device, each with id and displayName',
+      optional: true,
+    },
+    senderId: {
+      type: 'string',
+      description: 'ID of the sending user or application',
+      optional: true,
+    },
+    senderType: {
+      type: 'string',
+      description: 'Sender kind: user, application, or device',
+      optional: true,
+    },
+    replyToId: {
+      type: 'string',
+      description: 'ID of the parent message for channel replies',
+      optional: true,
+    },
+    subject: { type: 'string', description: 'Message subject', optional: true },
+    summary: { type: 'string', description: 'Message summary (channel messages)', optional: true },
+    importance: { type: 'string', description: 'normal, high, or urgent', optional: true },
+    webUrl: { type: 'string', description: 'Link to the message in Teams', optional: true },
+    contentType: { type: 'string', description: 'Body content type: text or html', optional: true },
+    lastModifiedDateTime: {
+      type: 'string',
+      description: 'When the message or its reactions last changed',
+      optional: true,
+    },
+    lastEditedDateTime: {
+      type: 'string',
+      description: 'When the message was last edited',
+      optional: true,
+    },
+    deletedDateTime: {
+      type: 'string',
+      description: 'When the message was deleted',
+      optional: true,
+    },
+    mentions: {
+      type: 'array',
+      description: 'Entities mentioned in the message (id, mentionText, mentioned)',
+      optional: true,
+    },
+    reactions: {
+      type: 'array',
+      description:
+        'Reactions (reactionType, displayName, createdDateTime, userId, userDisplayName)',
+      optional: true,
+    },
   },
 
   request: {
     url: (params) => {
-      const messageId = params.messageId?.trim()
-      if (!messageId) {
-        throw new Error('Message ID is required')
-      }
+      const messageId = safeUrlPathSegment(params.messageId ?? '', 'Message ID')
 
-      // Check if it's a channel or chat message
       if (params.teamId && params.channelId) {
-        const teamId = params.teamId.trim()
-        const channelId = params.channelId.trim()
-        return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`
+        const teamId = safeUrlPathSegment(params.teamId, 'Team ID')
+        const channelId = safeUrlPathSegment(params.channelId, 'Channel ID')
+        return `https://graph.microsoft.com/v1.0/teams/${teamId}/channels/${channelId}/messages/${messageId}`
       }
       if (params.chatId) {
-        const chatId = params.chatId.trim()
-        return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`
+        const chatId = safeUrlPathSegment(params.chatId, 'Chat ID')
+        return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages/${messageId}`
       }
 
       throw new Error('Either (teamId and channelId) or chatId is required')
@@ -107,6 +162,7 @@ export const getMessageTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: MicrosoftTeamsGetMessageParams) => {
     const data = await response.json()
+    const details = extractMessageDetails(data)
 
     const metadata = {
       messageId: data.id || params?.messageId || '',
@@ -118,6 +174,7 @@ export const getMessageTool: ToolConfig<
       chatId: params?.chatId,
       messages: [
         {
+          ...details,
           id: data.id || '',
           content: data.body?.content || '',
           sender: data.from?.user?.displayName || 'Unknown',
@@ -134,6 +191,16 @@ export const getMessageTool: ToolConfig<
       output: {
         content: data.body?.content || '',
         metadata,
+        ...details,
+        messageId: metadata.messageId,
+        sender:
+          details.from?.user?.displayName ??
+          details.from?.application?.displayName ??
+          details.from?.device?.displayName ??
+          metadata.messages[0].sender,
+        messageType: metadata.messages[0].messageType,
+        createdTime: metadata.createdTime,
+        url: metadata.url,
       },
     }
   },

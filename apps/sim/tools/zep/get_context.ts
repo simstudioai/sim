@@ -1,4 +1,6 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
@@ -6,6 +8,7 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User Context',
   description: 'Retrieve user context from a thread with summary or basic mode',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {
@@ -42,7 +45,14 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
       queryParams.append('mode', mode)
       if (params.minRating !== undefined)
         queryParams.append('minRating', String(Number(params.minRating)))
-      return `https://api.getzep.com/api/v2/threads/${params.threadId}/context?${queryParams.toString()}`
+      return `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(
+        params.threadId,
+        'threadId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}/context?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

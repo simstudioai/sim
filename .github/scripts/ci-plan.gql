@@ -5,7 +5,8 @@ query($base: String!, $head: String!) {
     "ci:e2e-scim", "ci:e2e-cli", "ci:e2e-stop-after", "ci:e2e-desktop-inbox",
     "ci:e2e-assistant-actions", "ci:e2e-organization-search",
     "ci:e2e-docs-platform",
-    "ci:e2e-browser-extension", "ci:e2e-project-files", "ci:e2e-mobile", "ci:e2e-seo"
+    "ci:e2e-browser-extension", "ci:e2e-project-files", "ci:e2e-mobile", "ci:e2e-seo",
+    "ci:e2e-markdown-viewer"
   ]) {
     items {
       name
@@ -21,5 +22,11 @@ query($base: String!, $head: String!) {
         ... on TaskAllChanged { description }
       }
     }
+  }
+  # `items` also lists the prerequisites of affected tasks, and docs#build is one for
+  # ci:e2e-docs-platform. The task filter applies before prerequisites are added, so this
+  # selection holds docs#build only when the docs site itself changed.
+  docsSite: affectedTasks(base: $base, head: $head, tasks: ["docs#build"]) {
+    items { fullName }
   }
 }

@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComAnswerParams, YouComAnswerResponse } from '@/tools/youcom/types'
 import {
@@ -17,6 +18,7 @@ export const youComAnswerTool: ToolConfig<YouComAnswerParams, YouComAnswerRespon
   description:
     'Get a synthesized answer to a question with numbered citations and the web results used to write it.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     query: {

@@ -1,4 +1,6 @@
 import type { HexListUsersParams, HexListUsersResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse> = {
@@ -6,8 +8,10 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
   name: 'Hex List Users',
   description: 'List all users in the Hex workspace with optional filtering and sorting.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -18,7 +22,7 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of users to return (1-100, default: 25)',
+      description: 'Maximum number of users to return (1-500, default: 25)',
     },
     sortBy: {
       type: 'string',
@@ -69,7 +73,7 @@ export const listUsersTool: ToolConfig<HexListUsersParams, HexListUsersResponse>
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/users${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/users${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

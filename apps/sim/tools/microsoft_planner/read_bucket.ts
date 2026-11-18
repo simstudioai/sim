@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerReadBucketResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerReadBucket')
 
@@ -15,6 +17,7 @@ export const readBucketTool: ToolConfig<
   name: 'Read Microsoft Planner Bucket',
   description: 'Get details of a specific bucket',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -42,7 +45,7 @@ export const readBucketTool: ToolConfig<
       if (!bucketId) {
         throw new Error('Bucket ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/buckets/${safeUrlPathSegment(bucketId, 'bucketId')}`
     },
     method: 'GET',
     headers: (params) => {

@@ -1,6 +1,7 @@
 import { AzureDataExplorerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Every operation except the cluster-level database listing runs in a database. */
 const DATABASE_SCOPED_OPERATIONS = [
@@ -109,6 +110,8 @@ function toBoolean(value: unknown): true | undefined {
 
 export const AzureDataExplorerBlock: BlockConfig = {
   type: 'azure_data_explorer',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'azure_data_explorer_v2' },
   name: 'Azure Data Explorer',
   description: 'Query and manage Azure Data Explorer (Kusto) clusters with KQL',
   longDescription:
@@ -420,7 +423,7 @@ export const AzureDataExplorerBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const auth = {
           clusterUri: params.clusterUri,
           tenantId: params.tenantId,
@@ -429,7 +432,7 @@ export const AzureDataExplorerBlock: BlockConfig = {
           resource: params.resource || undefined,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'azure_data_explorer_query':
             return {
               ...auth,
@@ -464,9 +467,13 @@ export const AzureDataExplorerBlock: BlockConfig = {
               ...auth,
               database: params.database,
               table: params.table,
-              mode: params.ingestMode || undefined,
+              mode: params.ingestMode || toolCallArg(context, params.mode) || undefined,
               sourceQuery: params.sourceQuery,
-              async: toBoolean(params.ingestAsync),
+              async:
+                params.ingestAsync === false || params.ingestAsync === 'false'
+                  ? undefined
+                  : (toBoolean(params.ingestAsync) ??
+                    toBoolean(toolCallArg(context, params.async))),
               ingestionProperties: params.ingestionProperties || undefined,
             }
           case 'azure_data_explorer_create_table':
@@ -537,6 +544,11 @@ export const AzureDataExplorerBlock: BlockConfig = {
     rowCount: { type: 'number', description: 'Rows carried in this result, after the row cap' },
     totalRowCount: { type: 'number', description: 'Rows Kusto returned, before the row cap' },
     truncated: { type: 'boolean', description: 'Whether rows were dropped to stay within the cap' },
+    additionalResults: {
+      type: 'json',
+      description:
+        'Further result tables when a query batch or fork returns more than one (Run Query); each has tableName, columns, rows, records, rowCount, totalRowCount, truncated',
+    },
     databases: { type: 'json', description: 'Database names (List Databases)' },
     tables: { type: 'json', description: 'Table names (List Tables)' },
     extentIds: { type: 'json', description: 'Extent IDs created (Ingest Rows Inline)' },
@@ -654,3 +666,24 @@ export const AzureDataExplorerBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+/**
+ * Runs as a saved Microsoft app credential (client secret, certificate, or keyless federated
+ * credential) instead of an inline client secret. The cluster stays a block field; the token is
+ * minted for it in the credential's own cloud.
+ */
+export const AzureDataExplorerV2Block: BlockConfig = {
+  ...AzureDataExplorerBlock,
+  type: 'azure_data_explorer_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Runs as a Microsoft app credential: an app registration signing in with a client secret, a certificate, or a keyless federated credential, in the global cloud or a national cloud, so no interactive sign-in is needed.',
+  ...withSavedCredential(AzureDataExplorerBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'azure-data-explorer',
+    title: 'Microsoft App Credential',
+  }),
+}

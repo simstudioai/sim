@@ -1,3 +1,4 @@
+import { parsePrincipal, serializePrincipal } from '@sim/auth/principal'
 import {
   billingUsageReservationMock,
   billingUsageReservationMockFns,
@@ -207,10 +208,9 @@ describe('async preprocessing correlation threading', () => {
   it.each([
     {
       name: 'workspace API key',
-      serializedPrincipal: {
-        version: 1 as const,
-        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
-      },
+      serializedPrincipal: serializePrincipal(
+        createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })
+      ),
       isPublicApiAccess: false,
     },
     {
@@ -262,7 +262,7 @@ describe('async preprocessing correlation threading', () => {
 
       const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
       expect(executionMetadata.userId).toBe('actor-1')
-      expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+      expect(executionMetadata.principal).toEqual(parsePrincipal(serializedPrincipal))
       expect(executionMetadata.isPublicApiAccess).toBe(isPublicApiAccess)
       expect(executionMetadata.principal).not.toHaveProperty('userId')
     }

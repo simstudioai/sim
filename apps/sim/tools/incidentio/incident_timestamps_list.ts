@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentTimestampsListParams,
   IncidentioIncidentTimestampsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentTimestampsListTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentTimestampsListTool: ToolConfig<
   name: 'List Incident Timestamps',
   description: 'List all incident timestamp definitions in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -52,8 +54,16 @@ export const incidentTimestampsListTool: ToolConfig<
           id: { type: 'string', description: 'The timestamp ID' },
           name: { type: 'string', description: 'The timestamp name' },
           rank: { type: 'number', description: 'The rank/order of the timestamp' },
-          created_at: { type: 'string', description: 'When the timestamp was created' },
-          updated_at: { type: 'string', description: 'When the timestamp was last updated' },
+          created_at: {
+            type: 'string',
+            description: 'Not returned by the incident.io API; always empty',
+            optional: true,
+          },
+          updated_at: {
+            type: 'string',
+            description: 'Not returned by the incident.io API; always empty',
+            optional: true,
+          },
         },
       },
     },

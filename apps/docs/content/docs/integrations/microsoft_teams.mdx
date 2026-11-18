@@ -67,6 +67,8 @@ Read content from a Microsoft Teams chat
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Yes | The ID of the chat to read from \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
 | `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
+| `top` | number | No | Number of messages to return per page \(1-50, default 50\) |
+| `pageToken` | string | No | Page token from a previous read \(nextPageToken\) to fetch older messages |
 
 #### Output
 
@@ -75,10 +77,12 @@ Read content from a Microsoft Teams chat
 | `success` | boolean | Teams chat read operation success status |
 | `messageCount` | number | Number of messages retrieved from chat |
 | `chatId` | string | ID of the chat that was read from |
-| `messages` | array | Array of chat message objects |
+| `messages` | array | Array of chat message objects \(also available at metadata.messages\). Each has id, content, sender, timestamp, messageType, attachments, from \(user/application/device\), senderId, senderType, replyToId, subject, importance, webUrl, contentType, lastModifiedDateTime, lastEditedDateTime, deletedDateTime, mentions, and reactions |
 | `attachmentCount` | number | Total number of attachments found |
 | `attachmentTypes` | array | Types of attachments found |
 | `content` | string | Formatted content of chat messages |
+| `hasMore` | boolean | Whether Graph indicated more messages beyond this page |
+| `nextPageToken` | string | Token to pass as pageToken to fetch the next page, or null on the last page |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
 </ReferenceDetails>
@@ -96,6 +100,7 @@ Write or update content in a Microsoft Teams chat
 | `chatId` | string | Yes | The ID of the chat to write to \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
 | `content` | string | Yes | The content to write to the message \(plain text or HTML formatted, supports @mentions\) |
 | `files` | file[] | No | Files to attach to the message |
+| `contentType` | string | No | Body format: "text" \(default\) or "html". Mentions and attachments always send HTML |
 
 #### Output
 
@@ -107,6 +112,8 @@ Write or update content in a Microsoft Teams chat
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `content` | string | Content of the sent message |
+| `attachmentCount` | number | Number of attachments sent with the message |
 | `files` | file[] | Files attached to the message |
 
 </ReferenceDetails>
@@ -124,6 +131,9 @@ Read content from a Microsoft Teams channel
 | `teamId` | string | Yes | The ID of the team to read from \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
 | `channelId` | string | Yes | The ID of the channel to read from \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
+| `includeReplies` | boolean | No | Include thread replies for each root message \(Graph caps the replies returned per message; hasMoreReplies is true when more exist\) |
+| `top` | number | No | Number of root messages to return per page \(1-50, default 50\) |
+| `pageToken` | string | No | Page token from a previous read \(nextPageToken\) to fetch the next page |
 
 #### Output
 
@@ -133,10 +143,12 @@ Read content from a Microsoft Teams channel
 | `messageCount` | number | Number of messages retrieved from channel |
 | `teamId` | string | ID of the team that was read from |
 | `channelId` | string | ID of the channel that was read from |
-| `messages` | array | Array of channel message objects |
+| `messages` | array | Array of channel message objects \(also available at metadata.messages\). Each has id, content, sender, timestamp, messageType, attachments, from \(user/application/device\), senderId, senderType, replyToId, subject, summary, importance, webUrl, contentType, lastModifiedDateTime, lastEditedDateTime, deletedDateTime, mentions, reactions, and \(with includeReplies\) replies and hasMoreReplies |
 | `attachmentCount` | number | Total number of attachments found |
 | `attachmentTypes` | array | Types of attachments found |
 | `content` | string | Formatted content of channel messages |
+| `hasMore` | boolean | Whether Graph indicated more messages beyond this page |
+| `nextPageToken` | string | Token to pass as pageToken to fetch the next page, or null on the last page |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
 </ReferenceDetails>
@@ -155,6 +167,7 @@ Write or send a message to a Microsoft Teams channel
 | `channelId` | string | Yes | The ID of the channel to write to \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `content` | string | Yes | The content to write to the channel \(plain text or HTML formatted, supports @mentions\) |
 | `files` | file[] | No | Files to attach to the message |
+| `contentType` | string | No | Body format: "text" \(default\) or "html". Mentions and attachments always send HTML |
 
 #### Output
 
@@ -167,6 +180,8 @@ Write or send a message to a Microsoft Teams channel
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `content` | string | Content of the sent message |
+| `attachmentCount` | number | Number of attachments sent with the message |
 | `files` | file[] | Files attached to the message |
 
 </ReferenceDetails>
@@ -183,7 +198,8 @@ Update an existing message in a Microsoft Teams chat
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Yes | The ID of the chat containing the message \(e.g., "19:abc123def456@thread.v2" - from chat listings\) |
 | `messageId` | string | Yes | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
-| `content` | string | Yes | The new content for the message \(plain text or HTML formatted\) |
+| `content` | string | Yes | The new content for the message \(plain text, or HTML when contentType is "html"\) |
+| `contentType` | string | No | Body format: "text" \(default\) or "html" |
 
 #### Output
 
@@ -208,7 +224,8 @@ Update an existing message in a Microsoft Teams channel
 | `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
 | `channelId` | string | Yes | The ID of the channel containing the message \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `messageId` | string | Yes | The ID of the message to update \(e.g., "1234567890123" - a numeric string from message responses\) |
-| `content` | string | Yes | The new content for the message \(plain text or HTML formatted\) |
+| `content` | string | Yes | The new content for the message \(plain text, or HTML when contentType is "html"\) |
+| `contentType` | string | No | Body format: "text" \(default\) or "html" |
 
 #### Output
 
@@ -280,7 +297,8 @@ Reply to an existing message in a Microsoft Teams channel
 | `teamId` | string | Yes | The ID of the team \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings or channel info\) |
 | `channelId` | string | Yes | The ID of the channel \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `messageId` | string | Yes | The ID of the message to reply to \(e.g., "1234567890123" - a numeric string from message responses\) |
-| `content` | string | Yes | The reply content \(plain text or HTML formatted message\) |
+| `content` | string | Yes | The reply content \(plain text, or HTML when contentType is "html"\) |
+| `contentType` | string | No | Body format: "text" \(default\) or "html" |
 
 #### Output
 
@@ -289,6 +307,9 @@ Reply to an existing message in a Microsoft Teams channel
 | `success` | boolean | Whether the reply was successful |
 | `messageId` | string | ID of the reply message |
 | `updatedContent` | boolean | Whether content was successfully sent |
+| `createdTime` | string | Timestamp when the reply was created |
+| `url` | string | Web URL to the reply |
+| `replyToId` | string | ID of the parent message |
 
 </ReferenceDetails>
 
@@ -323,6 +344,25 @@ Get a specific message from a Microsoft Teams chat or channel
 |   ↳ `chatId` | string | Chat ID |
 |   ↳ `messages` | array | Array of message details |
 |   ↳ `messageCount` | number | Number of messages |
+| `messageId` | string | Message ID |
+| `sender` | string | Sender display name |
+| `messageType` | string | Graph message type |
+| `createdTime` | string | Message creation timestamp |
+| `url` | string | Web URL to the message |
+| `from` | json | Sender identity set: user, application \(bot\), or device, each with id and displayName |
+| `senderId` | string | ID of the sending user or application |
+| `senderType` | string | Sender kind: user, application, or device |
+| `replyToId` | string | ID of the parent message for channel replies |
+| `subject` | string | Message subject |
+| `summary` | string | Message summary \(channel messages\) |
+| `importance` | string | normal, high, or urgent |
+| `webUrl` | string | Link to the message in Teams |
+| `contentType` | string | Body content type: text or html |
+| `lastModifiedDateTime` | string | When the message or its reactions last changed |
+| `lastEditedDateTime` | string | When the message was last edited |
+| `deletedDateTime` | string | When the message was deleted |
+| `mentions` | array | Entities mentioned in the message \(id, mentionText, mentioned\) |
+| `reactions` | array | Reactions \(reactionType, displayName, createdDateTime, userId, userDisplayName\) |
 
 </ReferenceDetails>
 
@@ -478,6 +518,8 @@ List the Microsoft Teams chats the current user is part of
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `top` | number | No | Number of chats to return per page \(1-50, default 50\) |
+| `pageToken` | string | No | Page token from a previous call \(nextPageToken\) to fetch the next page |
 
 #### Output
 
@@ -487,6 +529,7 @@ List the Microsoft Teams chats the current user is part of
 | `chats` | array | Array of chats the user is part of |
 | `chatCount` | number | Total number of chats |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
+| `nextPageToken` | string | Token to pass as pageToken to fetch the next page, or null on the last page |
 
 </ReferenceDetails>
 
@@ -597,6 +640,21 @@ Trigger workflows from Microsoft Teams chat message notifications via Microsoft 
 | `text` | string | Message body \(HTML or text\) |
 | `created_at` | string | Message timestamp |
 | `attachments` | file[] | Uploaded attachments as files |
+| `change_type` | string | Graph change type that fired the notification: created or updated |
+| `from_id` | string | Sender user or application \(bot\) ID |
+| `from_type` | string | Sender kind: user, application, or device |
+| `from_identity` | json | Sender identity set: user, application \(bot\), or device, each with id and displayName |
+| `message_type` | string | Graph message type \(message, systemEventMessage\) |
+| `content_type` | string | Body content type: text or html |
+| `subject` | string | Message subject |
+| `importance` | string | Message importance: normal, high, or urgent |
+| `web_url` | string | Link to the message in Teams |
+| `last_modified_at` | string | When the message or its reactions last changed |
+| `last_edited_at` | string | When the message was last edited |
+| `deleted_at` | string | When the message was deleted |
+| `mentions` | json | Mentioned entities: id, mentionText, mentioned \(user/application/...\) |
+| `reactions` | json | Reactions: reactionType, displayName, createdDateTime, userId, userDisplayName |
+| `attachment_metadata` | json | Attachment references from Graph \(id, contentType, contentUrl, name\) |
 
 </ReferenceDetails>
 

@@ -1019,6 +1019,10 @@ type OAuthClientSetupFields = {
 }
 
 export const OAUTH_CLIENT_SETUP_FIELDS = {
+  apollo: {
+    APOLLO_CLIENT_ID: { input: 'text' },
+    APOLLO_CLIENT_SECRET: { input: 'secret' },
+  },
   google: {
     GOOGLE_CLIENT_ID: { input: 'text' },
     GOOGLE_CLIENT_SECRET: { input: 'secret' },

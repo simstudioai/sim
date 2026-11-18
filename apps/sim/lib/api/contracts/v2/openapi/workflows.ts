@@ -29,6 +29,7 @@ import {
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
+  V2_MAX_PAUSED_RUN_POINTS_PER_PAGE,
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
@@ -47,14 +48,18 @@ import {
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
   v2GetWorkflowDeploymentContract,
+  v2GetWorkflowOutlineContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowStateContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
+  v2ListPausedRunsContract,
   v2ListWorkflowFoldersContract,
   v2ListWorkflowRunsContract,
   v2ListWorkflowsContract,
+  v2ListWorkflowTriggersContract,
   v2ListWorkflowVersionsContract,
+  v2ListWorkspaceSchedulesContract,
   v2MoveWorkflowsContract,
   v2RelocateWorkflowFolderContract,
   v2ReplaceWorkflowStateContract,
@@ -67,6 +72,7 @@ import {
   v2UndeployWorkflowContract,
   v2UpdateWorkflowContract,
   v2UpdateWorkflowPublicApiContract,
+  v2UpdateWorkflowTriggerContract,
   v2UpdateWorkflowVersionContract,
 } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -94,6 +100,21 @@ const WORKFLOW_EXAMPLE = {
   lastRunAt: '2026-08-09T18:04:11.000Z',
   createdAt: '2026-05-01T09:00:00.000Z',
   updatedAt: '2026-08-09T18:04:11.000Z',
+} as const
+
+const WORKFLOW_TRIGGER_EXAMPLE = {
+  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V4',
+  kind: 'schedule',
+  provider: null,
+  enabled: false,
+  status: 'disabled',
+  failedCount: 100,
+  lastFailedAt: '2026-08-09T18:04:11.000Z',
+  nextRunAt: null,
+  lastRanAt: '2026-08-09T18:04:00.000Z',
+  cronExpression: '0 * * * *',
+  timezone: 'UTC',
+  url: null,
 } as const
 
 const WORKFLOW_FOLDER_EXAMPLE = {
@@ -217,7 +238,7 @@ const executeSyncResponseSchema = documentedSchema(
   'ExecuteWorkflowSyncResponse',
   'Synchronous workflow execution response',
   'Completed, failed, paused, or cancelled synchronous workflow run.',
-  [RUN_RESULT_EXAMPLE]
+  [{ data: { ...RUN_RESULT_EXAMPLE.data, executionTimeoutSeconds: 3_000 } }]
 )
 
 const executeQueuedResponseSchema = documentedSchema(
@@ -225,7 +246,7 @@ const executeQueuedResponseSchema = documentedSchema(
   'ExecuteWorkflowQueuedResponse',
   'Queued workflow execution response',
   'Receipt returned for an asynchronous workflow run, or for a synchronous run still running when `waitTimeoutSeconds` elapsed.',
-  [QUEUED_RUN_EXAMPLE]
+  [{ data: { ...QUEUED_RUN_EXAMPLE.data, executionTimeoutSeconds: 5_400 } }]
 )
 
 const resumeSyncResponseSchema = documentedSchema(
@@ -332,6 +353,48 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2GetWorkflowOutlineContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.read,
+      operationId: 'getWorkflowOutline',
+      summary: 'Get workflow outline',
+      description:
+        'Read the saved draft as a compact outline: connections embedded in their source blocks, loop and parallel children nested under their container, and null values omitted. Fields hidden from agents are omitted too, some of them real configuration, as are blocks whose parent container no longer exists; compare with Get workflow state for the full configuration. Requires workspace read access, and reveals nothing Get workflow state does not: its derived fields, such as `triggerWebhookUrl`, are computed from values that state already returns. The outline is read-only: it adds those derived fields and omits positions and edge handles, so never send it to Replace workflow state; edit with Apply workflow operations or a full state from Get workflow state. This read records no audit event; `HEAD` mirrors `GET`.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The workflow draft outline.'),
+    }),
+    {
+      params: v2GetWorkflowOutlineContract.params,
+      query: v2GetWorkflowOutlineContract.query,
+      response: documentedSchema(
+        v2GetWorkflowOutlineContract.response.schema,
+        'WorkflowOutlineResponse',
+        'Workflow outline response',
+        'The compact read-only outline of a workflow draft.',
+        [
+          {
+            data: {
+              blocks: {
+                'start-1': {
+                  type: 'starter',
+                  name: 'Start',
+                  enabled: true,
+                  connections: { source: 'agent-1' },
+                },
+                'agent-1': {
+                  type: 'agent',
+                  name: 'Agent 1',
+                  enabled: true,
+                  inputs: { systemPrompt: 'Route the ticket to the right team.' },
+                },
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ReplaceWorkflowStateContract,
     workflowOperation({
       applicationOperation: workflowOperations.replaceState,
@@ -375,7 +438,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.applyOperations,
       operationId: 'applyWorkflowOperations',
       summary: 'Apply workflow operations',
-      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. Use returned \`mintedBlockIds\` in later requests. \`dryRun=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Apply draft edits and block enablement changes in one write. Requires workspace write access. The live deployment is unchanged; lint is advisory.\n\nInspect \`skipped\` and \`inputValidationErrors\` for edits that did not apply. Deferred edges apply when their targets exist; do not resubmit them. With \`atomic=true\`, declined operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. A \`409\` with code \`CONFLICT\` means the workflow changed after the batch read it and nothing was saved; re-read the workflow and retry. Use returned \`mintedBlockIds\` in later requests. \`dryRun=true\` evaluates without saving, auditing, or notifying. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -554,7 +617,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflow',
       summary: 'Get workflow',
-      description: `Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Get workflow metadata, variables, and trigger input fields from the saved draft. Requires workspace read access. Input fields may differ from the live deployment; \`inputSchema\` describes the \`input\` an API run of the active deployment accepts. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The requested workflow.'),
     }),
@@ -566,7 +629,20 @@ const declaredRoutes = [
         'WorkflowDetailResponse',
         'Workflow detail response',
         'Detailed workflow metadata, variables, and trigger inputs.',
-        [{ data: { ...WORKFLOW_EXAMPLE, variables: {}, inputs: [] } }]
+        [
+          {
+            data: {
+              ...WORKFLOW_EXAMPLE,
+              variables: {},
+              inputs: [{ name: 'ticket', type: 'string' }],
+              inputSchema: {
+                type: 'object',
+                properties: { ticket: { type: 'string' } },
+                required: ['ticket'],
+              },
+            },
+          },
+        ]
       ),
     }
   ),
@@ -905,6 +981,102 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListWorkflowTriggersContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.readTriggers,
+      operationId: 'listWorkflowTriggers',
+      summary: 'List workflow triggers',
+      description: `List the schedules, polling triggers, internal-event triggers, and webhooks the live deployment serves, including disabled ones, with their failure counts. Requires workspace read access. Schedules and polling triggers disable themselves after 100 consecutive failures; a \`webhook\` trigger's failures happen at the sender, so its \`failedCount\` stays 0. Empty while the workflow is not deployed. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess("The live deployment's triggers."),
+    }),
+    {
+      query: v2ListWorkflowTriggersContract.query,
+      params: v2ListWorkflowTriggersContract.params,
+      response: documentedSchema(
+        v2ListWorkflowTriggersContract.response.schema,
+        'WorkflowTriggerListResponse',
+        'Workflow trigger list response',
+        'Every trigger the live deployment serves.',
+        [{ data: [WORKFLOW_TRIGGER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkflowTriggerContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.setTriggerEnabled,
+      operationId: 'updateWorkflowTrigger',
+      summary: 'Update workflow trigger',
+      description: `Enable or disable one trigger of the live deployment without redeploying. Requires workspace write access. Enabling resets \`failedCount\`, schedules the next run, and clears any polling backoff; a schedule whose cron expression is invalid or has no future runs returns \`400\`. A permission group that blocks webhook triggers returns \`403\` when a member it governs enables a polling, internal-event, or webhook trigger; a workspace API key is not governed by permission groups, as with every other capability. Disabling a completed schedule marks it disabled. A block with several live rows switches them together. Requesting the current state changes nothing.\n\nDisabling only stops Sim from accepting the trigger; nothing is removed at the provider. A disable lasts until the next deploy or version activation, which re-enables every trigger, the same way it clears a trigger that disabled itself after repeated failures. Deliveries to a disabled webhook receive \`404\`, and some providers disable their subscription after repeated failures, which requires a redeploy to restore.\n\nA schedule's cron expression and timezone cannot be changed here: deploy computes them from the schedule block, and a deployed version is never edited. Change the block's schedule fields in the draft with Apply workflow operations, then deploy.`,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('The trigger after the update.'),
+    }),
+    {
+      query: v2UpdateWorkflowTriggerContract.query,
+      params: v2UpdateWorkflowTriggerContract.params,
+      body: v2UpdateWorkflowTriggerContract.body,
+      response: documentedSchema(
+        v2UpdateWorkflowTriggerContract.response.schema,
+        'UpdateWorkflowTriggerResponse',
+        'Update workflow trigger response',
+        'The trigger after the update.',
+        [
+          {
+            data: {
+              ...WORKFLOW_TRIGGER_EXAMPLE,
+              enabled: true,
+              status: 'active',
+              failedCount: 0,
+              nextRunAt: '2026-08-10T09:00:00.000Z',
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListWorkspaceSchedulesContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.readTriggers,
+      operationId: 'listWorkspaceSchedules',
+      summary: 'List workspace schedules',
+      description:
+        "List the schedules every deployed workflow in a workspace runs, including disabled ones, with their timing and failure counts. Requires workspace read access. These are the same schedules List workflow triggers reports for each workflow; a workflow that is not deployed has none. To change a schedule's timing, edit its schedule block in the draft and deploy; to pause or resume one, use Update workflow trigger.",
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      success: jsonSuccess('A page of schedules.'),
+    }),
+    {
+      query: v2ListWorkspaceSchedulesContract.query,
+      response: documentedSchema(
+        v2ListWorkspaceSchedulesContract.response.schema,
+        'WorkspaceScheduleListResponse',
+        'Workspace schedule list response',
+        'A cursor-paginated page of the schedules deployed workflows run.',
+        [
+          {
+            data: [
+              {
+                workflowId: WORKFLOW_ID,
+                workflowName: WORKFLOW_EXAMPLE.name,
+                blockId: WORKFLOW_TRIGGER_EXAMPLE.blockId,
+                enabled: true,
+                status: 'active',
+                failedCount: 0,
+                lastFailedAt: null,
+                nextRunAt: '2026-08-10T09:00:00.000Z',
+                lastRanAt: '2026-08-10T08:00:00.000Z',
+                cronExpression: '0 * * * *',
+                timezone: 'UTC',
+              },
+            ],
+            nextCursor: null,
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2DeployWorkflowContract,
     workflowOperation({
       applicationOperation: workflowOperations.deploy,
@@ -1210,7 +1382,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute workflow',
-      description: `Run the active deployment, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
+      description: `Run the active deployment, set \`run: { source: "deployment", version }\` to run an earlier deployment version, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or a full-access API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and a full-access API key or OAuth \`api:write\` scope; an unknown version returns \`404\`. Manual runs require a full-access personal API key or OAuth \`api:write\` scope, and workspace write access; workspace API keys are refused, and manual runs cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1289,12 +1461,63 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListPausedRunsContract,
+    workflowRunOperation({
+      applicationOperation: workflowOperations.listPausedRuns,
+      operationId: 'listPausedWorkflowRunsV2',
+      summary: 'List paused workflow runs',
+      description: `List a workspace's runs waiting on human input, with workspace read access. Each run lists the human pause points it still waits at, exactly as Get workflow run shows them; resume one with Resume workflow run. Request each point's reviewer content with \`includeOutput\`. Organization permission groups can hide pause fields. A page ends early, with a cursor, once it holds ${V2_MAX_PAUSED_RUN_POINTS_PER_PAGE} pause points.`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('A page of paused workflow runs.'),
+    }),
+    {
+      query: v2ListPausedRunsContract.query,
+      response: documentedSchema(
+        v2ListPausedRunsContract.response.schema,
+        'PausedRunListResponse',
+        'Paused run list response',
+        'A cursor-paginated page of runs waiting on human input.',
+        [
+          {
+            data: [
+              {
+                runId: RUN_ID,
+                workflowId: WORKFLOW_ID,
+                workflowName: 'Customer support triage',
+                pausedAt: '2026-08-09T18:04:11.000Z',
+                points: [
+                  {
+                    contextId: 'blk_approval',
+                    blockId: 'blk_approval',
+                    blockName: 'Manager approval',
+                    kind: 'human',
+                    status: 'paused',
+                    registeredAt: '2026-08-09T18:04:11.000Z',
+                    resumeAt: null,
+                    parallel: null,
+                    loop: null,
+                    inputFields: [
+                      { name: 'approved', label: 'Approved', type: 'boolean', required: true },
+                    ],
+                    display: null,
+                    queuePosition: null,
+                  },
+                ],
+              },
+            ],
+            nextCursor: null,
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowRunContract,
     workflowRunOperation({
       applicationOperation: workflowOperations.readRun,
       operationId: 'getWorkflowRunV2',
       summary: 'Get workflow run',
-      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
+      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in \`paused.points\`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1316,6 +1539,7 @@ const declaredRoutes = [
               startedAt: '2026-08-09T18:04:10.000Z',
               endedAt: '2026-08-09T18:04:11.000Z',
               durationMs: 1_000,
+              version: 3,
               paused: null,
               cost: { total: 12 },
               error: null,
@@ -1363,7 +1587,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.',
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {

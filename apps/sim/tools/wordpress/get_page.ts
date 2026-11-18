@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetPageParams,
@@ -33,7 +34,8 @@ export const getPageTool: ToolConfig<WordPressGetPageParams, WordPressGetPageRes
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages/${params.pageId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/pages/${safeUrlPathSegment(params.pageId, 'pageId')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

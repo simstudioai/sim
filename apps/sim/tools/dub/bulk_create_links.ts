@@ -1,4 +1,5 @@
 import type { DubBulkCreateLinksParams, DubBulkCreateLinksResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bulkCreateLinksTool: ToolConfig<DubBulkCreateLinksParams, DubBulkCreateLinksResponse> =
@@ -8,6 +9,7 @@ export const bulkCreateLinksTool: ToolConfig<DubBulkCreateLinksParams, DubBulkCr
     description:
       'Create up to 100 short links in a single request. Returns the created links alongside any per-link errors.',
     version: '1.0.0',
+    oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

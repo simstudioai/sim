@@ -5,6 +5,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createWorkspaceCredentialContract,
+  prepareWorkloadIdentityContract,
   updateWorkspaceCredentialContract,
   type WorkspaceCredential,
   type WorkspaceCredentialType,
@@ -18,6 +19,7 @@ import {
   updateOrganizationCredentialContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import {
   organizationCredentialKeys,
@@ -112,5 +114,74 @@ export function useUpdateScopedCredential() {
       })
     },
     onSuccess: reconcile,
+  })
+}
+
+/**
+ * Its own root, not under `workspaceCredentialKeys.all`: broad credential
+ * invalidations would refetch an open setup and mint a new subject mid-copy.
+ */
+const workloadIdentityKeys = {
+  all: ['workloadIdentitySetup'] as const,
+  setup: (
+    workspaceId: string | undefined,
+    provider: string,
+    sessionKey: string,
+    newSubject: boolean
+  ) =>
+    [
+      ...workloadIdentityKeys.all,
+      workspaceId ?? 'none',
+      provider,
+      sessionKey,
+      newSubject ? 'new' : 'held',
+    ] as const,
+}
+
+/** A setup's subject is minted once per modal session and never refreshed. */
+const WORKLOAD_IDENTITY_SETUP_STALE_TIME = Number.POSITIVE_INFINITY
+
+interface UseWorkloadIdentitySetupProps {
+  workspaceId?: string
+  provider: WorkloadIdentityProvider
+  /** One per modal session, so each open gets its own subject. */
+  sessionKey: string
+  enabled: boolean
+  /** The credential being reconnected, if any. */
+  credentialId?: string
+  /** Ask for a new subject instead of the one Sim is holding for this person. */
+  newSubject?: boolean
+}
+
+/**
+ * The trust setup for a new keyless credential: the issuer to register and the
+ * signed subject it must trust. Sim holds an unsaved subject for its person, so
+ * reopening the dialog shows the same one; a `newSubject` fetch issues another.
+ * The key carries the modal session, and the result never goes stale or
+ * refetches while the person is copying it.
+ */
+export function useWorkloadIdentitySetup(input: UseWorkloadIdentitySetupProps) {
+  return useQuery({
+    queryKey: workloadIdentityKeys.setup(
+      input.workspaceId,
+      input.provider,
+      input.sessionKey,
+      Boolean(input.newSubject)
+    ),
+    queryFn: async ({ signal }) =>
+      requestJson(prepareWorkloadIdentityContract, {
+        body: {
+          workspaceId: input.workspaceId ?? '',
+          provider: input.provider,
+          ...(input.credentialId ? { credentialId: input.credentialId } : {}),
+          ...(input.newSubject ? { newSubject: true } : {}),
+        },
+        signal,
+      }),
+    enabled: input.enabled && Boolean(input.workspaceId),
+    staleTime: WORKLOAD_IDENTITY_SETUP_STALE_TIME,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
   })
 }

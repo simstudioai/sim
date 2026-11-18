@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import {
   atlassianProductSchema,
+  nonBlankSecretSchema,
   quickBooksOAuthClientConfigSchema,
+  workloadIdentitySubjectGrantShape,
   workspaceCredentialRoleSchema,
 } from '@/lib/api/contracts/credentials'
 import {
@@ -20,9 +22,10 @@ import {
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
-  getServiceAccountRequiredFields,
+  getMissingServiceAccountFields,
   SERVICE_ACCOUNT_REQUIRED_FIELDS,
 } from '@/lib/credentials/service-account-fields'
+import { WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST } from '@/lib/credentials/workload-identity/audiences'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 
 /** Public credentials are authenticated connections, never raw environment secrets. */
@@ -104,6 +107,12 @@ export const v2CredentialProviderFieldSchema = z
       .max(20)
       .optional()
       .describe('Fixed values accepted by a selector field.'),
+    defaultValue: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe('Value an optional field takes when it is omitted.'),
     hint: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
   })
   .strict()
@@ -158,6 +167,21 @@ export const v2ServiceAccountCredentialProviderSchema = z
       .min(1)
       .max(20)
       .describe('Create-body fields accepted by this provider. Secret fields are write-only.'),
+    keyless: z
+      .object({
+        authType: z.string().describe('The `authType` of the keyless `serviceAccountJson`.'),
+        requiredConfigFields: z.array(z.string()).describe('Fields you add to `keylessConfig`.'),
+        optionalConfigFields: z
+          .array(z.string())
+          .describe(
+            'Fields `keylessConfig` may also carry. `audience` is a custom `aud` claim Sim signs in place of the default; your trust configuration must then accept it.'
+          ),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Present when this deployment can create a keyless credential for the provider. Start one with Create workload identity subject.'
+      ),
   })
   .strict()
 
@@ -289,6 +313,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'ramp',
   'helpscout',
   'hubspot',
+  'apollo',
   'linkedin',
   'instagram',
   'salesforce',
@@ -375,6 +400,11 @@ export const v2CredentialConnectionAuthorizationSchema = z
       .string()
       .url('authorizationUrl must be an absolute URL')
       .describe('Short-lived Sim browser URL that starts the OAuth authorization flow.'),
+    draftId: z
+      .string()
+      .describe(
+        'ID of the pending connection behind authorizationUrl. Only the user who created it can complete it.'
+      ),
     expiresAt: v2TimestampSchema.describe('ISO 8601 timestamp when the connection link expires.'),
   })
   .meta({
@@ -404,6 +434,75 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   },
 })
 
+const v2CreateCredentialWorkloadIdentitySubjectBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that will own the keyless credential.'),
+    providerId: z
+      .enum(WORKLOAD_IDENTITY_SERVICE_ACCOUNT_PROVIDER_ID_LIST)
+      .describe(
+        'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.'
+      ),
+    subject: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'A subject Sim issued to you earlier that no credential has saved yet. Renews its proof instead of issuing a new subject, so a trust configuration that already allows it keeps working. Refused with `WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING` once a credential saves it, after its hold ends, or for a subject issued to someone else.'
+      ),
+  })
+  .strict()
+const v2CredentialWorkloadIdentitySubjectSchema = z
+  .object({
+    ...workloadIdentitySubjectGrantShape,
+    expiresAt: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.expiresAt.description ?? 'Proof expiry.'
+    ),
+    subjectIssuedAt: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.subjectIssuedAt.description ?? 'Subject issue time.'
+    ),
+    subjectHeldUntil: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.subjectHeldUntil.description ?? 'Subject hold expiry.'
+    ),
+    keylessConfig: z
+      .object({
+        authType: z.string().describe("The provider's keyless authentication type."),
+        subject: workloadIdentitySubjectGrantShape.subject,
+        subjectProof: workloadIdentitySubjectGrantShape.subjectProof,
+      })
+      .strict()
+      .describe(
+        'Prefilled keyless `serviceAccountJson`: add `requiredConfigFields` (and any `optionalConfigFields`, such as a custom `audience`), then send it to Create service-account credential.'
+      ),
+    requiredConfigFields: z
+      .array(z.string())
+      .describe(
+        'Fields from your cloud setup that `keylessConfig` still needs, such as roleArn or host.'
+      ),
+    optionalConfigFields: z
+      .array(z.string())
+      .describe(
+        'Fields `keylessConfig` may also carry. `audience` replaces the default `audience` above with your own value, such as one specific to your account; trust that value instead of the default.'
+      ),
+  })
+  .meta({
+    id: 'V2CredentialWorkloadIdentitySubject',
+    title: 'Credential workload identity subject',
+    description:
+      'The issuer, default audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential. A `keylessConfig.audience` overrides the default audience.',
+  })
+
+export const v2CreateCredentialWorkloadIdentitySubjectContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/credentials/workload-identity/subjects',
+  query: noInputSchema,
+  body: v2CreateCredentialWorkloadIdentitySubjectBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CredentialWorkloadIdentitySubjectSchema),
+  },
+})
+
 const MAX_SERVICE_ACCOUNT_JSON_CHARS = 2 * 1024 * 1024
 // JSON escaping can double the configuration; retain room for the other credential fields.
 const MAX_CREDENTIALS_JSON_CHARS = 2 * MAX_SERVICE_ACCOUNT_JSON_CHARS + 128 * 1024
@@ -419,10 +518,7 @@ const v2ServiceAccountCredentialFieldsSchema = z
         'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
       )
       .meta({ writeOnly: true }),
-    apiToken: z
-      .string()
-      .trim()
-      .min(1)
+    apiToken: nonBlankSecretSchema
       .max(8192)
       .optional()
       .describe('Write-only provider API token.')
@@ -597,14 +693,12 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       })
       return
     }
-    for (const field of getServiceAccountRequiredFields(body.providerId)) {
-      if (!body.credentials[field]) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['credentials', field],
-          message: `${field} is required for ${body.providerId} credentials`,
-        })
-      }
+    for (const field of getMissingServiceAccountFields(body.providerId, body.credentials)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentials', field],
+        message: `${field} is required for ${body.providerId} credentials`,
+      })
     }
   })
 export type V2CreateServiceAccountCredentialBody = z.input<
@@ -696,10 +790,7 @@ const v2ServiceAccountSecretFieldsShape = {
       'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
     )
     .meta({ writeOnly: true }),
-  apiToken: z
-    .string()
-    .trim()
-    .min(1)
+  apiToken: nonBlankSecretSchema
     .max(8192)
     .optional()
     .describe('Write-only provider API token.')

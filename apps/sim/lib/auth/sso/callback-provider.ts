@@ -4,6 +4,14 @@ const DYNAMIC_SSO_CALLBACK_PATHS = new Set([
   '/sso/saml2/sp/acs/:providerId',
 ])
 
+/**
+ * Provider IDs travel unescaped in callback URLs (`/sso/callback/{providerId}`),
+ * so they are limited to characters that survive a URL path unchanged. A
+ * percent-escape would let the plugin and the admission hook disagree on which
+ * provider a sign-in came from, and `.`/`..` are dot-segments a URL collapses.
+ */
+export const SSO_PROVIDER_ID_PATTERN = /^(?!\.{1,2}$)[a-zA-Z0-9_.:-]{1,128}$/
+
 const CONCRETE_SSO_CALLBACK_PATH = /^\/sso\/(?:callback|saml2\/callback|saml2\/sp\/acs)\/([^/]+)$/
 
 /**
@@ -25,29 +33,27 @@ export interface SsoCallbackProviderContext {
   stateProviderId?: unknown
 }
 
-function decodeProviderId(value: unknown): string | null {
-  if (typeof value !== 'string' || !value) return null
-  try {
-    const providerId = decodeURIComponent(value)
-    return providerId && !providerId.includes('/') && !providerId.includes('\\') ? providerId : null
-  } catch {
-    return null
-  }
+function providerIdFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined
 }
 
-/** Resolves the provider identity from Better Auth's callback route context. */
+/**
+ * Resolves the provider identity from Better Auth's callback route context.
+ * Returns the value exactly as the SSO plugin used it for its own provider
+ * lookup and account linking (route params are not percent-decoded), so the
+ * admission check always names the provider that actually minted the session.
+ */
 export function resolveSsoCallbackProviderId({
   path,
   routeProviderId,
   stateProviderId,
-}: SsoCallbackProviderContext): string | null {
+}: SsoCallbackProviderContext): string | undefined {
   if (DYNAMIC_SSO_CALLBACK_PATHS.has(path)) {
-    return decodeProviderId(routeProviderId)
+    return providerIdFrom(routeProviderId)
   }
   if (path === '/sso/callback') {
-    return decodeProviderId(stateProviderId)
+    return providerIdFrom(stateProviderId)
   }
 
-  const concreteMatch = CONCRETE_SSO_CALLBACK_PATH.exec(path)
-  return decodeProviderId(concreteMatch?.[1])
+  return providerIdFrom(CONCRETE_SSO_CALLBACK_PATH.exec(path)?.[1])
 }

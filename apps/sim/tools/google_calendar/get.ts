@@ -1,10 +1,13 @@
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarGetParams,
   type GoogleCalendarGetResponse,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails, EVENT_DETAIL_OUTPUTS } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetResponse> = {
   id: 'google_calendar_get',
@@ -41,7 +44,7 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
   request: {
     url: (params: GoogleCalendarGetParams) => {
       const calendarId = params.calendarId || 'primary'
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarGetParams) => ({
@@ -58,6 +61,7 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
       output: {
         content: `Retrieved event "${data.summary}"`,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           status: data.status,
@@ -85,7 +89,7 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
 
 interface GoogleCalendarGetV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     status: string
@@ -115,6 +119,7 @@ export const getV2Tool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetV2R
     return {
       success: true,
       output: {
+        ...buildEventDetails(data),
         id: data.id,
         htmlLink: data.htmlLink,
         status: data.status,
@@ -130,6 +135,7 @@ export const getV2Tool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetV2R
     }
   },
   outputs: {
+    ...EVENT_DETAIL_OUTPUTS,
     id: { type: 'string', description: 'Event ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     status: { type: 'string', description: 'Event status' },

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetCurrentUserParams,
@@ -30,7 +31,8 @@ export const getCurrentUserTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/users/me`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/users/me?context=edit`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

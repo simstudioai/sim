@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -36,6 +37,7 @@ export const sportmonksGetTransferRumoursBetweenDatesTool: ToolConfig<
   name: 'Get Transfer Rumours Between Dates',
   description: 'Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

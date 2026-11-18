@@ -2,7 +2,9 @@ import type {
   MicrosoftTeamsUpdateMessageParams,
   MicrosoftTeamsWriteResponse,
 } from '@/tools/microsoft_teams/types'
+import { buildMessageBody } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateChannelMessageTool: ToolConfig<
   MicrosoftTeamsUpdateMessageParams,
@@ -49,7 +51,14 @@ export const updateChannelMessageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The new content for the message (plain text or HTML formatted)',
+      description:
+        'The new content for the message (plain text, or HTML when contentType is "html")',
+    },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Body format: "text" (default) or "html"',
     },
   },
 
@@ -67,7 +76,7 @@ export const updateChannelMessageTool: ToolConfig<
       if (!teamId || !channelId || !messageId) {
         throw new Error('Team ID, Channel ID, and Message ID are required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`
+      return `https://graph.microsoft.com/v1.0/teams/${safeUrlPathSegment(teamId, 'Team ID')}/channels/${safeUrlPathSegment(channelId, 'Channel ID')}/messages/${safeUrlPathSegment(messageId, 'Message ID')}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -83,12 +92,7 @@ export const updateChannelMessageTool: ToolConfig<
       if (!params.content) {
         throw new Error('Content is required')
       }
-      return {
-        body: {
-          contentType: 'text',
-          content: params.content,
-        },
-      }
+      return { body: buildMessageBody(params.content, params.contentType) }
     },
   },
 
@@ -115,6 +119,7 @@ export const updateChannelMessageTool: ToolConfig<
       output: {
         updatedContent: true,
         metadata,
+        messageId: metadata.messageId,
       },
     }
   },

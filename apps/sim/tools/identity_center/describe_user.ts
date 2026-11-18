@@ -2,6 +2,7 @@ import type {
   IdentityCenterDescribeUserParams,
   IdentityCenterDescribeUserResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeUserTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const describeUserTool: InternalToolConfig<
   description:
     'Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -71,6 +73,8 @@ export const describeUserTool: InternalToolConfig<
         email: data.email ?? null,
         userStatus: data.userStatus ?? null,
         title: data.title ?? null,
+        givenName: data.givenName ?? null,
+        familyName: data.familyName ?? null,
         externalIds: data.externalIds ?? [],
       },
     }
@@ -97,6 +101,16 @@ export const describeUserTool: InternalToolConfig<
     title: {
       type: 'string',
       description: 'Job title, or null when the Identity Store omits it',
+      nullable: true,
+    },
+    givenName: {
+      type: 'string',
+      description: 'Given (first) name, or null when the Identity Store omits it',
+      nullable: true,
+    },
+    familyName: {
+      type: 'string',
+      description: 'Family (last) name, or null when the Identity Store omits it',
       nullable: true,
     },
     externalIds: {

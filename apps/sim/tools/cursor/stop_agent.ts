@@ -1,5 +1,7 @@
 import type { StopAgentParams, StopAgentResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const stopAgentBase = {
   params: {
@@ -18,7 +20,7 @@ const stopAgentBase = {
   },
   request: {
     url: (params: StopAgentParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/stop`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/stop`,
     method: 'POST',
     headers: (params: StopAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,
@@ -31,6 +33,7 @@ export const stopAgentTool: ToolConfig<StopAgentParams, StopAgentResponse> = {
   name: 'Cursor Stop Agent',
   description: 'Stop a running cloud agent. This pauses the agent without deleting it.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...stopAgentBase,
 
@@ -75,6 +78,7 @@ export const stopAgentV2Tool: ToolConfig<StopAgentParams, StopAgentV2Response> =
   name: 'Cursor Stop Agent',
   description: 'Stop a running cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

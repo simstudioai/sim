@@ -35,7 +35,10 @@ describe('resolveHostAddresses', () => {
   it('rejects rather than returning nothing when the resolver answers empty', async () => {
     mockLookup.mockResolvedValue([])
 
-    await expect(resolveHostAddresses('empty.example')).rejects.toThrow('No addresses')
+    await expect(resolveHostAddresses('empty.example')).rejects.toMatchObject({
+      message: expect.stringContaining('No addresses'),
+      code: 'ENOTFOUND',
+    })
   })
 
   it('cancels a pending lookup at the caller deadline and cleans up its listener and timer', async () => {

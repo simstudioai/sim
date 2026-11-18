@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaSuspendUserParams, OktaSuspendUserResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaSuspendUser')
 
@@ -12,6 +14,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
   description:
     'Suspend a user in your Okta organization. Only users with ACTIVE status can be suspended. Suspended users cannot log in but retain group and app assignments.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/suspend`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/suspend`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

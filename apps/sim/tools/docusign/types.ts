@@ -52,6 +52,28 @@ export const TEMPLATE_OUTPUT_PROPERTIES = {
   lastModified: { type: 'string', description: 'ISO 8601 last modified date' },
 } as const satisfies Record<string, OutputProperty>
 
+/** Pagination outputs shared by the envelope and template list tools */
+export const LIST_PAGINATION_OUTPUTS = {
+  startPosition: {
+    type: 'number',
+    description: 'Zero-based index of the first result in this page',
+    optional: true,
+    nullable: true,
+  },
+  endPosition: {
+    type: 'number',
+    description: 'Zero-based index of the last result in this page',
+    optional: true,
+    nullable: true,
+  },
+  nextUri: {
+    type: 'string',
+    description: 'URI of the next page of results; null on the last page',
+    optional: true,
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
 export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of DocuSign envelopes',
@@ -82,6 +104,7 @@ export const TEMPLATES_ARRAY_OUTPUT: OutputProperty = {
 /** Params interfaces */
 export interface DocuSignSendEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   emailSubject: string
   emailBody?: string
   signerEmail: string
@@ -94,6 +117,7 @@ export interface DocuSignSendEnvelopeParams {
 
 export interface DocuSignCreateFromTemplateParams {
   accessToken: string
+  instanceUrl?: string
   templateId: string
   emailSubject?: string
   emailBody?: string
@@ -103,38 +127,46 @@ export interface DocuSignCreateFromTemplateParams {
 
 export interface DocuSignGetEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
 }
 
 export interface DocuSignListEnvelopesParams {
   accessToken: string
+  instanceUrl?: string
   fromDate?: string
   toDate?: string
   envelopeStatus?: string
   searchText?: string
   count?: string
+  startPosition?: string
 }
 
 export interface DocuSignVoidEnvelopeParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
   voidedReason: string
 }
 
 export interface DocuSignDownloadDocumentParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
   documentId?: string
 }
 
 export interface DocuSignListTemplatesParams {
   accessToken: string
+  instanceUrl?: string
   searchText?: string
   count?: string
+  startPosition?: string
 }
 
 export interface DocuSignListRecipientsParams {
   accessToken: string
+  instanceUrl?: string
   envelopeId: string
 }
 
@@ -185,6 +217,9 @@ export interface DocuSignListEnvelopesResponse extends ToolResponse {
     }>
     totalSetSize: number
     resultSetSize: number
+    startPosition: number | null
+    endPosition: number | null
+    nextUri: string | null
   }
 }
 
@@ -216,6 +251,9 @@ export interface DocuSignListTemplatesResponse extends ToolResponse {
     }>
     totalSetSize: number
     resultSetSize: number
+    startPosition: number | null
+    endPosition: number | null
+    nextUri: string | null
   }
 }
 

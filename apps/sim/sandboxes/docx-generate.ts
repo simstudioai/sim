@@ -78,8 +78,6 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
       }));
     };
   `,
-  // JSZip's browser build doesn't support nodebuffer output, so we go through
-  // base64 and decode back to bytes inside the isolate (avoids DataURL / Blob).
   finalize: `
     let doc = globalThis.doc;
     if (!doc && globalThis.__docxSections.length > 0) {
@@ -91,23 +89,7 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
     if (!doc) {
       throw new Error('No document created. Use addSection({ children: [...] }) for chunked writes, or set globalThis.doc = new docx.Document({...}) for a single write.');
     }
-    const b64 = await globalThis.docx.Packer.toBase64String(doc);
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    const lookup = new Uint8Array(128);
-    for (let i = 0; i < alphabet.length; i++) lookup[alphabet.charCodeAt(i)] = i;
-    const clean = b64.replace(/=+$/, '');
-    const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
-    let pos = 0;
-    for (let i = 0; i < clean.length; i += 4) {
-      const c0 = lookup[clean.charCodeAt(i)];
-      const c1 = lookup[clean.charCodeAt(i + 1)];
-      const c2 = lookup[clean.charCodeAt(i + 2)];
-      const c3 = lookup[clean.charCodeAt(i + 3)];
-      out[pos++] = (c0 << 2) | (c1 >> 4);
-      if (i + 2 < clean.length) out[pos++] = ((c1 & 0x0f) << 4) | (c2 >> 2);
-      if (i + 3 < clean.length) out[pos++] = ((c2 & 0x03) << 6) | c3;
-    }
-    return out.subarray(0, pos);
+    return new Uint8Array(await globalThis.docx.Packer.toArrayBuffer(doc));
   `,
   toResult: (bytes) => Buffer.from(bytes),
 })

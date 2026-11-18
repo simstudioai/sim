@@ -2,7 +2,7 @@
 title: Apify
 description: Run Apify actors and retrieve results
 integration:
-  type: "apify"
+  type: "apify_v2"
   color: "#FFFFFF"
 ---
 
@@ -29,7 +29,6 @@ Run an APIFY actor synchronously and get results (max 5 minutes)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
 | `input` | string | No | Actor input as JSON string. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \], "maxPages": 10 \} |
 | `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |
@@ -57,7 +56,6 @@ Start an APIFY Actor run and poll it within the same workflow step until complet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
 | `input` | string | No | Actor input as JSON string. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \], "maxPages": 10 \} |
 | `waitForFinish` | number | No | Initial wait time in seconds \(0-60\) before polling starts. Example: 30 |
@@ -88,7 +86,6 @@ Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `taskId` | string | Yes | Task ID or username/task-name. Examples: "janedoe/my-task", "moJRLRc85AitArpNN" |
 | `input` | string | No | JSON string that overrides the task's saved input. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \] \} |
 | `itemLimit` | number | No | Max dataset items to return \(1-250000\). Example: 500 |
@@ -116,7 +113,6 @@ Retrieve items stored in an APIFY dataset
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `datasetId` | string | Yes | Dataset ID to read items from. Example: "9RnD3Pql2vGZkc5H5" |
 | `itemLimit` | number | No | Max items to return \(1-250000\). Default: all items. Example: 500 |
 | `offset` | number | No | Number of items to skip at the start. Default: 0 |
@@ -143,7 +139,6 @@ Get the status and details of an APIFY actor run
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `runId` | string | Yes | Actor run ID to fetch. Example: "HG7ML7M8z78YcAPEB" |
 
 #### Output

@@ -1,3 +1,4 @@
+import { toPrincipalActor } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import {
   createPersonalApiKeyPrincipal,
@@ -379,7 +380,7 @@ describe('knowledge document application use cases', () => {
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.documents.upload',
-          actor: createWorkspaceApiKeyPrincipal(),
+          actor: toPrincipalActor(createWorkspaceApiKeyPrincipal()),
         }),
       })
     )

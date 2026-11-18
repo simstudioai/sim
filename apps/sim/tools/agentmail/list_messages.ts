@@ -1,11 +1,14 @@
 import type { ListMessagesParams, ListMessagesResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailListMessagesTool: ToolConfig<ListMessagesParams, ListMessagesResult> = {
   id: 'agentmail_list_messages',
   name: 'List Messages',
   description: 'List messages in an inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -40,7 +43,7 @@ export const agentmailListMessagesTool: ToolConfig<ListMessagesParams, ListMessa
       if (params.limit) query.set('limit', String(params.limit))
       if (params.pageToken) query.set('page_token', params.pageToken)
       const qs = query.toString()
-      return `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages${qs ? `?${qs}` : ''}`
+      return `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

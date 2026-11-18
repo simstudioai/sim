@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3PresignedUrlTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3PresignedUrlTool: InternalToolConfig = {
   name: 'S3 Presigned URL',
   description: 'Generate a time-limited presigned URL to download or upload an S3 object',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

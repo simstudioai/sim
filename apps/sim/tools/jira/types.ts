@@ -410,6 +410,21 @@ export const ISSUE_ITEM_PROPERTIES = {
     description: 'Issue description text (extracted from ADF)',
     optional: true,
   },
+  descriptionAdf: {
+    type: 'json',
+    description: 'Issue description as the raw Atlassian Document Format (ADF) document',
+    optional: true,
+  },
+  renderedDescription: {
+    type: 'string',
+    description: 'Issue description rendered as HTML (requires the renderedFields expansion)',
+    optional: true,
+  },
+  environment: {
+    type: 'string',
+    description: 'Environment text (extracted from ADF)',
+    optional: true,
+  },
   status: {
     type: 'object',
     description: 'Issue status',
@@ -569,6 +584,23 @@ export const ISSUE_ITEM_PROPERTIES = {
     },
     optional: true,
   },
+  watchers: {
+    type: 'array',
+    description: 'Users watching the issue',
+    items: { type: 'object', properties: USER_OUTPUT_PROPERTIES },
+    optional: true,
+  },
+  customFields: {
+    type: 'json',
+    description:
+      'Every customfield_* value Jira returned, keyed by field ID (e.g., sprint, story points, team). Use the names output or Get Fields to map IDs to names.',
+    optional: true,
+  },
+  names: {
+    type: 'json',
+    description: 'Map of field ID to display name for every returned field',
+    optional: true,
+  },
   issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -584,6 +616,23 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
   description: {
     type: 'string',
     description: 'Issue description text (extracted from ADF)',
+    optional: true,
+  },
+  descriptionAdf: {
+    type: 'json',
+    description:
+      'Issue description as the raw Atlassian Document Format (ADF) document. Only included when the fields param is set',
+    optional: true,
+  },
+  renderedDescription: {
+    type: 'string',
+    description:
+      'Issue description rendered as HTML. Only included when expand includes renderedFields',
+    optional: true,
+  },
+  environment: {
+    type: 'string',
+    description: 'Environment text (extracted from ADF)',
     optional: true,
   },
   status: {
@@ -651,6 +700,77 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
   duedate: { type: 'string', description: 'Due date (YYYY-MM-DD)', optional: true },
   created: { type: 'string', description: 'ISO 8601 timestamp when the issue was created' },
   updated: { type: 'string', description: 'ISO 8601 timestamp when the issue was last updated' },
+  creator: {
+    type: 'object',
+    description: 'Issue creator',
+    properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  fixVersions: {
+    type: 'array',
+    description: 'Fix versions',
+    items: { type: 'object', properties: VERSION_OUTPUT_PROPERTIES },
+    optional: true,
+  },
+  resolutiondate: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the issue was resolved',
+    optional: true,
+  },
+  timetracking: TIME_TRACKING_OUTPUT,
+  parent: {
+    type: 'object',
+    description: 'Parent issue (subtask parent or epic)',
+    properties: {
+      id: { type: 'string', description: 'Parent issue ID' },
+      key: { type: 'string', description: 'Parent issue key' },
+      summary: { type: 'string', description: 'Parent issue summary', optional: true },
+    },
+    optional: true,
+  },
+  issuelinks: {
+    type: 'array',
+    description: 'Linked issues. Only included when the fields param is set',
+    items: { type: 'object', properties: ISSUE_LINK_ITEM_PROPERTIES },
+    optional: true,
+  },
+  subtasks: {
+    type: 'array',
+    description: 'Subtask issues. Only included when the fields param is set',
+    items: { type: 'object', properties: SUBTASK_ITEM_PROPERTIES },
+    optional: true,
+  },
+  votes: {
+    type: 'object',
+    description: 'Vote information',
+    properties: {
+      votes: { type: 'number', description: 'Number of votes' },
+      hasVoted: { type: 'boolean', description: 'Whether the current user has voted' },
+    },
+    optional: true,
+  },
+  watches: {
+    type: 'object',
+    description: 'Watch information',
+    properties: {
+      watchCount: { type: 'number', description: 'Number of watchers' },
+      isWatching: { type: 'boolean', description: 'Whether the current user is watching' },
+    },
+    optional: true,
+  },
+  attachments: {
+    type: 'array',
+    description:
+      'Attachment metadata (no file contents). Only included when the fields param is set',
+    items: { type: 'object', properties: ATTACHMENT_ITEM_PROPERTIES },
+    optional: true,
+  },
+  customFields: {
+    type: 'json',
+    description:
+      'Every customfield_* value Jira returned, keyed by field ID (e.g., sprint, story points, team). Only included when the fields param is set; use the names output or Get Fields to map IDs to names.',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -686,12 +806,26 @@ export interface JiraRetrieveResponse extends ToolResponse {
     self: string
     summary: string
     description: string | null
+    descriptionAdf: unknown
+    renderedDescription: string | null
+    environment: string | null
+    watchers: Array<{
+      accountId: string
+      displayName: string
+      active: boolean | null
+      emailAddress: string | null
+      avatarUrl: string | null
+      accountType: string | null
+      timeZone: string | null
+    }>
+    customFields: Record<string, unknown>
+    names: Record<string, string> | null
     status: {
       id: string
       name: string
-      description?: string
+      description?: string | null
       statusCategory?: {
-        id: number
+        id?: number
         key: string
         name: string
         colorName: string
@@ -700,20 +834,20 @@ export interface JiraRetrieveResponse extends ToolResponse {
     issuetype: {
       id: string
       name: string
-      description?: string
+      description?: string | null
       subtask: boolean
-      iconUrl?: string
+      iconUrl?: string | null
     }
     project: {
       id: string
       key: string
       name: string
-      projectTypeKey?: string
+      projectTypeKey?: string | null
     }
     priority: {
       id: string
       name: string
-      iconUrl?: string
+      iconUrl?: string | null
     } | null
     statusName: string
     assignee: {
@@ -745,34 +879,49 @@ export interface JiraRetrieveResponse extends ToolResponse {
       timeZone: string | null
     } | null
     labels: string[]
-    components: Array<{ id: string; name: string; description?: string }>
-    fixVersions: Array<{ id: string; name: string; released?: boolean; releaseDate?: string }>
-    resolution: { id: string; name: string; description?: string } | null
+    components: Array<{ id: string; name: string; description?: string | null }>
+    fixVersions: Array<{
+      id: string
+      name: string
+      released?: boolean | null
+      releaseDate?: string | null
+    }>
+    resolution: { id: string; name: string; description?: string | null } | null
     duedate: string | null
     created: string
     updated: string
     resolutiondate: string | null
     timetracking: {
-      originalEstimate?: string
-      remainingEstimate?: string
-      timeSpent?: string
-      originalEstimateSeconds?: number
-      remainingEstimateSeconds?: number
-      timeSpentSeconds?: number
+      originalEstimate?: string | null
+      remainingEstimate?: string | null
+      timeSpent?: string | null
+      originalEstimateSeconds?: number | null
+      remainingEstimateSeconds?: number | null
+      timeSpentSeconds?: number | null
     } | null
-    parent: { id: string; key: string; summary?: string } | null
+    parent: { id: string; key: string; summary?: string | null } | null
     issuelinks: Array<{
       id: string
       type: { id: string; name: string; inward: string; outward: string }
-      inwardIssue?: { id: string; key: string; statusName?: string; summary?: string }
-      outwardIssue?: { id: string; key: string; statusName?: string; summary?: string }
+      inwardIssue?: {
+        id: string
+        key: string
+        statusName?: string | null
+        summary?: string | null
+      } | null
+      outwardIssue?: {
+        id: string
+        key: string
+        statusName?: string | null
+        summary?: string | null
+      } | null
     }>
     subtasks: Array<{
       id: string
       key: string
       summary: string
       statusName: string
-      issueTypeName?: string
+      issueTypeName?: string | null
     }>
     votes: { votes: number; hasVoted: boolean } | null
     watches: { watchCount: number; isWatching: boolean } | null
@@ -899,6 +1048,8 @@ export interface JiraUpdateParams {
   environment?: string
   customFieldId?: string
   customFieldValue?: string
+  customFields?: Record<string, unknown> | string
+  parent?: string | { key: string } | { id: string }
   notifyUsers?: boolean
   cloudId?: string
 }
@@ -931,6 +1082,7 @@ export interface JiraWriteParams {
   environment?: string
   customFieldId?: string
   customFieldValue?: string
+  customFields?: Record<string, unknown> | string
 }
 
 export interface JiraWriteResponse extends ToolResponse {
@@ -987,6 +1139,7 @@ export interface JiraTransitionIssueParams {
   transitionId: string
   comment?: string
   resolution?: string
+  fields?: Record<string, unknown> | string
   cloudId?: string
 }
 
@@ -1008,6 +1161,7 @@ export interface JiraSearchIssuesParams {
   nextPageToken?: string
   maxResults?: number
   fields?: string[]
+  expand?: string
   cloudId?: string
 }
 
@@ -1061,10 +1215,25 @@ export interface JiraSearchIssuesResponse extends ToolResponse {
       duedate: string | null
       created: string
       updated: string
+      descriptionAdf?: unknown
+      renderedDescription?: string | null
+      environment?: string | null
+      creator?: JiraRetrieveResponse['output']['creator']
+      fixVersions?: JiraRetrieveResponse['output']['fixVersions']
+      resolutiondate?: string | null
+      timetracking?: JiraRetrieveResponse['output']['timetracking']
+      parent?: JiraRetrieveResponse['output']['parent']
+      issuelinks?: JiraRetrieveResponse['output']['issuelinks']
+      subtasks?: JiraRetrieveResponse['output']['subtasks']
+      votes?: JiraRetrieveResponse['output']['votes']
+      watches?: JiraRetrieveResponse['output']['watches']
+      attachments?: JiraRetrieveResponse['output']['attachments']
+      customFields?: Record<string, unknown>
     }>
     nextPageToken: string | null
     isLast: boolean
     total: number | null
+    names?: Record<string, string> | null
   }
 }
 

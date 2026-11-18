@@ -1,10 +1,11 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
 import {
-  LANGSMITH_API_BASE,
+  LANGSMITH_REGIONS,
   normalizeLangsmithRunPayload,
   truncateLangsmithErrorText,
 } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunTool: ToolConfig<
@@ -15,7 +16,9 @@ export const langsmithCreateRunTool: ToolConfig<
   name: 'LangSmith Create Run',
   description: 'Forward a single run to LangSmith for ingestion.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
+    region: LANGSMITH_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -126,7 +129,7 @@ export const langsmithCreateRunTool: ToolConfig<
     },
   },
   request: {
-    url: () => `${LANGSMITH_API_BASE}/runs`,
+    url: (params) => `${LANGSMITH_REGIONS.apiBase(params.region)}/runs`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,

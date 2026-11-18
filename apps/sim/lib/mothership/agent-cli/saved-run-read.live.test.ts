@@ -286,7 +286,12 @@ vi.mock('@sim/db', async () => {
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api/server/routes/v2-api-key-auth')>()),
   authenticateV2ApiKey: async () => ({
-    principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+    principal: {
+      kind: 'personal_api_key',
+      userId: 'run-reader',
+      keyId: 'local-key',
+      access: 'write',
+    },
     rateLimitSubjectIds: ['user:run-reader'],
     rateLimitSubscription: null,
     keyType: 'personal',
@@ -2613,7 +2618,12 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             expect(sessions.size).toBe(2)
             if (mode === 'partial-files') {
               const existing = await readWorkspaceFileArtifact.execute({
-                principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+                principal: {
+                  kind: 'personal_api_key',
+                  userId: 'run-reader',
+                  keyId: 'local-key',
+                  access: 'write',
+                },
                 input: { workspaceId, reference: `files/existing-${exportName}`, maxBytes: 1024 },
               })
               expect(existing.buffer.toString('utf8')).toBe('Existing report must survive')
@@ -2664,7 +2674,12 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         const reference = `uploads/${encodeURIComponent(filename)}`
         expect(prepared.context[0].content).toContain(reference)
         const read = await readWorkspaceFileText.execute({
-          principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+          principal: {
+            kind: 'personal_api_key',
+            userId: 'run-reader',
+            keyId: 'local-key',
+            access: 'write',
+          },
           input: { workspaceId, reference },
         })
         expect(read.file.id).toBe(row.id)

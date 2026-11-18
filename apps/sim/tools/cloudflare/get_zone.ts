@@ -6,6 +6,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -14,6 +15,7 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
   name: 'Cloudflare Get Zone',
   description: 'Gets details for a specific zone (domain) by its ID.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     zoneId: {

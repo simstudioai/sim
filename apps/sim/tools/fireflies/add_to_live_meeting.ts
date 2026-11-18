@@ -2,6 +2,7 @@ import type {
   FirefliesAddToLiveMeetingParams,
   FirefliesAddToLiveMeetingResponse,
 } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesAddToLiveMeetingTool: ToolConfig<
@@ -12,6 +13,7 @@ export const firefliesAddToLiveMeetingTool: ToolConfig<
   name: 'Fireflies Add to Live Meeting',
   description: 'Add the Fireflies.ai bot to an ongoing meeting to record and transcribe',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

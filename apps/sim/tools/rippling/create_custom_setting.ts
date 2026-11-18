@@ -1,5 +1,6 @@
 import type { RipplingCreateCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSettingParams> = {
@@ -7,6 +8,7 @@ export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSet
   name: 'Rippling Create Custom Setting',
   description: 'Create a new custom setting',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

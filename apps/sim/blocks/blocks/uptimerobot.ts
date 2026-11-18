@@ -1,7 +1,7 @@
 import { UptimeRobotIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Incidents narrow by monitor id or by monitor name — whichever the user filled. */
 const INCIDENT_MONITOR_FIELD = ['monitorId', 'monitorName'] as const
@@ -12,6 +12,8 @@ const PSP_EDIT_OPS = ['create_psp', 'update_psp']
 
 export const UptimeRobotBlock: BlockConfig = {
   type: 'uptimerobot',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'uptimerobot_v2' },
   name: 'UptimeRobot',
   description: 'Monitor uptime, manage incidents, maintenance windows, and status pages',
   longDescription:
@@ -1015,3 +1017,17 @@ export const UptimeRobotBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const UptimeRobotV2Block: BlockConfig = {
+  ...UptimeRobotBlock,
+  type: 'uptimerobot_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(UptimeRobotBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'uptimerobot',
+    title: 'UptimeRobot Credential',
+  }),
+}

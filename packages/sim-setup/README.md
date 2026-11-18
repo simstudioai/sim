@@ -17,7 +17,7 @@ other resources in a running Sim workspace, use the separate
 
 - Node.js 20 or newer
 - Docker with the Compose plugin
-- Ports `3000`, `3002`, and, by default, `5432` available
+- Ports `3000` and `3002` available
 - At least 12 GB of system memory and 20 GB of free disk for a small installation
 
 Allocate at least 8 GB of memory to Docker for reliable workflow execution.
@@ -126,7 +126,7 @@ specific installation.
 | `npx sim-setup restart` | Restart the current containers |
 | `npx sim-setup update` | Refresh the managed Compose file, pull images, recreate services, and run migrations |
 | `npx sim-setup down` | Remove containers but keep data volumes |
-| `npx sim-setup reset` | Archive `.env`, remove containers, and delete managed data volumes |
+| `npx sim-setup reset` | Remove containers and delete managed data volumes, then archive `.env` |
 
 `down` and `reset` are deliberately different. Use `down` when you want to
 remove containers and bring the same installation back later. `reset` is a
@@ -225,9 +225,9 @@ PostgreSQL data lives in a Docker volume. These commands preserve it:
 - `update`
 - `down`
 
-`reset` deletes managed volumes. It archives `.env` beside the installation
-before doing so, but that local archive is not a substitute for an off-machine
-backup.
+`reset` deletes managed volumes first, then archives `.env` beside the
+installation. If Docker is not running, `reset` stops without changing anything.
+The local archive is not a substitute for an off-machine backup.
 
 The default local file-storage fallback is different: uploaded files live inside
 the application container, not in a managed volume. They can be lost when the
@@ -266,6 +266,11 @@ bun run sim-setup --mode k8s
 
 Standalone npm use supports Docker Compose mode only. Development and Kubernetes
 modes need source-only files and are rejected outside a complete checkout.
+
+Dev mode publishes the managed Postgres and Redis containers on `127.0.0.1`
+only. Containers created by an earlier version publish on every network
+interface; run `bun run sim-setup down` and then re-run setup to rebind them.
+Your data is kept.
 
 ## Help
 

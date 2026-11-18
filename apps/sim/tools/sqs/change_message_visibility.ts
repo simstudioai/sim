@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsChangeMessageVisibilityParams, SqsMessageResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const changeMessageVisibilityTool: InternalToolConfig<
   name: 'SQS Change Message Visibility',
   description: 'Change how long a received Amazon SQS message stays hidden from other consumers',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

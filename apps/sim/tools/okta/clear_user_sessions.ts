@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaClearUserSessionsParams, OktaClearUserSessionsResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaClearUserSessions')
 
@@ -15,6 +17,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
   description:
     'Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -63,7 +66,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
       }
 
       const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/sessions`
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/sessions`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'DELETE',

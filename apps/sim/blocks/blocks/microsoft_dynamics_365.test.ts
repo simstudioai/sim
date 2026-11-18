@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MicrosoftDynamics365Block } from '@/blocks/blocks/microsoft_dynamics_365'
+import { getToolMetadata } from '@/tools/metadata'
+import { microsoftDynamics365ListRecordsTool } from '@/tools/microsoft_dynamics_365/list_records'
+import { microsoftDynamics365UpdateRecordTool } from '@/tools/microsoft_dynamics_365/update_record'
+import { getSubBlocksForToolInput } from '@/tools/params'
 
 const BASE_PARAMS = {
   credential: 'credential-1',
@@ -330,6 +334,16 @@ describe('MicrosoftDynamics365Block', () => {
     ).toThrow('Time spent must be at most 2147483647')
   })
 
+  it('refuses to close an opportunity whose canvas Outcome is blank instead of assuming won', () => {
+    expect(() =>
+      mapParams({
+        operation: 'close_opportunity',
+        closeOpportunityId: '11111111-1111-4111-8111-111111111111',
+        opportunityOutcome: '',
+      })
+    ).toThrow('Outcome')
+  })
+
   it('supports an optional opportunity subject and enforces close-description limits', () => {
     expect(
       mapParams({
@@ -376,5 +390,155 @@ describe('MicrosoftDynamics365Block', () => {
     expect(
       MicrosoftDynamics365Block.subBlocks.find(({ id }) => id === 'opportunitySubject')?.required
     ).toBeUndefined()
+  })
+})
+
+/**
+ * Agent tool rows, Pi, and Human v2 pass the operation only in the mapper context. Params hold the
+ * stored row values merged with the model's args, which are keyed by the selected tool's param
+ * names. A tool row stores only fields tool-input renders, so block-only dropdowns such as
+ * `recordType` and `ownerType` are absent.
+ */
+describe('MicrosoftDynamics365Block tool-call mapping', () => {
+  const RECORD_ID = '11111111-1111-4111-8111-111111111111'
+  const OWNER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+  function mapToolCall(operation: string, params: Record<string, unknown>) {
+    const mapper = MicrosoftDynamics365Block.tools.config?.params
+    if (!mapper) throw new Error('Dynamics 365 CRM block is missing its params mapper')
+    return mapper({ ...BASE_PARAMS, ...params }, { operation })
+  }
+
+  it('renders Owner Type and Owner ID on the List Owners and Assign Record tool rows', () => {
+    const rowTools = [microsoftDynamics365ListRecordsTool, microsoftDynamics365UpdateRecordTool]
+    vi.mocked(getToolMetadata).mockImplementationOnce(lookup).mockImplementationOnce(lookup)
+    function lookup(toolId: string) {
+      const tool = rowTools.find((candidate) => candidate.id === toolId)
+      return tool && { id: tool.id, params: tool.params }
+    }
+    const rowFields = (toolId: string, operation: string) =>
+      getSubBlocksForToolInput(
+        toolId,
+        'microsoft_dynamics_365',
+        { operation },
+        {},
+        MicrosoftDynamics365Block
+      )?.subBlocks.map((subBlock) => subBlock.id)
+
+    expect(rowFields('microsoft_dynamics_365_list_records', 'list_owners')).toContain('ownerType')
+    expect(rowFields('microsoft_dynamics_365_update_record', 'assign_record')).toEqual(
+      expect.arrayContaining(['ownerType', 'ownerId'])
+    )
+  })
+
+  it('lists owners from the row-stored owner type on a tool call', () => {
+    expect(
+      mapToolCall('list_owners', { ownerType: 'team', entitySetName: 'accounts' })
+    ).toMatchObject({ entitySetName: 'teams' })
+  })
+
+  it('assigns the record the model names to the row-stored owner on a tool call', () => {
+    expect(
+      mapToolCall('assign_record', {
+        ownerType: 'team',
+        ownerId: OWNER_ID,
+        entitySetName: 'contacts',
+        recordId: RECORD_ID,
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      entitySetName: 'contacts',
+      recordId: RECORD_ID,
+      data: { 'ownerid@odata.bind': `/teams(${OWNER_ID})` },
+    })
+  })
+
+  it('applies the stored resolution subject when the model sends only the case ID', () => {
+    expect(
+      mapToolCall('close_case', { caseSubject: 'Resolved by agent', caseId: RECORD_ID })
+    ).toEqual({ ...BASE_PARAMS, caseId: RECORD_ID, subject: 'Resolved by agent' })
+    expect(
+      mapToolCall('close_case', { caseId: RECORD_ID, subject: 'Model subject', timeSpent: 15 })
+    ).toEqual({ ...BASE_PARAMS, caseId: RECORD_ID, subject: 'Model subject', timeSpent: 15 })
+  })
+
+  it('keeps typed model list args over the stored count switch', () => {
+    expect(
+      mapToolCall('list_records', {
+        includeCount: false,
+        entitySetName: 'contacts',
+        select: 'fullname',
+        pageSize: 10,
+        count: true,
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      entitySetName: 'contacts',
+      select: 'fullname',
+      pageSize: 10,
+      count: 'true',
+    })
+  })
+
+  it('closes the opportunity the model names with the outcome it chose', () => {
+    expect(
+      mapToolCall('close_opportunity', {
+        opportunityId: RECORD_ID,
+        outcome: 'lost',
+        statusReason: 4,
+      })
+    ).toEqual({ ...BASE_PARAMS, opportunityId: RECORD_ID, outcome: 'lost', statusReason: 4 })
+  })
+
+  it('refuses to close an opportunity when the model omits the outcome', () => {
+    expect(() => mapToolCall('close_opportunity', { opportunityId: RECORD_ID })).toThrow(
+      'Outcome is required'
+    )
+  })
+
+  it('searches the model entities and numeric paging, else every CRM table', () => {
+    const entityList = [{ name: 'contact' }, { name: 'lead' }]
+    const entities = JSON.stringify(entityList)
+    expect(
+      mapToolCall('search_records', { searchTerm: 'Contoso', entities, top: 10, skip: 20 })
+    ).toMatchObject({ entities, top: 10, skip: 20, searchMode: 'any', searchType: 'simple' })
+    expect(
+      mapToolCall('search_records', { searchTerm: 'Contoso', entities: entityList })
+    ).toMatchObject({ entities })
+    const omitted = mapToolCall('search_records', { searchTerm: 'Contoso' })
+    expect(omitted).toMatchObject({ searchTerm: 'Contoso', top: 100 })
+    expect(omitted).not.toHaveProperty('entities')
+  })
+
+  it('leaves qualification switches the model omits for the tool to reject', () => {
+    const mapped = mapToolCall('qualify_lead', { leadId: RECORD_ID })
+    expect(mapped).toEqual({ ...BASE_PARAMS, leadId: RECORD_ID })
+    expect(mapped).not.toHaveProperty('createAccount')
+    expect(mapped).not.toHaveProperty('createContact')
+    expect(mapped).not.toHaveProperty('createOpportunity')
+  })
+
+  it('passes model qualification references when no stored values exist', () => {
+    expect(
+      mapToolCall('qualify_lead', {
+        leadId: RECORD_ID,
+        createAccount: false,
+        createContact: false,
+        createOpportunity: true,
+        statusReason: 3,
+        opportunityCustomerId: OWNER_ID,
+        opportunityCustomerType: 'contact',
+        qualifyOpportunityCustomerType: 'account',
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      leadId: RECORD_ID,
+      createAccount: false,
+      createContact: false,
+      createOpportunity: true,
+      statusReason: 3,
+      opportunityCustomerId: OWNER_ID,
+      opportunityCustomerType: 'contact',
+    })
   })
 })

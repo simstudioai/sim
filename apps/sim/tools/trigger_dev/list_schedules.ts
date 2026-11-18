@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevListSchedulesParams,
   TriggerDevListSchedulesResponse,
@@ -17,6 +18,7 @@ export const triggerDevListSchedulesTool: ToolConfig<
   name: 'Trigger.dev List Schedules',
   description: 'List Trigger.dev schedules in the project, with page-based pagination.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

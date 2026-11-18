@@ -54,12 +54,15 @@ Create an export in a matter
 | `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
 | `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
 | `terms` | string | No | Search query terms to filter exported content \(e.g., "from:sender@example.com subject:invoice"\) |
+| `includeSharedDrives` | boolean | No | Set to true to include files in shared drives \(DRIVE corpus only\) |
+| `exportFormat` | string | No | File format for exported messages: MBOX or PST \(MAIL, GROUPS, HANGOUTS_CHAT, and VOICE corpus; ignored for DRIVE\) |
+| `dataScope` | string | No | Data to search: ALL_DATA \(default\), HELD_DATA \(only data on hold\), or UNPROCESSED_DATA \(MAIL and GROUPS only\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `export` | json | Created export object |
+| `export` | json | Created export object \(id, matterId, name, status, createTime, query, exportOptions, requester, stats, cloudStorageSink once completed\) |
 
 </ReferenceDetails>
 
@@ -75,15 +78,15 @@ List exports for a matter
 | --------- | ---- | -------- | ----------- |
 | `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `pageSize` | number | No | Number of exports to return per page |
-| `pageToken` | string | No | Token for pagination |
+| `pageToken` | string | No | Token for pagination \(nextPageToken from a previous response\) |
 | `exportId` | string | No | Optional export ID to fetch a specific export \(e.g., "exportId123456"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `exports` | json | Array of export objects |
-| `export` | json | Single export object \(when exportId is provided\) |
+| `exports` | json | Array of export objects \(id, name, status, createTime, query, exportOptions, requester, stats, cloudStorageSink.files with bucketName/objectName/size/md5Hash\) |
+| `export` | json | Single export object \(when exportId is provided\), with the same fields as each exports entry |
 | `nextPageToken` | string | Token for fetching next page of results |
 
 </ReferenceDetails>
@@ -172,14 +175,14 @@ List holds for a matter
 | --------- | ---- | -------- | ----------- |
 | `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
 | `pageSize` | number | No | Number of holds to return per page |
-| `pageToken` | string | No | Token for pagination |
+| `pageToken` | string | No | Token for pagination \(nextPageToken from a previous response\) |
 | `holdId` | string | No | Optional hold ID to fetch a specific hold \(e.g., "holdId123456"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `holds` | json | Array of hold objects |
+| `holds` | json | Array of hold objects \(holdId, name, corpus, updateTime, query, accounts with accountId/email/firstName/lastName/holdTime, or orgUnit\) |
 | `hold` | json | Single hold object \(when holdId is provided\) |
 | `nextPageToken` | string | Token for fetching next page of results |
 
@@ -313,15 +316,17 @@ List matters, or get a specific matter if matterId is provided
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `pageSize` | number | No | Number of matters to return per page |
-| `pageToken` | string | No | Token for pagination |
+| `pageToken` | string | No | Token for pagination \(nextPageToken from a previous response\) |
 | `matterId` | string | No | Optional matter ID to fetch a specific matter \(e.g., "12345678901234567890"\) |
+| `view` | string | No | Amount of detail to return: BASIC \(ID, name, description, state; the default\) or FULL \(also includes matterPermissions, the owners and collaborators\) |
+| `state` | string | No | Only list matters in this state: OPEN, CLOSED, or DELETED \(default lists all states; ignored when matterId is provided\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matters` | json | Array of matter objects |
-| `matter` | json | Single matter object \(when matterId is provided\) |
+| `matters` | json | Array of matter objects \(matterId, name, description, state; matterPermissions when view is FULL\) |
+| `matter` | json | Single matter object \(when matterId is provided\): matterId, name, description, state; matterPermissions when view is FULL |
 | `nextPageToken` | string | Token for fetching next page of results |
 
 </ReferenceDetails>
@@ -491,6 +496,8 @@ Save a reusable search query in a matter
 | `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
 | `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
 | `terms` | string | No | Search query terms \(e.g., "from:sender@example.com subject:invoice"\) |
+| `includeSharedDrives` | boolean | No | Set to true to include files in shared drives \(DRIVE corpus only\) |
+| `dataScope` | string | No | Data to search: ALL_DATA \(default\), HELD_DATA \(only data on hold\), or UNPROCESSED_DATA \(MAIL and GROUPS only\) |
 
 #### Output
 

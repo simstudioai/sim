@@ -1,9 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdatePostParams,
   type WordPressUpdatePostResponse,
 } from '@/tools/wordpress/types'
+import { parseIdList } from '@/tools/wordpress/utils'
 
 export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpdatePostResponse> = {
   id: 'wordpress_update_post',
@@ -78,10 +80,18 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
       visibility: 'user-or-llm',
       description: 'URL slug for the post',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Publish date in the site timezone, ISO 8601 (e.g., 2026-12-01T09:00:00). A future date with status publish schedules the post',
+    },
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/posts/${params.postId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/posts/${safeUrlPathSegment(params.postId, 'postId')}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -95,20 +105,15 @@ export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpda
       if (params.status) body.status = params.status
       if (params.excerpt) body.excerpt = params.excerpt
       if (params.slug) body.slug = params.slug
+      if (params.date) body.date = params.date
       if (params.featuredMedia !== undefined) body.featured_media = params.featuredMedia
 
       if (params.categories) {
-        body.categories = params.categories
-          .split(',')
-          .map((id: string) => Number.parseInt(id.trim(), 10))
-          .filter((id: number) => !Number.isNaN(id))
+        body.categories = parseIdList(params.categories)
       }
 
       if (params.tags) {
-        body.tags = params.tags
-          .split(',')
-          .map((id: string) => Number.parseInt(id.trim(), 10))
-          .filter((id: number) => !Number.isNaN(id))
+        body.tags = parseIdList(params.tags)
       }
 
       return body

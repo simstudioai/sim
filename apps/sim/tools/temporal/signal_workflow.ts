@@ -12,6 +12,7 @@ import {
   workflowExecutionRef,
 } from '@/tools/temporal/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const signalWorkflowTool: ToolConfig<
   TemporalSignalWorkflowParams,
@@ -70,7 +71,7 @@ export const signalWorkflowTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/signal/${encodeURIComponent(params.signalName.trim())}`,
+      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/signal/${safeUrlPathSegment(params.signalName, 'signalName', { allowSeparators: true })}`,
     method: 'POST',
     headers: (params) => temporalRequestHeaders(params),
     body: (params) => {

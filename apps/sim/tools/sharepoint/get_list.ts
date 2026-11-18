@@ -4,10 +4,29 @@ import type {
   SharepointList,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl, optionalTrim } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  getGraphNextPageUrl,
+  graphPathSegment,
+  LIST_ITEM_OUTPUT_PROPERTIES,
+  mapListItem,
+  optionalTrim,
+} from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointGetList')
+
+const MAX_ITEMS_PAGE_SIZE = 5000
+
+function wantsItemsCollection(params: SharepointToolParams): boolean {
+  const nextPageUrl = optionalTrim(params.nextPageUrl)
+  if (nextPageUrl) {
+    const segments = new URL(nextPageUrl).pathname.split('/').filter(Boolean)
+    return segments[segments.length - 1]?.toLowerCase() === 'items'
+  }
+  const wantsItems = typeof params.includeItems === 'boolean' ? params.includeItems : true
+  return Boolean(optionalTrim(params.listId)) && wantsItems && !params.includeColumns
+}
 
 export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResponse> = {
   id: 'sharepoint_get_list',
@@ -58,6 +77,26 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       visibility: 'user-only',
       description: 'Whether to include list items when retrieving a specific list',
     },
+    filter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "OData $filter applied when reading list items. Reference columns as fields/<InternalName>. Example: fields/Status eq 'Active'",
+    },
+    top: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of list items to return per page (1-5000)',
+    },
+    selectFields: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Comma-separated column internal names to return in each item's fields. Example: Title,Status,DueDate",
+    },
     nextPageUrl: {
       type: 'string',
       required: false,
@@ -69,11 +108,11 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   request: {
     url: (params) => {
       if (params.nextPageUrl) {
-        return assertGraphNextPageUrl(params.nextPageUrl)
+        return assertGraphNextPageUrlForCollection(params.nextPageUrl, ['items', 'lists'])
       }
 
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
-      const encodedSiteId = encodeURIComponent(siteId)
+      const encodedSiteId = graphPathSegment(siteId, 'siteId')
       const listId = optionalTrim(params.listId)
 
       if (!listId) {
@@ -87,14 +126,27 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         return finalUrl
       }
 
-      const listSegment = encodeURIComponent(listId)
+      const listSegment = graphPathSegment(listId, 'listId')
       const wantsItems = typeof params.includeItems === 'boolean' ? params.includeItems : true
 
       if (wantsItems && !params.includeColumns) {
         const itemsUrl = new URL(
           `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists/${listSegment}/items`
         )
-        itemsUrl.searchParams.set('$expand', 'fields')
+        const selectFields = optionalTrim(params.selectFields)
+        itemsUrl.searchParams.set(
+          '$expand',
+          selectFields ? `fields($select=${selectFields})` : 'fields'
+        )
+        const filter = optionalTrim(params.filter)
+        if (filter) itemsUrl.searchParams.set('$filter', filter)
+        if (params.top !== undefined && params.top !== null && String(params.top).trim()) {
+          const top = Number(params.top)
+          if (!Number.isInteger(top) || top < 1 || top > MAX_ITEMS_PAGE_SIZE) {
+            throw new Error(`top must be an integer between 1 and ${MAX_ITEMS_PAGE_SIZE}`)
+          }
+          itemsUrl.searchParams.set('$top', String(top))
+        }
         const finalItemsUrl = itemsUrl.toString()
         logger.info('SharePoint Get List Items URL', {
           finalUrl: finalItemsUrl,
@@ -102,6 +154,17 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           listId,
         })
         return finalItemsUrl
+      }
+
+      if (
+        params.includeColumns &&
+        (optionalTrim(params.filter) ||
+          optionalTrim(params.selectFields) ||
+          (params.top !== undefined && params.top !== null && String(params.top).trim()))
+      ) {
+        throw new Error(
+          'filter, top, and selectFields apply only when includeColumns is false; read columns and filtered items in separate calls'
+        )
       }
 
       const baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists/${listSegment}`
@@ -125,6 +188,9 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
+      ...(optionalTrim(params.filter) || /(\$|%24)filter=/i.test(params.nextPageUrl ?? '')
+        ? { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' }
+        : {}),
     }),
   },
 
@@ -132,18 +198,11 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     const data: Record<string, unknown> = await response.json()
     const value = data.value
 
-    // If the response is a collection of items (from the items endpoint)
-    if (
-      Array.isArray(value) &&
-      value.length > 0 &&
-      value[0] &&
-      typeof value[0] === 'object' &&
-      'fields' in value[0]
-    ) {
-      const items = value.map((i: Record<string, unknown>) => ({
-        id: i.id as string,
-        fields: i.fields as Record<string, unknown>,
-      }))
+    const firstValue = Array.isArray(value) ? value[0] : undefined
+    const looksLikeItems =
+      typeof firstValue === 'object' && firstValue !== null && 'fields' in firstValue
+    if (Array.isArray(value) && (looksLikeItems || (params && wantsItemsCollection(params)))) {
+      const items = value.map((i: Record<string, unknown>) => mapListItem(i))
 
       const nextPageUrl = getGraphNextPageUrl(data)
 
@@ -199,10 +258,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           }))
         : undefined,
       items: Array.isArray(data.items)
-        ? data.items.map((i: Record<string, unknown>) => ({
-            id: i.id as string,
-            fields: i.fields as Record<string, unknown>,
-          }))
+        ? data.items.map((i: Record<string, unknown>) => mapListItem(i))
         : undefined,
     }
 
@@ -237,10 +293,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           description: 'List items (with fields when expanded)',
           items: {
             type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Item ID' },
-              fields: { type: 'object', description: 'Field values for the item' },
-            },
+            properties: LIST_ITEM_OUTPUT_PROPERTIES,
           },
         },
       },
@@ -255,10 +308,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       description: 'List items with expanded fields when reading list items',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Item ID' },
-          fields: { type: 'object', description: 'Field values for the item' },
-        },
+        properties: LIST_ITEM_OUTPUT_PROPERTIES,
       },
     },
     nextPageUrl: {

@@ -36,6 +36,7 @@ const QueryLogsResponseSchema = z.object({
       recordsScanned: z.number(),
     }),
     status: z.string(),
+    queryId: z.string(),
   }),
 })
 

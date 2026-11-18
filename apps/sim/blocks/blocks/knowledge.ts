@@ -2,7 +2,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
-import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
+import { getCohereRerankerApiKeyCondition, mapperOperation, toolCallArg } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -448,8 +448,9 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_search'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         params = { ...params }
+        const operation = mapperOperation(params, context)
         const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
         if (!knowledgeBaseId) {
           throw new Error('Knowledge base ID is required')
@@ -464,45 +465,53 @@ export const KnowledgeBlock: BlockConfig = {
           'update_chunk',
           'delete_chunk',
         ]
-        if (docOps.includes(params.operation)) {
+        if (docOps.includes(operation)) {
           const documentId = params.documentId ? String(params.documentId).trim() : ''
           if (!documentId) {
-            throw new Error(`Document ID is required for ${params.operation} operation`)
+            throw new Error(`Document ID is required for ${operation} operation`)
           }
           params.documentId = documentId
         }
 
         const chunkOps = ['update_chunk', 'delete_chunk']
-        if (chunkOps.includes(params.operation)) {
+        if (chunkOps.includes(operation)) {
           const chunkId = params.chunkId ? String(params.chunkId).trim() : ''
           if (!chunkId) {
-            throw new Error(`Chunk ID is required for ${params.operation} operation`)
+            throw new Error(`Chunk ID is required for ${operation} operation`)
           }
           params.chunkId = chunkId
         }
 
         const connectorOps = ['get_connector', 'trigger_sync']
-        if (connectorOps.includes(params.operation)) {
+        if (connectorOps.includes(operation)) {
           const connectorId = params.connectorId ? String(params.connectorId).trim() : ''
           if (!connectorId) {
-            throw new Error(`Connector ID is required for ${params.operation} operation`)
+            throw new Error(`Connector ID is required for ${operation} operation`)
           }
           params.connectorId = connectorId
         }
 
         // Map list_chunks sub-block fields to tool params
-        if (params.operation === 'list_chunks') {
+        if (operation === 'list_chunks') {
           if (params.chunkSearch) params.search = params.chunkSearch
-          if (params.chunkEnabledFilter) params.enabled = params.chunkEnabledFilter
+          if (params.chunkEnabledFilter) {
+            const modelEnabled =
+              params.chunkEnabledFilter === 'all' ? toolCallArg(context, params.enabled) : undefined
+            /* The tool takes a string; a model may send the boolean `false`, which must survive. */
+            params.enabled =
+              modelEnabled === undefined || modelEnabled === null || modelEnabled === ''
+                ? params.chunkEnabledFilter
+                : String(modelEnabled)
+          }
         }
 
         // Map upsert sub-block field to tool param
-        if (params.operation === 'upsert_document' && params.upsertDocumentId) {
+        if (operation === 'upsert_document' && params.upsertDocumentId) {
           params.documentId = String(params.upsertDocumentId).trim()
         }
 
         if (
-          (params.operation === 'create_document' || params.operation === 'upsert_document') &&
+          (operation === 'create_document' || operation === 'upsert_document') &&
           typeof params.documentTags === 'string' &&
           params.documentTags.trim().length > 0
         ) {
@@ -515,7 +524,7 @@ export const KnowledgeBlock: BlockConfig = {
         }
 
         // Convert enabled dropdown string to boolean for update_chunk
-        if (params.operation === 'update_chunk' && typeof params.enabled === 'string') {
+        if (operation === 'update_chunk' && typeof params.enabled === 'string') {
           params.enabled = params.enabled === 'true'
         }
 

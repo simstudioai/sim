@@ -15,6 +15,14 @@ let brokerIdCounter = 0
 const FETCH_TIMEOUT_MS = 300000 // 5 minutes
 const BROKER_TIMEOUT_MS = 300000
 const MAX_STDOUT_CHARS = Number.parseInt(process.env.IVM_MAX_STDOUT_CHARS || '', 10) || 200000
+/**
+ * Task-mode timer bridges keep a Node `Timeout`, a Map entry, and an `ivm.Reference`
+ * per scheduled timer on the shared worker heap, outside the isolate's `memoryLimit`.
+ * These ceilings charge a timer flood to the offending execution instead of every
+ * co-tenant on the worker.
+ */
+const MAX_PENDING_TIMERS = 1000
+const MAX_ACTIVE_INTERVALS = 50
 const MAX_FETCH_OPTIONS_JSON_CHARS =
   Number.parseInt(process.env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS || '', 10) || 256 * 1024
 
@@ -732,6 +740,17 @@ async function executeTask(request, executionId) {
     releaseables.push(textDecodeCallback)
     await jail.set('__textDecode', textDecodeCallback)
 
+    // btoa / atob delegate to Node's native WHATWG implementations, so
+    // libraries that encode base64 through them (docx's Packer.toBase64String,
+    // document protection hashes, data-URI images) behave as in a browser.
+    const btoaCallback = new ivm.Callback((data) => btoa(data))
+    releaseables.push(btoaCallback)
+    await jail.set('__btoa', btoaCallback)
+
+    const atobCallback = new ivm.Callback((data) => atob(data))
+    releaseables.push(atobCallback)
+    await jail.set('__atob', atobCallback)
+
     // Delegate timers to Node's real timer heap via ivm.Reference (the pattern
     // recommended by laverdet/isolated-vm#136). Host-side bookkeeping was
     // hoisted to the function scope above so the finally can always sweep.
@@ -757,7 +776,36 @@ async function executeTask(request, executionId) {
       return v
     }
 
+    // Thrown into the isolate, so the stack must not carry worker host frames.
+    const timerLimitError = (fnRef, message) => {
+      try {
+        fnRef.release()
+      } catch {}
+      const error = new RangeError(message)
+      error.stack = `RangeError: ${message}`
+      return error
+    }
+    const admitTimer = (fnRef, recurring) => {
+      if (timers.size >= MAX_PENDING_TIMERS) {
+        throw timerLimitError(
+          fnRef,
+          `Too many pending timers (limit ${MAX_PENDING_TIMERS} per execution)`
+        )
+      }
+      if (!recurring) return
+      let activeIntervals = 0
+      for (const entry of timers.values()) {
+        if (entry.recurring && ++activeIntervals >= MAX_ACTIVE_INTERVALS) {
+          throw timerLimitError(
+            fnRef,
+            `Too many active intervals (limit ${MAX_ACTIVE_INTERVALS} per execution)`
+          )
+        }
+      }
+    }
+
     const setTimeoutRef = new ivm.Reference((fnRef, msRef) => {
+      admitTimer(fnRef, false)
       const id = nextTimerId++
       const delay = Math.max(0, Math.min(Number(unwrapPrimitive(msRef)) || 0, timeoutMs))
       const nodeTimer = setTimeout(() => {
@@ -797,16 +845,23 @@ async function executeTask(request, executionId) {
     await jail.set('__clearTimeoutRef', clearTimeoutRef)
 
     const setIntervalRef = new ivm.Reference((fnRef, msRef) => {
+      admitTimer(fnRef, true)
       const id = nextTimerId++
       const delay = Math.max(1, Math.min(Number(unwrapPrimitive(msRef)) || 1, timeoutMs))
+      // A tick is skipped while the previous one is still in flight, so a busy isolate
+      // cannot pile undelivered callbacks onto the worker heap.
+      let tickInFlight = false
+      const settleTick = () => {
+        tickInFlight = false
+      }
       const nodeTimer = setInterval(() => {
-        const entry = timers.get(id)
-        if (!entry) return
+        if (tickInFlight || !timers.has(id)) return
         try {
-          fnRef.applyIgnored(undefined, [], { timeout: timeoutMs })
+          fnRef.apply(undefined, [], { timeout: timeoutMs }).then(settleTick, settleTick)
+          tickInFlight = true
         } catch {
-          // isolate disposed — callback silently dropped; the sweep on dispose
-          // clears the Node interval and releases the fn ref.
+          // isolate disposed — the sweep on dispose clears the Node interval and
+          // releases the fn ref.
         }
       }, delay)
       timers.set(id, { nodeTimer, fnRef, recurring: true })
@@ -852,6 +907,8 @@ async function executeTask(request, executionId) {
         const __error = globalThis.__error;
         const __textEncode = globalThis.__textEncode;
         const __textDecode = globalThis.__textDecode;
+        const __btoa = globalThis.__btoa;
+        const __atob = globalThis.__atob;
         const __setTimeoutRef = globalThis.__setTimeoutRef;
         const __clearTimeoutRef = globalThis.__clearTimeoutRef;
         const __setIntervalRef = globalThis.__setIntervalRef;
@@ -889,6 +946,9 @@ async function executeTask(request, executionId) {
           }
         };
 
+        globalThis.btoa = function btoa(data) { return __btoa(String(data)); };
+        globalThis.atob = function atob(data) { return __atob(String(data)); };
+
         // setTimeout / setInterval delegate to Node's real timer heap via
         // ivm.Reference. The \`ms\` arg is honored (host clamps to the script
         // timeout window); \`clearTimeout\` / \`clearInterval\` actually cancel.
@@ -915,7 +975,10 @@ async function executeTask(request, executionId) {
           if (typeof fn !== 'function') {
             throw new TypeError('setInterval requires a function callback');
           }
-          return __setIntervalRef.applySync(undefined, [fn, ms], {
+          // Each tick resolves back to the host, so the wrapper keeps the callback's
+          // return value inside the isolate.
+          const tick = () => { fn(); };
+          return __setIntervalRef.applySync(undefined, [tick, ms], {
             arguments: { reference: true },
           });
         };
@@ -1001,7 +1064,7 @@ async function executeTask(request, executionId) {
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
         'ExternalCopy', '__dirname', '__filename', '__brokerRef',
-        '__log', '__error', '__textEncode', '__textDecode',
+        '__log', '__error', '__textEncode', '__textDecode', '__btoa', '__atob',
         '__setTimeoutRef', '__clearTimeoutRef', '__setIntervalRef'
       ];
       for (const name of undefined_globals) {

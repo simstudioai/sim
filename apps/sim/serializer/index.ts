@@ -20,6 +20,7 @@ import {
   isSubBlockHidden,
   isToolInputOnlySubBlock,
   resolveCanonicalMode,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
@@ -27,8 +28,9 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { getToolParams } from '@/tools/metadata'
+import { getToolMetadata } from '@/tools/metadata'
 import { expandSubBlockValueToParams } from '@/tools/param-shape'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 
 const logger = createLogger('Serializer')
 
@@ -551,7 +553,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   // canonical-index-unscoped: `shouldSerializeSubBlock` drops the inactive surface's members, and
   // the collapse below reads `params` (the filtered map), never `allValues`.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
     const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
@@ -707,12 +709,17 @@ export function collectBlockFieldIssues(
   // trigger-mode block returns above before reaching here at all.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
   const canonicalModeOverrides = block.data?.canonicalModes
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
-  const currentToolParams = currentToolId ? getToolParams(currentToolId) : undefined
+  const currentTool = currentToolId ? getToolMetadata(currentToolId) : undefined
+  const currentToolParams = currentTool?.params
+  const credentialSuppliedParams = credentialSuppliedParamsFor(
+    currentTool?.oauth,
+    blockConfig.subBlocks || []
+  )
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.
@@ -727,7 +734,11 @@ export function collectBlockFieldIssues(
             (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
           ) || []
 
-        let shouldValidateParam = true
+        // A credential-only block has no field for params its saved credential supplies;
+        // the block's own required credential picker is validated below instead.
+        let shouldValidateParam = !(
+          matchingConfigs.length === 0 && credentialSuppliedParams.has(paramId)
+        )
 
         if (matchingConfigs.length > 0) {
           shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {

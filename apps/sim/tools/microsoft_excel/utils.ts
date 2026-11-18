@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
@@ -253,7 +254,7 @@ export async function getSpreadsheetWebUrl(
 ): Promise<string> {
   const basePath = getItemBasePath(spreadsheetId, driveId)
   try {
-    const response = await fetch(`${basePath}?$select=id,webUrl`, {
+    const response = await outboundFetch(`${basePath}?$select=id,webUrl`, {
       signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,

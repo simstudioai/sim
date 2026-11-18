@@ -115,7 +115,17 @@ const catalogCredentialConditionSchema = z.object({
 export const v2BlockFieldSchema = z
   .object({
     id: z.string().describe('Field identifier, and the key its value is stored under.'),
-    type: z.string().describe('Editor control the field renders as, e.g. `short-input`.'),
+    type: z
+      .string()
+      .describe(
+        'Editor control the field renders as, e.g. `short-input`. Not a value type; see `valueType`.'
+      ),
+    valueType: z
+      .enum(['string', 'number', 'boolean', 'json', 'array', 'file'])
+      .optional()
+      .describe(
+        'Type of value the field holds, from the block’s declared input for the field (the same type `inputDefinitions` and operation `inputs` report). Absent when the block declares no input for the field.'
+      ),
     title: z.string().optional().describe('Human-readable label.'),
     required: z
       .boolean()
@@ -686,6 +696,12 @@ export const v2ConnectorConfigFieldSchema = z
       .describe(
         'When true the stored `sourceConfig` value is a `string[]`, not a `string`: a `selector` renders a multi-select picker and a `short-input` accepts a comma-separated list.'
       ),
+    apiKeyOnly: z
+      .boolean()
+      .optional()
+      .describe(
+        'When true the field describes the connector’s API key (such as its key ID or a custom host the key signs for). It is required as stated only with `apiKey`, and omitted when a saved `credentialId` is sent.'
+      ),
   })
   .meta({
     id: 'V2ConnectorConfigField',
@@ -721,7 +737,7 @@ export const v2ConnectorTypeSchema = z
           mode: z
             .literal('apiKey')
             .describe(
-              'Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector.'
+              'Authenticates with a stored API key; pass `apiKey` when creating the connector, or a saved `credentialId` instead when `savedCredential` is present.'
             ),
           label: z.string().optional().describe('Label shown above the key field.'),
           placeholder: z.string().optional().describe('Placeholder shown in the key field.'),
@@ -730,10 +746,21 @@ export const v2ConnectorTypeSchema = z
             .describe(
               'Whether the key may be left blank, for a source reachable without authentication.'
             ),
+          savedCredential: z
+            .object({
+              provider: z
+                .string()
+                .describe('Service the saved credential must authenticate with, e.g. `aws`.'),
+              label: z.string().describe('Label for the saved-credential option.'),
+            })
+            .optional()
+            .describe(
+              'When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`, once saved-credential setup is enabled on this deployment (until then it is refused with a validation error). Fields marked `apiKeyOnly` are then omitted.'
+            ),
         }),
       ])
       .describe(
-        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`).'
       ),
     configFields: z
       .array(v2ConnectorConfigFieldSchema)
@@ -777,7 +804,7 @@ export const v2ConnectorTypeSummarySchema = z
         mode: z
           .enum(['oauth', 'apiKey'])
           .describe(
-            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`).'
           ),
       })
       .describe(

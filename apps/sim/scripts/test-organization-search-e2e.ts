@@ -1039,10 +1039,14 @@ try {
     const handledRedirectCount = () =>
       browserErrorEvents.reduce(
         (count, event) =>
-          event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
-          event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
-          event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;` &&
-          event.message.startsWith('Minified React error #419;')
+          event.message.startsWith('Minified React error #419;') &&
+          ((event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
+            event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
+            event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;`) ||
+            (event.stage ===
+              'Search-only members can reopen assistant history without access to Home chat' &&
+              event.url === `${baseUrl.origin}${root}/home` &&
+              event.digest === `NEXT_REDIRECT;replace;${root}/search;307;`))
             ? count + event.count
             : count,
         0

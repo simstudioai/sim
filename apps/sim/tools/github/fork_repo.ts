@@ -1,9 +1,11 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import {
   PARENT_OWNER_OUTPUT_PROPERTIES,
   PARENT_REPO_OUTPUT_PROPERTIES,
   SOURCE_REPO_OUTPUT_PROPERTIES,
   USER_FULL_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ForkRepoParams {
@@ -39,6 +41,7 @@ export const forkRepoTool: ToolConfig<ForkRepoParams, ForkRepoResponse> = {
   name: 'GitHub Fork Repository',
   description: 'Fork a repository to your account or an organization',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -81,7 +84,8 @@ export const forkRepoTool: ToolConfig<ForkRepoParams, ForkRepoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/forks`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/forks`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -156,6 +160,7 @@ export const forkRepoV2Tool: ToolConfig<ForkRepoParams, any> = {
   name: forkRepoTool.name,
   description: forkRepoTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: forkRepoTool.params,
   request: forkRepoTool.request,
 

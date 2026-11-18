@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsMarketplaceRegistrationFormSchema } from '@/lib/api/contracts/aws-marketplace'
 import { serializeClaimCookie } from '@/lib/billing/aws-marketplace/claim'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import { isAwsMarketplaceEnabled } from '@/lib/billing/aws-marketplace/config'
 import {
   AWS_MARKETPLACE_ONBOARDING_PATH,
   type AwsMarketplaceOnboardingError,
@@ -59,8 +59,7 @@ async function readRegistrationToken(request: NextRequest): Promise<string | nul
  * the claim cookie unless the license lapsed. The token is never logged.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const productCode = getAwsMarketplaceProductCode()
-  if (!productCode) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!isAwsMarketplaceEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
     const rateLimited = await enforceIpRateLimit(
@@ -76,7 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return redirectToOnboarding('invalid')
     }
 
-    const outcome = await registerAwsMarketplaceBuyer(productCode, token)
+    const outcome = await registerAwsMarketplaceBuyer(token)
     if (outcome.kind !== 'claimed') return redirectToOnboarding(outcome.kind)
 
     const response = redirectToOnboarding()
@@ -91,7 +90,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
 /** A refresh, back button, or bookmark of the fulfillment URL lands on the onboarding page. */
 export const GET = withRouteHandler(async () => {
-  if (!getAwsMarketplaceProductCode())
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!isAwsMarketplaceEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return redirectToOnboarding()
 })

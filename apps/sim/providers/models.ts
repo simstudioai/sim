@@ -286,7 +286,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'nebius',
     name: 'Nebius',
     description: 'Open models via Nebius Token Factory',
-    defaultModel: 'nebius/Qwen/Qwen3.5-397B-A17B',
+    defaultModel: 'nebius/Qwen/Qwen3.8-27B',
     modelPatterns: [/^nebius\//],
     icon: NebiusIcon,
     color: '#052B42',
@@ -301,18 +301,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.3, output: 1.2, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: false, nativeStructuredOutputs: false },
         contextWindow: 1048000,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/deepseek-ai/DeepSeek-V4-Flash-0731',
         pricing: { input: 0.14, output: 0.28, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
         contextWindow: 1024000,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/deepseek-ai/DeepSeek-V4-Pro',
         pricing: { input: 1.75, output: 3.5, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
         contextWindow: 1048576,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/deepseek-ai/DeepSeek-V4-Pro-0813',
@@ -337,12 +340,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.95, output: 4, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 262144,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/moonshotai/Kimi-K2.7-Code',
         pricing: { input: 0.95, output: 4, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 262144,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/moonshotai/Kimi-K3',
@@ -361,12 +366,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.06, output: 0.24, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 262144,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'nebius/nvidia/nemotron-3-super-120b-a12b',
         pricing: { input: 0.3, output: 0.9, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 262144,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'nebius/nvidia/Nemotron-3-Ultra-550b-a55b',
@@ -391,12 +398,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.658, output: 1.11, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: false, nativeStructuredOutputs: true },
         contextWindow: 32000,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/Qwen/Qwen3-235B-A22B-Instruct-2507',
         pricing: { input: 0.2, output: 0.6, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
         contextWindow: 262144,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'nebius/Qwen/Qwen3-30B-A3B-Instruct-2507',
@@ -409,6 +418,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.6, output: 3.6, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 262144,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/Qwen/Qwen3.8-27B',
@@ -421,6 +431,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 1.4, output: 4.4, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
         contextWindow: 202752,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nebius/zai-org/GLM-5.2',
@@ -1306,6 +1317,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-fable-5-2',
+        pricing: {
+          input: 8.0,
+          cachedInput: 0.2,
+          output: 40.0,
+          updatedAt: '2026-11-09',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-11-09',
+        featured: true,
+      },
+      {
         id: 'claude-fable-5-1',
         pricing: {
           input: 10.0,
@@ -1326,7 +1360,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
-        featured: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-fable-5',
@@ -3948,7 +3982,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'nvidia',
     name: 'NVIDIA NIM',
     description: "NVIDIA's Nemotron models via NIM's OpenAI-compatible API",
-    defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
+    defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     modelPatterns: [/^nvidia\//],
     icon: NvidiaIcon,
     color: '#77B900',
@@ -4046,7 +4080,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-03-11',
-        recommended: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nvidia/nemotron-3-ultra-550b-a55b',

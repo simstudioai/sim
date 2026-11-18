@@ -69,7 +69,7 @@ function jiraJqlFilterField(triggerId: string, description: string): SubBlockCon
     title: 'JQL Filter',
     type: 'long-input',
     placeholder: 'project = PROJ AND issuetype = Bug',
-    description,
+    description: `${description}. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events.`,
     required: false,
     mode: 'trigger',
     condition: { field: 'selectedTriggerId', value: triggerId },

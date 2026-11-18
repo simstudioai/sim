@@ -5,6 +5,7 @@ import {
   type Ec2DescribeImagesResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeImagesTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeImagesTool: InternalToolConfig<
   name: 'EC2 Describe Images',
   description: 'List AMIs owned by the account (or by the owners you specify)',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -36,7 +36,7 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/items`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -44,7 +44,7 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
     }),
     body: (params) => {
       const uris = params.uris.split(',').map((uri) => ({ uri: uri.trim() }))
-      return { tracks: uris }
+      return { items: uris }
     },
   },
 

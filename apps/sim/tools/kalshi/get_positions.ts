@@ -11,6 +11,7 @@ import {
   KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES,
   KALSHI_POSITION_OUTPUT_PROPERTIES,
 } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetPositionsParams extends KalshiAuthParams, KalshiPaginationParams {
@@ -34,6 +35,7 @@ export const kalshiGetPositionsTool: ToolConfig<
   name: 'Get Positions from Kalshi',
   description: 'Retrieve your open positions from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -176,6 +178,7 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
   name: 'Get Positions from Kalshi V2',
   description: 'Retrieve your open positions from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

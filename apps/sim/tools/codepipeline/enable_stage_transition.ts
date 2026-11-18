@@ -2,6 +2,7 @@ import type {
   CodePipelineEnableStageTransitionParams,
   CodePipelineEnableStageTransitionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const enableStageTransitionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const enableStageTransitionTool: InternalToolConfig<
   description:
     'Re-enable artifacts transitioning into or out of a CodePipeline stage after it was disabled',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

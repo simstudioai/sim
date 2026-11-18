@@ -81,6 +81,9 @@ try:
             time.sleep(1)
         snapshot = state(screenshot=True)
         assert 'fixture-only-secret' not in json.dumps(snapshot), 'Secure value leaked'
+        assert snapshot['truncated'] is False, 'Closed menu items past the snapshot cap marked the state truncated'
+        infinite = find(snapshot, label='Fixture infinite frame')
+        assert not {'x', 'y', 'width', 'height'} & infinite.keys(), f'An infinite frame reached the reply: {infinite}'
         image = snapshot.get('screenshot')
         if permissions['screenRecording']:
             assert image and base64.b64decode(image['base64']).startswith(b'\x89PNG\r\n\x1a\n'), snapshot.get('screenshotError')
@@ -88,6 +91,12 @@ try:
         else:
             assert 'screen_capture_permission_required' in snapshot.get('screenshotError', '')
             print('BLOCKED: screenshot verification skipped because Screen Recording grant is missing', flush=True)
+        # Increment follows the inserted row and is never the focused editor, which traversal always lists first.
+        increment_id = find(snapshot, role='AXButton', label='Increment')['elementId']
+        mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Add row')['elementId'])
+        snapshot = state()
+        assert any(node.get('value', node.get('label')) == 'Added row' for node in snapshot['nodes']), 'Add row did not insert its label'
+        assert find(snapshot, role='AXButton', label='Increment')['elementId'] == increment_id, 'An element changed id when another was added above it'
         baseline = int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('click', snapshot, elementId=button['elementId'])
@@ -130,7 +139,86 @@ try:
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('perform_action', snapshot, elementId=button['elementId'], accessibilityAction='AXPress')
         assert any(f'Count: {baseline + 2}' in node.get('value', '') or f'Count: {baseline + 2}' in node.get('label', '') for node in snapshot['nodes']), 'Explicit AX action did not increment'
-        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        def count(snapshot):
+            return int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
+
+        def batch(snapshot, steps):
+            result = call('batch', bundleId=bundle, snapshotId=snapshot['snapshotId'], steps=steps)
+            assert result['action'] == 'batch' and result['dispatched'] and not result['verified'], result
+            return result['sequence'], state()
+
+        snapshot = state()
+        before = count(snapshot)
+        field = find(snapshot, role='AXTextField', label='Fixture editable text')
+        button = find(snapshot, role='AXButton', label='Increment')
+        progress, snapshot = batch(snapshot, [
+            {'action': 'set_value', 'elementId': field['elementId'], 'value': 'Batched'},
+            {'action': 'click', 'elementId': button['elementId']},
+            {'action': 'perform_action', 'elementId': button['elementId'], 'accessibilityAction': 'AXPress'},
+        ])
+        assert progress == {'completedSteps': 3, 'totalSteps': 3}, progress
+        assert find(snapshot, role='AXTextField', label='Fixture editable text')['value'] == 'Batched' and count(snapshot) == before + 2, 'Batch steps did not all apply'
+        slider = find(snapshot, role='AXSlider')
+        progress, snapshot = batch(snapshot, [
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+            {'action': 'type_text', 'elementId': slider['elementId'], 'text': 'x'},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert progress['completedSteps'] == 1 and 'Step 2 failed' in progress['error'] and count(snapshot) == before + 3, progress
+        error = refused('batch', snapshot, steps=[
+            {'action': 'type_text', 'elementId': find(snapshot, role='AXSlider')['elementId'], 'text': 'x'},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert error['dispatchState'] == 'not_started' and count(state()) == before + 3, error
+        snapshot = state()
+        progress, snapshot = batch(snapshot, [
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Show sheet')['elementId']},
+            {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
+        ])
+        assert progress['completedSteps'] == 1 and 'opened or closed' in progress['error'], progress
+        # While the sheet is open only the sheet is observed; the step after it must not have run.
+        snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Dismiss')['elementId'])
+        assert count(snapshot) == before + 3, 'A batch step ran after a sheet opened'
+        # An editor that ignores Accessibility focus takes focus from a click in a foreground app only.
+        call('activate_app', bundleId=bundle)
+        snapshot = state()
+        click_field = find(snapshot, role='AXTextField', label='Fixture click-focus field')
+        result = call('type_text', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=click_field['elementId'], text='clicked')
+        assert result['dispatched'], result
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked', 'Click-to-focus did not reach the editor'
+        # With text already in it and focus elsewhere, the clicked editor inserts at the end, not where the click landed.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        snapshot = state()
+        call('type_text', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'], text=' twice')
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked twice', 'Click-to-focus typed at the click point'
+        # An editor whose caret cannot be confirmed at the end gets no keystrokes after its focus click.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        snapshot = state()
+        caret_field = find(snapshot, role='AXTextField', label='Fixture fixed-caret field')
+        before_text = caret_field.get('value')
+        error = refused('type_text', snapshot, elementId=caret_field['elementId'], text='X')
+        assert error['code'] == 'caret_unconfirmed', error
+        assert find(state(), role='AXTextField', label='Fixture fixed-caret field').get('value') == before_text, 'Text reached an editor whose caret was not confirmed'
+        # Select-all first makes the caret position moot: the click-focused editor's whole value is replaced.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        snapshot = state()
+        call('input_sequence', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'],
+             steps=[{'action': 'press_key', 'key': 'Cmd+A'}, {'action': 'type_text', 'text': 'replaced'}])
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'Select-all sequence did not replace the click-focused editor'
+        # Move focus to the other editor, then put another app in front: the click-only editor cannot take focus.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        call('activate_app', bundleId='com.apple.finder')
+        time.sleep(0.5)
+        snapshot = state()
+        error = refused('type_text', snapshot, elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'], text='x')
+        assert error['dispatchState'] == 'not_started', error
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'A background app was clicked or typed into'
+        call('activate_app', bundleId=bundle)
+        print('PASS: real fixture state, element ids stable across observations, a large closed menu not reported as truncation, secure suppression, an element reported at infinity read without a frame, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (inserting at the end, refusing an unconfirmed caret, and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()

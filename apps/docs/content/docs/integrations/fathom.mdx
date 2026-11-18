@@ -2,7 +2,7 @@
 title: Fathom
 description: Access meeting recordings, transcripts, and summaries
 integration:
-  type: "fathom"
+  type: "fathom_v2"
   color: "#181C1E"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Fathom](https://fathom.video/) to retrieve meeting summaries and transcripts and inspect teams and team members. Provide a Fathom API key and the selected operation's required fields, such as a recording ID. Triggers can start a workflow when new meeting content is ready.
+Use [Fathom](https://fathom.video/) to retrieve meeting summaries and transcripts and inspect teams and team members. Connect a saved Fathom credential (an API key) and fill in the selected operation's required fields, such as a recording ID. Triggers can start a workflow when new meeting content is ready.
 
 Pass returned meeting data to later steps, such as sending a summary to Slack or extracting action items.
 {/* MANUAL-CONTENT-END */}
@@ -31,7 +31,6 @@ List recent meetings recorded by the user or shared to their team.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `includeSummary` | string | No | Include meeting summary \(true/false\) |
 | `includeTranscript` | string | No | Include meeting transcript \(true/false\) |
 | `includeActionItems` | string | No | Include action items \(true/false\) |
@@ -129,7 +128,6 @@ List meeting types configured in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output
@@ -154,7 +152,6 @@ Get the call summary for a specific meeting recording.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `recordingId` | string | Yes | The recording ID of the meeting |
 
 #### Output
@@ -176,7 +173,6 @@ Get the full transcript for a specific meeting recording.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `recordingId` | string | Yes | The recording ID of the meeting |
 
 #### Output
@@ -202,7 +198,6 @@ List team members in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `teams` | string | No | Team name to filter by |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
@@ -228,7 +223,6 @@ List teams in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output
@@ -271,7 +265,9 @@ Trigger workflow when new meeting content is ready in Fathom
 | --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
+| `meeting_type` | string | Meeting type name, or null when none is assigned |
 | `recording_id` | number | Unique recording ID |
+| `meeting_url` | string | Underlying video call URL \(Zoom, Meet, Teams\), or null |
 | `url` | string | URL to view the meeting in Fathom |
 | `share_url` | string | Shareable URL for the meeting |
 | `created_at` | string | ISO 8601 creation timestamp |
@@ -281,9 +277,12 @@ Trigger workflow when new meeting content is ready in Fathom
 | `recording_end_time` | string | Recording end time |
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
 | `recorded_by` | object | Recorder details |
 |   ↳ `name` | string | Name of the recorder |
 |   ↳ `email` | string | Email of the recorder |
+|   ↳ `email_domain` | string | Email domain of the recorder |
+|   ↳ `team` | string | Recorder team name, or null |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
 |   ↳ `template_name` | string | Summary template name |
@@ -317,7 +316,9 @@ Generic webhook trigger for all Fathom events
 | --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
+| `meeting_type` | string | Meeting type name, or null when none is assigned |
 | `recording_id` | number | Unique recording ID |
+| `meeting_url` | string | Underlying video call URL \(Zoom, Meet, Teams\), or null |
 | `url` | string | URL to view the meeting in Fathom |
 | `share_url` | string | Shareable URL for the meeting |
 | `created_at` | string | ISO 8601 creation timestamp |
@@ -327,9 +328,12 @@ Generic webhook trigger for all Fathom events
 | `recording_end_time` | string | Recording end time |
 | `transcript_language` | string | Language of the transcript |
 | `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `shared_with` | string | Sharing scope: no_teams, single_team, multiple_teams, or all_teams |
 | `recorded_by` | object | Recorder details |
 |   ↳ `name` | string | Name of the recorder |
 |   ↳ `email` | string | Email of the recorder |
+|   ↳ `email_domain` | string | Email domain of the recorder |
+|   ↳ `team` | string | Recorder team name, or null |
 | `calendar_invitees` | array | Array of calendar invitees with name and email |
 | `default_summary` | object | Meeting summary |
 |   ↳ `template_name` | string | Summary template name |

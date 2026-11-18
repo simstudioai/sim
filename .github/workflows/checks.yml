@@ -134,7 +134,7 @@ jobs:
       - &checkout-mirror
         name: Checkout code (mirror)
         if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
       - &checkout-plain
         name: Checkout code
         if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
@@ -149,6 +149,10 @@ jobs:
         working-directory: packages/db
         run: |
           bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const extension of ["vector", "btree_gin", "pg_trgm"]) await sql`CREATE EXTENSION IF NOT EXISTS ${sql(extension)}`; await sql.end()'
+          # A test that hangs on a lock leaves only its timeout behind; these name the waiter, the
+          # lock, and the blocking statement in the Postgres log. Service containers take no -c flags,
+          # and ALTER SYSTEM runs outside a transaction, so each setting is its own statement.
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const setting of ["log_lock_waits = on", "deadlock_timeout = 1000", "log_min_duration_statement = 20000"]) await sql.unsafe(`ALTER SYSTEM SET ${setting}`); await sql`SELECT pg_reload_conf()`; await sql.end()'
           bun run db:${{ matrix.provision }}
 
       - name: Verify migration replay is a no-op
@@ -308,6 +312,7 @@ jobs:
             ${{ runner.temp }}/e2e/**/*.json
             ${{ runner.temp }}/e2e/browser-extension*/**/*.png
             ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
+            ${{ runner.temp }}/e2e/markdown-viewer-ui-report.json.artifacts/fixture.md
           if-no-files-found: ignore
           retention-days: 7
 
@@ -607,7 +612,7 @@ jobs:
       # Same provider/trust split as the build jobs' checkout.
       - name: Checkout code (mirror)
         if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
         with:
           fetch-depth: 2
       - name: Checkout code
@@ -728,6 +733,9 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      - name: Type-check ESM maintenance scripts
+        run: bun run type-check:scripts:esm
+
       # Every affected workspace, following the same real task graph as tests. Root/unknown
       # changes select all. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
@@ -816,7 +824,7 @@ jobs:
     steps:
       - name: Checkout code (mirror)
         if: needs.changes.outputs.test_app == 'true' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@2b9fe87d796feea153b455ec2f3125b471a7b0e7 # v1.8.2
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
         with:
           fetch-depth: 2
       - name: Checkout code
@@ -958,6 +966,8 @@ jobs:
     if: needs.changes.outputs.e2e_build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 25
+    env:
+      NEXT_BUILD_PERSISTENT_CACHE: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && 'true' || 'false' }}
 
     steps:
       - *checkout-mirror
@@ -977,8 +987,10 @@ jobs:
             echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
           fi
 
-      - name: Build application
-        env:
+      - name: Plan incremental compiler state
+        id: compiler-cache-plan
+        if: env.NEXT_BUILD_PERSISTENT_CACHE == 'true'
+        env: &e2e-build-env
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
@@ -992,7 +1004,38 @@ jobs:
           # lint's type-check and the `build` job's own `next build` (generated route types too)
           # already enforce.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+          NEXT_BUILD_SKIP_SOURCE_MAPS: 'true'
+        run: |
+          echo "toolchain=bun$(bun --version)-node$(node --version)" >> "$GITHUB_OUTPUT"
+          if bunx turbo run build --filter=@sim/app --dry=json > "$RUNNER_TEMP/e2e-build-plan.json" &&
+            jq -e 'type == "object" and (.tasks | type) == "array" and ([.tasks[] | select(.taskId == "@sim/app#build")] | length == 1 and .[0].cache.status == "HIT")' "$RUNNER_TEMP/e2e-build-plan.json" > /dev/null; then
+            echo 'restore=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'restore=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mount incremental compiler state
+        id: compiler-cache
+        if: steps.compiler-cache-plan.outputs.restore == 'true'
+        uses: ./.github/actions/cache
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-next-build-e2e-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.event_name }}-${{ steps.compiler-cache-plan.outputs.toolchain }}-${{ hashFiles('bun.lock', 'package.json', 'patches/**', 'apps/sim/package.json', 'apps/sim/next.config.ts', 'apps/sim/lib/core/config/env.ts', '.github/workflows/checks.yml', '.github/actions/setup/action.yml') }}
+          path: ./apps/sim/.next/cache
+
+      - name: Bound restored compiler state
+        if: steps.compiler-cache.outcome == 'success'
+        working-directory: apps/sim
+        run: node ../../scripts/prune-turbopack-cache.mts --build
+
+      - name: Build application
+        env: *e2e-build-env
         run: bunx turbo run build --filter=@sim/app
+
+      - name: Bound compiler state before persistence
+        if: always() && !cancelled() && steps.compiler-cache.outcome == 'success'
+        working-directory: apps/sim
+        run: node ../../scripts/prune-turbopack-cache.mts --build
 
       # Everything `next start` reads, including the spreadsheet parse worker it spawns (named, so a
       # missing bundle fails packaging as it fails docker/app.Dockerfile); node_modules and the source

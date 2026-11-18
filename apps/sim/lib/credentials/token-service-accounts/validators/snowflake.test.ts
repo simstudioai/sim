@@ -1,7 +1,19 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
+import {
+  validateSnowflakeKeyPair,
+  validateSnowflakeServiceAccount,
+  validateSnowflakeWorkloadIdentity,
+} from '@/lib/credentials/token-service-accounts/validators/snowflake'
 
 const mockFetch = vi.fn()
 
@@ -74,5 +86,58 @@ describe('validateSnowflakeServiceAccount', () => {
     expect(result.displayName).toBe('MYORG-MYACCOUNT')
     expect(result.principal).toEqual({ kind: 'tenant', id: 'MYORG-MYACCOUNT' })
     expect(result.auditMetadata).toEqual({ account: 'MYORG-MYACCOUNT' })
+  })
+})
+
+describe('validateSnowflakeWorkloadIdentity', () => {
+  afterEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it("reports an account host the egress policy refuses as the user's input, not an outage", async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockRejectedValueOnce(
+      new EgressRefusedError('private address')
+    )
+
+    await expectCode(
+      validateSnowflakeWorkloadIdentity({ domain: fields.domain, subjectToken: 'signed-token' }),
+      'host_not_allowed',
+      400
+    )
+  })
+
+  it('still reports an unreachable account host as a provider outage', async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockRejectedValueOnce(
+      new Error('connect timeout')
+    )
+
+    await expectCode(
+      validateSnowflakeWorkloadIdentity({ domain: fields.domain, subjectToken: 'signed-token' }),
+      'provider_unavailable',
+      502
+    )
+  })
+})
+
+describe('validateSnowflakeKeyPair', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('sends the signed JWT only through the egress guard', async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockRejectedValueOnce(
+      new EgressRefusedError('private address')
+    )
+
+    await expectCode(
+      validateSnowflakeKeyPair({ domain: fields.domain, jwt: 'signed-jwt' }),
+      'host_not_allowed',
+      400
+    )
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

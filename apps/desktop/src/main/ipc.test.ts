@@ -341,6 +341,7 @@ describe('registerIpcHandlers', () => {
         setBrowserSearchSuggestionsEnabled: vi.fn(),
         setFullFileAccess: vi.fn(),
         setPreventSleepWhileRunning: vi.fn(),
+        setQuickChatShortcut: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
@@ -583,6 +584,7 @@ describe('registerIpcHandlers', () => {
     computerRoots.push(root)
     const config = createConfigStore(join(root, 'settings.json'))
     config.set('computerUseEnabled', true)
+    config.set('computerUseAskForApps', true)
     const status: ComputerUseResult = {
       kind: 'status',
       platform: 'darwin',

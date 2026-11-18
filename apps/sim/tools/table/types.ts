@@ -49,6 +49,7 @@ export interface TableRowDeleteParams {
 
 export interface TableRowQueryParams {
   tableId: string
+  columns?: string[]
   filter?: Filter
   sort?: Sort
   limit?: number

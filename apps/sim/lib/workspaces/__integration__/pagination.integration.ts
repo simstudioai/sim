@@ -13,7 +13,12 @@ import { listWorkspaceForkChildren } from '@/ee/workspace-forking/application/di
 const userId = generateId()
 const workspaceId = generateId()
 const otherWorkspaceId = generateId()
-const principal = { kind: 'personal_api_key' as const, userId, keyId: generateId() }
+const principal = {
+  kind: 'personal_api_key' as const,
+  userId,
+  keyId: generateId(),
+  access: 'write' as const,
+}
 const childIds = Array.from({ length: 4 }, () => generateId()).sort()
 const operationIds = Array.from({ length: 4 }, () => generateId()).sort()
 const timestamps = [

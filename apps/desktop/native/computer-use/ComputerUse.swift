@@ -16,9 +16,10 @@ struct ComputerError: Error {
     let dispatchState: String?
     init(_ code: String, _ message: String, dispatchState: String? = nil) { self.code = code; self.message = message; self.dispatchState = dispatchState }
 }
-struct InputStep: Decodable { let action: String; let text: String?; let key: String? }
+/// A request's arguments. An input sequence or batch step is itself a request's arguments, with its action.
 struct Parameters: Decodable {
-    var steps: [InputStep]?
+    var action: String?
+    var steps: [Parameters]?
     var activateFirst: Bool?
     var permission: String?
     var bundleId: String?
@@ -57,6 +58,20 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     if result == .success || result == .cannotComplete && press { return }
     try axCheck(result)
 }
+/// Performs an advertised Accessibility action. An element can still refuse it (Finder and file-panel
+/// cells answer AXOpen with attributeUnsupported, -25205); nothing reached the app, so the snapshot stays valid.
+func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = false) throws {
+    var refused = false
+    do {
+        try dispatchAX(element, press: press) { element in
+            let result = AXUIElementPerformAction(element, action as CFString)
+            refused = result == .actionUnsupported || result == .attributeUnsupported
+            return result
+        }
+    } catch where refused {
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions or click it instead (clickCount 2 opens most files and folders).")
+    }
+}
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
 /// highlighted instead of running it. Return runs the highlighted item, as it would for a keyboard user.
 func completeMenuPress(_ item: AXUIElement, pid: pid_t) async throws {
@@ -86,6 +101,34 @@ func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
 }
+/// Reads several attributes in one Accessibility round trip instead of one per attribute; an attribute
+/// the element lacks or fails to return is omitted, as `attribute` would return nil for it.
+func attributes(_ element: AXUIElement, _ names: [String]) -> [String: CFTypeRef] {
+    var raw: CFArray?
+    let status = AXUIElementCopyMultipleAttributeValues(element, names as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &raw)
+    guard status == .success, let values = raw as [AnyObject]?, values.count == names.count else {
+        // Only an element that cannot answer a batched read is asked one attribute at a time; a
+        // timeout or failure would only repeat once per attribute.
+        guard [.attributeUnsupported, .illegalArgument, .notImplemented].contains(status) else { return [:] }
+        return names.reduce(into: [:]) { result, name in result[name] = attribute(element, name) }
+    }
+    var result: [String: CFTypeRef] = [:]
+    for (name, value) in zip(names, values) {
+        if value is NSNull { continue }
+        if CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetType(unsafeBitCast(value, to: AXValue.self)) == .axError { continue }
+        result[name] = value
+    }
+    return result
+}
+/// Elements bucketed by CFHash, so a walk's membership and parent lookups stay linear in its size.
+struct ElementIndex {
+    private var buckets: [CFHashCode: [(element: AXUIElement, id: String)]] = [:]
+    private(set) var count = 0
+    func id(of element: AXUIElement) -> String? { buckets[CFHash(element)]?.first { CFEqual($0.element, element) }?.id }
+    mutating func insert(_ element: AXUIElement, id: String) { buckets[CFHash(element), default: []].append((element, id)); count += 1 }
+}
+let NODE_ATTRIBUTES = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute,
+                       kAXHelpAttribute, kAXValueAttribute, kAXFocusedAttribute, kAXEnabledAttribute, kAXPositionAttribute, kAXSizeAttribute]
 func secure(_ element: AXUIElement) -> Bool {
     attribute(element, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole
 }
@@ -124,28 +167,63 @@ func takesText(_ element: AXUIElement) -> Bool {
     return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
 }
 /// The window holding `element`: the element itself when it is a window or sheet, which report no
-/// window of their own, otherwise the window it reports.
+/// window of their own, otherwise the window it reports. Controls of an open or save panel belong to
+/// the panel's service process and report no window, so for them the nearest window or sheet among
+/// their ancestors is used.
 func containingWindow(_ element: AXUIElement) -> AXUIElement? {
-    if [kAXWindowRole, kAXSheetRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
-    guard let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-    return unsafeBitCast(raw, to: AXUIElement.self)
+    let windowRoles = [kAXWindowRole, kAXSheetRole]
+    if windowRoles.contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
+    if let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        return unsafeBitCast(raw, to: AXUIElement.self)
+    }
+    var current = element
+    for _ in 0..<64 {
+        guard let raw = attribute(current, kAXParentAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        current = unsafeBitCast(raw, to: AXUIElement.self)
+        if windowRoles.contains(attribute(current, kAXRoleAttribute) as? String ?? "") { return current }
+    }
+    return nil
 }
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
     return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
 }
 func elementRect(_ element: AXUIElement) -> CGRect? {
-    guard let rawPosition = attribute(element, kAXPositionAttribute), CFGetTypeID(rawPosition) == AXValueGetTypeID(),
-          let rawSize = attribute(element, kAXSizeAttribute), CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
+    axRect(position: attribute(element, kAXPositionAttribute), size: attribute(element, kAXSizeAttribute))
+}
+func axRect(position rawPosition: CFTypeRef?, size rawSize: CFTypeRef?) -> CGRect? {
+    guard let rawPosition, CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+          let rawSize, CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
     var position = CGPoint.zero; var size = CGSize.zero
     guard AXValueGetValue(unsafeBitCast(rawPosition, to: AXValue.self), .cgPoint, &position),
-          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
+          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size),
+          // Some apps report hidden elements at infinity (Maps does once its search field has focus); such an element has no usable frame.
+          [position.x, position.y, size.width, size.height].allSatisfy(\.isFinite) else { return nil }
     return CGRect(origin: position, size: size)
+}
+/// Apps computer use never operates, lowercased: macOS security settings, password managers, and apps
+/// whose primary purpose is running shell commands or scripts (terminals, Script Editor, Automator,
+/// Shortcuts), since shell access goes through the Terminal tool's own opt-in. Apps that merely embed a
+/// terminal, such as editors, stay usable.
+let PROTECTED_APPS: Set<String> = [
+    "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.passwords",
+    "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.bitwarden.desktop",
+    "org.keepassxc.keepassxc", "com.lastpass.lastpass", "in.sinew.enpass-desktop", "me.proton.pass.electron",
+    "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac",
+    "com.apple.terminal", "com.googlecode.iterm2", "dev.warp.warp-stable", "com.mitchellh.ghostty",
+    "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
+    "com.apple.scripteditor2", "com.apple.automator", "com.apple.shortcuts",
+]
+/// Whether computer use refuses an app: Sim's own apps and `PROTECTED_APPS`. Bundle identifiers match
+/// case-insensitively in Launch Services.
+func isProtectedApp(_ bundle: String) -> Bool {
+    let key = bundle.lowercased()
+    return key == Bundle.main.bundleIdentifier?.lowercased() || key.hasPrefix("com.simstudio.") || key.hasPrefix("ai.sim.desktop") || PROTECTED_APPS.contains(key)
 }
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
-    guard bundle != Bundle.main.bundleIdentifier, !bundle.hasPrefix("com.simstudio."), !bundle.hasPrefix("ai.sim.desktop"), bundle != "com.apple.systempreferences" else {
-        throw ComputerError("protected_app", "Computer use cannot control its own app or macOS security settings.")
+    guard !isProtectedApp(bundle) else {
+        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, terminals, or scripting apps; use the terminal tool for shell work.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
     if apps.isEmpty && launch {
@@ -153,12 +231,12 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
         let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = false
         let app = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         guard app.bundleIdentifier == bundle, !app.isTerminated else { throw ComputerError("app_identity_mismatch", "Launched app identity does not match the requested bundle ID.") }
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(root, 0.1)
+        // Apps built on Electron or Catalyst take several seconds to show their first window; wait for
+        // one an observation can target rather than failing the read the agent will only repeat.
         var windowReady = false
-        for _ in 0..<20 {
+        for _ in 0..<80 {
             try checkCancellation()
-            if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement], !windows.isEmpty { windowReady = true; break }
+            if hasObservableWindow(app.processIdentifier) { windowReady = true; break }
             guard !app.isTerminated else { throw ComputerError("app_unavailable", "App exited while opening its window.") }
             try await Task.sleep(for: .milliseconds(100))
         }
@@ -177,6 +255,23 @@ func requireAccessibility() throws {
 func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
     return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+}
+/// Whether the app has a window an observation can list: an Accessibility window whose frame matches
+/// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it
+/// is listed and `activate_app` can bring it forward.
+func hasObservableWindow(_ pid: pid_t) -> Bool {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else { return false }
+    let frames = windows.compactMap { window -> CGRect? in
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        return elementRect(window)
+    }
+    return windowsFor(pid).contains { entry in
+        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0 else { return false }
+        return frames.contains(rect)
+    }
 }
 func windowRect(_ id: String?, pid: pid_t) throws -> CGRect {
     let id = try required(id, "windowId")
@@ -252,7 +347,18 @@ final class Snapshot {
     var selectedWindowId: String?
     var nodes: [[String: Any]] = []
     var truncated = false
-    init(app: NSRunningApplication) { pid = app.processIdentifier; launchDate = app.launchDate }
+    /// Every element this app session has been given an id, so the same element keeps its id across observations.
+    private(set) var index = ElementIndex()
+    private(set) var nextOrdinal: Int
+    /// Reuses `previous`'s ids when it observed the same process instance and new ids continue from
+    /// `nextOrdinal`, which the driver keeps per process so ids never repeat while it runs.
+    init(app: NSRunningApplication, previous: Snapshot? = nil, nextOrdinal: Int = 0) {
+        pid = app.processIdentifier; launchDate = app.launchDate; self.nextOrdinal = nextOrdinal
+        // One read adds at most 2,000 elements, so the carried index stays within 20,000; past that the next read starts fresh.
+        if let previous, previous.pid == pid, previous.launchDate == launchDate, previous.index.count <= 18_000 {
+            index = previous.index
+        }
+    }
     func read(preferredWindowFrame: CGRect? = nil) async throws {
         try requireAccessibility()
         let root = AXUIElementCreateApplication(pid)
@@ -290,41 +396,49 @@ final class Snapshot {
             queue.append(AXTraversalEntry(element: unsafeBitCast(raw, to: AXUIElement.self), parent: root, depth: 1, menu: false, priority: true))
         }
         var menuCount = 0
+        var seen = ElementIndex()
         while nodes.count < 2000 && Date().timeIntervalSince(created) < 8, let entry = queue.next() {
             try checkCancellation()
             let element = entry.element
             AXUIElementSetMessagingTimeout(element, 0.25)
-            if elements.values.contains(where: { CFEqual($0, element) }) { continue }
-            let role = attribute(element, kAXRoleAttribute) as? String ?? "AXUnknown"
+            if seen.id(of: element) != nil { continue }
+            let values = attributes(element, NODE_ATTRIBUTES)
+            let role = values[kAXRoleAttribute] as? String ?? "AXUnknown"
             let isMenu = entry.menu || [kAXMenuBarRole, kAXMenuRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
             if role == kAXMenuItemRole && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
             }
+            // Closed menus past the cap hide no content: opening a menu lists its items as priority entries.
             if isMenu && !entry.priority {
-                guard menuCount < 80 else { truncated = true; continue }
+                guard menuCount < 80 else { continue }
                 menuCount += 1
             }
-            let id = "e\(nodes.count)"; elements[id] = element
+            let id: String
+            if let known = index.id(of: element) { id = known } else {
+                id = "e\(nextOrdinal)"; nextOrdinal += 1; index.insert(element, id: id)
+            }
+            elements[id] = element; seen.insert(element, id: id)
             var node: [String: Any] = ["elementId": id, "role": role, "actions": [String]()]
-            if let parent = entry.parent, let parentID = elements.first(where: { CFEqual($0.value, parent) })?.key { node["parentId"] = parentID }
-            let isSecure = secure(element)
-            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty }
-            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty } }
+            if let parent = entry.parent, let parentID = seen.id(of: parent) { node["parentId"] = parentID }
+            let isSecure = values[kAXSubroleAttribute] as? String == kAXSecureTextFieldSubrole
+            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty }
+            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty } }
             if role == kAXMenuItemRole, let shortcut = menuShortcut(element) { labels.append(shortcut) }
             if !isSecure, !labels.isEmpty { node["label"] = String(labels.joined(separator: " ").prefix(1024)) }
-            if !isSecure, let raw = attribute(element, kAXValueAttribute) {
+            if !isSecure, let raw = values[kAXValueAttribute] {
                 if let value = raw as? String { node["value"] = String(value.prefix(2048)) }
                 else if let value = raw as? NSNumber { node["value"] = value.stringValue }
             }
             if !isSecure {
-                if let focused = attribute(element, kAXFocusedAttribute) as? Bool { node["focused"] = focused }
+                if let focused = values[kAXFocusedAttribute] as? Bool { node["focused"] = focused }
                 var writable: DarwinBoolean = false
-                let writableValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
-                node["editable"] = [kAXTextAreaRole, kAXTextFieldRole].contains(role) && writableValue
-                if let placeholder = attribute(element, kAXPlaceholderValueAttribute) as? String { node["placeholder"] = String(placeholder.prefix(1024)) }
+                let writableValue = [kAXTextAreaRole, kAXTextFieldRole].contains(role)
+                    && AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
+                node["editable"] = writableValue
+                if let placeholder = values[kAXPlaceholderValueAttribute] as? String { node["placeholder"] = String(placeholder.prefix(1024)) }
             }
-            if let enabled = attribute(element, kAXEnabledAttribute) as? Bool { node["enabled"] = enabled }
-            if let rect = elementRect(element) { node.merge(rectJSON(rect)) { _, new in new } }
+            if let enabled = values[kAXEnabledAttribute] as? Bool { node["enabled"] = enabled }
+            if let rect = axRect(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute]) { node.merge(rectJSON(rect)) { _, new in new } }
             var actions: CFArray?
             if AXUIElementCopyActionNames(element, &actions) == .success { node["actions"] = Array((actions as? [String] ?? []).prefix(128)).map { String($0.prefix(128)) } }
             nodes.append(node)
@@ -411,7 +525,34 @@ func parseKey(_ key: String) throws -> (CGKeyCode, CGEventFlags) {
             let aliases = ["esc": "escape", "arrowleft": "left", "arrowright": "right", "arrowup": "up", "arrowdown": "down", "forwarddelete": "delete", "pgup": "pageup", "pgdn": "pagedown", "pgdown": "pagedown", "minus": "-", "equal": "=", "equals": "=", "comma": ",", "period": ".", "slash": "/", "semicolon": ";", "quote": "'", "backslash": "\\", "backtick": "`", "grave": "`", "leftbracket": "[", "rightbracket": "]"]
             guard let code = keys[aliases[name] ?? name] else { throw ComputerError("unsupported_key", "Unsupported key name. Use names such as Enter, Tab, Escape, Backspace, Delete (forward delete), Left, PageUp, F5, or a single character, with Cmd/Shift/Alt/Ctrl modifiers.") }; return (code, flags)
 }
-func validateInputSteps(_ steps: [InputStep]) throws {
+/// The actions a batch may run; each is validated again by its own action path when it runs.
+let BATCH_ACTIONS: Set<String> = ["click", "type_text", "set_value", "press_key", "scroll", "perform_action"]
+func validateBatchSteps(_ steps: [Parameters]) throws {
+    guard (2...8).contains(steps.count) else { throw ComputerError("invalid_arguments", "A batch requires 2 to 8 steps.") }
+    var units = 0
+    for step in steps {
+        guard let action = step.action, BATCH_ACTIONS.contains(action), step.bundleId == nil, step.snapshotId == nil else {
+            throw ComputerError("invalid_arguments", "Batch steps are click, type_text, set_value, press_key, scroll or perform_action, without their own app or snapshot.")
+        }
+        // Malformed steps are refused before step 1 runs, so a typo never leaves a half-applied batch.
+        switch action {
+        case "type_text": _ = try required(step.elementId, "elementId"); _ = try required(step.text, "text")
+        case "set_value": _ = try required(step.elementId, "elementId"); _ = try required(step.value, "value")
+        case "perform_action": _ = try required(step.elementId, "elementId"); _ = try required(step.accessibilityAction, "accessibilityAction")
+        case "press_key": _ = try parseKey(required(step.key, "key"))
+        case "click":
+            guard ["left", "right"].contains(step.button ?? "left"), (1...3).contains(step.clickCount ?? 1) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A click step needs an elementId or x and y.") }
+        case "scroll":
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A scroll step needs an elementId or x and y.") }
+            guard step.deltaX != nil || step.deltaY != nil else { throw ComputerError("invalid_arguments", "A scroll step needs deltaX or deltaY.") }
+        default: break
+        }
+        units += (step.text?.utf16.count ?? 0) + (step.value?.utf16.count ?? 0)
+    }
+    guard units <= 32000 else { throw ComputerError("invalid_arguments", "Combined batch text exceeds 32000 UTF-16 units.") }
+}
+func validateInputSteps(_ steps: [Parameters]) throws {
     guard (1...32).contains(steps.count) else { throw ComputerError("invalid_arguments", "Input sequence requires 1 to 32 steps.") }
     var units = 0
     for step in steps {
@@ -527,6 +668,57 @@ func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseBut
     event.post(tap: .cghidEventTap)
 }
 
+/// Clicks the center of an observed text control so it takes keyboard focus, only when that point lands on
+/// the control (or a text control inside it) within its observed window; otherwise nothing is sent and the focus check decides.
+@MainActor
+func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot, caretIrrelevant: Bool) async throws {
+    guard let rect = elementRect(element), let windowID = snapshot.windowId(holding: element),
+          let frame = snapshot.windowFrames[windowID], let window = snapshot.windowElements[windowID] else { return }
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    // The point must land on the editor or a text control inside it, never a button or row nested in a container.
+    guard takesText(element), frame.contains(center), let hit = elementAtPoint(center) else { return }
+    let insideEditor = try takesText(hit) && ancestorPath(hit, to: element) != nil
+    // Secure inputs stay untargetable, so a password field is never clicked into focus either.
+    guard CFEqual(hit, element) || insideEditor, (try? requireNonSecure(hit)) != nil else { return }
+    do {
+        try await coordinateAction { dispatch in
+            try checkCancellation()
+            try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
+            try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
+        }
+    } catch let error as ComputerError where error.dispatchState == "not_started" {
+        // A mouse guard refused the point before anything was sent; the focus check reports the outcome.
+        return
+    }
+    // A click leaves the caret where it landed; typing inserts at the end, as after an Accessibility focus.
+    let root = AXUIElementCreateApplication(pid)
+    for _ in 0..<5 {
+        try await Task.sleep(for: .milliseconds(50))
+        guard let focused = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(focused, element) else { continue }
+        if caretIrrelevant || caretAtEnd(unsafeBitCast(focused, to: AXUIElement.self)) { return }
+        throw ComputerError("caret_unconfirmed", "The editor was clicked into focus, but its caret could not be confirmed at the end, so no text was sent. Observe the app, then use set_value, or start an input_sequence with Cmd+A.")
+    }
+    throw ComputerError("caret_unconfirmed", "The editor was clicked, but it did not take keyboard focus in time, so no text was sent. Observe the app before retrying.")
+}
+/// Whether the caret is at the end of `editor`'s text, moving it there when the editor allows: an empty
+/// editor qualifies, and a move counts only once the selection range reads back at the end.
+func caretAtEnd(_ editor: AXUIElement) -> Bool {
+    guard let length = (attribute(editor, kAXValueAttribute) as? String)?.utf16.count
+        ?? (attribute(editor, kAXNumberOfCharactersAttribute) as? NSNumber)?.intValue else { return false }
+    if length == 0 { return true }
+    func selection() -> CFRange? {
+        guard let raw = attribute(editor, kAXSelectedTextRangeAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var range = CFRange(); return AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cfRange, &range) ? range : nil
+    }
+    if let range = selection(), range.location == length, range.length == 0 { return true }
+    var settable: DarwinBoolean = false
+    var end = CFRange(location: length, length: 0)
+    guard AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
+          let value = AXValueCreate(.cfRange, &end),
+          AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, value) == .success,
+          let moved = selection() else { return false }
+    return moved.location == length && moved.length == 0
+}
 func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
     let roots = [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/System/Applications"), FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")]
@@ -554,6 +746,10 @@ func discoverApps() throws -> [[String: Any]] {
 @MainActor
 final class Driver {
     var snapshots: [String: Snapshot] = [:]
+    /// Each app's latest observation, kept after actions consume `snapshots` so the next read reuses its element ids.
+    var lastObserved: [String: Snapshot] = [:]
+    /// Each app's next element id, kept apart from the evictable history so ids never repeat while that process runs.
+    var nextOrdinals: [String: (pid: pid_t, launchDate: Date?, next: Int)] = [:]
     func point(_ p: Parameters, app: NSRunningApplication, snapshot: Snapshot, end: Bool = false) throws -> CGPoint {
         if let elementId = p.elementId, !end {
             guard let frame = elementRect(try snapshot.element(elementId)) else { throw ComputerError("element_unavailable", "Element has no usable frame.") }
@@ -607,7 +803,9 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app)
+            let app = try await appFor(p.bundleId, launch: true); let bundle = app.bundleIdentifier!
+            let ordinal = nextOrdinals[bundle].flatMap { $0.pid == app.processIdentifier && $0.launchDate == app.launchDate ? $0.next : nil } ?? 0
+            let snapshot = Snapshot(app: app, previous: lastObserved[bundle], nextOrdinal: ordinal)
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
@@ -631,7 +829,10 @@ final class Driver {
                 result.merge(rectJSON(rect)) { _, new in new }; return result
             }
             if snapshots.count >= 16 { snapshots.removeAll() }
-            snapshots[app.bundleIdentifier!] = snapshot
+            if lastObserved[bundle] == nil, lastObserved.count >= 16, let evicted = lastObserved.keys.first { lastObserved.removeValue(forKey: evicted) }
+            snapshots[bundle] = snapshot
+            lastObserved[bundle] = snapshot
+            nextOrdinals[bundle] = (app.processIdentifier, app.launchDate, snapshot.nextOrdinal)
             let root = AXUIElementCreateApplication(app.processIdentifier)
             let focusedID = attribute(root, kAXFocusedWindowAttribute).flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? snapshot.windowId(holding: unsafeBitCast($0, to: AXUIElement.self)) : nil }
             for index in snapshot.nodes.indices {
@@ -651,7 +852,7 @@ final class Driver {
             }
             result["isActive"] = app.isActive
             return result
-        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action": break
+        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action", "batch": break
         default: throw ComputerError("unknown_method", "Unknown computer-use method.")
         }
         try requireAccessibility()
@@ -676,13 +877,44 @@ final class Driver {
         let p = request.params
         let pid = app.processIdentifier
         switch request.method {
+        case "batch":
+            let steps = try required(p.steps, "steps")
+            try validateBatchSteps(steps)
+            var completed = 0
+            func stopped(_ message: String) -> [String: Any] {
+                ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false,
+                 "sequence": ["completedSteps": completed, "totalSteps": steps.count, "error": String((message + " The remaining steps were not run; observe the app before continuing, and do not retry the batch.").prefix(2000))]]
+            }
+            for (index, step) in steps.enumerated() {
+                // Stop can arrive during the previous step's render wait; no later step may start after it.
+                do { try checkCancellation() } catch {
+                    // Before any step ran nothing was sent, so Stop fails the batch as cancelled.
+                    if completed == 0 { throw error }
+                    return stopped("Stopped before step \(index + 1).")
+                }
+                let before = uiStructure(pid: pid)
+                do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: step), app: app, bundle: bundle, snapshot: snapshot) }
+                catch {
+                    // A first step that sent nothing fails like the single action, keeping the snapshot valid.
+                    if completed == 0 && !inputDispatched {
+                        guard let error = error as? ComputerError else { throw error }
+                        throw ComputerError(error.code, "Batch step 1 failed: " + error.message, dispatchState: error.dispatchState)
+                    }
+                    return stopped("Step \(index + 1) failed: " + ((error as? ComputerError)?.message ?? "its outcome is unknown."))
+                }
+                completed += 1
+                if completed < steps.count, uiStructure(pid: pid) != before {
+                    return stopped("Step \(index + 1) opened or closed a window, sheet, menu or popover.")
+                }
+            }
+            return ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false, "sequence": ["completedSteps": completed, "totalSteps": steps.count]]
         case "perform_action":
             let element = try snapshot.element(p.elementId); let action = try required(p.accessibilityAction, "accessibilityAction")
             var names: CFArray?; try axCheck(AXUIElementCopyActionNames(element, &names))
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
             // Actions that open UI (a sheet, a menu) hold the reply like a press; others fail as uncertain on timeout.
             let opensUI = [kAXPressAction, kAXPickAction, kAXShowMenuAction].contains(action)
-            try dispatchAX(element, press: opensUI) { AXUIElementPerformAction($0, action as CFString) }
+            try performAXAction(element, action, press: opensUI)
             if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")
@@ -694,7 +926,7 @@ final class Driver {
             let button = p.button ?? "left"; let count = p.clickCount ?? 1
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
             if p.elementId != nil && button == "left" && count == 1, let element = try? snapshot.element(p.elementId), axActions(element).contains(kAXPressAction) {
-                try dispatchAX(element, press: true) { AXUIElementPerformAction($0, kAXPressAction as CFString) }
+                try performAXAction(element, kAXPressAction, press: true)
                 try await completeMenuPress(element, pid: pid)
             } else {
                 try await coordinateAction { dispatch in
@@ -712,7 +944,7 @@ final class Driver {
             }
         case "type_text", "input_sequence":
             let element = try snapshot.element(p.elementId)
-            let steps = request.method == "type_text" ? [InputStep(action: "type_text", text: try required(p.text, "text"), key: nil)] : try required(p.steps, "steps")
+            let steps = request.method == "type_text" ? [Parameters(action: "type_text", text: try required(p.text, "text"))] : try required(p.steps, "steps")
             try validateInputSteps(steps)
             let root = AXUIElementCreateApplication(pid)
             // Keystrokes go to whatever holds keyboard focus: a text control (terminals included, read-only
@@ -725,7 +957,18 @@ final class Driver {
             // Activation can move focus, so whether the editor holds it is read after activating.
             if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
-                try await Task.sleep(for: .milliseconds(50))
+                // Focus can settle asynchronously; slow apps get 250 ms before any click is considered.
+                for _ in 0..<5 {
+                    try await Task.sleep(for: .milliseconds(50))
+                    if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) == true { break }
+                }
+                // Some apps (SwiftUI sheets such as Clock's city search) ignore an Accessibility focus
+                // request; in a foreground app the field is focused the way a user would, by clicking it.
+                if app.isActive, attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
+                    // Select-all as the first step replaces the whole value, so where the click put the caret is moot.
+                    let selectsAll = try steps.first.map { $0.action == "press_key" ? try parseKey(required($0.key, "key")) == (0, .maskCommand) : false } ?? false
+                    try await focusByClicking(element, pid: pid, snapshot: snapshot, caretIrrelevant: selectsAll)
+                }
             }
             let observedWindows = snapshot.observedWindows()
             // The first editor found holding focus receives the whole input, so text never follows focus elsewhere.
@@ -749,7 +992,7 @@ final class Driver {
                 do { try validateFocus(); break }
                 catch let error as ComputerError where error.code == "focus_changed" {
                     if attempt < 9 { try await Task.sleep(for: .milliseconds(50)) }
-                    else if !app.isActive { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
+                    else if !app.isActive && !inputDispatched { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
                     else { throw error }
                 }
             }
@@ -860,6 +1103,23 @@ final class Driver {
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
     }
 }
+/// The app's window structure by identity: its on-screen windows (sheets, menus and popovers are
+/// windows of their own), the focused window, and that window's direct content, where a sheet sits.
+/// Identities rather than counts, so switching one open menu or sheet for another still registers.
+func uiStructure(pid: pid_t) -> [Int] {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    var structure = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }
+        .compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        .sorted()
+    if let raw = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        structure.append(Int(bitPattern: UInt(CFHash(raw))))
+        let (children, _) = pagedElements(unsafeBitCast(raw, to: AXUIElement.self), name: kAXChildrenAttribute, limit: 64)
+        structure.append(contentsOf: children.map { Int(bitPattern: UInt(CFHash($0))) })
+    }
+    return structure
+}
 func nextLine() throws -> String? {
     var bytes = [UInt8](); bytes.reserveCapacity(4096)
     var oversized = false
@@ -877,7 +1137,11 @@ func nextLine() throws -> String? {
 func encodeReply(_ response: [String: Any]) throws -> Data {
     let limit = 16 * 1024 * 1024
     func encode(_ value: [String: Any]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        // JSONSerialization raises an Objective-C exception, which Swift cannot catch, on a NaN or infinite number.
+        guard JSONSerialization.isValidJSONObject(value) else {
+            throw ComputerError("reply_unencodable", "The reply held a value JSON cannot represent.")
+        }
+        return try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }
     let original = try encode(response)
     if original.count <= limit { return original }
@@ -948,9 +1212,11 @@ struct Main {
                 response = ["id": id, "error": details]
             }
             catch { response = ["id": id, "error": ["code": "request_failed", "message": String(String(describing: error).prefix(2000))]] }
-            if let data = try? encodeReply(response) {
-                FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10]))
-            }
+            let data: Data?
+            do { data = try encodeReply(response) } catch let error as ComputerError {
+                data = try? encodeReply(["id": id, "error": ["code": error.code, "message": error.message]])
+            } catch { data = nil }
+            if let data { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10])) }
         }
     }
 }

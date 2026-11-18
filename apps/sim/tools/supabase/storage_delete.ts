@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_DELETED_FILE_OUTPUT_PROPERTIES,
   type SupabaseStorageDeleteParams,
@@ -14,6 +15,7 @@ export const storageDeleteTool: ToolConfig<
   name: 'Supabase Storage Delete',
   description: 'Delete files from a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

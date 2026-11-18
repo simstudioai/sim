@@ -1,5 +1,6 @@
 import { gzipSync } from 'zlib'
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TinybirdEventsParams, TinybirdEventsResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
   description:
     'Send events to a Tinybird Data Source using the Events API. Supports JSON and NDJSON formats with optional gzip compression.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

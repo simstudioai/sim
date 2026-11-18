@@ -39,8 +39,10 @@ import {
 import type { MistralParseInput } from '@/lib/internal/mistral/input'
 import {
   executeMistralParse,
+  executeMistralToolParse,
   type MistralOperationContext,
 } from '@/lib/internal/mistral/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const authorizeFile = filesAuthorizationMockFns.mockAssertToolFileAccess
 const { mockDownloadServableFileFromStorage: downloadFile, mockDownloadFileFromUrl: downloadUrl } =
@@ -232,5 +234,60 @@ describe('Mistral ingestion authorization', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(countPages).not.toHaveBeenCalled()
     expect(submit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { case: 'a limit above the cap', imageLimit: 5000 },
+    { case: 'no limit', imageLimit: undefined },
+    { case: 'a zero limit', imageLimit: 0 },
+  ])(
+    'never asks Mistral for more images than one parse may store, given $case',
+    async ({ imageLimit }) => {
+      await executeMistralToolParse(
+        'mistral_parser_v3',
+        { ...input, includeImageBase64: true, imageLimit },
+        context
+      )
+      expect(submit.mock.calls[0][1]).toMatchObject({
+        include_image_base64: true,
+        image_limit: 100,
+      })
+    }
+  )
+
+  it('returns extracted images as files, never as base64 in the output', async () => {
+    const jpeg = Buffer.concat([
+      Buffer.from([0xff, 0xd8, 0xff]),
+      Buffer.from('synthetic jpeg body'),
+    ])
+    submit.mockResolvedValue({
+      pages: [
+        {
+          index: 0,
+          images: [
+            { id: 'img-0.png', image_base64: `data:image/png;base64,${jpeg.toString('base64')}` },
+          ],
+        },
+      ],
+    })
+    const result = await executeMistralToolParse(
+      'mistral_parser_v3',
+      { ...input, includeImageBase64: true },
+      context
+    )
+    expect(isInternalToolFileResult(result)).toBe(true)
+    if (!isInternalToolFileResult(result)) return
+    expect(result.files).toHaveLength(1)
+    expect(JSON.stringify(result.present([]))).not.toContain(jpeg.toString('base64'))
+  })
+
+  it('does not request images for tool versions that have no image output', async () => {
+    const result = await executeMistralToolParse(
+      'mistral_parser',
+      { ...input, includeImageBase64: true },
+      context
+    )
+    expect(isInternalToolFileResult(result)).toBe(false)
+    expect(submit.mock.calls[0][1]).not.toHaveProperty('include_image_base64')
   })
 })

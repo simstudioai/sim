@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -20,8 +20,16 @@ interface QueryResult {
   data?: {
     packages: { items: { name: string; path: string }[] }
     affectedTasks: { items: ChangedTask[] }
+    docsSite: { items: { fullName: string }[] }
   }
 }
+/** These audit-only inputs belong to lint and test:scripts, rather than application runtime. */
+const ROOT_AUDIT_INPUTS = new Set([
+  'scripts/check-library-content.ts',
+  'scripts/check-library-content.test.ts',
+  'scripts/check-utils-enforcement.ts',
+  'scripts/check-utils-enforcement.test.ts',
+])
 const root = process.cwd()
 const suites: { http: Suite[]; production: Suite[] } = JSON.parse(
   readFileSync(resolve(root, '.github/ci-suites.json'), 'utf8')
@@ -29,6 +37,8 @@ const suites: { http: Suite[]; production: Suite[] } = JSON.parse(
 const sourceBase = process.argv[2]
 let files: string[] = []
 let tasks: ChangedTask[] = []
+let docsSiteChanged = false
+let rootAuditOnly = false
 let base = sourceBase
 let fallback: string | undefined
 
@@ -64,40 +74,47 @@ try {
     .split('\0')
     .filter(Boolean)
   if (files.length === 0) throw new Error('Empty diff; verify the complete suite')
-  if (files.some((file) => /^(\.github\/|scripts\/)/.test(file)))
-    throw new Error('CI orchestration or root scripts changed')
-  const temp = mkdtempSync(join(tmpdir(), 'sim-ci-plan-'))
-  let result: QueryResult
-  try {
-    const variables = join(temp, 'variables.json')
-    writeFileSync(variables, JSON.stringify({ base, head: 'HEAD' }))
-    result = JSON.parse(
-      command('turbo', ['query', '.github/scripts/ci-plan.gql', '--variables', variables])
+  rootAuditOnly = files.every(
+    (file) => ROOT_AUDIT_INPUTS.has(file) && existsSync(resolve(root, file))
+  )
+  if (!rootAuditOnly) {
+    if (files.some((file) => /^(\.github\/|scripts\/)/.test(file)))
+      throw new Error('CI orchestration or root scripts changed')
+    const temp = mkdtempSync(join(tmpdir(), 'sim-ci-plan-'))
+    let result: QueryResult
+    try {
+      const variables = join(temp, 'variables.json')
+      writeFileSync(variables, JSON.stringify({ base, head: 'HEAD' }))
+      result = JSON.parse(
+        command('turbo', ['query', '.github/scripts/ci-plan.gql', '--variables', variables])
+      )
+    } finally {
+      rmSync(temp, { recursive: true, force: true })
+    }
+    if (
+      result.errors?.length ||
+      !Array.isArray(result.data?.affectedTasks?.items) ||
+      !Array.isArray(result.data?.docsSite?.items) ||
+      !Array.isArray(result.data?.packages?.items)
     )
-  } finally {
-    rmSync(temp, { recursive: true, force: true })
+      throw new Error('Turborepo did not return a complete task plan')
+    const workspacePaths = result.data.packages.items
+      .filter((pkg) => pkg.name !== '//')
+      .map((pkg) => `${pkg.path}/`)
+    const guidance = /^(\.agents|\.claude|\.cursor)\/|(^|\/)(AGENTS|CLAUDE)\.md$|^README\.md$/
+    const unowned = files.find(
+      (file) => !guidance.test(file) && !workspacePaths.some((path) => file.startsWith(path))
+    )
+    if (unowned) throw new Error(`Changed file outside the workspace graph: ${unowned}`)
+    tasks = result.data.affectedTasks.items
+    if (
+      tasks.some(
+        (task) => typeof task.fullName !== 'string' || typeof task.package?.name !== 'string'
+      )
+    )
+      throw new Error('Malformed task attribution')
+    docsSiteChanged = result.data.docsSite.items.some((task) => task.fullName === 'docs#build')
   }
-  if (
-    result.errors?.length ||
-    !Array.isArray(result.data?.affectedTasks?.items) ||
-    !Array.isArray(result.data?.packages?.items)
-  )
-    throw new Error('Turborepo did not return a complete task plan')
-  const workspacePaths = result.data.packages.items
-    .filter((pkg) => pkg.name !== '//')
-    .map((pkg) => `${pkg.path}/`)
-  const guidance = /^(\.agents|\.claude|\.cursor)\/|(^|\/)(AGENTS|CLAUDE)\.md$|^README\.md$/
-  const unowned = files.find(
-    (file) => !guidance.test(file) && !workspacePaths.some((path) => file.startsWith(path))
-  )
-  if (unowned) throw new Error(`Changed file outside the workspace graph: ${unowned}`)
-  tasks = result.data.affectedTasks.items
-  if (
-    tasks.some(
-      (task) => typeof task.fullName !== 'string' || typeof task.package?.name !== 'string'
-    )
-  )
-    throw new Error('Malformed task attribution')
 } catch (error) {
   fallback = String(error)
 }
@@ -108,7 +125,7 @@ const http = suites.http.filter((suite) => affected(suite.task))
 const production = suites.production.filter((suite) => affected(suite.task))
 const desktopLive = affected('ci:desktop-live')
 const appTest = affected('test')
-const docsSite = fallback !== undefined || selected.has('docs#build')
+const docsSite = fallback !== undefined || docsSiteChanged
 const docsPlatform = affected('ci:e2e-docs-platform')
 const docsGroups = docsSite
   ? ['http', 'corpus', 'chromium', 'webkit']
@@ -137,7 +154,7 @@ const flags = {
   production: production.length > 0,
   e2e_build: http.length > 0 || production.length > 0 || desktopLive,
   desktop_live: desktopLive,
-  test: appTest || packages.length > 0,
+  test: rootAuditOnly || appTest || packages.length > 0,
   test_app: appTest,
   build: affected('build'),
 }
@@ -155,6 +172,7 @@ const report = {
   head: command('git', ['rev-parse', 'HEAD']),
   files,
   fallback,
+  rootAuditOnly,
   tasks,
   flags,
   http,
@@ -165,9 +183,10 @@ const report = {
 }
 if (process.env.CI_PLAN_PATH)
   writeFileSync(process.env.CI_PLAN_PATH, `${JSON.stringify(report, null, 2)}\n`)
-process.stderr.write(
-  `${fallback ? `Full CI: ${fallback}` : `Affected CI: ${tasks.map((task) => task.fullName).join(', ') || 'no executable tasks'}`}\n`
-)
+const attribution = rootAuditOnly
+  ? 'reviewed root audits and script tests'
+  : tasks.map((task) => task.fullName).join(', ') || 'no executable tasks'
+process.stderr.write(`${fallback ? `Full CI: ${fallback}` : `Affected CI: ${attribution}`}\n`)
 process.stdout.write(
   Object.entries(outputs)
     .map(([key, value]) => `${key}=${value}\n`)

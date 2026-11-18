@@ -40,6 +40,7 @@ vi.mock('@/lib/internal/table/operations', () => ({
 }))
 
 import { executeTableTool } from '@/lib/internal/table/execute-tool'
+import { tableQueryRowsTool } from '@/tools/table/query_rows'
 
 const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
@@ -142,6 +143,30 @@ describe('executeTableTool', () => {
         },
       },
     })
+  })
+
+  it('carries a legacy query tool column selection through the query-string contract', async () => {
+    const input = tableQueryRowsTool.operation.input?.({
+      tableId: 'table-1',
+      columns: ['Email', 'col_status'],
+      limit: 10,
+      _context: { workspaceId: 'workspace-1' },
+    } as never)
+
+    const response = await executeTableTool({
+      toolId: 'table_query_rows',
+      input,
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith(
+      'table-1',
+      expect.objectContaining({ columns: ['Email', 'col_status'] }),
+      expect.anything()
+    )
   })
 
   it('projects a stale workflow binding as authentication failure', async () => {

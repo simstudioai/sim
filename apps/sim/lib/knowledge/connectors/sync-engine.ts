@@ -20,7 +20,12 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import {
@@ -32,6 +37,7 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
+  createConnectorRunToken,
   resolveConnectorAccessToken,
   resolveConnectorTokenUserId,
   syncContextForToken,
@@ -65,6 +71,7 @@ import {
   CREDENTIAL_REMOVED_SYNC_ERROR,
   CREDENTIAL_REVOKED_SYNC_ERROR,
   connectorFailureBackoffMinutes,
+  EGRESS_RETRY_DELAY_MS,
   MAX_CONSECUTIVE_FAILURES,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
@@ -99,7 +106,7 @@ import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
 import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
-import { connectorHasAuthSource } from '@/connectors/auth'
+import { connectorHasAuthSource, connectorUsesCredential } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -702,17 +709,18 @@ export function buildSyncCapacityUpdate(
 }
 
 /**
- * The connector row written after the database, not the source, failed the run: a statement,
- * lock, or transaction timeout, a deadlock, or a dropped connection.
+ * The connector row written after a transient failure that is not the source's: the database
+ * (a statement, lock, or transaction timeout, a deadlock, or a dropped connection) or the
+ * organization's egress route.
  *
- * A slow database window says nothing about the connector, so, like throttling, it must not
+ * A slow database window or an egress outage says nothing about the connector, so, like throttling, it must not
  * consume the breaker that disables connectors after persistent failures: the counter keeps the
- * source failures already counted, and a later source failure is judged on those alone. The retry
- * still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
+ * source failures already counted, and a later source failure is judged on those alone. A database
+ * retry still backs off by the delay {@link resolveDatabaseRetryDelayMs} chose: short after a run that
  * made progress, and otherwise up the failure ladder, so a statement too heavy for its budget backs
  * off to the ladder's ceiling instead of re-crawling the source every half hour.
  */
-export function buildSyncDatabaseRetryUpdate(
+export function buildSyncTransientRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
   errorMessage: string,
@@ -727,6 +735,66 @@ export function buildSyncDatabaseRetryUpdate(
     syncLockLeaseAt: null,
     updatedAt: now,
   }
+}
+
+/**
+ * The connector row a failed content sync writes. A deterministic capacity rejection waits for an
+ * operator, a transient database failure or an organization egress outage retries without touching
+ * the breaker, a rate limit honours the provider's delay, and anything else climbs the ladder
+ * toward auto-disable. The content counterpart of `resolveMemberSyncFailureUpdate`.
+ */
+async function resolveSyncFailureUpdate(
+  error: unknown,
+  failure: {
+    connectorId: string
+    runId: string
+    previousFailures: number | null | undefined
+    errorMessage: string
+    retryAfterMs?: number
+    /** Whether the run wrote or deleted documents before it failed. */
+    madeProgress: boolean
+  }
+) {
+  const now = new Date()
+  if (error instanceof ConnectorSyncCapacityError) {
+    return buildSyncCapacityUpdate(now, failure.previousFailures, failure.errorMessage)
+  }
+  if (getTransientDatabaseFailure(error)) {
+    return buildSyncTransientRetryUpdate(
+      now,
+      failure.previousFailures,
+      failure.errorMessage,
+      await resolveDatabaseRetryDelayMs({
+        kind: 'content',
+        connectorId: failure.connectorId,
+        runId: failure.runId,
+        previousFailures: failure.previousFailures,
+        madeProgress: failure.madeProgress,
+      })
+    )
+  }
+  if (isUnavailableFailure(error)) {
+    return buildSyncTransientRetryUpdate(
+      now,
+      failure.previousFailures,
+      EGRESS_UNAVAILABLE_MESSAGE,
+      EGRESS_RETRY_DELAY_MS
+    )
+  }
+  if (isRateLimitError(error)) {
+    return buildSyncRateLimitUpdate(
+      now,
+      failure.previousFailures,
+      failure.errorMessage,
+      failure.retryAfterMs
+    )
+  }
+  return buildSyncFailureUpdate(
+    now,
+    failure.previousFailures,
+    failure.errorMessage,
+    failure.retryAfterMs
+  )
 }
 
 /**
@@ -799,7 +867,8 @@ async function resolveAccessToken(
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string,
   sourceConfig: Record<string, unknown>,
-  accessMode: ContentEngineAccessMode
+  accessMode: ContentEngineAccessMode,
+  scope: ResourceScope
 ): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
   const resolved = await resolveConnectorAccessToken({
@@ -808,6 +877,7 @@ async function resolveAccessToken(
     connector,
     userId,
     requestId,
+    scope,
     sourceConfig,
   })
 
@@ -1108,25 +1178,15 @@ export async function executeSync(
         )
       }
 
-      let credentialToken = await resolveAccessToken(
+      const kbScope = resourceScopeFromOwner(kbOwner)
+      const initialToken = await resolveAccessToken(
         connector,
         connectorConfig,
         credentialUserId,
         sourceConfig,
-        accessMode
+        accessMode,
+        kbScope
       )
-      /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
-      const refreshOAuthToken = async (): Promise<void> => {
-        if (connectorConfig.auth.mode === 'oauth') {
-          credentialToken = await resolveAccessToken(
-            connector,
-            connectorConfig,
-            credentialUserId,
-            sourceConfig,
-            accessMode
-          )
-        }
-      }
 
       /**
        * A credential that already knows its cloud id seeds the same `syncContext`
@@ -1137,12 +1197,30 @@ export async function executeSync(
        */
       const syncContext: Record<string, unknown> = {
         syncRunId: generateId(),
-        ...syncContextForToken(credentialToken),
+        ...syncContextForToken(initialToken),
         /** Tells a connector to carry permissions with its listing; without it, none are read. */
         ...(mirrored ? { mirrorsSourceAcls: true } : {}),
       }
       if (mirrored)
         await connectorConfig.permissionConfig?.populateSyncContext(connectorId, syncContext)
+
+      /** Re-resolved before every call after the first, so a long run outlives a short-lived token. */
+      const runToken = createConnectorRunToken({
+        token: initialToken,
+        syncContext,
+        resolve: connectorUsesCredential(connectorConfig.auth, connector)
+          ? () =>
+              resolveAccessToken(
+                connector,
+                connectorConfig,
+                credentialUserId,
+                sourceConfig,
+                accessMode,
+                kbScope
+              )
+          : undefined,
+      })
+      const refreshRunToken = () => runToken.refresh()
 
       // Shared cutoff for both the tombstone-retry bound below and the stuck-document
       // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
@@ -1276,7 +1354,7 @@ export async function executeSync(
           connectorConfig,
           sourceConfig,
           syncContext,
-          accessToken: credentialToken.accessToken,
+          accessToken: runToken.current().accessToken,
           force:
             Boolean(options.fullSync) ||
             connector.consecutiveFailures > 0 ||
@@ -1296,15 +1374,15 @@ export async function executeSync(
         result,
         forceRehydrate,
         getAccessToken: async (pageNum) => {
-          if (pageNum > 0) await refreshOAuthToken()
-          return credentialToken.accessToken
+          if (pageNum > 0) await refreshRunToken()
+          return runToken.current().accessToken
         },
         hydration: {
           concurrency: connectorConfig.contentConcurrency,
-          beforeHydration: refreshOAuthToken,
+          beforeHydration: refreshRunToken,
           getDocument: (externalId) =>
             connectorConfig.getDocument(
-              credentialToken.accessToken,
+              runToken.current().accessToken,
               sourceConfig,
               externalId,
               syncContext
@@ -1332,7 +1410,7 @@ export async function executeSync(
                 connectorConfig,
                 sourceConfig,
                 syncContext,
-                accessToken: credentialToken.accessToken,
+                accessToken: runToken.current().accessToken,
                 externalDocs,
                 generationStartedAt,
                 ownedExternalIds: [],
@@ -1597,7 +1675,6 @@ export async function executeSync(
       const diagnostic = getConnectorFailureDiagnostic(error)
       const errorMessage = diagnostic?.message ?? toError(error).message
       const retryAfterMs = getRetryAfterMs(error)
-      const rateLimited = isRateLimitError(error)
       logger.error('Sync failed', {
         connectorId,
         diagnostic,
@@ -1614,35 +1691,14 @@ export async function executeSync(
           errorMessage,
           databaseFailureClass: databaseFailure,
         })
-        const failureUpdate =
-          error instanceof ConnectorSyncCapacityError
-            ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-            : databaseFailure
-              ? buildSyncDatabaseRetryUpdate(
-                  new Date(),
-                  connector.consecutiveFailures,
-                  errorMessage,
-                  await resolveDatabaseRetryDelayMs({
-                    kind: 'content',
-                    connectorId,
-                    runId: syncLogId,
-                    previousFailures: connector.consecutiveFailures,
-                    madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
-                  })
-                )
-              : rateLimited
-                ? buildSyncRateLimitUpdate(
-                    new Date(),
-                    connector.consecutiveFailures,
-                    errorMessage,
-                    retryAfterMs
-                  )
-                : buildSyncFailureUpdate(
-                    new Date(),
-                    connector.consecutiveFailures,
-                    errorMessage,
-                    retryAfterMs
-                  )
+        const failureUpdate = await resolveSyncFailureUpdate(error, {
+          connectorId,
+          runId: syncLogId,
+          previousFailures: connector.consecutiveFailures,
+          errorMessage,
+          retryAfterMs,
+          madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
+        })
 
         if (failureUpdate.status === 'disabled') {
           logger.warn('Connector disabled after repeated failures', {

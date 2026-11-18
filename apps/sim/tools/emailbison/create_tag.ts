@@ -8,6 +8,7 @@ import {
   mapTag,
   tagOutputs,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagResponse> = {
@@ -15,6 +16,7 @@ export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagR
   name: 'Email Bison Create Tag',
   description: 'Creates a new Email Bison tag.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     name: {

@@ -25,7 +25,12 @@ import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workspaces/[workspaceId]/permission-config/route'
 
 const workspaceId = 'workspace-123'
-const principal = { kind: 'personal_api_key', userId: 'caller', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'caller',
+  keyId: 'key',
+  access: 'write',
+} as const
 const result = {
   permissionGroupId: null,
   groupName: null,

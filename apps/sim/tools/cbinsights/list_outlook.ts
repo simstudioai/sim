@@ -1,5 +1,6 @@
 import type { CbInsightsOrgListParams, CbInsightsOrgListResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsListOutlookParams extends CbInsightsOrgListParams {}
@@ -13,6 +14,7 @@ export const cbinsightsListOutlookTool: InternalToolConfig<
   description:
     'Retrieve Mosaic Score, Commercial Maturity, and Exit Probability for up to 100 organizations at once.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

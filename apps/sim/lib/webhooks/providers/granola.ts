@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -72,7 +73,7 @@ function granolaUserFacingError(status: number, body: string): string {
 
 /** Delete one Granola webhook endpoint. Treats an already-deleted endpoint as success. */
 async function deleteGranolaEndpoint(apiKey: string, endpointId: string): Promise<void> {
-  const response = await fetch(
+  const response = await outboundFetch(
     `${GRANOLA_WEBHOOK_ENDPOINTS_URL}/${encodeURIComponent(endpointId)}`,
     {
       method: 'DELETE',
@@ -244,7 +245,7 @@ export const granolaHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
+    const response = await outboundFetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,

@@ -2,7 +2,9 @@ import type {
   BrightDataDownloadSnapshotParams,
   BrightDataDownloadSnapshotResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const brightDataDownloadSnapshotTool: ToolConfig<
   BrightDataDownloadSnapshotParams,
@@ -13,6 +15,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
   description:
     'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -49,7 +52,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
       if (params.format) queryParams.set('format', params.format)
       if (params.compress) queryParams.set('compress', 'true')
       const qs = queryParams.toString()
-      return `https://api.brightdata.com/datasets/v3/snapshot/${params.snapshotId?.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.brightdata.com/datasets/v3/snapshot/${safeUrlPathSegment(params.snapshotId, 'snapshotId')}${qs ? `?${qs}` : ''}`
     },
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

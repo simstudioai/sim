@@ -459,7 +459,7 @@ export async function executeOperation(
   const omitsWorkspace = commandSpec.allWorkspaces && requestFlags.allWorkspaces === true
   /**
    * A workspace carried in the path is resolved exactly like one carried in a
-   * field. `workspaces get` and `workspaces members` take theirs as a path
+   * field. `workspaces get` and `workspaces members list` take theirs as a path
    * parameter, so they skipped `requireWorkspace` and fell into `buildRequest`'s
    * own fallback: a second wording for the same precondition, and — because
    * `requireWorkspace` checks the key first — advice to set a workspace on an
@@ -505,6 +505,11 @@ export async function executeOperation(
       throw new SimApiError('--cursor must be a non-empty string', 0)
     }
     const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
+    /** An operation whose contract caps its page below the CLI's default page asks for less. */
+    const maxPageSize = Math.min(
+      DEFAULT_PAGE_SIZE,
+      operationSpec[paging]?.limit?.maximum ?? Number.POSITIVE_INFINITY
+    )
     const rows: unknown[] = []
     const seenCursors = new Set<string>(initialCursor ? [initialCursor] : [])
     const progress = pageProgress()
@@ -516,7 +521,7 @@ export async function executeOperation(
     // would otherwise leave the progress text on the line the error prints onto.
     try {
       do {
-        const pageSize = Math.min(DEFAULT_PAGE_SIZE, limit - rows.length)
+        const pageSize = Math.min(maxPageSize, limit - rows.length)
         const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
         const page: V2Page<unknown> = await client.request(operation, {
           params: request.params,
@@ -579,7 +584,8 @@ export async function executeOperation(
           reconciliation:
             'Find the operation using this requestId, or retry identical inputs with the same requestId.',
         },
-        failure.exitCode
+        failure.exitCode,
+        failure.requestId
       )
     }
     throw error

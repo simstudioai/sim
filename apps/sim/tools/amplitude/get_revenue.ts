@@ -3,6 +3,7 @@ import type {
   AmplitudeGetRevenueResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetRevenueResponse> = {
@@ -10,6 +11,7 @@ export const getRevenueTool: ToolConfig<AmplitudeGetRevenueParams, AmplitudeGetR
   name: 'Amplitude Get Revenue',
   description: 'Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

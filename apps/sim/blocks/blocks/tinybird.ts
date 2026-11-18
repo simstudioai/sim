@@ -1,9 +1,12 @@
 import { TinybirdIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const TinybirdBlock: BlockConfig = {
   type: 'tinybird',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'tinybird_v2' },
   name: 'Tinybird',
   description: 'Send events, query data, and manage Data Sources with Tinybird',
   authMode: AuthMode.ApiKey,
@@ -244,8 +247,8 @@ export const TinybirdBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'tinybird_events',
-      params: (params) => {
-        const operation = params.operation || 'tinybird_events'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'tinybird_events'
         const result: Record<string, any> = {
           base_url: params.base_url,
           token: params.token,
@@ -299,13 +302,14 @@ export const TinybirdBlock: BlockConfig = {
           if (!params.datasource) {
             throw new Error('Data Source is required for Append Data Source operation')
           }
-          if (!params.source_url) {
+          const sourceUrl = params.source_url || toolCallArg(context, params.url)
+          if (!sourceUrl) {
             throw new Error('Source File URL is required for Append Data Source operation')
           }
 
           result.datasource = params.datasource
-          result.url = params.source_url
-          result.format = params.source_format || 'csv'
+          result.url = sourceUrl
+          result.format = params.source_format || toolCallArg(context, params.format) || 'csv'
         } else if (operation === 'tinybird_truncate_datasource') {
           // Truncate Data Source operation
           if (!params.datasource) {
@@ -656,3 +660,17 @@ export const TinybirdBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TinybirdV2Block: BlockConfig = {
+  ...TinybirdBlock,
+  type: 'tinybird_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(TinybirdBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'tinybird',
+    title: 'Tinybird Credential',
+  }),
+}

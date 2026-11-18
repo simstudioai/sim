@@ -2,7 +2,7 @@
 title: Kalshi
 description: Access prediction markets and trade on Kalshi
 integration:
-  type: "kalshi_v2"
+  type: "kalshi_v3"
   color: "#09C285"
 ---
 
@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Kalshi](https://kalshi.com) in Sim to retrieve market and event data, inspect account balances and positions, read orders and trades, and place, cancel, or amend orders. The reference also covers orderbooks, candlesticks, fills, series, and exchange status.
+
+Market, event, orderbook, trade, series, and exchange data are public and need no credential. Balance, position, order, fill, and settlement reads, and placing, cancelling, or amending orders, are signed with a Kalshi API key saved once as a Kalshi credential: in Kalshi, open **Account Settings > Profile Settings > API Keys**, create a key, and paste its key ID and the private key Kalshi shows only once. Ed25519 keys (Kalshi's default) and RSA keys both work. Sim checks the key by reading the account balance. The key can trade for your account, so share the credential only with people who may place orders. Workflows built with the earlier Kalshi block keep the key they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -240,8 +242,6 @@ Retrieve your account balance and portfolio value from Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 
 #### Output
 
@@ -263,8 +263,6 @@ Retrieve your open positions from Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
 | `countFilter` | string | No | Restrict to positions with non-zero values for the given fields \(comma-separated\): "position", "total_traded" |
@@ -306,8 +304,6 @@ Retrieve your orders from Kalshi with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
 | `status` | string | No | Filter by order status: "resting", "canceled", or "executed" |
@@ -354,8 +350,6 @@ Retrieve details of a specific order by ID from Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `orderId` | string | Yes | Order ID to retrieve \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output
@@ -519,8 +513,6 @@ Retrieve your portfolio's fills/trades from Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `orderId` | string | No | Filter by order ID \(e.g., "abc123-def456-ghi789"\) |
 | `minTs` | number | No | Minimum timestamp in Unix seconds \(e.g., 1704067200\) |
@@ -558,8 +550,6 @@ Retrieve your portfolio settlement history from Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31"\) |
 | `minTs` | number | No | Minimum settled timestamp in Unix seconds \(e.g., 1704067200\) |
@@ -728,8 +718,6 @@ Create a new order on a Kalshi prediction market
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 | `side` | string | Yes | Side of the order: "yes" or "no" |
 | `action` | string | Yes | Action type: "buy" or "sell" |
@@ -802,8 +790,6 @@ Cancel an existing order on Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output
@@ -859,8 +845,6 @@ Modify the price or quantity of an existing order on Kalshi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `keyId` | string | Yes | Your Kalshi API Key ID |
-| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `orderId` | string | Yes | Order ID to amend \(e.g., "abc123-def456-ghi789"\) |
 | `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 | `side` | string | Yes | Side of the order: "yes" or "no" |

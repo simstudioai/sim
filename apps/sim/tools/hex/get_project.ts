@@ -1,14 +1,19 @@
 import type { HexGetProjectParams, HexGetProjectResponse } from '@/tools/hex/types'
 import { HEX_PROJECT_OUTPUT_PROPERTIES } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectResponse> = {
   id: 'hex_get_project',
   name: 'Hex Get Project',
   description: 'Get metadata and details for a specific Hex project by its ID.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -24,7 +29,8 @@ export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectRespon
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

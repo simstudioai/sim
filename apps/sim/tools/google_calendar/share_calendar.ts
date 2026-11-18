@@ -5,6 +5,7 @@ import {
   type GoogleCalendarShareCalendarResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const buildAclBody = (params: GoogleCalendarShareCalendarParams) => {
   const scope: { type: string; value?: string } = { type: params.scopeType }
@@ -27,7 +28,7 @@ const buildAclUrl = (params: GoogleCalendarShareCalendarParams) => {
     queryParams.append('sendNotifications', String(params.sendNotifications))
   }
   const queryString = queryParams.toString()
-  return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/acl${queryString ? `?${queryString}` : ''}`
+  return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/acl${queryString ? `?${queryString}` : ''}`
 }
 
 export const shareCalendarTool: ToolConfig<

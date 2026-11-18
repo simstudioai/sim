@@ -58,16 +58,29 @@ export interface EnvFile {
   exists: boolean
   content: string
   vars: Map<string, string>
+  /** Each value as written in the file, quotes and escapes included. */
+  verbatim: Map<string, string>
 }
 
 const LINE_RE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/
+
+/** The value as written: a quoted value up to its closing quote, else up to an inline comment. */
+function verbatimValue(raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+    const end = trimmed.indexOf(trimmed[0], 1)
+    return end === -1 ? trimmed : trimmed.slice(0, end + 1)
+  }
+  return trimmed.replace(/\s+#.*$/, '').trim()
+}
 
 function parseValue(raw: string): string {
   const trimmed = raw.trim()
   if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
     const quote = trimmed[0]
     const end = trimmed.indexOf(quote, 1)
-    return end === -1 ? trimmed.slice(1) : trimmed.slice(1, end)
+    const inner = end === -1 ? trimmed.slice(1) : trimmed.slice(1, end)
+    return quote === '"' ? inner.replaceAll('\\$', '$') : inner
   }
   return trimmed.replace(/\s+#.*$/, '').trim()
 }
@@ -85,7 +98,49 @@ export function readEnvFile(target: EnvTarget): EnvFile {
   const filePath = ENV_PATHS[target]
   const exists = existsSync(filePath)
   const content = exists ? readFileSync(filePath, 'utf8') : ''
-  return { target, path: filePath, exists, content, vars: parseEnv(content) }
+  const verbatim = new Map<string, string>()
+  for (const line of content.split('\n')) {
+    const match = LINE_RE.exec(line)
+    if (match) verbatim.set(match[1], verbatimValue(match[2]))
+  }
+  return { target, path: filePath, exists, content, vars: parseEnv(content), verbatim }
+}
+
+/**
+ * Quotes a value only when `#`, `$`, edge whitespace, or a leading quote would
+ * change it for `parseValue`, Next's dotenv, Bun, or Docker Compose. Single quotes
+ * are preferred because all four read them literally, except `$`: Next and Bun
+ * expand `$NAME` even inside single quotes, and the one spelling all four read as a
+ * literal `$` is `\$` inside double quotes.
+ */
+function spellEnvValue(value: string): { text: string } | { refusal: string } {
+  if (/[\r\n]/.test(value)) return { refusal: 'it contains a line break' }
+  if (value.includes('$')) {
+    if (/["\\`]/.test(value)) {
+      return { refusal: 'it mixes $ with a double quote, backslash, or backtick' }
+    }
+    return { text: `"${value.replaceAll('$', '\\$')}"` }
+  }
+  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) {
+    return { text: value }
+  }
+  if (!value.includes("'")) return { text: `'${value}'` }
+  if (!/["\\`]/.test(value)) return { text: `"${value}"` }
+  return { refusal: 'it mixes quotes with a # or edge whitespace' }
+}
+
+/** Why `upsertEnv` cannot write `value` so every loader reads it back unchanged, if it cannot. */
+export function envValueRefusal(value: string): string | undefined {
+  const spelling = spellEnvValue(value)
+  return 'refusal' in spelling ? spelling.refusal : undefined
+}
+
+function formatEnvValue(key: string, value: string): string {
+  const spelling = spellEnvValue(value)
+  if ('refusal' in spelling) {
+    throw new Error(`${key} cannot be written to an environment file: ${spelling.refusal}`)
+  }
+  return spelling.text
 }
 
 /**
@@ -102,7 +157,7 @@ export function upsertEnv(content: string, key: string, value: string): string {
   }
   const activeIdx = activeIndexes[0] ?? -1
   const idx = activeIdx !== -1 ? activeIdx : lines.findIndex((l) => commentedRe.test(l))
-  const newLine = `${key}=${value}`
+  const newLine = `${key}=${formatEnvValue(key, value)}`
   if (idx === -1) {
     const trailing = lines.length > 0 && lines[lines.length - 1] === ''
     if (trailing) lines.splice(lines.length - 1, 0, newLine)

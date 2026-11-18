@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapContinuousCheck,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetContinuousCheckTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrGetContinuousCheckTool: ToolConfig<
   name: 'Checkr Get Continuous Check',
   description: 'Retrieve a continuous check by ID.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

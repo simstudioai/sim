@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   USER_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetUserTool: ToolConfig<RocketlaneGetUserParams, RocketlaneUserResponse> = {
@@ -14,6 +15,7 @@ export const rocketlaneGetUserTool: ToolConfig<RocketlaneGetUserParams, Rocketla
   name: 'Rocketlane Get User',
   description: 'Retrieve a Rocketlane user by their ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

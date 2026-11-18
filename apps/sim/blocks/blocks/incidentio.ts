@@ -1,6 +1,7 @@
 import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Identifiers a user can be looked up by, whichever one is filled. */
@@ -27,6 +28,8 @@ function toTriState(value: unknown): boolean | undefined {
 
 export const IncidentioBlock: BlockConfig = {
   type: 'incidentio',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'incidentio_v2' },
   name: 'incident.io',
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
@@ -316,6 +319,8 @@ export const IncidentioBlock: BlockConfig = {
           'incidentio_incident_alerts_list',
           'incidentio_catalog_entries_list',
           'incidentio_teams_list',
+          'incidentio_actions_list',
+          'incidentio_follow_ups_list',
         ],
       },
       mode: 'advanced',
@@ -340,6 +345,8 @@ export const IncidentioBlock: BlockConfig = {
           'incidentio_incident_alerts_list',
           'incidentio_catalog_entries_list',
           'incidentio_teams_list',
+          'incidentio_actions_list',
+          'incidentio_follow_ups_list',
         ],
       },
       mode: 'advanced',
@@ -398,17 +405,13 @@ Return ONLY the summary text - no explanations.`,
         field: 'operation',
         value: ['incidentio_incidents_create', 'incidentio_incidents_update'],
       },
-      required: { field: 'operation', value: 'incidentio_incidents_create' },
     },
     {
       id: 'incident_type_id',
       title: 'Incident Type ID',
       type: 'short-input',
       placeholder: 'Enter incident type ID...',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_incidents_create', 'incidentio_incidents_update'],
-      },
+      condition: { field: 'operation', value: 'incidentio_incidents_create' },
     },
     {
       id: 'incident_status_id',
@@ -576,6 +579,21 @@ Return ONLY the title - no explanations.`,
       condition: { field: 'operation', value: 'incidentio_escalations_create' },
     },
     {
+      id: 'escalation_description',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Additional details included with the page...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
+    },
+    {
+      id: 'escalation_incident_id',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'Link the escalation to an incident (optional)...',
+      condition: { field: 'operation', value: 'incidentio_escalations_create' },
+      mode: 'advanced',
+    },
+    {
       id: 'incident_id',
       title: 'Incident ID',
       type: 'short-input',
@@ -610,6 +628,7 @@ Return ONLY the title - no explanations.`,
       title: 'Incident Mode',
       type: 'dropdown',
       options: [
+        { label: 'Standard and Retrospective', id: '' },
         { label: 'Standard', id: 'standard' },
         { label: 'Retrospective', id: 'retrospective' },
         { label: 'Test', id: 'test' },
@@ -645,11 +664,18 @@ Return ONLY the title - no explanations.`,
       title: 'State',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Active', id: 'active' },
         { label: 'Draft', id: 'draft' },
         { label: 'Disabled', id: 'disabled' },
       ],
-      value: () => 'active',
+      value: (params) =>
+        params?.operation === 'incidentio_workflows_create'
+          ? 'active'
+          : params?.operation === 'incidentio_workflows_update'
+            ? ''
+            : undefined,
+      dependsOn: ['operation'],
       condition: {
         field: 'operation',
         value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
@@ -820,6 +846,7 @@ Return ONLY the title - no explanations.`,
       title: 'Timezone',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'America/New_York (Eastern)', id: 'America/New_York' },
         { label: 'America/Chicago (Central)', id: 'America/Chicago' },
         { label: 'America/Denver (Mountain)', id: 'America/Denver' },
@@ -844,12 +871,17 @@ Return ONLY the title - no explanations.`,
         { label: 'Pacific/Auckland (New Zealand)', id: 'Pacific/Auckland' },
         { label: 'UTC', id: 'UTC' },
       ],
-      value: () => 'UTC',
+      value: (params) =>
+        params?.operation === 'incidentio_schedules_create'
+          ? 'UTC'
+          : params?.operation === 'incidentio_schedules_update'
+            ? ''
+            : undefined,
+      dependsOn: ['operation'],
       condition: {
         field: 'operation',
         value: ['incidentio_schedules_create', 'incidentio_schedules_update'],
       },
-      required: { field: 'operation', value: 'incidentio_schedules_create' },
     },
     {
       id: 'config',
@@ -869,7 +901,7 @@ The configuration must follow this structure:
       "name": "Rotation Name",
       "users": [{"id": "user_id"}],
       "handover_start_at": "ISO8601 timestamp",
-      "handovers": [{"interval": number, "interval_type": "daily|weekly|monthly"}]
+      "handovers": [{"interval": number, "interval_type": "hourly|daily|weekly"}]
     }
   ]
 }
@@ -1129,7 +1161,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Path Configuration',
       type: 'long-input',
       placeholder:
-        'JSON array of escalation levels: [{"targets": [{"id": "...", "type": "...", "urgency": "..."}], "time_to_ack_seconds": 300}]',
+        'JSON array of nodes: [{"id": "lvl1", "type": "level", "level": {"targets": [{"id": "<schedule id>", "type": "schedule", "schedule_mode": "currently_on_call", "urgency": "high"}], "time_to_ack_seconds": 300}}]',
       condition: {
         field: 'operation',
         value: ['incidentio_escalation_paths_create', 'incidentio_escalation_paths_update'],
@@ -1137,16 +1169,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
       wandConfig: {
         enabled: true,
-        prompt: `Generate a JSON array for escalation path configuration based on the user's description.
-The array must follow this structure:
+        prompt: `Generate a JSON array of incident.io escalation path nodes based on the user's description.
+Each node needs a unique "id" and a "type". A "level" node pages its targets and waits for an acknowledgment:
 [
   {
-    "targets": [{"id": "target_id", "type": "user|schedule", "urgency": "high|low"}],
-    "time_to_ack_seconds": number
+    "id": "lvl1",
+    "type": "level",
+    "level": {
+      "targets": [
+        {"id": "schedule_or_user_id", "type": "schedule|user", "schedule_mode": "currently_on_call", "urgency": "high|low"}
+      ],
+      "time_to_ack_seconds": number
+    }
   }
 ]
 
-Each level represents an escalation step with acknowledgment timeout.
+Use one level node per escalation step, in order. Only set "schedule_mode" on schedule targets.
 
 Return ONLY the JSON array - no explanations or markdown formatting.`,
         placeholder:
@@ -1159,7 +1197,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       title: 'Working Hours',
       type: 'long-input',
       placeholder:
-        'Optional JSON array: [{"weekday": "monday", "start_time": "09:00", "end_time": "17:00"}]',
+        'Optional JSON array: [{"id": "wh", "name": "Business hours", "timezone": "Europe/London", "weekday_intervals": [{"weekday": "monday", "start_time": "09:00", "end_time": "17:00"}]}]',
       condition: {
         field: 'operation',
         value: ['incidentio_escalation_paths_create', 'incidentio_escalation_paths_update'],
@@ -1169,7 +1207,14 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
         prompt: `Generate a JSON array for working hours configuration based on the user's description.
 The array must follow this structure:
 [
-  {"weekday": "monday|tuesday|wednesday|thursday|friday|saturday|sunday", "start_time": "HH:MM", "end_time": "HH:MM"}
+  {
+    "id": "unique_id",
+    "name": "Business hours",
+    "timezone": "IANA timezone, e.g. Europe/London",
+    "weekday_intervals": [
+      {"weekday": "monday|tuesday|wednesday|thursday|friday|saturday|sunday", "start_time": "HH:MM", "end_time": "HH:MM"}
+    ]
+  }
 ]
 
 Return ONLY the JSON array - no explanations or markdown formatting.`,
@@ -1182,14 +1227,16 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       title: 'Alert Status',
       type: 'dropdown',
       options: [
+        { label: 'Any', id: '' },
         { label: 'Firing', id: 'firing' },
         { label: 'Resolved', id: 'resolved' },
       ],
+      value: (params) => (params?.operation === 'incidentio_alert_events_create' ? 'firing' : ''),
+      dependsOn: ['operation'],
       condition: {
         field: 'operation',
         value: ['incidentio_alerts_list', 'incidentio_alert_events_create'],
       },
-      required: { field: 'operation', value: 'incidentio_alert_events_create' },
     },
     {
       id: 'status_operator',
@@ -1737,7 +1784,8 @@ Return ONLY the description - no explanations.`,
             return 'incidentio_incidents_list'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
         const toBoolean = (value: unknown) => value === true || value === 'true'
         if (params.page_size) result.page_size = Number(params.page_size)
@@ -1753,38 +1801,57 @@ Return ONLY the description - no explanations.`,
         if (params.skip_step_upgrades !== undefined) {
           result.skip_step_upgrades = toBoolean(params.skip_step_upgrades)
         }
-        if (params.operation === 'incidentio_users_list') {
+        // Status dropdowns are always seeded, so on a tool call the model's `status` must win.
+        const pickStatus = (dropdownValue: unknown) => {
+          const status = toolCallArg(context, params.status) || dropdownValue
+          if (status) result.status = status
+        }
+        if (operation === 'incidentio_users_list') {
           if (params.user_email) result.email = params.user_email
           if (params.user_slack_id) result.slack_user_id = params.user_slack_id
         }
-        if (params.operation === 'incidentio_alerts_list') {
-          if (params.alert_status) result.status = params.alert_status
+        if (operation === 'incidentio_alerts_list') {
+          // A tool row can't show this dropdown, so its stored value is only the seeded default.
+          pickStatus(isToolCall(context) ? undefined : params.alert_status)
           result.has_notes = toTriState(params.has_notes)
           result.include_maintenance_window = toTriState(params.include_maintenance_window)
         }
-        if (params.operation === 'incidentio_alert_events_create') {
-          if (params.alert_status) result.status = params.alert_status
+        // The editor seeds these dropdowns without an operation, so a new create block holds ''.
+        if (operation === 'incidentio_alert_events_create') {
+          pickStatus(params.alert_status || 'firing')
           if (params.alert_title) result.title = params.alert_title
           if (params.alert_description) result.description = params.alert_description
         }
+        if (operation === 'incidentio_schedules_create' && !params.timezone) {
+          result.timezone = 'UTC'
+        }
+        // On a tool call a missing state keeps the tool's 'draft' default, so an agent never
+        // creates a live workflow by omission.
+        if (operation === 'incidentio_workflows_create' && !params.state && !isToolCall(context)) {
+          result.state = 'active'
+        }
+        if (operation === 'incidentio_escalations_create') {
+          if (params.escalation_description) result.description = params.escalation_description
+          if (params.escalation_incident_id) result.incident_id = params.escalation_incident_id
+        }
         if (
-          params.operation === 'incidentio_follow_ups_create' ||
-          params.operation === 'incidentio_follow_ups_update'
+          operation === 'incidentio_follow_ups_create' ||
+          operation === 'incidentio_follow_ups_update'
         ) {
           if (params.follow_up_title) result.title = params.follow_up_title
           if (params.follow_up_description) result.description = params.follow_up_description
         }
         if (
-          params.operation === 'incidentio_actions_create' ||
-          params.operation === 'incidentio_actions_update'
+          operation === 'incidentio_actions_create' ||
+          operation === 'incidentio_actions_update'
         ) {
           if (params.action_description) result.description = params.action_description
         }
         if (
-          params.operation === 'incidentio_follow_ups_update' ||
-          params.operation === 'incidentio_actions_update'
+          operation === 'incidentio_follow_ups_update' ||
+          operation === 'incidentio_actions_update'
         ) {
-          if (params.item_status) result.status = params.item_status
+          pickStatus(params.item_status)
         }
         return result
       },
@@ -1887,6 +1954,8 @@ Return ONLY the description - no explanations.`,
     follow_up_priority_option_id: { type: 'string', description: 'Follow-up priority option ID' },
     external_issue_reference_id: { type: 'string', description: 'External issue reference ID' },
     labels: { type: 'string', description: 'Comma-separated follow-up labels' },
+    escalation_description: { type: 'string', description: 'Escalation description' },
+    escalation_incident_id: { type: 'string', description: 'Incident to link an escalation to' },
   },
   outputs: {
     incidents: { type: 'json', description: 'List of incidents' },
@@ -2055,3 +2124,22 @@ export const IncidentioBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const IncidentioV2Block: BlockConfig = {
+  ...IncidentioBlock,
+  type: 'incidentio_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    IncidentioBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'incidentio',
+      title: 'incident.io Credential',
+    },
+    // Alert events authenticate with their own alert source token.
+    { condition: { field: 'operation', value: 'incidentio_alert_events_create', not: true } }
+  ),
+}

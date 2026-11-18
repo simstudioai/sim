@@ -2,7 +2,7 @@ import { PowerBIIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalNumberInput, toolCallArg } from '@/blocks/utils'
 
 const WORKSPACE_FIELD = ['workspaceSelector', 'manualWorkspaceId'] as const
 const DATASET_FIELD = ['datasetSelector', 'manualDatasetId'] as const
@@ -25,7 +25,7 @@ export const PowerBIBlock: BlockConfig = {
   type: 'powerbi',
   name: 'Power BI',
   description: 'Query semantic models and manage reports and refreshes',
-  longDescription: `Connect a home-tenant organizational account through the Power BI Microsoft connection to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. Microsoft Graph connections cannot substitute for this delegated OAuth connection. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, service principals, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.`,
+  longDescription: `Connect a home-tenant organizational account through the Power BI Microsoft connection, or run as an app registration with a Microsoft app credential in the global cloud, to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. A Microsoft Graph connection cannot substitute for the Power BI connection or app credential. An app credential needs the Power BI tenant setting that allows service principals to use Power BI APIs and its service principal added to each workspace as a Member or Admin; DAX queries do not run as a service principal against semantic models with row-level security or SSO. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.`,
   docsLink: 'https://docs.sim.ai/integrations/powerbi',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
@@ -294,29 +294,32 @@ export const PowerBIBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
-        switch (params.operation) {
+      params: (params, context) => {
+        switch (mapperOperation(params, context)) {
           case 'powerbi_list_workspaces':
             return {
               top:
-                parseOptionalNumberInput(params.workspaceTop, 'Maximum workspaces', {
-                  integer: true,
-                  min: 0,
-                }) ?? 100,
+                parseOptionalNumberInput(
+                  params.workspaceTop ?? toolCallArg(context, params.top),
+                  'Maximum workspaces',
+                  { integer: true, min: 0 }
+                ) ?? 100,
               skip:
-                parseOptionalNumberInput(params.workspaceSkip, 'Workspace offset', {
-                  integer: true,
-                  min: 0,
-                }) ?? 0,
-              filter: params.workspaceFilter,
+                parseOptionalNumberInput(
+                  params.workspaceSkip ?? toolCallArg(context, params.skip),
+                  'Workspace offset',
+                  { integer: true, min: 0 }
+                ) ?? 0,
+              filter: params.workspaceFilter ?? toolCallArg(context, params.filter),
             }
           case 'powerbi_get_refresh_history':
             return {
               top:
-                parseOptionalNumberInput(params.refreshHistoryTop, 'Maximum refreshes', {
-                  integer: true,
-                  min: 1,
-                }) ?? 60,
+                parseOptionalNumberInput(
+                  params.refreshHistoryTop ?? toolCallArg(context, params.top),
+                  'Maximum refreshes',
+                  { integer: true, min: 1 }
+                ) ?? 60,
             }
           case 'powerbi_execute_query':
             return { includeNulls: parseIncludeNulls(params.includeNulls) }
@@ -355,7 +358,8 @@ export const PowerBIBlock: BlockConfig = {
     },
     reports: {
       type: 'json',
-      description: 'Reports with ID, name, report type, URLs, and optional semantic model ID',
+      description:
+        'Reports with ID, name, report type, URLs, optional semantic model ID, format, isOwnedByMe, and app IDs when available',
       condition: { field: 'operation', value: 'powerbi_list_reports' },
     },
     reportCount: {
@@ -365,7 +369,8 @@ export const PowerBIBlock: BlockConfig = {
     },
     report: {
       type: 'json',
-      description: 'Report details including ID, name, report type, URLs, and semantic model ID',
+      description:
+        'Report details including ID, name, report type, URLs, semantic model ID, format, isOwnedByMe, and app IDs when available',
       condition: { field: 'operation', value: 'powerbi_get_report' },
     },
     datasets: {

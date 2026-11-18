@@ -2,7 +2,9 @@ import type {
   DiscordArchiveThreadParams,
   DiscordArchiveThreadResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordArchiveThreadTool: ToolConfig<
   DiscordArchiveThreadParams,
@@ -12,6 +14,7 @@ export const discordArchiveThreadTool: ToolConfig<
   name: 'Discord Archive Thread',
   description: 'Archive or unarchive a thread in Discord',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -34,7 +37,7 @@ export const discordArchiveThreadTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -42,7 +45,7 @@ export const discordArchiveThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordArchiveThreadParams) => {
-      return `https://discord.com/api/v10/channels/${params.threadId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.threadId, 'threadId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

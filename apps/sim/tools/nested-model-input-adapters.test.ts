@@ -374,8 +374,9 @@ describe('nested model-input adapters', () => {
       apiKey: 'key',
       rerank,
       searchQuery: patch.searchQuery as string,
-    }) as { rerank: { query: { text: string } } }
-    expect(body.rerank.query.text).toBe('{{SEARCH_QUERY}}')
+    }) as { query: { inputs: { text: string } }; rerank: { query?: string } }
+    expect(body.query.inputs.text).toBe('{{SEARCH_QUERY}}')
+    expect(body.rerank.query).toBeUndefined()
   })
 
   it('preserves Pinecone singleton and legacy NDJSON input forms', () => {

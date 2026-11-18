@@ -261,6 +261,7 @@ Pre-built values files for common scenarios live in [`helm/sim/examples/`](https
 | `values-development.yaml` | Local dev / `kind` / `minikube`. Minimal resources, no TLS. |
 | `values-production.yaml` | Generic production: HA, network policy, autoscaling, monitoring. |
 | `values-aws.yaml` | EKS — EBS GP3 storage, ALB ingress, IRSA-friendly. |
+| `values-aws-marketplace.yaml` | EKS from the AWS Marketplace listing — Sim's images only, RDS + ElastiCache, Enterprise from the Marketplace license. |
 | `values-gcp.yaml` | GKE — Persistent Disk storage, GCP managed certs, Workload Identity. |
 | `values-azure.yaml` | AKS — managed-csi storage, NGINX ingress, GPU node pools. |
 | `values-external-db.yaml` | Production with a managed Postgres (RDS, Cloud SQL, Azure DB). |
@@ -282,8 +283,18 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
+
+### AWS Marketplace
+
+The AWS Marketplace listing ships this chart with `values-aws-marketplace.yaml` as its defaults
+and every image pointed at the AWS Marketplace registry. It needs your own Amazon RDS for
+PostgreSQL 17 and Amazon ElastiCache: [`aws-marketplace-prerequisites.yaml`](https://github.com/simstudioai/sim/tree/main/helm/sim/examples/aws-marketplace-prerequisites.yaml)
+is a CloudFormation template that creates both, plus the IAM role the chart's ServiceAccount
+uses to check your Marketplace license in AWS License Manager. While that license is active the
+Enterprise suite is on; without it Sim runs as the open-source core.
 
 ---
 
@@ -340,7 +351,7 @@ Before installing in production, confirm each of the following:
           matchLabels:
             kubernetes.io/metadata.name: ingress-nginx
   ```
-* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`). All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and set `seccompProfile: RuntimeDefault` — the four controls the Restricted profile requires. `readOnlyRootFilesystem` is intentionally **not** defaulted anywhere (Postgres/Ollama genuinely need a writable root; the stateless services — `realtime`, `pii`, `copilot` — could tolerate it but aren't pre-wired with a `/tmp` `emptyDir`). If your policy requires it, set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` yourself via `extraVolumes`/`extraVolumeMounts`.
+* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`). All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and set `seccompProfile: RuntimeDefault` — the four controls the Restricted profile requires. `readOnlyRootFilesystem` is defaulted on only for the bundled Redis (Postgres/Ollama genuinely need a writable root; the stateless services — `realtime`, `pii`, `copilot` — could tolerate it but aren't pre-wired with a `/tmp` `emptyDir`). If your policy requires it, set `<component>.securityContext.readOnlyRootFilesystem: true` and mount writable `emptyDir` volumes yourself via `extraVolumes`/`extraVolumeMounts`: `/tmp` for every component, plus `/app/apps/sim/.next/cache` and `/app/apps/sim/.next/server/route-cache` for `app`.
 * **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.server.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
 * **Set public URLs** — `app.env.NEXT_PUBLIC_APP_URL` and `app.env.BETTER_AUTH_URL` must match your public origin (e.g. `https://sim.example.com`). Leaving them as `localhost` breaks sign-in.
 

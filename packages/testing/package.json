@@ -63,7 +63,7 @@
   "peerDependencies": {
     "next": ">=15 <17",
     "stripe": ">=18 <19",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   },
   "peerDependenciesMeta": {
     "stripe": {
@@ -72,10 +72,10 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "next": "16.4.1",
+    "next": "16.4.5",
     "stripe": "18.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "@sim/auth": "workspace:*",

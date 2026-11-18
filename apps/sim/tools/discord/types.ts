@@ -35,6 +35,7 @@ export interface DiscordUser {
   id: string
   username: string
   discriminator: string
+  global_name?: string | null
   avatar?: string
   bot?: boolean
   system?: boolean
@@ -61,6 +62,9 @@ export interface DiscordSendMessageParams extends DiscordAuthParams {
 export interface DiscordGetMessagesParams extends DiscordAuthParams {
   channelId: string
   limit?: number
+  before?: string
+  after?: string
+  around?: string
 }
 
 export interface DiscordGetServerParams extends Omit<DiscordAuthParams, 'serverId'> {

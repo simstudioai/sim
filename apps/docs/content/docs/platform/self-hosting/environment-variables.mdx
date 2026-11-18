@@ -158,7 +158,19 @@ Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_A
 
 ## Integration credentials
 
-OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the keys supplied in their blocks. The full table, redirect-URI format, and setup steps are in [Integrations and OAuth](/platform/self-hosting/integrations-oauth).
+OAuth integrations require a provider application and its credentials on a self-hosted deployment. API-key integrations use the saved credentials users add under **Integrations**, and need no deployment configuration. The full table, redirect-URI format, and setup steps are in [Integrations and OAuth](/platform/self-hosting/integrations-oauth).
+
+### Keyless cloud credentials [#workload-identity]
+
+Saved AWS, Databricks, Snowflake, Microsoft app, and Google Cloud credentials can trust Sim through OpenID Connect instead of storing keys. Leave these unset to offer only key- and secret-based credentials.
+
+| Variable | Description |
+| --- | --- |
+| `WORKLOAD_IDENTITY_SIGNING_KEY` | PKCS#8 PEM RSA private key that signs Sim's workload-identity tokens: `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048` |
+| `WORKLOAD_IDENTITY_ISSUER` | Issuer URL clouds trust. Defaults to `<NEXT_PUBLIC_APP_URL>/oidc/workload`; must be `https` on the default port, with no query or fragment, and reachable from the public internet, or keyless stays off. A pinned issuer may use another host that reaches Sim; its path should end in `/oidc/workload`, where Sim serves discovery and keys, and any other path works only if a proxy routes it there (Sim logs a warning). Never change it once trust policies reference it. |
+| `WORKLOAD_IDENTITY_PREVIOUS_KEY` | A second published key (private or public PEM) that never signs: the incoming key before a rotation, or the retiring key after it |
+
+See [AWS credentials](/integrations/aws-credentials#self-hosted-deployments) for setup and the rotation steps.
 
 ## Access control
 
@@ -243,6 +255,7 @@ Configure at least one. Every configured provider stays active and is tried in o
 | `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
 | `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
 | `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
+| `DOMAIN_VERIFICATION_NAMESERVERS` | `1.1.1.1,8.8.8.8` | Comma-separated nameserver IPs that SSO domain verification sends its TXT lookup to. Set it when the network only allows DNS to an internal resolver. Entries that are not IP addresses are ignored |
 
 A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
 

@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { UserFailure } from '@/lib/core/errors/user-failure'
+import type { AwsSigningKeys } from '@/lib/internal/aws/signing-keys'
 import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
@@ -193,6 +194,12 @@ export interface EvaluationInput {
   questions: unknown
 }
 
+/**
+ * Signing credentials resolved from a saved AWS credential for one Bedrock
+ * request; `credentialId` names the saved credential the session came from.
+ */
+export type BedrockCredentialSession = AwsSigningKeys & { credentialId: string }
+
 export interface ProviderRequest {
   evaluation?: EvaluationInput
   /** Server-installed stable identity resolver; never accepted from an API payload. */
@@ -239,6 +246,12 @@ export interface ProviderRequest {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  /**
+   * A saved AWS credential the caller authorized and resolved server-side; never
+   * taken from block or tool input. When set, Bedrock signs with it alone: never
+   * with inline keys or the deployment's own AWS credentials.
+   */
+  bedrockSession?: BedrockCredentialSession
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string

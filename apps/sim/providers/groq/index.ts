@@ -7,6 +7,7 @@ import type {
   ChatCompletionChunk,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -66,7 +67,11 @@ export const groqProvider: ProviderConfig = {
       throw new Error('API key is required for Groq')
     }
 
-    const groq = new Groq({ apiKey: request.apiKey, ...openAICompatTransport() })
+    const groq = new Groq({
+      apiKey: request.apiKey,
+      ...openAICompatTransport(),
+      fetch: outboundFetch,
+    })
 
     const allMessages = []
 

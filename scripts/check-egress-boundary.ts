@@ -78,6 +78,10 @@ const ALLOWED = new Set([
   'apps/sim/lib/internal/oracledb/connect-proxy.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
+  // The operator's HTTPS_PROXY agent for SDKs with their own HTTP stack (AWS,
+  // OTLP). It only changes how an SDK reaches the endpoint the SDK chose; it
+  // never takes a URL, so it adds no destination a caller could supply.
+  'apps/sim/lib/core/network/proxy-agent.server.ts',
 ])
 
 function walk(dir: string, out: string[] = []): string[] {

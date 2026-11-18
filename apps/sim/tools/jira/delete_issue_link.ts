@@ -1,7 +1,9 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraDeleteIssueLinkParams, JiraDeleteIssueLinkResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraDeleteIssueLinkTool: ToolConfig<
   JiraDeleteIssueLinkParams,
@@ -48,7 +50,7 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   request: {
     url: (params: JiraDeleteIssueLinkParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issueLink/${params.linkId?.trim() ?? ''}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issueLink/${safeUrlPathSegment(params.linkId ?? '', 'linkId')}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -64,8 +66,8 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   transformResponse: async (response: Response, params?: JiraDeleteIssueLinkParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const issueLinkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink/${params!.linkId?.trim() ?? ''}`
-      const issueLinkResponse = await fetch(issueLinkUrl, {
+      const issueLinkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink/${safeUrlPathSegment(params!.linkId ?? '', 'linkId')}`
+      const issueLinkResponse = await outboundFetch(issueLinkUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',

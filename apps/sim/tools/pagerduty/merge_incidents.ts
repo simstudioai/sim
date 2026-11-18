@@ -2,7 +2,9 @@ import type {
   PagerDutyMergeIncidentsParams,
   PagerDutyMergeIncidentsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const mergeIncidentsTool: ToolConfig<
   PagerDutyMergeIncidentsParams,
@@ -13,6 +15,7 @@ export const mergeIncidentsTool: ToolConfig<
   description:
     'Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -42,7 +45,8 @@ export const mergeIncidentsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.targetIncidentId.trim()}/merge`,
+    url: (params) =>
+      `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.targetIncidentId, 'targetIncidentId')}/merge`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

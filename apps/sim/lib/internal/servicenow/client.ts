@@ -4,18 +4,16 @@ import {
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import { ServiceNowOperationError } from '@/lib/internal/servicenow/errors'
-import type { ServiceNowAttachment } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import type { ServiceNowAttachment, ServiceNowAuthParams } from '@/tools/servicenow/types'
+import { serviceNowAuthorization } from '@/tools/servicenow/utils'
 
 export async function uploadServiceNowAttachment(
-  input: {
+  input: Omit<ServiceNowAuthParams, 'username'> & {
+    username?: string
     contentType: string
     fileName: string
-    instanceUrl: string
-    password: string
     recordSysId: string
     tableName: string
-    username: string
   },
   buffer: Buffer,
   signal?: AbortSignal
@@ -33,7 +31,7 @@ export async function uploadServiceNowAttachment(
       profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
-        Authorization: createBasicAuthHeader(input.username, input.password),
+        Authorization: serviceNowAuthorization(input),
         'Content-Type': input.contentType,
         Accept: 'application/json',
       },

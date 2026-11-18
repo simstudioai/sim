@@ -15,6 +15,7 @@ import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-fa
 import { FILE_DELIVERY_CSP_PATH_PATTERN, getMainCSPPolicy } from '@/lib/core/security/csp'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { readResponseError } from '@/lib/core/utils/response-error'
 import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { trackInFlightRequest } from '@/lib/monitoring/in-flight-requests'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -274,9 +275,9 @@ export function withRouteHandler<T>(
       const duration = Date.now() - startTime
 
       if (status >= 500) {
-        logger.error('Server error response', { status, duration })
+        logger.error('Server error response', { status, duration, ...readResponseError(response) })
       } else if (status >= 400) {
-        logger.warn('Client error response', { status, duration })
+        logger.warn('Client error response', { status, duration, ...readResponseError(response) })
       } else if (status > 0) {
         logger.info('OK', { status, duration })
       }

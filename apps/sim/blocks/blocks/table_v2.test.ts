@@ -10,8 +10,11 @@ vi.mock('@/triggers', () => triggersMock)
 
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 
-function params(input: Record<string, unknown>): Record<string, unknown> {
-  return TableV2Block.tools.config?.params?.(input as never) as Record<string, unknown>
+function params(
+  input: Record<string, unknown>,
+  context?: { operation: string }
+): Record<string, unknown> {
+  return TableV2Block.tools.config?.params?.(input as never, context) as Record<string, unknown>
 }
 
 describe('table_v2 query_rows transformer', () => {
@@ -31,7 +34,7 @@ describe('table_v2 query_rows transformer', () => {
   it('fails fast instead of silently returning every column for a malformed selection', () => {
     expect(() =>
       params({ operation: 'query_rows', tableId: 't', outputColumns: 'col_name,col_email' })
-    ).toThrow(/Invalid JSON in Columns to Return/)
+    ).toThrow(/Invalid JSON for Columns to Return/)
     expect(() =>
       params({ operation: 'query_rows', tableId: 't', outputColumns: { col_name: true } })
     ).toThrow(/Invalid Columns to Return/)
@@ -171,5 +174,38 @@ describe('table_v2 blank and malformed editor inputs', () => {
     expect(() => params({ ...base, filterInput: '{"status":"active"}' })).toThrow(
       /group.*condition/i
     )
+  })
+})
+
+/**
+ * On an Agent tool call the operation arrives only in context, and the model's `filter`/`order`
+ * args have already been folded into the `filterInput`/`sortInput` canonical values.
+ */
+describe('table_v2 transformers on an Agent tool call', () => {
+  it('forwards the model filter as a predicate for a bulk update', () => {
+    const out = params(
+      {
+        tableId: 't',
+        filterInput: { field: 'status', op: 'eq', value: 'stale' },
+        data: { archived: true },
+        limit: 50,
+      },
+      { operation: 'update_rows_by_filter' }
+    )
+    expect(out.filter).toEqual({ all: [{ field: 'status', op: 'eq', value: 'stale' }] })
+    expect(out.limit).toBe(50)
+  })
+
+  it('forwards the model order and filter for a query', () => {
+    const out = params(
+      {
+        tableId: 't',
+        filterInput: '{"field":"wins","op":"gte","value":10}',
+        sortInput: [{ field: 'wins', direction: 'desc' }],
+      },
+      { operation: 'query_rows' }
+    )
+    expect(out.filter).toEqual({ all: [{ field: 'wins', op: 'gte', value: 10 }] })
+    expect(out.order).toEqual([{ field: 'wins', direction: 'desc' }])
   })
 })

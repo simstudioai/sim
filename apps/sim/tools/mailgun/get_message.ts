@@ -1,5 +1,6 @@
 import type { GetMessageParams, GetMessageResult } from '@/tools/mailgun/types'
-import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { getMailgunApiBaseUrl, mailgunPathSegment } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResult> = {
@@ -7,6 +8,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
   name: 'Mailgun Get Message',
   description: 'Retrieve a stored message by its key',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +39,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
 
   request: {
     url: (params) =>
-      `${getMailgunApiBaseUrl(params.region)}/domains/${params.domain}/messages/${params.messageKey}`,
+      `${getMailgunApiBaseUrl(params.region)}/domains/${mailgunPathSegment(params.domain, 'domain')}/messages/${mailgunPathSegment(params.messageKey, 'messageKey')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
@@ -57,8 +59,8 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
       output: {
         success: true,
         recipients: result.recipients,
-        from: result.from,
-        subject: result.subject,
+        from: result.from ?? result.From,
+        subject: result.subject ?? result.Subject,
         bodyPlain: result['body-plain'],
         strippedText: result['stripped-text'],
         strippedSignature: result['stripped-signature'],
@@ -79,12 +81,12 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
     subject: { type: 'string', description: 'Message subject' },
     bodyPlain: { type: 'string', description: 'Plain text body' },
     strippedText: { type: 'string', description: 'Stripped text' },
-    strippedSignature: { type: 'string', description: 'Stripped signature' },
+    strippedSignature: { type: 'string', description: 'Stripped signature', optional: true },
     bodyHtml: { type: 'string', description: 'HTML body' },
-    strippedHtml: { type: 'string', description: 'Stripped HTML' },
-    attachmentCount: { type: 'number', description: 'Number of attachments' },
-    timestamp: { type: 'number', description: 'Message timestamp' },
+    strippedHtml: { type: 'string', description: 'Stripped HTML', optional: true },
+    attachmentCount: { type: 'number', description: 'Number of attachments', optional: true },
+    timestamp: { type: 'number', description: 'Message timestamp', optional: true },
     messageHeaders: { type: 'json', description: 'Message headers' },
-    contentIdMap: { type: 'json', description: 'Content ID map' },
+    contentIdMap: { type: 'json', description: 'Content ID map', optional: true },
   },
 }

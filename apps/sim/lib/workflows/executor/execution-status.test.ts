@@ -14,7 +14,12 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 }))
 
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
-import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import { isWaitingHumanPausePoint } from '@/lib/workflows/executor/execution-state'
+import {
+  getProjectedWorkflowExecutionStatus,
+  getWorkflowExecutionStatus,
+  readPausedRunPoints,
+} from '@/lib/workflows/executor/execution-status'
 
 const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
 const mockMaterializeForDisplayWithBlockOutputs =
@@ -454,6 +459,7 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
       startedAt: '2026-08-05T12:00:01.000Z',
       endedAt: '2026-08-05T12:00:05.000Z',
       totalDurationMs: 4000,
+      deploymentVersion: null,
       paused: null,
       cost: { total: 0.5 },
       error: null,
@@ -657,5 +663,192 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
     await expect(
       getWorkflowExecutionStatus({ ...input, selectedOutputs: ['block-1'] })
     ).rejects.toBeInstanceOf(FunctionalOutputsUnavailableError)
+  })
+})
+
+describe('getWorkflowExecutionStatus once a pause has settled', () => {
+  const FAILED_TIME_POINT = {
+    contextId: 'wait-five',
+    blockId: 'wait-five',
+    registeredAt: '2026-08-05T12:00:01.000Z',
+    resumeStatus: 'failed',
+    pauseKind: 'time',
+    resumeAt: '2026-08-05T12:05:01.000Z',
+  }
+
+  /** A run whose resumed execution failed: the log is terminal, the pause record still open. */
+  function queueFailedRunWithOpenPause(pausePoints: Record<string, unknown>) {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'failed',
+        level: 'error',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:05:03.000Z'),
+        totalDurationMs: 303000,
+        executionData: {},
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [
+      {
+        id: 'paused-execution-1',
+        status: 'paused',
+        pausePoints,
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:01.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    mockGetJob.mockResolvedValue(null)
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: {
+        error: 'Lookup: upstream returned 500',
+        traceSpans: [
+          {
+            id: 'span-1',
+            name: 'Lookup',
+            type: 'api',
+            status: 'error',
+            blockId: 'lookup',
+            executionOrder: 2,
+          },
+        ],
+      },
+      blockOutputs: new Map(),
+    })
+  })
+
+  it('reports a run whose resumed execution failed as failed, with its error and failing block', async () => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT })
+
+    const projected = await getProjectedWorkflowExecutionStatus(input)
+
+    expect(projected?.status).toMatchObject({
+      status: 'failed',
+      paused: null,
+      error: 'Lookup: upstream returned 500',
+    })
+    expect(projected?.pausePoints).toBeNull()
+    expect(projected?.failedBlock).toMatchObject({ blockId: 'lookup', blockName: 'Lookup' })
+  })
+
+  it.each([
+    [
+      'a human pause',
+      {
+        contextId: 'approval',
+        blockId: 'approval',
+        resumeStatus: 'paused',
+        pauseKind: 'human',
+        resumeAt: null,
+      },
+    ],
+    [
+      'a time pause',
+      {
+        contextId: 'wait-ten',
+        blockId: 'wait-ten',
+        resumeStatus: 'paused',
+        pauseKind: 'time',
+        resumeAt: '2026-08-05T12:10:01.000Z',
+      },
+    ],
+  ])('still reads paused while %s is waiting beside the failed one', async (_, waiting) => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT, [waiting.contextId]: waiting })
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      status: 'paused',
+      error: null,
+      paused: {
+        contextId: waiting.contextId,
+        pauseKind: waiting.pauseKind,
+        resumeAt: waiting.resumeAt,
+      },
+    })
+  })
+})
+
+describe('readPausedRunPoints cap', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /**
+   * A run that pauses again after resuming keeps its resumed points. Capping by
+   * registration time alone dropped the newest point, the one still waiting.
+   */
+  it('keeps a waiting point when resumed history exceeds the cap', async () => {
+    const pausePoints: Record<string, unknown> = {}
+    for (let i = 0; i < 100; i++) {
+      pausePoints[`old-${i}`] = {
+        contextId: `old-${i}`,
+        blockId: 'approval',
+        registeredAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+        resumeStatus: 'resumed',
+        pauseKind: 'human',
+      }
+    }
+    pausePoints.current = {
+      contextId: 'current',
+      blockId: 'approval',
+      registeredAt: '2026-02-01T00:00:00.000Z',
+      resumeStatus: 'paused',
+      pauseKind: 'human',
+    }
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+
+    const points = await readPausedRunPoints({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      pausePoints,
+    })
+
+    expect(points).toHaveLength(100)
+    expect(points?.at(-1)).toMatchObject({ contextId: 'current', status: 'paused' })
+    expect(points?.filter((point) => point.status === 'paused')).toHaveLength(1)
+  })
+
+  it('selects the points a caller lists before capping, so time pauses cannot crowd them out', async () => {
+    const pausePoints: Record<string, unknown> = {}
+    for (let i = 0; i < 100; i++) {
+      pausePoints[`timer-${i}`] = {
+        contextId: `timer-${i}`,
+        blockId: 'wait',
+        registeredAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+        resumeStatus: 'paused',
+        pauseKind: 'time',
+      }
+    }
+    pausePoints.approval = {
+      contextId: 'approval',
+      blockId: 'approval',
+      registeredAt: '2026-02-01T00:00:00.000Z',
+      resumeStatus: 'paused',
+      pauseKind: 'human',
+    }
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+
+    const points = await readPausedRunPoints({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      pausePoints,
+      only: isWaitingHumanPausePoint,
+    })
+
+    expect(points).toEqual([expect.objectContaining({ contextId: 'approval', kind: 'human' })])
   })
 })

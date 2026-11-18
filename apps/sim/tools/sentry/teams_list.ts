@@ -1,5 +1,8 @@
 import type { SentryListTeamsParams, SentryListTeamsResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsResponse> = {
   id: 'sentry_teams_list',
@@ -7,8 +10,10 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
   description:
     'List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -43,7 +48,7 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
 
   request: {
     url: (params) => {
-      const baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/teams/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/teams/`
       const queryParams: string[] = []
 
       if (params.query && params.query !== null && params.query !== '') {
@@ -111,6 +116,8 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
           nextCursor,
           hasMore,
         },
+        nextCursor,
+        hasMore,
       },
     }
   },
@@ -170,6 +177,16 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
           description: 'Whether there are more results available',
         },
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
     },
   },
 }

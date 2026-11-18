@@ -9,6 +9,7 @@ import {
   GENIE_SPACE_PARAMS,
   genieSpacePath,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieListConversationsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const genieListConversationsTool: ToolConfig<
   description:
     'List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,

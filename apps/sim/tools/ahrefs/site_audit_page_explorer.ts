@@ -2,6 +2,7 @@ import type {
   AhrefsSiteAuditPageExplorerParams,
   AhrefsSiteAuditPageExplorerResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const siteAuditPageExplorerTool: ToolConfig<
   description:
     'Get crawled pages from an Ahrefs Site Audit project with health and SEO metrics: HTTP status, title, link counts, backlinks, indexability, and traffic. Optionally filter to pages affected by a specific issue.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

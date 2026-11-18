@@ -22,6 +22,19 @@ export const DATADOG_SITES = [
 
 export type DatadogSite = (typeof DATADOG_SITES)[number]
 
+/** Each site's name in the site pickers: Datadog's region name and the site host. */
+export const DATADOG_SITE_LABELS: Record<DatadogSite, string> = {
+  'datadoghq.com': 'US1 (datadoghq.com)',
+  'us3.datadoghq.com': 'US3 (us3.datadoghq.com)',
+  'us5.datadoghq.com': 'US5 (us5.datadoghq.com)',
+  'datadoghq.eu': 'EU (datadoghq.eu)',
+  'ap1.datadoghq.com': 'AP1 (ap1.datadoghq.com)',
+  'ap2.datadoghq.com': 'AP2 (ap2.datadoghq.com)',
+  'uk1.datadoghq.com': 'UK1 (uk1.datadoghq.com)',
+  'ddog-gov.com': 'US1-FED (ddog-gov.com)',
+  'us2.ddog-gov.com': 'US2-FED (us2.ddog-gov.com)',
+}
+
 /** Base parameters for write-only operations (only need API key) */
 interface DatadogWriteOnlyParams {
   apiKey: string
@@ -52,7 +65,8 @@ interface MetricPoint {
 
 export interface MetricSeries {
   metric: string
-  type?: MetricType
+  /** A type name, or Datadog's numeric `MetricIntakeType` code (0 unspecified, 1 count, 2 rate, 3 gauge). */
+  type?: MetricType | number
   points: MetricPoint[]
   tags?: string[]
   unit?: string
@@ -132,8 +146,8 @@ export interface CreateEventParams extends DatadogWriteOnlyParams {
   alertType?: EventAlertType
   priority?: EventPriority
   host?: string
-  /** Comma-separated tags */
-  tags?: string
+  /** Comma-separated tags, or an array when a model or upstream block supplies one */
+  tags?: string | string[]
   aggregationKey?: string
   sourceTypeName?: string
   /** Unix timestamp */
@@ -142,6 +156,7 @@ export interface CreateEventParams extends DatadogWriteOnlyParams {
 
 interface EventData {
   id?: number
+  id_str?: string
   title?: string
   text?: string
   date_happened?: number
@@ -200,8 +215,8 @@ export interface CreateMonitorParams extends DatadogBaseParams {
   type: MonitorType
   query: string
   message?: string
-  /** Comma-separated tags */
-  tags?: string
+  /** Comma-separated tags, or an array when a model or upstream block supplies one */
+  tags?: string | string[]
   /** 1-5 */
   priority?: number
   /** JSON string of MonitorOptions */
@@ -598,6 +613,8 @@ interface SloHistoryData {
 interface GetSloHistoryOutput {
   history: SloHistoryData
   sliValue?: number | null
+  /** Partial query errors Datadog returns alongside a 200, each `{ error }`. */
+  errors?: { error?: string }[]
 }
 
 export interface GetSloHistoryResponse extends ToolResponse {
@@ -1089,6 +1106,8 @@ export interface GetIncidentParams extends DatadogBaseParams {
 
 interface GetIncidentOutput {
   incident: IncidentData
+  /** Related resources Datadog returns for the `include` query param. */
+  included?: Record<string, unknown>[]
 }
 
 export interface GetIncidentResponse extends ToolResponse {

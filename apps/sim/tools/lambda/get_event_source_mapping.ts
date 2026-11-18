@@ -2,6 +2,7 @@ import type {
   LambdaGetEventSourceMappingParams,
   LambdaGetEventSourceMappingResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getEventSourceMappingTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getEventSourceMappingTool: InternalToolConfig<
   name: 'Lambda Get Event Source Mapping',
   description: 'Get details about an event source mapping',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

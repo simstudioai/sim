@@ -1,12 +1,14 @@
 import { useCallback, useMemo } from 'react'
 import {
   buildCanonicalIndexForSurface,
+  buildSubBlockValues,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
   isSubBlockVisibleForTriggerMode,
   isToolInputOnlySubBlock,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -93,24 +95,10 @@ export function useEditorSubblockLayout(
       })
     }
 
-    // Filter visible blocks and those that meet their conditions
-    const rawValues = Object.entries(stateToUse).reduce<Record<string, unknown>>(
-      (acc, [key, entry]) => {
-        acc[key] = entry?.value
-        return acc
-      },
-      {}
-    )
-
     const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks || [], displayTriggerMode)
     const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
-
-    // Expose canonical mode overrides to condition functions so they can
-    // react to basic/advanced credential toggles (e.g. SERVICE_ACCOUNT_SUBBLOCKS).
-    if (canonicalModeOverrides) {
-      rawValues.__canonicalModes = canonicalModeOverrides
-    }
+    const rawValues = withCanonicalModes(buildSubBlockValues(stateToUse), canonicalModeOverrides)
 
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false

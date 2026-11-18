@@ -1,4 +1,11 @@
-import type { RotationRulesType, SecretListEntry, Tag } from '@aws-sdk/client-secrets-manager'
+import type {
+  Filter,
+  RotationRulesType,
+  SecretListEntry,
+  SortByType,
+  SortOrderType,
+  Tag,
+} from '@aws-sdk/client-secrets-manager'
 import {
   CreateSecretCommand,
   DeleteSecretCommand,
@@ -12,6 +19,7 @@ import {
   UntagResourceCommand,
   UpdateSecretCommand,
 } from '@aws-sdk/client-secrets-manager'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 interface SecretsManagerConnectionConfig {
   region: string
@@ -32,11 +40,7 @@ export function createSecretsManagerClient(
   config: SecretsManagerConnectionConfig
 ): SecretsManagerClient {
   return new SecretsManagerClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 
@@ -55,15 +59,12 @@ export async function getSecretValue(
 
   const response = await client.send(command, { abortSignal: signal })
 
-  if (!response.SecretString && response.SecretBinary) {
-    throw new Error(
-      'Secret is stored as binary (SecretBinary). This integration only supports string secrets.'
-    )
-  }
-
   return {
     name: response.Name ?? '',
     secretValue: response.SecretString ?? '',
+    secretBinary: response.SecretBinary
+      ? Buffer.from(response.SecretBinary).toString('base64')
+      : null,
     arn: response.ARN ?? '',
     versionId: response.VersionId ?? '',
     versionStages: response.VersionStages ?? [],
@@ -71,15 +72,29 @@ export async function getSecretValue(
   }
 }
 
+interface ListSecretsOptions {
+  filters?: { key: Filter['Key']; values: string[] }[] | null
+  sortOrder?: SortOrderType | null
+  sortBy?: SortByType | null
+  includePlannedDeletion?: boolean | null
+}
+
 export async function listSecrets(
   client: SecretsManagerClient,
   maxResults?: number | null,
   nextToken?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: ListSecretsOptions = {}
 ) {
   const command = new ListSecretsCommand({
     ...(maxResults ? { MaxResults: maxResults } : {}),
     ...(nextToken ? { NextToken: nextToken } : {}),
+    ...(options.filters && options.filters.length > 0
+      ? { Filters: options.filters.map((filter) => ({ Key: filter.key, Values: filter.values })) }
+      : {}),
+    ...(options.sortOrder ? { SortOrder: options.sortOrder } : {}),
+    ...(options.sortBy ? { SortBy: options.sortBy } : {}),
+    ...(options.includePlannedDeletion ? { IncludePlannedDeletion: true } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })
@@ -87,6 +102,10 @@ export async function listSecrets(
     name: secret.Name ?? '',
     arn: secret.ARN ?? '',
     description: secret.Description ?? null,
+    kmsKeyId: secret.KmsKeyId ?? null,
+    rotationLambdaARN: secret.RotationLambdaARN ?? null,
+    owningService: secret.OwningService ?? null,
+    primaryRegion: secret.PrimaryRegion ?? null,
     createdDate: secret.CreatedDate?.toISOString() ?? null,
     lastChangedDate: secret.LastChangedDate?.toISOString() ?? null,
     lastAccessedDate: secret.LastAccessedDate?.toISOString() ?? null,
@@ -111,12 +130,15 @@ export async function createSecret(
   name: string,
   secretValue: string,
   description?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: { kmsKeyId?: string | null; tags?: Tag[] | null } = {}
 ) {
   const command = new CreateSecretCommand({
     Name: name,
     SecretString: secretValue,
     ...(description ? { Description: description } : {}),
+    ...(options.kmsKeyId ? { KmsKeyId: options.kmsKeyId } : {}),
+    ...(options.tags && options.tags.length > 0 ? { Tags: options.tags } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })
@@ -132,12 +154,14 @@ export async function updateSecretValue(
   secretId: string,
   secretValue: string,
   description?: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  kmsKeyId?: string | null
 ) {
   const command = new UpdateSecretCommand({
     SecretId: secretId,
     SecretString: secretValue,
     ...(description ? { Description: description } : {}),
+    ...(kmsKeyId ? { KmsKeyId: kmsKeyId } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })

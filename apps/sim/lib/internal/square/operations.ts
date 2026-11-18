@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -10,7 +11,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { SQUARE_API_VERSION, SQUARE_BASE_URL } from '@/tools/square/types'
+import { SQUARE_API_VERSION, SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 
 const logger = createLogger('SquareCatalogImage')
 const MAX_SQUARE_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -64,22 +65,25 @@ export async function executeSquareCreateCatalogImage(
     const formData = new FormData()
     formData.append('request', JSON.stringify(imageRequest))
     formData.append(
-      'file',
+      'image_file',
       new Blob([new Uint8Array(fileBuffer)], {
         type: userFile.type || 'application/octet-stream',
       }),
       input.fileName || userFile.name
     )
 
-    const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/images`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-        'Square-Version': SQUARE_API_VERSION,
-      },
-      body: formData,
-      signal: context.signal,
-    })
+    const response = await outboundFetch(
+      `${SQUARE_ENVIRONMENTS.apiBase(input.environment)}/v2/catalog/images`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${input.accessToken}`,
+          'Square-Version': SQUARE_API_VERSION,
+        },
+        body: formData,
+        signal: context.signal,
+      }
+    )
 
     if (!response.ok) {
       const errorText = await readResponseTextWithLimit(response, {

@@ -2,6 +2,7 @@ import type {
   CloudFormationDescribeStacksParams,
   CloudFormationDescribeStacksResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeStacksTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeStacksTool: InternalToolConfig<
   name: 'CloudFormation Describe Stacks',
   description: 'List and describe CloudFormation stacks',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -67,7 +69,8 @@ export const describeStacksTool: InternalToolConfig<
   outputs: {
     stacks: {
       type: 'array',
-      description: 'List of CloudFormation stacks with status, outputs, and tags',
+      description:
+        'List of CloudFormation stacks (stackName, stackId, stackStatus, stackStatusReason, detailedStatus, creationTime, lastUpdatedTime, deletionTime, description, enableTerminationProtection, driftInformation, outputs [{outputKey, outputValue, description, exportName}], tags, parameters [{parameterKey, parameterValue, usePreviousValue, resolvedValue}], capabilities, changeSetId, roleArn, parentId, rootId, notificationArns, timeoutInMinutes, disableRollback, deletionMode, retainExceptOnCreate)',
     },
   },
 }

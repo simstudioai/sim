@@ -33,7 +33,12 @@ function ledgerCursor(
 }
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,

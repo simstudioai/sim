@@ -39,7 +39,7 @@
       "get": {
         "operationId": "getBillingStatus",
         "summary": "Get billing status",
-        "description": "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
+        "description": "Get the current plan, billing standing, credit allowance, storage quota, and plan limits on runs. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both, but every caller reads `limits`. Use List billing logs for credit history.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "billing.status.read",
         "x-oauth-scope": "api:read",
         "tags": ["Billing"],
@@ -105,6 +105,11 @@
                           "usedBytes": 5242880,
                           "limitBytes": 1073741824,
                           "percentUsed": 0.48828125
+                        },
+                        "limits": {
+                          "maxSyncExecutionTimeoutSeconds": 3000,
+                          "maxAsyncExecutionTimeoutSeconds": 5400,
+                          "maxConcurrentExecutions": 50
                         }
                       }
                     }
@@ -566,6 +571,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -595,6 +601,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -712,12 +722,61 @@
               }
             ],
             "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "maxSyncExecutionTimeoutSeconds": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Longest a synchronous run may execute, in seconds, or null when synchronous runs are not time-limited."
+              },
+              "maxAsyncExecutionTimeoutSeconds": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Longest an asynchronous run may execute, in seconds, or null when asynchronous runs are not time-limited. `executionTimeoutSeconds` on Execute workflow can lower it, never raise it."
+              },
+              "maxConcurrentExecutions": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Most runs the payer can have executing at once, across every workspace and member it funds, or null when concurrency is not limited."
+              }
+            },
+            "required": [
+              "maxSyncExecutionTimeoutSeconds",
+              "maxAsyncExecutionTimeoutSeconds",
+              "maxConcurrentExecutions"
+            ],
+            "additionalProperties": false,
+            "description": "The payer's plan caps on workflow runs. Visible to every caller that can read the plan, including workspace API keys."
           }
         },
-        "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
+        "required": ["workspaceId", "period", "plan", "status", "credits", "storage", "limits"],
         "additionalProperties": false,
         "title": "Billing status",
-        "description": "Current billing standing, credit allowance, and storage quota."
+        "description": "Current billing standing, credit allowance, storage quota, and plan limits."
       },
       "V2BillingStatusResponse": {
         "type": "object",
@@ -750,6 +809,11 @@
                 "usedBytes": 5242880,
                 "limitBytes": 1073741824,
                 "percentUsed": 0.48828125
+              },
+              "limits": {
+                "maxSyncExecutionTimeoutSeconds": 3000,
+                "maxAsyncExecutionTimeoutSeconds": 5400,
+                "maxConcurrentExecutions": 50
               }
             }
           }

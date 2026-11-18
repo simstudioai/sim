@@ -94,6 +94,17 @@ export function CliAuthView() {
     : (selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null)
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
+  /**
+   * The terminal's requested access and lifetime are stated before approval:
+   * they change what the key can do, and this card is the only place the user
+   * consents to them.
+   */
+  const keyLifetime =
+    request.expiresInDays === null
+      ? ' that never expires'
+      : ` that expires in ${request.expiresInDays} ${request.expiresInDays === 1 ? 'day' : 'days'}`
+  const keyDescription = `${request.access === 'read' ? 'a read-only' : 'a'} personal key tied to your account${keyLifetime}`
+
   return (
     <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader
@@ -139,13 +150,13 @@ export function CliAuthView() {
               {loadingWorkspaces
                 ? 'Loading your workspace options…'
                 : workspaces.isError
-                  ? 'Could not load your workspaces. Connecting still works and issues a personal key; reload to pick a default workspace.'
+                  ? `Could not load your workspaces. Connecting still works and issues ${keyDescription}; reload to pick a default workspace.`
                   : chosen
-                    ? `Issues a personal key tied to your account and makes ${chosen.name} the CLI default.`
+                    ? `Issues ${keyDescription} and makes ${chosen.name} the CLI default.`
                     : // No workspace picked, so none is sent and none becomes the
                       // profile default — promising one here would describe a
                       // grant that Connect is not about to make.
-                      'Issues a personal key tied to your account, with no default workspace.'}
+                      `Issues ${keyDescription}, with no default workspace.`}
             </p>
           </div>
         )}
@@ -166,6 +177,8 @@ export function CliAuthView() {
                 // always mints a personal key so the profile can switch workspaces.
                 ...(isPlatform && chosen ? { workspaceId: chosen.id } : {}),
                 bindKeyToWorkspace: false,
+                access: request.access,
+                expiresInDays: request.expiresInDays ?? undefined,
               },
               { onSuccess: () => router.push('/cli/auth/done') }
             )

@@ -1,4 +1,5 @@
 import type { JsmCreateRequestParams, JsmCreateRequestResponse } from '@/tools/jsm/types'
+import { REQUEST_FIELD_VALUE_PROPERTIES } from '@/tools/jsm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jsmCreateRequestTool: InternalToolConfig<
@@ -176,7 +177,21 @@ export const jsmCreateRequestTool: InternalToolConfig<
       description: 'Reporter user with accountId, displayName, emailAddress',
       optional: true,
     },
+    requestFieldValues: {
+      type: 'array',
+      description: 'Field values stored on the created request',
+      items: {
+        type: 'object',
+        properties: REQUEST_FIELD_VALUE_PROPERTIES,
+      },
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Whether the request was created successfully' },
     url: { type: 'string', description: 'URL to the created request' },
+    webUrl: {
+      type: 'string',
+      description: 'Customer portal URL for the request (from _links.web)',
+      optional: true,
+    },
   },
 }

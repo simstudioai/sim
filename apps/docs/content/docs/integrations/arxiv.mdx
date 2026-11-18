@@ -39,8 +39,14 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `papers` | json | Array of papers matching the search query |
+| `papers` | array | Array of papers matching the search query |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
 | `totalResults` | number | Total number of results found for the search query |
+| `query` | string | The search query that was executed |
 
 </ReferenceDetails>
 
@@ -60,7 +66,12 @@ Get detailed information about a specific ArXiv paper by its ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `paper` | json | Detailed information about the requested ArXiv paper |
+| `paper` | object | Detailed information about the requested ArXiv paper |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
 
 </ReferenceDetails>
 
@@ -81,8 +92,14 @@ Search for papers by a specific author on ArXiv.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `authorPapers` | json | Array of papers authored by the specified author |
+| `authorPapers` | array | Array of papers authored by the specified author |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
 | `totalResults` | number | Total number of papers found for the author |
+| `authorName` | string | The author name that was searched |
 
 </ReferenceDetails>
 

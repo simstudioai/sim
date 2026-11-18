@@ -1,5 +1,7 @@
 import type { DiscordUnpinMessageParams, DiscordUnpinMessageResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUnpinMessageTool: ToolConfig<
   DiscordUnpinMessageParams,
@@ -9,6 +11,7 @@ export const discordUnpinMessageTool: ToolConfig<
   name: 'Discord Unpin Message',
   description: 'Unpin a message in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -31,7 +34,7 @@ export const discordUnpinMessageTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -39,7 +42,7 @@ export const discordUnpinMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordUnpinMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/pins/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

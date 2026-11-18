@@ -245,7 +245,7 @@ export async function executeSshCreateDirectory(
     }
     const result = await executeSSHCommand(
       client,
-      `mkdir ${input.recursive ? '-p' : ''} -m ${input.permissions} '${escapedPath}'`,
+      `mkdir ${input.recursive ? '-p' : ''} -m '${escapeShellArg(input.permissions)}' '${escapedPath}'`,
       context.signal
     )
     if (result.exitCode !== 0) throw new Error(result.stderr || 'Failed to create directory')

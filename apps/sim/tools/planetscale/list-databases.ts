@@ -17,6 +17,7 @@ import {
   planetScaleJson,
   planetScalePaginationSchema,
 } from '@/tools/planetscale/utils'
+import { PLANETSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 export const planetScaleListDatabasesTool: ToolConfig<
@@ -27,6 +28,7 @@ export const planetScaleListDatabasesTool: ToolConfig<
   name: 'PlanetScale List Databases',
   description: 'List databases',
   version: '1.0.0',
+  oauth: PLANETSCALE_CREDENTIAL_OAUTH,
   params: {
     serviceTokenId: {
       type: 'string',

@@ -12,6 +12,7 @@ import {
   readOtterDataList,
   readOtterPagination,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -24,6 +25,7 @@ export const otterListWorkspaceConversationsTool: ToolConfig<
   description:
     'List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

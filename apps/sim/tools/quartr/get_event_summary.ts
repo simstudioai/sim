@@ -11,7 +11,9 @@ import {
   mapQuartrSummarySource,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetEventSummaryTool: ToolConfig<
   QuartrGetEventSummaryParams,
@@ -22,6 +24,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
   description:
     'Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -52,7 +55,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildQuartrUrl(`/events/${encodeURIComponent(String(params.eventId).trim())}/summary`, {
+      buildQuartrUrl(`/events/${safeUrlPathSegment(params.eventId, 'eventId')}/summary`, {
         length: params.summaryLength,
         plain: isQuartrToggleEnabled(params.plainSummary) ? true : undefined,
       }),

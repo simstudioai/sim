@@ -19,9 +19,18 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
       {headings.map(({ id, title, depth }) => (
         <li key={id}>
           <a
-            href={`#${id}`}
+            href={`#${encodeURIComponent(id)}`}
             aria-current={active === id ? 'location' : undefined}
             onClick={(event) => {
+              if (
+                event.defaultPrevented ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
               const details = event.currentTarget.closest('details')
               if (details) details.open = false
             }}
@@ -40,7 +49,16 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
     </ul>
   )
   return compact ? (
-    <details className='group relative min-w-0'>
+    <details
+      className='group relative min-w-0'
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !event.currentTarget.open) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.open = false
+        event.currentTarget.querySelector('summary')?.focus()
+      }}
+    >
       <summary className='flex min-h-11 list-none items-center gap-2 text-docs-control [&::-webkit-details-marker]:hidden'>
         On this page
         <ChevronDown className='size-4 transition-transform group-open:rotate-180' />

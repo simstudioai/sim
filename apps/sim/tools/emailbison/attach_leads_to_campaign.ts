@@ -11,7 +11,9 @@ import {
   emailBisonUrl,
   jsonBody,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const attachLeadsToCampaignTool: ToolConfig<
   EmailBisonAttachLeadsParams,
@@ -21,6 +23,7 @@ export const attachLeadsToCampaignTool: ToolConfig<
   name: 'Email Bison Attach Leads to Campaign',
   description: 'Adds existing Email Bison leads to a campaign.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     campaignId: {
@@ -46,7 +49,7 @@ export const attachLeadsToCampaignTool: ToolConfig<
   request: {
     url: (params) =>
       emailBisonUrl(
-        `/api/campaigns/${params.campaignId}/leads/attach-leads`,
+        `/api/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/leads/attach-leads`,
         {},
         params.apiBaseUrl
       ),

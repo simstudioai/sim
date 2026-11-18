@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSubmissionTool: ToolConfig<JotformGetSubmissionParams, JotformSubmissionResponse> =
@@ -15,6 +16,7 @@ export const getSubmissionTool: ToolConfig<JotformGetSubmissionParams, JotformSu
     description:
       'Get a single Jotform submission, with its answers available both by question ID and by question label.',
     version: '1.0.0',
+    oauth: JOTFORM_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

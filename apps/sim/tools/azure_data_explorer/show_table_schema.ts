@@ -7,6 +7,7 @@ import {
   renderEntityName,
   transformTableSchemaResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerShowTableSchemaTool: InternalToolConfig<
@@ -18,6 +19,7 @@ export const azureDataExplorerShowTableSchemaTool: InternalToolConfig<
   description:
     'Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Timestamp:datetime,Level:string"). Use this before writing a KQL query against an unfamiliar table.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

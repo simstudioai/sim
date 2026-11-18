@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioListRecordsParams, AttioListRecordsResponse } from './types'
 import { RECORDS_ARRAY_OUTPUT } from './types'
 
@@ -56,7 +57,8 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/objects/${params.objectType.trim()}/records/query`,
+    url: (params) =>
+      `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records/query`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -66,14 +68,15 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
       const body: Record<string, unknown> = {}
       if (params.filter) {
         try {
-          body.filter = JSON.parse(params.filter)
+          body.filter =
+            typeof params.filter === 'string' ? JSON.parse(params.filter) : params.filter
         } catch {
           throw new Error('Invalid JSON provided for filter')
         }
       }
       if (params.sorts) {
         try {
-          body.sorts = JSON.parse(params.sorts)
+          body.sorts = typeof params.sorts === 'string' ? JSON.parse(params.sorts) : params.sorts
         } catch {
           throw new Error('Invalid JSON provided for sorts')
         }

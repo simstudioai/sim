@@ -3,7 +3,10 @@ import type {
   DataverseWhoAmIParams,
   DataverseWhoAmIResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseWhoAmI')
@@ -15,7 +18,7 @@ export const dataverseWhoAmITool: ToolConfig<DataverseWhoAmIParams, DataverseWho
     'Retrieve the current authenticated user information from Microsoft Dataverse. Useful for testing connectivity and getting the user ID, business unit ID, and organization ID.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -35,7 +38,7 @@ export const dataverseWhoAmITool: ToolConfig<DataverseWhoAmIParams, DataverseWho
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/WhoAmI()`
     },
     method: 'GET',

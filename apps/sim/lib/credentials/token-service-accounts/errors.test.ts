@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   fetchProvider,
+  isHostNotFound,
   parseProviderJson,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
@@ -54,6 +56,14 @@ describe('token service-account error helpers', () => {
       expect(error.logDetail).toEqual({ step: 'self', reason: 'network error reaching provider' })
     })
 
+    it("surfaces an unavailable egress route as Sim's outage, not the provider's", async () => {
+      mockFetch.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+      await expect(fetchProvider(PROVIDER_URL, {}, 'self')).rejects.toBeInstanceOf(
+        OutboundRoutingError
+      )
+    })
+
     it('never includes the URL in logDetail', async () => {
       mockFetch.mockRejectedValue(new Error(`ECONNREFUSED ${PROVIDER_URL}`))
 
@@ -61,6 +71,25 @@ describe('token service-account error helpers', () => {
 
       expect(JSON.stringify(error.logDetail)).not.toContain(PROVIDER_URL)
       expect(JSON.stringify(error.logDetail)).not.toContain('example-provider')
+    })
+  })
+
+  describe('isHostNotFound', () => {
+    it('reads ENOTFOUND on the cause even when the outer error carries another code', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        code: 'UND_ERR_CONNECT',
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(true)
+    })
+
+    it('does not treat a transient resolver failure as a missing host', () => {
+      const error = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('getaddrinfo EAI_AGAIN'), { code: 'EAI_AGAIN' }),
+      })
+
+      expect(isHostNotFound(error)).toBe(false)
     })
   })
 
@@ -113,6 +142,50 @@ describe('token service-account error helpers', () => {
 
       expect(error.code).toBe('provider_unavailable')
     })
+
+    it.each([
+      [429, '120', 120_000],
+      [503, '7', 7_000],
+    ])(
+      'carries the Retry-After a %i asked for in seconds',
+      async (status, retryAfter, retryAfterMs) => {
+        const res = new Response('slow down', { status, headers: { 'Retry-After': retryAfter } })
+
+        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+        expect(error.code).toBe('provider_unavailable')
+        expect(error.retryAfterMs).toBe(retryAfterMs)
+      }
+    )
+
+    it('carries the Retry-After a 429 asked for as an HTTP date', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+        const res = new Response('slow down', {
+          status: 429,
+          headers: { 'Retry-After': 'Thu, 01 Jan 2026 00:01:30 GMT' },
+        })
+
+        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+        expect(error.retryAfterMs).toBe(90_000)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it.each([
+      [500, '30'],
+      [401, '30'],
+      [429, 'soon'],
+    ])('carries no Retry-After for a %i with Retry-After %s', async (status, retryAfter) => {
+      const res = new Response('nope', { status, headers: { 'Retry-After': retryAfter } })
+
+      const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+      expect(error.retryAfterMs).toBeUndefined()
+    })
   })
 
   describe('readProviderErrorSnippet', () => {
@@ -124,9 +197,24 @@ describe('token service-account error helpers', () => {
       expect(snippet).toBe(`${'x'.repeat(500)}...`)
     })
 
+    it('stops reading an oversized error body instead of buffering all of it', async () => {
+      let pulled = 0
+      const chunk = new Uint8Array(16 * 1024).fill(120)
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled++
+          if (pulled > 1000) controller.close()
+          else controller.enqueue(chunk)
+        },
+      })
+
+      await expect(readProviderErrorSnippet(new Response(body, { status: 500 }))).resolves.toBe('')
+      expect(pulled).toBeLessThan(20)
+    })
+
     it('never throws on an unreadable body', async () => {
       const res = new Response('gone', { status: 500 })
-      vi.spyOn(res, 'text').mockRejectedValue(new Error('body stream already read'))
+      await res.text()
 
       await expect(readProviderErrorSnippet(res)).resolves.toBe('')
     })

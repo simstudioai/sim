@@ -19,11 +19,11 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
 
   request: {
     url: (params: ArxivGetPaperParams) => {
-      // Clean paper ID - remove arxiv.org URLs if present
-      let paperId = params.paperId
-      if (paperId.includes('arxiv.org/abs/')) {
-        paperId = paperId.split('arxiv.org/abs/')[1]
-      }
+      const paperId = params.paperId
+        .trim()
+        .replace(/^.*arxiv\.org\/(?:abs|pdf)\//, '')
+        .replace(/[?#].*$/, '')
+        .replace(/\.pdf$/, '')
 
       const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
@@ -51,25 +51,23 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
 
   outputs: {
     paper: {
-      type: 'json',
+      type: 'object',
       description: 'Detailed information about the requested ArXiv paper',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          title: { type: 'string' },
-          summary: { type: 'string' },
-          authors: { type: 'string' },
-          published: { type: 'string' },
-          updated: { type: 'string' },
-          link: { type: 'string' },
-          pdfLink: { type: 'string' },
-          categories: { type: 'string' },
-          primaryCategory: { type: 'string' },
-          comment: { type: 'string' },
-          journalRef: { type: 'string' },
-          doi: { type: 'string' },
-        },
+      nullable: true,
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        summary: { type: 'string' },
+        authors: { type: 'array', items: { type: 'string' } },
+        published: { type: 'string' },
+        updated: { type: 'string' },
+        link: { type: 'string' },
+        pdfLink: { type: 'string' },
+        categories: { type: 'array', items: { type: 'string' } },
+        primaryCategory: { type: 'string' },
+        comment: { type: 'string', optional: true },
+        journalRef: { type: 'string', optional: true },
+        doi: { type: 'string', optional: true },
       },
     },
   },

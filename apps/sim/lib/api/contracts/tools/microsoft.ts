@@ -16,6 +16,8 @@ export const outlookSendBodySchema = z.object({
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
   replyToMessageId: z.string().optional().nullable(),
+  replyTo: z.string().optional().nullable(),
+  importance: z.enum(['low', 'normal', 'high']).optional().nullable(),
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 

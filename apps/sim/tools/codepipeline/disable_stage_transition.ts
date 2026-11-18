@@ -2,6 +2,7 @@ import type {
   CodePipelineDisableStageTransitionParams,
   CodePipelineDisableStageTransitionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const disableStageTransitionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const disableStageTransitionTool: InternalToolConfig<
   description:
     'Prevent artifacts from transitioning into or out of a CodePipeline stage, freezing the pipeline at that point',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

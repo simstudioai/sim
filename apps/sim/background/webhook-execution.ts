@@ -84,6 +84,7 @@ import {
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
+  resolveDeployedRunVariables,
 } from '@/lib/workflows/persistence/utils'
 import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
@@ -867,8 +868,6 @@ async function executeWebhookJobInternal(
     throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
   }
 
-  const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
-
   let deploymentVersionId: string | undefined
   /**
    * Flipped immediately before `executeWorkflowCore` is invoked. While false,
@@ -917,6 +916,7 @@ async function executeWebhookJobInternal(
       }
 
       const { blocks, edges, loops, parallels } = workflowData
+      const workflowVariables = resolveDeployedRunVariables(workflowData, workflowRecord.variables)
       deploymentVersionId =
         'deploymentVersionId' in workflowData
           ? (workflowData.deploymentVersionId as string)

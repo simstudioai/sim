@@ -1,5 +1,7 @@
 import type { DiscordCreateInviteParams, DiscordCreateInviteResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateInviteTool: ToolConfig<
   DiscordCreateInviteParams,
@@ -9,6 +11,7 @@ export const discordCreateInviteTool: ToolConfig<
   name: 'Discord Create Invite',
   description: 'Create an invite link for a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -43,7 +46,7 @@ export const discordCreateInviteTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -51,7 +54,7 @@ export const discordCreateInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateInviteParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/invites`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/invites`
     },
     method: 'POST',
     headers: (params) => ({
@@ -59,10 +62,10 @@ export const discordCreateInviteTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordCreateInviteParams) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
       if (params.maxAge !== undefined) body.max_age = Number(params.maxAge)
       if (params.maxUses !== undefined) body.max_uses = Number(params.maxUses)
-      if (params.temporary !== undefined) body.temporary = params.temporary
+      if (typeof params.temporary === 'boolean') body.temporary = params.temporary
       return body
     },
   },

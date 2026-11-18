@@ -2,7 +2,9 @@ import type {
   AgentPhoneReleaseNumberParams,
   AgentPhoneReleaseNumberResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneReleaseNumberTool: ToolConfig<
   AgentPhoneReleaseNumberParams,
@@ -12,6 +14,7 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   name: 'Release Phone Number',
   description: 'Release (delete) a phone number. This action is irreversible.',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +32,8 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/numbers/${params.numberId.trim()}`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/numbers/${safeUrlPathSegment(params.numberId, 'numberId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -37,7 +41,7 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   },
 
   transformResponse: async (response, params): Promise<AgentPhoneReleaseNumberResult> => {
-    const numberId = params?.numberId?.trim() ?? ''
+    const numberId = String(params?.numberId ?? '').trim()
 
     if (!response.ok) {
       let errorMessage = 'Failed to release phone number'

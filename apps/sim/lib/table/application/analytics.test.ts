@@ -76,13 +76,18 @@ describe('authorized table analytics', () => {
   it('rejects API keys', async () => {
     await expect(
       readTableAnalytics.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace_test', keyId: 'key' },
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: 'workspace_test',
+          keyId: 'key',
+          access: 'write',
+        },
         input,
       })
     ).rejects.toThrow()
     await expect(
       readTableAnalytics.execute({
-        principal: { kind: 'personal_api_key', userId: 'viewer', keyId: 'key' },
+        principal: { kind: 'personal_api_key', userId: 'viewer', keyId: 'key', access: 'write' },
         input,
       })
     ).rejects.toThrow()

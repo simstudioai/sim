@@ -3,6 +3,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -12,6 +13,10 @@ import {
   executorPrincipalMock,
   executorPrincipalMockFns,
 } from '@sim/testing/mocks/executor-principal.mock'
+import {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from '@sim/testing/mocks/internal-aws-credentials.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   permissionCheckMock,
@@ -78,17 +83,25 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
+import { userProfileTool as amplitudeUserProfileTool } from '@/tools/amplitude/user_profile'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
+import { docusignGetEnvelopeTool } from '@/tools/docusign/get_envelope'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { httpRequestTool, webhookRequestTool } from '@/tools/http'
 import { jamaDeleteItemTool } from '@/tools/jama/delete_item'
 import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
+import { dataverseWhoAmITool } from '@/tools/microsoft_dataverse/whoami'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { getIncidentTool as getServiceNowIncidentTool } from '@/tools/servicenow/get_incident'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
+import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
+import { listIndexesTool as splunkListIndexesTool } from '@/tools/splunk/list_indexes'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
@@ -202,9 +215,32 @@ const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
 }))
 
+vi.mock('@/lib/internal/aws/credentials', () => internalAwsCredentialsMock)
+
 vi.mock('@/executor/utils/credential-token', () => ({
   resolveExecutorCredentialToken: (...args: unknown[]) =>
     mockResolveExecutorCredentialToken(...args),
+}))
+
+const { mockInvalidateCoordinatedClientToken } = vi.hoisted(() => ({
+  mockInvalidateCoordinatedClientToken: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+const mockForgetRejectedClientCredentialToken =
+  authOAuthUtilsMockFns.mockForgetRejectedClientCredentialToken
+
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  invalidateCoordinatedClientToken: (...args: unknown[]) =>
+    mockInvalidateCoordinatedClientToken(...args),
+}))
+
+const { mockExplainExpiredSavedToken } = vi.hoisted(() => ({
+  mockExplainExpiredSavedToken: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/saved-token-expiry', () => ({
+  explainExpiredSavedToken: (...args: unknown[]) => mockExplainExpiredSavedToken(...args),
 }))
 
 vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
@@ -218,10 +254,13 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  amplitude_user_profile: amplitudeUserProfileTool,
+  splunk_list_indexes: splunkListIndexesTool,
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_users_v2: searchUsersV2Tool,
+  docusign_get_envelope: docusignGetEnvelopeTool,
   jama_delete_item: jamaDeleteItemTool,
   jama_delete_relationship: jamaDeleteRelationshipTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -456,10 +495,14 @@ import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
+import { s3GetObjectTool } from '@/tools/s3/get_object'
+import { tokenCredentialOAuth } from '@/tools/shared/saved-credentials'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockResolveAuthorizedAwsCredential =
+  internalAwsCredentialsMockFns.mockResolveAuthorizedAwsCredential
 const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
 const mockCreateExecutorPrincipalFromExecutionContext =
@@ -1104,6 +1147,122 @@ describe('executeTool Function', () => {
     expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  describe('saved AWS credentials', () => {
+    const awsCredential = { accessToken: 'aws-credential', credentialType: 'service_account' }
+    const context = () =>
+      createToolExecutionContext({
+        userId: 'user-1',
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+
+    it('hands an AWS operation the authorized credential, and nothing without one', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      mockExecuteInternalToolOperation.mockResolvedValue(Response.json({ account: '1' }))
+
+      await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', credential: 'aws-credential' },
+        { executionContext: context() }
+      )
+      await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', accessKeyId: 'key', secretAccessKey: 'secret' },
+        { executionContext: context() }
+      )
+
+      const [withCredential, inline] = mockExecuteInternalToolOperation.mock.calls
+      expect(withCredential?.[0].context.authorizedServiceAccountCredential).toEqual({
+        credentialId: 'aws-credential',
+        service: 'aws',
+      })
+      expect(inline?.[0].context.authorizedServiceAccountCredential).toBeUndefined()
+    })
+
+    it('refuses a credential of the wrong kind before the operation runs', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'oauth-token',
+        credentialType: 'oauth',
+      })
+
+      const result = await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', credential: 'oauth-credential' },
+        { executionContext: context() }
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('requires a service-account credential'),
+      })
+      expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+    })
+
+    it("signs S3 get_object with the credential's session, scoped to the run's workspace", async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      mockResolveAuthorizedAwsCredential.mockResolvedValue({
+        accessKeyId: 'ASIASESSION',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      })
+
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '52.216.0.1' })
+      ;(tools as Record<string, unknown>).s3_get_object = s3GetObjectTool
+      await executeTool(
+        's3_get_object',
+        {
+          s3Uri: 'https://bucket.s3.us-east-1.amazonaws.com/report.csv',
+          credential: 'aws-credential',
+        },
+        { executionContext: context() }
+      ).finally(() => Reflect.deleteProperty(tools, 's3_get_object'))
+
+      expect(mockResolveAuthorizedAwsCredential).toHaveBeenCalledWith(
+        'aws-credential',
+        expect.objectContaining({ workspaceId: 'workspace-456', executionId: 'execution-1' }),
+        undefined
+      )
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        'https://bucket.s3.us-east-1.amazonaws.com/report.csv',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'x-amz-security-token': 'session-token' }),
+        })
+      )
+    })
+
+    it('refuses to hand session keys to any other self-signing AWS tool', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      const toolId = 'test_unsigned_aws_request'
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Unsigned AWS fixture',
+        description: 'An AWS request tool outside the session-signed set',
+        version: '1.0.0',
+        oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
+        params: {},
+        request: { url: 'https://example.amazonaws.com/', method: 'GET', headers: () => ({}) },
+        transformResponse: async () => ({ success: true, output: {} }),
+      }
+      try {
+        const result = await executeTool(
+          toolId,
+          { credential: 'aws-credential' },
+          { executionContext: context() }
+        )
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringContaining('cannot sign with a saved AWS credential'),
+        })
+        expect(mockResolveAuthorizedAwsCredential).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(tools, toolId)
+      }
+    })
   })
 
   it('executes registered internal tools in process through the shared provider operation', async () => {
@@ -3450,6 +3609,43 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('gives a DocuSign operation the account base only from its credential', async () => {
+    const boundBase =
+      'https://na3.docusign.net/restapi/v2.1/accounts/99999999-0000-0000-0000-000000000001'
+    const callerBase = 'https://evil.example.com/restapi/v2.1/accounts/x'
+    const context = createToolExecutionContext({
+      userId: 'user-1',
+      workspaceId: 'workspace-456',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'oauth-token',
+      credentialType: 'oauth',
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'oauth-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'jwt-token',
+      credentialType: 'service_account',
+      instanceUrl: boundBase,
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'jwt-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+
+    const [oauthCall, jwtCall] = mockExecuteInternalToolOperation.mock.calls
+    expect(oauthCall?.[0].input).toMatchObject({ accessToken: 'oauth-token', envelopeId: 'env-1' })
+    expect(oauthCall?.[0].input.instanceUrl).toBeUndefined()
+    expect(jwtCall?.[0].input).toMatchObject({ accessToken: 'jwt-token', instanceUrl: boundBase })
+  })
+
   it('accepts an authoritative QuickBooks realmId only from credential resolution', async () => {
     const toolId = 'test_quickbooks_realm_authority'
     const credentialRealmId = '123456789'
@@ -3499,6 +3695,936 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('a service-account token the provider rejects', () => {
+    const toolId = 'test_minted_token_rejection'
+    beforeEach(() => {
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      mockForgetRejectedClientCredentialToken.mockReset()
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Minted Token Rejection Test',
+        description: 'Calls a provider with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'shopify' },
+        params: { accessToken: { type: 'string', required: true, visibility: 'hidden' } },
+        request: {
+          url: 'https://acme.myshopify.com/admin/api/graphql.json',
+          method: 'POST' as const,
+          headers: (params: Record<string, unknown>) => ({
+            'X-Shopify-Access-Token': String(params.accessToken),
+          }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function callWith(
+      credentialType: string,
+      status: number,
+      body: unknown = { error: 'rejected' }
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'shared-token',
+        credentialType,
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        )
+      )
+      return executeTool(toolId, { credential: 'saved-credential' })
+    }
+
+    it('expires the shared token on a 401 so the next call mints a replacement', async () => {
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('shared-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
+
+    it('drops a token this instance cached on a 401 so the next call mints a replacement', async () => {
+      await callWith('service_account', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('shared-token')
+    })
+
+    it('keeps the token for a refusal that does not reject it', async () => {
+      await callWith('service_account', 403)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['an Atlassian scope mismatch', { code: 401, message: 'Unauthorized; scope does not match' }],
+      ['a scope mismatch in a text body', 'Unauthorized; scope does not match'],
+      ['an RFC 6750 insufficient_scope error', { error: 'insufficient_scope' }],
+    ])('keeps the token for a 401 that reports %s', async (_label, body) => {
+      const result = await callWith('service_account', 401, body)
+
+      expect(result.success).toBe(false)
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it('never touches shared tokens for a signed-in account', async () => {
+      await callWith('oauth', 401)
+
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it('still reports the provider failure when the token cannot be expired', async () => {
+      mockInvalidateCoordinatedClientToken.mockRejectedValue(new Error('database unavailable'))
+
+      const result = await callWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('rejected')
+    })
+  })
+
+  describe('a saved token the provider refuses after it expired', () => {
+    const toolId = 'test_expired_saved_token'
+    const EXPIRED = 'The saved GitHub personal access token expired on 2026-01-15.'
+
+    beforeEach(() => {
+      mockExplainExpiredSavedToken.mockReset()
+      mockExplainExpiredSavedToken.mockResolvedValue(null)
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Expired Saved Token Test',
+        description: 'Calls a provider with a saved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'github' },
+        params: { accessToken: { type: 'string', required: true, visibility: 'hidden' } },
+        request: {
+          url: 'https://api.github.com/user',
+          method: 'GET' as const,
+          headers: (params: Record<string, unknown>) => ({
+            Authorization: `Bearer ${String(params.accessToken)}`,
+          }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function callWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType,
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(JSON.stringify({ message: 'Bad credentials' }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        )
+      )
+      return executeTool(toolId, { credential: 'saved-credential' })
+    }
+
+    it('reports the expiry instead of the bare refusal', async () => {
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error(EXPIRED), refusal)
+      )
+
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: EXPIRED })
+      expect(mockExplainExpiredSavedToken).toHaveBeenCalledWith(
+        'saved-credential',
+        expect.objectContaining({ status: 401, data: { message: 'Bad credentials' } })
+      )
+    })
+
+    it("logs the explained refusal as the provider's refusal, with its response body", async () => {
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error(EXPIRED), refusal)
+      )
+      mockToolsLogger.warn.mockClear()
+
+      const result = await callWith('service_account', 401)
+
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe(
+        'third_party_client'
+      )
+      const [, fields] =
+        mockToolsLogger.warn.mock.calls.find(([message]) => message === 'Error executing tool') ??
+        []
+      expect(fields).toMatchObject({ error: EXPIRED, errorData: { message: 'Bad credentials' } })
+    })
+
+    it("keeps the provider's message when the token has not expired", async () => {
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'Bad credentials' })
+    })
+
+    it("keeps the provider's message when the expiry cannot be read", async () => {
+      mockExplainExpiredSavedToken.mockRejectedValue(new Error('database unavailable'))
+
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'Bad credentials' })
+    })
+
+    it.each([
+      ['a refusal that is not a 401', 'service_account', 403],
+      ["a signed-in account's refusal", 'oauth', 401],
+    ])('never consults the saved expiry for %s', async (_label, credentialType, status) => {
+      await callWith(credentialType, status)
+
+      expect(mockExplainExpiredSavedToken).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a service-account token an internal operation refuses', () => {
+    const toolId = 'test_internal_minted_token_refusal'
+    beforeEach(() => {
+      mockForgetRejectedClientCredentialToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Internal Minted Token Refusal Test',
+        description: 'Runs an internal operation with a resolved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'crowdstrike' },
+        params: { accessToken: { type: 'string', required: false, visibility: 'hidden' } },
+        operation: {
+          input: (params: Record<string, unknown>) => ({ accessToken: params.accessToken }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function runWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'minted-token',
+        credentialType,
+      })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(status < 400 ? { output: {} } : { error: 'refused' }, { status })
+      )
+      return executeTool(
+        toolId,
+        { credential: 'saved-credential' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          }),
+        }
+      )
+    }
+
+    it('drops the cached token after a 401 so the next call mints one', async () => {
+      const result = await runWith('service_account', 401)
+
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
+
+    it('drops the cached token after a 403 only once it is old enough to blame', async () => {
+      const result = await runWith('service_account', 403)
+
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
+
+    it('keeps the token after a call the provider accepts', async () => {
+      const result = await runWith('service_account', 200)
+
+      expect(result.success).toBe(true)
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+    })
+
+    it("never drops a signed-in account's token", async () => {
+      await runWith('oauth', 401)
+
+      expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
+    })
+
+    it('reports an expired saved token instead of the bare refusal', async () => {
+      mockExplainExpiredSavedToken.mockReset()
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error('The saved token expired.'), refusal)
+      )
+
+      const result = await runWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'The saved token expired.' })
+      expect(mockExplainExpiredSavedToken).toHaveBeenCalledWith(
+        'saved-credential',
+        expect.objectContaining({ status: 401 })
+      )
+    })
+  })
+
+  describe('Dataverse environment authority', () => {
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[dataverseWhoAmITool.id] = dataverseWhoAmITool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, dataverseWhoAmITool.id)
+    })
+
+    async function dataverseRequestUrl(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'token', ...resolved })
+      await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        ...callerParams,
+      })
+      return mockSecureFetchWithPinnedIP.mock.lastCall?.[0]
+    }
+
+    it('keeps a signed-in account on the block environment even when the caller claims an app credential', async () => {
+      const url = await dataverseRequestUrl(
+        { credentialType: 'oauth' },
+        {
+          environmentUrl: 'https://contoso.crm.dynamics.com',
+          credentialType: 'service_account',
+          instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+        }
+      )
+
+      expect(url).toBe('https://contoso.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
+
+    it('sends an app credential to its own environment, never one the caller names', async () => {
+      mockSecureFetchWithPinnedIP.mockClear()
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'app-token',
+        credentialType: 'service_account',
+        instanceUrl: 'https://contoso.api.crm.dynamics.com',
+      })
+
+      const refused = await executeTool(dataverseWhoAmITool.id, {
+        credential: 'dataverse-credential',
+        environmentUrl: 'https://fabrikam.crm.dynamics.com',
+        instanceUrl: 'https://fabrikam.api.crm.dynamics.com',
+      })
+
+      expect(refused.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const url = await dataverseRequestUrl(
+        { credentialType: 'service_account', instanceUrl: 'https://contoso.api.crm.dynamics.com' },
+        { environmentUrl: 'https://contoso.crm.dynamics.com' }
+      )
+      expect(url).toBe('https://contoso.api.crm.dynamics.com/api/data/v9.2/WhoAmI()')
+    })
+  })
+
+  describe('Snowflake token type', () => {
+    const CREDENTIAL_HOST = 'myorg-myaccount.snowflakecomputing.com'
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[snowflakeListDatabasesTool.id] =
+        snowflakeListDatabasesTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, snowflakeListDatabasesTool.id)
+    })
+
+    async function snowflakeRequestHeaders(
+      resolved: Record<string, unknown>,
+      callerParams: Record<string, unknown>
+    ) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        credentialType: 'service_account',
+        domain: CREDENTIAL_HOST,
+        ...resolved,
+      })
+      await executeTool(snowflakeListDatabasesTool.id, {
+        oauthCredential: 'snowflake-credential',
+        ...callerParams,
+      })
+      const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      return { url, headers: (init as { headers: Record<string, string> }).headers }
+    }
+
+    it('sends a programmatic access token as one even when the caller claims keyless and another host', async () => {
+      const { url, headers } = await snowflakeRequestHeaders(
+        { accessToken: 'pat-secret' },
+        { authStyle: 'snowflake-workload-identity', domain: 'attacker.snowflakecomputing.com' }
+      )
+
+      expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+      expect(headers.authorization).toBe('Bearer pat-secret')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('PROGRAMMATIC_ACCESS_TOKEN')
+    })
+
+    /**
+     * Cortex Analyst runs its generated SQL itself. The second statement must reach the
+     * credential's host with the credential's token type, for every credential mode.
+     */
+    it.each([
+      ['a programmatic access token', {}, 'Bearer pat-or-jwt', 'PROGRAMMATIC_ACCESS_TOKEN'],
+      [
+        'a keyless credential',
+        { authStyle: 'snowflake-workload-identity' },
+        'Bearer WIF.OIDC.pat-or-jwt',
+        'WORKLOAD_IDENTITY_FEDERATION',
+      ],
+    ])(
+      'runs Cortex Analyst’s generated SQL with %s',
+      async (_mode, resolved, authorization, tokenType) => {
+        ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+          snowflakeCortexAnalystAskTool
+        try {
+          mockResolveExecutorCredentialToken.mockResolvedValue({
+            credentialType: 'service_account',
+            domain: CREDENTIAL_HOST,
+            accessToken: 'pat-or-jwt',
+            ...resolved,
+          })
+          mockSecureFetchWithPinnedIP
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  message: {
+                    role: 'analyst',
+                    content: [{ type: 'sql', statement: 'SELECT 1' }],
+                  },
+                })
+              )
+            )
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  statementHandle: '01b2c3d4-0000-0000-0000-000000000000',
+                  sqlState: '00000',
+                  resultSetMetaData: { numRows: 1, rowType: [{ name: '1', type: 'fixed' }] },
+                  data: [['1']],
+                })
+              )
+            )
+
+          const result = await executeTool(snowflakeCortexAnalystAskTool.id, {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          })
+
+          expect(result.success).toBe(true)
+          const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+          expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+          const headers = Object.fromEntries(
+            Object.entries((init as { headers: Record<string, string> }).headers).map(
+              ([name, value]) => [name.toLowerCase(), value]
+            )
+          )
+          expect(headers.authorization).toBe(authorization)
+          expect(headers['x-snowflake-authorization-token-type']).toBe(tokenType)
+        } finally {
+          Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+        }
+      }
+    )
+
+    it('aborts Cortex Analyst’s generated SQL when the run is cancelled', async () => {
+      ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+        snowflakeCortexAnalystAskTool
+      const controller = new AbortController()
+      let statementSignal: AbortSignal | undefined
+      try {
+        mockResolveExecutorCredentialToken.mockResolvedValue({
+          credentialType: 'service_account',
+          domain: CREDENTIAL_HOST,
+          accessToken: 'pat-secret',
+        })
+        mockSecureFetchWithPinnedIP
+          .mockResolvedValueOnce(
+            toSecureFetchResponse(
+              Response.json({
+                message: { role: 'analyst', content: [{ type: 'sql', statement: 'SELECT 1' }] },
+              })
+            )
+          )
+          .mockImplementationOnce(
+            async (_url: string, _ip: string, init: { signal?: AbortSignal }) => {
+              statementSignal = init.signal
+              controller.abort(new Error('run cancelled'))
+              throw new Error('aborted')
+            }
+          )
+
+        const result = await executeTool(
+          snowflakeCortexAnalystAskTool.id,
+          {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          },
+          { signal: controller.signal }
+        )
+
+        expect(statementSignal?.aborted).toBe(true)
+        expect(result.success).toBe(false)
+      } finally {
+        Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+      }
+    })
+
+    it('sends a keyless credential’s token through workload identity federation', async () => {
+      const { headers } = await snowflakeRequestHeaders(
+        { accessToken: 'signed-jwt', authStyle: 'snowflake-workload-identity' },
+        {}
+      )
+
+      expect(headers.authorization).toBe('Bearer WIF.OIDC.signed-jwt')
+      expect(headers['x-snowflake-authorization-token-type']).toBe('WORKLOAD_IDENTITY_FEDERATION')
+    })
+  })
+
+  describe('saved token credentials (credentialParams)', () => {
+    const toolId = 'test_saved_token_credential'
+    const tokenTool = {
+      id: toolId,
+      name: 'Saved Token Fixture',
+      description: 'Takes an inline key or a saved token credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken', baseUrl: 'domain' }),
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        baseUrl: { type: 'string', required: true, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => `https://${params.baseUrl}/v1/me`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.apiKey}`,
+        }),
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[toolId] = tokenTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    it('fills the inline params from the credential, overriding caller values', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        apiKey: 'caller-key',
+        baseUrl: 'attacker.example.net',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.example.com/v1/me',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
+
+    it('leaves a same-named param the policy does not map to the user', async () => {
+      const recordTool = {
+        ...tokenTool,
+        id: 'test_saved_token_record',
+        oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken', baseUrl: 'domain' }),
+        params: { ...tokenTool.params, domain: { type: 'string', visibility: 'user-or-llm' } },
+        request: {
+          ...tokenTool.request,
+          method: 'POST' as const,
+          body: (params: Record<string, unknown>) => ({ domain: params.domain ?? null }),
+        },
+      }
+      ;(tools as Record<string, unknown>)[recordTool.id] = recordTool
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      await executeTool(recordTool.id, { credential: 'saved-credential' })
+      Reflect.deleteProperty(tools, recordTool.id)
+
+      const [, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      expect(JSON.parse(String((init as { body?: unknown })?.body))).toEqual({ domain: null })
+    })
+
+    it('fails closed when the credential lacks a mapped field', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        baseUrl: 'attacker.example.net',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('needs a saved credential with a host'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+
+    it('reads an Amplitude profile with Basic auth over both keys of a saved credential', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-secret-key',
+        credentialType: 'service_account',
+        providerWorkspaceId: 'saved-api-key',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ userData: {} }))
+      )
+
+      const result = await executeTool('amplitude_user_profile', {
+        credential: 'saved-credential',
+        userId: 'user-1',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://profile-api.amplitude.com/v1/userprofile?user_id=user-1',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: `Basic ${Buffer.from('saved-api-key:saved-secret-key').toString('base64')}`,
+          }),
+        })
+      )
+    })
+
+    it('signs a saved Splunk username and password in with Basic auth on the saved host', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://splunk.example.com:8089',
+        providerWorkspaceId: 'svc-sim',
+        authStyle: 'basic',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ entry: [] }))
+      )
+
+      await executeTool('splunk_list_indexes', {
+        credential: 'saved-credential',
+        baseUrl: 'https://attacker.example.net:8089',
+        authStyle: 'bearer',
+      })
+
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^https:\/\/splunk\.example\.com:8089\//),
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: `Basic ${Buffer.from('svc-sim:saved-password').toString('base64')}`,
+          }),
+        })
+      )
+    })
+
+    it('sends a saved Splunk token as a bearer token, whatever sign-in the caller passes', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'https://splunk.example.com:8089',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ entry: [] }))
+      )
+
+      await executeTool('splunk_list_indexes', {
+        credential: 'saved-credential',
+        username: 'caller',
+        password: 'caller-password',
+        authStyle: 'basic',
+      })
+
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^https:\/\/splunk\.example\.com:8089\//),
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
+
+    it('keeps the secret-key-only Api-Key header for an inline Amplitude profile read', async () => {
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ userData: {} }))
+      )
+
+      const result = await executeTool('amplitude_user_profile', {
+        secretKey: 'inline-secret-key',
+        userId: 'user-1',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://profile-api.amplitude.com/v1/userprofile?user_id=user-1',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Api-Key inline-secret-key' }),
+        })
+      )
+    })
+
+    it('makes copilot pass credentialId or the inline values, and honors credentialId alone', async () => {
+      const _context = {
+        workspaceId: 'workspace-456',
+        userId: 'user-1',
+        copilotToolExecution: true,
+      }
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      const missing = await executeTool(toolId, { baseUrl: 'api.example.com', _context })
+      expect(missing).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      const saved = await executeTool(toolId, { credentialId: 'saved-credential', _context })
+      expect(saved.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.example.com/v1/me',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
+
+    it('makes copilot pass the key when the hosted key does not apply to these params', async () => {
+      const hostedTool = {
+        ...tokenTool,
+        id: 'test_saved_token_conditionally_hosted',
+        hosting: {
+          enabled: () => false,
+          envKeyPrefix: 'TEST_HOSTED_KEY',
+          apiKeyParam: 'apiKey',
+          pricing: { type: 'per_request' as const, cost: 0.01 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 60 },
+        },
+      }
+      ;(tools as Record<string, unknown>)[hostedTool.id] = hostedTool
+      setEnvFlags({ isHosted: true })
+
+      const result = await executeTool(hostedTool.id, {
+        baseUrl: 'api.example.com',
+        _context: { workspaceId: 'workspace-456', userId: 'user-1', copilotToolExecution: true },
+      })
+      setEnvFlags({ isHosted: false })
+      Reflect.deleteProperty(tools, hostedTool.id)
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/credentialId.*apiKey/),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('saved ServiceNow credentials', () => {
+    const incidentQuery = { credential: 'saved-servicenow', number: 'INC0010001' }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[getServiceNowIncidentTool.id] = getServiceNowIncidentTool
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockReset()
+      mockSecureFetchWithPinnedIP.mockResolvedValue(
+        toSecureFetchResponse(Response.json({ result: [{ sys_id: 'inc-1' }] }))
+      )
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, getServiceNowIncidentTool.id)
+    })
+
+    function sentAuthorization(): unknown {
+      const [, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      return (init as { headers?: Record<string, string> } | undefined)?.headers?.authorization
+    }
+
+    it('signs in with the saved username and password exactly as before', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+        providerWorkspaceId: 'integration.user',
+      })
+
+      const result = await executeTool('servicenow_get_incident', incidentQuery)
+
+      expect(result.success, result.error).toBe(true)
+      expect(mockSecureFetchWithPinnedIP.mock.lastCall?.[0]).toContain(
+        'https://acme.service-now.com/api/now/table/incident'
+      )
+      expect(sentAuthorization()).toBe(
+        `Basic ${Buffer.from('integration.user:saved-password').toString('base64')}`
+      )
+    })
+
+    it('sends a token minted from saved client credentials as a bearer token', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'minted-token',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+        authStyle: 'bearer',
+      })
+
+      const result = await executeTool('servicenow_get_incident', {
+        ...incidentQuery,
+        username: 'caller-user',
+        authStyle: 'basic',
+      })
+
+      expect(result.success, result.error).toBe(true)
+      expect(sentAuthorization()).toBe('Bearer minted-token')
+    })
+
+    it('never pairs the saved password with a username the caller supplied', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+      })
+
+      const result = await executeTool('servicenow_get_incident', {
+        ...incidentQuery,
+        username: 'caller-user',
+      })
+
+      expect(result.success).toBe(false)
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('saved key-pair credentials (application key)', () => {
+    const toolId = 'test_saved_key_pair_credential'
+    const keyPairTool = {
+      id: toolId,
+      name: 'Saved Key Pair Fixture',
+      description: 'Takes inline keys or a saved key-pair credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', {
+        apiKey: 'accessToken',
+        applicationKey: 'applicationKey',
+        site: 'domain',
+      }),
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        applicationKey: { type: 'string', required: true, visibility: 'user-only' },
+        site: { type: 'string', required: false, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => `https://api.${params.site}/api/v1/monitor`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          'DD-API-KEY': String(params.apiKey),
+          'DD-APPLICATION-KEY': String(params.applicationKey),
+        }),
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[toolId] = keyPairTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    it('sends the saved application key beside the saved API key, overriding caller values', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        applicationKey: 'saved-application-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+        site: 'attacker.example.net',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.datadoghq.eu/api/v1/monitor',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'dd-api-key': 'saved-api-key',
+            'dd-application-key': 'saved-application-key',
+          }),
+        })
+      )
+    })
+
+    it('fails closed when the credential carries no application key', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-api-key',
+        credentialType: 'service_account',
+        domain: 'datadoghq.eu',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        applicationKey: 'caller-application-key',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('needs a saved credential with an application key'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
   })
 
   it.each(['oauth', 'managed_oauth', undefined])(
@@ -4176,7 +5302,8 @@ describe('Internal Route Trust', () => {
       expect(postProcess).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({ prompt: 'direct-secret', apiKey: 'direct-secret' }),
-        expect.any(Function)
+        expect.any(Function),
+        expect.any(Object)
       )
       expect(params).toEqual(originalParams)
     } finally {
@@ -5040,6 +6167,82 @@ describe('Internal Route Trust', () => {
   })
 })
 
+describe('HTTP tools report the real HTTP outcome', () => {
+  const stubbedHttpRequestTool = tools.http_request
+
+  beforeEach(() => {
+    Object.assign(tools, { http_request: httpRequestTool, webhook_request: webhookRequestTool })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    tools.http_request = stubbedHttpRequestTool
+    Reflect.deleteProperty(tools, 'webhook_request')
+  })
+
+  const httpTools = [
+    ['http_request', { url: 'https://api.example.com/orders', method: 'POST', body: {} }],
+    ['webhook_request', { url: 'https://api.example.com/hooks', body: {} }],
+  ] as const
+
+  function respondWith(body: unknown) {
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json(body, { headers: { 'x-request-id': 'req-123' } }))
+    )
+  }
+
+  it.each(httpTools)(
+    '%s treats a 200 whose body has top-level status and data as a success',
+    async (toolId, params) => {
+      respondWith({ status: 'success', data: { orderId: 'A-1001' } })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: {
+          status: 200,
+          data: { status: 'success', data: { orderId: 'A-1001' } },
+          headers: expect.objectContaining({ 'x-request-id': 'req-123' }),
+        },
+      })
+    }
+  )
+
+  it.each(httpTools)(
+    '%s keeps unwrapping a 200 body with success, status, and data',
+    async (toolId, params) => {
+      respondWith({ success: true, status: 'ok', data: { orderId: 'A-1001' } })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result, result.error).toMatchObject({
+        success: true,
+        output: { status: 'ok', data: { orderId: 'A-1001' }, headers: {} },
+      })
+    }
+  )
+
+  it.each([
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, 'Out of stock', 'Out of stock'] as const
+    ),
+    ...httpTools.map(
+      ([toolId, params]) => [toolId, params, { code: 'OOS' }, '{"code":"OOS"}'] as const
+    ),
+  ])(
+    '%s keeps failing a 200 body that reports success: false',
+    async (toolId, params, error, expectedError) => {
+      respondWith({ success: false, status: 'error', data: null, error })
+
+      const result = await executeTool(toolId, params, { skipPostProcess: true })
+
+      expect(result).toMatchObject({ success: false, error: expectedError })
+    }
+  )
+})
+
 describe('File Parameter Normalization', () => {
   let cleanupEnvVars: () => void
 
@@ -5607,9 +6810,6 @@ describe('Managed OAuth Credential Delegation', () => {
         executorDelegationOrigin,
       })
     )
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url).includes('/api/auth/oauth/token'))
-    ).toBe(false)
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
@@ -6566,6 +7766,58 @@ describe('Hosted Key Injection', () => {
       expect(metered).not.toHaveBeenCalled()
     } finally {
       Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
+  })
+
+  it('never uses the hosted key when a saved credential supplies it', async () => {
+    setEnvFlags({ isHosted: true })
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'saved-token',
+      credentialType: 'service_account',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_hosted_saved_credential = {
+      id: 'test_hosted_saved_credential',
+      name: 'Hosted fixture',
+      description: 'Hosted key or saved credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken' }),
+      params: { apiKey: { type: 'string', required: false, visibility: 'user-only' } },
+      request: {
+        url: 'https://example.com/fixture',
+        method: 'GET',
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.apiKey}`,
+        }),
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    try {
+      await executeTool(
+        'test_hosted_saved_credential',
+        { credential: 'saved-credential' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+          }),
+        }
+      )
+
+      expect(mockGetBYOKKey).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(mockResolveExecutorCredentialToken).toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_hosted_saved_credential')
       resetEnvFlagsMock()
     }
   })

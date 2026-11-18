@@ -10,7 +10,8 @@ vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
-import { resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { handleError, resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
 
 const createUserProvider = knowledgeAccessScopeMockFns.mockCreateUserKnowledgeAccessProvider
 
@@ -32,5 +33,18 @@ describe('v1 knowledge reader identity', () => {
       resolveV1KnowledgeReadAccess('key-creator', { keyType: 'workspace' }, 'workspace-1')
     ).resolves.toMatchObject({ kind: 'workspace' })
     expect(createUserProvider).not.toHaveBeenCalled()
+  })
+})
+
+describe('v1 knowledge error projection', () => {
+  it('answers 503 when the organization egress route fails under a wrapping error', async () => {
+    const error = new Error('Search failed', {
+      cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+    })
+    const response = handleError('req-1', error, 'Failed to search')
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: "The organization's egress route is unavailable",
+    })
   })
 })

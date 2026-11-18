@@ -1,10 +1,13 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { PostgresIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const PostgreSQLBlock: BlockConfig = {
   type: 'postgresql',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'postgresql_v2' },
   name: 'PostgreSQL',
   description: 'Connect to PostgreSQL database',
   longDescription:
@@ -433,6 +436,51 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       description: 'List of available schemas in the database (introspect operation)',
     },
   },
+}
+
+/**
+ * PostgreSQL on a saved connection: host, port, database, login, password, and
+ * transport-security settings come from the credential, never the block.
+ */
+export const PostgreSQLV2Block: BlockConfig = {
+  ...PostgreSQLBlock,
+  type: 'postgresql_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  canvasPresentation: {
+    defaultTitle: 'PostgreSQL',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Run SELECT query', field: 'query', core: true }],
+        insert: [
+          { text: 'Insert', field: 'data', core: true },
+          { text: 'into', field: 'table', core: true },
+        ],
+        update: [
+          { text: 'Update rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Delete rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        execute: [{ text: 'Execute raw SQL', field: 'query', core: true }],
+        introspect: ['Read the database schema', { text: ', under', field: 'schema' }],
+      },
+    },
+  },
+  ...withSavedCredential(
+    PostgreSQLBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'postgresql',
+      title: 'PostgreSQL Connection',
+    },
+    { required: true }
+  ),
 }
 
 export const PostgreSQLBlockMeta = {

@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevUpdateRunMetadataParams,
   TriggerDevUpdateRunMetadataResponse,
@@ -17,6 +18,7 @@ export const triggerDevUpdateRunMetadataTool: ToolConfig<
   name: 'Trigger.dev Update Run Metadata',
   description: 'Replace the metadata of a Trigger.dev run with a new JSON object.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

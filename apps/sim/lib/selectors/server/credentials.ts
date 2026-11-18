@@ -198,6 +198,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
         requiredScopes: input.scopes ? [...input.scopes] : undefined,
         impersonateEmail: input.impersonateEmail,
         expectedProviderId: input.credential.providerId,
+        service: input.serviceId,
       }),
       input.credential.signal
     )
@@ -223,7 +224,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
       'selector-execution',
       input.scopes ? [...input.scopes] : undefined,
       input.impersonateEmail,
-      { privacyMode: 'selector' }
+      { privacyMode: 'selector', service: input.serviceId }
     ),
     input.credential.signal
   )

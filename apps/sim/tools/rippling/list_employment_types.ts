@@ -1,5 +1,7 @@
 import type { RipplingListEmploymentTypesParams } from '@/tools/rippling/types'
 import { EMPLOYMENT_TYPE_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { nextCursorFromLink } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentTypesParams> = {
@@ -7,6 +9,7 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
   name: 'Rippling List Employment Types',
   description: 'List all employment types',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -18,13 +21,14 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort field. Prefix with - for descending',
+      description:
+        'Sort field(s), comma-separated; append " desc" for descending (e.g. created_at desc)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor from previous response',
+      description: 'Pagination cursor: the nextCursor output of the previous page',
     },
   },
   request: {
@@ -60,6 +64,7 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        nextCursor: nextCursorFromLink(data.next_link),
         __meta: data.__meta ?? null,
       },
     }
@@ -72,6 +77,13 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

@@ -2,6 +2,7 @@ import type { JsmGetRequestParams, JsmGetRequestResponse } from '@/tools/jsm/typ
 import {
   REQUEST_FIELD_VALUE_PROPERTIES,
   REQUEST_STATUS_PROPERTIES,
+  SLA_ITEM_PROPERTIES,
   USER_OUTPUT_PROPERTIES,
 } from '@/tools/jsm/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -47,7 +48,7 @@ export const jsmGetRequestTool: InternalToolConfig<JsmGetRequestParams, JsmGetRe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action',
+        'Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action, comment.attachment, comment.renderedBody',
     },
   },
 
@@ -139,6 +140,29 @@ export const jsmGetRequestTool: InternalToolConfig<JsmGetRequestParams, JsmGetRe
       },
     },
     url: { type: 'string', description: 'URL to the request' },
+    webUrl: {
+      type: 'string',
+      description: 'Customer portal URL for the request (from _links.web)',
+      optional: true,
+    },
+    participants: {
+      type: 'array',
+      description: 'Request participants (returned when expand includes participant)',
+      items: {
+        type: 'object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
+      optional: true,
+    },
+    slas: {
+      type: 'array',
+      description: 'SLA records (returned when expand includes sla)',
+      items: {
+        type: 'object',
+        properties: SLA_ITEM_PROPERTIES,
+      },
+      optional: true,
+    },
     request: {
       type: 'json',
       description: 'The service request object',

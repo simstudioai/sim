@@ -32,13 +32,14 @@ export const zoomListRecordingsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start date in yyyy-mm-dd format (within last 6 months)',
+      description:
+        'Start date in yyyy-mm-dd format (UTC). Zoom allows at most a one-month range and defaults to today when omitted',
     },
     to: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End date in yyyy-mm-dd format',
+      description: 'End date in yyyy-mm-dd format (UTC)',
     },
     pageSize: {
       type: 'number',

@@ -33,7 +33,7 @@ Continue until `nextCursor` is `null`. Unknown cursors and invalid parameters re
 
 Configure a remote Streamable HTTP server at `https://docs.sim.ai/api/mcp`. This endpoint is separate from Sim's workspace MCP server and `/mcp/...` documentation pages. It requires no API key.
 
-The official stable MCP TypeScript SDK 2.3.1 serves the 2026-07-28 protocol and stateless compatibility for 2025-era clients. Tools:
+The official stable MCP TypeScript SDK 2.4.0 serves the 2026-07-28 protocol and stateless compatibility for 2025-era clients. Tools:
 
 | Tool | Input | Result |
 | --- | --- | --- |

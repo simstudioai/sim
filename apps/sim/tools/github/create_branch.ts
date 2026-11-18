@@ -1,5 +1,7 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateBranchParams, RefResponse } from '@/tools/github/types'
 import { GIT_REF_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
@@ -8,6 +10,7 @@ export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   description:
     'Create a new branch in a GitHub repository by creating a git reference pointing to a specific commit SHA.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -43,7 +46,8 @@ export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/git/refs`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -98,6 +102,7 @@ export const createBranchV2Tool: ToolConfig<CreateBranchParams, any> = {
   name: createBranchTool.name,
   description: createBranchTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createBranchTool.params,
   request: createBranchTool.request,
 

@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -160,7 +161,7 @@ export const telegramHandler: WebhookProviderHandler = {
     const secretToken = await resolveSubscriptionSecretToken(ctx, config, botToken)
 
     try {
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await outboundFetch(telegramApiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,7 +237,7 @@ export const telegramHandler: WebhookProviderHandler = {
       }
 
       const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await outboundFetch(telegramApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })

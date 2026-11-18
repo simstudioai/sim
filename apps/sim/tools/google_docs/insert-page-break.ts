@@ -6,6 +6,7 @@ import {
   buildBatchUpdateMetadata,
   buildInsertLocation,
   resolveDocumentId,
+  resolveTabId,
 } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -42,6 +43,13 @@ export const insertPageBreakTool: ToolConfig<
       description:
         'The character index (the document body starts at index 1) at which to insert the page break. When omitted, the page break is appended to the end of the document.',
     },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tab to insert the page break into (from Read with includeTabsContent). When omitted, the first tab is used.',
+    },
   },
   request: {
     url: (params) => {
@@ -63,7 +71,7 @@ export const insertPageBreakTool: ToolConfig<
         requests: [
           {
             insertPageBreak: {
-              ...buildInsertLocation(params.index),
+              ...buildInsertLocation(params.index, resolveTabId(params.tabId)),
             },
           },
         ],

@@ -198,6 +198,81 @@ describe('native computer model projection', () => {
     expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
   })
 
+  it('folds empty layout groups so their controls fit and point at a shown parent', () => {
+    const state = snapshot()
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', label: 'Fixture', actions: [], windowId: '1' },
+      ...Array.from({ length: 300 }, (_, index) => ({
+        elementId: `wrap-${index}`,
+        parentId: index === 0 ? 'window' : `wrap-${index - 1}`,
+        role: 'AXGroup',
+        actions: [],
+        windowId: '1',
+      })),
+      ...Array.from({ length: 150 }, (_, index) => ({
+        elementId: `button-${index}`,
+        parentId: 'wrap-299',
+        role: 'AXButton',
+        label: `Action ${index}`,
+        actions: ['AXPress'],
+        windowId: '1',
+      })),
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const rows = result.accessibilityTree.split('\n')
+    expect(rows.some((row) => row.includes('AXGroup'))).toBe(false)
+    expect(rows.filter((row) => row.includes('AXButton'))).toHaveLength(150)
+    expect(rows.find((row) => row.startsWith('button-0 '))).toContain('parent=window')
+    expect(result.omittedNodeCount).toBe(0)
+  })
+
+  it('never names a node as its own parent through a wrapper cycle', () => {
+    const state = snapshot()
+    state.nodes = [
+      {
+        elementId: 'button',
+        parentId: 'wrap',
+        role: 'AXButton',
+        label: 'Go',
+        actions: ['AXPress'],
+      },
+      { elementId: 'wrap', parentId: 'button', role: 'AXGroup', actions: [] },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    expect(result.accessibilityTree).toContain('button AXButton')
+    expect(result.accessibilityTree).not.toContain('parent=button')
+  })
+
+  it('keeps an empty layout group that reports itself disabled', () => {
+    const state = snapshot()
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', label: 'Fixture', actions: [], windowId: '1' },
+      {
+        elementId: 'pane',
+        parentId: 'window',
+        role: 'AXGroup',
+        enabled: false,
+        actions: [],
+        windowId: '1',
+      },
+      {
+        elementId: 'save',
+        parentId: 'pane',
+        role: 'AXButton',
+        label: 'Save',
+        actions: ['AXPress'],
+        windowId: '1',
+      },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const rows = result.accessibilityTree.split('\n')
+    expect(rows.find((row) => row.startsWith('pane '))).toContain('disabled')
+    expect(rows.find((row) => row.startsWith('save '))).toContain('parent=pane')
+  })
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {
@@ -222,5 +297,153 @@ describe('native computer model projection', () => {
       observationError: 'Window closed',
     } satisfies ComputerUseResult
     expect(computerToolResultForModel(result)).toEqual(result)
+  })
+})
+
+describe('change-only observations after an action', () => {
+  const buttons = (snapshotId: string, labels: string[], windowId = '1'): ComputerUseSnapshot => ({
+    kind: 'state',
+    bundleId: 'com.example.Fixture',
+    snapshotId,
+    windowId,
+    windows: [{ windowId, title: 'Fixture', x: 0, y: 0, width: 400, height: 300 }],
+    nodes: labels.map((label, index) => ({
+      elementId: `e${index}`,
+      role: 'AXButton',
+      label,
+      actions: ['AXPress'],
+    })),
+    truncated: false,
+  })
+  const click = (observation: ComputerUseSnapshot): ComputerUseResult => ({
+    kind: 'action',
+    action: 'click',
+    bundleId: observation.bundleId,
+    dispatched: true,
+    verified: false,
+    observation,
+  })
+  const tree = (result: unknown) =>
+    (result as { observation: { accessibilityTree: string } }).observation.accessibilityTree
+  const field = (result: unknown, name: string) =>
+    (result as { observation: Record<string, unknown> }).observation[name]
+  const labels = ['One', 'Two', 'Three', 'Four', 'Five', 'Six']
+  const stable = { stableElementIds: true }
+
+  it('sends whole trees when the desktop cannot keep ids stable', () => {
+    computerToolResultForModel(buttons('a1', labels))
+    const result = computerToolResultForModel(
+      click(buttons('a2', [...labels.slice(0, 5), 'Changed'])),
+      {
+        baseSnapshotId: 'a1',
+      }
+    )
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree when the snapshot the action used is unknown', () => {
+    const result = computerToolResultForModel(click(buttons('b2', labels)), {
+      ...stable,
+      baseSnapshotId: 'never-seen',
+    })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('lists only changed and new rows and the ids that disappeared', () => {
+    computerToolResultForModel(buttons('c1', labels))
+    const next = buttons('c2', ['One', 'Two', 'Three', 'Four', 'Renamed'])
+    next.nodes.push({ elementId: 'e9', role: 'AXButton', label: 'Added', actions: ['AXPress'] })
+    const result = computerToolResultForModel(click(next), { ...stable, baseSnapshotId: 'c1' })
+    expect(field(result, 'changedSince')).toBe('c1')
+    expect(tree(result)).toContain('label="Renamed"')
+    expect(tree(result)).toContain('e9 AXButton label="Added"')
+    expect(tree(result)).not.toContain('label="One"')
+    expect(field(result, 'removedElementIds')).toEqual(['e5'])
+  })
+
+  it('folds earlier change lists into what the next action is compared against', () => {
+    computerToolResultForModel(buttons('d1', labels))
+    const renamed = [...labels.slice(0, 5), 'Renamed']
+    computerToolResultForModel(click(buttons('d2', renamed)), { ...stable, baseSnapshotId: 'd1' })
+    const result = computerToolResultForModel(click(buttons('d3', ['Uno', ...renamed.slice(1)])), {
+      ...stable,
+      baseSnapshotId: 'd2',
+    })
+    expect(field(result, 'changedSince')).toBe('d2')
+    expect(tree(result)).toContain('label="Uno"')
+    expect(tree(result)).not.toContain('label="Renamed"')
+  })
+
+  it('sends a whole tree when an action changed nothing visible', () => {
+    computerToolResultForModel(buttons('k1', labels))
+    const result = computerToolResultForModel(click(buttons('k2', labels)), {
+      ...stable,
+      baseSnapshotId: 'k1',
+    })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree when a window, sheet or popover opens', () => {
+    computerToolResultForModel(buttons('m1', labels))
+    const next = buttons('m2', [...labels.slice(0, 5), 'Renamed'])
+    next.windows.push({ windowId: '9', title: 'Sheet', x: 0, y: 0, width: 200, height: 100 })
+    const result = computerToolResultForModel(click(next), { ...stable, baseSnapshotId: 'm1' })
+    expect(field(result, 'changedSince')).toBeUndefined()
+  })
+
+  it('reports a shown row that folded into a layout wrapper as no longer shown', () => {
+    const pane = (enabled: boolean, snapshotId: string): ComputerUseSnapshot => {
+      const state = buttons(snapshotId, [...labels.slice(0, 5), enabled ? 'Ready' : 'Busy'])
+      state.nodes.push({ elementId: 'e8', role: 'AXGroup', actions: [], enabled })
+      return state
+    }
+    computerToolResultForModel(pane(false, 'n1'))
+    const result = computerToolResultForModel(click(pane(true, 'n2')), {
+      ...stable,
+      baseSnapshotId: 'n1',
+    })
+    expect(field(result, 'changedSince')).toBe('n1')
+    expect(field(result, 'removedElementIds')).toEqual(['e8'])
+  })
+
+  it('sends a whole tree when the native read was cut short', () => {
+    computerToolResultForModel(buttons('p1', labels))
+    const partial = { ...buttons('p2', labels.slice(0, 4)), truncated: true }
+    const result = computerToolResultForModel(click(partial), { ...stable, baseSnapshotId: 'p1' })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(field(result, 'removedElementIds')).toBeUndefined()
+  })
+
+  it('returns to a whole tree after a run of change lists', () => {
+    computerToolResultForModel(buttons('f0', labels))
+    let result: unknown
+    for (let step = 1; step <= 5; step++)
+      result = computerToolResultForModel(
+        click(buttons(`f${step}`, [...labels.slice(0, 5), `Step ${step}`])),
+        {
+          ...stable,
+          baseSnapshotId: `f${step - 1}`,
+        }
+      )
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree for another window or when most of the tree changed', () => {
+    computerToolResultForModel(buttons('g1', labels))
+    const otherWindow = computerToolResultForModel(click(buttons('g2', labels, '2')), {
+      ...stable,
+      baseSnapshotId: 'g1',
+    })
+    expect(field(otherWindow, 'changedSince')).toBeUndefined()
+    computerToolResultForModel(buttons('h1', labels))
+    const rewritten = computerToolResultForModel(
+      click(buttons('h2', ['A', 'B', 'C', 'D', 'Five', 'Six'])),
+      { ...stable, baseSnapshotId: 'h1' }
+    )
+    expect(field(rewritten, 'changedSince')).toBeUndefined()
   })
 })

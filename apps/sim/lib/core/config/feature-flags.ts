@@ -51,12 +51,6 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
-  'mothership-computer-use': {
-    description:
-      'Enable native macOS computer use in Mothership. Supports global and organization rollout; ' +
-      'personal workspaces follow the global switch. Each device must also opt in.',
-    fallback: 'MSHIP_COMPUTER_USE',
-  },
   'workflow-tests': {
     description:
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',

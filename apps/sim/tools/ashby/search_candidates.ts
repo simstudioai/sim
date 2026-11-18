@@ -9,6 +9,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchCandidatesTool: ToolConfig<
@@ -20,6 +21,7 @@ export const searchCandidatesTool: ToolConfig<
   description:
     'Searches for candidates by name and/or email with AND logic. Results are limited to 100 matches. Use candidate.list for full pagination.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

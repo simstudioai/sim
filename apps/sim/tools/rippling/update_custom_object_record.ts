@@ -1,6 +1,9 @@
 import type { RipplingUpdateCustomObjectRecordParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { customObjectRecordFields } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCustomObjectRecordParams> =
   {
@@ -8,6 +11,7 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
     name: 'Rippling Update Custom Object Record',
     description: 'Update a custom object record',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -37,12 +41,12 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
         type: 'json',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Updated record data',
+        description: 'Field values to set, keyed by field API name (e.g. {"status__c": "FINAL"})',
       },
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/${encodeURIComponent(params.codrId.trim())}/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/${safeUrlPathSegment(params.codrId, 'codrId')}/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -50,10 +54,9 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
         Accept: 'application/json',
       }),
       body: (params) => {
-        const body: Record<string, unknown> = {}
+        const body: Record<string, unknown> = { ...customObjectRecordFields(params.data) }
         if (params.externalId != null && params.externalId !== '')
           body.external_id = params.externalId
-        if (params.data != null) body.data = params.data
         return body
       },
     },

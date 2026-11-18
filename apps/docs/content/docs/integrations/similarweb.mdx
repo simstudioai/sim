@@ -2,7 +2,7 @@
 title: Similarweb
 description: Website traffic and analytics data
 integration:
-  type: "similarweb"
+  type: "similarweb_v2"
   color: "#000922"
 ---
 
@@ -31,7 +31,6 @@ Get website traffic, rankings, engagement, and traffic sources.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 
 #### Output
@@ -71,7 +70,6 @@ Get total website visits over time (desktop and mobile combined)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 | `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
@@ -103,7 +101,6 @@ Get website bounce rate over time (desktop and mobile combined)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 | `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
@@ -135,7 +132,6 @@ Get average pages per visit over time (desktop and mobile combined)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 | `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
@@ -167,7 +163,6 @@ Get average desktop visit duration over time (in seconds)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 | `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
@@ -199,7 +194,6 @@ Get total page views over time (desktop and mobile combined)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SimilarWeb API key |
 | `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 | `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |

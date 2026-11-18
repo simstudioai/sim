@@ -32,6 +32,7 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { closeRedisConnection } from '@/lib/core/config/redis'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorOption } from '@/lib/selectors/application/get-selector-option'
@@ -44,6 +45,7 @@ import {
 } from '@/lib/workflows/executor/execution-state'
 import {
   installPowerBITransport,
+  POWERBI_FIXTURE_APP,
   POWERBI_FIXTURE_IDS,
   POWERBI_FIXTURE_REFRESH_TOKEN,
   POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN,
@@ -60,6 +62,7 @@ const accountId = generateId()
 const wrongAccountId = generateId()
 const expiredAccountId = generateId()
 const expiredCredentialId = generateId()
+const appCredentialId = generateId()
 const workflowIds: string[] = []
 const executionIds: string[] = []
 const principal = createSessionPrincipal({ userId: ownerId })
@@ -285,6 +288,29 @@ beforeAll(async () => {
       joinedAt: now,
     })
   }
+  const { encrypted } = await encryptSecret(
+    JSON.stringify({
+      type: 'microsoft_app_credential_v1',
+      config: { authType: 'client_secret', ...POWERBI_FIXTURE_APP },
+    })
+  )
+  await db.insert(credential).values({
+    id: appCredentialId,
+    workspaceId,
+    type: 'service_account',
+    displayName: 'Synthetic Microsoft app credential',
+    providerId: 'microsoft-app-service-account',
+    encryptedServiceAccountKey: encrypted,
+    createdBy: ownerId,
+  })
+  await db.insert(credentialMember).values({
+    id: generateId(),
+    credentialId: appCredentialId,
+    userId: ownerId,
+    role: 'admin',
+    status: 'active',
+    joinedAt: now,
+  })
 })
 
 beforeEach(() => {
@@ -417,6 +443,44 @@ describe('Power BI with persisted delegated credentials and provider wire respon
         refreshToken: POWERBI_FIXTURE_ROTATED_REFRESH_TOKEN,
       })
       expect(storedAgain.accessTokenExpiresAt?.getTime()).toBeGreaterThan(Date.now())
+    }))
+
+  it('runs and browses as a Microsoft app credential with an app-only Power BI token', () =>
+    checked('Microsoft app credential', async () => {
+      const run = await runWorkflow(['powerbi_list_datasets'], undefined, appCredentialId)
+      expect(run.result).toMatchObject({ ok: true, status: 'completed' })
+      expect(provider.requests).toEqual([
+        {
+          method: 'POST',
+          path: `/${POWERBI_FIXTURE_APP.tenantId}/oauth2/v2.0/token`,
+          body: {
+            client_id: POWERBI_FIXTURE_APP.clientId,
+            scope: 'https://analysis.windows.net/powerbi/api/.default',
+            grant_type: 'client_credentials',
+            client_secret: POWERBI_FIXTURE_APP.clientSecret,
+          },
+          authorized: true,
+          status: 200,
+        },
+        {
+          method: 'GET',
+          path: `/v1.0/myorg/groups/${POWERBI_FIXTURE_IDS.groupId}/datasets`,
+          body: null,
+          authorized: true,
+          status: 200,
+        },
+      ])
+      expect(run.state?.blockStates[run.blockIds[0]]?.output).toMatchObject({ datasetCount: 1 })
+
+      expect(await selector('powerbi.datasets', { kind: 'list' }, appCredentialId)).toEqual({
+        kind: 'list',
+        items: [{ id: POWERBI_FIXTURE_IDS.datasetId, label: 'Fixture Sales' }],
+      })
+      expect(provider.requests).toHaveLength(3)
+      expect(provider.requests[2]).toMatchObject({
+        path: `/v1.0/myorg/groups/${POWERBI_FIXTURE_IDS.groupId}/datasets`,
+        authorized: true,
+      })
     }))
 
   it('rejects missing resource identities instead of storing successful null identities', () =>

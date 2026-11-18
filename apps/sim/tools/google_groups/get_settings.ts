@@ -1,8 +1,11 @@
-import type {
-  GoogleGroupsGetSettingsParams,
-  GoogleGroupsGetSettingsResponse,
+import {
+  type GoogleGroupsGetSettingsParams,
+  type GoogleGroupsGetSettingsResponse,
+  mapGroupSettings,
+  SETTINGS_OBJECT_OUTPUT,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getSettingsTool: ToolConfig<
   GoogleGroupsGetSettingsParams,
@@ -36,8 +39,10 @@ export const getSettingsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedEmail = encodeURIComponent(params.groupEmail.trim())
-      return `https://www.googleapis.com/groups/v1/groups/${encodedEmail}`
+      const encodedEmail = safeUrlPathSegment(params.groupEmail, 'groupEmail', {
+        allowSeparators: true,
+      })
+      return `https://www.googleapis.com/groups/v1/groups/${encodedEmail}?alt=json`
     },
     method: 'GET',
     headers: (params) => ({
@@ -51,43 +56,10 @@ export const getSettingsTool: ToolConfig<
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to get group settings')
     }
+    const settings = mapGroupSettings(data)
     return {
       success: true,
-      output: {
-        email: data.email ?? null,
-        name: data.name ?? null,
-        description: data.description ?? null,
-        whoCanJoin: data.whoCanJoin ?? null,
-        whoCanViewMembership: data.whoCanViewMembership ?? null,
-        whoCanViewGroup: data.whoCanViewGroup ?? null,
-        whoCanPostMessage: data.whoCanPostMessage ?? null,
-        allowExternalMembers: data.allowExternalMembers ?? null,
-        allowWebPosting: data.allowWebPosting ?? null,
-        primaryLanguage: data.primaryLanguage ?? null,
-        isArchived: data.isArchived ?? null,
-        archiveOnly: data.archiveOnly ?? null,
-        messageModerationLevel: data.messageModerationLevel ?? null,
-        spamModerationLevel: data.spamModerationLevel ?? null,
-        replyTo: data.replyTo ?? null,
-        customReplyTo: data.customReplyTo ?? null,
-        includeCustomFooter: data.includeCustomFooter ?? null,
-        customFooterText: data.customFooterText ?? null,
-        sendMessageDenyNotification: data.sendMessageDenyNotification ?? null,
-        defaultMessageDenyNotificationText: data.defaultMessageDenyNotificationText ?? null,
-        membersCanPostAsTheGroup: data.membersCanPostAsTheGroup ?? null,
-        includeInGlobalAddressList: data.includeInGlobalAddressList ?? null,
-        whoCanLeaveGroup: data.whoCanLeaveGroup ?? null,
-        whoCanContactOwner: data.whoCanContactOwner ?? null,
-        favoriteRepliesOnTop: data.favoriteRepliesOnTop ?? null,
-        whoCanApproveMembers: data.whoCanApproveMembers ?? null,
-        whoCanBanUsers: data.whoCanBanUsers ?? null,
-        whoCanModerateMembers: data.whoCanModerateMembers ?? null,
-        whoCanModerateContent: data.whoCanModerateContent ?? null,
-        whoCanAssistContent: data.whoCanAssistContent ?? null,
-        enableCollaborativeInbox: data.enableCollaborativeInbox ?? null,
-        whoCanDiscoverGroup: data.whoCanDiscoverGroup ?? null,
-        defaultSender: data.defaultSender ?? null,
-      },
+      output: { ...settings, settings },
     }
   },
 
@@ -150,5 +122,6 @@ export const getSettingsTool: ToolConfig<
       type: 'string',
       description: 'Default sender identity (DEFAULT_SELF or GROUP)',
     },
+    settings: SETTINGS_OBJECT_OUTPUT,
   },
 }
