@@ -22,7 +22,8 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search depth: "standard" for quick results, "deep" for comprehensive search',
+      description:
+        'Search depth: "flash" (lowest latency), "fast" (one-shot retrieval), "standard" (single agentic pass), or "deep" (multi-step, most thorough)',
     },
     outputType: {
       type: 'string',
@@ -80,6 +81,12 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       visibility: 'user-or-llm',
       description: 'Include sources in response',
     },
+    maxResults: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (at least 1)',
+    },
   },
 
   hosting: {
@@ -88,13 +95,13 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     byokProviderId: 'linkup',
     pricing: {
       type: 'custom',
+      /** USD per call from https://docs.linkup.so/pages/documentation/platform/pricing. */
       getCost: (params) => {
-        // Linkup pricing (https://docs.linkup.so/pages/documentation/development/pricing):
-        //   Standard: €0.005/call ≈ $0.006
-        //   Deep:     €0.05/call  ≈ $0.055
         const depth = params.depth as string
-        const cost = depth === 'deep' ? 0.055 : 0.006
-        return { cost, metadata: { depth } }
+        const outputType = params.outputType as string
+        const rawResults = outputType === 'searchResults'
+        const cost = depth === 'deep' ? (rawResults ? 0.05 : 0.055) : rawResults ? 0.005 : 0.006
+        return { cost, metadata: { depth, outputType } }
       },
     },
     rateLimit: {
@@ -144,6 +151,14 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
 
       if (params.includeSources !== undefined) body.includeSources = params.includeSources
 
+      if (params.maxResults != null && String(params.maxResults).trim() !== '') {
+        const maxResults = Number(params.maxResults)
+        if (!Number.isInteger(maxResults) || maxResults < 1) {
+          throw new Error('Linkup Max Results must be a whole number of at least 1')
+        }
+        body.maxResults = maxResults
+      }
+
       return body
     },
   },
@@ -160,12 +175,43 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
   outputs: {
     answer: {
       type: 'string',
-      description: 'The sourced answer to the search query',
+      description: 'The sourced answer to the search query (Answer output type)',
+      optional: true,
     },
     sources: {
       type: 'array',
-      description:
-        'Array of sources used to compile the answer, each containing name, url, and snippet',
+      description: 'Sources used to compile the answer (Answer output type)',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Title of the source' },
+          url: { type: 'string', description: 'URL of the source' },
+          snippet: { type: 'string', description: 'Text extracted from the source' },
+          favicon: { type: 'string', description: 'Favicon URL', optional: true },
+          publishedAt: { type: 'string', description: 'Publication date', optional: true },
+        },
+      },
+    },
+    results: {
+      type: 'array',
+      description: 'Ranked text and image results (Search output type)',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Result type: text or image' },
+          name: { type: 'string', description: 'Title of the result' },
+          url: { type: 'string', description: 'URL of the result' },
+          content: {
+            type: 'string',
+            description: 'Extracted text content (text results)',
+            optional: true,
+          },
+          favicon: { type: 'string', description: 'Favicon URL', optional: true },
+          publishedAt: { type: 'string', description: 'Publication date', optional: true },
+        },
+      },
     },
   },
 }

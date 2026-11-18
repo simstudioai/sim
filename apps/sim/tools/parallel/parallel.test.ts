@@ -54,7 +54,7 @@ describe('parallel_search request', () => {
     expect(searchTool.params.objective.required).toBe(false)
   })
 
-  it('nests max_results, excerpt settings and source policy under advanced_settings', () => {
+  it('nests max_results and source policy under advanced_settings', () => {
     const body = searchBody({
       search_queries: 'UN founding year, United Nations established',
       objective: 'When was the UN founded?',
@@ -66,15 +66,21 @@ describe('parallel_search request', () => {
     expect(body).toEqual({
       search_queries: ['UN founding year', 'United Nations established'],
       objective: 'When was the UN founded?',
+      max_chars_total: 30000,
       advanced_settings: {
         max_results: 15,
-        excerpt_settings: { max_chars_per_result: 2000 },
         source_policy: {
           include_domains: ['un.org', '.edu'],
           exclude_domains: ['wikipedia.org'],
         },
       },
     })
+  })
+
+  it('sends the per-result excerpt cap as the max_chars_total Parallel honors', () => {
+    const body = searchBody({ max_chars_per_result: '1500' })
+    expect(body.max_chars_total).toBe(15000)
+    expect(body.advanced_settings).toBeUndefined()
   })
 
   it('omits advanced_settings and mode when nothing optional is set', () => {
@@ -185,6 +191,34 @@ describe('parallel_deep_research', () => {
     expect(result.success).toBe(true)
     expect(result.output.status).toBe('completed')
     expect(result.output.content).toEqual({ summary: 'ok' })
+  })
+
+  it("fails with Parallel's error message when the run itself failed", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          run: {
+            run_id: 'run_1',
+            status: 'failed',
+            error: { ref_id: 'r', message: 'Processor quota exceeded' },
+          },
+          output: { type: 'text', content: '', basis: [] },
+        })
+      )
+    )
+
+    const result = await deepResearchTool.postProcess?.(
+      {
+        success: true,
+        output: { run_id: 'run_1', status: 'queued', message: '', content: {}, basis: [] },
+      },
+      { apiKey: API_KEY, input: 'x' } as never,
+      vi.fn() as never
+    )
+
+    expect(result?.success).toBe(false)
+    expect(result?.error).toBe('Parallel AI deep research task failed: Processor quota exceeded')
   })
 })
 

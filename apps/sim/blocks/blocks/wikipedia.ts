@@ -63,6 +63,7 @@ export const WikipediaBlock: BlockConfig = {
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'wikipedia_search' },
+      mode: 'advanced',
     },
     // Get Page Content operation inputs
     {
@@ -108,14 +109,25 @@ export const WikipediaBlock: BlockConfig = {
   },
   outputs: {
     // Page Summary output
-    summary: { type: 'json', description: 'Page summary data' },
+    summary: {
+      type: 'json',
+      description:
+        'Page summary (type, title, displaytitle, description, extract, thumbnail, content_urls, lang, timestamp, pageid)',
+    },
     // Search output
-    searchResults: { type: 'json', description: 'Search results data' },
+    searchResults: { type: 'json', description: 'Matching pages [{id, key, title, excerpt, url}]' },
     totalHits: { type: 'number', description: 'Total search hits' },
     // Page Content output
-    content: { type: 'json', description: 'Page content data' },
+    content: {
+      type: 'json',
+      description: 'Page content (title, html, revision, tid, timestamp, content_format)',
+    },
     // Random Page output
-    randomPage: { type: 'json', description: 'Random page data' },
+    randomPage: {
+      type: 'json',
+      description:
+        'Random page (type, title, description, extract, thumbnail, content_urls, pageid)',
+    },
   },
 }
 

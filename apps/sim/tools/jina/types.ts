@@ -75,7 +75,8 @@ export interface SearchParams {
   retainImages?: 'none' | 'all'
   noCache?: boolean
   withGeneratedAlt?: boolean
-  respondWith?: 'no-content'
+  /** `no-content`, or `true` from the block's "No Content" checkbox. */
+  respondWith?: 'no-content' | boolean
   returnFormat?: 'markdown' | 'html' | 'text' | 'screenshot' | 'pageshot'
 }
 

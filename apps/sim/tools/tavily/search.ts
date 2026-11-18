@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TavilySearchParams, TavilySearchResponse } from '@/tools/tavily/types'
 import {
@@ -12,6 +13,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   description:
     "Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.",
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.TAVILY_ERRORS,
   oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
@@ -37,7 +39,8 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search scope: basic (1 credit) or advanced (2 credits) (e.g., "advanced")',
+      description:
+        'Search depth: basic (1 credit), advanced (2 credits), fast (1 credit), or ultra-fast (1 credit) (e.g., "advanced")',
     },
     include_answer: {
       type: 'string',
@@ -184,10 +187,16 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       if (params.start_date) body.start_date = params.start_date
       if (params.end_date) body.end_date = params.end_date
       if (params.include_domains) {
-        body.include_domains = params.include_domains.split(',').map((d) => d.trim())
+        body.include_domains = params.include_domains
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean)
       }
       if (params.exclude_domains) {
-        body.exclude_domains = params.exclude_domains.split(',').map((d) => d.trim())
+        body.exclude_domains = params.exclude_domains
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean)
       }
       if (params.country) body.country = params.country
       if (params.auto_parameters !== undefined) body.auto_parameters = params.auto_parameters
@@ -215,6 +224,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
         ...(data.images && { images: data.images }),
         ...(data.auto_parameters && { auto_parameters: data.auto_parameters }),
         response_time: data.response_time,
+        ...(data.request_id && { request_id: data.request_id }),
       },
     }
   },
@@ -250,5 +260,10 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       optional: true,
     },
     response_time: { type: 'number', description: 'Time taken for the search request in seconds' },
+    request_id: {
+      type: 'string',
+      description: 'Request identifier to share with Tavily support',
+      optional: true,
+    },
   },
 }
