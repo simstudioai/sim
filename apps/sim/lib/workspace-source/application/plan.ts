@@ -129,20 +129,57 @@ const AUTHORIZE_CONCURRENCY = 6
 /** Findings one plan reports; past it, one more finding counts the rest. */
 const MAX_PLAN_FINDINGS = 1_000
 
-/** `diagnostics` within {@link MAX_PLAN_FINDINGS}, errors first so a refusal always shows why. */
-function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
+const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const
+
+/**
+ * `diagnostics` within {@link MAX_PLAN_FINDINGS}: errors first so a refusal always shows why,
+ * then warnings, then infos. The finding that counts the rest is an info, so cutting a plan's
+ * findings never refuses it, nor changes how a refusal is classed.
+ */
+export function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
   if (diagnostics.length <= MAX_PLAN_FINDINGS) return diagnostics
-  const errors = diagnostics.filter((entry) => entry.severity === 'error')
-  const rest = diagnostics.filter((entry) => entry.severity !== 'error')
-  const kept = [...errors, ...rest].slice(0, MAX_PLAN_FINDINGS)
+  const kept = diagnostics
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        SEVERITY_RANK[a.entry.severity] - SEVERITY_RANK[b.entry.severity] || a.index - b.index
+    )
+    .slice(0, MAX_PLAN_FINDINGS)
+    .map(({ entry }) => entry)
+  const left = diagnostics.length - kept.length
+  const leftErrors =
+    diagnostics.filter((entry) => entry.severity === 'error').length -
+    kept.filter((entry) => entry.severity === 'error').length
   return [
     ...kept,
     finding(
-      'E_LIMIT_EXCEEDED',
-      `The plan has ${diagnostics.length} findings; ${diagnostics.length - kept.length} more are left out.`,
-      { hint: 'Fix the findings shown, then apply again.' }
+      'I_FINDINGS_TRUNCATED',
+      `The plan has ${diagnostics.length} findings; ${left} more${leftErrors > 0 ? ` (${leftErrors} of them errors)` : ''} are left out.`,
+      { hint: 'Fix the findings shown, then apply again to see the rest.' }
     ),
   ]
+}
+
+/**
+ * Names each reference made by id (`refs[].id`) by the key of the change that plans that resource
+ * (its stored id, or the stand-in id of a create), so a delete of it and a write waiting for it
+ * match the reference; one no change plans names nothing this apply touches and is dropped.
+ */
+function resolveRefsById(changes: PlannedChange[]): void {
+  const byId = new Map<string, string>()
+  for (const change of changes) {
+    for (const id of [change.storedId, change.pending?.id]) {
+      if (id) byId.set(`${change.kind}:${id}`, change.key)
+    }
+  }
+  for (const change of changes) {
+    if (!change.refs?.some((ref) => ref.id !== undefined)) continue
+    change.refs = change.refs.flatMap((ref) => {
+      if (ref.id === undefined) return [ref]
+      const key = byId.get(`${ref.kind}:${ref.id}`)
+      return key === undefined ? [] : [{ kind: ref.kind, key }]
+    })
+  }
 }
 
 /** The kinds the submission manages: its folders and files, narrowed by `only`. */
@@ -326,6 +363,7 @@ export async function planWorkspaceSource(
     }
   }
 
+  resolveRefsById(changes)
   await checkDeletesInUse(changes, unchanged, workspaceId)
   const deleted = new Set(
     changes

@@ -152,6 +152,12 @@ export interface ApplyWorkflowSourceInput extends SourceSubmission {
 
 export interface CreateWorkflowFromSourceInput extends SourceSubmission {
   workspaceId: string
+  /**
+   * The id the new workflow takes, minted by an enclosing workspace source apply so its other
+   * workflows name this one before it is written; a fresh id when omitted. In-process only, never
+   * on a wire contract.
+   */
+  workflowId?: string
   /** The new workflow's name; the source's `workflow('…')` name when omitted. */
   name?: string
   /** The new workflow's description; the source's when omitted. */
@@ -289,7 +295,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
         {
           kind: 'new',
           workspace: context,
-          workflowId: input.evaluated?.workflowId ?? generateId(),
+          workflowId: input.evaluated?.workflowId ?? input.workflowId ?? generateId(),
           create: {
             ...(input.name !== undefined ? { name: input.name } : {}),
             ...(input.description !== undefined ? { description: input.description } : {}),

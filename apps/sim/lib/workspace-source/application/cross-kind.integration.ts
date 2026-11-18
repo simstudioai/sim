@@ -888,8 +888,217 @@ export default workflow('Answer', {}, () => {
 
     expect(planned.diagnostics).toHaveLength(1_001)
     expect(planned.diagnostics.at(-1)).toMatchObject({
-      code: 'E_LIMIT_EXCEEDED',
-      message: expect.stringContaining('500 more'),
+      code: 'I_FINDINGS_TRUNCATED',
+      severity: 'info',
+      message: expect.stringContaining('500 more (500 of them errors)'),
     })
+    // More errors than one answer lists still refuse as what they are, never as too large.
+    const refused = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: { workspaceId, files, kinds: KINDS },
+        })
+      )
+    )
+    expect(refused.code).toBe('validation')
   })
+
+  check(
+    'a plan over 1000 info findings still applies, and keeps every warning ahead of the infos',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const notes = Array.from(
+        { length: 230 },
+        (_, index) => `  note('Note ${index}', { content: 'n' })`
+      ).join('\n')
+      const files: Record<string, string> = {}
+      for (let index = 0; index < 5; index++) {
+        files[`workflows/bulk-${index}/workflow.ts`] = `// @sim-sdk 1
+import { note, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Bulk ${index}', {}, () => {
+  trigger.start('Start', { inputFormat: {} })
+${notes}
 })
+`
+      }
+      files['workflows/secret/workflow.ts'] = `// @sim-sdk 1
+import { agent, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Secret', {}, () => {
+  const start = trigger.start('Start', {})
+  const answer = agent('Answer', { model: 'gpt-4o', messages: [], apiKey: 'placeholder-not-a-real-key' })
+  start.to(answer)
+})
+`
+
+      const result = await apply(workspaceId, { files, blobs: {} })
+
+      expect(codes(result.diagnostics)).toEqual([])
+      expect(result.failed).toBeUndefined()
+      expect(result.applied).toHaveLength(6)
+      expect(codes(result.diagnostics, 'warning')).toContain('W_LITERAL_SECRET')
+      expect(codes(result.diagnostics, 'info')).toContain('I_FINDINGS_TRUNCATED')
+    }
+  )
+
+  check(
+    'refuses deleting a child workflow an unchanged declared parent runs, and warns for one outside the directory',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, { files: CHILD_AND_PARENT, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const childId = read.base.resources['workflow:child']?.id
+      const parentId = read.base.resources['workflow:parent']?.id
+      if (!childId || !parentId) throw new Error('The workflows were not created')
+      const baseOnly = (key: string) =>
+        Object.fromEntries(
+          Object.entries(read.files).filter(([path]) =>
+            path.startsWith(`workflows/${key}/.sim/base.json`)
+          )
+        )
+      const before = await snapshot(workspaceId)
+
+      // The parent stays declared and unchanged; the child folder is gone.
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          { files: { ...baseOnly('parent'), ...baseOnly('keep') }, blobs: {} },
+          { base: read.base, allowDelete: true }
+        )
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:parent'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      // The parent is on the server but outside the directory (and its base).
+      const { 'workflow:parent': _parent, ...resources } = read.base.resources
+      const outside = await apply(
+        workspaceId,
+        { files: baseOnly('keep'), blobs: {} },
+        { base: { ...read.base, resources }, allowDelete: true, dryRun: true }
+      )
+      expect(codes(outside.diagnostics)).toEqual([])
+      const warning = outside.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')
+      expect(warning).toMatchObject({ kind: 'workflow', key: 'child' })
+      expect(warning?.message).toContain('"Parent"')
+      expect(outside.plan.find((change) => change.key === 'child')).toMatchObject({
+        action: 'delete',
+        destructive: { counts: { workflows: 1 } },
+      })
+    }
+  )
+
+  check(
+    'creates a parent and the child it runs in one apply, whatever the folder order',
+    async () => {
+      for (const [parentKey, childKey] of [
+        ['parent', 'child'],
+        ['a-parent', 'z-child'],
+      ]) {
+        const workspaceId = await newWorkspace()
+        const files = {
+          [`workflows/${parentKey}/workflow.ts`]: caller('Parent', childKey),
+          [`workflows/${childKey}/workflow.ts`]: CHILD_AND_PARENT['workflows/child/workflow.ts'],
+        }
+
+        const dryRun = await apply(workspaceId, { files, blobs: {} }, { dryRun: true })
+        expect(codes(dryRun.diagnostics)).toEqual([])
+        const result = await apply(workspaceId, { files, blobs: {} })
+
+        expect(result.failed).toBeUndefined()
+        const childId = result.base.resources[`workflow:${childKey}`]?.id
+        const parentId = result.base.resources[`workflow:${parentKey}`]?.id
+        if (!childId || !parentId) throw new Error('The workflows were not created')
+        expect(await runsWorkflow(parentId)).toEqual([childId])
+      }
+    }
+  )
+
+  check('creates two workflows that run each other in one apply', async () => {
+    const workspaceId = await newWorkspace()
+    const files = {
+      'workflows/ping/workflow.ts': caller('Ping', 'pong'),
+      'workflows/pong/workflow.ts': caller('Pong', 'ping'),
+    }
+
+    const dryRun = await apply(workspaceId, { files, blobs: {} }, { dryRun: true })
+    expect(codes(dryRun.diagnostics)).toEqual([])
+    const result = await apply(workspaceId, { files, blobs: {} })
+
+    expect(result.failed).toBeUndefined()
+    const ping = result.base.resources['workflow:ping']?.id
+    const pong = result.base.resources['workflow:pong']?.id
+    if (!ping || !pong) throw new Error('The workflows were not created')
+    expect(await runsWorkflow(ping)).toEqual([pong])
+    expect(await runsWorkflow(pong)).toEqual([ping])
+    const read = await get(workspaceId)
+    expect(read.files['workflows/ping/workflow.ts']).toContain("childWorkflow('pong')")
+  })
+
+  check(
+    'renaming the key of a table or a tool is reported as a key rename, not a taken name',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const before = await snapshot(workspaceId)
+      const renamed = (from: string, to: string) =>
+        Object.fromEntries(
+          Object.entries(dir.files).map(([path, text]) =>
+            path.startsWith(from)
+              ? [path.replace(from, to), text.replaceAll("'./lookup.js'", "'./orders.js'")]
+              : [path, text]
+          )
+        )
+
+      for (const [files, address] of [
+        [renamed('tables/leads.ts', 'tables/customers.ts'), 'table:customers'],
+        [renamed('tools/lookup', 'tools/orders'), 'custom-tool:orders'],
+      ] as const) {
+        const dryRun = await apply(
+          workspaceId,
+          { files, blobs: dir.blobs },
+          { base, allowDelete: true, dryRun: true }
+        )
+        expect(findings(dryRun.diagnostics, 'error')).toEqual([`E_KEY_RENAMED ${address}`])
+        expect(dryRun.plan.filter((change) => change.action === 'delete')).toEqual([])
+      }
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+})
+
+/** A workflow that runs the workflow under `child`. */
+function caller(name: string, child: string): string {
+  return `// @sim-sdk 1
+import { childWorkflow, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('${name}', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const run = runWorkflow('Run', { workflowId: childWorkflow('${child}') })
+  start.to(run)
+})
+`
+}
+
+/** A parent that runs a child, beside the workflow every workspace keeps. */
+const CHILD_AND_PARENT: Record<string, string> = {
+  'workflows/parent/workflow.ts': caller('Parent', 'child'),
+  'workflows/child/workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Child', {}, () => {
+  trigger.start('Start', { inputFormat: {} })
+})
+`,
+  'workflows/keep/workflow.ts': TEXT['workflows/keep/workflow.ts'],
+}
+
+/** The workflow ids the Run Workflow blocks of workflow `workflowId` store. */
+async function runsWorkflow(workflowId: string): Promise<string[]> {
+  const loaded = await loadWorkflowFromNormalizedTables(workflowId)
+  return Object.values(loaded?.blocks ?? {}).flatMap((block) => {
+    const value = block.subBlocks.workflowId?.value
+    return typeof value === 'string' ? [value] : []
+  })
+}

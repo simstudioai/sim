@@ -94,7 +94,15 @@ export interface PlannedChange<D = unknown, P = unknown> {
    * read them (a workflow's compiled source): deleting one in the same plan refuses it, and the
    * write waits while one of them waits for a later blob round.
    */
-  refs?: Array<{ kind: WorkspaceKind; key: string }>
+  refs?: Array<{
+    kind: WorkspaceKind
+    key: string
+    /**
+     * The resource's id, for a kind keyed otherwise than a workflow names it (a workspace file,
+     * keyed by its path): the plan finds that kind's change by id and names it by its key.
+     */
+    id?: string
+  }>
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
   diagnostics: WorkspaceSourceDiagnostic[]

@@ -11,6 +11,7 @@
  */
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { type BaseResource, resourceAddress } from '@sim/workspace-code'
 import {
   type FileDecl,
@@ -26,6 +27,7 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { encodeVfsPathSegments, normalizeDisplaySegment } from '@/lib/vfs/path'
+import { parseTestFileReference } from '@/lib/workflow-tests/paths'
 import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import {
@@ -64,6 +66,13 @@ import type {
   StoredResource,
   StoredSet,
 } from '@/lib/workspace-source/application/types'
+import {
+  claimResourceKey,
+  nextFreeKey,
+  ResourceKeyTakenError,
+  resolveIds,
+  resourceKeyBase,
+} from '@/lib/workspaces/resource-keys'
 
 const logger = createLogger('WorkspaceSourceFiles')
 
@@ -84,9 +93,18 @@ interface StoredFileState {
 
 type StoredFile = StoredResource<StoredFileState>
 
-/** The content revision the plan saw; the write refuses a file that moved past it. */
+/**
+ * What a write carries out: for an update or delete, the content revision the plan saw (the
+ * write refuses a file that moved past it); for a create, the resource key it claims.
+ */
 interface FilePlan {
-  rev: string
+  rev?: string
+  /**
+   * The key a workflow names the created file by (`file('report-pdf')`), as a get would first
+   * allocate it from the file's name: the create claims it, so a workflow this apply writes
+   * after it resolves the file, as the dry run did through the create's pending entry.
+   */
+  resourceKey?: string
 }
 
 type FileChange = PlannedChange<FileDecl, FilePlan>
@@ -206,6 +224,17 @@ async function stateOf(ctx: SourceContext, fileId: string): Promise<WorkspaceFil
   return state
 }
 
+/** Why a directory never writes a file at a workflow test's path. */
+const WORKFLOW_TEST_REASON = 'is where a workflow test lives, which is not a plain workspace file'
+
+/**
+ * Whether `key` is a workflow test's path (`tests/<name>.test.js`): workflow tests are files of
+ * their own, so source never creates, changes or deletes a plain file there.
+ */
+function isWorkflowTestPath(key: string): boolean {
+  return parseTestFileReference(key) !== null
+}
+
 /** A segment the server would store under another name (trimmed, collapsed, NFC), if any. */
 function renamedSegment(key: string): string | null {
   for (const segment of key.split('/')) {
@@ -279,6 +308,15 @@ function planFile(
     }
   }
   // A file is never adopted (nothing is offered for adoption), so this is a create.
+  if (isWorkflowTestPath(key)) {
+    change.diagnostics.push(
+      kindFinding('file', key, 'E_FILE_PATH', `${fileBlobPath(key)} ${WORKFLOW_TEST_REASON}.`, {
+        hint: 'Workflow tests are managed apart from files/; move this file to another folder.',
+        file: fileBlobPath(key),
+      })
+    )
+    return change
+  }
   const renamed = renamedSegment(key)
   if (renamed !== null) {
     change.diagnostics.push(
@@ -355,6 +393,68 @@ function refuseCollisions(
   }
 }
 
+/** Free keys past a resource key's base a plan checks before it offers the next one unchecked. */
+const KEY_CANDIDATES = 8
+
+/**
+ * Gives each create (one without findings) the resource key a get would first allocate it, so a
+ * workflow of the same apply can name the file: a pending entry under that key, and the key the
+ * create claims once written. A key a live file holds already is skipped, as allocation skips it.
+ */
+async function keyCreates(ctx: PlanContext, files: FileChange[]): Promise<void> {
+  const creates = files.filter(
+    (change) => change.action === 'create' && change.diagnostics.length === 0
+  )
+  if (creates.length === 0) return
+  const bases = creates.map((change) =>
+    resourceKeyBase('file', change.key.slice(change.key.lastIndexOf('/') + 1))
+  )
+  const candidates = [...new Set(bases)].flatMap((base) => {
+    const keys = new Set<string>()
+    while (keys.size < KEY_CANDIDATES) keys.add(nextFreeKey(base, keys))
+    return [...keys]
+  })
+  const live = (
+    await resolveIds(
+      ctx.workspace.workspaceId,
+      candidates.map((key) => ({ kind: 'file' as const, key }))
+    )
+  ).get('file')
+  const taken = new Set(live?.keys() ?? [])
+  creates.forEach((change, index) => {
+    const resourceKey = nextFreeKey(bases[index], taken)
+    taken.add(resourceKey)
+    const name = change.key.slice(change.key.lastIndexOf('/') + 1)
+    change.detail = { resourceKey }
+    change.pending = { kind: 'file', key: resourceKey, id: generateId(), placeholder: true, name }
+  })
+}
+
+/**
+ * Binds `resourceKey` to a file this apply created. A key some other live file took since the plan
+ * leaves the file without it: the file is written, and a workflow naming the key fails its own
+ * write, which reports why.
+ */
+async function claimFileKey(
+  ctx: SourceContext,
+  resourceKey: string,
+  fileId: string
+): Promise<void> {
+  try {
+    await claimResourceKey({
+      workspaceId: ctx.workspace.workspaceId,
+      kind: 'file',
+      key: resourceKey,
+      resourceId: fileId,
+      origin: 'created',
+      createdBy: ctx.createdBy,
+    })
+  } catch (error) {
+    if (!(error instanceof ResourceKeyTakenError)) throw error
+    logger.warn('A created file could not claim its key', { fileId, resourceKey })
+  }
+}
+
 /**
  * The bytes a write sends and their SHA-256: the plan decoded them and checked them against the
  * declared hash, so the declaration's hash is theirs.
@@ -408,7 +508,9 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
             }
           : problem !== null
             ? { code: 'E_FILE_PATH', reason: `no directory can hold its path: ${problem}` }
-            : undefined
+            : isWorkflowTestPath(key)
+              ? { code: 'E_FILE_PATH', reason: `its path ${WORKFLOW_TEST_REASON}` }
+              : undefined
       set.bound.set(key, {
         key,
         id: file.id,
@@ -435,6 +537,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const files = [...desired].map(([key, decl]) => planFile(key, decl, stored, ctx, byId))
     const deletes = planDeletes(desired, stored, ctx, files)
     refuseCollisions(files, stored, deletes)
+    await keyCreates(ctx, files)
     return [...files, ...deletes]
   },
 
@@ -461,8 +564,9 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
     const workspaceId = ctx.workspace.workspaceId
     if (change.action === 'delete') {
       const fileId = change.storedId
-      if (!fileId || !change.detail) throw new Error('A file delete needs its plan')
-      if ((await stateOf(ctx, fileId)).rev !== change.detail.rev) {
+      const rev = change.detail?.rev
+      if (!fileId || rev === undefined) throw new Error('A file delete needs its plan')
+      if ((await stateOf(ctx, fileId)).rev !== rev) {
         throw new ResourceChangedError(change)
       }
       await deleteWorkspaceFileOperation.execute({
@@ -485,10 +589,13 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
           exactName: true,
         },
       })
+      const resourceKey = change.detail?.resourceKey
+      if (resourceKey) await claimFileKey(ctx, resourceKey, created.id)
       return written(ctx, change.key, created.id, sha256)
     }
     const fileId = change.storedId
-    if (!fileId || !change.detail) throw new Error('A file update needs its plan')
+    const rev = change.detail?.rev
+    if (!fileId || rev === undefined) throw new Error('A file update needs its plan')
     try {
       await updateWorkspaceFileContentFromBuffer.execute({
         principal,
@@ -497,7 +604,7 @@ export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
           assertedWorkspaceId: workspaceId,
           content,
           provenanceMode: 'replace_empty',
-          expectedRevision: change.detail.rev,
+          expectedRevision: rev,
         },
       })
     } catch (error) {

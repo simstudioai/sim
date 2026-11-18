@@ -47,6 +47,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
@@ -105,6 +106,9 @@ interface ApplyOptions {
 }
 
 const runner = sourceRunner(['file'], owner)
+
+/** Files beside the workflows that name them. */
+const withFiles = sourceRunner(['file', 'workflow'], owner)
 
 function apply(workspaceId: string, files: Record<string, Buffer>, options: ApplyOptions = {}) {
   const { send, ...input } = options
@@ -751,4 +755,103 @@ describe('workspace source files', () => {
         .map((finding) => `${finding.code} ${finding.key}`)
     ).toEqual(['E_APPLY_NO_BASE b.txt'])
   })
+
+  check(
+    'declares nothing at a workflow test path, and --allow-delete leaves a workflow test intact',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const test = await uploadInUi(workspaceId, 'tests', 'routing.test.js', 'test("x", () => {})')
+      await db.update(workspaceFiles).set({ context: 'test' }).where(eq(workspaceFiles.id, test.id))
+      const files = await downloaded(workspaceId, read)
+
+      const dropped = await apply(
+        workspaceId,
+        { 'files/notes.txt': files['files/notes.txt'] },
+        { base: read.base, allowDelete: true }
+      )
+      expect(dropped.failed).toBeUndefined()
+      const [kept] = await db
+        .select({ deletedAt: workspaceFiles.deletedAt })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, test.id))
+      expect(kept?.deletedAt).toBeNull()
+      expect((await get(workspaceId)).blobs.map((blob) => blob.path)).toEqual(['files/notes.txt'])
+
+      const declared = await refusal(
+        apply(workspaceId, { 'files/tests/billing.test.js': Buffer.from('test("y", () => {})') })
+      )
+      expect(
+        declared.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.key}`)
+      ).toEqual(['E_FILE_PATH tests/billing.test.js'])
+    }
+  )
+
+  check(
+    'a workflow may name a file the same apply uploads, and deleting it is refused',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const pdf = Buffer.from('%PDF-1.4 a contract')
+      const reader = (extra = '') => `// @sim-sdk 1
+import { file, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Reader', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {${extra}} })
+  const read = file.read('Read', {
+    readFileInput: { name: 'contract.pdf', path: 'contract.pdf', key: file('contract-pdf') },
+    folderIncludeSubfolders: true,
+  })
+  start.to(read)
+})
+`
+      const text = { 'workflows/reader/workflow.ts': reader() }
+      const manifest = blobsOf({ 'files/contract.pdf': pdf }, [])
+
+      const dryRun = await withFiles.apply(workspaceId, {
+        files: text,
+        blobs: manifest,
+        dryRun: true,
+      })
+      expect(dryRun.diagnostics.filter((finding) => finding.severity === 'error')).toEqual([])
+      // The workflow waits while the file it names waits for its bytes.
+      const first = await withFiles.apply(workspaceId, { files: text, blobs: manifest })
+      expect(first.remainingBlobs).toEqual(['files/contract.pdf'])
+      expect(first.applied).toEqual([])
+      const second = await withFiles.apply(workspaceId, {
+        files: text,
+        blobs: blobsOf({ 'files/contract.pdf': pdf }),
+      })
+      expect(second.failed).toBeUndefined()
+      expect(second.applied.map(({ kind, key }) => `${kind}:${key}`)).toEqual([
+        'file:contract.pdf',
+        'workflow:reader',
+      ])
+      const fileRow = second.base.resources['file:contract.pdf']?.id
+      const workflowRow = second.base.resources['workflow:reader']?.id
+      if (!fileRow || !workflowRow) throw new Error('The apply wrote nothing')
+      const stored = await loadWorkflowFromNormalizedTables(workflowRow)
+      expect(JSON.stringify(stored?.blocks)).toContain(fileRow)
+
+      // An edited workflow that still names the file refuses its delete.
+      const read = await withFiles.get(workspaceId)
+      const refused = await refusal(
+        withFiles.apply(workspaceId, {
+          files: {
+            ...read.files,
+            'workflows/reader/workflow.ts': reader(" note: 'string' "),
+          },
+          blobs: [],
+          base: read.base,
+          allowDelete: true,
+        })
+      )
+      expect(
+        refused.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+      ).toEqual(['E_PLAN_REF_DELETED workflow:reader'])
+    }
+  )
 })
