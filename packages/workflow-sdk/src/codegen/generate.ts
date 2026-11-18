@@ -38,6 +38,7 @@ import {
 import { mapParamType, mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
+import { RUNTIME_SEMANTICS } from './semantics'
 import {
   buildVisibilityContext,
   classifyParam,
@@ -687,6 +688,7 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
       '',
       'Find a builder: `grep -i "gmail" .sim/sdk/INDEX.md`. Read its params and outputs: `grep -n -A40 "export type GmailSendEmailParams" .sim/sdk/blocks/gmail_v2.d.ts` (the output type follows as `GmailSendEmailOutput`).',
       '',
+      ...RUNTIME_SEMANTICS,
       '## Builders',
       '',
       ...current.map(line),
