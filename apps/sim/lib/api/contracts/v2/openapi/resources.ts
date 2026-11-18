@@ -53,7 +53,10 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
-import { sourceCatalogOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/source-catalog'
+import {
+  SOURCE_CATALOG_HEADERS,
+  sourceCatalogOpenApiRoutes,
+} from '@/lib/api/contracts/v2/openapi/source-catalog'
 import { ssoOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/sso'
 import { workspaceInvitationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-invitations'
 import { workspacePermissionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-permissions'
@@ -2582,7 +2585,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_AUTH_SECURITY,
   securitySchemes: V2_AUTH_SECURITY_SCHEMES,
-  headers: V2_COMMON_HEADERS,
+  headers: { ...V2_COMMON_HEADERS, ...SOURCE_CATALOG_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   /**
    * Most `409`s in this document are name collisions, but MCP tool discovery

@@ -11,7 +11,10 @@ import {
 import { isRecordLike } from '@sim/utils/object'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
-import type { SourceResources } from '@/lib/api/contracts/v2/source-resources'
+import {
+  MAX_MANIFEST_RESOURCES_PER_KIND,
+  type SourceResources,
+} from '@/lib/api/contracts/v2/source-resources'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   capabilityGovernedPrincipalUserId,
@@ -29,12 +32,6 @@ import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-d
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
-
-/**
- * Most resources of one kind the manifest lists, oldest first. Past it the manifest says
- * `truncated`; source can still name a later resource by its key.
- */
-const MAX_MANIFEST_RESOURCES_PER_KIND = 1000
 
 type ManifestColumn = SourceResources['tables'][number]['columns'][number]
 type ManifestWorkflowInputs = SourceResources['workflows'][number]['inputs']

@@ -334,6 +334,65 @@ describe('defineInternalJsonRoute', () => {
   })
 })
 
+describe('HEAD on a route whose GET is not safe', () => {
+  function headRequest() {
+    return new NextRequest('http://localhost/api/test/internal-json-route', { method: 'HEAD' })
+  }
+
+  function defineUnsafeRead(authorize: () => Promise<void>) {
+    const execute = vi.fn(async () => ({ value: 'read' }))
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      headSafe: false,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: { operation, execute, authorize },
+    })
+    return { handler, execute }
+  }
+
+  it('authorizes and answers bodiless without running the read', async () => {
+    const authorize = vi.fn(async () => {})
+    const { handler, execute } = defineUnsafeRead(authorize)
+
+    const response = await handler(headRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.text()).resolves.toBe('')
+    expect(authorize).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers the status the GET would have when authorization refuses', async () => {
+    const { handler, execute } = defineUnsafeRead(async () => {
+      throw new OrchestrationError('not_found', 'Widget not found')
+    })
+
+    const response = await handler(headRequest())
+
+    expect(response.status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses at definition a use case with no authorize', () => {
+    expect(() =>
+      defineInternalJsonRoute({
+        contract,
+        auth,
+        operation,
+        headSafe: false,
+        rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+        errorPolicy: internalOrchestrationErrorPolicy,
+        mapInput: () => undefined,
+        useCase: { operation, execute: async () => ({ value: 'read' }) },
+      })
+    ).toThrow(/headSafe: false/)
+  })
+})
+
 describe('internal error projection', () => {
   class TestDomainError extends Error {}
   const domainPolicy = {

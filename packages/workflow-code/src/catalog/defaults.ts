@@ -11,6 +11,11 @@
  * a block created from source keeps the value `initBlock` minted (`mintsFreshValue`). Every
  * registry default is a string, number or boolean; anything else is not treated as a default, so
  * it always prints.
+ *
+ * Creation here means creation with no permission group, as `initBlock` creates. The editor also
+ * seeds an agent's `model` from the caller's permission group default, a per-caller value no
+ * catalog can carry. A block created from source gets only the model its source states, and a
+ * stored group default prints like any other value that is not an editor default.
  */
 
 import type { Json, SubBlockId } from '../model'

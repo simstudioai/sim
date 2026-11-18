@@ -96,8 +96,11 @@ describe('Code tab refresh', () => {
       parallels: {},
     })
     useOperationQueueStore.getState().reset()
-    const container = document.createElement('div')
-    root = createRoot(container)
+    mount()
+  })
+
+  function mount() {
+    root = createRoot(document.createElement('div'))
     act(() => {
       root.render(
         <QueryClientProvider client={new QueryClient()}>
@@ -107,7 +110,16 @@ describe('Code tab refresh', () => {
         </QueryClientProvider>
       )
     })
-  })
+  }
+
+  function queueOperation(id: string, operation: string, target: string) {
+    useOperationQueueStore.getState().addToQueue({
+      id,
+      operation: { operation, target, payload: {} },
+      workflowId: WORKFLOW_ID,
+      userId: 'user-1',
+    })
+  }
 
   afterEach(() => {
     act(() => root.unmount())
@@ -192,6 +204,24 @@ describe('Code tab refresh', () => {
     })
     await settle()
     expect(sourceReads).toHaveLength(1)
+  })
+
+  it('ignores a single-block handle toggle, which copies the loops map', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    act(() => useWorkflowStore.getState().setBlockHandles('score', true))
+    await settle()
+    expect(sourceReads).toHaveLength(1)
+  })
+
+  it('re-reads once an edit queued before the tab opened persists', async () => {
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
+    act(() => root.unmount())
+    act(() => queueOperation('op-name', 'update-name', 'block'))
+    mount()
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(2))
+    act(() => useOperationQueueStore.getState().confirmOperation('op-name'))
+    await settle()
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(3))
   })
 
   it('re-reads the source after an edge is added', async () => {

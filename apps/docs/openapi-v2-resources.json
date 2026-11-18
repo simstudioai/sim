@@ -14804,8 +14804,11 @@
         ],
         "responses": {
           "200": {
-            "description": "The source catalog. A request whose `If-None-Match` matches the current `ETag` gets `304 Not Modified` with no body instead.",
+            "description": "The source catalog.",
             "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
               },
@@ -14877,6 +14880,14 @@
                     }
                   }
                 }
+              }
+            }
+          },
+          "304": {
+            "description": "The caller already holds the current catalog: `If-None-Match` names the current `ETag`. The response has no body.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
               }
             }
           },
@@ -14978,6 +14989,15 @@
           "minLength": 1,
           "title": "Run identifier",
           "description": "Identifier assigned to the workflow run."
+        }
+      },
+      "ETag": {
+        "description": "The catalog `hash`, quoted. Send it back in `If-None-Match` to revalidate the catalog.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Entity tag",
+          "description": "The catalog `hash`, quoted. Send it back in `If-None-Match` to revalidate the catalog."
         }
       }
     },

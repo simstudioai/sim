@@ -26,6 +26,11 @@ describe('stableStringify', () => {
     expect(() => stableStringify({ n: Number.NaN })).toThrow(TypeError)
     expect(() => stableStringify([Number.POSITIVE_INFINITY])).toThrow(TypeError)
     expect(() => stableStringify([undefined])).toThrow(TypeError)
+    // A hole is `undefined` too; skipping it would hash `[,]` as `[]`.
+    const trailingHole = [1]
+    trailingHole.length = 2
+    expect(() => stableStringify(new Array(1))).toThrow(TypeError)
+    expect(() => stableStringify(trailingHole)).toThrow(TypeError)
     expect(() => stableStringify({ f: () => 1 })).toThrow(TypeError)
     expect(() => stableStringify(BigInt(1))).toThrow(TypeError)
     expect(() => stableStringify(new Date(0))).toThrow(TypeError)

@@ -116,8 +116,11 @@ function declaredTableSchemas(
   return schemas
 }
 
-/** `primary`, falling back to `fallback` for a key, id or name it does not resolve. */
-function fallbackResolver(
+/**
+ * `primary`, falling back to `fallback` for a key, id or name it does not resolve. Whether an id
+ * is built in is `primary`'s answer alone.
+ */
+function withFallback(
   primary: ResourceKeyResolver,
   fallback: Pick<ResourceKeyResolver, 'toKey' | 'toId' | 'nameOf'>
 ): ResourceKeyResolver {
@@ -137,7 +140,7 @@ function withPendingResources(
   if (pending.length === 0) return resources
   const byId = (kind: ResourceKind, id: string) =>
     pending.find((entry) => entry.kind === kind && entry.id === id)
-  return fallbackResolver(resources, {
+  return withFallback(resources, {
     toKey: (kind, id) => byId(kind, id)?.key ?? null,
     toId: (kind, key) =>
       pending.find((entry) => entry.kind === kind && entry.key === key)?.id ?? null,
@@ -325,14 +328,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
 
   const compiledKeys: ResourceKeyRef[] = []
   collectResourceKeys(compiledWorkflow.blocks, compiledKeys)
-  const newKeys = compiledKeys.filter(({ kind, key }) => resources.toId(kind, key) === null)
+  const storedResources = resources
+  const newKeys = compiledKeys.filter(({ kind, key }) => storedResources.toId(kind, key) === null)
   if (newKeys.length > 0) {
     const extra = await loadResourceKeyResolver(
       scope.workspaceId,
       { keys: newKeys },
       { actorUserId: input.createdBy }
     )
-    resources = fallbackResolver(resources, extra)
+    resources = withFallback(storedResources, extra)
   }
 
   resources = withPendingResources(resources, input.pendingResources ?? [])

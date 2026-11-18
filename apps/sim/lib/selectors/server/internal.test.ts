@@ -74,7 +74,7 @@ describe('workspace.secretNames selector', () => {
   })
 
   it('returns the ACL-filtered names without loading the decrypted environment snapshot', async () => {
-    environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames.mockResolvedValue([
+    environmentUtilsMockFns.mockGetWorkspaceEnvironmentVariableNames.mockResolvedValue([
       'PERSONAL_KEY',
       'SHARED_KEY',
     ])
@@ -99,7 +99,7 @@ describe('workspace.secretNames selector', () => {
       ],
     })
 
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames).toHaveBeenCalledWith(
+    expect(environmentUtilsMockFns.mockGetWorkspaceEnvironmentVariableNames).toHaveBeenCalledWith(
       'user-1',
       'workspace-1'
     )
