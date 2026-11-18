@@ -152,9 +152,12 @@ type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
 /**
  * The resources a compiled workflow names that a workspace directory declares by the same key: a
  * kind whose source key is its resource key (a workspace file's source key is its path), once per
- * member it names (an MCP server's tools).
+ * member it names (an MCP server's tools), and each secret it reads by name (`env.NAME`).
  */
-function sourceRefs(references: readonly SourceReference[]): NonNullable<WorkflowChange['refs']> {
+function sourceRefs(
+  references: readonly SourceReference[],
+  envReferences: readonly string[]
+): NonNullable<WorkflowChange['refs']> {
   const refs = new Map<string, NonNullable<WorkflowChange['refs']>[number]>()
   for (const { kind, key, member } of references) {
     if (!isWorkspaceKind(kind) || !isResourceKeyed(kind)) continue
@@ -163,6 +166,9 @@ function sourceRefs(references: readonly SourceReference[]): NonNullable<Workflo
       key,
       ...(member !== undefined ? { member } : {}),
     })
+  }
+  for (const name of envReferences) {
+    refs.set(JSON.stringify(['secret', name, null]), { kind: 'secret', key: name })
   }
   return [...refs.values()]
 }
@@ -380,7 +386,7 @@ async function planUpdate(
     action: result.diff.noop && !metaOnly ? 'noop' : 'update',
     storedId: update.workflowId,
     fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
-    refs: sourceRefs(result.references),
+    refs: sourceRefs(result.references, result.envReferences),
     detail: {
       update: { lock: read.lock, base: update.base, allowDelete: ctx.allowDelete },
       ...(evaluated ? { evaluated } : {}),
@@ -418,7 +424,7 @@ async function planCreate(
       action: 'create',
       pending: pendingOf({ ...change, action: 'create' }),
       fields: diffFields(result.diff),
-      refs: sourceRefs(result.references),
+      refs: sourceRefs(result.references, result.envReferences),
       ...(evaluated ? { detail: { evaluated } } : {}),
     },
     ...(result.evaluated ? { name: result.workflowName } : {}),

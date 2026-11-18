@@ -38,6 +38,19 @@ export interface WorkspaceManifest {
   knowledgeBases?: string[]
   /** Saved credentials, with the provider each one is for. */
   credentials?: Record<string, { provider: string }>
+  /**
+   * The keys `credentials.ts` declared when the CLI wrote this file (a get), present when the
+   * directory has the file. Every key the file declares now types (`DeclaredCredentials<typeof
+   * import('../../credentials').default>`), so a key added since the get type-checks before it is
+   * applied; a stored credential under one of these keys is left out, so the declared provider
+   * wins.
+   */
+  credentialDeclarations?: string[]
+  /**
+   * The names `secrets.ts` declared when the CLI wrote this file, present when the directory has
+   * the file. Every name the file declares now types as `env.NAME`, beside the stored ones.
+   */
+  secretDeclarations?: string[]
   /** Workflows by key, with the inputs their start block declares. */
   workflows?: Record<string, { inputs?: Record<string, string> }>
   /** Workspace skills by key. */
@@ -113,9 +126,21 @@ function keyMembers(keys: readonly string[] | undefined): string[] {
   return [...new Set(keys ?? [])].sort(compareStrings).map((key) => `${quoteString(key)}: true`)
 }
 
-function interfaceBlock(name: string, members: readonly string[]): string[] {
+function interfaceBlock(name: string, members: readonly string[], extendsType?: string): string[] {
+  if (extendsType !== undefined) {
+    return [
+      `  interface ${name} extends ${extendsType} {`,
+      ...members.map((member) => `    ${member}`),
+      '  }',
+    ]
+  }
   if (members.length === 0) return []
   return [`  interface ${name} {`, ...members.map((member) => `    ${member}`), '  }']
+}
+
+/** `Helper<typeof import('../../<file>').default>`: a root declaration file's type, live. */
+function declaredFileType(helper: string, file: string): string {
+  return `${helper}<typeof import(${quoteString(`../../${file}`)}).default>`
 }
 
 /** Generates `workspace.d.ts`. Deterministic: keys are sorted. */
@@ -134,10 +159,13 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     return `${quoteString(key)}: { ${fields.join('; ')} }`
   })
   const knowledgeBases = keyMembers(manifest.knowledgeBases)
-  const credentials = sortedKeys(manifest.credentials).map(
-    (key) =>
-      `${quoteString(key)}: { provider: ${quoteString(manifest.credentials?.[key]?.provider ?? '')} }`
-  )
+  const declaredCredentials = new Set(manifest.credentialDeclarations ?? [])
+  const credentials = sortedKeys(manifest.credentials)
+    .filter((key) => !declaredCredentials.has(key))
+    .map(
+      (key) =>
+        `${quoteString(key)}: { provider: ${quoteString(manifest.credentials?.[key]?.provider ?? '')} }`
+    )
   const workflows = sortedKeys(manifest.workflows).map((key) => {
     const inputs = manifest.workflows?.[key]?.inputs ?? {}
     const fields = sortedKeys(inputs).map((name) => `${printKey(name)}: ${inputType(inputs[name])}`)
@@ -158,21 +186,36 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
   const body = [
     ...interfaceBlock('WorkspaceTables', [...declaredTables, ...tables]),
     ...interfaceBlock('WorkspaceKnowledgeBases', knowledgeBases),
-    ...interfaceBlock('WorkspaceCredentials', credentials),
+    ...interfaceBlock(
+      'WorkspaceCredentials',
+      credentials,
+      manifest.credentialDeclarations
+        ? declaredFileType('DeclaredCredentials', 'credentials')
+        : undefined
+    ),
     ...interfaceBlock('WorkspaceWorkflows', workflows),
     ...interfaceBlock('WorkspaceSkills', keyMembers(manifest.skills)),
     ...interfaceBlock('WorkspaceCustomTools', keyMembers(manifest.customTools)),
     ...interfaceBlock('WorkspaceMcpServers', mcpServers),
-    ...interfaceBlock('WorkspaceEnv', env),
+    ...interfaceBlock(
+      'WorkspaceEnv',
+      env,
+      manifest.secretDeclarations ? declaredFileType('DeclaredSecretNames', 'secrets') : undefined
+    ),
   ]
   const text = body.join('\n')
   const used = ['Json', 'SimFile'].filter((name) => new RegExp(`\\b${name}\\b`).test(text))
+  const workspaceImports = ['DeclaredCredentials', 'DeclaredSecretNames', 'RowOf'].filter((name) =>
+    new RegExp(`\\b${name}<`).test(text)
+  )
   return {
     path: 'workspace.d.ts',
     text: [
       '// @sim-sdk workspace · generated from the workspace resource manifest; do not edit',
       used.length > 0 ? `import type { ${used.join(', ')} } from '@sim/workflow-sdk'` : 'export {}',
-      ...(declared.length > 0 ? ["import type { RowOf } from '@sim/workflow-sdk/workspace'"] : []),
+      ...(workspaceImports.length > 0
+        ? [`import type { ${workspaceImports.join(', ')} } from '@sim/workflow-sdk/workspace'`]
+        : []),
       '',
       `declare module '@sim/workflow-sdk' {`,
       ...body,

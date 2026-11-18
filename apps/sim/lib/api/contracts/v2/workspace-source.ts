@@ -14,7 +14,7 @@ const kindSchema = z
     error: `kind: expected one of ${APPLY_ORDER.map((kind) => `"${kind}"`).join(' | ')}`,
   })
   .describe(
-    'A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`.'
+    'A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`.'
   )
 
 const paramsSchema = z
@@ -46,7 +46,7 @@ const pathSchema = z
   .max(SOURCE_PATH_MAX_LENGTH, `a path cannot exceed ${SOURCE_PATH_MAX_LENGTH} characters`)
   .refine(
     isWorkspaceSourcePath,
-    'a path must sit inside a kind folder, with no `.` or `..` segments'
+    "a path must sit inside a kind folder (or be a kind's root file), with no `.` or `..` segments"
   )
 
 const sha256Schema = z
@@ -166,6 +166,12 @@ const changeSchema = z
         'Data the change deletes: dropped columns, removed select options and the cells they empty, or a deleted resource. A dry run shows it whether or not `allowDelete` is set.'
       ),
     id: z.string().optional().describe('Stored id, once known.'),
+    held: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Held back: the change uses a declared secret the workspace has no value for, or a declared credential key nothing binds to (see its errors). It is not written; the rest of the apply goes ahead.'
+      ),
   })
   .describe('One planned or applied change.')
 

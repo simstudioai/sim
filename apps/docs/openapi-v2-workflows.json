@@ -24586,6 +24586,8 @@
                 "items": {
                   "type": "string",
                   "enum": [
+                    "secret",
+                    "credential",
                     "custom-tool",
                     "skill",
                     "mcp-server",
@@ -24594,7 +24596,7 @@
                     "file",
                     "workflow"
                   ],
-                  "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 },
                 "description": "The kinds read; the directory manages exactly these."
               },
@@ -24764,6 +24766,8 @@
                     "kind": {
                       "type": "string",
                       "enum": [
+                        "secret",
+                        "credential",
                         "custom-tool",
                         "skill",
                         "mcp-server",
@@ -24772,7 +24776,7 @@
                         "file",
                         "workflow"
                       ],
-                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
                     "key": {
                       "type": "string",
@@ -24812,6 +24816,13 @@
                         "E_BASE_VERSION",
                         "E_BASE_SHAPE",
                         "E_BASE_UNKNOWN_FIELD",
+                        "E_SECRET_NAME",
+                        "E_SECRET_MISSING",
+                        "W_SECRET_MISSING",
+                        "E_CREDENTIAL_MISSING",
+                        "E_CREDENTIAL_AMBIGUOUS",
+                        "W_CREDENTIAL_MISSING",
+                        "W_CREDENTIAL_AMBIGUOUS",
                         "E_TABLE_COLUMN_NAME",
                         "E_TABLE_DUPLICATE_COLUMN",
                         "E_TABLE_TOO_MANY_COLUMNS",
@@ -24856,6 +24867,7 @@
                         "E_APPLY_FAILED",
                         "E_PLAN_TOO_LARGE",
                         "E_PLAN_REF_DELETED",
+                        "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
@@ -25152,6 +25164,8 @@
                     "kind": {
                       "type": "string",
                       "enum": [
+                        "secret",
+                        "credential",
                         "custom-tool",
                         "skill",
                         "mcp-server",
@@ -25160,7 +25174,7 @@
                         "file",
                         "workflow"
                       ],
-                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
                     "key": {
                       "type": "string",
@@ -25205,6 +25219,11 @@
                     "id": {
                       "description": "Stored id, once known.",
                       "type": "string"
+                    },
+                    "held": {
+                      "description": "Held back: the change uses a declared secret the workspace has no value for, or a declared credential key nothing binds to (see its errors). It is not written; the rest of the apply goes ahead.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": ["kind", "key", "action"],
@@ -25221,6 +25240,8 @@
                     "kind": {
                       "type": "string",
                       "enum": [
+                        "secret",
+                        "credential",
                         "custom-tool",
                         "skill",
                         "mcp-server",
@@ -25229,7 +25250,7 @@
                         "file",
                         "workflow"
                       ],
-                      "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                      "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
                     "key": {
                       "type": "string",
@@ -25274,6 +25295,11 @@
                     "id": {
                       "description": "Stored id, once known.",
                       "type": "string"
+                    },
+                    "held": {
+                      "description": "Held back: the change uses a declared secret the workspace has no value for, or a declared credential key nothing binds to (see its errors). It is not written; the rest of the apply goes ahead.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": ["kind", "key", "action"],
@@ -25289,6 +25315,8 @@
                   "kind": {
                     "type": "string",
                     "enum": [
+                      "secret",
+                      "credential",
                       "custom-tool",
                       "skill",
                       "mcp-server",
@@ -25297,7 +25325,7 @@
                       "file",
                       "workflow"
                     ],
-                    "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                    "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                   },
                   "key": {
                     "type": "string",
@@ -25322,6 +25350,13 @@
                       "E_BASE_VERSION",
                       "E_BASE_SHAPE",
                       "E_BASE_UNKNOWN_FIELD",
+                      "E_SECRET_NAME",
+                      "E_SECRET_MISSING",
+                      "W_SECRET_MISSING",
+                      "E_CREDENTIAL_MISSING",
+                      "E_CREDENTIAL_AMBIGUOUS",
+                      "W_CREDENTIAL_MISSING",
+                      "W_CREDENTIAL_AMBIGUOUS",
                       "E_TABLE_COLUMN_NAME",
                       "E_TABLE_DUPLICATE_COLUMN",
                       "E_TABLE_TOO_MANY_COLUMNS",
@@ -25366,6 +25401,7 @@
                       "E_APPLY_FAILED",
                       "E_PLAN_TOO_LARGE",
                       "E_PLAN_REF_DELETED",
+                      "E_PLAN_REF_HELD",
                       "W_RESOURCE_IN_USE",
                       "E_NAME_TAKEN",
                       "E_WORKFLOW_FILES_MISSING",
@@ -25677,6 +25713,13 @@
                         "E_BASE_VERSION",
                         "E_BASE_SHAPE",
                         "E_BASE_UNKNOWN_FIELD",
+                        "E_SECRET_NAME",
+                        "E_SECRET_MISSING",
+                        "W_SECRET_MISSING",
+                        "E_CREDENTIAL_MISSING",
+                        "E_CREDENTIAL_AMBIGUOUS",
+                        "W_CREDENTIAL_MISSING",
+                        "W_CREDENTIAL_AMBIGUOUS",
                         "E_TABLE_COLUMN_NAME",
                         "E_TABLE_DUPLICATE_COLUMN",
                         "E_TABLE_TOO_MANY_COLUMNS",
@@ -25721,6 +25764,7 @@
                         "E_APPLY_FAILED",
                         "E_PLAN_TOO_LARGE",
                         "E_PLAN_REF_DELETED",
+                        "E_PLAN_REF_HELD",
                         "W_RESOURCE_IN_USE",
                         "E_NAME_TAKEN",
                         "E_WORKFLOW_FILES_MISSING",
@@ -26159,11 +26203,13 @@
             "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
           },
           "kinds": {
-            "maxItems": 7,
+            "maxItems": 9,
             "type": "array",
             "items": {
               "type": "string",
               "enum": [
+                "secret",
+                "credential",
                 "custom-tool",
                 "skill",
                 "mcp-server",
@@ -26172,7 +26218,7 @@
                 "file",
                 "workflow"
               ],
-              "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+              "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
             },
             "description": "The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent."
           },
@@ -26190,6 +26236,8 @@
                 "items": {
                   "type": "string",
                   "enum": [
+                    "secret",
+                    "credential",
                     "custom-tool",
                     "skill",
                     "mcp-server",
@@ -26198,7 +26246,7 @@
                     "file",
                     "workflow"
                   ],
-                  "description": "A resource kind: `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
+                  "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 }
               }
             },

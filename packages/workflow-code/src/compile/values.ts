@@ -631,8 +631,12 @@ function segmentsOf(
   return segments
 }
 
-/** `W_ENV_UNKNOWN` when the caller's runs resolve a known set of env names and `name` is not one. */
+/**
+ * Records `name` as read, and reports `W_ENV_UNKNOWN` when the caller's runs resolve a known set of
+ * env names and `name` is not one.
+ */
 function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: BlockKey): void {
+  ctx.envReferences.add(name)
   if (!ctx.envNames || ctx.envNames.has(name)) return
   ctx.reporter.report(
     'W_ENV_UNKNOWN',

@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { db } from '@sim/db'
 import {
+  credential,
   customTools,
   document,
   knowledgeBase,
@@ -53,6 +54,7 @@ import {
   deleteKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import { setSecretUseCase } from '@/lib/secrets/application/use-cases'
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
@@ -354,15 +356,31 @@ describe('workspace source across kinds', () => {
         ),
       }
 
+      // The cookbook declares the secret its workflow reads and a Slack credential.
+      await setSecretUseCase.execute({
+        principal: owner,
+        input: { workspaceId, name: 'ANTHROPIC_API_KEY', scope: 'workspace', value: 'test' },
+      })
+      await db.insert(credential).values({
+        id: generateId(),
+        workspaceId,
+        type: 'service_account',
+        displayName: 'Support Slack',
+        providerId: 'slack',
+        createdBy: ownerId,
+      })
+
       const dryRun = await apply(workspaceId, cookbook, { dryRun: true })
       expect(findings(dryRun.diagnostics, 'error')).toEqual([])
-      expect(findings(dryRun.diagnostics, 'warning')).toEqual(['W_ENV_UNKNOWN workflow:support'])
+      expect(findings(dryRun.diagnostics, 'warning')).toEqual([])
       const result = await apply(workspaceId, cookbook)
 
       expect(result.failed).toBeUndefined()
       expect(
         result.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)
       ).toEqual([
+        'update secret:ANTHROPIC_API_KEY',
+        'adopt credential:slack',
         'create custom-tool:lookup-order',
         'create skill:tone',
         'create table:orders',

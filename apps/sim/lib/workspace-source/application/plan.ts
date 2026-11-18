@@ -12,6 +12,7 @@ import {
   type BlobEntry,
   emptyBase,
   flattenDiagnostic,
+  isFileKind,
   KIND_DIRS,
   parseWorkspaceBase,
   resourceAddress,
@@ -28,6 +29,8 @@ import {
   kindLimitFinding,
   overKindLimit,
   refDeletedFinding,
+  refHeldFinding,
+  refUnavailableFinding,
 } from '@/lib/workspace-source/application/findings'
 import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
@@ -63,6 +66,16 @@ export interface WorkspacePlan {
   needBlobs: string[]
   /** The bytes this round carries by path, checked against their hash and size. */
   carried: ReadonlyMap<string, Buffer>
+  /**
+   * Whether an error refuses the whole apply: any error but those of changes held back (see
+   * `PlannedChange.held`), which only keep those changes from being written.
+   */
+  refused: boolean
+  /**
+   * The root files of the managed file kinds (`secrets.ts`), printed from their declarations: an
+   * apply writes them back so the directory holds them as a get would.
+   */
+  reprint: Record<string, string>
 }
 
 type SubmittedBlob = NonNullable<WorkspaceSourceSubmission['blobs']>[number]
@@ -253,6 +266,8 @@ export async function planWorkspaceSource(
       base,
       needBlobs: [],
       carried: blobs.carried,
+      refused: true,
+      reprint: {},
     }
   }
 
@@ -263,6 +278,7 @@ export async function planWorkspaceSource(
     pending: [],
   }
   const changes: PlannedChange[] = []
+  const reprint: Record<string, string> = {}
   // Declarations sent without their files, by kind: the codec reads them as unchanged.
   const unchanged = new Map<WorkspaceKind, ReadonlySet<string>>()
   for (const kind of APPLY_ORDER) {
@@ -293,7 +309,9 @@ export async function planWorkspaceSource(
         group.flatMap((path) => blobs.byPath.get(path) ?? [])
       )
       kindFindings.push(...parsed.diagnostics.map(flattenDiagnostic))
-      if (parsed.decl !== undefined) desired.set(key, parsed.decl)
+      if (parsed.decl === undefined) continue
+      desired.set(key, parsed.decl)
+      if (isFileKind(kind)) Object.assign(reprint, adapter.codec.print(key, parsed.decl).text)
     }
     const unchangedKeys = new Set(
       [...desired].filter(([, decl]) => adapter.codec.isUnchanged?.(decl)).map(([key]) => key)
@@ -345,6 +363,7 @@ export async function planWorkspaceSource(
       diagnostics.push(refDeletedFinding(change, ref))
     }
   }
+  holdUnavailable(changes)
 
   const writes = changes.filter((change) => change.action !== 'noop')
   if (writes.length > WORKSPACE_SOURCE_LIMITS.maxChanges) {
@@ -368,6 +387,12 @@ export async function planWorkspaceSource(
       }
     })
   }
+  // Errors outside the changes, then those of changes not held back, refuse the apply.
+  const refused =
+    diagnostics.some((finding) => finding.severity === 'error') ||
+    changes.some(
+      (change) => !change.held && change.diagnostics.some((finding) => finding.severity === 'error')
+    )
   for (const change of changes) diagnostics.push(...change.diagnostics)
 
   const needBlobs = [
@@ -375,5 +400,58 @@ export async function planWorkspaceSource(
       writes.flatMap((change) => change.needsBlobs ?? []).filter((path) => !blobs.sent.has(path))
     ),
   ]
-  return { changes, diagnostics: capFindings(diagnostics), base, needBlobs, carried: blobs.carried }
+  return {
+    changes,
+    diagnostics: capFindings(diagnostics),
+    base,
+    needBlobs,
+    carried: blobs.carried,
+    refused,
+    reprint,
+  }
+}
+
+/**
+ * Holds back every write that uses an unavailable reference (a declared secret the workspace has
+ * no value for, a declared credential key nothing binds to), and then every write that uses a
+ * resource held back (a workflow another held workflow creates), each with the finding that says
+ * why. A held change is not written; the rest of the apply goes ahead.
+ */
+function holdUnavailable(changes: PlannedChange[]): void {
+  const unavailable = new Map(
+    changes.flatMap((change) =>
+      change.unavailable ? [[resourceAddress(change.kind, change.key), change.unavailable]] : []
+    )
+  )
+  if (unavailable.size === 0) return
+  const writes = changes.filter((change) => change.action !== 'noop' && change.action !== 'delete')
+  const held = new Set<string>()
+  for (const change of writes) {
+    for (const ref of change.refs ?? []) {
+      const reference = unavailable.get(resourceAddress(ref.kind, ref.key))
+      if (!reference) continue
+      change.diagnostics.push(refUnavailableFinding(change, reference))
+      change.held = true
+      // An unbindable credential key dry-runs under a placeholder id, which the workflow's
+      // credential gate refuses as unreachable: the hold says why, so that refusal is dropped.
+      if (ref.kind === 'credential') {
+        change.diagnostics = change.diagnostics.filter(
+          (finding) => finding.code !== 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        )
+      }
+    }
+    if (change.held) held.add(resourceAddress(change.kind, change.key))
+  }
+  for (let grew = held.size > 0; grew; ) {
+    grew = false
+    for (const change of writes) {
+      if (change.held) continue
+      const ref = (change.refs ?? []).find((each) => held.has(resourceAddress(each.kind, each.key)))
+      if (!ref) continue
+      change.diagnostics.push(refHeldFinding(change, ref))
+      change.held = true
+      held.add(resourceAddress(change.kind, change.key))
+      grew = true
+    }
+  }
 }

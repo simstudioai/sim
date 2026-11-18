@@ -115,7 +115,13 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 
 ### A workspace resource kind
 
-1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`); every
+The kinds: secrets (`secrets.ts`), credentials (`credentials.ts`), custom tools, skills, tables,
+knowledge bases, files, workflows. Secrets and credentials are reference kinds declared whole in one
+root file (`FILE_KINDS`): see DESIGN.md "Reference kinds" for holding back the workflows that use
+an entry the workspace cannot satisfy.
+
+1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`), and its
+   `WORKSPACE_KIND_SPECS` entry (`resourceKind` is the key-table kind, `null` for none); every
    `Record<WorkspaceKind, …>` then fails to type-check until it has the kind.
 2. A codec `packages/workspace-code/src/kinds/<kind>.ts` with tests; `KIND_LAYOUTS`, and
    `BLOB_KIND_CODECS` if it holds blobs (`src/kinds/registry.ts`); its diagnostic codes.

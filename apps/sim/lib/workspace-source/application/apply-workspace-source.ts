@@ -53,6 +53,8 @@ export interface WorkspaceSourceChange {
   destructive?: { what: string; counts: Record<string, number> }
   /** The resource's id, once known. */
   id?: string
+  /** Held back for a reference the workspace cannot satisfy: not written (see its errors). */
+  held?: true
 }
 
 export interface ApplyWorkspaceSourceResult {
@@ -83,14 +85,19 @@ function summarize(change: PlannedChange, id?: string): WorkspaceSourceChange {
     ...(change.fields && change.fields.length > 0 ? { fields: change.fields } : {}),
     ...(change.destructive ? { destructive: change.destructive } : {}),
     ...((id ?? change.storedId) ? { id: id ?? change.storedId } : {}),
+    ...(change.held ? { held: true as const } : {}),
   }
 }
 
-/** Writes in apply order (creates and updates), then deletes in reverse order. */
+/**
+ * Writes in apply order (creates and updates), then deletes in reverse order; a change held back
+ * is not written.
+ */
 function writeOrder(changes: PlannedChange[]): PlannedChange[] {
   const rank = (kind: WorkspaceKind) => APPLY_ORDER.indexOf(kind)
-  const writes = changes.filter((change) => change.action !== 'noop' && change.action !== 'delete')
-  const deletes = changes.filter((change) => change.action === 'delete')
+  const written = changes.filter((change) => !change.held)
+  const writes = written.filter((change) => change.action !== 'noop' && change.action !== 'delete')
+  const deletes = written.filter((change) => change.action === 'delete')
   return [
     ...writes.sort((a, b) => rank(a.kind) - rank(b.kind)),
     ...deletes.sort((a, b) => rank(b.kind) - rank(a.kind)),
@@ -154,8 +161,9 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
 
 /**
  * Applies a workspace source directory: plans every managed kind, refuses the whole apply when
- * any change has an error (nothing written), then writes each change through the use case that
- * owns it, in apply order with deletes last and in reverse. The writes commit one by one, so a
+ * any change has an error (nothing written) apart from the changes held back for a reference the
+ * workspace cannot satisfy, which alone are not written, then writes each change through the use
+ * case that owns it, in apply order with deletes last and in reverse. The writes commit one by one, so a
  * failure stops the apply and reports what was written before it (`failed`); re-running the same
  * directory converges. Each child use case audits its own write; this records one roll-up.
  */
@@ -172,8 +180,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     }
     const dryRun = input.dryRun === true
     const plan = await planWorkspaceSource(input, ctx, { decodeBlobs: !dryRun })
-    const refused = plan.diagnostics.some((finding) => finding.severity === 'error')
-    if (refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
+    if (plan.refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
     const result: ApplyWorkspaceSourceResult = {
       workspaceId: context.workspaceId,
       dryRun,
@@ -186,6 +193,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       diagnostics: plan.diagnostics,
     }
     if (dryRun) return result
+    Object.assign(result.files, plan.reprint)
 
     const missing = new Set(plan.needBlobs)
     const writeCtx: ApplyContext = {

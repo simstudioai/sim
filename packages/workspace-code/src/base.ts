@@ -20,7 +20,7 @@ import {
 } from '@sim/workflow-code'
 import { diagnostic, type WorkspaceDiagnostic } from './diagnostics'
 import { isWorkspaceKind, SHA256_HEX, type WorkspaceKind } from './kind'
-import { isFileKey, isResourceKey } from './layout'
+import { isFileKey, isResourceKey, isSecretName } from './layout'
 
 /** `rf1:` + lowercase hex SHA-256 of a resource's canonical declaration. */
 export type ResourceFingerprint = `rf1:${string}`
@@ -86,7 +86,9 @@ export function parseResourceAddress(address: string): { kind: WorkspaceKind; ke
   const kind = address.slice(0, colon)
   const key = address.slice(colon + 1)
   if (colon <= 0 || !isWorkspaceKind(kind)) return null
-  return (kind === 'file' ? isFileKey(key) : isResourceKey(key)) ? { kind, key } : null
+  const valid =
+    kind === 'file' ? isFileKey(key) : kind === 'secret' ? isSecretName(key) : isResourceKey(key)
+  return valid ? { kind, key } : null
 }
 
 /** An empty base for `workspaceId`. */

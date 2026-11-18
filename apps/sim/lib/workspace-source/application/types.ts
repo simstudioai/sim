@@ -5,6 +5,7 @@ import type {
   FlatDiagnostic,
   KindCodec,
   WorkspaceBaseV1,
+  WorkspaceDiagnosticCode,
   WorkspaceKind,
 } from '@sim/workspace-code'
 import type { SourceRequestShare } from '@/lib/workflows/application/apply-workflow-source'
@@ -62,6 +63,18 @@ export interface StoredSet<S> {
 
 export type ChangeAction = 'create' | 'update' | 'adopt' | 'delete' | 'noop'
 
+/**
+ * A declared reference this workspace cannot satisfy (a secret it holds no value for, a credential
+ * key nothing binds to): the plan holds back every change that uses it, with this finding, and
+ * applies the rest.
+ */
+export interface UnavailableReference {
+  code: Extract<WorkspaceDiagnosticCode, `E_${string}`>
+  /** Why, naming the reference; the finding on each change that uses it says which change. */
+  message: string
+  hint: string
+}
+
 /** What an apply would do to one resource. */
 export interface PlannedChange<D = unknown, P = unknown> {
   kind: WorkspaceKind
@@ -102,6 +115,16 @@ export interface PlannedChange<D = unknown, P = unknown> {
   }>
   /** The base entry a no-op records, when the directory's base lacked or misnamed it. */
   base?: BaseResource
+  /**
+   * Set by a reference kind on its own change when the declared reference cannot be satisfied:
+   * every change whose `refs` name it is held back.
+   */
+  unavailable?: UnavailableReference
+  /**
+   * The change uses an unavailable reference (or a change held for one), so it is not written;
+   * its errors hold it alone back rather than refuse the apply.
+   */
+  held?: true
   diagnostics: WorkspaceSourceDiagnostic[]
   /** Kind-private plan data the apply carries out (a table's column changes, …). */
   detail?: P
@@ -185,6 +208,12 @@ export interface KindAdapter<D, S, P = unknown> {
    * once every kind is planned, whether or not the directory manages this kind.
    */
   checkRefs?(changes: readonly PlannedChange[], ctx: PlanContext): Promise<void>
+  /**
+   * The files of a kind one root file declares whole (`secrets.ts`), printed from the stored
+   * resources a get read: each `read` records its base entry and no text, and this prints the one
+   * file they share. A folder kind prints each resource in `read` and has none.
+   */
+  printAll?(read: readonly StoredResource<S>[]): Record<string, string>
 }
 
 /** One resource of a batched read: what was read, or the error that kept it from being read. */

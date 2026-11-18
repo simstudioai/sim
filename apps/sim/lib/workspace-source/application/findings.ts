@@ -4,6 +4,7 @@
 import {
   type BaseResource,
   type FlatDiagnostic,
+  isFileKind,
   KIND_DIRS,
   resourceAddress,
   severityOf,
@@ -17,6 +18,7 @@ import type {
   PlannedChange,
   StoredResource,
   StoredSet,
+  UnavailableReference,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
@@ -37,9 +39,9 @@ export function finding(
 export const GET_HINT =
   'Run `sim workspaces source get` into a fresh directory, reapply your edit there, and apply again.'
 
-/** `tables/leads`: how a finding names a resource. */
+/** `tables/leads`, or `secrets.ts OPENAI_API_KEY` for a root file's entry: how a finding names a resource. */
 export function where(kind: WorkspaceKind, key: string): string {
-  return `${KIND_DIRS[kind]}/${key}`
+  return isFileKind(kind) ? `${KIND_DIRS[kind]} ${key}` : `${KIND_DIRS[kind]}/${key}`
 }
 
 /**
@@ -129,6 +131,37 @@ export function refDeletedFinding(
     'E_PLAN_REF_DELETED',
     `${where(user.kind, user.key)} uses ${ref.kind} "${ref.key}", which this apply deletes.`,
     { hint: `Keep ${where(ref.kind, ref.key)}, or stop using it first.` }
+  )
+}
+
+/**
+ * The finding that holds back `user` (a declared workflow, say) for using `reference`, which this
+ * workspace cannot satisfy.
+ */
+export function refUnavailableFinding(
+  user: { kind: WorkspaceKind; key: string },
+  reference: UnavailableReference
+): WorkspaceSourceDiagnostic {
+  return kindFinding(
+    user.kind,
+    user.key,
+    reference.code,
+    `${where(user.kind, user.key)} is held back: ${reference.message}`,
+    { hint: reference.hint }
+  )
+}
+
+/** `E_PLAN_REF_HELD` on `user` for using `ref`, which this apply holds back. */
+export function refHeldFinding(
+  user: { kind: WorkspaceKind; key: string },
+  ref: { kind: WorkspaceKind; key: string }
+): WorkspaceSourceDiagnostic {
+  return kindFinding(
+    user.kind,
+    user.key,
+    'E_PLAN_REF_HELD',
+    `${where(user.kind, user.key)} is held back: it uses ${where(ref.kind, ref.key)}, which this apply holds back.`,
+    { hint: `Fix what holds back ${where(ref.kind, ref.key)}, then apply again.` }
   )
 }
 

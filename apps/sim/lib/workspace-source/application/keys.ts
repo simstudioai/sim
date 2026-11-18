@@ -4,7 +4,8 @@
  */
 import { db } from '@sim/db'
 import { generateId } from '@sim/utils/id'
-import type { WorkspaceKind } from '@sim/workspace-code'
+import type { ResourceKind } from '@sim/workflow-code'
+import { WORKSPACE_KIND_SPECS, type WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
@@ -18,6 +19,16 @@ import type {
 import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
+ * The resource kind `kind`'s keys are recorded under; throws for a kind with no key row (a
+ * secret), which never binds or claims a key.
+ */
+function resourceKindOf(kind: WorkspaceKind): ResourceKind {
+  const resourceKind = WORKSPACE_KIND_SPECS[kind].resourceKind
+  if (resourceKind === null) throw new Error(`The ${kind} kind has no resource keys`)
+  return resourceKind
+}
+
+/**
  * Binds each stored resource to its key: a get (`allocate`) allocates a key for every resource
  * that has none, an apply never does, so an unbound resource can still be adopted by name. A
  * resource `bindable` turns down stays unbound and never gets a key.
@@ -29,17 +40,18 @@ export async function bindStored<S>(
   options: { allocate: boolean; bindable?: (record: Omit<StoredResource<S>, 'key'>) => boolean }
 ): Promise<StoredSet<S>> {
   const { workspaceId } = ctx.workspace
+  const resourceKind = resourceKindOf(kind)
   const bindable = options.bindable ?? (() => true)
   const ids = records.filter(bindable).map((record) => record.id)
   const keys = options.allocate
     ? ((
         await resolveKeys(
           workspaceId,
-          ids.map((id) => ({ kind, id })),
+          ids.map((id) => ({ kind: resourceKind, id })),
           { createdBy: ctx.createdBy }
         )
-      ).get(kind) ?? new Map<string, string>())
-    : await readKeysByResource(db, workspaceId, kind, ids)
+      ).get(resourceKind) ?? new Map<string, string>())
+    : await readKeysByResource(db, workspaceId, resourceKind, ids)
   const set: StoredSet<S> = { bound: new Map(), unbound: [] }
   for (const record of records) {
     const key = bindable(record) ? keys.get(record.id) : undefined
@@ -79,7 +91,7 @@ export async function claimKey(
 ): Promise<WorkspaceSourceDiagnostic[]> {
   const claim = await claimResourceKey({
     workspaceId: ctx.workspace.workspaceId,
-    kind: change.kind,
+    kind: resourceKindOf(change.kind),
     key: change.key,
     resourceId,
     origin: change.action === 'create' ? 'created' : 'adopted',
@@ -99,7 +111,7 @@ export function pendingOf(
 ): PendingResource {
   const stored = change.action !== 'create' ? change.storedId : undefined
   return {
-    kind: change.kind,
+    kind: resourceKindOf(change.kind),
     key: change.key,
     ...(stored ? { id: stored } : { id: generateId(), placeholder: true }),
     ...extra,

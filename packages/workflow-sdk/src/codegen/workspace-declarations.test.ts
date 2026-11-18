@@ -102,4 +102,44 @@ export const unknown = mcp('gitlab')
     expect(output).toContain(`'"gitlab"' is not assignable`)
     expect(output.split('\n').filter((line) => line.includes('error TS'))).toHaveLength(2)
   }, 120_000)
+
+  it('type credential keys and env names a directory declares before they are applied', () => {
+    const files = {
+      'credentials.ts': `// @sim-sdk 1
+import { defineCredentials } from '@sim/workflow-sdk/workspace'
+
+export default defineCredentials({ slack: { provider: 'slack' }, mail: { provider: 'google-email' } })
+`,
+      'secrets.ts': `// @sim-sdk 1
+import { defineSecrets } from '@sim/workflow-sdk/workspace'
+
+export default defineSecrets({ OPENAI_API_KEY: { description: 'Model access' } })
+`,
+    }
+    const output = typecheckSdkDirectory(
+      {
+        '.sim/sdk/workspace.d.ts': generateWorkspaceTypes({
+          credentials: { stored: { provider: 'notion' }, slack: { provider: 'github' } },
+          credentialDeclarations: ['slack'],
+          env: ['STORED_NAME'],
+          secretDeclarations: [],
+        }).text,
+        ...files,
+        'workflows/w/check.ts': `import { credential, env } from '@sim/workflow-sdk'
+import type { CredentialKeyFor } from '@sim/workflow-sdk'
+export const declared = credential('mail')
+export const stored = credential('stored')
+export const slack: CredentialKeyFor<'slack'> = 'slack'
+export const key = env.OPENAI_API_KEY
+export const storedName = env.STORED_NAME
+export const unknownKey = credential('github')
+export const unknownName = env.MISSING_NAME
+`,
+      },
+      ['credentials.ts', 'secrets.ts', 'workflows/*/*.ts']
+    )
+    expect(output).toContain(`'"github"' is not assignable`)
+    expect(output).toContain(`'MISSING_NAME' does not exist`)
+    expect(output.trim().split('\n')).toHaveLength(2)
+  }, 120_000)
 })

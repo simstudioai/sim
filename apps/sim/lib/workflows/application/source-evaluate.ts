@@ -170,22 +170,26 @@ function withPendingResources(
 }
 
 /**
- * The lint reference kind an unresolved id of each workspace source kind reports as. Every kind an
- * enclosing apply can create is listed, so a new one fails to compile until it is mapped.
+ * The lint reference kind an unresolved id of each workspace source kind reports as, or `null` for
+ * a kind no workflow names by id (a secret, read by name). Every kind an enclosing apply can create
+ * or bind is listed, so a new one fails to compile until it is mapped.
  */
-const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind']> = {
-  'custom-tool': 'custom-tool',
-  skill: 'skill',
-  table: 'resource',
-  'knowledge-base': 'resource',
-  file: 'resource',
-  workflow: 'resource',
-  'mcp-server': 'mcp-tool',
-}
+const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind'] | null> =
+  {
+    secret: null,
+    credential: 'credential',
+    'custom-tool': 'custom-tool',
+    skill: 'skill',
+    table: 'resource',
+    'knowledge-base': 'resource',
+    file: 'resource',
+    workflow: 'resource',
+    'mcp-server': 'mcp-tool',
+  }
 
 /** Unresolved reference kinds whose ids an enclosing apply may create. */
 const PENDABLE_REFERENCES: ReadonlySet<WorkflowLintUnresolvedReference['kind']> = new Set(
-  Object.values(PENDABLE_REFERENCE_OF)
+  Object.values(PENDABLE_REFERENCE_OF).filter((kind) => kind !== null)
 )
 
 /**
@@ -247,9 +251,20 @@ export interface SourcePlan {
   resources: ResourceKeyResolver
   /** Every resource the submitted source names by key, as the compiler read it. */
   references: SourceReference[]
+  /** Every env name the submitted source reads, as the compiler read it. */
+  envReferences: string[]
 }
 
-export type SourceEvaluation = { refused: WorkflowSourceDiagnostic[] } | { plan: SourcePlan }
+/**
+ * A refusal, with what the source references when it compiled (so an enclosing apply can tell a
+ * workflow refused for a reference it holds back), or the plan.
+ */
+export type SourceEvaluation =
+  | {
+      refused: WorkflowSourceDiagnostic[]
+      compiledReferences?: Pick<SourcePlan, 'references' | 'envReferences'>
+    }
+  | { plan: SourcePlan }
 
 /** Whether a compiled resource node's kind is one the resolver answers. */
 function isResourceKind(kind: string): kind is ResourceKind {
@@ -490,7 +505,10 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const locate = createLocator(files, compiled.spans, idByKey)
   const materializeDiagnostics = [...materialized.diagnostics, ...claimedDiagnostics]
   if (hasErrors(materializeDiagnostics)) {
-    return { refused: [...compiled.diagnostics, ...materializeDiagnostics].map(locate) }
+    return {
+      refused: [...compiled.diagnostics, ...materializeDiagnostics].map(locate),
+      compiledReferences: { references: compiledKeys, envReferences: compiled.envReferences },
+    }
   }
 
   /** The source's name and description never change a stored workflow, so they are not diffed. */
@@ -611,7 +629,12 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       (id) => keyById.get(id)
     ),
   ].map(locate)
-  if (hasErrors(diagnostics)) return { refused: diagnostics }
+  if (hasErrors(diagnostics)) {
+    return {
+      refused: diagnostics,
+      compiledReferences: { references: compiledKeys, envReferences: compiled.envReferences },
+    }
+  }
 
   const noop = !isNew && canonicalDiff.noop
   const mintedIds: Record<string, string> = {}
@@ -648,6 +671,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
         : 'inline',
       resources,
       references: compiledKeys,
+      envReferences: compiled.envReferences,
     },
   }
 }

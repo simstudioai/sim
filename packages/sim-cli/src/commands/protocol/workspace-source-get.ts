@@ -185,7 +185,7 @@ async function writeWorkspaceSource(
   }
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, { workspaceId: source.workspaceId, blockTypes: [] }),
-    loadWorkspaceTypes(client, source.workspaceId, localDeclarations(Object.keys(source.files))),
+    loadWorkspaceTypes(client, source.workspaceId, localDeclarations(source.files)),
   ])
   assertSdkMajor(catalog)
   const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKSPACE_TREE)
@@ -232,7 +232,10 @@ async function writeWorkspaceSource(
   const base = await mergedBase(dir, { ...source, base: recordHashedBlobs(source, hashed) })
   const write: Array<readonly [string, string]> = [
     ...Object.entries(source.files),
-    ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
+    ...source.kinds.flatMap((kind) => {
+      const marker = keepFile(kind)
+      return marker === null ? [] : [[marker, ''] as const]
+    }),
     [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
     [SOURCE_WRITTEN_FILE, writtenFile(record)],
     ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),

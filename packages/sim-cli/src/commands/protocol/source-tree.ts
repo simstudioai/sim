@@ -179,6 +179,8 @@ function workspaceManifestFrom({
 /** What a workspace directory declares itself, typed beside the stored resources. */
 export type LocalDeclarations = Pick<
   WorkspaceManifest,
+  | 'secretDeclarations'
+  | 'credentialDeclarations'
   | 'tableDeclarations'
   | 'knowledgeBases'
   | 'skills'
@@ -189,8 +191,8 @@ export type LocalDeclarations = Pick<
 
 /**
  * The workspace's resources as `workspace.d.ts`, with what a workspace directory declares typed
- * too: its tables from their declarations, and its knowledge base, skill, custom tool and workflow
- * keys beside the stored ones (a stored workflow keeps its typed inputs). When the resources
+ * too: its tables, secrets and credentials from their declarations, and its knowledge base, skill,
+ * custom tool and workflow keys beside the stored ones (a stored workflow keeps its typed inputs). When the resources
  * cannot be listed (a `403` for a caller the manifest does not admit, a `404` from a server that
  * predates the route) only the declared resources are typed, or `null` without any: the source
  * still writes and type-checks, with every other key a plain string.
@@ -214,6 +216,10 @@ export async function loadWorkspaceTypes(
       ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
       ...(local.mcpServerDeclarations
         ? { mcpServerDeclarations: local.mcpServerDeclarations }
+        : {}),
+      ...(local.secretDeclarations ? { secretDeclarations: local.secretDeclarations } : {}),
+      ...(local.credentialDeclarations
+        ? { credentialDeclarations: local.credentialDeclarations }
         : {}),
       knowledgeBases: both('knowledgeBases'),
       skills: both('skills'),

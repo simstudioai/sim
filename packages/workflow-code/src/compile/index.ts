@@ -81,6 +81,11 @@ export interface CompileResult {
   hints: SourceHints
   /** The header's major, or `null` when the header is missing. */
   sdkMajor: number | null
+  /**
+   * Every env name the source reads (`env.NAME`, and `$env.NAME` in code files), sorted: what a
+   * workspace apply checks against the secrets its directory declares.
+   */
+  envReferences: string[]
 }
 
 const WORKFLOW_OPTIONS = ['description', 'variables']
@@ -363,6 +368,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     spans: {},
     hints: { blocks: {} },
     sdkMajor,
+    envReferences: [],
   }
 }
 
@@ -451,6 +457,7 @@ function compileEntry(
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
     envNames: input.envNames,
+    envReferences: new Set(),
     jsonFields: [],
     responseFormatRefs: [],
     refusedBranches: new Map(),
@@ -623,5 +630,12 @@ function compileEntry(
           variables: Object.fromEntries(ctx.variables),
           annotations: { comments: ctx.comments.comments },
         }
-  return { workflow, diagnostics: reporter.diagnostics, spans, hints, sdkMajor: parsed.sdkMajor }
+  return {
+    workflow,
+    diagnostics: reporter.diagnostics,
+    spans,
+    hints,
+    sdkMajor: parsed.sdkMajor,
+    envReferences: [...ctx.envReferences].sort(compareStrings),
+  }
 }

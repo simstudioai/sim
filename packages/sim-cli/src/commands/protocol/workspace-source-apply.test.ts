@@ -473,4 +473,60 @@ describe('workspaces source apply', () => {
     expect(warned).toContain('files/.env')
     expect(warned).not.toContain('files/.gitkeep')
   })
+
+  it('sends secrets.ts and credentials.ts as their kinds, and no other root file', async () => {
+    const secrets =
+      "// @sim-sdk 1\nexport default defineSecrets({ OPENAI_API_KEY: { description: 'Models' } })\n"
+    write('secrets.ts', secrets)
+    write('credentials.ts', '// @sim-sdk 1\nexport default defineCredentials({})\n')
+    write('notes.ts', 'export {}\n')
+    request.mockResolvedValue(answer())
+
+    await apply('--yes')
+
+    const body = request.mock.calls[0][1].body
+    expect(body.kinds).toEqual(['secret', 'credential', 'table', 'workflow'])
+    expect(body.files['secrets.ts']).toBe(secrets)
+    expect(Object.keys(body.files)).toContain('credentials.ts')
+    expect(Object.keys(body.files)).not.toContain('notes.ts')
+  })
+
+  it('saves what an apply wrote around the changes it held back, and exits 1', async () => {
+    request.mockResolvedValue(
+      answer({
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'create', held: true },
+        ],
+        applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
+        files: { 'tables/leads.ts': `${LEADS}// stored\n` },
+        base: { ...BASE, resources: { 'table:leads': { id: 'tbl_1' } } },
+        diagnostics: [
+          {
+            code: 'E_SECRET_MISSING',
+            severity: 'error',
+            message: 'workflows/ingest is held back: it reads the secret OPENAI_API_KEY.',
+            hint: 'Set it with `sim secrets set OPENAI_API_KEY --scope workspace`.',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ],
+      })
+    )
+
+    await apply('--yes')
+
+    expect(process.exitCode).toBe(1)
+    const printed = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(JSON.parse(printed)).toMatchObject({ applied: 1, held: 1, errors: 1 })
+    expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
+    const warned = vi
+      .mocked(console.error)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n')
+    expect(warned).toContain('Held back, not written: workflow ingest')
+  })
 })

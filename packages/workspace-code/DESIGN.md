@@ -9,6 +9,8 @@ owns everything inside a single workflow. The server half is `apps/sim/lib/works
 ## Directory
 
 ```
+secrets.ts      secret names and descriptions (secret; never a value)
+credentials.ts  credential keys and providers (credential; never a token)
 tools/      custom tools      (custom-tool)
 skills/     skills            (skill)
 mcp/        MCP servers       (mcp-server; headers hold env references, never secrets)
@@ -21,8 +23,10 @@ workflows/  one workflow source directory per folder (workflow)
 .sim/written.json  CLI bookkeeping: what the CLI last wrote, so unchanged files need not be sent
 ```
 
-`KIND_DIRS` (`src/kind.ts`) maps each kind to its folder. A kind is managed only when its folder
-exists (or `--only` names it), so a directory can hold a subset of the workspace. `APPLY_ORDER` is
+`KIND_DIRS` (`src/kind.ts`) maps each kind to its folder, or for a kind one root file declares
+whole (`FILE_KINDS`: secrets, credentials) to that file, each entry of it one resource. A kind is
+managed only when its folder or file exists (or `--only` names it), so a directory can hold a
+subset of the workspace. `APPLY_ORDER` is
 the order writes run in: a resource exists before anything that references it. Deletes run in
 reverse.
 
@@ -116,6 +120,24 @@ lists each server's tools through the discovery use case and checks the tools wo
 (`refs` with a `member`): an unknown one is `E_MCP_TOOL_UNKNOWN`, a server it cannot list
 (unreachable, created by this apply, a workspace API key) `W_MCP_TOOLS_UNCHECKED`.
 
+### Reference kinds: secrets and credentials
+
+`secrets.ts` and `credentials.ts` declare what workflows reference without holding a value, and an
+apply never creates or deletes what they name. A secret entry may update its description
+(`setSecretUseCase`, description only); a credential entry binds its key to this workspace's
+credential of its provider (kept when bound, else the only fitting one no other declared key holds,
+narrowed by `name`), and removing one unbinds the key only with `--allow-delete`. An entry the
+workspace cannot satisfy (no secret of that name; no credential, or several, to bind) is a warning
+on the file and sets `PlannedChange.unavailable`: the plan then **holds back** every write whose
+`refs` name it (a workflow's `refs` carry its credential keys and the env names it reads), and every
+write that names a held one, with an error on each (`E_SECRET_MISSING`, `E_CREDENTIAL_*`,
+`E_PLAN_REF_HELD`). Held changes are not written and their errors do not refuse the rest
+(`WorkspacePlan.refused`); this is the one exception to "any error refuses the whole apply". A get
+prints every workspace secret (never a personal one) and every credential the caller's listing
+shows, so the same files apply back unchanged; applied to another workspace, each key binds to that
+workspace's own credential. Findings about these files carry no code frame, so a value written into
+one by mistake is never echoed back.
+
 ## Plan and apply
 
 `planWorkspaceSource` (`application/plan.ts`) writes nothing: read the base, parse every managed
@@ -153,7 +175,9 @@ refusal until a migration is written.
 
 - `@sim/workflow-sdk` declares the directory for editors: `src/workspace/*.d.ts` (one per kind) and
   `src/codegen/workspace.ts` (`generateWorkspaceTypes`, which types `table('k')` rows from a
-  `WorkspaceManifest`). The CLI embeds them through
+  `WorkspaceManifest`, and `env.NAME` and `credential('k')` from `secrets.ts` and
+  `credentials.ts` live, through `typeof import(...)`, so a declared but unapplied entry
+  type-checks). The CLI embeds them through
   `packages/workflow-sdk/scripts/generate-embedded-text.ts`; the `*-text.test.ts` drift tests fail
   until it is re-run.
 - The CLI side is `packages/sim-cli/src/commands/protocol/workspace-source-*.ts`.

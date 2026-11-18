@@ -144,6 +144,8 @@ export interface CompileContext {
   stored: CanonicalWorkflow | undefined
   /** `CompileInput.envNames`: the env names a run resolves, when known. */
   envNames: ReadonlySet<string> | undefined
+  /** Every env name the source reads, whether or not `envNames` holds it. */
+  envReferences: Set<string>
   /**
    * JSON code fields written as literals. Their text depends on the output types of the blocks
    * they reference (`json-fields.ts`), so it is written once every block is compiled.
