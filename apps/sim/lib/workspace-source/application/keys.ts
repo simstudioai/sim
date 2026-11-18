@@ -19,8 +19,8 @@ import type {
 import { claimResourceKey, readKeysByResource, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
- * The resource kind `kind`'s keys are recorded under; throws for a kind with no key row (a
- * secret), which never binds or claims a key.
+ * The resource kind `kind`'s keys are recorded under; throws for a kind with no key row of its own
+ * (a secret, a file, a deployment), which never claims a key or stands in as pending.
  */
 function resourceKindOf(kind: WorkspaceKind): ResourceKind {
   const resourceKind = WORKSPACE_KIND_SPECS[kind].resourceKind
@@ -35,23 +35,22 @@ function resourceKindOf(kind: WorkspaceKind): ResourceKind {
  */
 export async function bindStored<S>(
   ctx: SourceContext,
-  kind: WorkspaceKind,
+  kind: ResourceKind,
   records: ReadonlyArray<Omit<StoredResource<S>, 'key'>>,
   options: { allocate: boolean; bindable?: (record: Omit<StoredResource<S>, 'key'>) => boolean }
 ): Promise<StoredSet<S>> {
   const { workspaceId } = ctx.workspace
-  const resourceKind = resourceKindOf(kind)
   const bindable = options.bindable ?? (() => true)
   const ids = records.filter(bindable).map((record) => record.id)
   const keys = options.allocate
     ? ((
         await resolveKeys(
           workspaceId,
-          ids.map((id) => ({ kind: resourceKind, id })),
+          ids.map((id) => ({ kind, id })),
           { createdBy: ctx.createdBy }
         )
-      ).get(resourceKind) ?? new Map<string, string>())
-    : await readKeysByResource(db, workspaceId, resourceKind, ids)
+      ).get(kind) ?? new Map<string, string>())
+    : await readKeysByResource(db, workspaceId, kind, ids)
   const set: StoredSet<S> = { bound: new Map(), unbound: [] }
   for (const record of records) {
     const key = bindable(record) ? keys.get(record.id) : undefined
@@ -82,16 +81,19 @@ export async function listUpTo<T, C>(
 /**
  * Binds `change.key` to the resource the change wrote. Called only once the write succeeded, so a
  * write that fails leaves the key free and the next apply adopts the resource by name. Returns
- * `I_KEY_REBOUND` when the key named a deleted resource.
+ * `I_KEY_REBOUND` when the key named a deleted resource. A kind keyed by another kind's keys or by
+ * path (no `resourceKind`) claims nothing.
  */
 export async function claimKey(
   change: Pick<PlannedChange, 'kind' | 'key' | 'action'>,
   ctx: SourceContext,
   resourceId: string
 ): Promise<WorkspaceSourceDiagnostic[]> {
+  const kind = WORKSPACE_KIND_SPECS[change.kind].resourceKind
+  if (kind === null) return []
   const claim = await claimResourceKey({
     workspaceId: ctx.workspace.workspaceId,
-    kind: resourceKindOf(change.kind),
+    kind,
     key: change.key,
     resourceId,
     origin: change.action === 'create' ? 'created' : 'adopted',

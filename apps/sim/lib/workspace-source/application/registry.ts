@@ -1,5 +1,6 @@
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { credentialAdapter } from '@/lib/workspace-source/application/kinds/credentials/adapter'
+import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import { fileAdapter } from '@/lib/workspace-source/application/kinds/files/adapter'
 import { knowledgeAdapter } from '@/lib/workspace-source/application/kinds/knowledge/adapter'
 import { mcpAdapter } from '@/lib/workspace-source/application/kinds/mcp/adapter'
@@ -21,4 +22,5 @@ export const KIND_ADAPTERS: { readonly [K in WorkspaceKind]: KindAdapter<unknown
   'knowledge-base': knowledgeAdapter,
   file: fileAdapter,
   workflow: workflowAdapter,
+  deployment: deploymentAdapter,
 }

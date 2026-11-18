@@ -9,9 +9,9 @@ import { type Json, printKey, quoteString } from '@sim/workflow-code'
 import {
   CALL_KEY,
   DECLARATION_SDK_MAJOR,
+  ENV_KEY,
   isDeclarationCall,
-  isDeclarationMember,
-  MEMBER_KEY,
+  isDeclarationEnvRef,
   WORKSPACE_SDK_MODULE,
 } from './read'
 
@@ -28,15 +28,9 @@ export function call(name: string, ...args: Json[]): Json {
   return { [CALL_KEY]: name, args }
 }
 
-/** An SDK object member node for {@link printDeclaration}: `member('env', 'API_KEY')`. */
-export function member(root: string, name: string): Json {
-  return { [MEMBER_KEY]: root, name }
-}
-
-/** `env.NAME`, or `env['NAME']` for a name that is not an identifier. */
-function printMember(root: string, name: string): string {
-  const key = printKey(name)
-  return key === name ? `${root}.${name}` : `${root}[${key}]`
+/** An `env.NAME` node for {@link printDeclaration}. */
+export function envRef(name: string): Json {
+  return { [ENV_KEY]: name }
 }
 
 function isScalar(value: Json): value is string | number | boolean | null {
@@ -45,7 +39,7 @@ function isScalar(value: Json): value is string | number | boolean | null {
 
 function printInline(value: Json): string | null {
   if (isScalar(value)) return printScalar(value)
-  if (isDeclarationMember(value)) return printMember(value.$member, value.name)
+  if (isDeclarationEnvRef(value)) return `env.${value.$env}`
   if (isDeclarationCall(value)) {
     const args = value.args.map(printInline)
     return args.every((arg) => arg !== null) ? `${value.$call}(${args.join(', ')})` : null
@@ -57,7 +51,10 @@ function printInline(value: Json): string | null {
   const entries = Object.entries(value)
   if (entries.length === 0) return '{}'
   if (
-    !entries.every(([, item]) => isScalar(item) || (Array.isArray(item) && item.every(isScalar)))
+    !entries.every(
+      ([, item]) =>
+        isScalar(item) || isDeclarationEnvRef(item) || (Array.isArray(item) && item.every(isScalar))
+    )
   ) {
     return null
   }
@@ -75,7 +72,7 @@ function printValue(value: Json, indent: string, column: number): string {
   const inline = printInline(value)
   if (inline !== null && column + inline.length <= INLINE_WIDTH) return inline
   if (isScalar(value)) return printScalar(value)
-  if (isDeclarationMember(value)) return printMember(value.$member, value.name)
+  if (isDeclarationEnvRef(value)) return `env.${value.$env}`
   const inner = `${indent}  `
   if (isDeclarationCall(value)) {
     const head = `${value.$call}(`
@@ -100,8 +97,8 @@ function printValue(value: Json, indent: string, column: number): string {
 
 /** Every helper root a value calls (`column` for `column.string`). */
 function helperRoots(value: Json, roots: Set<string>): Set<string> {
-  if (isDeclarationMember(value)) {
-    roots.add(value.$member)
+  if (isDeclarationEnvRef(value)) {
+    roots.add('env')
   } else if (isDeclarationCall(value)) {
     roots.add(value.$call.split('.')[0])
     for (const arg of value.args) helperRoots(arg, roots)

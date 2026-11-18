@@ -387,6 +387,7 @@ describe('workspace source across kinds', () => {
         'create knowledge-base:policies',
         'create file:templates/reply.md',
         'create workflow:support',
+        'create deployment:support',
       ])
       const id = (address: keyof typeof result.base.resources) => result.base.resources[address]?.id
       const state = await loadWorkflowFromNormalizedTables(id('workflow:support') ?? '')

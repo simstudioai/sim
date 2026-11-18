@@ -77,11 +77,13 @@ export async function checkDeletesInUse(
   workspaceId: string
 ): Promise<void> {
   // A workflow delete is checked by the workflow kind; a credential delete only unbinds its key,
-  // which leaves every stored workflow using the credential working.
+  // which leaves every stored workflow using the credential working; an undeploy deletes no
+  // resource.
   const deleting = changes.filter(
     (change) =>
       change.kind !== 'workflow' &&
       change.kind !== 'credential' &&
+      change.kind !== 'deployment' &&
       change.storedId !== undefined &&
       (change.action === 'delete' ||
         change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'))

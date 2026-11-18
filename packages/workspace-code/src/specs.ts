@@ -1,7 +1,8 @@
 /**
  * What each kind means outside its codec, in one record typed over every kind: the CLI's
- * `tsconfig.json` and agent guide, the keys a directory declares for `workspace.d.ts`, and how
- * findings name a resource all read it, so a new kind fails to compile until each is stated.
+ * `tsconfig.json` and agent guide, the keys a directory declares for `workspace.d.ts`, how
+ * findings name a resource and which resource key table binds it all read it, so a new kind fails
+ * to compile until each is stated.
  */
 import type { ResourceKind } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -13,8 +14,9 @@ interface WorkspaceKindSpec {
   noun: string
   /**
    * The resource kind its keys are recorded under in the workspace's key table
-   * (`workspace_resource_key.kind`), the one a workflow names it by; `null` for a kind with no key
-   * row (a secret, which a workflow reads by name as `env.NAME`).
+   * (`workspace_resource_key.kind`): the one a workflow names it by, and a write claims. `null` for
+   * a kind with no key row of its own, which claims none: a secret (read by name as `env.NAME`), a
+   * file (keyed by its path) or a deployment (keyed by its workflow's key).
    */
   resourceKind: ResourceKind | null
   /** The kind's TypeScript files as `tsconfig.json` `include` globs: what `tsc -p .` checks. */
@@ -90,7 +92,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
   },
   file: {
     noun: 'file',
-    resourceKind: 'file',
+    resourceKind: null,
     typeChecked: [],
     manifestKey: null,
     guide: `\`${KIND_DIRS.file}/<path>\`: every file is one workspace file at that folder path; no declaration.`,
@@ -101,5 +103,12 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
     typeChecked: [`${KIND_DIRS.workflow}/*/${SOURCE_ENTRY_FILE}`],
     manifestKey: 'workflows',
     guide: `\`${KIND_DIRS.workflow}/<key>/\`: one workflow each, exactly a \`sim workflows source get --dir\` directory (\`workflow.ts\`, \`functions/*\`, \`.sim/lock.json\`, \`.sim/base.json\`).`,
+  },
+  deployment: {
+    noun: 'deployment',
+    resourceKind: null,
+    typeChecked: [`${KIND_DIRS.deployment}/*.ts`],
+    manifestKey: null,
+    guide: `\`${KIND_DIRS.deployment}/<workflow key>.ts\`: \`defineDeployment({ live: 'draft' | 'pinned', api?: { public? }, chat? })\` deploys \`${KIND_DIRS.workflow}/<workflow key>/\`, so its schedule, webhook, API and chat triggers run. \`live: 'draft'\` publishes the draft whenever it differs from the live version; \`'pinned'\` never redeploys and says when the draft differs. A chat password is \`env.NAME\` (or \`stored()\` to keep the stored one); chat outputs name a block by its name. Removing the file undeploys the workflow (needs \`--allow-delete\`). Deploying needs workspace admin, never a workspace API key. MCP publishing is not part of source.`,
   },
 }

@@ -1073,6 +1073,7 @@ export type ApplyWorkspaceSourceBody = {
     | 'knowledge-base'
     | 'file'
     | 'workflow'
+    | 'deployment'
   >
   options?: {
     allowDelete?: boolean
@@ -1086,6 +1087,7 @@ export type ApplyWorkspaceSourceBody = {
       | 'knowledge-base'
       | 'file'
       | 'workflow'
+      | 'deployment'
     >
   }
   provenance?: {
@@ -1109,6 +1111,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'knowledge-base'
         | 'file'
         | 'workflow'
+        | 'deployment'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1130,6 +1133,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'knowledge-base'
         | 'file'
         | 'workflow'
+        | 'deployment'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1151,6 +1155,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'knowledge-base'
         | 'file'
         | 'workflow'
+        | 'deployment'
       key: string
       code:
         | 'E_DECL_SYNTAX'
@@ -1211,6 +1216,12 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'
@@ -1456,6 +1467,12 @@ export type ApplyWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'
@@ -10519,6 +10536,7 @@ export type GetWorkspaceSourceResponse = {
       | 'knowledge-base'
       | 'file'
       | 'workflow'
+      | 'deployment'
     >
     files: Record<string, string>
     blobs: Array<{
@@ -10566,6 +10584,7 @@ export type GetWorkspaceSourceResponse = {
         | 'knowledge-base'
         | 'file'
         | 'workflow'
+        | 'deployment'
       key: string
       reason: string
     }>
@@ -10629,6 +10648,12 @@ export type GetWorkspaceSourceResponse = {
         | 'I_KB_PROCESSING'
         | 'I_KB_DOCS_UNHASHED'
         | 'I_KB_UNMANAGED_DOCS'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
         | 'E_APPLY_STALE'
         | 'E_APPLY_NO_BASE'
         | 'E_APPLY_FORBIDDEN'

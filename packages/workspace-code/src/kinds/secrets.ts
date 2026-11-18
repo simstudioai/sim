@@ -44,7 +44,6 @@ const SECRET_FIELDS: DeclFields<SecretDecl> = {
 export const secretCodec: KindCodec<SecretsDecl> = entryCodec<SecretDecl>({
   kind: 'secret',
   callee: 'defineSecrets',
-  keys: 'name',
   fields: SECRET_FIELDS,
   checkKey(key, pointer, report) {
     if (isSecretName(key)) return true

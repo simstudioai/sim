@@ -171,8 +171,9 @@ function withPendingResources(
 
 /**
  * The lint reference kind an unresolved id of each workspace source kind reports as, or `null` for
- * a kind no workflow names by id (a secret, read by name). Every kind an enclosing apply can create
- * or bind is listed, so a new one fails to compile until it is mapped.
+ * a kind no workflow names by id (a secret, read by name; a deployment, which nothing references).
+ * Every kind an enclosing apply can create or bind is listed, so a new one fails to compile until
+ * it is mapped.
  */
 const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReference['kind'] | null> =
   {
@@ -185,6 +186,7 @@ const PENDABLE_REFERENCE_OF: Record<WorkspaceKind, WorkflowLintUnresolvedReferen
     file: 'resource',
     workflow: 'resource',
     'mcp-server': 'mcp-tool',
+    deployment: null,
   }
 
 /** Unresolved reference kinds whose ids an enclosing apply may create. */

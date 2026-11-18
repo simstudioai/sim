@@ -18,6 +18,7 @@ tables/     table schemas     (table)
 knowledge/  knowledge bases   (knowledge-base; documents are blobs)
 files/      workspace files   (file; every file is a blob)
 workflows/  one workflow source directory per folder (workflow)
+deployments/ one deployment per workflow key (deployment; applied after workflows)
 .sim/base.json     what the server held at the last get or apply (WorkspaceBaseV1)
 .sim/skipped.json  what a get left out (over a limit, or an unrepresentable name)
 .sim/written.json  CLI bookkeeping: what the CLI last wrote, so unchanged files need not be sent
@@ -137,6 +138,22 @@ prints every workspace secret (never a personal one) and every credential the ca
 shows, so the same files apply back unchanged; applied to another workspace, each key binds to that
 workspace's own credential. Findings about these files carry no code frame, so a value written into
 one by mistake is never echoed back.
+
+### The deployment kind
+
+`deployments/<key>.ts` deploys `workflows/<key>/` (`kinds/deployment/adapter.ts`): a folder of its
+own because deploying needs a workspace admin and refuses a workspace API key, while a workflow
+edit needs write, and `workflows/<key>/` stays a single-workflow directory. It is keyed by the
+workflow's key and claims none (`WORKSPACE_KIND_SPECS[kind].resourceKind` is `null`); its base id
+is the workflow's id. The three-way rule covers what the server stores (public API, chat); `live`
+is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
+`'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
+redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
+fingerprint and the live version it replaces. A chat password is `env.NAME` (resolved at apply,
+never stored in source) or `stored()`; the base records the variable under `x-passwordEnv`, since
+the server keeps only the encrypted value. Removing the file undeploys (`--allow-delete`), and the
+plan counts what stops. Whether or not the kind is managed, an apply that edits a deployed workflow
+no deployment file covers warns `W_DEPLOYED_DRAFT_CHANGED`. MCP publishing is not part of source.
 
 ## Plan and apply
 

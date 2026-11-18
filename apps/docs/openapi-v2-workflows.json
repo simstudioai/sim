@@ -24594,7 +24594,8 @@
                     "table",
                     "knowledge-base",
                     "file",
-                    "workflow"
+                    "workflow",
+                    "deployment"
                   ],
                   "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 },
@@ -24774,7 +24775,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -24858,6 +24860,12 @@
                         "I_KB_PROCESSING",
                         "I_KB_DOCS_UNHASHED",
                         "I_KB_UNMANAGED_DOCS",
+                        "E_DEPLOY_WORKFLOW",
+                        "E_DEPLOY_SECRET",
+                        "E_DEPLOY_CHAT_OUTPUT",
+                        "E_DEPLOY_PINNED_CHAT",
+                        "W_DEPLOYED_DRAFT_CHANGED",
+                        "I_DEPLOY_DRAFT_NOT_LIVE",
                         "E_APPLY_STALE",
                         "E_APPLY_NO_BASE",
                         "E_APPLY_FORBIDDEN",
@@ -25172,7 +25180,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -25248,7 +25257,8 @@
                         "table",
                         "knowledge-base",
                         "file",
-                        "workflow"
+                        "workflow",
+                        "deployment"
                       ],
                       "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                     },
@@ -25323,7 +25333,8 @@
                       "table",
                       "knowledge-base",
                       "file",
-                      "workflow"
+                      "workflow",
+                      "deployment"
                     ],
                     "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                   },
@@ -25392,6 +25403,12 @@
                       "I_KB_PROCESSING",
                       "I_KB_DOCS_UNHASHED",
                       "I_KB_UNMANAGED_DOCS",
+                      "E_DEPLOY_WORKFLOW",
+                      "E_DEPLOY_SECRET",
+                      "E_DEPLOY_CHAT_OUTPUT",
+                      "E_DEPLOY_PINNED_CHAT",
+                      "W_DEPLOYED_DRAFT_CHANGED",
+                      "I_DEPLOY_DRAFT_NOT_LIVE",
                       "E_APPLY_STALE",
                       "E_APPLY_NO_BASE",
                       "E_APPLY_FORBIDDEN",
@@ -25755,6 +25772,12 @@
                         "I_KB_PROCESSING",
                         "I_KB_DOCS_UNHASHED",
                         "I_KB_UNMANAGED_DOCS",
+                        "E_DEPLOY_WORKFLOW",
+                        "E_DEPLOY_SECRET",
+                        "E_DEPLOY_CHAT_OUTPUT",
+                        "E_DEPLOY_PINNED_CHAT",
+                        "W_DEPLOYED_DRAFT_CHANGED",
+                        "I_DEPLOY_DRAFT_NOT_LIVE",
                         "E_APPLY_STALE",
                         "E_APPLY_NO_BASE",
                         "E_APPLY_FORBIDDEN",
@@ -26203,7 +26226,7 @@
             "description": "`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change."
           },
           "kinds": {
-            "maxItems": 9,
+            "maxItems": 10,
             "type": "array",
             "items": {
               "type": "string",
@@ -26216,7 +26239,8 @@
                 "table",
                 "knowledge-base",
                 "file",
-                "workflow"
+                "workflow",
+                "deployment"
               ],
               "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
             },
@@ -26244,7 +26268,8 @@
                     "table",
                     "knowledge-base",
                     "file",
-                    "workflow"
+                    "workflow",
+                    "deployment"
                   ],
                   "description": "A resource kind: `secret`, `credential`, `custom-tool`, `skill`, `table`, `knowledge-base`, `file` or `workflow`."
                 }

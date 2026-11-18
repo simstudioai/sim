@@ -42,10 +42,10 @@ import {
   readObject,
   readStringField,
 } from '../declaration/fields'
-import { call, member, printDeclaration } from '../declaration/print'
+import { call, envRef, printDeclaration } from '../declaration/print'
 import {
   isDeclarationCall,
-  isDeclarationMember,
+  isDeclarationEnvRef,
   readDeclaration,
   unstorableCharacter,
 } from '../declaration/read'
@@ -107,9 +107,6 @@ export interface McpServerDecl {
 
 const CALLEE = 'defineMcpServer'
 const STORED_CALL = 'stored'
-const ENV_ROOT = 'env'
-/** An env variable name, as `{{NAME}}` and `env.NAME` write it. */
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 /** A whole value that is one env reference: `{{NAME}}`. */
 const WHOLE_ENV_REFERENCE = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}$/
 /** An HTTP header name (RFC 9110 token). */
@@ -202,11 +199,7 @@ function readHeaderValue(
   at: string,
   report: Parameters<DeclField<unknown>['read']>[3]
 ): McpHeaderDecl | undefined {
-  if (isDeclarationMember(raw) && raw.$member === ENV_ROOT) {
-    if (ENV_NAME.test(raw.name)) return `{{${raw.name}}}`
-    report('E_DECL_SHAPE', at, `"${raw.name}" is not an env variable name.`)
-    return undefined
-  }
+  if (isDeclarationEnvRef(raw)) return `{{${raw.$env}}}`
   if (isDeclarationCall(raw) && raw.$call === STORED_CALL && raw.args.length === 0) {
     return { stored: null }
   }
@@ -268,7 +261,7 @@ const headersField: DeclField<McpServerDecl['headers']> = {
           Object.entries(headers).map(([name, header]) => {
             if (isStoredHeader(header)) return [name, call(STORED_CALL)]
             const env = WHOLE_ENV_REFERENCE.exec(header)
-            return [name, env ? member(ENV_ROOT, env[1]) : header]
+            return [name, env ? envRef(env[1]) : header]
           })
         ),
   canonical: (headers) =>
@@ -348,7 +341,7 @@ function parseMcpServer(
   const read = readDeclaration(file, source, {
     callee: CALLEE,
     calls: new Set([STORED_CALL]),
-    members: new Set([ENV_ROOT]),
+    env: true,
   })
   const diagnostics = read.diagnostics.map((finding) => ({ ...finding, ...resource }))
   if (read.value === undefined) return { diagnostics }

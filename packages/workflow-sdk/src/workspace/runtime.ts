@@ -28,6 +28,10 @@ export function defineMcpServer(): never {
   return notExecutable('defineMcpServer')
 }
 
+export function defineDeployment(): never {
+  return notExecutable('defineDeployment')
+}
+
 export { env, stored } from '../runtime'
 
 export const column = new Proxy(

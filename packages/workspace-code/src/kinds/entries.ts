@@ -33,8 +33,6 @@ interface EntryKind<E> {
   checkKey(key: string, pointer: string, report: FieldReport): boolean
   /** Fields an entry may not hold, with why: reported instead of an unknown field. */
   refused?: Readonly<Record<string, string>>
-  /** What an entry's key names (see `KindLayout.keys`). */
-  keys: 'resource' | 'name'
   /** The entry its read fields make, or `undefined` when a required one is missing. */
   complete(read: Partial<E>): E | undefined
 }
@@ -71,7 +69,6 @@ function withoutFrame(finding: WorkspaceDiagnostic): WorkspaceDiagnostic {
 export function entryCodec<E>(spec: EntryKind<E>): KindCodec<Record<string, E>> {
   const file = KIND_DIRS[spec.kind]
   return {
-    keys: spec.keys,
     group: (paths) => groupRootFile(spec.kind, paths),
     parse(key, text) {
       const resource = { kind: spec.kind, key }

@@ -45,7 +45,6 @@ const CREDENTIAL_FIELDS: DeclFields<CredentialDecl> = {
 export const credentialCodec: KindCodec<CredentialsDecl> = entryCodec<CredentialDecl>({
   kind: 'credential',
   callee: 'defineCredentials',
-  keys: 'resource',
   fields: CREDENTIAL_FIELDS,
   checkKey(key, pointer, report) {
     if (isResourceKey(key)) return true

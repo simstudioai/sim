@@ -5,8 +5,9 @@ import type { WorkspaceDiagnostic } from './diagnostics'
  * Every kind a workspace source directory can declare, in the order an apply writes them: a
  * resource exists before anything that references it (a workflow names secrets, credentials,
  * tables, tools, skills and MCP servers). Deletes run in the reverse order. A kind a workflow names
- * by a resource key is spelled as that resource kind (`ResourceKind`), so resource keys and source
- * agree on one name; `WORKSPACE_KIND_SPECS` records which resource kind each one is.
+ * by key is spelled as that resource kind (`WORKSPACE_KIND_SPECS[kind].resourceKind`), so resource
+ * keys and source agree on one name. Deployments come last: one publishes a workflow as the apply
+ * left it.
  */
 export const APPLY_ORDER = [
   'secret',
@@ -18,6 +19,7 @@ export const APPLY_ORDER = [
   'knowledge-base',
   'file',
   'workflow',
+  'deployment',
 ] as const
 
 /** A resource kind a workspace source directory can declare. */
@@ -37,6 +39,7 @@ export const KIND_DIRS = {
   'knowledge-base': 'knowledge',
   file: 'files',
   workflow: 'workflows',
+  deployment: 'deployments',
 } as const satisfies Record<WorkspaceKind, string>
 
 /**
@@ -116,13 +119,6 @@ export interface KindLayout {
    * its content only in the rounds the server asks for it. A kind without it holds only text.
    */
   isBlob?(path: string): boolean
-  /**
-   * What a key names: a resource key (the default), which the workspace's key table binds to the
-   * resource and a workflow names it by; `path`, the resource's own path (a workspace file); or
-   * `name`, the name the resource is stored under (a secret, which a workflow reads as
-   * `env.NAME`). No key table records a path or a name.
-   */
-  readonly keys?: 'resource' | 'path' | 'name'
   /**
    * The byte limit the kind's text counts against: `declaration` (the default,
    * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).

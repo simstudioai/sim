@@ -43,8 +43,8 @@ export const WORKSPACE_SDK_MODULE = '@sim/workflow-sdk/workspace'
 export const DECLARATION_SDK_MAJOR = 1
 /** The key a helper call is read under; no declaration object may use it. */
 export const CALL_KEY = '$call'
-/** The key an SDK object member (`env.NAME`) is read under; no declaration object may use it. */
-export const MEMBER_KEY = '$member'
+/** The key an `env.NAME` reference is read under; no declaration object may use it. */
+export const ENV_KEY = '$env'
 
 /** A helper call as the reader encodes it. */
 export interface DeclarationCall {
@@ -52,19 +52,21 @@ export interface DeclarationCall {
   args: Json[]
 }
 
-/** A member of an SDK object (`env.NAME`) as the reader encodes it. */
-export interface DeclarationMember {
-  $member: string
-  name: string
+/** An environment variable reference, `env.NAME`, as the reader encodes it: by name, never value. */
+export interface DeclarationEnvRef {
+  $env: string
 }
+
+/** An environment variable name `env.NAME` may spell: an identifier. */
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 interface ReadDeclarationOptions {
   /** The function the file default-exports a call of: `defineTable`. */
   callee: string
   /** Helper calls a value may be (`column.string`, `codeFile`), by their dotted name. */
   calls?: ReadonlySet<string>
-  /** SDK objects whose members a value may name (`env` for `env.NAME`). */
-  members?: ReadonlySet<string>
+  /** Whether a value may be `env.NAME`, an environment variable by name (`DeclarationEnvRef`). */
+  env?: boolean
 }
 
 interface ReadDeclaration {
@@ -88,11 +90,9 @@ export function isDeclarationCall(value: unknown): value is DeclarationCall {
   return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
 }
 
-/** Whether a decoded value is an SDK object member the reader produced. */
-export function isDeclarationMember(value: unknown): value is DeclarationMember {
-  return (
-    isRecordLike(value) && typeof value[MEMBER_KEY] === 'string' && typeof value.name === 'string'
-  )
+/** Whether a decoded value is an `env.NAME` reference the reader produced. */
+export function isDeclarationEnvRef(value: unknown): value is DeclarationEnvRef {
+  return isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_NAME.test(value[ENV_KEY])
 }
 
 /** Why `text` cannot be stored (a NUL, an unpaired UTF-16 surrogate), or `null` when it can. */
@@ -303,7 +303,7 @@ export function readDeclaration(
           : property.key.type === 'StringLiteral'
             ? property.key.value
             : null
-      if (key === null || key === CALL_KEY || key === MEMBER_KEY || key === '__proto__') {
+      if (key === null || key === CALL_KEY || key === ENV_KEY || key === '__proto__') {
         unsupported(
           property.key,
           key === null ? 'A key is a name or a quoted string.' : `"${key}" cannot be a key.`
@@ -381,31 +381,33 @@ export function readDeclaration(
       case 'ObjectExpression':
         return readObject(node, pointer)
       case 'MemberExpression': {
-        const root = node.object.type === 'Identifier' ? node.object.name : null
-        const name =
-          !node.computed && node.property.type === 'Identifier'
-            ? node.property.name
-            : node.computed && node.property.type === 'StringLiteral'
-              ? node.property.value
-              : null
-        if (root === null || name === null || !options.members?.has(root)) {
+        if (
+          !options.env ||
+          node.computed ||
+          node.object.type !== 'Identifier' ||
+          node.object.name !== 'env' ||
+          node.property.type !== 'Identifier'
+        ) {
           return unsupported(
             node,
             'A declaration holds JSON values and SDK helper calls only.',
-            options.members && options.members.size > 0
-              ? `Supported: ${[...options.members].map((member) => `${member}.NAME`).join(', ')}.`
-              : undefined
+            options.env ? 'An environment variable is `env.NAME`.' : undefined
           )
         }
-        if (!imported.has(root)) {
+        if (!imported.has('env')) {
           record(
-            diagnostic('E_DECL_IMPORT', `Import ${root} from '${WORKSPACE_SDK_MODULE}'.`, {
+            diagnostic('E_DECL_IMPORT', `Import env from '${WORKSPACE_SDK_MODULE}'.`, {
               ...nodeAt(node.object),
             })
           )
           return undefined
         }
-        return { [MEMBER_KEY]: root, name }
+        return ENV_NAME.test(node.property.name)
+          ? { [ENV_KEY]: node.property.name }
+          : unsupported(
+              node.property,
+              `"${node.property.name}" is not an environment variable name.`
+            )
       }
       case 'CallExpression': {
         const name = calleeName(node.callee)

@@ -4,6 +4,7 @@
  * SDK, nothing here runs: the server reads each file statically.
  */
 export * from './credentials'
+export * from './deployment'
 export * from './file'
 export * from './knowledge'
 export * from './mcp'

@@ -108,14 +108,18 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 
 ### A workspace resource kind
 
-The kinds: secrets (`secrets.ts`), credentials (`credentials.ts`), custom tools, skills, tables,
-knowledge bases, files, workflows. Secrets and credentials are reference kinds declared whole in one
-root file (`FILE_KINDS`): see DESIGN.md "Reference kinds" for holding back the workflows that use
-an entry the workspace cannot satisfy.
+The kinds: secrets (`secrets.ts`), credentials (`credentials.ts`), custom tools, skills, MCP servers
+(`mcp/<key>.ts`), tables, knowledge bases, files, workflows and deployments
+(`deployments/<workflow key>.ts`, applied after workflows; see DESIGN.md "The deployment kind").
+Secrets and credentials are reference kinds declared whole in one root file (`FILE_KINDS`): see
+DESIGN.md "Reference kinds" for holding back the workflows that use an entry the workspace cannot
+satisfy.
 
-1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`), and its
-   `WORKSPACE_KIND_SPECS` entry (`resourceKind` is the key-table kind, `null` for none); every
-   `Record<WorkspaceKind, …>` then fails to type-check until it has the kind.
+1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`) and its
+   `WORKSPACE_KIND_SPECS` entry (`src/specs.ts`: `resourceKind` is the key-table kind a workflow
+   names it by and a write claims, `null` for a kind with no key row of its own: a secret, a file
+   keyed by path, a deployment keyed by its workflow's key); every `Record<WorkspaceKind, …>` then
+   fails to type-check until it has the kind.
 2. A codec `packages/workspace-code/src/kinds/<kind>.ts` with tests; `KIND_LAYOUTS`, and
    `BLOB_KIND_CODECS` if it holds blobs (`src/kinds/registry.ts`); its diagnostic codes.
 3. An adapter `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts` calling the
@@ -134,8 +138,7 @@ an entry the workspace cannot satisfy.
 Steps 4 to 6 have no compile-time guard: a miss ships a kind that the CLI never type-checks or
 that a workflow cannot reference.
 
-The kinds today: custom tools, skills, MCP servers (`mcp/<key>.ts`), tables, knowledge bases,
-workspace files and workflows. A kind whose resources workflows name a member of (an MCP server's
+A kind whose resources workflows name a member of (an MCP server's
 tools) carries the member on the workflow change's `refs` and checks it in its adapter's
 `checkRefs`, which runs once every kind is planned. A secret-bearing field prints `stored()` or an
 env reference, never a value, and a literal secret in source is refused (`E_MCP_LITERAL_SECRET`).
