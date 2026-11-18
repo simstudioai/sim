@@ -5,10 +5,10 @@ import { polymarketGetActivityTool } from '@/tools/polymarket/get_activity'
 /** The Get Activity request URL the canvas sends for the stored block values. */
 function activityUrl(stored: Record<string, unknown>): URL {
   const inputs = { operation: 'get_activity', activityUser: '0xabc', ...stored }
-  const params = { ...inputs, ...PolymarketBlock.tools.config?.params?.(inputs) }
+  const mapped = PolymarketBlock.tools.config?.params?.(inputs) ?? {}
   const url = polymarketGetActivityTool.request.url
   if (typeof url !== 'function') throw new Error('Missing activity URL builder')
-  return new URL(url(params as Parameters<typeof url>[0]))
+  return new URL(url({ user: '0xabc', ...mapped }))
 }
 
 describe('Polymarket Get Activity start and end', () => {
