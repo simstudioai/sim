@@ -1048,6 +1048,24 @@ export default workflow('Big', {}, () => {
       )
     )
     expect(refused.code).toBe('validation')
+    // A size limit found after the first 1000 errors still classes the refusal as too large.
+    const oversized = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: {
+              ...files,
+              'tables/big.ts': 'x'.repeat(WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + 1),
+            },
+            kinds: KINDS,
+          },
+        })
+      )
+    )
+    expect(oversized.code).toBe('payload_too_large')
+    expect(codes(oversized.diagnostics)).toContain('E_LIMIT_EXCEEDED')
   })
 
   check(
