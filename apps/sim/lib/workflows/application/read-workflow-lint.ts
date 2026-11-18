@@ -1,5 +1,6 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { CursorKey } from '@/lib/api/list-query'
@@ -259,12 +260,11 @@ function hasRuntimeReference(value: string): boolean {
  * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
  * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
  * Each reference written outside a JSON string becomes a quoted placeholder so the Table block's
- * own transform reads the literal parts; filter slots that need a list or a condition are adapted
- * by {@link adaptReferencePlaceholders}. If the transform still fails and a field is one whole
- * reference, that field has no literal part, so it is left out, returned in `runtimeFields`, and
- * the transform runs once more; an error from that final attempt comes from the literal parts and
- * is rethrown. Only this lint-local copy is rewritten; references to string outputs left unquoted
- * are reported by `collectUnquotedJsonStringReferences`.
+ * own transform reads the literal parts (see {@link withReferencePlaceholders}). If the transform
+ * still fails and a field has no literal part, that field is left out, returned in
+ * `runtimeFields`, and the transform runs once more; an error from that final attempt comes from
+ * the literal parts and is rethrown. Only this lint-local copy is rewritten; references to string
+ * outputs left unquoted are reported by `collectUnquotedJsonStringReferences`.
  */
 function normalizeTableInputs(
   transform: (params: Record<string, unknown>) => Record<string, unknown>,
@@ -277,12 +277,9 @@ function normalizeTableInputs(
       prepared[key] = value
       continue
     }
-    prepared[key] = withReferencePlaceholders(value)
-    const trimmed = value.trim()
-    const tokens = findWorkflowReferenceTokens(trimmed)
-    if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
-      runtimeFields.push(key)
-    }
+    const input = withReferencePlaceholders(value)
+    prepared[key] = input.value
+    if (input.runtimeOnly) runtimeFields.push(key)
   }
   try {
     return { normalized: transform(prepared), runtimeFields: [] }
@@ -293,41 +290,57 @@ function normalizeTableInputs(
   return { normalized: transform(prepared), runtimeFields }
 }
 
-function withReferencePlaceholders(json: string): string {
-  const references = new Set<string>()
-  const quoted = replaceBareReferences(json, (reference) => {
-    references.add(reference)
-    return JSON.stringify(reference)
-  })
-  if (references.size === 0) return quoted
-  try {
-    return JSON.stringify(adaptReferencePlaceholders(JSON.parse(quoted), references))
-  } catch {
-    return quoted
-  }
-}
-
 /**
- * A quoted placeholder fits row values and most filter values. The value of an `in`/`nin`
- * condition must be a list, so it becomes a one-item list, and a whole condition inside an
- * `all`/`any` group has no literal part, so it is left out while the group keeps a literal member.
+ * Quotes each bare reference occurrence under its own placeholder, so an already-quoted string
+ * with the same text is never mistaken for one. A quoted reference fits row values and most
+ * filter values; the value of an `in`/`nin` condition must be a list, so it becomes a one-item
+ * list, and a condition or group made only of references has no literal part, so it is left out
+ * of an `all`/`any` group that keeps a literal member. `runtimeOnly` marks a field whose whole
+ * value is such a reference or group.
  */
-function adaptReferencePlaceholders(node: unknown, references: Set<string>): unknown {
-  const isPlaceholder = (value: unknown) => typeof value === 'string' && references.has(value)
-  if (Array.isArray(node)) return node.map((item) => adaptReferencePlaceholders(item, references))
-  if (!isPlainRecord(node)) return node
-  const adapted: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(node)) {
-    if ((key === 'all' || key === 'any') && Array.isArray(value)) {
-      const literal = value.filter((item) => !isPlaceholder(item))
-      adapted[key] = adaptReferencePlaceholders(literal.length > 0 ? literal : value, references)
-    } else if (key === 'value' && (node.op === 'in' || node.op === 'nin') && isPlaceholder(value)) {
-      adapted[key] = [value]
-    } else {
-      adapted[key] = adaptReferencePlaceholders(value, references)
-    }
+function withReferencePlaceholders(json: string): { value: string; runtimeOnly: boolean } {
+  const nonce = generateShortId()
+  const references = new Map<string, string>()
+  const quoted = replaceBareReferences(json, (reference) => {
+    const placeholder = `${nonce}:${references.size}`
+    references.set(placeholder, reference)
+    return JSON.stringify(placeholder)
+  })
+  if (references.size === 0) return { value: json, runtimeOnly: false }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(quoted)
+  } catch {
+    const readable = replaceBareReferences(json, (reference) => JSON.stringify(reference))
+    return { value: readable, runtimeOnly: false }
   }
-  return adapted
+  const isPlaceholder = (node: unknown): node is string =>
+    typeof node === 'string' && references.has(node)
+  const isDynamic = (node: unknown): boolean => {
+    if (isPlaceholder(node)) return true
+    if (!isPlainRecord(node)) return false
+    const members = node.all ?? node.any
+    return Array.isArray(members) && members.length > 0 && members.every(isDynamic)
+  }
+  const adapt = (node: unknown): unknown => {
+    if (isPlaceholder(node)) return references.get(node)
+    if (Array.isArray(node)) return node.map(adapt)
+    if (!isPlainRecord(node)) return node
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => {
+        const name = references.get(key) ?? key
+        if ((key === 'all' || key === 'any') && Array.isArray(value)) {
+          const literal = value.filter((member) => !isDynamic(member))
+          return [name, adapt(literal.length > 0 ? literal : value)]
+        }
+        if (key === 'value' && (node.op === 'in' || node.op === 'nin') && isPlaceholder(value)) {
+          return [name, [adapt(value)]]
+        }
+        return [name, adapt(value)]
+      })
+    )
+  }
+  return { value: JSON.stringify(adapt(parsed)), runtimeOnly: isDynamic(parsed) }
 }
 
 function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {

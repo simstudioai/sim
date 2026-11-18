@@ -341,6 +341,56 @@ describe('standalone table diagnostics against the actual Table block', () => {
       expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
     })
 
+    it('defers a filter group made only of references and still checks row data', async () => {
+      const conditions = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name) => `<start.${name}>`)
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: `{"all":[${conditions.join(',')}]}`,
+          data: '{"name":"Ada","missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      )
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+    })
+
+    it('reports a quoted in-list value that matches a bare reference elsewhere', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"name","op":"eq","value":<start.names>},{"field":"name","op":"in","value":"<start.names>"}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            'Table input checks in block "query" could not complete before runtime:'
+          ),
+        ])
+      )
+    })
+
+    it('keeps a __proto__ row key beside a bare reference', async () => {
+      setGraph(
+        block('write', {
+          operation: 'insert_row',
+          data: '{"name":<start.name>,"__proto__":"extra"}',
+        })
+      )
+      const result = await lint()
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['__proto__'] })])
+    })
+
     it('blames malformed row data, not a whole-field filter reference', async () => {
       setGraph(
         block('write', {
