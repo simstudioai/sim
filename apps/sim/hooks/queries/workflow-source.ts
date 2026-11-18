@@ -1,5 +1,5 @@
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
-import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryFunctionContext, useQuery } from '@tanstack/react-query'
 import { requestJsonRevalidated } from '@/lib/api/client/request'
 import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contracts/workflow-source'
 
@@ -18,21 +18,22 @@ interface CachedWorkflowSource {
   etag: string | null
 }
 
+type WorkflowSourceKey = ReturnType<typeof workflowSourceKeys.detail>
+
 /**
  * Reads the workflow's source, revalidating the cached copy by its `ETag`: an unchanged draft
- * answers `304` and the cached copy is kept, so nothing is transferred.
+ * answers `304` and the cached copy is kept, so nothing is transferred. The workflow id is the
+ * key's last part, so the read and its cache entry never disagree.
  */
-async function fetchWorkflowSource(
-  queryClient: QueryClient,
-  workflowId: string,
-  signal?: AbortSignal
-): Promise<CachedWorkflowSource> {
-  const cached = queryClient.getQueryData<CachedWorkflowSource>(
-    workflowSourceKeys.detail(workflowId)
-  )
+async function fetchWorkflowSource({
+  client,
+  queryKey,
+  signal,
+}: QueryFunctionContext<WorkflowSourceKey>): Promise<CachedWorkflowSource> {
+  const cached = client.getQueryData<CachedWorkflowSource>(queryKey)
   const read = await requestJsonRevalidated(
     getWorkflowSourceContract,
-    { params: { id: workflowId }, query: { functionCode: 'inline' }, signal },
+    { params: { id: queryKey[2] }, query: { functionCode: 'inline' }, signal },
     cached?.etag
   )
   if (read.notModified && cached) return cached
@@ -48,10 +49,9 @@ const selectEntryText = ({ source }: CachedWorkflowSource) => source.files[SOURC
  * nothing; a refetch of an unchanged draft revalidates by `ETag` and transfers no body.
  */
 export function useWorkflowSourceText(workflowId?: string, options?: { enabled?: boolean }) {
-  const queryClient = useQueryClient()
   return useQuery({
     queryKey: workflowSourceKeys.detail(workflowId),
-    queryFn: ({ signal }) => fetchWorkflowSource(queryClient, workflowId as string, signal),
+    queryFn: fetchWorkflowSource,
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: WORKFLOW_SOURCE_STALE_TIME,
     select: selectEntryText,

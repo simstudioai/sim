@@ -516,7 +516,7 @@ describe('workspace source files', () => {
       }
       const second: Record<string, Buffer> = { 'files/second/shared.txt': shared }
       const create = createWorkspaceFileBufferByPath.execute
-      let interleaved: Promise<unknown> | null = null
+      let interleaved: ReturnType<typeof apply> | undefined
       // The first apply pauses at its first write, after it planned with the shared blob; the
       // second apply runs to completion meanwhile.
       const paused = vi
@@ -528,7 +528,8 @@ describe('workspace source files', () => {
         })
 
       const result = await apply(workspaceId, first).finally(() => paused.mockRestore())
-      const other = (await interleaved) as Awaited<ReturnType<typeof apply>>
+      if (!interleaved) throw new Error('The second apply never ran')
+      const other = await interleaved
 
       expect(other.failed).toBeUndefined()
       expect(result.failed).toBeUndefined()
