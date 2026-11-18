@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { CanonicalBlock, CanonicalWorkflow } from '../model'
+import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
-import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
   "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"

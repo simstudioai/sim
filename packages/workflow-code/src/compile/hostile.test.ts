@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
 import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, Reporter } from './report'
-import { TEST_CATALOG } from './test-catalog'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come

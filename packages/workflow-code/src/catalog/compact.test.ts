@@ -5,7 +5,7 @@
  * input reused across builds.
  */
 import { describe, expect, it } from 'vitest'
-import { TEST_CATALOG } from '../compile/test-catalog'
+import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import { stableStringify } from '../hash'
 import { compactBlockCatalog } from './compact'
 import type { BlockCatalog, CatalogSubBlock, ExpandedBlockCatalog } from './types'

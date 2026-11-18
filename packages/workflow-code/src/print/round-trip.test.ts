@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { compileWorkflow } from '../compile'
-import { TEST_CATALOG } from '../compile/test-catalog'
+import { TEST_CATALOG } from '../compile/catalog.test-helpers'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from './printer'
 

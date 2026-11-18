@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from '../print'
 import { quoteString } from '../print/strings'
+import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
-import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
   "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
