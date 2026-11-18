@@ -3,15 +3,13 @@ import { mcpBinding, mcpToolId } from '../agent-tools'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
-import type { BlockKey, CanonicalTool, Json, Value } from '../model'
+import { type BlockKey, type CanonicalTool, isUsageControl, type Json, type Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
 import { toolModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
 export type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
-
-const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
 
 /** Stored tool keys with a typed model field; anything else is kept under `extra`. */
 const MODELED_KEYS = new Set([
@@ -120,8 +118,8 @@ function liftTool(
     if (typeof value === 'string') tool[key] = value
     else if (value !== undefined) extra[key] = toJson(value)
   }
-  if (typeof stored.usageControl === 'string' && USAGE_CONTROLS.has(stored.usageControl)) {
-    tool.usageControl = stored.usageControl as CanonicalTool['usageControl']
+  if (isUsageControl(stored.usageControl)) {
+    tool.usageControl = stored.usageControl
   } else if (stored.usageControl !== undefined) {
     extra.usageControl = toJson(stored.usageControl)
   }

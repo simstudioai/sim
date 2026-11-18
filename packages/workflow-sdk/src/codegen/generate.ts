@@ -19,6 +19,7 @@ import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from 
 import { printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import {
+  builderPins,
   hasDefaultValue,
   isWrittenInSource,
   onSurface,
@@ -104,9 +105,6 @@ const CORE_TYPE_NAMES = [
   'WorkflowRef',
 ] as const
 
-/** The trigger and operation selectors, which a builder pins rather than takes as params. */
-const BUILDER_PINNED_IDS: ReadonlySet<string> = new Set(['selectedTriggerId', 'operation'])
-
 const HEADER_PREFIX = '// @sim-sdk'
 
 function header(sdkMajor: number): string {
@@ -124,10 +122,10 @@ export function sdkIndexHeader(catalog: Pick<BlockCatalog, 'sdkMajor' | 'hash'>)
 /** The subBlocks a builder can write: the ones its surface uses (`onSurface`) that source can state. */
 function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSubBlock[] {
   const triggerMode = entry.builder.triggerMode === true
-  const fixed = entry.builder.fixed ?? {}
+  const pins = builderPins(entry.builder)
   return block.subBlocks.filter((subBlock) => {
     if (!isWrittenInSource(subBlock) || !onSurface(block, subBlock, triggerMode)) return false
-    if (BUILDER_PINNED_IDS.has(subBlock.id) || subBlock.id in fixed) return false
+    if (pins.has(subBlock.id)) return false
     return mapSubBlock(subBlock) !== null
   })
 }
@@ -199,12 +197,6 @@ interface BuilderTypes {
   summary: string
   /** The params type's name. */
   paramsName: string
-}
-
-function pinnedValues(entry: BuilderEntry): Record<string, Scalar> {
-  const pinned: Record<string, Scalar> = { ...(entry.builder.fixed ?? {}) }
-  if (entry.builder.operation !== undefined) pinned.operation = entry.builder.operation
-  return pinned
 }
 
 function outputSource(
@@ -360,7 +352,7 @@ function buildParams(
   context: VisibilityContext
 } {
   const candidates = candidateSubBlocks(block, entry)
-  const context = buildVisibilityContext(candidates, pinnedValues(entry))
+  const context = buildVisibilityContext(candidates, Object.fromEntries(builderPins(entry.builder)))
   const coreParams = new Set(entry.special?.coreParams ?? [])
   const aliases = paramAliases(block, entry.builder.triggerMode === true)
   const params: Param[] = []

@@ -17,7 +17,7 @@ import {
   isConditionClause,
 } from './conditions'
 import { subBlockEditorDefault } from './defaults'
-import type { CatalogBlock, CatalogSubBlock } from './types'
+import type { CatalogBlock, CatalogBuilder, CatalogSubBlock } from './types'
 
 /** The fields this rule reads; a registry `SubBlockConfig` fits as well as a `CatalogSubBlock`. */
 type SurfaceFields = Partial<Pick<CatalogSubBlock, 'surface'>> & { mode?: string }
@@ -54,6 +54,25 @@ export function isWrittenInSource(
     return false
   }
   return !UNWRITTEN_SUBBLOCK_IDS.has(subBlock.id) && !subBlock.id.startsWith('samplePayload')
+}
+
+const pinsByBuilder = new WeakMap<CatalogBuilder, ReadonlyMap<SubBlockId, string>>()
+
+/**
+ * The param values a builder pins: its `operation` (when it has one), then its `fixed` entries,
+ * which win over the operation as compile stores them. Print leaves these out of the params,
+ * compile sets them (writing one is `E_FIXED_PARAM`), and SDK codegen leaves them out of the
+ * params type, so all three agree on which params a builder takes. Empty for no builder.
+ */
+export function builderPins(builder: CatalogBuilder | undefined): ReadonlyMap<SubBlockId, string> {
+  if (!builder) return new Map()
+  const known = pinsByBuilder.get(builder)
+  if (known) return known
+  const pins = new Map<SubBlockId, string>()
+  if (builder.operation !== undefined) pins.set('operation', builder.operation)
+  for (const [id, value] of Object.entries(builder.fixed ?? {})) pins.set(id, value)
+  pinsByBuilder.set(builder, pins)
+  return pins
 }
 
 /**

@@ -12,16 +12,18 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { builderPins } from '../catalog/surface'
 import { catalogBlock } from '../catalog/view'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { branchesAtTopLevel, printsAsElseTrue } from '../forms/condition'
 import { readResponseForm } from '../forms/response'
+import { printedConfig } from '../forms/subflow'
 import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
 import { getOwn, setOwn } from '../records'
-import { GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
+import { type BlockMetaKey, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
 import { type AttachedComments, anchors, withComments } from './comments'
 import type { PrintContext } from './context'
 import { createPrintContext, type PrintInput } from './context'
@@ -38,7 +40,7 @@ import {
 import { layout } from './scope'
 import { printKey } from './strings'
 import { arrowExpr, type Expr, objectExpr, type Property, type StatementList } from './syntax'
-import { findBuilder, pinnedIds } from './tools'
+import { findBuilder } from './tools'
 import type { Tag } from './values'
 
 /** biome.json's line width. */
@@ -73,26 +75,20 @@ function metaProperties(
   }
 ): Property[] {
   const meta: Property[] = []
+  const add = (key: BlockMetaKey, value: Expr) => meta.push({ key, value })
   const yes: Expr = { doc: 'true', shape: 'literal', depth: 1 }
-  if (needsKeyOverride(block)) meta.push({ key: 'key', value: ctx.values.string(block.key) })
-  if (!block.enabled) meta.push({ key: 'disabled', value: yes })
-  if (block.locked) meta.push({ key: 'locked', value: yes })
-  if (block.advancedMode) meta.push({ key: 'advancedMode', value: yes })
+  if (needsKeyOverride(block)) add('key', ctx.values.string(block.key))
+  if (!block.enabled) add('disabled', yes)
+  if (block.locked) add('locked', yes)
+  if (block.advancedMode) add('advancedMode', yes)
   if (fields.triggerMode !== undefined) {
-    meta.push({
-      key: 'triggerMode',
-      value: { doc: String(fields.triggerMode), shape: 'literal', depth: 1 },
-    })
+    add('triggerMode', { doc: String(fields.triggerMode), shape: 'literal', depth: 1 })
   }
-  if (block.errorPort && !hasErrorEdge(ctx, block.key)) meta.push({ key: 'errorPort', value: yes })
-  if (block.retry) meta.push({ key: 'retry', value: ctx.values.json({ ...block.retry }) })
-  if (fields.branches && fields.branches.length > 0) {
-    meta.push({ key: 'branches', value: objectExpr(fields.branches) })
-  }
-  if (fields.extra.length > 0) meta.push({ key: 'extra', value: objectExpr(fields.extra) })
-  if (fields.subflowData) {
-    meta.push({ key: 'subflowData', value: ctx.values.json(fields.subflowData) })
-  }
+  if (block.errorPort && !hasErrorEdge(ctx, block.key)) add('errorPort', yes)
+  if (block.retry) add('retry', ctx.values.json({ ...block.retry }))
+  if (fields.branches && fields.branches.length > 0) add('branches', objectExpr(fields.branches))
+  if (fields.extra.length > 0) add('extra', objectExpr(fields.extra))
+  if (fields.subflowData) add('subflowData', ctx.values.json(fields.subflowData))
   return meta
 }
 
@@ -137,7 +133,7 @@ function blockCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   const found = findBuilder(ctx.catalog, block.type, block.triggerMode, (id) =>
     stringParam(block, id)
   )
-  const pinned = pinnedIds(found?.builder)
+  const pinned = new Set(builderPins(found?.builder).keys())
   const collected = collectParams(ctx, block, declared, pinned)
   const { extra } = collected
   const form =
@@ -219,26 +215,17 @@ function containerCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   const spec = block.subflow
   if (!spec) throw new Error('containerCall requires a subflow block')
   const config: Property[] = []
-  const field = (key: string, value: Json | undefined, active: boolean, tag: Tag) => {
-    if (value === undefined || !active) return
-    config.push({ key, value: ctx.values.value(value, { tag, from: block.key }) })
+  for (const item of printedConfig(spec)) {
+    if (item.value === undefined || !item.printed) continue
+    const tag: Tag = item.kind === 'text' ? 'js' : 't'
+    config.push({ key: item.key, value: ctx.values.value(item.value, { tag, from: block.key }) })
   }
-  let callee: string
-  if (spec.kind === 'loop') {
-    callee = `loop.${spec.loopType}`
-    const countRuns =
-      spec.loopType === 'for' || (spec.loopType === 'doWhile' && !spec.doWhileCondition)
-    field('count', spec.iterations, countRuns, 't')
-    field('collection', spec.forEachItems, spec.loopType === 'forEach', 't')
-    field('condition', spec.whileCondition, spec.loopType === 'while', 'js')
-    field('condition', spec.doWhileCondition, spec.loopType === 'doWhile', 'js')
-  } else {
-    const type = spec.parallelType
-    callee = type === undefined ? 'parallel' : `parallel.${type}`
-    field('count', spec.count, type !== 'collection', 't')
-    field('collection', spec.distribution, type !== 'count', 't')
-    field('batchSize', spec.batchSize, true, 't')
-  }
+  const callee =
+    spec.kind === 'loop'
+      ? `loop.${spec.loopType}`
+      : spec.parallelType === undefined
+        ? 'parallel'
+        : `parallel.${spec.parallelType}`
   const { params, extra } = collectParams(
     ctx,
     block,
