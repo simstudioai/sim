@@ -14,9 +14,12 @@ import { editorDefaults } from '../catalog/defaults'
 import {
   buildFieldIndex,
   type CatalogField,
+  declarationFor,
   type FieldIndex,
   isModalPair,
+  isWrittenInSource,
   memberFor,
+  typedForBuilder,
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
@@ -55,7 +58,13 @@ import { didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
-import { fieldFor, isVisible, missingRequiredFields, valueKindMatches } from './validate-catalog'
+import {
+  fieldFor,
+  isVisible,
+  missingRequiredFields,
+  paramLookup,
+  valueKindMatches,
+} from './validate-catalog'
 import {
   type CompiledValue,
   compileJsonField,
@@ -596,19 +605,29 @@ function isJsonContainer(value: Value): boolean {
 
 /**
  * The member a pair value compiles into: a selector call (or a non-empty
- * array of them) is basic, anything else advanced. A list or object literal never lands in a JSON
- * code member when the pair's other member takes it as written: the printer writes a JSON code
- * member's value as the text it stores, never as the literal it stringifies.
+ * array of them) is basic, anything else advanced. A literal the derived member's value kind does
+ * not take lands in the other member when that one takes it (an uploaded file object in the agent's
+ * upload member, not its text twin). A list or object literal never lands in a JSON code member
+ * when the pair's other member takes it as written: the printer writes a JSON code member's value
+ * as the text it stores, never as the literal it stringifies.
  */
 function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: CompiledValue): ParamMode {
   if (value.kind !== 'value') return 'basic'
   const derived: ParamMode = isSelectorForm(value.form) ? 'basic' : 'advanced'
-  if (value.form !== 'literal' || !isJsonContainer(value.value)) return derived
+  if (value.form !== 'literal') return derived
   const other: ParamMode = derived === 'basic' ? 'advanced' : 'basic'
+  const derivedMember = memberFor(field, derived)
   const otherMember = other === 'basic' ? field.basic : field.advanced
-  return memberFor(field, derived)?.type === 'code' && otherMember && otherMember.type !== 'code'
-    ? other
-    : derived
+  if (!otherMember) return derived
+  if (
+    derivedMember &&
+    !valueKindMatches(derivedMember, value.value) &&
+    valueKindMatches(otherMember, value.value)
+  ) {
+    return other
+  }
+  if (!isJsonContainer(value.value)) return derived
+  return derivedMember?.type === 'code' && otherMember.type !== 'code' ? other : derived
 }
 
 /**
@@ -985,8 +1004,19 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       setOwn(modes, field.param, 'basic')
   }
 
-  compileExtraParams(ctx, meta.extra, params, site, (id) =>
-    Boolean(index?.subBlocks.has(id) || pinned.has(id) || id === branchField?.subBlockId)
+  const pinnedValues: Record<string, unknown> = {}
+  for (const id of pinned) setOwn(pinnedValues, id, storedValues(params).get(id))
+  compileExtraParams(
+    ctx,
+    meta.extra,
+    state,
+    (id) => {
+      if (pinned.has(id) || id === branchField?.subBlockId) return true
+      const declarations = index?.declarations.get(id)
+      return declarations !== undefined && typedForBuilder(declarations, pinnedValues)
+    },
+    (id, property) =>
+      keepStored(ctx, state, index?.declarations.get(id) ?? [{ id }], property, null)
   )
   if (meta.subflowData) {
     unsupported(
@@ -997,6 +1027,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       decl.key
     )
   }
+  const fromSource = new Set(Object.keys(params))
   const defaulted: SubBlockId[] = []
   if (catalogBlock) {
     for (const [id, value] of editorDefaults(catalogBlock)) {
@@ -1023,7 +1054,10 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     modes,
     ...(branches && { branches }),
   }
-  if (catalogBlock) keepStoredInactiveParams(ctx, block, catalogBlock, defaulted)
+  if (catalogBlock) {
+    keepStoredInactiveParams(ctx, block, catalogBlock, defaulted)
+    keepStoredUnwrittenParams(ctx, block, catalogBlock, fromSource)
+  }
   return { block, ...(codeFile !== undefined && { codeFile }) }
 }
 
@@ -1052,20 +1086,46 @@ function keepStoredInactiveParams(
 }
 
 /**
+ * Source never states a field it does not write (`isWrittenInSource`: hidden, display-only and
+ * trigger system fields), so a block the stored workflow holds keeps the stored value of each such
+ * field source left out, or none when the stored block has none. A block the stored workflow does
+ * not hold keeps the defaults, as canvas creation seeds them.
+ */
+function keepStoredUnwrittenParams(
+  ctx: CompileContext,
+  block: CanonicalBlock,
+  catalogBlock: CatalogBlock,
+  fromSource: ReadonlySet<SubBlockId>
+): void {
+  const stored = ctx.stored ? getOwn(ctx.stored.blocks, block.key) : undefined
+  if (!stored || stored.type !== block.type) return
+  const index = buildFieldIndex(catalogBlock, block.triggerMode, new Set())
+  for (const [id, declarations] of index.declarations) {
+    if (fromSource.has(id) || declarations.some(isWrittenInSource)) continue
+    const kept = getOwn(stored.params, id)
+    if (kept) setOwn(block.params, id, kept)
+    else delete block.params[id]
+  }
+}
+
+/**
  * `meta.extra` entries that become params: stored ids with no SDK syntax that still run (a
  * schema-agnostic custom block's input, the agent's legacy prompt fields, a container's stored
- * params). An id the block's params can name (`declared`) or already hold is refused.
+ * params, a param the builder's type leaves out (`typedForBuilder`) that still runs). An id the
+ * builder's params can name (`typed`) or already hold is refused; `null` leaves the id unset, so
+ * no editor default fills it, and `stored()` keeps the stored value (`keep`).
  */
 function compileExtraParams(
   ctx: CompileContext,
   entries: Array<[string, ObjectProperty]>,
-  params: Record<SubBlockId, CanonicalParam>,
-  site: ValueSite,
-  declared: (id: SubBlockId) => boolean
+  state: Pick<BlockState, 'params' | 'site' | 'unset'>,
+  typed: (id: SubBlockId) => boolean,
+  keep?: (id: SubBlockId, property: ObjectProperty) => void
 ): void {
+  const { site, params } = state
   const { decl } = site
   for (const [id, property] of entries) {
-    if (declared(id) || Object.hasOwn(params, id)) {
+    if (typed(id) || Object.hasOwn(params, id)) {
       unsupported(
         ctx,
         property,
@@ -1078,8 +1138,9 @@ function compileExtraParams(
     recordSpan(ctx, { kind: 'param', block: decl.key, param: id }, property)
     const compiled = compileValue(ctx, property.value, site)
     if (compiled?.kind === 'value') setOwn(params, id, { kind: 'value', value: compiled.value })
-    else if (compiled && compiled.kind !== 'absent')
-      nestedValue(ctx, property.value, compiled, site)
+    else if (compiled?.kind === 'absent') state.unset.add(id)
+    else if (compiled?.kind === 'stored' && keep) keep(id, property)
+    else if (compiled) nestedValue(ctx, property.value, compiled, site)
   }
 }
 
@@ -1126,8 +1187,9 @@ function predicateProblem(node: Record<string, Value>): string | null {
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
   const values = storedValues(params)
+  const lookup = paramLookup(values)
   for (const entry of state.written) {
-    const sub = index.subBlocks.get(entry.target)
+    const sub = declarationFor(index, entry.target, lookup)
     if (!sub) continue
     if (!isVisible(sub, values)) {
       ctx.reporter.report(
@@ -1299,7 +1361,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
   }
 
   const params: Record<SubBlockId, CanonicalParam> = {}
-  compileExtraParams(ctx, meta.extra, params, site, () => false)
+  compileExtraParams(ctx, meta.extra, { params, site, unset: new Set() }, () => false)
 
   const json = (field: string): Json | undefined => fields.get(field) as Json | undefined
   const text = (field: string): string | undefined => {

@@ -122,7 +122,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     case 'workflow-selector':
       return { type: 'WorkflowRef', doc }
     case 'file-upload':
-      return { type: subBlock.multiple ? 'FileRef | FileRef[]' : 'FileRef', doc }
+      return { type: subBlock.multiple ? 'UploadedFile | UploadedFile[]' : 'UploadedFile', doc }
     case 'tool-input':
       return { type: 'Tool[]', doc }
     case 'skill-input':
@@ -155,11 +155,12 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
       return { type: 'EvalMetric[]', doc }
     case 'model-fallback-list':
       return { type: 'ModelFallback[]', doc }
+    case 'workflow-output-selector':
+      return { type: 'string[]', doc: [...doc, 'Output paths, `blockName.path`.'] }
     // Display-only or server-managed: never written in source.
     case 'text':
     case 'schedule-info':
     case 'webhook-config':
-    case 'workflow-output-selector':
     case 'modal':
       return null
     default: {

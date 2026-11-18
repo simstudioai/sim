@@ -20,8 +20,17 @@ import { portKey } from '../anchors'
 import { toolModeOverrides } from '../canonicalize/modes'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
+import { recordLookup } from '../catalog/conditions'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
-import { buildFieldIndex, memberFor, paramAliases } from '../catalog/surface'
+import {
+  buildFieldIndex,
+  declarationFor,
+  isWrittenInSource,
+  memberFor,
+  paramAliases,
+  requiredForBuilder,
+  typedForBuilder,
+} from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock, catalogBuilderPaths, catalogBuildersOfType } from '../catalog/view'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
@@ -55,7 +64,13 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE, SDK_MODULE } from '../sdk'
+import {
+  CUSTOM_TOOL_TYPE,
+  GENERIC_BUILDER,
+  hasToolForm,
+  RESPONSE_BLOCK_TYPE,
+  SDK_MODULE,
+} from '../sdk'
 import { isLiteralSecret, literalSecretFinding } from '../secrets'
 import { type AttachedComments, anchors, CommentPlacer, withComments } from './comments'
 import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from './doc'
@@ -124,6 +139,15 @@ function stringParam(block: CanonicalBlock, id: string): string | undefined {
 
 function hasValue(block: CanonicalBlock, id: string): boolean {
   return getOwn(block.params, id) !== undefined
+}
+
+/** The block's plain param values by id, which conditions read. */
+function paramValues(block: CanonicalBlock): Record<string, unknown> {
+  const values: Record<string, unknown> = {}
+  for (const [id, param] of Object.entries(block.params)) {
+    if (param.kind === 'value') setOwn(values, id, param.value)
+  }
+  return values
 }
 
 /**
@@ -703,7 +727,13 @@ class WorkflowPrinter {
       const aliases = declared ? paramAliases(declared, false) : new Map<string, string>()
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
-      if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
+      if (
+        !found ||
+        !declared ||
+        !hasToolForm(found.path, found.builder, declared) ||
+        Object.keys(tool.params).some((id) => aliasNames.has(id)) ||
+        !this.toolParamsTyped(tool, declared, found.builder)
+      ) {
         return this.rawToolCall(block, tool, declared, aliases)
       }
       const pinned = pinnedIds(found.builder)
@@ -756,6 +786,32 @@ class WorkflowPrinter {
       return this.values.call(callee, args)
     })
     return arrayExpr(elements)
+  }
+
+  /**
+   * Whether every stored param of a tool is one its builder's tool type declares: a field written
+   * under its own id (a pair under its canonical id) that the builder's pinned values leave
+   * visible (`typedForBuilder`). Anything else prints the tool as `raw(tool)`.
+   */
+  private toolParamsTyped(
+    tool: CanonicalTool,
+    declared: CatalogBlock,
+    builder: CatalogBuilder
+  ): boolean {
+    const pinned = pinnedIds(builder)
+    const index = buildFieldIndex(declared, false, pinned)
+    const pinnedValues: Record<string, unknown> = { ...builder.fixed }
+    if (builder.operation !== undefined) pinnedValues.operation = builder.operation
+    return Object.keys(tool.params).every((id) => {
+      if (pinned.has(id)) return true
+      const field = index.fields.get(id) ?? index.aliased.get(id)
+      if (!field || field.param !== id) return false
+      const members = field.kind === 'pair' ? field.members : [field.sub]
+      return typedForBuilder(
+        members.flatMap((member) => index.declarations.get(member.id) ?? [member]),
+        pinnedValues
+      )
+    })
   }
 
   /**
@@ -846,12 +902,17 @@ class WorkflowPrinter {
 
   /**
    * Params in catalog registry order, one per canonical pair, under the
-   * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, and an
+   * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, a field the
+   * builder's type requires (`requiredForBuilder`) with no stored value prints `todo()`, and an
    * active field with no stored value prints `null` when a default exists. What never executes
    * (`executableInactiveParams`: inactive values, the pair member the mode hides, undeclared ids
    * that do not run) is left out; apply restores it from the stored workflow. A stored id the
    * catalog does not declare that still runs (a schema-agnostic custom block's input, the agent's
-   * legacy prompt fields) goes to `extra`, the only place source takes such an id.
+   * legacy prompt fields) goes to `extra`, the only place source takes such an id; so does a param
+   * the builder's type leaves out (`typedForBuilder`) that still runs, such as an advanced field
+   * the serializer forwards under an operation that hides it. A field source never writes
+   * (`isWrittenInSource`: hidden, display-only, trigger system fields) is left out; compile keeps
+   * its stored value.
    */
   private collectParams(
     block: CanonicalBlock,
@@ -877,40 +938,61 @@ class WorkflowPrinter {
 
     if (declared) {
       const index = buildFieldIndex(declared, block.triggerMode, pinned)
+      const values = paramValues(block)
+      const lookup = recordLookup(values)
+      const pinnedValues: Record<string, unknown> = {}
+      for (const id of pinned) setOwn(pinnedValues, id, getOwn(values, id))
       for (const id of index.subBlocks.keys()) handled.add(id)
       for (const field of index.fields.values()) {
+        const members = field.kind === 'pair' ? field.members : [field.sub]
+        const declarations = members.flatMap(
+          (member) => index.declarations.get(member.id) ?? [member]
+        )
+        if (!declarations.some(isWrittenInSource)) continue
+        const typed = typedForBuilder(declarations, pinnedValues)
         if (field.kind === 'pair') {
           const mode: ParamMode = getOwn(block.modes, field.param) ?? 'basic'
-          const effective = memberFor(field, mode)
-          if (!effective) continue
+          const member = memberFor(field, mode)
+          if (!member) continue
+          const effective = declarationFor(index, member.id, lookup) ?? member
           if (hasValue(block, effective.id)) {
             if (inactiveIds.has(effective.id)) continue
-            if (mode === 'basic' && effective === field.basic && isDefault(effective.id)) continue
+            if (mode === 'basic' && member === field.basic && isDefault(effective.id)) continue
             const printed = this.printParamValue(block, declared, effective.id, effective)
-            if (printed) push(params, field.name, printed)
+            if (printed) {
+              if (typed) push(params, field.name, printed)
+              else push(extra, effective.id, printed)
+            }
+          } else if (typed && this.needsTodo(block, effective, declarations, pinnedValues)) {
+            push(params, field.name, this.values.call('todo', []))
           } else if (
             field.members.some((member) => defaults.has(member.id)) &&
             this.activeIfSet(block, declared, effective, defaults.get(effective.id) ?? '')
           ) {
-            push(params, field.name, NULL_EXPR)
+            if (typed) push(params, field.name, NULL_EXPR)
+            else push(extra, effective.id, NULL_EXPR)
           }
           continue
         }
-        const sb = field.sub
+        const sb = declarationFor(index, field.sub.id, lookup) ?? field.sub
         if (!hasValue(block, sb.id)) {
-          if (this.needsTodo(block, sb)) {
+          if (typed && this.needsTodo(block, sb, declarations, pinnedValues)) {
             push(params, field.name, this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
             if (fallback !== undefined && this.activeIfSet(block, declared, sb, fallback)) {
-              push(params, field.name, NULL_EXPR)
+              if (typed) push(params, field.name, NULL_EXPR)
+              else push(extra, sb.id, NULL_EXPR)
             }
           }
           continue
         }
         if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
         const printed = this.printParamValue(block, declared, sb.id, sb, true)
-        if (printed) push(params, field.name, printed)
+        if (printed) {
+          if (typed) push(params, field.name, printed)
+          else push(extra, sb.id, printed)
+        }
       }
     }
 
@@ -955,8 +1037,17 @@ class WorkflowPrinter {
     return entries
   }
 
-  /** A required, always-visible field with no stored value prints `todo()`. */
-  private needsTodo(block: CanonicalBlock, sb: CatalogSubBlock): boolean {
+  /**
+   * A field that prints `todo()` when it holds no stored value: one the builder's type requires
+   * (`requiredForBuilder`), or a required, always-shown field with no condition, default or not.
+   */
+  private needsTodo(
+    block: CanonicalBlock,
+    sb: CatalogSubBlock,
+    declarations: readonly CatalogSubBlock[],
+    pinned: Readonly<Record<string, unknown>>
+  ): boolean {
+    if (requiredForBuilder(declarations, pinned)) return true
     if (sb.required !== true || sb.condition !== undefined || sb.hidden || sb.readOnly) return false
     if (sb.valueKind === 'none' || sb.valueKind === 'branches' || sb.valueKind === 'tools')
       return false

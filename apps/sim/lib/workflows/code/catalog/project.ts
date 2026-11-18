@@ -15,6 +15,7 @@ import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
+import { UNIFIED_START_OUTPUTS } from '@/lib/workflows/blocks/start-outputs'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
@@ -22,6 +23,7 @@ import {
   CANONICAL_ID_MIGRATIONS,
   SUBBLOCK_ID_MIGRATIONS,
 } from '@/lib/workflows/migrations/subblock-migrations'
+import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { isViewerDefault } from '@/blocks/viewer-defaults'
 import {
@@ -543,6 +545,14 @@ function conditionChoices(block: BlockConfig): Pick<ConditionInputs, 'models' | 
   return { models, choices }
 }
 
+/**
+ * The outputs a block has before its params add any, as `getBlockOutputs` resolves them: the
+ * unified Start block's are built in by the runtime rather than declared on its config.
+ */
+function builtInOutputs(block: BlockConfig): BlockConfig['outputs'] {
+  return block.type === TRIGGER_TYPES.START ? UNIFIED_START_OUTPUTS : (block.outputs ?? {})
+}
+
 /** Projects one registry block (built-in or custom) into the core-shard shape. */
 export function projectBlock(block: BlockConfig): CatalogBlock {
   const operations = operationOptions(block).map((operation) => operation.id)
@@ -559,7 +569,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
     category: block.category,
     subBlocks: block.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
     tools: projectTools(block, operations),
-    outputs: projectOutputRecord(block.outputs ?? {}),
+    outputs: projectOutputRecord(builtInOutputs(block)),
     graph: projectGraph(block),
   }
 

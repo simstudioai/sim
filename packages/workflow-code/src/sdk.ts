@@ -4,6 +4,7 @@
  * validator. `core.d.ts` in `@sim/workflow-sdk` must export exactly {@link SDK_CORE_EXPORTS}.
  */
 
+import type { CatalogBlock, CatalogBuilder } from './catalog/types'
 import type { ResourceKind } from './model'
 
 /** The module a workflow file imports the SDK from: the only import compile accepts. */
@@ -196,3 +197,16 @@ export const SDK_RESERVED_IDENTIFIERS: ReadonlySet<string> = new Set<string>([
   ...JS_RESERVED_WORDS,
   ...SDK_CORE_EXPORTS,
 ])
+
+/**
+ * Whether the SDK declares a builder's agent-tool form, `namespace.tool.method(params, options)`:
+ * a namespaced builder of a tools-category block outside trigger mode. SDK codegen emits exactly
+ * these, and the printer writes any other tool as `raw(tool)`.
+ */
+export function hasToolForm(
+  path: string,
+  builder: Pick<CatalogBuilder, 'triggerMode'>,
+  block: Pick<CatalogBlock, 'category'>
+): boolean {
+  return block.category === 'tools' && builder.triggerMode !== true && path.includes('.')
+}

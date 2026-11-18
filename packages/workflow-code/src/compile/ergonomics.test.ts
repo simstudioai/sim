@@ -41,8 +41,8 @@ function printed(workflow: CanonicalWorkflow): string {
 
 describe('param aliases', () => {
   it('compiles the alias and the param name to the same stored member, and prints the alias', () => {
-    const viaAlias = compiled(source("  mail('M', { credential: credential('ops') })"))
-    const viaName = compiled(source("  mail('M', { oauthCredential: credential('ops') })"))
+    const viaAlias = compiled(source("  mail.send('M', { credential: credential('ops') })"))
+    const viaName = compiled(source("  mail.send('M', { oauthCredential: credential('ops') })"))
     expect(viaAlias.blocks.m).toEqual(viaName.blocks.m)
     expect(viaAlias.blocks.m?.params.credential).toEqual({
       kind: 'value',
@@ -55,43 +55,46 @@ describe('param aliases', () => {
 
   it('refuses a param written under both spellings', () => {
     const result = run(
-      source("  mail('M', { credential: credential('a'), oauthCredential: credential('b') })")
+      source("  mail.send('M', { credential: credential('a'), oauthCredential: credential('b') })")
     )
     expect(codes(result)).toContain('E_UNSUPPORTED_SYNTAX')
   })
 
   it('points a pair member written by its own id at the alias', () => {
-    const result = run(source("  mail('M', { manualCredential: 'x' })"))
+    const result = run(source("  mail.send('M', { manualCredential: 'x' })"))
     const unknown = result.diagnostics.find((d) => d.code === 'E_UNKNOWN_PARAM')
     expect(unknown?.hint).toMatch(/^Write it as credential;/)
   })
 })
 
 describe('stored()', () => {
-  const storedText = source("  mail('M', { apiKey: 'sk-live-1', to: 'a@b.c' })")
+  const storedText = source("  mail.send('M', { apiKey: 'sk-live-1', to: 'a@b.c' })")
   const storedWorkflow = compiled(storedText)
 
   it('prints a literal secret as stored() and an env reference as itself', () => {
     expect(printed(storedWorkflow)).toContain('apiKey: stored()')
     expect(printed(storedWorkflow)).not.toContain('sk-live-1')
-    const env = compiled(source("  mail('M', { apiKey: '{{MAIL_KEY}}' })"))
+    const env = compiled(source("  mail.send('M', { apiKey: '{{MAIL_KEY}}' })"))
     expect(printed(env)).toContain('apiKey: env.MAIL_KEY')
   })
 
   it('keeps the value the stored block holds', () => {
-    const next = compiled(source("  mail('M', { apiKey: stored(), to: 'x@y.z' })"), storedWorkflow)
+    const next = compiled(
+      source("  mail.send('M', { apiKey: stored(), to: 'x@y.z' })"),
+      storedWorkflow
+    )
     expect(next.blocks.m?.params.apiKey).toEqual({ kind: 'value', value: 'sk-live-1' })
   })
 
   it.each([
-    ['a block the stored workflow lacks', "  mail('Other', { apiKey: stored() })"],
-    ['a field the stored block holds no value for', "  mail('M', { credential: stored() })"],
+    ['a block the stored workflow lacks', "  mail.send('Other', { apiKey: stored() })"],
+    ['a field the stored block holds no value for', "  mail.send('M', { credential: stored() })"],
   ])('refuses %s', (_label, body) => {
     expect(codes(run(source(body), storedWorkflow))).toContain('E_STORED_VALUE_MISSING')
   })
 
   it('refuses stored() for a new workflow', () => {
-    expect(codes(run(source("  mail('M', { apiKey: stored() })")))).toContain(
+    expect(codes(run(source("  mail.send('M', { apiKey: stored() })")))).toContain(
       'E_STORED_VALUE_MISSING'
     )
   })
@@ -105,7 +108,7 @@ describe('stored()', () => {
       'apiKey holds a literal secret instead of an env reference; write apiKey: env.NAME.'
     )
     expect(
-      secrets(run(source("  mail('M', { apiKey: stored() })"), storedWorkflow).diagnostics)
+      secrets(run(source("  mail.send('M', { apiKey: stored() })"), storedWorkflow).diagnostics)
     ).toEqual(['apiKey'])
     const print = printWorkflow({
       workflow: storedWorkflow,
@@ -114,10 +117,10 @@ describe('stored()', () => {
     })
     expect(secrets(print.diagnostics)).toEqual(['apiKey'])
 
-    const env = run(source("  mail('M', { apiKey: '{{MAIL_KEY}}' })"))
+    const env = run(source("  mail.send('M', { apiKey: '{{MAIL_KEY}}' })"))
     expect(secrets(env.diagnostics)).toEqual([])
     const envPrint = printWorkflow({
-      workflow: compiled(source("  mail('M', { apiKey: '{{MAIL_KEY}}' })")),
+      workflow: compiled(source("  mail.send('M', { apiKey: '{{MAIL_KEY}}' })")),
       catalog: TEST_CATALOG,
       options: { functionCode: 'inline' },
     })
@@ -125,7 +128,7 @@ describe('stored()', () => {
   })
 
   it('refuses stored() inside a value', () => {
-    expect(codes(run(source("  mail('M', { to: [stored()] })"), storedWorkflow))).toContain(
+    expect(codes(run(source("  mail.send('M', { to: [stored()] })"), storedWorkflow))).toContain(
       'E_UNSUPPORTED_SYNTAX'
     )
   })
@@ -133,14 +136,14 @@ describe('stored()', () => {
 
 describe('tool params', () => {
   const tools = (params: string) =>
-    source(`  agent('A', { model: 'm', tools: [mail.tool(${params})] })`)
+    source(`  agent('A', { model: 'm', tools: [mail.tool.send(${params})] })`)
 
   it('take the alias, print it, and keep a secret behind stored()', () => {
     const storedWorkflow = compiled(
       tools("{ oauthCredential: credential('ops'), apiKey: 'sk-tool-1' }")
     )
     const text = printed(storedWorkflow)
-    expect(text).toContain("mail.tool({ credential: credential('ops'), apiKey: stored() })")
+    expect(text).toContain("mail.tool.send({ credential: credential('ops'), apiKey: stored() })")
     expect(text).not.toContain('sk-tool-1')
     expect(
       printWorkflow({
@@ -165,7 +168,7 @@ describe('tool params', () => {
   describe('stored() follows the tool, not its position', () => {
     const list = (...entries: string[]) =>
       source(
-        `  agent('A', { model: 'm', tools: [${entries.map((e) => `mail.tool(${e})`).join(', ')}] })`
+        `  agent('A', { model: 'm', tools: [${entries.map((e) => `mail.tool.send(${e})`).join(', ')}] })`
       )
     const storedWorkflow = compiled(
       list("{ apiKey: 'sk-A', to: 'a@x.y' }", "{ apiKey: 'sk-B', to: 'b@x.y' }")
@@ -204,7 +207,7 @@ describe('tool params', () => {
 
     it('keeps a stored() param in the place source wrote it, so the print is a fixed point', () => {
       const text = printed(storedWorkflow)
-      expect(text).toContain("mail.tool({ apiKey: stored(), to: 'a@x.y' })")
+      expect(text).toContain("mail.tool.send({ apiKey: stored(), to: 'a@x.y' })")
       expect(printed(compiled(text, storedWorkflow))).toBe(text)
     })
   })

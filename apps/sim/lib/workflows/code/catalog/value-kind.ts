@@ -82,7 +82,7 @@ const TYPE_RULES: Record<SubBlockType, TypeRule> = {
   'workflow-input-mapper': { valueKind: 'object' },
   'variables-input': { valueKind: 'array', structured: 'variables' },
   'messages-input': { valueKind: 'array' },
-  'workflow-output-selector': { valueKind: 'none' },
+  'workflow-output-selector': { valueKind: 'array' },
   text: { valueKind: 'none' },
   'model-fallback-list': { valueKind: 'array' },
   modal: { valueKind: 'none' },

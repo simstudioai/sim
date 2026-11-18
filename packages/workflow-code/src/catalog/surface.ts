@@ -7,8 +7,17 @@
  * SDK codegen, the catalog projection) asks here.
  */
 
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import type { CanonicalParamId, SubBlockId } from '../model'
 import { buildCanonicalIndex, type CanonicalIndex } from './canonical-index'
+import {
+  type ConditionLookup,
+  evaluateClause,
+  evaluateCondition,
+  isConditionClause,
+  isOpaqueCondition,
+} from './conditions'
+import { subBlockEditorDefault } from './defaults'
 import type { CatalogBlock, CatalogSubBlock } from './types'
 
 /** The fields this rule reads; a registry `SubBlockConfig` fits as well as a `CatalogSubBlock`. */
@@ -21,6 +30,89 @@ type SurfaceFields = Partial<Pick<CatalogSubBlock, 'surface'>> & { mode?: string
 export function isTriggerSurface(subBlock: SurfaceFields): boolean {
   if (subBlock.surface !== undefined) return subBlock.surface === 'trigger'
   return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+}
+
+/**
+ * Trigger subBlocks source never states: the shared system set (setup text, sample payloads, the
+ * webhook URL display, schedule info) minus the credential, which source writes, plus the
+ * server-owned trigger path.
+ */
+const UNWRITTEN_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
+  ...SYSTEM_SUBBLOCK_IDS.filter((id) => id !== 'triggerCredentials'),
+  'triggerPath',
+])
+
+/**
+ * Whether source states this declaration's value: not a hidden field, a tool-input-only field, a
+ * display-only one (`valueKind: 'none'`: text, read-only, schedule info) or a trigger system field.
+ * SDK codegen types exactly these; print leaves every other stored value out of source and compile
+ * keeps it from the stored block, so it still round-trips as stored state.
+ */
+export function isWrittenInSource(
+  subBlock: Pick<CatalogSubBlock, 'id' | 'hidden' | 'context' | 'valueKind'>
+): boolean {
+  if (subBlock.hidden || subBlock.context === 'tool-input' || subBlock.valueKind === 'none') {
+    return false
+  }
+  return !UNWRITTEN_SUBBLOCK_IDS.has(subBlock.id) && !subBlock.id.startsWith('samplePayload')
+}
+
+/**
+ * Whether a builder's params type declares a param with these declarations: one of them is
+ * written in source and its condition is not false under the values the builder pins (its
+ * `operation` and `fixed` entries) alone. SDK codegen leaves every other param out of the type, so
+ * print writes a stored value of a written one under `meta.extra`, and compile takes it there.
+ */
+export function typedForBuilder(
+  declarations: ReadonlyArray<CatalogSubBlock>,
+  pinned: Readonly<Record<string, unknown>>
+): boolean {
+  const lookup = pinnedLookup(pinned)
+  return declarations.some(
+    (declaration) =>
+      isWrittenInSource(declaration) && evaluateCondition(declaration, lookup) !== false
+  )
+}
+
+/** Controls that always hold a value (first option, off, minimum), so never required. */
+const ALWAYS_VALUED_TYPES: ReadonlySet<string> = new Set(['dropdown', 'switch', 'slider'])
+
+/** Whether a param holds a value without source writing one: a default, or an always-valued control. */
+export function hasDefaultValue(declarations: ReadonlyArray<CatalogSubBlock>): boolean {
+  return declarations.some(
+    (declaration) =>
+      declaration.defaultValue !== undefined ||
+      (declaration.valueDefault !== undefined && 'constant' in declaration.valueDefault) ||
+      subBlockEditorDefault(declaration) !== undefined ||
+      ALWAYS_VALUED_TYPES.has(declaration.type)
+  )
+}
+
+/**
+ * Whether a builder's params type requires a param with these declarations: none holds a default,
+ * and one written in source is shown and required under the builder's pinned values alone (an
+ * opaque condition never counts as certain). SDK codegen marks exactly these required, and the
+ * printer writes `todo()` for one with no stored value.
+ */
+export function requiredForBuilder(
+  declarations: ReadonlyArray<CatalogSubBlock>,
+  pinned: Readonly<Record<string, unknown>>
+): boolean {
+  if (hasDefaultValue(declarations)) return false
+  const lookup = pinnedLookup(pinned)
+  return declarations.some((declaration) => {
+    const { condition, required } = declaration
+    if (!isWrittenInSource(declaration) || isOpaqueCondition(condition)) return false
+    if (evaluateCondition(declaration, lookup) !== true) return false
+    return (
+      required === true ||
+      (isConditionClause(required) && evaluateClause(required, lookup) === true)
+    )
+  })
+}
+
+function pinnedLookup(pinned: Readonly<Record<string, unknown>>): ConditionLookup {
+  return (field) => (Object.hasOwn(pinned, field) ? { value: pinned[field] } : undefined)
 }
 
 /** Whether a block in `triggerMode` uses this declaration. */
@@ -119,13 +211,33 @@ export interface FieldIndex {
   memberAliases: Map<SubBlockId, string>
   /** Every subBlock on this surface by id (first declaration wins). */
   subBlocks: Map<SubBlockId, CatalogSubBlock>
+  /**
+   * Every declaration on this surface by id, in registry order: a block may declare one id several
+   * times under exclusive conditions (ElevenLabs' `modelId` per operation, each with its own
+   * options). Read through {@link declarationFor}.
+   */
+  declarations: Map<SubBlockId, CatalogSubBlock[]>
+}
+
+/**
+ * The declaration of `id` a block with these values uses: the first one whose condition is not
+ * false under `lookup`, else the first one. Only an id declared more than once needs the values.
+ */
+export function declarationFor(
+  index: Pick<FieldIndex, 'declarations'>,
+  id: SubBlockId,
+  lookup: ConditionLookup
+): CatalogSubBlock | undefined {
+  const declared = index.declarations.get(id)
+  if (!declared || declared.length < 2) return declared?.[0]
+  return declared.find((sub) => evaluateCondition(sub, lookup) !== false) ?? declared[0]
 }
 
 /**
  * The params a builder accepts: subBlock ids, with every `canonicalParamId` group written once
  * under its canonical id, each under its alias when the catalog gives one. The surface (action or
  * trigger copy of a duplicated id) follows the block's trigger mode, the first declaration of an
- * id wins, the branches subBlock and the builder's pinned ids are excluded. This is exactly the
+ * id stands for the field (`declarationFor` picks the one a block's values use), the branches subBlock and the builder's pinned ids are excluded. This is exactly the
  * set the printer emits as params.
  */
 export function buildFieldIndex(
@@ -134,8 +246,13 @@ export function buildFieldIndex(
   pinned: ReadonlySet<string>
 ): FieldIndex {
   const subBlocks = new Map<SubBlockId, CatalogSubBlock>()
+  const declarations = new Map<SubBlockId, CatalogSubBlock[]>()
   for (const sub of block.subBlocks) {
-    if (onSurface(block, sub, triggerMode) && !subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
+    if (!onSurface(block, sub, triggerMode)) continue
+    if (!subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
+    const declared = declarations.get(sub.id)
+    if (declared) declared.push(sub)
+    else declarations.set(sub.id, [sub])
   }
   const aliases = paramAliases(block, triggerMode)
   const fields = new Map<string, CatalogField>()
@@ -168,7 +285,7 @@ export function buildFieldIndex(
       members,
     })
   }
-  return { fields, aliased, memberAliases, subBlocks }
+  return { fields, aliased, memberAliases, subBlocks, declarations }
 }
 
 /**

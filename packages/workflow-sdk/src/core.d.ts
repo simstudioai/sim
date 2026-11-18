@@ -223,6 +223,20 @@ export declare function folder(key: string): FolderRef
 export type FileRef = ResourceRef<'file'>
 export declare function file(path: string): FileRef
 
+/**
+ * A file a file-upload field holds, as the editor stores it: one uploaded in place, or a workspace
+ * file chosen by `key` (written `file('path')` when the workspace resolves it).
+ */
+export interface UploadedFile {
+  name: string
+  path: string
+  size?: number
+  type?: string
+  key?: string | FileRef
+  id?: string
+  folderPath?: string
+}
+
 /** A file produced at run time (`file` / `file[]` outputs). */
 export interface SimFile {
   id: string
