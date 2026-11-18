@@ -128,4 +128,8 @@ export default workflow('Rejected', {}, () => {
   // An operation that does not exist.
   // @ts-expect-error `sendMesage` is not a Slack operation
   slack.sendMesage('Typo', {})
+
+  // A param required under the pinned operation, though its registry condition is a function.
+  // @ts-expect-error `credential` and `text` are required by slack.sendMessage
+  slack.sendMessage('Empty', {})
 })

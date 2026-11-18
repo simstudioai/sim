@@ -1,5 +1,5 @@
 // @sim-sdk 1
-import { api, block, env, slack, t, trigger, workflow } from '@sim/workflow-sdk'
+import { api, block, env, slack, t, todo, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: {} })
@@ -12,6 +12,8 @@ export default workflow('Fixture', {}, () => {
     temperature: 1e21,
   })
   const shortKey = slack.sendMessage('Short key', {
+    credential: todo(),
+    channel: todo(),
     text: 'a very long message body that will never fit on the same line as its very short key',
   })
   const widths = api('Widths', {

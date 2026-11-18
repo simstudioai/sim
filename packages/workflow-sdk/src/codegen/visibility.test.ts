@@ -48,20 +48,46 @@ describe('classifyParam', () => {
     })
   })
 
-  it('reads visibleFor for a function condition, and keeps it optional when visible', () => {
+  it('reads visibleFor for a function condition: required where it shows, unknown elsewhere', () => {
     const channel = subBlock({
       id: 'channel',
       required: true,
       condition: { opaque: true },
       visibleFor: { send: true, list_users: false },
     })
-    const sendContext = buildVisibilityContext([channel], { operation: 'send' })
-    const listContext = buildVisibilityContext([channel], { operation: 'list_users' })
-    expect(classifyParam([channel], sendContext)).toMatchObject({
+    const context = (operation: string) => buildVisibilityContext([channel], { operation })
+    expect(classifyParam([channel], context('send'))).toMatchObject({
+      kind: 'always',
+      required: true,
+    })
+    expect(classifyParam([channel], context('list_users')).kind).toBe('never')
+    expect(classifyParam([channel], context('other'))).toMatchObject({
       kind: 'sometimes',
       required: false,
     })
-    expect(classifyParam([channel], listContext).kind).toBe('never')
+  })
+
+  it('gates a function condition on the sibling clause its operation still asks', () => {
+    const destination = dropdown('destinationType', ['channel', 'dm'])
+    const dmUser = subBlock({
+      id: 'dmUserId',
+      required: true,
+      condition: { opaque: true },
+      visibleFor: { send: true },
+      visibleWhen: { send: { field: 'destinationType', value: 'dm' } },
+    })
+    const context = buildVisibilityContext([destination, dmUser], { operation: 'send' })
+    const visibility = classifyParam([dmUser], context)
+    expect(visibility).toMatchObject({ kind: 'sometimes', when: 'destinationType is "dm"' })
+    expect(
+      findGate([{ name: 'dmUserId', visibility }], context, new Set(['destinationType']))
+    ).toEqual({
+      field: 'destinationType',
+      variants: [
+        { values: ['channel'], params: [] },
+        { values: ['dm'], params: [{ name: 'dmUserId', required: true }] },
+      ],
+    })
   })
 
   it('merges a duplicated id: visible wherever any declaration is', () => {

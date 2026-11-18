@@ -15,7 +15,6 @@ import {
   evaluateClause,
   evaluateCondition,
   isConditionClause,
-  isOpaqueCondition,
 } from './conditions'
 import { subBlockEditorDefault } from './defaults'
 import type { CatalogBlock, CatalogSubBlock } from './types'
@@ -90,19 +89,61 @@ export function hasDefaultValue(declarations: ReadonlyArray<CatalogSubBlock>): b
 
 /**
  * Whether a builder's params type requires a param with these declarations: none holds a default,
- * and one written in source is shown and required under the builder's pinned values alone (an
- * opaque condition never counts as certain). SDK codegen marks exactly these required, and the
- * printer writes `todo()` for one with no stored value.
+ * and one written in source is shown and required under the builder's pinned values alone (a
+ * function condition counts only where the catalog's per-operation data decides it). SDK codegen
+ * marks exactly these required.
  */
 export function requiredForBuilder(
   declarations: ReadonlyArray<CatalogSubBlock>,
   pinned: Readonly<Record<string, unknown>>
 ): boolean {
+  return requiredUnder(declarations, pinnedLookup(pinned))
+}
+
+/**
+ * Whether a block of type `block` holding `values` must write a param with these declarations:
+ * what {@link requiredForBuilder} requires, and what the variant its values select requires
+ * (Slack's `channel` when `destinationType` is not `dm`). Only the fields SDK codegen enumerates
+ * into variants are read (static dropdowns and switches), so this never asks for more than the
+ * builder's type does. The printer writes `todo()` for one with no stored value.
+ */
+export function requiredForValues(
+  block: Pick<CatalogBlock, 'subBlocks'>,
+  declarations: ReadonlyArray<CatalogSubBlock>,
+  values: Readonly<Record<string, unknown>>
+): boolean {
+  return requiredUnder(declarations, (field) =>
+    isEnumerable(block.subBlocks, field) ? { value: values[field] } : undefined
+  )
+}
+
+/**
+ * Whether every declaration of `field` holds one of a fixed set of values: a switch, or a
+ * single-value dropdown with static options. SDK codegen enumerates exactly these.
+ */
+export function isEnumerable(subBlocks: ReadonlyArray<CatalogSubBlock>, field: string): boolean {
+  const declarations = subBlocks.filter((subBlock) => subBlock.id === field)
+  return (
+    declarations.length > 0 &&
+    declarations.every(
+      (subBlock) =>
+        subBlock.type === 'switch' ||
+        (subBlock.type === 'dropdown' &&
+          !subBlock.multiple &&
+          Array.isArray(subBlock.options) &&
+          subBlock.options.length > 0)
+    )
+  )
+}
+
+function requiredUnder(
+  declarations: ReadonlyArray<CatalogSubBlock>,
+  lookup: ConditionLookup
+): boolean {
   if (hasDefaultValue(declarations)) return false
-  const lookup = pinnedLookup(pinned)
   return declarations.some((declaration) => {
-    const { condition, required } = declaration
-    if (!isWrittenInSource(declaration) || isOpaqueCondition(condition)) return false
+    const { required } = declaration
+    if (!isWrittenInSource(declaration)) return false
     if (evaluateCondition(declaration, lookup) !== true) return false
     return (
       required === true ||
