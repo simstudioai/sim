@@ -50,7 +50,9 @@ interface ApplyOptions {
 
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint), the directory was read from another workspace than
+file:line:column with its frame and hint), or changes were held back because they use a declared
+secret the workspace has no value for or a declared credential key nothing binds to (the rest
+was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than
 the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary
 files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
 5 a resource changed on the server since the directory was read (SOURCE_STALE: get it again
@@ -84,6 +86,23 @@ function refusedExitCode(diagnostics: ApplyData['diagnostics']): number {
   ]
 }
 
+/** Whether `finding` is about a change the plan holds back, which refuses nothing else. */
+function isHeldFinding(
+  plan: readonly Change[],
+  finding: ApplyData['diagnostics'][number]
+): boolean {
+  return plan.some(
+    (change) => change.held && change.kind === finding.kind && change.key === finding.key
+  )
+}
+
+/** Whether a dry run's errors refuse the apply: any error but those of changes held back. */
+function refusesApply(data: ApplyData): boolean {
+  return data.diagnostics.some(
+    (finding) => finding.severity === 'error' && !isHeldFinding(data.plan, finding)
+  )
+}
+
 /** The plan as a person reads it: per kind, the counts, then each change with what it touches. */
 function printPlan(plan: Change[]): void {
   for (const kind of APPLY_ORDER) {
@@ -103,7 +122,8 @@ function printPlan(plan: Change[]): void {
         counts.length > 0
           ? ` — deletes ${counts.map(([what, count]) => `${count} ${what}`).join(', ')}`
           : ''
-      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}`)
+      const held = change.held ? ' — held back (see its error)' : ''
+      printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
     }
   }
 }
@@ -302,9 +322,9 @@ export function attachWorkspaceSourceApply(source: Command): void {
         preview = await send(submission, true)
         printPlan(preview.plan)
         printNewDiagnostics(preview.diagnostics, printed)
-        const refused = preview.diagnostics.some((finding) => finding.severity === 'error')
-        if (refused) setSoftExitCode(refusedExitCode(preview.diagnostics))
-        if (options.dryRun || refused) {
+        const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
+        if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
+        if (options.dryRun || refusesApply(preview)) {
           printProtocolResult(profile.output, summarize(preview))
           return
         }
@@ -352,6 +372,13 @@ export function attachWorkspaceSourceApply(source: Command): void {
         submission = { ...reread, hashed: new Map([...submission.hashed, ...reread.hashed]) }
         data = await writeRound(wanted)
       }
+      const held = data.plan.filter((change) => change.held)
+      if (held.length > 0) {
+        printError(
+          `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
+        )
+        setSoftExitCode(1)
+      }
       if (data.failed) {
         printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
         setSoftExitCode(SOURCE_PARTIAL_EXIT_CODE)
@@ -373,6 +400,7 @@ function summarize(data: ApplyData) {
     updated: count('update') + count('adopt'),
     deleted: count('delete'),
     unchanged: data.plan.filter((change) => change.action === 'noop').length,
+    held: data.plan.filter((change) => change.held).length,
     ...(data.failed ? { failed: `${data.failed.kind}:${data.failed.key}` } : {}),
     errors: data.diagnostics.filter((finding) => finding.severity === 'error').length,
     warnings: data.diagnostics.filter((finding) => finding.severity === 'warning').length,

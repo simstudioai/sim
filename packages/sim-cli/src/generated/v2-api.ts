@@ -1053,10 +1053,28 @@ export type ApplyWorkspaceSourceBody = {
       }
     >
   }
-  kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+  >
   options?: {
     allowDelete?: boolean
-    only?: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+    >
   }
   provenance?: {
     client: 'cli' | 'api'
@@ -1069,7 +1087,15 @@ export type ApplyWorkspaceSourceResponse = {
     workspaceId: string
     dryRun: boolean
     plan: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1078,9 +1104,18 @@ export type ApplyWorkspaceSourceResponse = {
         counts: Record<string, number>
       }
       id?: string
+      held?: true
     }>
     applied: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
       fields?: Array<string>
@@ -1089,9 +1124,18 @@ export type ApplyWorkspaceSourceResponse = {
         counts: Record<string, number>
       }
       id?: string
+      held?: true
     }>
     failed?: {
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       code:
         | 'E_DECL_SYNTAX'
@@ -1110,6 +1154,13 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_BASE_VERSION'
         | 'E_BASE_SHAPE'
         | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
         | 'E_TABLE_COLUMN_NAME'
         | 'E_TABLE_DUPLICATE_COLUMN'
         | 'E_TABLE_TOO_MANY_COLUMNS'
@@ -1149,6 +1200,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_FAILED'
         | 'E_PLAN_TOO_LARGE'
         | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'
@@ -1332,6 +1384,13 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_BASE_VERSION'
         | 'E_BASE_SHAPE'
         | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
         | 'E_TABLE_COLUMN_NAME'
         | 'E_TABLE_DUPLICATE_COLUMN'
         | 'E_TABLE_TOO_MANY_COLUMNS'
@@ -1371,6 +1430,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_FAILED'
         | 'E_PLAN_TOO_LARGE'
         | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'
@@ -10379,7 +10439,16 @@ export type GetWorkspaceSourceQuery = {
 export type GetWorkspaceSourceResponse = {
   data: {
     workspaceId: string
-    kinds: Array<'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'>
+    kinds: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+    >
     files: Record<string, string>
     blobs: Array<{
       path: string
@@ -10416,7 +10485,15 @@ export type GetWorkspaceSourceResponse = {
       >
     }
     skipped: Array<{
-      kind: 'custom-tool' | 'skill' | 'table' | 'knowledge-base' | 'file' | 'workflow'
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
       key: string
       reason: string
     }>
@@ -10438,6 +10515,13 @@ export type GetWorkspaceSourceResponse = {
         | 'E_BASE_VERSION'
         | 'E_BASE_SHAPE'
         | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
         | 'E_TABLE_COLUMN_NAME'
         | 'E_TABLE_DUPLICATE_COLUMN'
         | 'E_TABLE_TOO_MANY_COLUMNS'
@@ -10477,6 +10561,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_FAILED'
         | 'E_PLAN_TOO_LARGE'
         | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
         | 'W_RESOURCE_IN_USE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_FILES_MISSING'

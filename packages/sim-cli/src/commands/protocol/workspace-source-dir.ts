@@ -11,11 +11,14 @@ import { WORKSPACE_COOKBOOK, WORKSPACE_SDK_DTS } from '@sim/workflow-sdk/codegen
 import {
   APPLY_ORDER,
   type BlobEntry,
+  type FileKind,
+  isFileKind,
   KIND_DIRS,
   WORKSPACE_KIND_SPECS,
   type WorkspaceKind,
 } from '@sim/workspace-code'
-import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
+import { FILE_KIND_CODECS, isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -75,13 +78,13 @@ This directory is a Sim workspace written as files. The server reads every file 
 
 ## Layout
 
-A resource's key is its file or folder name, and a workflow names it by that key.
+A resource's key is its file or folder name (in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`, the entry's name), and a workflow names it by that key.
 
 ${APPLY_ORDER.map((kind) => `- ${WORKSPACE_KIND_SPECS[kind].guide}`).join('\n')}
 
 One apply creates resources before the workflows that use them, so a workflow may name a key this directory declares before it exists. \`.sim/sdk/workspace.d.ts\` types the keys the server held and this directory declared at the last get, so \`tsc\` flags a key added since then until it is applied and read again (\`sim workspaces source get --dir .\`); the dry run is the authority for it.
 
-Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`.
+Secrets never appear in source: a workflow reads an environment variable as \`env.NAME\` and tool code as \`$env.NAME\`, both by name, and a saved credential is \`credential('<key>')\`. Declare the ones workflows use in \`${KIND_DIRS.secret}\` and \`${KIND_DIRS.credential}\`: a workflow using a declared secret the workspace has no value for, or a declared credential key nothing binds to, is held back (exit 1, with the command that fixes it) while the rest of the apply is written. The same directory applied to another workspace binds each credential key to that workspace's own credential.
 
 ## Edit loop (run from this directory)
 
@@ -91,7 +94,8 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 ## Deletes
 
-- A kind is managed only when its folder exists: without \`skills/\`, no skill is touched.
+- A kind is managed only when its folder (or root file) exists: without \`skills/\`, no skill is touched.
+- Nothing in \`${KIND_DIRS.secret}\` or \`${KIND_DIRS.credential}\` is ever deleted on the server: removing a secret changes nothing, and removing a credential key unbinds it only with \`--allow-delete\` (the credential is kept).
 - A resource this directory managed (its key is in \`${WORKSPACE_BASE_FILE}\`) whose file is removed is deleted only with \`--allow-delete\`; without it the apply refuses. The same flag covers a removed table column, a removed knowledge base document and a removed workspace file.
 - A resource the server holds that this directory never managed is kept, and named in a warning.
 - Nothing deleted on the server comes back: an unchanged directory leaves it deleted, and an edit of it is refused as stale.
@@ -128,22 +132,38 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
 }
 
 /**
- * The keys a directory's files declare, grouped by each kind's codec, under the manifest list each
- * kind's spec names: its tables (typed from their declarations), and its knowledge base, skill,
- * custom tool and workflow keys. `workspace.d.ts` types them beside the stored resources.
+ * The keys a directory's files (path → text) declare, under the manifest list each kind's spec
+ * names: its tables (typed from their declarations), its knowledge base, skill, custom tool and
+ * workflow keys (grouped from their paths), and the secret names and credential keys its root
+ * files declare (read from their text; a file that does not read declares none, and is still
+ * typed live). `workspace.d.ts` types them beside the stored resources.
  */
-export function localDeclarations(paths: readonly string[]): LocalDeclarations {
+export function localDeclarations(files: Readonly<Record<string, string>>): LocalDeclarations {
   const declared: LocalDeclarations = {}
+  const paths = Object.keys(files)
   for (const kind of APPLY_ORDER) {
     const list = WORKSPACE_KIND_SPECS[kind].manifestKey
     if (list === null) continue
-    const keys = [
-      ...KIND_LAYOUTS[kind].group(paths.filter((path) => kindOfPath(path) === kind)).groups.keys(),
-    ]
+    const keys = isFileKind(kind)
+      ? rootFileKeys(kind, files)
+      : [
+          ...KIND_LAYOUTS[kind]
+            .group(paths.filter((path) => kindOfPath(path) === kind))
+            .groups.keys(),
+        ]
+    if (keys === null) continue
     if (list === 'workflows') declared.workflows = Object.fromEntries(keys.map((key) => [key, {}]))
     else declared[list] = keys
   }
   return declared
+}
+
+/** The keys a root file declares, `[]` when it does not read, `null` without the file. */
+function rootFileKeys(kind: FileKind, files: Readonly<Record<string, string>>): string[] | null {
+  const file = KIND_DIRS[kind]
+  if (!Object.hasOwn(files, file)) return null
+  const read = FILE_KIND_CODECS[kind].parse(fileKindGroupKey(kind), { [file]: files[file] }, [])
+  return Object.keys(read.decl ?? {})
 }
 
 /** Refuses a server answer naming a path outside every kind folder, before anything is written. */
@@ -156,9 +176,10 @@ export function assertWorkspacePaths(paths: Iterable<string>): void {
 }
 
 /**
- * The folders of `kinds`, each walked once: `present`, the kinds whose folder holds any file (its
- * `.gitkeep` marker included); `paths`, their source files; and `ignored`, the rest (a hidden
- * name, or a character no workspace path holds), which are never sent. The marker is neither.
+ * The folders (and root files) of `kinds`, each walked once: `present`, the kinds whose folder
+ * holds any file (its `.gitkeep` marker included) or whose root file exists; `paths`, their source
+ * files; and `ignored`, the rest (a hidden name, or a character no workspace path holds), which
+ * are never sent. The marker is neither.
  */
 export async function kindFolders(
   dir: string,
@@ -168,6 +189,12 @@ export async function kindFolders(
   const paths: string[] = []
   const ignored: string[] = []
   for (const kind of kinds) {
+    if (isFileKind(kind)) {
+      if ((await readSourceText(dir, KIND_DIRS[kind])) === null) continue
+      present.push(kind)
+      paths.push(KIND_DIRS[kind])
+      continue
+    }
     const files = await listSourceFiles(dir, KIND_DIRS[kind])
     if (files.length > 0) present.push(kind)
     for (const path of files) {
@@ -178,9 +205,12 @@ export async function kindFolders(
   return { present, paths, ignored }
 }
 
-/** A kind folder's marker, so an emptied folder keeps managing its kind. */
-export function keepFile(kind: WorkspaceKind): string {
-  return `${KIND_DIRS[kind]}/${KEEP_FILE}`
+/**
+ * A kind folder's marker, so an emptied folder keeps managing its kind; `null` for a kind one root
+ * file declares, which a get always writes.
+ */
+export function keepFile(kind: WorkspaceKind): string | null {
+  return isFileKind(kind) ? null : `${KIND_DIRS[kind]}/${KEEP_FILE}`
 }
 
 /** What one apply round sends, read from the directory. */
