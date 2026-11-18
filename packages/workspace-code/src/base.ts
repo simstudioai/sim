@@ -55,6 +55,19 @@ export type BaseResource = {
   fingerprint?: ResourceFingerprint
   columns?: Record<string, BaseColumn>
   blobs?: Record<string, BaseBlob>
+  /** A table's managed rows, as the last get or apply saw them. */
+  rows?: BaseRows
+}
+
+/**
+ * A table's managed rows in the base: their fingerprint (`tableRowsFingerprint`) and the table's
+ * `rows_version` when it was read, which moves on every row write, so an apply tells rows the
+ * server changed since without reading them.
+ */
+export type BaseRows = {
+  [extension: LockExtensionKey]: Json
+  fingerprint: ResourceFingerprint
+  version: number
 }
 
 /** `.sim/base.json`: what the server held for each resource at the last get or apply. */
@@ -70,7 +83,8 @@ type BaseDiagnostic = WorkspaceDiagnostic<
 >
 
 const BASE_FIELDS = ['version', 'workspaceId', 'resources']
-const RESOURCE_FIELDS = ['id', 'fingerprint', 'columns', 'blobs']
+const RESOURCE_FIELDS = ['id', 'fingerprint', 'columns', 'blobs', 'rows']
+const ROWS_FIELDS = ['fingerprint', 'version']
 const COLUMN_FIELDS = ['id', 'options']
 const BLOB_FIELDS = ['id', 'rev', 'sha256']
 const FINGERPRINT = /^rf1:[0-9a-f]{64}$/
@@ -252,6 +266,25 @@ function parseResource(
         }
       }
       entry.blobs = blobs
+    }
+  }
+  if (raw.rows !== undefined) {
+    const rows = raw.rows
+    if (
+      !isRecordLike(rows) ||
+      typeof rows.fingerprint !== 'string' ||
+      !FINGERPRINT.test(rows.fingerprint) ||
+      typeof rows.version !== 'number' ||
+      !Number.isSafeInteger(rows.version) ||
+      rows.version < 0
+    ) {
+      shape(`${path}/rows`, 'rows needs a `fingerprint` and a whole-number `version`.')
+    } else {
+      entry.rows = {
+        ...extensionsOf(rows, ROWS_FIELDS, `${path}/rows`),
+        fingerprint: rows.fingerprint as ResourceFingerprint,
+        version: rows.version,
+      }
     }
   }
   return entry

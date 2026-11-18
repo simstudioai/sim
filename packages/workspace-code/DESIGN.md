@@ -14,7 +14,7 @@ credentials.ts  credential keys and providers (credential; never a token)
 tools/      custom tools      (custom-tool)
 skills/     skills            (skill)
 mcp/        MCP servers       (mcp-server; headers hold env references, never secrets)
-tables/     table schemas     (table)
+tables/     table schemas     (table; `<key>.rows.jsonl` beside one that opts its rows in)
 knowledge/  knowledge bases   (knowledge-base; documents are blobs)
 files/      workspace files   (file; every file is a blob)
 workflows/  one workflow source directory per folder (workflow)
@@ -118,6 +118,34 @@ exactly as their stored workflows at their base's fingerprint, and those are no-
 evaluated. Every new folder gets its workflow id at plan time, so new folders that run each other
 resolve in any order, cycles included. A folder's `workflow('…')` name and description rename the
 workflow.
+
+### Table rows
+
+A table's rows stay out of source unless its declaration opts in with `rows`
+(`kinds/table-rows.ts`, server half `kinds/table/rows.ts`); they live in
+`tables/<key>.rows.jsonl`, one JSON object per line keyed by column key, a select cell by option
+name, at most `maxTableRows` per table and `maxRowsBytes` across the directory (their own budget,
+apart from the declarations').
+
+- `{ mode: 'seed' }` writes the rows into a table the apply creates, or adopts while it holds no
+  rows and the base has no entry for it (`I_TABLE_SEED_SKIPPED` otherwise). Seed rows are outside
+  every fingerprint, and a get never prints them.
+- `{ mode: 'managed', key }` makes the file the table's whole content, each row matched to its
+  stored row by the unique `key` column. The table's `canonical()` carries only `{ mode, key }` (so
+  tables without managed rows fingerprint as before); the rows have their own fingerprint
+  (`tableRowsFingerprint`), which `base.rows` records with the table's `rows_version` at the last get
+  or apply. A plan reads the stored rows only when the directory's rows differ from the base, then
+  applies the three-way rule to the rows alone: equal to the server's is a no-op that refreshes
+  `base.rows`; the server's changed from the base is `E_APPLY_STALE`; else the rows are written. A
+  write records the row version the plan read in its fingerprint, so the apply's pre-write check
+  refuses a version that moved. Rows the file no longer lists are deleted only with
+  `--allow-delete`. The server marks a managed table in its metadata (`sourceRows`, by key column id),
+  so a get prints the declaration's `rows` and the rows file.
+
+Every rows write is the table's one reshape (`reshapeTableUseCase`, `replaceRows` and
+`sourceRows`): columns, the managed mark and the rows commit in one transaction, the rows by
+replacing every stored row. Cells of columns source does not declare (a workflow group's outputs)
+are carried over from the stored row with the same key; their run state is not.
 
 ### The MCP server kind
 

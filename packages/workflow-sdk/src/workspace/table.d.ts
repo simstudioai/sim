@@ -16,7 +16,13 @@
  * ```
  *
  * A column's object key is its source key and stays bound to the stored column; `name` renames
- * the stored column while keeping its cells. Rows are never part of source.
+ * the stored column while keeping its cells.
+ *
+ * Rows are part of source only when `rows` opts in: `tables/<key>.rows.jsonl` beside the
+ * declaration holds one JSON object per line, keyed by column key (a select cell by option name).
+ * `{ mode: 'seed' }` writes them into the table when an apply creates it (or adopts it empty);
+ * `{ mode: 'managed', key }` keeps the table's rows equal to the file, each matched by the unique
+ * `key` column (removing a row needs `--allow-delete`).
  */
 import type { Json } from '@sim/workflow-sdk'
 
@@ -100,7 +106,15 @@ export interface TableDeclaration<C extends Record<string, AnyColumn> = Record<s
   /** The table folder path (`/reports`); the workspace root when omitted. */
   folder?: string
   columns: C
+  /** Rows as source, from `tables/<key>.rows.jsonl`; omitted leaves rows out of source. */
+  rows?: TableRows<keyof C & string>
 }
+
+/**
+ * How a table's rows are source: `seed` rows go into the table once, when an apply creates it;
+ * `managed` rows are the whole table, matched to stored rows by the unique `key` column.
+ */
+export type TableRows<K extends string = string> = { mode: 'seed' } | { mode: 'managed'; key: K }
 
 /** Declares a table. Its default export is the whole file. */
 export declare function defineTable<const C extends Record<string, AnyColumn>>(

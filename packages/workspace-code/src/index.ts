@@ -1,6 +1,7 @@
 export {
   type BaseColumn,
   type BaseResource,
+  type BaseRows,
   emptyBase,
   parseResourceAddress,
   parseWorkspaceBase,
@@ -20,12 +21,14 @@ export { fingerprintOf } from './fingerprint'
 export {
   APPLY_ORDER,
   type BlobEntry,
+  budgetOfPath,
   type FileKind,
   isFileKind,
   isWorkspaceKind,
   KIND_DIRS,
   type KindCodec,
   type PrintedDeclaration,
+  type SourceBudget,
   type WorkspaceKind,
 } from './kind'
 export { WORKSPACE_KIND_SPECS } from './specs'

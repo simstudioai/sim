@@ -1,4 +1,9 @@
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { userTableDefinitions } from '@sim/db/schema'
+import { omit } from '@sim/utils/object'
+import { and, eq } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
@@ -19,13 +24,23 @@ import {
   tableFieldAudits,
   writeTableFields,
 } from '@/lib/table/application/tables'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
+import { buildIdByName, columnMatchesRef, rowDataNameToId } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
-import { signalTableSchemaChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { withTableWriteTx } from '@/lib/table/service'
-import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  ReplaceRowsResult,
+  RowData,
+  TableDefinition,
+  TableMetadata,
+  TableSourceRows,
+} from '@/lib/table/types'
 
 /** One column update of a reshape, addressed by column id (or name). */
 interface ReshapeColumnUpdate {
@@ -42,12 +57,47 @@ export interface ReshapeTableInput {
   drop?: string[]
   update?: ReshapeColumnUpdate[]
   add?: AddTableColumnInput['column'][]
+  /**
+   * Rows, keyed by column name as the reshape leaves the columns, that replace every row of the
+   * table in the same transaction: workspace source's managed or seed rows. A cell naming no
+   * column is dropped.
+   */
+  replaceRows?: RowData[]
+  /**
+   * Marks the rows as managed by workspace source, matched by the column named `keyColumn` as the
+   * reshape leaves the columns (`null` clears the mark); absent leaves it alone.
+   */
+  sourceRows?: { mode: 'managed'; keyColumn: string } | null
 }
 
 export interface ReshapeTableResult {
   table: TableDefinition
   /** The table fields that changed. */
   changed: AppliedTableUpdate[]
+  /** What replacing the rows deleted and inserted, when the input replaced them. */
+  replaced?: ReplaceRowsResult
+}
+
+/** The managed-rows mark of `input`, by the id of its key column; `null` clears it. */
+function sourceRowsMark(
+  input: NonNullable<ReshapeTableInput['sourceRows']> | null,
+  idByName: ReadonlyMap<string, string>
+): TableSourceRows | null {
+  if (!input) return null
+  const keyColumnId = idByName.get(input.keyColumn)
+  if (!keyColumnId) {
+    throw new OrchestrationError('validation', `Column "${input.keyColumn}" does not exist`)
+  }
+  return { mode: 'managed', keyColumnId }
+}
+
+/** `metadata` with the managed-rows marker set to `sourceRows`, or removed for `null`. */
+function withSourceRows(
+  metadata: TableMetadata | null | undefined,
+  sourceRows: TableSourceRows | null
+): TableMetadata {
+  const rest = omit(metadata ?? {}, ['sourceRows'])
+  return sourceRows ? { ...rest, sourceRows } : rest
 }
 
 /** A column name no column of `table` holds, to park a column under during a rename cycle. */
@@ -149,7 +199,15 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
     const requestId = generateRequestId()
-    return withTableWriteTx(
+    // Checked before the transaction opens (it reads the billing pool): every row is replaced.
+    const rowLimit = input.replaceRows
+      ? await assertRowCapacity({
+          workspaceId,
+          currentRowCount: 0,
+          addedRows: input.replaceRows.length,
+        })
+      : null
+    const result = await withTableWriteTx(
       context.table.id,
       async (locked, tx) => {
         const options = { expectedWorkspaceId: workspaceId, tx }
@@ -182,10 +240,52 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         for (const column of input.add ?? []) {
           table = await addTableColumn(table.id, column, requestId, options)
         }
-        return { table, changed: progress.changed }
+        const idByName = buildIdByName(table.schema)
+        if (input.sourceRows !== undefined) {
+          const metadata = withSourceRows(
+            table.metadata,
+            sourceRowsMark(input.sourceRows, idByName)
+          )
+          await tx.trx
+            .update(userTableDefinitions)
+            .set({ metadata })
+            .where(
+              and(
+                eq(userTableDefinitions.id, table.id),
+                eq(userTableDefinitions.workspaceId, workspaceId)
+              )
+            )
+          table = { ...table, metadata }
+        }
+        const replaceRows = input.replaceRows?.map((row) => rowDataNameToId(row, idByName))
+        const replaced = replaceRows
+          ? await replaceTableRowsWithTx(
+              tx.trx,
+              {
+                tableId: table.id,
+                workspaceId,
+                rows: replaceRows,
+                userId: attributedUserId,
+                secretProvenance: replaceRows.map(createExactEmptyTableRowSecretProvenance),
+              },
+              table,
+              requestId,
+              { uncoercibleValues: 'reject' }
+            )
+          : undefined
+        return { table, changed: progress.changed, ...(replaced ? { replaced } : {}) }
       },
       { expectedWorkspaceId: workspaceId }
     )
+    if (rowLimit !== null && result.replaced) {
+      notifyTableRowUsage({
+        workspaceId,
+        currentRowCount: 0,
+        addedRows: result.replaced.insertedCount,
+        limit: rowLimit,
+      })
+    }
+    return result
   },
   projectAudit({ input, context, result }) {
     const before = context.table
@@ -198,10 +298,32 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         columnUpdatedAudit(before, result.table, columnName, updates)
       ),
       ...(input.add ?? []).map((column) => columnAddedAudit(before, result.table, column)),
+      ...(result.replaced && (result.replaced.deletedCount > 0 || result.replaced.insertedCount > 0)
+        ? [
+            {
+              action: AuditAction.TABLE_UPDATED,
+              resourceType: AuditResourceType.TABLE,
+              resourceId: result.table.id,
+              resourceName: result.table.name,
+              description: `Replaced rows in table "${result.table.name}"`,
+              metadata: {
+                op: 'replace_rows',
+                rowsDeleted: result.replaced.deletedCount,
+                rowsInserted: result.replaced.insertedCount,
+              },
+            },
+          ]
+        : []),
     ]
   },
   afterSuccess({ input, context, result }) {
     const columnChanges = [input.drop, input.update, input.add].some((list) => list?.length)
     if (columnChanges || result.changed.length > 0) signalTableSchemaChanged(context.table.id)
+    if (
+      result.replaced &&
+      (result.replaced.deletedCount > 0 || result.replaced.insertedCount > 0)
+    ) {
+      signalTableRowsChanged(context.table.id)
+    }
   },
 })

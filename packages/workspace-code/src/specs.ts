@@ -81,7 +81,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
     resourceKind: 'table',
     typeChecked: [`${KIND_DIRS.table}/*.ts`],
     manifestKey: 'tableDeclarations',
-    guide: `\`${KIND_DIRS.table}/<key>.ts\`: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows are never part of source. A workflow: \`table('<key>')\`.`,
+    guide: `\`${KIND_DIRS.table}/<key>.ts\`: \`export default defineTable({ name, description?, folder?, columns: { … } })\` with \`column.string()\`, \`column.number()\`, \`column.select({ options: [...] })\`, … from \`@sim/workflow-sdk/workspace\`. Rows stay out of source unless \`rows\` opts in: \`{ mode: 'managed', key: '<unique column>' }\` keeps the rows equal to \`${KIND_DIRS.table}/<key>.rows.jsonl\` (one JSON object per line, keyed by column key), \`{ mode: 'seed' }\` writes them once into a new table. A workflow: \`table('<key>')\`.`,
   },
   'knowledge-base': {
     noun: 'knowledge base',

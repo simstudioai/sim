@@ -115,6 +115,18 @@ const baseResourceSchema = z
       )
       .optional()
       .describe('Binary file name → its stored id, revision and hash as last read.'),
+    rows: z
+      .object({
+        fingerprint: z.string().describe('`rf1:` fingerprint of the managed rows as last read.'),
+        version: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('The table’s row version as last read; it moves on every row write.'),
+      })
+      .catchall(extensionSchema)
+      .optional()
+      .describe('A table’s managed rows, as last read.'),
   })
   .catchall(extensionSchema)
   .describe('One resource in the base.')

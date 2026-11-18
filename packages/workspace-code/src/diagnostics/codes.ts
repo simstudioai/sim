@@ -79,6 +79,13 @@ const TABLE_CODES = [
   'E_TABLE_TYPE_CONVERSION',
   /** A table folder that does not exist in the workspace. */
   'E_TABLE_FOLDER',
+  /**
+   * The declaration's `rows` or its `tables/<key>.rows.jsonl`: a bad mode or key column, a line
+   * that is not a row of declared columns, a managed row without its key or repeating one.
+   */
+  'E_TABLE_ROWS',
+  /** Seed rows declared for a table that already holds rows: only a new or empty table is seeded. */
+  'I_TABLE_SEED_SKIPPED',
   /** A column dropped and one of the same type added: probably a rename, which loses the cells. */
   'W_LIKELY_RENAME',
 ] as const

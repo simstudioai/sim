@@ -1,8 +1,10 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { fingerprintOf } from '../fingerprint'
+import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import type { TableColumnDecl, TableDecl } from './table'
 import { testTableCodec } from './table.test-helpers'
+import { tableRowsFingerprint } from './table-rows'
 
 const name = fc.stringMatching(/^[A-Za-z_][A-Za-z0-9_]{0,20}$/)
 const text = fc.string({ maxLength: 40 }).filter((value) => !/[\u0000\ud800-\udfff]/.test(value))
@@ -198,5 +200,131 @@ describe('createTableCodec', () => {
       'E_KEY_INVALID',
       'E_DECL_UNKNOWN_FILE',
     ])
+  })
+})
+
+describe('table rows as source', () => {
+  const columns: TableDecl['columns'] = {
+    code: { type: 'string', required: true, unique: true },
+    seats: { type: 'number' },
+    tier: { type: 'select', options: ['basic', 'pro'] },
+  }
+  const declaration = (rows: string) =>
+    [
+      '// @sim-sdk 1',
+      "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+      '',
+      'export default defineTable({',
+      "  name: 'plans',",
+      '  columns: {',
+      '    code: column.string({ required: true, unique: true }),',
+      '    seats: column.number(),',
+      "    tier: column.select({ options: ['basic', 'pro'] }),",
+      '  },',
+      ...(rows ? [`  rows: ${rows},`] : []),
+      '})',
+      '',
+    ].join('\n')
+  const parse = (rows: string, file?: string) =>
+    testTableCodec.parse(
+      'plans',
+      {
+        'tables/plans.ts': declaration(rows),
+        ...(file !== undefined ? { 'tables/plans.rows.jsonl': file } : {}),
+      },
+      []
+    )
+  const errors = (parsed: ReturnType<typeof parse>) =>
+    parsed.diagnostics.map((finding) => [finding.code, finding.span?.line, finding.message])
+
+  it('reads back managed rows it prints, sorted by key, byte-stable', () => {
+    const decl: TableDecl = {
+      name: 'plans',
+      columns,
+      rows: {
+        mode: 'managed',
+        key: 'code',
+        data: [
+          { code: 'team', seats: 10, tier: 'pro' },
+          { code: 'solo', seats: 1 },
+        ],
+      },
+    }
+    const printed = testTableCodec.print('plans', decl)
+    expect(printed.text['tables/plans.rows.jsonl']).toBe(
+      '{"code":"solo","seats":1}\n{"code":"team","seats":10,"tier":"pro"}\n'
+    )
+    const parsed = testTableCodec.parse('plans', printed.text, [])
+    expect(parsed.diagnostics).toEqual([])
+    expect(testTableCodec.print('plans', parsed.decl as TableDecl)).toEqual(printed)
+    expect(tableRowsFingerprint(parsed.decl?.rows)).toBe(tableRowsFingerprint(decl.rows))
+  })
+
+  it('keeps seed rows in file order and prints no rows file for no rows', () => {
+    const parsed = parse("{ mode: 'seed' }", '{"code":"b"}\n\n{"code":"a"}\n')
+    expect(parsed.decl?.rows).toEqual({ mode: 'seed', data: [{ code: 'b' }, { code: 'a' }] })
+    const empty = parse("{ mode: 'managed', key: 'code' }")
+    expect(empty.decl?.rows).toEqual({ mode: 'managed', key: 'code', data: [] })
+    expect(Object.keys(testTableCodec.print('plans', empty.decl as TableDecl).text)).toEqual([
+      'tables/plans.ts',
+    ])
+  })
+
+  it('refuses a rows file the declaration does not opt into, and a mode or key it cannot use', () => {
+    expect(errors(parse('', '{"code":"a"}\n')).map(([code]) => code)).toEqual(['E_TABLE_ROWS'])
+    expect(errors(parse("{ mode: 'managed' }"))[0]?.[2]).toMatch(/need `key`/)
+    expect(errors(parse("{ mode: 'managed', key: 'seats' }"))[0]?.[2]).toMatch(/not unique/)
+    expect(errors(parse("{ mode: 'managed', key: 'owner' }"))[0]?.[2]).toMatch(/not a declared/)
+    expect(errors(parse("{ mode: 'seed', key: 'code' }"))[0]?.[2]).toMatch(/take no `key`/)
+    expect(errors(parse("{ mode: 'mirror' }"))[0]?.[2]).toMatch(/not a rows mode/)
+  })
+
+  it('pins each bad row to its line', () => {
+    const file = [
+      '{"code":"a"}',
+      'not json',
+      '[1]',
+      '{"code":"b","owner":"x"}',
+      '{"seats":2}',
+      '{"code":"A"}',
+    ].join('\n')
+    expect(errors(parse("{ mode: 'managed', key: 'code' }", file))).toEqual([
+      ['E_TABLE_ROWS', 2, 'Line 2 is not JSON.'],
+      ['E_TABLE_ROWS', 3, 'Line 3 is not a JSON object.'],
+      ['E_TABLE_ROWS', 4, 'Line 4 names "owner", which the table does not declare.'],
+      ['E_TABLE_ROWS', 5, 'Line 5 has no "code": a managed row is matched by its key column.'],
+      ['E_TABLE_ROWS', 6, 'Lines 1 and 6 share the key "A".'],
+    ])
+  })
+
+  it(`refuses more than ${WORKSPACE_SOURCE_LIMITS.maxTableRows} rows`, () => {
+    const file = Array.from(
+      { length: WORKSPACE_SOURCE_LIMITS.maxTableRows + 1 },
+      (_, index) => `{"code":"c${index}"}`
+    ).join('\n')
+    expect(errors(parse("{ mode: 'managed', key: 'code' }", file)).map(([code]) => code)).toEqual([
+      'E_TABLE_ROWS',
+    ])
+  })
+
+  it('fingerprints managed rows by content, ignoring order and empty cells', () => {
+    const rows = (data: Array<Record<string, string | number | null>>) =>
+      tableRowsFingerprint({ mode: 'managed', key: 'code', data })
+    const a = rows([{ code: 'a', seats: 1 }, { code: 'b' }])
+    expect(
+      rows([
+        { code: 'b', seats: null },
+        { seats: 1, code: 'a' },
+      ])
+    ).toBe(a)
+    expect(rows([{ code: 'a', seats: 2 }, { code: 'b' }])).not.toBe(a)
+    expect(tableRowsFingerprint({ mode: 'seed', data: [{ code: 'a' }] })).toBeNull()
+  })
+
+  it('groups a rows file with its table and counts it against the rows budget', () => {
+    const grouped = testTableCodec.group(['tables/plans.ts', 'tables/plans.rows.jsonl'])
+    expect(grouped.groups.get('plans')).toEqual(['tables/plans.ts', 'tables/plans.rows.jsonl'])
+    expect(testTableCodec.budgetOf?.('tables/plans.rows.jsonl')).toBe('rows')
+    expect(testTableCodec.budgetOf?.('tables/plans.ts')).toBe('declaration')
   })
 })

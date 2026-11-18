@@ -10,12 +10,14 @@ import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
   type BlobEntry,
+  budgetOfPath,
   emptyBase,
   flattenDiagnostic,
   isFileKind,
   KIND_DIRS,
   parseWorkspaceBase,
   resourceAddress,
+  type SourceBudget,
   type WorkspaceBaseV1,
   type WorkspaceKind,
 } from '@sim/workspace-code'
@@ -246,12 +248,21 @@ function checkLimits(
   files: Record<string, string>,
   diagnostics: WorkspaceSourceDiagnostic[]
 ): void {
-  const bytes = { declaration: 0, workflow: 0 }
+  const bytes: Record<SourceBudget, number> = { declaration: 0, workflow: 0, rows: 0 }
   for (const [path, text] of Object.entries(files)) {
     const kind = kindOfPath(path)
-    if (kind) bytes[KIND_LAYOUTS[kind].budget ?? 'declaration'] += utf8Bytes(text)
+    if (kind) bytes[budgetOfPath(KIND_LAYOUTS[kind], path)] += utf8Bytes(text)
   }
-  const { maxDeclarationBytes, maxWorkflowBytes } = WORKSPACE_SOURCE_LIMITS
+  const { maxDeclarationBytes, maxRowsBytes, maxWorkflowBytes } = WORKSPACE_SOURCE_LIMITS
+  if (bytes.rows > maxRowsBytes) {
+    diagnostics.push(
+      finding(
+        'E_LIMIT_EXCEEDED',
+        `The table rows files total ${bytes.rows} bytes, over the ${maxRowsBytes}-byte limit.`,
+        { hint: 'Keep fewer rows in source; seed or manage the rest another way.' }
+      )
+    )
+  }
   if (bytes.declaration > maxDeclarationBytes) {
     diagnostics.push(
       finding(

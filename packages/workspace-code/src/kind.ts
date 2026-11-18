@@ -123,7 +123,20 @@ export interface KindLayout {
    * The byte limit the kind's text counts against: `declaration` (the default,
    * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).
    */
-  readonly budget?: 'declaration' | 'workflow'
+  readonly budget?: Exclude<SourceBudget, 'rows'>
+  /** The budget one of the kind's paths counts against, when it differs from {@link budget}. */
+  budgetOf?(path: string): SourceBudget
+}
+
+/**
+ * The byte limits a directory's text counts against: declarations (`maxDeclarationBytes`),
+ * workflow files (`maxWorkflowBytes`) and table rows (`maxRowsBytes`).
+ */
+export type SourceBudget = 'declaration' | 'workflow' | 'rows'
+
+/** The budget `path`, one of `layout`'s, counts against. */
+export function budgetOfPath(layout: KindLayout, path: string): SourceBudget {
+  return layout.budgetOf?.(path) ?? layout.budget ?? 'declaration'
 }
 
 /**

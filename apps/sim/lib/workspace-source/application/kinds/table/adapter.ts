@@ -1,13 +1,31 @@
 /**
  * Tables as workspace source: `tables/<key>.ts` declares a table's name, description, folder and
- * columns. Every write goes through the table use cases (`createTableUseCase`,
- * `reshapeTableUseCase`, `deleteTableUseCase`), so their authorization, locks, audit and
- * schema-change signals apply; an update or adopt is one reshape, so it commits whole or not at
- * all. Rows are never read or written.
+ * columns, and opts its rows in with `rows` (`tables/<key>.rows.jsonl`). Every write goes through
+ * the table use cases (`createTableUseCase`, `reshapeTableUseCase`, `deleteTableUseCase`), so
+ * their authorization, locks, audit and schema-change signals apply; an update or adopt is one
+ * reshape, which also replaces the rows, so columns, rows and the managed mark commit whole or not
+ * at all.
+ *
+ * Managed rows follow the three-way rule on their own fingerprint (`base.rows`): rows the
+ * directory did not change are not read; changed ones are compared with the stored rows, which
+ * are written only when the server's still match the base (else `E_APPLY_STALE`), and the apply
+ * refuses a row version that moved since the plan. Removing a stored row needs `--allow-delete`.
+ * Seed rows are written into a table the apply creates, or adopts while it holds no rows.
  */
 import { setOwn } from '@sim/workflow-code'
-import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
+import {
+  type BaseColumn,
+  type BaseResource,
+  fingerprintOf,
+  type ResourceFingerprint,
+  resourceAddress,
+} from '@sim/workspace-code'
 import { columnName, type TableDecl } from '@sim/workspace-code/kinds/table'
+import {
+  rowKeyText,
+  tableRowsFingerprint,
+  tableRowsPath,
+} from '@sim/workspace-code/kinds/table-rows'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
@@ -19,6 +37,7 @@ import {
   listTableDefinitionsUseCase,
 } from '@/lib/table/application/tables'
 import { getTableById } from '@/lib/table/service'
+import type { RowData } from '@/lib/table/types'
 import {
   keyRenamedChange,
   kindFinding,
@@ -37,9 +56,16 @@ import {
   type TableChanges,
 } from '@/lib/workspace-source/application/kinds/table/diff'
 import {
+  baseRows,
+  readStoredRows,
+  replacementRows,
+  rowsVersion,
+} from '@/lib/workspace-source/application/kinds/table/rows'
+import {
   printStoredTable,
   type StoredTableState,
   storedFingerprint,
+  tableAsDecl,
 } from '@/lib/workspace-source/application/kinds/table/stored'
 import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
 import type {
@@ -52,12 +78,23 @@ import type {
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
 
-/** What the apply carries out for one existing table, decided at plan time. */
+/** What the apply does to a table's rows, decided at plan time. */
+interface RowsPlan {
+  /** Rows (by column name) that replace the table's; absent leaves the rows alone. */
+  replace?: RowData[]
+  /** The managed mark to set, by key column name, or `null` to clear it; absent leaves it. */
+  mark?: { mode: 'managed'; keyColumn: string } | null
+  /** The row version the plan read the stored rows at; the apply refuses one that moved. */
+  version?: number
+}
+
+/** What the apply carries out for one table, decided at plan time. */
 interface TablePlan {
-  /** The changes an update or adopt makes; absent for a delete. */
+  /** The changes an update or adopt makes; absent for a create or delete. */
   changes?: TableChanges
   /** The base's column bindings the plan's fingerprint was read under. */
   bindings?: Record<string, BaseColumn>
+  rows?: RowsPlan
 }
 
 type TableChange = PlannedChange<TableDecl, TablePlan>
@@ -84,6 +121,169 @@ async function reload(ctx: SourceContext, tableId: string): Promise<StoredTableS
 /** The column names `decl` declares, as the table stores them. */
 function declaredColumnNames(decl: TableDecl): string[] {
   return Object.entries(decl.columns).map(([key, column]) => columnName(key, column))
+}
+
+/** What planning a table's rows found: the write, if any, and what the plan shows. */
+interface RowsOutcome {
+  plan?: RowsPlan
+  fields: string[]
+  /** Stored rows the write removes. */
+  removed: number
+  /** The base's rows entry a no-op records, read from the server. */
+  base?: BaseResource['rows']
+  diagnostics: WorkspaceSourceDiagnostic[]
+}
+
+/** Each declared column's stored name, by column key. */
+function namesByKey(decl: TableDecl): Map<string, string> {
+  return new Map(
+    Object.entries(decl.columns).map(([key, column]) => [key, columnName(key, column)])
+  )
+}
+
+/** The managed mark a declaration asks for, by its key column's stored name. */
+function markOf(decl: TableDecl): { mode: 'managed'; keyColumn: string } | null {
+  const key = decl.rows?.mode === 'managed' ? decl.rows.key : undefined
+  const column = key !== undefined ? decl.columns[key] : undefined
+  return key !== undefined && column
+    ? { mode: 'managed', keyColumn: columnName(key, column) }
+    : null
+}
+
+/** The rows of a table the apply creates: every declared row, and the managed mark. */
+function createRows(decl: TableDecl): RowsOutcome {
+  const rows = decl.rows
+  if (!rows) return { fields: [], removed: 0, diagnostics: [] }
+  const mark = markOf(decl)
+  return {
+    plan: {
+      ...(rows.data.length > 0 ? { replace: replacementRows(rows, namesByKey(decl)) } : {}),
+      ...(mark ? { mark } : {}),
+    },
+    fields: rows.data.length > 0 ? [`rows (${rows.mode} ${rows.data.length})`] : [],
+    removed: 0,
+    diagnostics: [],
+  }
+}
+
+/**
+ * Plans an existing table's rows against what it stores: seed rows into an empty table the base
+ * has not seen, managed rows by their own three-way rule, and the managed mark set or cleared.
+ */
+async function planRows(
+  key: string,
+  decl: TableDecl,
+  state: StoredTableState,
+  entry: BaseResource | undefined,
+  ctx: PlanContext
+): Promise<RowsOutcome> {
+  const outcome: RowsOutcome = { fields: [], removed: 0, diagnostics: [] }
+  const rows = decl.rows
+  const { decl: storedDecl, keyById } = tableAsDecl(state, entry?.columns)
+  const storedKey = storedDecl.rows?.key
+  if (rows?.mode !== 'managed') {
+    if (storedKey !== undefined) {
+      outcome.plan = { mark: null }
+      outcome.fields.push('rows (no longer managed)')
+    }
+    if (rows?.mode === 'seed' && rows.data.length > 0 && !entry) {
+      if (state.table.rowCount === 0) {
+        outcome.plan = { ...outcome.plan, replace: replacementRows(rows, namesByKey(decl)) }
+        outcome.fields.push(`rows (seed ${rows.data.length})`)
+      } else {
+        outcome.diagnostics.push(
+          kindFinding(
+            'table',
+            key,
+            'I_TABLE_SEED_SKIPPED',
+            `Table "${state.table.name}" holds ${state.table.rowCount} row(s), so its seed rows are not written.`
+          )
+        )
+      }
+    }
+    return outcome
+  }
+  const local = tableRowsFingerprint(rows)
+  const based = entry?.id === state.table.id ? entry.rows : undefined
+  const marked = storedKey === rows.key
+  if (based && based.fingerprint === local && marked) return outcome
+  const rowKey = rows.key ?? ''
+  const stored = await readStoredRows(ctx, state.table, keyById, rowKey)
+  const server = tableRowsFingerprint({ ...rows, data: stored.data })
+  if (server === local) {
+    if (!marked) outcome.plan = { mark: markOf(decl), version: stored.version }
+    else outcome.base = baseRows(rows, stored.version)
+    return outcome
+  }
+  if (based && server !== based.fingerprint) {
+    outcome.diagnostics.push(
+      kindFinding(
+        'table',
+        key,
+        'E_APPLY_STALE',
+        `The rows of table "${state.table.name}" changed on the server since this directory was read.`,
+        { hint: 'Run `sim workspaces source get` to read them, then apply your edits again.' }
+      )
+    )
+    return outcome
+  }
+  const declared = new Set(rows.data.map((row) => rowKeyText(row[rowKey])))
+  outcome.removed = stored.data.filter((row) => !declared.has(rowKeyText(row[rowKey]))).length
+  if (outcome.removed > 0 && !ctx.allowDelete) {
+    outcome.diagnostics.push(
+      kindFinding(
+        'table',
+        key,
+        'E_APPLY_DELETE_NOT_ALLOWED',
+        `This removes ${outcome.removed} row(s) of "${state.table.name}" that ${tableRowsPath(key)} no longer lists.`,
+        { hint: 'Pass --allow-delete to apply it, or keep the rows listed.' }
+      )
+    )
+  }
+  outcome.plan = {
+    replace: replacementRows(rows, namesByKey(decl), stored.carried),
+    ...(marked ? {} : { mark: markOf(decl) }),
+    version: stored.version,
+  }
+  outcome.fields.push(`rows (${rows.data.length})`)
+  return outcome
+}
+
+/**
+ * The fingerprint a planned write is checked against: the table's, and the row version its rows
+ * were read at when it writes them.
+ */
+function planFingerprint(
+  table: ResourceFingerprint,
+  rows: RowsPlan | undefined
+): ResourceFingerprint {
+  return rows?.version === undefined ? table : fingerprintOf({ table, rowsVersion: rows.version })
+}
+
+/** `change`, a table no-op, carrying out what planning its rows found. */
+function withRows(
+  change: TableChange,
+  rows: RowsOutcome,
+  state: StoredTableState,
+  entry: BaseResource | undefined
+): TableChange {
+  change.diagnostics.push(...rows.diagnostics)
+  if (rows.plan) {
+    const bindings = entry?.id === state.table.id ? entry.columns : undefined
+    return {
+      ...change,
+      action: 'update',
+      fields: rows.fields,
+      ...(rows.removed > 0
+        ? { destructive: { what: 'rows', counts: { rows: rows.removed } } }
+        : {}),
+      serverFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
+      detail: { ...(bindings ? { bindings } : {}), rows: rows.plan },
+    }
+  }
+  if (!rows.base) return change
+  const recorded = change.base ?? entry ?? printStoredTable(state, change.key).base
+  return { ...change, base: { ...recorded, rows: rows.base } }
 }
 
 async function planTable(
@@ -115,7 +315,18 @@ async function planTable(
       printStoredTable(resource.state, key, entry?.id === resource.id ? entry.columns : undefined)
         .base
   )
-  if ('settled' in planned) return planned.settled
+  if ('settled' in planned) {
+    // A table whose declaration is unchanged can still hold rows to write.
+    const settled = planned.settled
+    const resource = resolution.action === 'noop' ? resolution.stored : undefined
+    if (!resource || settled.action !== 'noop' || !decl.rows) return settled
+    return withRows(
+      settled,
+      await planRows(key, decl, resource.state, entry, ctx),
+      resource.state,
+      entry
+    )
+  }
   switch (planned.action) {
     case 'create': {
       const holder = nameHolder(stored, decl.name, { fold: true })
@@ -127,8 +338,12 @@ async function planTable(
       return {
         ...change,
         action: 'create',
-        fields: Object.keys(decl.columns).map((column) => `columns.${column} (add)`),
+        fields: [
+          ...Object.keys(decl.columns).map((column) => `columns.${column} (add)`),
+          ...createRows(decl).fields,
+        ],
         pending: pendingOf({ ...change, action: 'create' }, { columns: declaredColumnNames(decl) }),
+        detail: { rows: createRows(decl).plan },
       }
     }
     case 'adopt':
@@ -139,7 +354,16 @@ async function planTable(
       const bindings = planned.action === 'update' ? planned.base.columns : undefined
       const changes = await diffTable(key, decl, state, bindings)
       change.diagnostics.push(...changes.diagnostics)
-      const changed = changes.columns.length > 0 || changes.fields.length > 0
+      const rows = await planRows(
+        key,
+        decl,
+        state,
+        planned.action === 'update' ? planned.base : undefined,
+        ctx
+      )
+      change.diagnostics.push(...rows.diagnostics)
+      const changed =
+        changes.columns.length > 0 || changes.fields.length > 0 || rows.plan !== undefined
       const locked = lockFinding(key, state, changes)
       if (locked) change.diagnostics.push(locked)
       const dropped = changes.columns.filter((column) => column.op === 'drop').length
@@ -175,8 +399,10 @@ async function planTable(
               ),
             }
           : {}),
-        ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
-        ...(dropped > 0 || changes.lostCells > 0
+        ...(changes.fields.length + rows.fields.length > 0
+          ? { fields: [...changes.fields, ...rows.fields] }
+          : {}),
+        ...(dropped > 0 || changes.lostCells > 0 || rows.removed > 0
           ? {
               destructive: {
                 what: 'cells',
@@ -184,12 +410,20 @@ async function planTable(
                   columns: dropped,
                   ...(changes.removedOptions > 0 ? { options: changes.removedOptions } : {}),
                   cells: changes.lostCells,
+                  ...(rows.removed > 0 ? { rows: rows.removed } : {}),
                 },
               },
             }
           : {}),
-        serverFingerprint: storedFingerprint(state, bindings),
-        detail: { changes, ...(bindings ? { bindings } : {}) },
+        serverFingerprint: planFingerprint(storedFingerprint(state, bindings), rows.plan),
+        ...(action === 'noop' && rows.base
+          ? { base: { ...printStoredTable(state, key, bindings).base, rows: rows.base } }
+          : {}),
+        detail: {
+          changes,
+          ...(bindings ? { bindings } : {}),
+          ...(rows.plan ? { rows: rows.plan } : {}),
+        },
       }
     }
   }
@@ -235,7 +469,11 @@ function bindingsAfter(state: StoredTableState, decl: TableDecl): Record<string,
   return bindings
 }
 
-/** The stored table, its base entry and reprinted file after a write, keyed by the declaration. */
+/**
+ * The stored table, its base entry and reprinted files after a write, keyed by the declaration:
+ * managed rows read back as stored (so the base records what the server holds), seed rows as
+ * declared.
+ */
 async function written(
   ctx: SourceContext,
   key: string,
@@ -243,26 +481,52 @@ async function written(
   decl: TableDecl
 ): Promise<AppliedResource> {
   const state = await reload(ctx, tableId)
-  const { base, printed } = printStoredTable(state, key, bindingsAfter(state, decl))
+  const bindings = bindingsAfter(state, decl)
+  const rows = await rowsToPrint(ctx, state, bindings, decl)
+  const { base, printed } = printStoredTable(state, key, bindings, rows)
   return { id: tableId, base, text: printed.text }
 }
 
-/** The reshape that carries out a planned update: fields, then drops, column updates, then adds. */
+/** The rows a stored table prints with: its managed rows read back, or the declaration's seed. */
+async function rowsToPrint(
+  ctx: SourceContext,
+  state: StoredTableState,
+  bindings: Record<string, BaseColumn> | undefined,
+  decl?: TableDecl
+) {
+  const { decl: storedDecl, keyById } = tableAsDecl(state, bindings)
+  const rowKey = storedDecl.rows?.key
+  if (rowKey !== undefined) return readStoredRows(ctx, state.table, keyById, rowKey)
+  return decl?.rows?.mode === 'seed' ? { seed: decl.rows } : undefined
+}
+
+/**
+ * The reshape that carries out a planned update: fields, then drops, column updates, then adds,
+ * then the rows and their managed mark.
+ */
 function reshapeInput(
   ctx: SourceContext,
   tableId: string,
-  changes: TableChanges
+  plan: TablePlan | undefined
 ): ReshapeTableInput {
-  const { table, columns } = changes
+  const workspaceId = ctx.workspace.workspaceId
+  const rows = plan?.rows
+  const rowsInput = {
+    ...(rows?.replace ? { replaceRows: rows.replace } : {}),
+    ...(rows?.mark !== undefined ? { sourceRows: rows.mark } : {}),
+  }
+  if (!plan?.changes) return { tableId, workspaceId, ...rowsInput }
+  const { table, columns } = plan.changes
   return {
     tableId,
-    workspaceId: ctx.workspace.workspaceId,
+    workspaceId,
     ...(Object.keys(table).length > 0 ? { table } : {}),
     drop: columns.filter(isColumnOp('drop')).map((change) => change.columnId),
     update: columns
       .filter(isColumnOp('update'))
       .map((change) => ({ columnName: change.columnId, updates: change.updates })),
     add: columns.filter(isColumnOp('add')).map((change) => change.column),
+    ...rowsInput,
   }
 }
 
@@ -331,16 +595,19 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
       await deleteTableUseCase.authorize({ principal, input: { tableId, workspaceId } })
       return
     }
-    const changes = change.detail?.changes
     await reshapeTableUseCase.authorize({
       principal,
-      input: changes ? reshapeInput(ctx, tableId, changes) : { tableId, workspaceId },
+      input: reshapeInput(ctx, tableId, change.detail),
     })
   },
 
   async fingerprintNow(change, ctx) {
     if (!change.storedId) throw new Error('A table check needs the stored table id')
-    return storedFingerprint(await reload(ctx, change.storedId), change.detail?.bindings)
+    const table = storedFingerprint(await reload(ctx, change.storedId), change.detail?.bindings)
+    const rows = change.detail?.rows
+    return rows?.version === undefined
+      ? table
+      : planFingerprint(table, { version: await rowsVersion(ctx, change.storedId) })
   },
 
   async apply(change, ctx) {
@@ -369,20 +636,25 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
           },
         },
       })
+      const rows = change.detail?.rows
+      if (rows?.replace || rows?.mark) {
+        await reshapeTableUseCase.execute({
+          principal,
+          input: reshapeInput(ctx, table.id, { rows }),
+        })
+      }
       return written(ctx, change.key, table.id, decl)
     }
     const tableId = change.storedId
     const plan = change.detail
-    if (!tableId || !plan?.changes) throw new Error('A table update needs its plan')
-    await reshapeTableUseCase.execute({
-      principal,
-      input: reshapeInput(ctx, tableId, plan.changes),
-    })
+    if (!tableId || !(plan?.changes || plan?.rows)) throw new Error('A table update needs its plan')
+    await reshapeTableUseCase.execute({ principal, input: reshapeInput(ctx, tableId, plan) })
     return written(ctx, change.key, tableId, decl)
   },
 
-  async read(stored) {
-    const { base, printed } = printStoredTable(stored.state, stored.key)
+  async read(stored, ctx) {
+    const rows = await rowsToPrint(ctx, stored.state, undefined)
+    const { base, printed } = printStoredTable(stored.state, stored.key, undefined, rows)
     return { text: printed.text, blobs: [], base }
   },
 }

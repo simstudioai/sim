@@ -3,6 +3,7 @@ import { setOwn } from '@sim/workflow-code'
 import {
   type BaseColumn,
   type BaseResource,
+  type BaseRows,
   fingerprintOf,
   type PrintedDeclaration,
   type ResourceFingerprint,
@@ -13,10 +14,12 @@ import {
   type TableColumnDecl,
   type TableDecl,
 } from '@sim/workspace-code/kinds/table'
+import type { TableRowCells, TableRowsDecl } from '@sim/workspace-code/kinds/table-rows'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 import { tableCodec } from '@/lib/workspace-source/application/kinds/table/codec'
+import { baseRows } from '@/lib/workspace-source/application/kinds/table/rows'
 
 /** A stored table as source sees it: the definition and its folder path (`/` at the root). */
 export interface StoredTableState {
@@ -30,7 +33,7 @@ export function sourceColumns(table: TableDefinition): ColumnDefinition[] {
 }
 
 /** A stored table read as a declaration, with the column key each stored column printed under. */
-interface TableAsDecl {
+export interface TableAsDecl {
   decl: TableDecl
   /** Column id → source key. */
   keyById: Map<string, string>
@@ -55,7 +58,7 @@ function columnDecl(column: ColumnDefinition, key: string): TableColumnDecl {
  * column key → id) gives it; any other column is keyed by its name, so a fresh directory matches
  * columns by name.
  */
-function tableAsDecl(
+export function tableAsDecl(
   state: StoredTableState,
   bindings?: Readonly<Record<string, BaseColumn>>
 ): TableAsDecl {
@@ -85,11 +88,15 @@ function tableAsDecl(
     const key = keyById.get(getColumnId(column)) ?? column.name
     setOwn(columns, key, columnDecl(column, key))
   }
+  // Rows source manages print as `rows`, keyed by the column the marker names while it exists.
+  const marker = state.table.metadata?.sourceRows
+  const rowsKey = marker ? keyById.get(marker.keyColumnId) : undefined
   const decl: TableDecl = {
     name: state.table.name,
     ...(state.table.description ? { description: state.table.description } : {}),
     ...(state.folderPath !== '/' ? { folder: state.folderPath } : {}),
     columns,
+    ...(rowsKey !== undefined ? { rows: { mode: 'managed', key: rowsKey, data: [] } } : {}),
   }
   return { decl, keyById, fingerprint: fingerprintOf(tableCodec.canonical(decl)) }
 }
@@ -113,13 +120,25 @@ export function storedFingerprint(
   return unbound.length === 0 ? fingerprint : fingerprintOf({ fingerprint, unbound })
 }
 
-/** The base entry and printed files of a stored table read under `bindings`. */
+/**
+ * The base entry and printed files of a stored table read under `bindings`. `rows` carries the
+ * rows to print: a managed table's stored rows with the row version they were read at, or the
+ * seed rows a declaration wrote, which the server keeps no record of.
+ */
 export function printStoredTable(
   state: StoredTableState,
   key: string,
-  bindings?: Readonly<Record<string, BaseColumn>>
+  bindings?: Readonly<Record<string, BaseColumn>>,
+  rows?: { data: TableRowCells[]; version: number } | { seed: TableRowsDecl }
 ): { base: BaseResource; printed: PrintedDeclaration } {
   const { decl, keyById, fingerprint } = tableAsDecl(state, bindings)
+  let rowsEntry: BaseRows | undefined
+  if (rows && 'seed' in rows) {
+    if (!decl.rows) decl.rows = rows.seed
+  } else if (decl.rows && rows) {
+    decl.rows = { ...decl.rows, data: rows.data }
+    rowsEntry = baseRows(decl.rows, rows.version)
+  }
   const columns: Record<string, BaseColumn> = {}
   for (const column of sourceColumns(state.table)) {
     const columnKey = keyById.get(getColumnId(column))
@@ -135,7 +154,12 @@ export function printStoredTable(
     Object.entries(columns).sort(([a], [b]) => compareStrings(a, b))
   )
   return {
-    base: { id: state.table.id, fingerprint, columns: sorted },
+    base: {
+      id: state.table.id,
+      fingerprint,
+      columns: sorted,
+      ...(rowsEntry ? { rows: rowsEntry } : {}),
+    },
     printed: tableCodec.print(key, decl),
   }
 }

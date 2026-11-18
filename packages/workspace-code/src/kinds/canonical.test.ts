@@ -22,6 +22,7 @@ import { type SecretDecl, secretFingerprint } from './secrets'
 import { type SkillDecl, skillCodec } from './skills'
 import type { TableColumnDecl, TableDecl } from './table'
 import { testTableCodec } from './table.test-helpers'
+import { type TableRowsDecl, tableRowsFingerprint } from './table-rows'
 import { type ToolDecl, toolCodec } from './tools'
 
 /** A changed value for every field of `D`. */
@@ -134,6 +135,16 @@ describe('every declared field reaches the fingerprint', () => {
         description: 'Closed',
         folder: '/ops',
         columns: { stage: { ...column, required: true } },
+        rows: { mode: 'managed', key: 'stage', data: [] },
+      })
+    ).toEqual([])
+    // Managed rows' content is fingerprinted apart, by `tableRowsFingerprint`.
+    const managed: TableRowsDecl = { mode: 'managed', key: 'code', data: [{ code: 'a', seats: 1 }] }
+    expect(
+      unfingerprinted((rows) => tableRowsFingerprint(rows) ?? 'unmanaged', managed, {
+        mode: 'seed',
+        key: 'seats',
+        data: [{ code: 'a', seats: 2 }],
       })
     ).toEqual([])
     expect(

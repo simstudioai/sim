@@ -1,6 +1,7 @@
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
+  budgetOfPath,
   emptyBase,
   resourceAddress,
   type WorkspaceBaseV1,
@@ -46,28 +47,36 @@ export interface ReadWorkspaceSourceResult {
 
 /**
  * What one directory may hold across kinds, so anything a get writes applies back: declaration
- * bytes (the text of every kind whose codec counts it against the declaration budget; a workflow
- * is held to its own limits when read) and listed blobs. A resource that would take the
- * directory past either is left out and listed in `skipped`, in apply order, so earlier kinds
+ * bytes (the text every codec counts against the declaration budget; a workflow is held to its
+ * own limits when read), table rows bytes and listed blobs. A resource that would take the
+ * directory past any of them is left out and listed in `skipped`, in apply order, so earlier kinds
  * are kept whole.
  */
 function directoryBudget() {
-  const { maxDeclarationBytes, maxBlobs } = WORKSPACE_SOURCE_LIMITS
-  let declarationBytes = 0
+  const { maxDeclarationBytes, maxRowsBytes, maxBlobs } = WORKSPACE_SOURCE_LIMITS
+  const limits: Record<'declaration' | 'rows', number> = {
+    declaration: maxDeclarationBytes,
+    rows: maxRowsBytes,
+  }
+  const spent: Record<'declaration' | 'rows', number> = { declaration: 0, rows: 0 }
   let blobs = 0
   return {
     spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
-      const bytes =
-        (KIND_ADAPTERS[kind].codec.budget ?? 'declaration') === 'declaration'
-          ? Object.values(read.text).reduce((total, text) => total + utf8Bytes(text), 0)
-          : 0
-      if (declarationBytes + bytes > maxDeclarationBytes) {
-        return `its declaration would take the directory past the ${maxDeclarationBytes}-byte declaration limit`
+      const bytes = { declaration: 0, rows: 0 }
+      for (const [path, text] of Object.entries(read.text)) {
+        const budget = budgetOfPath(KIND_ADAPTERS[kind].codec, path)
+        if (budget !== 'workflow') bytes[budget] += utf8Bytes(text)
+      }
+      for (const budget of ['declaration', 'rows'] as const) {
+        if (spent[budget] + bytes[budget] > limits[budget]) {
+          return `its ${budget} would take the directory past the ${limits[budget]}-byte ${budget} limit`
+        }
       }
       if (blobs + read.blobs.length > maxBlobs) {
         return `its binary files would take the directory past the ${maxBlobs}-file limit`
       }
-      declarationBytes += bytes
+      spent.declaration += bytes.declaration
+      spent.rows += bytes.rows
       blobs += read.blobs.length
       return null
     },

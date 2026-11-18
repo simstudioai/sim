@@ -1061,6 +1061,10 @@ export type ApplyWorkspaceSourceBody = {
             sha256: string
           }
         >
+        rows?: {
+          fingerprint: string
+          version: number
+        }
       }
     >
   }
@@ -1188,6 +1192,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_TABLE_OPTIONS'
         | 'E_TABLE_TYPE_CONVERSION'
         | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
         | 'W_LIKELY_RENAME'
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'
@@ -1405,6 +1411,10 @@ export type ApplyWorkspaceSourceResponse = {
               sha256: string
             }
           >
+          rows?: {
+            fingerprint: string
+            version: number
+          }
         }
       >
     }
@@ -1439,6 +1449,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_TABLE_OPTIONS'
         | 'E_TABLE_TYPE_CONVERSION'
         | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
         | 'W_LIKELY_RENAME'
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'
@@ -10572,6 +10584,10 @@ export type GetWorkspaceSourceResponse = {
               sha256: string
             }
           >
+          rows?: {
+            fingerprint: string
+            version: number
+          }
         }
       >
     }
@@ -10621,6 +10637,8 @@ export type GetWorkspaceSourceResponse = {
         | 'E_TABLE_OPTIONS'
         | 'E_TABLE_TYPE_CONVERSION'
         | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
         | 'W_LIKELY_RENAME'
         | 'E_TOOL_SCHEMA'
         | 'E_TOOL_CODE'

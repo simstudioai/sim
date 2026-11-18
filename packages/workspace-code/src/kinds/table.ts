@@ -1,6 +1,6 @@
 /**
- * Tables: `tables/<key>.ts` declares one table's name, description, folder and columns. Rows are
- * never part of source. A column's object key is its stable source key, bound to the stored
+ * Tables: `tables/<key>.ts` declares one table's name, description, folder and columns, and opts
+ * into rows as source with `rows` (`tables/<key>.rows.jsonl`, see `./table-rows`). A column's object key is its stable source key, bound to the stored
  * column id in the base; `name` sets the stored column name when it differs from the key, so a
  * rename keeps the column and its cells.
  *
@@ -31,20 +31,30 @@ import {
   stringField,
 } from '../declaration/field-table'
 import {
+  checkKnownFields,
   type FieldReport,
   fieldPointer,
   fieldReporter,
+  isOneOf,
   readBooleanField,
   readObject,
   readStringField,
 } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration } from '../declaration/read'
-import type { WorkspaceDiagnostic } from '../diagnostics'
+import { diagnostic, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { groupByFile } from './group'
+import {
+  parseTableRows,
+  printTableRows,
+  TABLE_ROWS_EXTENSION,
+  TABLE_ROWS_MODES,
+  type TableRowsDecl,
+  tableRowsPath,
+} from './table-rows'
 
 /**
  * The type-specific column options a column type can own (`TYPE_SPECIFIC_COLUMN_KEYS` on the
@@ -96,6 +106,8 @@ export interface TableDecl {
   /** The table folder path (`/reports`); the workspace root when absent. */
   folder?: string
   columns: Record<string, TableColumnDecl>
+  /** Rows as source: absent leaves the table's rows out of source. */
+  rows?: TableRowsDecl
 }
 
 /**
@@ -289,12 +301,33 @@ function parseTable(
   const file = tablePath(key)
   const source = text[file] ?? ''
   const read = readDeclaration(file, source, { callee: CALLEE, calls })
-  const diagnostics = read.diagnostics.map((finding) => ({ ...finding, kind: 'table', key }))
+  const diagnostics: WorkspaceDiagnostic[] = read.diagnostics.map((finding) => ({
+    ...finding,
+    kind: 'table',
+    key,
+  }))
   if (read.value === undefined) return { diagnostics }
   const report = fieldReporter(source, read.spans, diagnostics, { kind: 'table', key })
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
-  const { name, columns, ...rest } = readFields(fields, value, '', report)
+  const { name, columns, rows, ...rest } = readFields(fields, value, '', report)
+  const rowsFile = tableRowsPath(key)
+  const rowsText = text[rowsFile]
+  if (rowsText !== undefined && rows === undefined) {
+    diagnostics.push(
+      diagnostic(
+        'E_TABLE_ROWS',
+        `${rowsFile} is not part of source: ${file} declares no \`rows\`.`,
+        {
+          kind: 'table',
+          key,
+          span: wholeFile(rowsFile),
+          hint: "Add `rows: { mode: 'managed', key: '<column>' }` (or `{ mode: 'seed' }`), or delete the file.",
+        }
+      )
+    )
+  }
+  if (rows && columns) checkRowsKey(rows, columns, report)
   if (
     diagnostics.some((finding) => finding.severity === 'error') ||
     name === undefined ||
@@ -302,7 +335,77 @@ function parseTable(
   ) {
     return { diagnostics }
   }
-  return { decl: { name, ...rest, columns }, diagnostics }
+  if (!rows) return { decl: { name, ...rest, columns }, diagnostics }
+  const parsed = parseTableRows(key, rowsText ?? '', rows, new Set(Object.keys(columns)))
+  diagnostics.push(...parsed.diagnostics)
+  if (parsed.diagnostics.some((finding) => finding.severity === 'error')) return { diagnostics }
+  return { decl: { name, ...rest, columns, rows: { ...rows, data: parsed.data } }, diagnostics }
+}
+
+/** A managed table's `key` names a declared unique column; a seed table names none. */
+function checkRowsKey(
+  rows: TableRowsDecl,
+  columns: Readonly<Record<string, TableColumnDecl>>,
+  report: FieldReport
+): void {
+  const at = fieldPointer('', 'rows')
+  if (rows.mode === 'seed') {
+    if (rows.key !== undefined)
+      report(
+        'E_TABLE_ROWS',
+        fieldPointer(at, 'key'),
+        'Seed rows take no `key`.',
+        "Drop `key`, or use `mode: 'managed'`."
+      )
+    return
+  }
+  if (rows.key === undefined) {
+    report('E_TABLE_ROWS', at, 'Managed rows need `key`: the unique column each row is matched by.')
+    return
+  }
+  const column = Object.hasOwn(columns, rows.key) ? columns[rows.key] : undefined
+  if (!column?.unique) {
+    report(
+      'E_TABLE_ROWS',
+      fieldPointer(at, 'key'),
+      column
+        ? `Column "${rows.key}" is not unique, so it cannot match managed rows.`
+        : `"${rows.key}" is not a declared column.`,
+      'Name a column declared `unique: true`.'
+    )
+  }
+}
+
+/** A table's `rows`: its mode and key; the rows themselves come from the rows file. */
+const rowsField: DeclField<TableRowsDecl | undefined> = {
+  read(value, field, pointer, report) {
+    if (value[field] === undefined) return undefined
+    const at = fieldPointer(pointer, field)
+    const rows = readObject(value[field], at, report, field)
+    if (!rows) return undefined
+    checkKnownFields(rows, ['mode', 'key'], at, report)
+    const mode = readStringField(rows, 'mode', at, report, { required: true })
+    if (mode === undefined) return undefined
+    if (!isOneOf(TABLE_ROWS_MODES, mode)) {
+      report(
+        'E_TABLE_ROWS',
+        fieldPointer(at, 'mode'),
+        `"${mode}" is not a rows mode.`,
+        "Use 'seed' or 'managed'."
+      )
+      return undefined
+    }
+    const key = readStringField(rows, 'key', at, report)
+    return { mode, ...(key !== undefined ? { key } : {}), data: [] }
+  },
+  print: (rows) =>
+    rows === undefined
+      ? undefined
+      : { mode: rows.mode, ...(rows.key !== undefined ? { key: rows.key } : {}) },
+  // Seed rows are written once, so only managed rows are part of the table's identity; their
+  // content is fingerprinted apart (`tableRowsFingerprint`).
+  canonical: (rows) =>
+    rows?.mode === 'managed' ? { mode: rows.mode, key: rows.key ?? null } : undefined,
 }
 
 /** Reads `columns`: each column, then the checks across them (shared names, per-type limits). */
@@ -401,9 +504,14 @@ const ABSENT: Record<TableColumnMetadataKey, Json> = {
   currencyCode: null,
 }
 
-/** Where tables live: one `tables/<key>.ts` each, all text, whatever the column catalog. */
+/**
+ * Where tables live: one `tables/<key>.ts` each, beside its optional `tables/<key>.rows.jsonl`, all
+ * text, whatever the column catalog. Rows count against their own budget.
+ */
 export const tableLayout: KindLayout = {
-  group: (paths) => groupByFile(KIND_DIRS.table, [DECLARATION_EXTENSION], paths),
+  group: (paths) =>
+    groupByFile(KIND_DIRS.table, [DECLARATION_EXTENSION, TABLE_ROWS_EXTENSION], paths),
+  budgetOf: (path) => (path.endsWith(TABLE_ROWS_EXTENSION) ? 'rows' : 'declaration'),
 }
 
 /**
@@ -446,14 +554,21 @@ export function createTableCodec(catalog: TableColumnCatalog): KindCodec<TableDe
     ),
     folder: folderField('/reports'),
     columns: columnsField,
+    rows: rowsField,
   }
   return {
     ...tableLayout,
     parse: (key, text) => parseTable(key, text, fields, calls),
-    print: (key, decl) => ({
-      text: { [tablePath(key)]: printDeclaration(CALLEE, printFields(fields, decl)) },
-      blobs: [],
-    }),
+    print: (key, decl) => {
+      const rows = decl.rows && printTableRows(decl.rows, Object.keys(decl.columns))
+      return {
+        text: {
+          [tablePath(key)]: printDeclaration(CALLEE, printFields(fields, decl)),
+          ...(rows !== undefined ? { [tableRowsPath(key)]: rows } : {}),
+        },
+        blobs: [],
+      }
+    },
     canonical: (decl) => canonicalFields(fields, decl),
   }
 }

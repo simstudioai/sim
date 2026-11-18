@@ -116,7 +116,8 @@ Follow `/add-column-type`. The workspace codec reads the column registry
 ### A workspace resource kind
 
 The kinds: secrets (`secrets.ts`), credentials (`credentials.ts`), custom tools, skills, MCP servers
-(`mcp/<key>.ts`), tables, knowledge bases, files, workflows and deployments
+(`mcp/<key>.ts`), tables (with opt-in rows in `tables/<key>.rows.jsonl`, see DESIGN.md "Table
+rows"), knowledge bases, files, workflows and deployments
 (`deployments/<workflow key>.ts`, applied after workflows; see DESIGN.md "The deployment kind").
 Secrets and credentials are reference kinds declared whole in one root file (`FILE_KINDS`): see
 DESIGN.md "Reference kinds" for holding back the workflows that use an entry the workspace cannot

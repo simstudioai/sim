@@ -8547,7 +8547,7 @@
       "get": {
         "operationId": "getWorkspaceSource",
         "summary": "Get workspace source",
-        "description": "Read the workspace as a source directory: one declaration file per table (`tables/<key>.ts`), per custom tool (`tools/<key>.ts`, its code in `tools/<key>.js`) and per skill (`skills/<key>.md`), one folder per knowledge base (`knowledge/<key>/`, its settings beside its documents in `docs/`) and per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), every workspace file under `files/`, the binary files (workspace files and knowledge documents) listed by hash with an `href` to download each, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A resource left out (too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget) is listed in `skipped` with why, and a kind holding more than 500 resources is left out with `E_LIMIT_EXCEEDED`. Rows, environment values and credentials are never part of source. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the workspace as a source directory: one declaration file per table (`tables/<key>.ts`), per custom tool (`tools/<key>.ts`, its code in `tools/<key>.js`) and per skill (`skills/<key>.md`), one folder per knowledge base (`knowledge/<key>/`, its settings beside its documents in `docs/`) and per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), every workspace file under `files/`, the binary files (workspace files and knowledge documents) listed by hash with an `href` to download each, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A resource left out (too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget) is listed in `skipped` with why, and a kind holding more than 500 resources is left out with `E_LIMIT_EXCEEDED`. A table's rows are part of source only when its declaration opts in with `rows` (`tables/<key>.rows.jsonl`, at most 10000 rows each); environment values and credentials never are. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workspaces.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -24758,6 +24758,26 @@
                             "required": ["id", "rev", "sha256"],
                             "additionalProperties": false
                           }
+                        },
+                        "rows": {
+                          "description": "A table’s managed rows, as last read.",
+                          "type": "object",
+                          "properties": {
+                            "fingerprint": {
+                              "type": "string",
+                              "description": "`rf1:` fingerprint of the managed rows as last read."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "description": "The table’s row version as last read; it moves on every row write."
+                            }
+                          },
+                          "required": ["fingerprint", "version"],
+                          "additionalProperties": {
+                            "description": "An `x-` extension field, kept as written."
+                          }
                         }
                       },
                       "required": ["id"],
@@ -24847,6 +24867,8 @@
                         "E_TABLE_OPTIONS",
                         "E_TABLE_TYPE_CONVERSION",
                         "E_TABLE_FOLDER",
+                        "E_TABLE_ROWS",
+                        "I_TABLE_SEED_SKIPPED",
                         "W_LIKELY_RENAME",
                         "E_TOOL_SCHEMA",
                         "E_TOOL_CODE",
@@ -25390,6 +25412,8 @@
                       "E_TABLE_OPTIONS",
                       "E_TABLE_TYPE_CONVERSION",
                       "E_TABLE_FOLDER",
+                      "E_TABLE_ROWS",
+                      "I_TABLE_SEED_SKIPPED",
                       "W_LIKELY_RENAME",
                       "E_TOOL_SCHEMA",
                       "E_TOOL_CODE",
@@ -25705,6 +25729,26 @@
                             "required": ["id", "rev", "sha256"],
                             "additionalProperties": false
                           }
+                        },
+                        "rows": {
+                          "description": "A table’s managed rows, as last read.",
+                          "type": "object",
+                          "properties": {
+                            "fingerprint": {
+                              "type": "string",
+                              "description": "`rf1:` fingerprint of the managed rows as last read."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "description": "The table’s row version as last read; it moves on every row write."
+                            }
+                          },
+                          "required": ["fingerprint", "version"],
+                          "additionalProperties": {
+                            "description": "An `x-` extension field, kept as written."
+                          }
                         }
                       },
                       "required": ["id"],
@@ -25759,6 +25803,8 @@
                         "E_TABLE_OPTIONS",
                         "E_TABLE_TYPE_CONVERSION",
                         "E_TABLE_FOLDER",
+                        "E_TABLE_ROWS",
+                        "I_TABLE_SEED_SKIPPED",
                         "W_LIKELY_RENAME",
                         "E_TOOL_SCHEMA",
                         "E_TOOL_CODE",
@@ -26223,6 +26269,26 @@
                           }
                         },
                         "required": ["id", "rev", "sha256"]
+                      }
+                    },
+                    "rows": {
+                      "description": "A table’s managed rows, as last read.",
+                      "type": "object",
+                      "properties": {
+                        "fingerprint": {
+                          "type": "string",
+                          "description": "`rf1:` fingerprint of the managed rows as last read."
+                        },
+                        "version": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "The table’s row version as last read; it moves on every row write."
+                        }
+                      },
+                      "required": ["fingerprint", "version"],
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept as written."
                       }
                     }
                   },
