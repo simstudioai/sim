@@ -56,11 +56,11 @@ const KNOWN_UNTYPED: ReadonlyArray<{ match: RegExp; cause: string }> = [
   },
   { match: /:(jina|guardrails|pinecone):/, cause: 'a checkbox list stored as an object' },
   {
-    match: /:table_v2:(query_rows|batch_insert_rows):/,
+    match: /:table_v2:(query_rows|batch_insert_rows)(:|$)/,
     cause: 'sort rows that keep their ids, rows outside the table schema',
   },
   { match: /:(zoho_desk|file_v5):/, cause: 'a list stored in a single-value field' },
-  { match: /:sailpoint(_v2)?:sailpoint_search_aggregate:/, cause: 'a nested query object' },
+  { match: /:sailpoint(_v2)?:sailpoint_search_aggregate(:|$)/, cause: 'a nested query object' },
   { match: /:(agiloft|coda):/, cause: 'a gated param written outside its variant' },
 ]
 
