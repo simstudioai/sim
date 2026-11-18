@@ -88,7 +88,10 @@ materialize.
   `conditions`/`routes` (lifted into `branches`). A stored `null` is absent; `''` is kept.
 - The CWM is **encoding-free**: whether a subBlock held native JSON or JSON text is not recorded,
   so equality, hashes, diffs and the fingerprint never see it. Materialize picks the encoding:
-  prev's raw encoding, else the catalog `storage`.
+  prev's raw encoding, else the catalog `storage`. A switch's or slider's legacy text (`'true'`,
+  `'0.7'`, `'1.0'`: what registry defaults once seeded) is an encoding the same way: the CWM holds
+  the boolean or number, and an unchanged value keeps prev's text. A switch or slider another
+  field's condition reads keeps its text, since visibility compares strictly.
 - `Value` is JSON plus `SimNode`s, the internal-id sites lifted to keys:
   `{ $sim: 'var', key }`, `{ $sim: 'resource', kind, key }`, `{ $sim: 'unresolved', kind, id }`
   (an id the resolver could not map, kept verbatim with `W_CANON_UNRESOLVED_ID`),

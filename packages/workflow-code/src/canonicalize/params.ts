@@ -1,7 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
-import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
+import { isConditionClause } from '../catalog/conditions'
+import type { CatalogBlock, CatalogCondition, CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import { structuredCodec } from '../structured'
@@ -83,10 +84,57 @@ function decodeStructured(
   return raw
 }
 
+/** Decimal text as the old slider defaults stored it (`'0.7'`, `'1.0'`): no sign tricks or exponents. */
+const NUMERIC_TEXT = /^-?\d+(\.\d+)?$/
+
+/** Fields another field's condition reads, per catalog block. */
+const conditionedFieldsByBlock = new WeakMap<CatalogBlock, ReadonlySet<SubBlockId>>()
+
+function conditionedFields(catalog: CatalogBlock): ReadonlySet<SubBlockId> {
+  const cached = conditionedFieldsByBlock.get(catalog)
+  if (cached) return cached
+  const fields = new Set<SubBlockId>()
+  const read = (clause: CatalogCondition | boolean | undefined) => {
+    if (!isConditionClause(clause)) return
+    fields.add(clause.field)
+    if (clause.and) fields.add(clause.and.field)
+  }
+  for (const subBlock of catalog.subBlocks) {
+    read(subBlock.condition)
+    read(subBlock.required)
+    for (const clause of Object.values(subBlock.visibleWhen ?? {})) read(clause)
+  }
+  conditionedFieldsByBlock.set(catalog, fields)
+  return fields
+}
+
+/**
+ * A switch's or slider's legacy text read as the boolean or number it spells. Registry defaults
+ * once seeded `'true'`/`'false'` and `'0.7'`, and stored workflows still hold them. Like JSON text in a structured field this is an
+ * encoding, not a value: the CWM holds the typed value and materialize keeps prev's raw text while
+ * the value is unchanged. A field another field's condition reads keeps its text, because
+ * visibility compares strictly and the editor tells `'true'` from `true` there.
+ */
+function decodeLegacyScalar(
+  raw: unknown,
+  declaration: CatalogSubBlock | undefined,
+  catalog: CatalogBlock | undefined
+): unknown {
+  if (typeof raw !== 'string' || !declaration || !catalog) return raw
+  if (declaration.valueKind === 'boolean') {
+    if (raw !== 'true' && raw !== 'false') return raw
+  } else if (declaration.valueKind !== 'number' || !NUMERIC_TEXT.test(raw)) {
+    return raw
+  }
+  if (conditionedFields(catalog).has(declaration.id)) return raw
+  return declaration.valueKind === 'boolean' ? raw === 'true' : Number(raw)
+}
+
 /**
  * A block's params: every stored subBlock except runtime ids, synthetic
  * tool mirrors, parked keys, the lifted branch list, and a `null` value
- * (`''` is kept). Structured fields are decoded; selector values become resource nodes;
+ * (`''` is kept). Structured fields are decoded, and so is a switch's or slider's legacy text
+ * ({@link decodeLegacyScalar}); selector values become resource nodes;
  * strings keep their text with reference prefixes normalized. The catalog's subBlock type wins
  * over the stored one, and a drift is reported.
  */
@@ -129,7 +177,9 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
       })
     }
 
-    const decoded = shouldDecode(declaration) ? decodeStructured(raw, blockKey, id, context) : raw
+    const decoded = shouldDecode(declaration)
+      ? decodeStructured(raw, blockKey, id, context)
+      : decodeLegacyScalar(raw, declaration, catalog)
     const location = { blockKey, param: id }
 
     const lifted = structuredCodec(declaration)?.lift(decoded, {
