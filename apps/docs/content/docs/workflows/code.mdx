@@ -37,7 +37,16 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    It exits 1 on an error, and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added since the get (`--strict` fails on these in every block, `--no-strict` never on a warning). It also adds the blocks the workflow now uses to `tsconfig.json`. Your editor type-checks the file against the generated declarations, and `bunx -p typescript@7.0.2 tsc -p ./support-triage` checks it from the command line with the TypeScript release the declarations are built for; `-p ./support-triage/tsconfig.full.json` type-checks against every block.
 
-3. Check the change without saving it:
+3. See what changed, and whether someone changed the workflow since your `get`:
+
+   ```bash
+   sim workflows source status --dir ./support-triage
+   sim workflows source diff --dir ./support-triage
+   ```
+
+   `status` lists the files you created, edited, or deleted, asks the server (with a dry run that saves nothing) whether the workflow changed since the `get`, and ends with the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unsaved, and `12` when the workflow changed in the editor since the `get` (a conflict, if you edited it too). Without a connection it shows your edits only and says so; `--offline` skips the server. `diff` prints each edit as a unified diff, and `diff --server` compares the directory with the workflow as it is saved now. Both take `--json` (or `--output json`).
+
+4. Check the change without saving it:
 
    ```bash
    sim workflows source apply --dir ./support-triage --dry-run
@@ -57,7 +66,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
      hint: Did you mean channel?
    ```
 
-4. Save the draft:
+5. Save the draft:
 
    ```bash
    sim workflows source apply --dir ./support-triage --yes
