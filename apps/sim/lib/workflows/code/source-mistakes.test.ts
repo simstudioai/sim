@@ -137,7 +137,10 @@ export default workflow('Sync', {}, () => {
 
   it("tells a literal token in a credential field to use credential('<key>')", () => {
     const result = compile(
-      probe("credential: credential('ops-slack')", `credential: 'xoxb-${'1234567890'}-abcdefghijklmnop'`)
+      probe(
+        "credential: credential('ops-slack')",
+        `credential: 'xoxb-${'1234567890'}-abcdefghijklmnop'`
+      )
     )
     expect(only(result, 'W_LITERAL_SECRET')?.hint).toBe(
       "Save the token as a workspace credential and write credential: credential('<key>'), so the token never sits in the workflow."
