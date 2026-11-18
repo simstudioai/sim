@@ -1,5 +1,6 @@
 import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
@@ -26,7 +27,11 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.getzep.com/api/v2/users/${params.userId}`,
+    url: (params) =>
+      `https://api.getzep.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId', {
+        allowSeparators: true,
+        preserveWhitespace: true,
+      })}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

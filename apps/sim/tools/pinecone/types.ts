@@ -81,13 +81,14 @@ export interface PineconeUpsertTextParams extends PineconeBaseParams {
 
 interface PineconeRerank {
   model: string
-  rank_fields: string[]
+  rank_fields?: string[]
   top_n?: number
   parameters?: Record<string, any>
-  query?: { text: string }
+  query?: string | { text: string }
 }
 
-export interface PineconeSearchTextParams extends PineconeBaseParams {
+export interface PineconeSearchTextParams extends Omit<PineconeBaseParams, 'namespace'> {
+  namespace?: string
   searchQuery: string
   topK?: string
   fields?: string[] | string
