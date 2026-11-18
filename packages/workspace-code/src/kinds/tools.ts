@@ -23,8 +23,16 @@
  * a `<block.output>` token) prints inline as a string, so every stored tool reads back unchanged.
  */
 import { checkCodeFileBijection, fromCodeFile, type Json } from '@sim/workflow-code'
-import { asDeclared, type CanonicalFields, canonicalOf } from '../declaration/field-table'
-import { checkKnownFields, fieldReporter, readObject, readStringField } from '../declaration/fields'
+import {
+  asDeclared,
+  canonicalFields,
+  type DeclField,
+  type DeclFields,
+  printFields,
+  readFields,
+  stringField,
+} from '../declaration/field-table'
+import { fieldPointer, fieldReporter, readObject } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
 import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
 import {
@@ -49,16 +57,44 @@ export interface ToolDecl {
 
 const CALLEE = 'defineTool'
 const CODE_FILE_CALL = 'codeFile'
-/**
- * What each field of a tool adds to its fingerprint, all as declared; its keys are the fields
- * `defineTool()` takes.
- */
-const TOOL_FIELDS: CanonicalFields<ToolDecl> = {
-  title: asDeclared,
-  schema: asDeclared,
-  code: asDeclared,
-}
+/** The field the codec reads, prints and fingerprints itself: it may name the tool's code file. */
+const CODE_FIELD = 'code' satisfies keyof ToolDecl
 const CODE_EXTENSION = '.js'
+
+/** Whether `value` holds a helper call anywhere: a schema is plain JSON. */
+function holdsCall(value: Json): boolean {
+  if (isDeclarationCall(value)) return true
+  if (Array.isArray(value)) return value.some(holdsCall)
+  return value !== null && typeof value === 'object' && Object.values(value).some(holdsCall)
+}
+
+/** The required function schema: a plain JSON object, stored and printed verbatim. */
+const schemaField: DeclField<Record<string, Json> | undefined> = {
+  read(value, field, pointer, report) {
+    if (value[field] === undefined) {
+      report('E_DECL_SHAPE', pointer, `"${field}" is required.`)
+      return undefined
+    }
+    const at = fieldPointer(pointer, field)
+    const schema = readObject(value[field], at, report, field)
+    if (schema && holdsCall(schema)) {
+      report('E_TOOL_SCHEMA', at, 'The schema holds JSON values only.')
+      return undefined
+    }
+    return schema
+  },
+  print: asDeclared,
+  canonical: asDeclared,
+}
+
+/**
+ * The fields of `defineTool()` besides {@link CODE_FIELD}, in print order, each fingerprinted as
+ * declared.
+ */
+const TOOL_FIELDS: DeclFields<Omit<ToolDecl, typeof CODE_FIELD>> = {
+  title: stringField({ required: true }),
+  schema: schemaField,
+}
 
 /** `tools/<key>.ts`. */
 export function toolDeclarationPath(key: string): string {
@@ -68,13 +104,6 @@ export function toolDeclarationPath(key: string): string {
 /** `tools/<key>.js`. */
 function codePath(key: string): string {
   return `${KIND_DIRS['custom-tool']}/${key}${CODE_EXTENSION}`
-}
-
-/** Whether `value` holds a helper call anywhere: a schema is plain JSON. */
-function holdsCall(value: Json): boolean {
-  if (isDeclarationCall(value)) return true
-  if (Array.isArray(value)) return value.some(holdsCall)
-  return value !== null && typeof value === 'object' && Object.values(value).some(holdsCall)
 }
 
 /** Stored code as its code file, when the file reads back as exactly that code with no `$ref`. */
@@ -172,19 +201,9 @@ function parseTool(
   const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)
   if (!value) return { diagnostics }
-  checkKnownFields(value, Object.keys(TOOL_FIELDS), '', report)
-  const title = readStringField(value, 'title', '', report, { required: true })
-  let schema: Record<string, Json> | undefined
-  if (value.schema === undefined) report('E_DECL_SHAPE', '', '"schema" is required.')
-  else {
-    schema = readObject(value.schema, '/schema', report, 'schema')
-    if (schema && holdsCall(schema)) {
-      report('E_TOOL_SCHEMA', '/schema', 'The schema holds JSON values only.')
-      schema = undefined
-    }
-  }
+  const { title, schema } = readFields(TOOL_FIELDS, value, '', report, [CODE_FIELD])
   let code: string | undefined
-  const rawCode = value.code
+  const rawCode = value[CODE_FIELD]
   const expected = `./${key}${CODE_EXTENSION}`
   if (rawCode === undefined) report('E_DECL_SHAPE', '', '"code" is required.')
   else if (typeof rawCode === 'string') {
@@ -231,9 +250,9 @@ export const toolCodec: KindCodec<ToolDecl> = {
   print(key, decl) {
     const file = codeFileOf(decl.code)
     const value: Record<string, Json> = {
-      title: decl.title,
-      schema: decl.schema,
-      code: file === undefined ? decl.code : call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`),
+      ...printFields(TOOL_FIELDS, decl),
+      [CODE_FIELD]:
+        file === undefined ? decl.code : call(CODE_FILE_CALL, `./${key}${CODE_EXTENSION}`),
     }
     return {
       text: {
@@ -243,5 +262,5 @@ export const toolCodec: KindCodec<ToolDecl> = {
       blobs: [],
     }
   },
-  canonical: (decl) => canonicalOf(TOOL_FIELDS, decl),
+  canonical: (decl) => ({ ...canonicalFields(TOOL_FIELDS, decl), [CODE_FIELD]: decl.code }),
 }

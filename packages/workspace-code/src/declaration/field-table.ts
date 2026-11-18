@@ -47,9 +47,6 @@ export interface DeclField<V> {
  */
 export type DeclFields<D> = { readonly [K in keyof D]-?: DeclField<D[K] | undefined> }
 
-/** One canonical rule (or `null`, deliberately left out) for every field of `D`. */
-export type CanonicalFields<D> = { readonly [K in keyof D]-?: CanonicalRule<D[K]> | null }
-
 /**
  * Reads every field of `fields` from `value` (the object at `pointer`), first reporting each field
  * `value` holds that neither the table nor `alsoKnown` (fields the caller reads itself) names. A
@@ -86,16 +83,6 @@ export function canonicalFields<D>(fields: DeclFields<D>, decl: Partial<D>): Rec
   const canonical: Record<string, Json> = {}
   for (const field in fields) {
     const value = fields[field].canonical?.(decl[field])
-    if (value !== undefined) canonical[field] = value
-  }
-  return canonical
-}
-
-/** The canonical JSON of `decl` by `rules`, for a kind whose fields are not a declaration object. */
-export function canonicalOf<D>(rules: CanonicalFields<D>, decl: D): Record<string, Json> {
-  const canonical: Record<string, Json> = {}
-  for (const field in rules) {
-    const value = rules[field]?.(decl[field])
     if (value !== undefined) canonical[field] = value
   }
   return canonical
