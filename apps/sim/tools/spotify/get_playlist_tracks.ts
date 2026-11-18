@@ -31,7 +31,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 50,
-      description: 'Maximum number of tracks to return (1-100)',
+      description: 'Maximum number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
@@ -50,7 +50,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const limit = Math.min(Math.max(params.limit || 50, 1), 100)
+      const limit = Math.min(Math.max(params.limit || 50, 1), 50)
       const offset = params.offset || 0
       let url = `https://api.spotify.com/v1/playlists/${params.playlistId}/items?limit=${limit}&offset=${offset}`
       if (params.market) {

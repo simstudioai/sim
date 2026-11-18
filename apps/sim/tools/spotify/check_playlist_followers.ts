@@ -58,7 +58,7 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
   outputs: {
     results: {
       type: 'json',
-      description: 'One boolean: whether the current user follows the playlist',
+      description: 'Array with one boolean: whether the current user follows the playlist',
     },
   },
 }
