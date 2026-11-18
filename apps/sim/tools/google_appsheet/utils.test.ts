@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
+import {
+  appsheetResponseRows,
+  buildAppsheetActionUrl,
+  readAppsheetResponseBody,
+} from '@/tools/google_appsheet/utils'
 
 describe('buildAppsheetActionUrl', () => {
   it('defaults to the global www region when unset', () => {
@@ -43,5 +47,11 @@ describe('readAppsheetResponseBody', () => {
     expect(await readAppsheetResponseBody(response)).toEqual({
       message: '<html>502 Bad Gateway</html>',
     })
+  })
+})
+
+describe('appsheetResponseRows', () => {
+  it('reads a bare row array body as the rows instead of an empty result', () => {
+    expect(appsheetResponseRows([{ id: '1' }, { id: '2' }])).toEqual([{ id: '1' }, { id: '2' }])
   })
 })

@@ -66,8 +66,11 @@ export const analyzeTool: ToolConfig<GooglePagespeedAnalyzeParams, GooglePagespe
         url.searchParams.append('url', params.url.trim())
         url.searchParams.append('key', params.apiKey)
 
-        if (params.category) {
-          const categories = params.category.split(',').map((c) => c.trim())
+        const categories = (params.category ?? '')
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean)
+        if (categories.length > 0) {
           for (const cat of categories) {
             url.searchParams.append('category', cat)
           }
