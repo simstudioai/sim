@@ -27,6 +27,16 @@ import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './
 
 const logger = createLogger('EditWorkflowServerTool')
 
+/** The graph's blocks other than `blockId`, for judging that block's own type change. */
+function otherBlocks(
+  blocks: Record<string, { type: string }>,
+  blockId: string
+): Array<{ type: string }> {
+  return Object.entries(blocks)
+    .filter(([id]) => id !== blockId)
+    .map(([, block]) => block)
+}
+
 /**
  * Holds a new child of a container to the same placement gates as a top-level `add`.
  *
@@ -615,6 +625,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
         previousType: block.type,
         operationType: 'edit',
         outcome: 'type change skipped',
+        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
       },
       { permissionConfig }
     )
@@ -973,6 +984,7 @@ export function handleInsertIntoSubflowOperation(
         operationType: 'insert_into_subflow',
         outcome: 'block not inserted into subflow',
         details: { subflowId },
+        others: modifiedState.blocks,
       },
       { permissionConfig }
     )

@@ -120,6 +120,28 @@ const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
       },
     ],
   },
+  slack_v2: {
+    type: 'slack_v2',
+    name: 'Slack',
+    tools: {
+      access: ['slack_v2_message', 'slack_v2_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_v2_canvas' : 'slack_v2_message',
+      },
+    },
+    subBlocks: [
+      {
+        id: 'operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+  },
+  api_trigger: { type: 'api_trigger', name: 'API', subBlocks: [] },
   human_in_the_loop: {
     type: 'human_in_the_loop',
     name: 'Human in the Loop',
@@ -1853,5 +1875,83 @@ describe('Mothership tool attachment writes', () => {
       true
     )
     expect(result.validationErrors[0]?.error).toContain('MCP tool or MCP server bindings only')
+  })
+})
+
+describe('engine type placement', () => {
+  const triggerId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const agentId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const loopId = '12121212-1212-4121-8121-121212121212'
+  const insertedId = '13131313-1313-4131-8131-131313131313'
+
+  function stored(id: string, type: string, name: string, subBlocks: Record<string, unknown> = {}) {
+    return {
+      id,
+      type,
+      name,
+      position: { x: 0, y: 0 },
+      enabled: true,
+      subBlocks,
+      outputs: {},
+      data: {},
+    }
+  }
+
+  it('refuses inserting a second trigger into a container', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [triggerId]: stored(triggerId, 'api_trigger', 'API'),
+          [loopId]: stored(loopId, 'loop', 'Each'),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        {
+          operation_type: 'insert_into_subflow',
+          block_id: insertedId,
+          params: { type: 'api_trigger', name: 'API 2', subflowId: loopId },
+        },
+      ]
+    )
+
+    expect(state.blocks[insertedId]).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'duplicate_trigger',
+        operationType: 'insert_into_subflow',
+        blockId: insertedId,
+      }),
+    ])
+  })
+
+  it('refuses retyping a block into a second trigger, and lets a trigger keep its own type', () => {
+    const { state, skippedItems } = applyOperationsToWorkflowState(
+      {
+        blocks: {
+          [triggerId]: stored(triggerId, 'api_trigger', 'API'),
+          [agentId]: stored(agentId, 'agent', 'Agent'),
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      [
+        { operation_type: 'edit', block_id: agentId, params: { type: 'api_trigger' } },
+        { operation_type: 'edit', block_id: triggerId, params: { type: 'api_trigger' } },
+      ]
+    )
+
+    expect(state.blocks[agentId].type).toBe('agent')
+    expect(state.blocks[triggerId].type).toBe('api_trigger')
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'duplicate_trigger',
+        operationType: 'edit',
+        blockId: agentId,
+      }),
+    ])
   })
 })
