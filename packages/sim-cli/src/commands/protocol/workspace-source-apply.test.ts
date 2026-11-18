@@ -238,6 +238,58 @@ describe('workspaces source apply', () => {
     expect(request.mock.calls.every((call) => call[1].query === undefined)).toBe(true)
   })
 
+  describe('rate limiting', () => {
+    const limited = () =>
+      new SimApiError('API rate limit exceeded', 429, 'RATE_LIMITED', undefined, 9)
+
+    beforeEach(() => {
+      write('files/a.bin', Buffer.from([1, 2, 3]))
+      write('files/b.bin', Buffer.from([4, 5]))
+    })
+
+    it('a 429 on a later blob round saves what landed and exits 8', async () => {
+      request
+        .mockResolvedValueOnce(
+          answer({
+            applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
+            remainingBlobs: ['files/a.bin'],
+            files: { 'tables/leads.ts': `${LEADS}// stored\n` },
+            base: { ...BASE, resources: { 'table:leads': { id: 'tbl_1' } } },
+          })
+        )
+        .mockRejectedValueOnce(limited())
+
+      await expect(apply('--yes')).rejects.toMatchObject({
+        status: 429,
+        exitCode: 8,
+        message: expect.stringMatching(/apply again/),
+      })
+      expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
+      const written = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8')).files
+      expect(written['tables/leads.ts']).toBe(digest(`${LEADS}// stored\n`))
+    })
+
+    it('a 429 on the first round, which wrote nothing, keeps the rate-limit exit', async () => {
+      request.mockRejectedValueOnce(limited())
+
+      await expect(apply('--yes')).rejects.toMatchObject({ status: 429, exitCode: 9 })
+      expect(existsSync(join(dir, '.sim/written.json'))).toBe(false)
+    })
+
+    it('marks the dry run and every write round as safe to resend after a 429', async () => {
+      request
+        .mockResolvedValueOnce(answer({ dryRun: true, needBlobs: ['files/a.bin'] }))
+        .mockResolvedValueOnce(answer({ remainingBlobs: ['files/b.bin'] }))
+        .mockResolvedValueOnce(answer())
+
+      await apply('--dry-run')
+      await apply('--yes')
+
+      expect(request).toHaveBeenCalledTimes(3)
+      for (const call of request.mock.calls) expect(call[1].retryRateLimited).toBe(true)
+    })
+  })
+
   it('stops when a round makes no progress instead of looping', async () => {
     write('files/a.bin', Buffer.from([1]))
     request.mockResolvedValue(answer({ remainingBlobs: ['files/a.bin'] }))

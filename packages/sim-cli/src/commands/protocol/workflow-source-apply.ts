@@ -212,6 +212,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
         params: args.params,
         ...(dryRun ? { query: { dryRun: true } } : {}),
         body: args.body,
+        retryRateLimited: true,
       })
       return response.data
     } catch (error) {

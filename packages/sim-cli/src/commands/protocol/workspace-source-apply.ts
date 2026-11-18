@@ -254,10 +254,21 @@ export function attachWorkspaceSourceApply(source: Command): void {
               params: { workspaceId },
               ...(dryRun ? { query: { dryRun: true } } : {}),
               body,
+              retryRateLimited: true,
             }
           )
           return response.data
         } catch (error) {
+          if (!dryRun && roundsSaved > 0 && error instanceof SimApiError && error.status === 429) {
+            throw new SimApiError(
+              `${error.message} The ${roundsSaved === 1 ? 'round' : `${roundsSaved} rounds`} before it ${roundsSaved === 1 ? 'is' : 'are'} applied and saved into ${options.dir}: apply again to continue.`,
+              error.status,
+              error.code,
+              error.details,
+              SOURCE_PARTIAL_EXIT_CODE,
+              error.requestId
+            )
+          }
           return printRefusal(
             error,
             dryRun
@@ -267,6 +278,8 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
       }
 
+      /** Write rounds this run saved into the directory; a later refusal leaves them standing. */
+      let roundsSaved = 0
       let written = await readWritten(options.dir)
       let submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
       assertBaseWorkspace(
@@ -317,6 +330,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
       for (;;) {
         printNewDiagnostics(data.diagnostics, printed)
         written = await saveApplied(options.dir, data, submission, written)
+        roundsSaved++
         if (data.failed || data.remainingBlobs.length === 0) break
         const next = new Set(data.remainingBlobs)
         if (next.size >= wanted.size && [...next].every((path) => wanted.has(path))) {
