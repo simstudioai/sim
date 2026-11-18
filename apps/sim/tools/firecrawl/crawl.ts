@@ -289,7 +289,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
-        if (signal?.aborted)
+        if (signal?.aborted && jobId)
           await cancelFirecrawlJob(`crawl/${encodeURIComponent(jobId)}`, params.apiKey)
         logger.error('Error polling for crawl job status:', {
           message: error.message || 'Unknown error',
