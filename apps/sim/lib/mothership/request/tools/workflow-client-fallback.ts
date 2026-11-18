@@ -196,19 +196,28 @@ export async function raceWorkflowToolClientPickup(
   // would outlive the wait it is supposed to bound.
   const effectiveGraceMs = Math.min(graceMs, timeoutMs)
 
+  const clientDone = clientWait.then((completion) => ({ kind: 'client' as const, completion }))
   const raceGrace = (ms: number) =>
-    Promise.race([
-      clientWait.then((completion) => ({ kind: 'client' as const, completion })),
-      sleep(ms).then(() => ({ kind: 'grace' as const })),
-    ])
+    Promise.race([clientDone, sleep(ms).then(() => ({ kind: 'grace' as const }))])
 
   let first = await raceGrace(effectiveGraceMs)
   if (first.kind === 'grace' && params.extendGrace) {
-    const extraMs = Math.min(
-      await params.extendGrace().catch(() => 0),
-      timeoutMs - effectiveGraceMs
-    )
-    if (extraMs > 0) first = await raceGrace(extraMs)
+    // The check counts toward the extension, and a result that lands during it wins at once.
+    const checkStartedAt = Date.now()
+    const extension = await Promise.race([
+      clientDone,
+      params
+        .extendGrace()
+        .catch(() => 0)
+        .then((ms) => ({ kind: 'extend' as const, ms })),
+    ])
+    if (extension.kind === 'client') {
+      first = extension
+    } else {
+      const extraMs =
+        Math.min(extension.ms, timeoutMs - effectiveGraceMs) - (Date.now() - checkStartedAt)
+      if (extraMs > 0) first = await raceGrace(extraMs)
+    }
   }
 
   // A non-null client result inside the grace window is the normal path.
