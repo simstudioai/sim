@@ -204,7 +204,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'sizeThreshold',
       title: 'Size Threshold',
       type: 'short-input',
-      placeholder: 'Minimum position size (default: 1)',
+      placeholder: 'Minimum current size in shares (default: 0.1)',
       condition: { field: 'operation', value: ['get_positions'] },
       mode: 'advanced',
     },
@@ -463,7 +463,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'leaderboardUserName',
       title: 'Username',
       type: 'short-input',
-      placeholder: 'Filter by username',
+      placeholder: 'No longer supported by Polymarket; use User Address',
       condition: { field: 'operation', value: ['get_leaderboard'] },
       mode: 'advanced',
     },
@@ -841,8 +841,8 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           if (activitySide) cleanParams.side = activitySide
           if (activitySortBy) cleanParams.sortBy = activitySortBy
           if (activitySortDirection) cleanParams.sortDirection = activitySortDirection
-          if (activityStart) cleanParams.start = Number(activityStart)
-          if (activityEnd) cleanParams.end = Number(activityEnd)
+          if (activityStart != null && activityStart !== '') cleanParams.start = activityStart
+          if (activityEnd != null && activityEnd !== '') cleanParams.end = activityEnd
         }
 
         if (operation === 'get_leaderboard') {
@@ -911,6 +911,10 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     tagId: { type: 'string', description: 'Filter by tag ID' },
     limit: { type: 'string', description: 'Number of results per page' },
     offset: { type: 'string', description: 'Pagination offset' },
+    cursor: {
+      type: 'string',
+      description: 'Data API v2 pagination cursor (nextCursor from the previous page)',
+    },
     page: { type: 'string', description: 'Page number for search' },
     activityUser: { type: 'string', description: 'User wallet address for activity' },
     activityType: { type: 'string', description: 'Activity type filter' },

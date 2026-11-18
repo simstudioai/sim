@@ -83,7 +83,7 @@ export const updateDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index')}/_update/${safeUrlPathSegment(
+      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_update/${safeUrlPathSegment(
         params.documentId,
         'documentId',
         {

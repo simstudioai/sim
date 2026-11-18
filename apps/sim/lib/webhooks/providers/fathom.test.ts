@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
+import type { SubscriptionContext } from '@/lib/webhooks/providers/types'
 
 const SECRET_BYTES = Buffer.from('fathom-test-secret-key-padding!!!!!!')
 const SIGNING_SECRET = `whsec_${SECRET_BYTES.toString('base64')}`
@@ -77,6 +78,16 @@ describe('Fathom webhook provider createSubscription', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  function subscriptionContext(webhook: Record<string, unknown>): SubscriptionContext {
+    return {
+      webhook,
+      workflow: {},
+      userId: 'user_1',
+      requestId: `fathom-${String(webhook.id)}`,
+      request: new NextRequest('http://localhost/api/webhooks'),
+    }
+  }
+
   it('stores the signing secret Fathom returns', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -84,10 +95,9 @@ describe('Fathom webhook provider createSubscription', () => {
       json: async () => ({ id: 'ikEoQ4bVoq4JYUmc', secret: SIGNING_SECRET }),
     })
 
-    const result = await fathomHandler.createSubscription?.({
-      webhook: { id: 'wh_1', path: 'p1', providerConfig: { apiKey: 'fathom_key' } },
-      requestId: 'fathom-sub1',
-    } as never)
+    const result = await fathomHandler.createSubscription?.(
+      subscriptionContext({ id: 'wh_1', path: 'p1', providerConfig: { apiKey: 'fathom_key' } })
+    )
 
     expect(result?.providerConfigUpdates).toEqual({
       externalId: 'ikEoQ4bVoq4JYUmc',
@@ -104,10 +114,9 @@ describe('Fathom webhook provider createSubscription', () => {
     fetchMock.mockResolvedValueOnce({ ok: true, status: 204 })
 
     await expect(
-      fathomHandler.createSubscription?.({
-        webhook: { id: 'wh_2', path: 'p2', providerConfig: { apiKey: 'fathom_key' } },
-        requestId: 'fathom-sub2',
-      } as never)
+      fathomHandler.createSubscription?.(
+        subscriptionContext({ id: 'wh_2', path: 'p2', providerConfig: { apiKey: 'fathom_key' } })
+      )
     ).rejects.toThrow(/signing secret/)
 
     const [url, init] = fetchMock.mock.calls[1]

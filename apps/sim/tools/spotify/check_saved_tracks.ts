@@ -3,7 +3,7 @@ import type {
   SpotifyCheckSavedTracksResponse,
 } from '@/tools/spotify/types'
 import {
-  sendRemainingSpotifyLibraryChunks,
+  readSpotifyLibraryChecks,
   splitSpotifyLibraryIds,
   spotifyLibraryUrl,
 } from '@/tools/spotify/utils'
@@ -46,22 +46,11 @@ export const spotifyCheckSavedTracksTool: ToolConfig<
     params,
     context
   ): Promise<SpotifyCheckSavedTracksResponse> => {
-    const data: boolean[] = [
-      ...(await response.json()),
-      ...(params
-        ? await sendRemainingSpotifyLibraryChunks(
-            params,
-            params.trackIds,
-            'track',
-            'GET',
-            {
-              contains: true,
-              maxIds: 50,
-            },
-            context?.signal
-          )
-        : []),
-    ]
+    const data = await readSpotifyLibraryChecks(
+      response,
+      params && { params, ids: params.trackIds, type: 'track', maxIds: 50 },
+      context?.signal
+    )
     const ids = splitSpotifyLibraryIds(params?.trackIds || '', 50)
 
     const results = ids.map((id, index) => ({

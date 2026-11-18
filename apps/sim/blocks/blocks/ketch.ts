@@ -256,7 +256,11 @@ export const KetchBlock: BlockConfig = {
   },
   outputs: {
     purposes: { type: 'json', description: 'Consent status per purpose (allowed, legalBasisCode)' },
-    vendors: { type: 'json', description: 'TCF vendor IDs returned with the consent record' },
+    vendors: {
+      type: 'json',
+      description:
+        'List of vendor IDs for which the user has opted out (deprecated by Ketch in favor of vendorConsents)',
+    },
     topics: {
       type: 'json',
       description: 'Subscription topic statuses per contact method',

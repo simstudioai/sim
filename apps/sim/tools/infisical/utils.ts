@@ -56,17 +56,17 @@ export const INFISICAL_APPROVAL_OUTPUT: OutputProperty = {
     'Pending secret change request, returned instead of the secret when the environment has a secret approval policy',
   optional: true,
   properties: {
-    id: { type: 'string', description: 'Change request ID' },
-    policyId: { type: 'string', description: 'Approval policy ID' },
-    slug: { type: 'string', description: 'Change request slug' },
+    id: { type: 'string', description: 'Change request ID', nullable: true },
+    policyId: { type: 'string', description: 'Approval policy ID', nullable: true },
+    slug: { type: 'string', description: 'Change request slug', nullable: true },
     status: { type: 'string', description: 'Change request status (e.g., open)', optional: true },
     hasMerged: {
       type: 'boolean',
       description: 'Whether the change has been merged',
       optional: true,
     },
-    folderId: { type: 'string', description: 'Folder ID the change applies to' },
-    createdAt: { type: 'string', description: 'Creation timestamp' },
-    updatedAt: { type: 'string', description: 'Last update timestamp' },
+    folderId: { type: 'string', description: 'Folder ID the change applies to', nullable: true },
+    createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
+    updatedAt: { type: 'string', description: 'Last update timestamp', nullable: true },
   },
 }

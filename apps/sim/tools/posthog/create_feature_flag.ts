@@ -169,6 +169,8 @@ export const createFeatureFlagTool: ToolConfig<
               group.rollout_percentage = rolloutPercentage
             }
           }
+        } else {
+          throw new Error('Rollout percentage needs Filters with a groups array')
         }
       }
 

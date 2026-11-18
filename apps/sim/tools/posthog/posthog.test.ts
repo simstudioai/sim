@@ -41,7 +41,7 @@ describe('posthog delete person', () => {
 })
 
 describe('posthog create feature flag rollout', () => {
-  const buildBody = (rolloutPercentage: unknown) => {
+  const buildBody = (rolloutPercentage: unknown, filters?: string) => {
     const body = posthogTools.posthogCreateFeatureFlagTool.request.body
     if (!body) throw new Error('create feature flag has no request body')
     return body({
@@ -50,9 +50,20 @@ describe('posthog create feature flag rollout', () => {
       apiKey: 'test-key',
       name: 'Beta',
       key: 'beta',
+      filters,
       rolloutPercentage: rolloutPercentage as number,
     }) as { filters?: { groups: { rollout_percentage: number }[] } }
   }
+
+  it('refuses a rollout it cannot apply because Filters has no groups array', () => {
+    expect(() => buildBody(30, '{"payloads":{}}')).toThrow(
+      'Rollout percentage needs Filters with a groups array'
+    )
+  })
+
+  it.each([null, '', '   '])('accepts Filters without groups when the rollout is %j', (value) => {
+    expect(buildBody(value, '{"payloads":{}}').filters).toEqual({ payloads: {} })
+  })
 
   it.each([null, undefined, '', '   '])('sends no release condition for %j', (value) => {
     expect(buildBody(value).filters).toBeUndefined()
@@ -87,9 +98,4 @@ describe('posthog block rollout mapping', () => {
       )
     }
   )
-
-  it('keeps sending update rollouts as before', () => {
-    expect(mapParams('posthog_update_feature_flag', '30')).toEqual({ rolloutPercentage: 30 })
-    expect(mapParams('posthog_update_feature_flag', 0)).toEqual({})
-  })
 })

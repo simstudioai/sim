@@ -217,7 +217,6 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       }
 
       const taskResult = await resultResponse.json()
-      logger.info(`Parallel AI deep research task ${runId} completed`)
 
       const output = taskResult.output ?? {}
       const status = taskResult.run?.status ?? 'completed'
@@ -231,6 +230,8 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
           error: `Parallel AI deep research task ${status}${reason ? `: ${reason}` : ''}`,
         }
       }
+
+      logger.info(`Parallel AI deep research task ${runId} completed`)
 
       return {
         success: true,

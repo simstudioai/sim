@@ -6,14 +6,17 @@ import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Singular email activity types the block once offered. Lemlist's activity types are plural
- * (`emailsOpened`) and it rejects an unknown type with 400, so saved blocks still holding the
- * singular spelling are translated.
+ * Activity types the block stores in a spelling Lemlist does not accept: the singular email types
+ * it once offered and the unprefixed Interested/Not Interested options. Lemlist's types are plural
+ * and channel-prefixed (`emailsOpened`, `emailsInterested`) and it rejects an unknown type with
+ * 400, so these are translated.
  */
 const LEGACY_ACTIVITY_TYPES: Record<string, string> = {
   emailOpened: 'emailsOpened',
   emailClicked: 'emailsClicked',
   emailReplied: 'emailsReplied',
+  interested: 'emailsInterested',
+  notInterested: 'emailsNotInterested',
 }
 
 export const getActivitiesTool: ToolConfig<
