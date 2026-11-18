@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 /**
@@ -8,7 +9,8 @@ import { getRedisClient } from '@/lib/core/config/redis'
  * A chat view starts client-routed workflow tools from the stream it reads. The original send
  * knows in-process whether its own response is still attached; a view that re-attached through
  * the reconnect route (a reload, a chat switch back, another tab) may sit on another instance,
- * so it marks itself here for as long as it stays attached.
+ * so each attachment holds its own entry here, scored by when it lapses, for as long as it
+ * stays attached. Leaving removes the entry at once; a reader that dies without leaving lapses.
  */
 
 const logger = createLogger('SessionStreamViewer')
@@ -17,32 +19,48 @@ const logger = createLogger('SessionStreamViewer')
 const STREAM_VIEWER_TTL_MS = 10_000
 const STREAM_VIEWER_REFRESH_MS = 3_000
 
-function getViewerKey(streamId: string) {
-  return `mothership_stream:${streamId}:viewer`
+function getViewersKey(streamId: string) {
+  return `mothership_stream:${streamId}:viewers`
 }
 
-async function markStreamViewer(streamId: string): Promise<void> {
+async function markStreamViewer(streamId: string, attachmentId: string): Promise<void> {
   const redis = getRedisClient()
   if (!redis) return
-  await redis.set(getViewerKey(streamId), '1', 'PX', STREAM_VIEWER_TTL_MS)
+  const key = getViewersKey(streamId)
+  await redis
+    .multi()
+    .zadd(key, Date.now() + STREAM_VIEWER_TTL_MS, attachmentId)
+    .pexpire(key, STREAM_VIEWER_TTL_MS)
+    .exec()
+}
+
+async function unmarkStreamViewer(streamId: string, attachmentId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (!redis) return
+  await redis.zrem(getViewersKey(streamId), attachmentId)
+}
+
+function warnMarkFailed(streamId: string, error: unknown) {
+  logger.warn('Could not record a chat stream reader', {
+    streamId,
+    error: toError(error).message,
+  })
 }
 
 /**
- * Marks a reader attached to the stream until the returned release runs. The mark lapses on
- * its own a few seconds after release, so a crashed reader never holds it.
+ * Records a reader attached to the stream until the returned release runs. Resolves once the
+ * first mark is written, so the reader counts before it reads its first event.
  */
-export function holdStreamViewer(streamId: string): () => void {
-  const refresh = () => {
-    markStreamViewer(streamId).catch((error) => {
-      logger.warn('Could not mark a chat stream reader attached', {
-        streamId,
-        error: toError(error).message,
-      })
-    })
-  }
-  refresh()
+export async function holdStreamViewer(streamId: string): Promise<() => void> {
+  const attachmentId = generateId()
+  const refresh = () =>
+    markStreamViewer(streamId, attachmentId).catch((error) => warnMarkFailed(streamId, error))
+  await refresh()
   const interval = setInterval(refresh, STREAM_VIEWER_REFRESH_MS)
-  return () => clearInterval(interval)
+  return () => {
+    clearInterval(interval)
+    unmarkStreamViewer(streamId, attachmentId).catch((error) => warnMarkFailed(streamId, error))
+  }
 }
 
 /**
@@ -53,7 +71,7 @@ export async function hasStreamViewer(streamId: string): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) return true
   try {
-    return (await redis.exists(getViewerKey(streamId))) > 0
+    return (await redis.zcount(getViewersKey(streamId), Date.now(), '+inf')) > 0
   } catch (error) {
     logger.warn('Could not read whether a chat stream reader is attached', {
       streamId,

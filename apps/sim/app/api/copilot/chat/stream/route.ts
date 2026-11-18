@@ -399,7 +399,7 @@ async function handleResumeRequestBody({
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
     // An attached reader is a chat view that starts this turn's workflow tools.
-    const releaseViewer = holdStreamViewer(streamId)
+    const releaseViewer = await holdStreamViewer(streamId)
 
     /** Delivers the ring's events after the cursor, or returns null if it trimmed the next one. */
     const flushEvents = async (): Promise<number | null> => {

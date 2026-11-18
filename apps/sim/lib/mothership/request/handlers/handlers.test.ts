@@ -9,6 +9,7 @@ import {
   mothershipClientToolWaiterMockFns,
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { sleep } from '@sim/utils/helpers'
+import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
@@ -1366,10 +1367,14 @@ describe('sse-handlers tool lifecycle', () => {
   describe('workflow tool pickup grace', () => {
     /** Dispatches a workflow call whose browser wait only ends when the server takes it over. */
     async function dispatchUnpickedWorkflowCall(toolCallId: string, hasClientViewer: boolean) {
-      waitForWorkflowToolCompletion.mockImplementationOnce(
-        ({ abortSignal }: { abortSignal?: AbortSignal }) =>
-          new Promise((resolve) => abortSignal?.addEventListener('abort', () => resolve(null)))
-      )
+      waitForWorkflowToolCompletion.mockImplementationOnce((params: unknown) => {
+        const abortSignal = toRecord(params).abortSignal
+        return new Promise((resolve) => {
+          if (abortSignal instanceof AbortSignal) {
+            abortSignal.addEventListener('abort', () => resolve(null))
+          }
+        })
+      })
       claimWorkflowToolExecution.mockResolvedValueOnce({ toolCallId })
       executeTool.mockResolvedValueOnce({ success: true, output: {} })
       await sseHandlers.tool(
