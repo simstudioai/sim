@@ -6,9 +6,10 @@ export const FIXTURE_WORKSPACE: WorkspaceManifest = {
     tickets: { columns: { subject: { type: 'string' }, category: { type: 'string' } } },
     leads: {
       columns: {
-        email: { type: 'string' },
+        email: { type: 'string', required: true },
         status: { type: 'select', options: ['new', 'enriched'] },
         score: { type: 'number' },
+        tags: { type: 'select', options: ['vip', 'churn'], multiple: true },
       },
     },
   },

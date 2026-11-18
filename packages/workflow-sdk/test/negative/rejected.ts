@@ -200,4 +200,16 @@ export default workflow('Rejected', {}, () => {
   // @ts-expect-error `two hundred` is not an HTTP status
   response('Reply', { body: { ok: true }, status: 'two hundred' })
   response('Reply ok', { body: { ok: true }, status: 201 })
+
+  // A multi-select cell holds a list of options; a stored column that is not required may be empty.
+  table.insertRow('Tags', {
+    tableId: table('leads'),
+    // @ts-expect-error `tags` holds a list of options
+    data: { email: 'a@b.co', tags: 'vip' },
+  })
+  table.insertRow('Tags ok', { tableId: table('leads'), data: { email: 'a@b.co', tags: ['vip'] } })
+  const lead = table.getRowById('Lead', { tableId: table('leads'), rowId: 'r1' })
+  lead.row.data.score satisfies Ref<number | null>
+  // @ts-expect-error `score` is not required, so a cell may be empty
+  lead.row.data.score satisfies Ref<number>
 })

@@ -40,7 +40,14 @@ const sourceResourcesSchema = z
                   options: z
                     .array(z.string())
                     .optional()
-                    .describe('Option ids a `select` column accepts.'),
+                    .describe(
+                      'Option names a `select` column accepts, as table blocks read and write them.'
+                    ),
+                  multiple: z
+                    .boolean()
+                    .optional()
+                    .describe('A `select` column whose cells hold several options.'),
+                  required: z.boolean().optional().describe('Every row holds a value.'),
                 })
               )
               .describe('Columns in table order.'),

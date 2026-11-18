@@ -22,55 +22,76 @@ import type { Json } from '@sim/workflow-sdk'
 
 declare const COLUMN: unique symbol
 
-/** A declared column: the cell type `T` it holds and the name `N` it is stored under. */
-export interface Column<T, N extends string | undefined = undefined> {
-  readonly [COLUMN]: { value: T; name: N }
+/**
+ * A declared column: the cell type `T` it holds, the name `N` it is stored under, and whether
+ * every row must hold a value (`R`); a cell of a column that is not required may be empty (`null`).
+ */
+export interface Column<T, N extends string | undefined = undefined, R extends boolean = false> {
+  readonly [COLUMN]: { value: T; name: N; required: R }
 }
 
 /** Options every column type takes. */
-export interface ColumnOptions<N extends string | undefined = string | undefined> {
+export interface ColumnOptions<
+  N extends string | undefined = string | undefined,
+  R extends boolean = boolean,
+> {
   /** The stored column name, when it differs from the column's key. */
   name?: N
   /** Every row must hold a value. */
-  required?: boolean
+  required?: R
   /** No two rows may hold the same value. */
   unique?: boolean
 }
 
+/** Options a `select` column takes: at least one option, and never `unique`. */
+type SelectOptions<
+  O extends readonly [string, ...string[]],
+  N extends string | undefined,
+  R extends boolean,
+> = Omit<ColumnOptions<N, R>, 'unique'> & { options: O }
+
 /** The column helpers: `column.string()`, `column.select({ options: [...] })`, … */
 export declare const column: {
-  string<const N extends string | undefined = undefined>(
-    options?: ColumnOptions<N>
-  ): Column<string, N>
-  number<const N extends string | undefined = undefined>(
-    options?: ColumnOptions<N>
-  ): Column<number, N>
+  string<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<string, N, R>
+  number<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<number, N, R>
   /** A number shown as money; `currencyCode` is an ISO 4217 code (`USD` when omitted). */
-  currency<const N extends string | undefined = undefined>(
-    options?: ColumnOptions<N> & { currencyCode?: string }
-  ): Column<number, N>
-  boolean<const N extends string | undefined = undefined>(
-    options?: ColumnOptions<N>
-  ): Column<boolean, N>
+  currency<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R> & { currencyCode?: string }
+  ): Column<number, N, R>
+  boolean<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<boolean, N, R>
   /** An ISO 8601 date or date-time string. */
-  date<const N extends string | undefined = undefined>(
-    options?: ColumnOptions<N>
-  ): Column<string, N>
+  date<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<string, N, R>
   /** A time to live: a date-time after which the row expires. */
-  ttl<const N extends string | undefined = undefined>(options?: ColumnOptions<N>): Column<string, N>
-  json<const N extends string | undefined = undefined>(options?: ColumnOptions<N>): Column<Json, N>
+  ttl<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<string, N, R>
+  json<const N extends string | undefined = undefined, const R extends boolean = false>(
+    options?: ColumnOptions<N, R>
+  ): Column<Json, N, R>
   /** One option per cell, from `options`. */
-  select<const O extends readonly string[], const N extends string | undefined = undefined>(
-    options: ColumnOptions<N> & { options: O; multiple?: false }
-  ): Column<O[number], N>
+  select<
+    const O extends readonly [string, ...string[]],
+    const N extends string | undefined = undefined,
+    const R extends boolean = false,
+  >(options: SelectOptions<O, N, R> & { multiple?: false }): Column<O[number], N, R>
   /** Several options per cell. */
-  select<const O extends readonly string[], const N extends string | undefined = undefined>(
-    options: ColumnOptions<N> & { options: O; multiple: true }
-  ): Column<O[number][], N>
+  select<
+    const O extends readonly [string, ...string[]],
+    const N extends string | undefined = undefined,
+    const R extends boolean = false,
+  >(options: SelectOptions<O, N, R> & { multiple: true }): Column<O[number][], N, R>
 }
 
 /** Any column, whatever it holds. */
-type AnyColumn = Column<unknown, string | undefined>
+type AnyColumn = Column<unknown, string | undefined, boolean>
 
 /** A table declaration. */
 export interface TableDeclaration<C extends Record<string, AnyColumn> = Record<string, AnyColumn>> {
@@ -88,9 +109,23 @@ export declare function defineTable<const C extends Record<string, AnyColumn>>(
 ): TableDeclaration<C>
 
 /** The stored name of column `K`: its `name` option, else its key. */
-type StoredName<K, C> = C extends Column<unknown, infer N> ? ([N] extends [string] ? N : K) : K
+type StoredName<K, C> = C extends Column<unknown, infer N, boolean>
+  ? [N] extends [string]
+    ? N
+    : K
+  : K
 
-/** A declared table's row, keyed by stored column name: `RowOf<typeof leads>`. */
+/** A cell of column `C`: its value, or `null` when the column is not required. */
+type CellOf<C> = C extends Column<infer V, infer _N, infer R>
+  ? R extends true
+    ? V
+    : V | null
+  : never
+
+/**
+ * A declared table's row, keyed by stored column name: `RowOf<typeof leads>`. A cell of a column
+ * that is not required may be `null`.
+ */
 export type RowOf<T> = T extends TableDeclaration<infer C>
-  ? { [K in keyof C as StoredName<K, C[K]>]: C[K] extends Column<infer V, infer _N> ? V : never }
+  ? { [K in keyof C as StoredName<K, C[K]>]: CellOf<C[K]> }
   : never

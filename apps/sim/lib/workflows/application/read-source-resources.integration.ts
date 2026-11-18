@@ -20,6 +20,7 @@ import {
   permissions,
   skill,
   user,
+  userTableDefinitions,
   workspace,
   workspaceEnvironment,
 } from '@sim/db/schema'
@@ -62,6 +63,8 @@ const ids = {
   customTool: generateId(),
   /** The reader's personal custom tool, outside every workspace. */
   personalTool: generateId(),
+  /** A table with a required column and single- and multi-select columns. */
+  table: generateId(),
 }
 
 async function listedCredentialIds(principal: Principal): Promise<string[]> {
@@ -291,6 +294,33 @@ describe('source resources manifest', () => {
         content: '# Elsewhere',
       },
     ])
+    await db.insert(userTableDefinitions).values({
+      id: ids.table,
+      workspaceId,
+      name: 'leads',
+      createdBy: adminId,
+      schema: {
+        columns: [
+          { id: 'col_email', name: 'email', type: 'string', required: true },
+          {
+            id: 'col_status',
+            name: 'status',
+            type: 'select',
+            options: [
+              { id: 'opt_new', name: 'New' },
+              { id: 'opt_won', name: 'Won' },
+            ],
+          },
+          {
+            id: 'col_tags',
+            name: 'tags',
+            type: 'select',
+            multiple: true,
+            options: [{ id: 'opt_vip', name: 'VIP' }],
+          },
+        ],
+      },
+    })
     await db.insert(customTools).values([
       {
         id: ids.customTool,
@@ -319,6 +349,23 @@ describe('source resources manifest', () => {
     await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
     await db.delete(organization).where(eq(organization.id, organizationId))
     await db.delete(user).where(inArray(user.id, [adminId, readerId, tokenOwnerId]))
+  })
+
+  it('types select columns by option name, as table blocks read and write them', async () => {
+    const manifest = await readSourceResources.execute({
+      principal: session(readerId),
+      input: { workspaceId },
+    })
+    expect(manifest.tables.map(({ id, columns }) => ({ id, columns }))).toEqual([
+      {
+        id: ids.table,
+        columns: [
+          { name: 'email', type: 'string', required: true },
+          { name: 'status', type: 'select', options: ['New', 'Won'] },
+          { name: 'tags', type: 'select', options: ['VIP'], multiple: true },
+        ],
+      },
+    ])
   })
 
   it('lists only the credentials a read member is a member of', async () => {
