@@ -69,7 +69,8 @@ export async function workflowsUsing(
  * the keys of each kind sent without files) keeps using it, so the delete is
  * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
  * the delete's destructive line. A workflow the apply deletes too is no user, and an edited one is
- * judged by the references its compiled source makes (the change's `refs`).
+ * judged by the references its compiled source makes (the change's `refs`), unless it is held back
+ * (`held`, so the plan must decide holds first): its stored references stay.
  */
 export async function checkDeletesInUse(
   changes: PlannedChange[],
@@ -101,9 +102,11 @@ export async function checkDeletesInUse(
     if (change.kind !== 'workflow' || change.storedId === undefined) continue
     if (change.action === 'delete') deletedWorkflows.add(change.storedId)
     else if (change.decl !== undefined) {
-      // A folder whose source was evaluated is judged by the references it compiled to; one sent
-      // unchanged, or found equal to its stored workflow without evaluating, by the stored one.
-      const edited = !unchanged.get('workflow')?.has(change.key) && change.refs !== undefined
+      // A folder whose source was evaluated and is written is judged by the references it
+      // compiled to; one sent unchanged, found equal to its stored workflow without evaluating,
+      // or held back (not written), by the stored one.
+      const edited =
+        !change.held && !unchanged.get('workflow')?.has(change.key) && change.refs !== undefined
       declared.set(change.storedId, { key: change.key, edited })
     }
   }

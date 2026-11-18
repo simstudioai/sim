@@ -384,6 +384,8 @@ export async function planWorkspaceSource(
   }
 
   resolveRefsById(changes)
+  // Holds first: a held workflow keeps its stored references, which the delete checks then read.
+  holdUnavailable(changes)
   await warnDeployedDraftChanges(changes, ctx)
   await checkDeletesInUse(changes, unchanged, workspaceId)
   for (const kind of APPLY_ORDER) {
@@ -404,7 +406,6 @@ export async function planWorkspaceSource(
       diagnostics.push(refDeletedFinding(change, ref))
     }
   }
-  holdUnavailable(changes)
 
   const writes = changes.filter((change) => change.action !== 'noop')
   if (writes.length > WORKSPACE_SOURCE_LIMITS.maxChanges) {
