@@ -2,6 +2,7 @@ import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -42,6 +43,7 @@ const {
   releasePendingChatStream,
   unregisterActiveStream,
   buildChatTitleContext,
+  hasStreamViewer,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   resetBuffer: vi.fn(),
@@ -56,6 +58,7 @@ const {
   releasePendingChatStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   buildChatTitleContext: vi.fn().mockResolvedValue(undefined),
+  hasStreamViewer: vi.fn(),
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -108,6 +111,7 @@ vi.mock('@/lib/mothership/request/session', () => ({
   releasePendingChatStream,
   registerActiveStream,
   unregisterActiveStream,
+  hasStreamViewer,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   isExplicitStopReason: (reason: unknown) => reason === 'user_stop:abortActiveStream',
   SSE_RESPONSE_HEADERS: {},
@@ -404,6 +408,42 @@ describe('createSSEStream terminal error handling', () => {
       }
     }
   )
+
+  it('counts the send as viewed while its response is attached, and asks for a reader once it is not', async () => {
+    const lifecycleDone = createDeferred<void>()
+    let hasClientViewer: (() => Promise<boolean>) | undefined
+    runCopilotLifecycle.mockImplementationOnce(
+      async (_payload: unknown, options: { hasClientViewer?: () => Promise<boolean> }) => {
+        hasClientViewer = options.hasClientViewer
+        await lifecycleDone.promise
+        return { success: true, content: '', contentBlocks: [], toolCalls: [] }
+      }
+    )
+    hasStreamViewer.mockResolvedValue(false)
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-viewer',
+      executionId: 'exec-viewer',
+      runId: 'run-viewer',
+      currentChat: null,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-viewer',
+      orchestrateOptions: { userId: 'user-1' },
+    })
+    await vi.waitFor(() => expect(hasClientViewer).toBeDefined())
+
+    expect(await hasClientViewer?.()).toBe(true)
+
+    await stream.cancel()
+    expect(await hasClientViewer?.()).toBe(false)
+    hasStreamViewer.mockResolvedValueOnce(true)
+    expect(await hasClientViewer?.()).toBe(true)
+    expect(hasStreamViewer).toHaveBeenCalledWith('stream-viewer')
+
+    lifecycleDone.resolve()
+  })
 
   it('starts the agent while title metadata is pending and forwards recovered inventory', async () => {
     let resolveContext!: (value: string) => void
