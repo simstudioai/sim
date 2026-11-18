@@ -23,10 +23,16 @@ async function deleteOrphanedFathomWebhook(
 ): Promise<void> {
   if (!validateAlphanumericId(fathomWebhookId, 'Fathom webhook ID', 100).isValid) return
   try {
-    await outboundFetch(`https://api.fathom.ai/external/v1/webhooks/${fathomWebhookId}`, {
-      method: 'DELETE',
-      headers: { 'X-Api-Key': apiKey },
-    })
+    const response = await outboundFetch(
+      `https://api.fathom.ai/external/v1/webhooks/${fathomWebhookId}`,
+      { method: 'DELETE', headers: { 'X-Api-Key': apiKey } }
+    )
+    if (!response.ok && response.status !== 404) {
+      logger.warn('Failed to remove orphaned Fathom webhook; it may still be active', {
+        requestId,
+        status: response.status,
+      })
+    }
   } catch (error) {
     logger.warn('Failed to remove orphaned Fathom webhook; it may still be active', error, {
       requestId,
