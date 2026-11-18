@@ -36,6 +36,22 @@ export function isSecretName(value: string): boolean {
   return SECRET_NAME_PATTERN.test(value)
 }
 
+/** A root declaration file as a module specifier: its path without the extension. */
+function moduleOf(file: string): string {
+  return file.endsWith(DECLARATION_EXTENSION) ? file.slice(0, -DECLARATION_EXTENSION.length) : file
+}
+
+/**
+ * Where the declarations the SDK's `workspace.d.ts` types live, from the directory root as module
+ * specifiers: the tables folder, and the credentials and secrets files without their extension
+ * (the SDK's `WorkspaceManifest.declarationModules`).
+ */
+export const DECLARATION_MODULES = {
+  tables: KIND_DIRS.table,
+  credentials: moduleOf(KIND_DIRS.credential),
+  secrets: moduleOf(KIND_DIRS.secret),
+} as const
+
 /** The kind each top-level folder or root file holds. */
 export const KIND_BY_DIR: ReadonlyMap<string, WorkspaceKind> = new Map<string, WorkspaceKind>(
   Object.entries(KIND_DIRS).map(([kind, dir]) => [dir, kind as WorkspaceKind])

@@ -187,6 +187,7 @@ function workspaceManifestFrom({
 /** What a workspace directory declares itself, typed beside the stored resources. */
 export type LocalDeclarations = Pick<
   WorkspaceManifest,
+  | 'declarationModules'
   | 'secretDeclarations'
   | 'credentialDeclarations'
   | 'tableDeclarations'
@@ -221,6 +222,7 @@ export async function loadWorkspaceTypes(
     ]
     return generateWorkspaceTypes({
       ...stored,
+      ...(local.declarationModules ? { declarationModules: local.declarationModules } : {}),
       ...(local.tableDeclarations ? { tableDeclarations: local.tableDeclarations } : {}),
       ...(local.mcpServerDeclarations
         ? { mcpServerDeclarations: local.mcpServerDeclarations }
@@ -238,8 +240,9 @@ export async function loadWorkspaceTypes(
     if (!(error instanceof SimApiError) || (error.status !== 403 && error.status !== 404)) {
       throw error
     }
-    const declared = Object.values(local).some(
-      (keys) => keys !== undefined && Object.keys(keys).length > 0
+    const declared = Object.entries(local).some(
+      ([list, keys]) =>
+        list !== 'declarationModules' && keys !== undefined && Object.keys(keys).length > 0
     )
     return declared ? generateWorkspaceTypes(local).text : null
   }

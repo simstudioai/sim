@@ -26,7 +26,12 @@ import {
 import { fileKindGroupKey } from '@sim/workspace-code/kinds/entries'
 import { FILE_KIND_CODECS, isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { unchangedFiles, workflowFolder } from '@sim/workspace-code/kinds/workflow'
-import { isWorkspaceSourcePath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import {
+  DECLARATION_MODULES,
+  isWorkspaceSourcePath,
+  kindOfPath,
+  WORKSPACE_BASE_FILE,
+} from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkspaceSourceBody } from '../../generated/v2-api'
@@ -147,10 +152,11 @@ export const WORKSPACE_TREE: SourceTreeProfile = {
  * names: its tables (typed from their declarations), its knowledge base, skill, custom tool and
  * workflow keys (grouped from their paths), and the secret names and credential keys its root
  * files declare (read from their text; a file that does not read declares none, and is still
- * typed live). `workspace.d.ts` types them beside the stored resources.
+ * typed live), with the modules those declarations live in. `workspace.d.ts` types them beside the
+ * stored resources.
  */
 export function localDeclarations(files: Readonly<Record<string, string>>): LocalDeclarations {
-  const declared: LocalDeclarations = {}
+  const declared: LocalDeclarations = { declarationModules: DECLARATION_MODULES }
   const paths = Object.keys(files)
   for (const kind of APPLY_ORDER) {
     const list = WORKSPACE_KIND_SPECS[kind].manifestKey
