@@ -156,6 +156,25 @@ describe('Quiver operations', () => {
     ])
   })
 
+  it('omits the sampling fields Arrow 2 Telos rejects', async () => {
+    const sampling = { temperature: 0.4, top_p: 0.9, presence_penalty: 0.2, max_output_tokens: 10 }
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-2-telos', image: rawFile, ...sampling },
+      context
+    )
+    await executeQuiverImageToSvg(
+      { apiKey: 'secret', model: 'arrow-2', image: rawFile, ...sampling },
+      context
+    )
+
+    const [telosBody, arrowBody] = mocks.requestQuiverSvg.mock.calls.map(([, , body]) => body)
+    expect(telosBody).not.toHaveProperty('temperature')
+    expect(telosBody).not.toHaveProperty('top_p')
+    expect(telosBody).not.toHaveProperty('presence_penalty')
+    expect(telosBody).toMatchObject({ max_output_tokens: 10 })
+    expect(arrowBody).toMatchObject(sampling)
+  })
+
   it('fails closed on incomplete private model-input provenance', async () => {
     const headers = new Headers({
       [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,

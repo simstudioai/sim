@@ -130,7 +130,7 @@ export const updateUserTool: ToolConfig<ThriveUpdateUserParams, ThriveUserRespon
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref')}`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

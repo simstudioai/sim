@@ -7,6 +7,7 @@ import {
   normalizeFileInput,
   withSavedCredential,
 } from '@/blocks/utils'
+import { RETIRED_QUIVER_MODELS } from '@/tools/quiver/models'
 
 const REFERENCE_IMAGES_FIELD = ['referenceFiles', 'referenceInput'] as const
 const IMAGE_FIELD = ['imageFile', 'imageInput'] as const
@@ -61,6 +62,7 @@ export const QuiverBlock = {
       options: [
         { label: 'Arrow 2', id: 'arrow-2' },
         { label: 'Arrow 2 Telos', id: 'arrow-2-telos' },
+        ...RETIRED_QUIVER_MODELS.map((id) => ({ label: 'Arrow 2', id, hidden: true })),
       ],
       value: () => 'arrow-2',
       condition: { field: 'operation', value: ['text_to_svg', 'image_to_svg'] },

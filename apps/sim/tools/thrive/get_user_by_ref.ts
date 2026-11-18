@@ -41,7 +41,7 @@ export const getUserByRefTool: ToolConfig<ThriveGetUserByRefParams, ThriveUserRe
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/users/ref/${safeUrlPathSegment(params.ref, 'ref')}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

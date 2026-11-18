@@ -47,7 +47,7 @@ export const suspendUserTool: ToolConfig<ThriveSuspendUserParams, ThriveUserResp
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref')}/suspend`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}/suspend`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

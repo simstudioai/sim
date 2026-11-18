@@ -41,7 +41,7 @@ export const deleteUserTool: ToolConfig<ThriveDeleteUserParams, ThriveDeleteResp
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref')}`,
+      `${getThriveBaseUrl(params.host, 'v2')}/users/ref/${safeUrlPathSegment(params.ref, 'ref', { allowSeparators: true })}`,
     method: 'DELETE',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },
