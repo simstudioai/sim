@@ -56,8 +56,8 @@ export interface LemlistSendEmailParams extends LemlistBaseParams {
   sendUserId: string
   sendUserEmail: string
   sendUserMailboxId: string
-  contactId: string
-  leadId: string
+  contactId?: string
+  leadId?: string
   subject: string
   message: string
   cc?: string[]

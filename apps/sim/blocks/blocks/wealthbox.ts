@@ -2,7 +2,7 @@ import { WealthboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { isToolCall, mapperOperation } from '@/blocks/utils'
+import { isToolCall, mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const CONTACT_FIELD = ['contactId', 'manualContactId'] as const
 
@@ -246,13 +246,16 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
             taskId: taskId.trim(),
           }
         }
-        if (operation === 'write_task' || operation === 'write_note') {
+        if (operation === 'write_task') {
+          const content = typeof params.content === 'string' ? params.content.trim() : ''
+          const description = toolCallArg(context, params.description) || content || undefined
+          const taskParams = description ? { ...baseParams, description } : baseParams
           if (!contactId?.trim()) {
-            if (isToolCall(context)) return baseParams
+            if (isToolCall(context)) return taskParams
             throw new Error('Contact ID is required for this operation')
           }
           return {
-            ...baseParams,
+            ...taskParams,
             contactId: contactId.trim(),
           }
         }

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
 
 export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
@@ -30,11 +31,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
   request: {
     url: (params) => {
       const noteId = params.noteId?.trim()
-      let url = 'https://api.crmworkspace.com/v1/notes'
-      if (noteId) {
-        url = `https://api.crmworkspace.com/v1/notes/${noteId}`
-      }
-      return url
+      if (!noteId) return 'https://api.crmworkspace.com/v1/notes'
+      return `https://api.crmworkspace.com/v1/notes/${safeUrlPathSegment(noteId, 'noteId')}`
     },
     method: 'GET',
     headers: (params) => {
@@ -51,6 +49,21 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (Array.isArray(data?.status_updates)) {
+      const notes = data.status_updates
+      return {
+        success: true,
+        output: {
+          content: `Found ${notes.length} notes`,
+          notes,
+          metadata: {
+            itemType: 'note' as const,
+            totalItems: notes.length,
+          },
+        },
+      }
+    }
 
     // Format note information into readable content
     const note = data
@@ -104,12 +117,22 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       properties: {
         content: { type: 'string', description: 'Formatted note information' },
         note: { type: 'object', description: 'Raw note data from Wealthbox' },
+        notes: {
+          type: 'array',
+          description: 'Notes returned when no ID is given (list request)',
+          optional: true,
+        },
         metadata: {
           type: 'object',
           description: 'Operation metadata',
           properties: {
             itemId: { type: 'string', description: 'ID of the note', optional: true },
             noteId: { type: 'string', description: 'ID of the note', optional: true },
+            totalItems: {
+              type: 'number',
+              description: 'Number of items returned by a list request',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (note)' },
           },
         },

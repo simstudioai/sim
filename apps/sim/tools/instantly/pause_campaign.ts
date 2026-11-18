@@ -13,6 +13,7 @@ import {
 } from '@/tools/instantly/utils'
 import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const pauseCampaignTool: ToolConfig<
   InstantlyPauseCampaignParams,
@@ -33,7 +34,10 @@ export const pauseCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/pause`),
+    url: (params) =>
+      instantlyUrl(
+        `/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/pause`
+      ),
     method: 'POST',
     headers: instantlyHeaders,
   },

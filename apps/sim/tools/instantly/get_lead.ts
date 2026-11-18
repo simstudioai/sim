@@ -9,6 +9,7 @@ import {
 } from '@/tools/instantly/utils'
 import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadResponse> = {
   id: 'instantly_get_lead',
@@ -26,7 +27,7 @@ export const getLeadTool: ToolConfig<InstantlyGetLeadParams, InstantlyLeadRespon
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/leads/${params.leadId.trim()}`),
+    url: (params) => instantlyUrl(`/api/v2/leads/${safeUrlPathSegment(params.leadId, 'leadId')}`),
     method: 'GET',
     headers: instantlyHeaders,
   },

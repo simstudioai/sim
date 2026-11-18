@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioDeleteListEntryParams, AttioDeleteListEntryResponse } from './types'
 
 const logger = createLogger('AttioDeleteListEntry')
@@ -41,7 +42,7 @@ export const attioDeleteListEntryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.attio.com/v2/lists/${params.list.trim()}/entries/${params.entryId.trim()}`,
+      `https://api.attio.com/v2/lists/${safeUrlPathSegment(params.list, 'list')}/entries/${safeUrlPathSegment(params.entryId, 'entryId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

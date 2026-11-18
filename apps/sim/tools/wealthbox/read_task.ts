@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
 
 export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
@@ -30,11 +31,8 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()
-      let url = 'https://api.crmworkspace.com/v1/tasks'
-      if (taskId) {
-        url = `https://api.crmworkspace.com/v1/tasks/${taskId}`
-      }
-      return url
+      if (!taskId) return 'https://api.crmworkspace.com/v1/tasks'
+      return `https://api.crmworkspace.com/v1/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
     },
     method: 'GET',
     headers: (params) => {
@@ -51,6 +49,21 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (Array.isArray(data?.tasks)) {
+      const tasks = data.tasks
+      return {
+        success: true,
+        output: {
+          content: `Found ${tasks.length} tasks`,
+          tasks,
+          metadata: {
+            itemType: 'task' as const,
+            totalItems: tasks.length,
+          },
+        },
+      }
+    }
 
     // Format task information into readable content
     const task = data
@@ -105,12 +118,22 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       properties: {
         content: { type: 'string', description: 'Formatted task information' },
         task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        tasks: {
+          type: 'array',
+          description: 'Tasks returned when no ID is given (list request)',
+          optional: true,
+        },
         metadata: {
           type: 'object',
           description: 'Operation metadata',
           properties: {
             itemId: { type: 'string', description: 'ID of the task', optional: true },
             taskId: { type: 'string', description: 'ID of the task', optional: true },
+            totalItems: {
+              type: 'number',
+              description: 'Number of items returned by a list request',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (task)' },
           },
         },

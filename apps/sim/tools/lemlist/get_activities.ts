@@ -5,6 +5,17 @@ import type {
 import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Singular email activity types the block once offered. Lemlist's activity types are plural
+ * (`emailsOpened`) and it rejects an unknown type with 400, so saved blocks still holding the
+ * singular spelling are translated.
+ */
+const LEGACY_ACTIVITY_TYPES: Record<string, string> = {
+  emailOpened: 'emailsOpened',
+  emailClicked: 'emailsClicked',
+  emailReplied: 'emailsReplied',
+}
+
 export const getActivitiesTool: ToolConfig<
   LemlistGetActivitiesParams,
   LemlistGetActivitiesResponse
@@ -28,7 +39,7 @@ export const getActivitiesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter by activity type (e.g., emailOpened, emailClicked, emailReplied, paused)',
+        'Filter by activity type (e.g., emailsOpened, emailsClicked, emailsReplied, emailsBounced, paused)',
     },
     campaignId: {
       type: 'string',
@@ -67,7 +78,9 @@ export const getActivitiesTool: ToolConfig<
       const url = new URL('https://api.lemlist.com/api/activities')
       url.searchParams.append('version', 'v2')
 
-      if (params.type) url.searchParams.append('type', params.type)
+      if (params.type) {
+        url.searchParams.append('type', LEGACY_ACTIVITY_TYPES[params.type] ?? params.type)
+      }
       if (params.campaignId) url.searchParams.append('campaignId', params.campaignId)
       if (params.leadId) url.searchParams.append('leadId', params.leadId)
       if (params.isFirst !== undefined) url.searchParams.append('isFirst', String(params.isFirst))

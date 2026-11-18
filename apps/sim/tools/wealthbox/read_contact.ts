@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
 
 export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
@@ -30,11 +31,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
   request: {
     url: (params) => {
       const contactId = params.contactId?.trim()
-      let url = 'https://api.crmworkspace.com/v1/contacts'
-      if (contactId) {
-        url = `https://api.crmworkspace.com/v1/contacts/${contactId}`
-      }
-      return url
+      if (!contactId) return 'https://api.crmworkspace.com/v1/contacts'
+      return `https://api.crmworkspace.com/v1/contacts/${safeUrlPathSegment(contactId, 'contactId')}`
     },
     method: 'GET',
     headers: (params) => {
@@ -51,6 +49,21 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (Array.isArray(data?.contacts)) {
+      const contacts = data.contacts
+      return {
+        success: true,
+        output: {
+          content: `Found ${contacts.length} contacts`,
+          contacts,
+          metadata: {
+            itemType: 'contact' as const,
+            totalItems: contacts.length,
+          },
+        },
+      }
+    }
 
     // Format contact information into readable content
     const contact = data
@@ -100,12 +113,22 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       properties: {
         content: { type: 'string', description: 'Formatted contact information' },
         contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
+        contacts: {
+          type: 'array',
+          description: 'Contacts returned when no ID is given (list request)',
+          optional: true,
+        },
         metadata: {
           type: 'object',
           description: 'Operation metadata',
           properties: {
             itemId: { type: 'string', description: 'ID of the contact', optional: true },
             contactId: { type: 'string', description: 'ID of the contact', optional: true },
+            totalItems: {
+              type: 'number',
+              description: 'Number of items returned by a list request',
+              optional: true,
+            },
             itemType: { type: 'string', description: 'Type of item (contact)' },
           },
         },

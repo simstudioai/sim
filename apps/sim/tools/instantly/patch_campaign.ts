@@ -13,6 +13,7 @@ import {
 } from '@/tools/instantly/utils'
 import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const patchCampaignTool: ToolConfig<
   InstantlyPatchCampaignParams,
@@ -107,7 +108,8 @@ export const patchCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}`),
+    url: (params) =>
+      instantlyUrl(`/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}`),
     method: 'PATCH',
     headers: instantlyHeaders,
     body: (params) =>

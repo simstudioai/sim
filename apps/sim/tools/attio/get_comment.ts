@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetCommentParams, AttioGetCommentResponse } from './types'
 import { COMMENT_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetCommentTool: ToolConfig<AttioGetCommentParams, AttioGetComm
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/comments/${params.commentId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/comments/${safeUrlPathSegment(params.commentId, 'commentId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
