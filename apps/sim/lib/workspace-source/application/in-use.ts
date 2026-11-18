@@ -78,10 +78,12 @@ export async function checkDeletesInUse(
 ): Promise<void> {
   const deleting = changes.filter(
     (change) =>
-      change.kind !== 'workflow' &&
       change.storedId !== undefined &&
       (change.action === 'delete' ||
-        change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED'))
+        // An undeclared resource kept for want of --allow-delete; an update that would lose
+        // data (a dropped column, a removed option) deletes nothing a workflow names.
+        (change.action === 'noop' &&
+          change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED')))
   )
   if (deleting.length === 0) return
   const using = await workflowsUsing(
@@ -94,8 +96,10 @@ export async function checkDeletesInUse(
   for (const change of changes) {
     if (change.kind !== 'workflow' || change.storedId === undefined) continue
     if (change.action === 'delete') deletedWorkflows.add(change.storedId)
-    else {
-      const edited = !unchanged.get('workflow')?.has(change.key)
+    else if (change.decl !== undefined) {
+      // A folder whose source was evaluated is judged by the references it compiled to; one sent
+      // unchanged, or found equal to its stored workflow without evaluating, by the stored one.
+      const edited = !unchanged.get('workflow')?.has(change.key) && change.refs !== undefined
       declared.set(change.storedId, { key: change.key, edited })
     }
   }

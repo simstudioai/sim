@@ -19,7 +19,7 @@ import {
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
-import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import type { SourceContext, StoredResource } from '@/lib/workspace-source/application/types'
@@ -41,8 +41,8 @@ export interface StoredDoc {
   fileSha256: string | null
   uploadedAt: Date
   connectorId: string | null
-  /** Whether it holds a tag value, which a replace does not carry over. */
-  tagged: boolean
+  /** Its tag values by slot, as the document update takes them: a replace carries them over. */
+  tags: Partial<Record<AllTagSlot, string>>
   /** Its indexing state; never part of a fingerprint, only of a get's or apply's findings. */
   processingStatus: string
 }
@@ -53,6 +53,25 @@ export function docRevision(doc: StoredDoc): number {
 }
 
 const DOC_PAGE = 100
+
+/** A tag value as the document update parses it back: a date as `YYYY-MM-DD` in local time. */
+function tagText(value: string | number | boolean | Date): string {
+  if (!(value instanceof Date)) return String(value)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+}
+
+/** The tag values a document holds, by slot. */
+function tagValues(
+  doc: Record<AllTagSlot, string | number | boolean | Date | null>
+): StoredDoc['tags'] {
+  const tags: StoredDoc['tags'] = {}
+  for (const slot of ALL_TAG_SLOTS) {
+    const value = doc[slot]
+    if (value !== null && value !== '') tags[slot] = tagText(value)
+  }
+  return tags
+}
 
 /**
  * Every document of a knowledge base the caller can read, through the document list use case,
@@ -80,7 +99,7 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         fileSha256: doc.fileSha256,
         uploadedAt: doc.uploadedAt,
         connectorId: doc.connectorId,
-        tagged: ALL_TAG_SLOTS.some((field) => doc[field] !== null && doc[field] !== ''),
+        tags: tagValues(doc),
         processingStatus: getDocumentIndexingStatus(doc),
       })
     }

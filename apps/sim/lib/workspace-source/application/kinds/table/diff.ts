@@ -19,6 +19,7 @@ import {
   hasDuplicateValues,
   isValueCompatibleWithColumn,
   readColumnRetypePage,
+  retypeCellRewrite,
   selectValueForConversion,
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
@@ -140,22 +141,40 @@ function pairColumns(
   return pairs
 }
 
+/** What scanning a retype found: cells that do not convert, and whether converted values repeat. */
+interface RetypeScan {
+  incompatible: number
+  duplicates: boolean
+}
+
 /**
- * Cells of `current` (up to {@link CONVERSION_SCAN_LIMIT}) whose value does not convert to
- * `target`, read a page at a time so a column of large cells never sits in memory at once. As the
- * retype itself does, a `select` cell leaving `select` is judged by its option name(s), not its
- * stored id, and one that becomes empty counts only when the column ends up required.
+ * How a converted cell compares for `unique`: by the text the column's equality reads (`->>`), so
+ * a number and the string of its digits are one value, as the write's own scan sees them.
  */
-async function countIncompatibleCells(
+function comparableText(value: unknown): string {
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+/**
+ * Scans the cells of `current` (up to {@link CONVERSION_SCAN_LIMIT}) as the retype to `target`
+ * would convert them, a page at a time so a column of large cells never sits in memory at once:
+ * cells whose value does not convert, and, with `unique`, whether two converted values are equal
+ * (`'1'` and `'01'` both become `1`), which no scan of the stored text sees. As the retype itself
+ * does, a `select` cell leaving `select` is judged by its option name(s), not its stored id, and
+ * one that becomes empty counts only when the column ends up required.
+ */
+async function scanRetype(
   table: StoredTableState['table'],
   current: ColumnDefinition,
-  target: ColumnDefinition
-): Promise<number> {
+  target: ColumnDefinition,
+  unique: boolean
+): Promise<RetypeScan> {
   const columnId = getColumnId(current)
   const leavingSelect =
     columnTypeOf(current).storesOpaqueIds && !columnTypeOf(target).storesOpaqueIds
   const batch = getColumnRetypeScanBatchSize()
-  let incompatible = 0
+  const seen = new Set<string>()
+  const scan: RetypeScan = { incompatible: 0, duplicates: false }
   let scanned = 0
   let afterId: string | undefined
   while (scanned < CONVERSION_SCAN_LIMIT) {
@@ -171,16 +190,25 @@ async function countIncompatibleCells(
     for (const row of rows) {
       if (row.value === null || row.value === undefined) continue
       const value = leavingSelect ? selectValueForConversion(current, row.value) : row.value
-      if (isValueCompatibleWithColumn(value, target)) continue
-      if (value === null || value === '') {
-        if (target.required) incompatible += 1
-      } else incompatible += 1
+      if (!isValueCompatibleWithColumn(value, target)) {
+        if (value === null || value === '') {
+          if (target.required) scan.incompatible += 1
+        } else scan.incompatible += 1
+        continue
+      }
+      if (!unique || scan.duplicates) continue
+      const converted = retypeCellRewrite(value, target)
+      const stored = converted ? converted.value : value
+      if (stored === null || stored === '') continue
+      const text = comparableText(stored)
+      if (seen.has(text)) scan.duplicates = true
+      else seen.add(text)
     }
     scanned += rows.length
     afterId = rows.at(-1)?.id
     if (rows.length < limit) break
   }
-  return incompatible
+  return scan
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
@@ -254,6 +282,14 @@ export async function diffTable(
     if (!current) {
       changes.columns.push({ op: 'add', key: columnKey, column: target })
       changes.fields.push(`columns.${columnKey} (add)`)
+      // A new column is empty in every row, so a required one would hold rows that break it.
+      if (target.required && table.rowCount > 0) {
+        report(
+          'E_APPLY_REFUSED',
+          `Column "${target.name}" cannot be added as required: the table's ${table.rowCount} row(s) would have no value.`,
+          'Add it without `required`, fill its cells, then make it required.'
+        )
+      }
       continue
     }
     const columnId = getColumnId(current)
@@ -263,18 +299,23 @@ export async function diffTable(
       updates.name = target.name
       fields.push('name')
     }
-    if (target.type !== current.type) {
+    const retyped = target.type !== current.type
+    const becomesUnique = Boolean(target.unique) && !current.unique
+    if (retyped) {
       updates.type = target.type
       fields.push('type')
-      const incompatible = await countIncompatibleCells(table, current, {
-        ...target,
-        id: columnId,
-      })
-      if (incompatible > 0) {
+      const scan = await scanRetype(table, current, { ...target, id: columnId }, becomesUnique)
+      if (scan.incompatible > 0) {
         report(
           'E_TABLE_TYPE_CONVERSION',
-          `Column "${current.name}" cannot become ${target.type}: ${incompatible} cell(s) hold values that do not convert.`,
+          `Column "${current.name}" cannot become ${target.type}: ${scan.incompatible} cell(s) hold values that do not convert.`,
           'Fix or clear those cells first, or add a new column instead.'
+        )
+      } else if (scan.duplicates) {
+        report(
+          'E_APPLY_REFUSED',
+          `Column "${current.name}" cannot become a unique ${target.type}: two or more rows hold values that are equal once converted.`,
+          'Make those values distinct first, or change the type without `unique` and add it later.'
         )
       }
     }
@@ -295,10 +336,10 @@ export async function diffTable(
     if (Boolean(target.unique) !== Boolean(current.unique)) {
       updates.unique = Boolean(target.unique)
       fields.push('unique')
-      // A retype checks its converted values in its own write, before anything commits.
+      // A retype's converted values were checked by its scan above.
       if (
-        target.unique &&
-        target.type === current.type &&
+        becomesUnique &&
+        !retyped &&
         (await hasDuplicateValues(db, table.id, table.workspaceId, current))
       ) {
         report(

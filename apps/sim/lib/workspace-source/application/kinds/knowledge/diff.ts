@@ -290,17 +290,6 @@ export async function diffKnowledgeBase(input: {
     if (hashes.get(current.id) === doc.sha256) continue
     changes.uploads.push({ name, doc, replaces: current })
     changes.fields.push(`docs/${name} (replace)`)
-    if (current.tagged) {
-      changes.diagnostics.push(
-        kindFinding(
-          KIND,
-          key,
-          'W_KB_DOC_TAGS',
-          `Replacing docs/${name} uploads a new document; the stored one's tag values are not carried over.`,
-          { hint: 'Set the tags again on the new document after the apply.' }
-        )
-      )
-    }
   }
   for (const [name, current] of byName) {
     if (Object.hasOwn(decl.docs, name)) continue
