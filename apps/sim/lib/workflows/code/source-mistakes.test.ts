@@ -96,4 +96,13 @@ describe('mistakes from the blind DX trial, against the real catalog', () => {
       'E_DUPLICATE_NAME 17: Ask normalizes to ask, which Ask already uses.',
     ])
   })
+
+  it('frames a cycle at the edge that closes it, naming that edge in the hint', () => {
+    const result = compile(probe('save.to(notify)\n', 'save.to(notify)\n  notify.to(ask)\n'))
+    const cycle = only(result, 'E_EDGE_CYCLE')
+    expect(cycle?.span.line).toBe(27)
+    expect(cycle?.hint).toBe(
+      'Remove this edge from Notify back to Ask, and repeat work with loop() or parallel() around the blocks instead.'
+    )
+  })
 })
