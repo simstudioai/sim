@@ -59,6 +59,7 @@ export const POLYMARKET_DATA_PAGE_OUTPUTS = {
     type: 'string',
     description: 'Cursor for the next page; pass it as Cursor. Null on the last page.',
     optional: true,
+    nullable: true,
   },
   hasMore: { type: 'boolean', description: 'Whether another page exists', optional: true },
 } as const
