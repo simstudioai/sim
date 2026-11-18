@@ -83,7 +83,7 @@ function downloadOf(href: string): BlobDownload | null {
 }
 
 /** SHA-256 and size of `file`, read as a stream so a large file costs constant memory. */
-export async function hashFile(file: string): Promise<{ sha256: string; size: number }> {
+async function hashFile(file: string): Promise<{ sha256: string; size: number }> {
   const hash = createHash('sha256')
   let size = 0
   for await (const chunk of createReadStream(file)) {
