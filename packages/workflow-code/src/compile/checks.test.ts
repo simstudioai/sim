@@ -335,3 +335,73 @@ describe('typed references in JSON fields', () => {
     )
   })
 })
+
+describe('slider ranges', () => {
+  const agentBlock = TEST_CATALOG.blocks.agent as CatalogBlock
+  const withSliders: BlockCatalog = {
+    ...TEST_CATALOG,
+    blocks: {
+      ...TEST_CATALOG.blocks,
+      agent: {
+        ...agentBlock,
+        subBlocks: [
+          ...agentBlock.subBlocks.filter((sub) => sub.id !== 'temperature'),
+          {
+            id: 'temperature',
+            type: 'slider',
+            valueKind: 'number',
+            storage: 'native',
+            min: 0,
+            max: 1,
+            step: 0.1,
+          },
+          {
+            id: 'topK',
+            type: 'slider',
+            valueKind: 'number',
+            storage: 'native',
+            min: 1,
+            max: 50,
+            step: 1,
+            integer: true,
+          },
+        ],
+      },
+    },
+  }
+
+  function sliders(params: string) {
+    return run(`const a = agent('A', { model: 'm', ${params} })`, undefined, withSliders)
+      .diagnostics.filter((d) => d.code === 'W_OUT_OF_RANGE')
+      .map((d) => `${d.param}: ${d.message} ${d.hint}`)
+  }
+
+  it.each([
+    [
+      'temperature: -0.5',
+      'temperature: temperature is -0.5, outside its range; it is kept as written. Write a value from 0 to 1.',
+    ],
+    [
+      'temperature: 0.35',
+      'temperature: temperature is 0.35, between steps of 0.1; it is kept as written. Write a multiple of 0.1, from 0 to 1.',
+    ],
+    [
+      'topK: 0',
+      'topK: topK is 0, outside its range; it is kept as written. Write a value from 1 to 50.',
+    ],
+    [
+      'topK: 2.5',
+      'topK: topK is 2.5, but takes whole numbers only; it is kept as written. Write a whole number from 1 to 50.',
+    ],
+  ])('warns on %s', (params, finding) => {
+    expect(sliders(params)).toEqual([finding])
+  })
+
+  it('accepts bounds, float steps and references', () => {
+    expect(
+      sliders("temperature: 0.3, topK: 50, messages: [{ role: 'user', content: 'x' }]")
+    ).toEqual([])
+    expect(sliders('temperature: 1, topK: 1')).toEqual([])
+    expect(sliders('temperature: vars.temp')).toEqual([])
+  })
+})

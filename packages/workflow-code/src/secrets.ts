@@ -12,7 +12,7 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import type { Value } from './model'
+import type { ResourceKind, Value } from './model'
 
 /** `text` with every reference and `{{ENV}}` token blanked to one space. */
 function withoutReferences(text: string): string {
@@ -192,18 +192,31 @@ export function holdsSecret(field: { password?: boolean } | undefined, value: Va
   return field?.password ? isLiteralSecret(value) : holdsDetectedSecret(value)
 }
 
+/** The traits of the field a `W_LITERAL_SECRET` finding is about. */
+interface SecretField {
+  password?: boolean
+  /** Set on a resource selector; a `credential` one takes `credential('<key>')`. */
+  resourceKind?: ResourceKind
+}
+
 /**
  * The message and hint of `W_LITERAL_SECRET` for the param written as `name`: a password field's,
- * or (`password: false`) a credential detected in another field.
+ * a credential selector holding a literal token, or a credential detected in another field.
  */
 export function literalSecretFinding(
   name: string,
-  password = true
+  field: SecretField = { password: true }
 ): { message: string; hint: string } {
-  if (password) {
+  if (field.password) {
     return {
       message: `${name} holds a literal secret instead of an env reference; write ${name}: env.NAME.`,
       hint: `Store the secret as a workspace or personal env variable and write ${name}: env.NAME, so the key never sits in the workflow.`,
+    }
+  }
+  if (field.resourceKind === 'credential') {
+    return {
+      message: `${name} holds what looks like a literal token instead of a saved credential; get prints it as stored() so it never lands in a file.`,
+      hint: `Save the token as a workspace credential and write ${name}: credential('<key>'), so the token never sits in the workflow.`,
     }
   }
   return {

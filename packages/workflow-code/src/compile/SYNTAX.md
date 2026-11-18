@@ -402,8 +402,9 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_LEGACY_BLOCK_TYPE` | A new block of a legacy or deprecated type; `hint` names the replacement's builders. |
 | `E_STORED_VALUE_MISSING` | `stored()` where the stored workflow holds no value. |
 | `W_VALUE_KIND` | A value whose JSON type differs from the field's. |
+| `W_OUT_OF_RANGE` | A literal slider value outside the catalog `min`/`max`, off its `step`, or fractional where it takes whole numbers; kept as written, and the executor forwards it unclamped. |
 | `W_TABLE_FILTER_SHAPE` | A literal table filter the runtime refuses: the legacy `$` operator grammar, or predicate and builder rows mixed. |
-| `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference, or any field holding a detected credential (a token format, an `Authorization` header, a credential-named property or query parameter); get prints it as `stored()`. |
+| `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference, or any field holding a detected credential (a token format, an `Authorization` header, a credential-named property or query parameter); get prints it as `stored()`. For a literal token in a credential field, the hint says `credential('<key>')`. |
 | `W_SUBFLOW_COUNT` | A loop or parallel count, or a parallel batch size, the runtime replaces or clamps. |
 | `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |

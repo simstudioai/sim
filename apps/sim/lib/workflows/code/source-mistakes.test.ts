@@ -126,4 +126,21 @@ export default workflow('Sync', {}, () => {
     expect(schedule("scheduleType: 'minutes', minutesInterval: 15")).toEqual([])
     expect(schedule("scheduleType: 'daily', dailyTime: '09:00'")).toEqual(['I_SCHEDULE_UTC'])
   })
+
+  it('warns on a slider value outside the range the catalog gives it', () => {
+    const result = compile(probe('temperature: 0.3', 'temperature: 7'))
+    expect(findings(result)).toEqual([
+      'W_OUT_OF_RANGE 10: temperature is 7, outside its range; it is kept as written.',
+    ])
+    expect(only(result, 'W_OUT_OF_RANGE')?.hint).toBe('Write a value from 0 to 1.')
+  })
+
+  it("tells a literal token in a credential field to use credential('<key>')", () => {
+    const result = compile(
+      probe("credential: credential('ops-slack')", `credential: 'xoxb-${'1234567890'}-abcdefghijklmnop'`)
+    )
+    expect(only(result, 'W_LITERAL_SECRET')?.hint).toBe(
+      "Save the token as a workspace credential and write credential: credential('<key>'), so the token never sits in the workflow."
+    )
+  })
 })
