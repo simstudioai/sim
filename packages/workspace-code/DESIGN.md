@@ -11,6 +11,7 @@ owns everything inside a single workflow. The server half is `apps/sim/lib/works
 ```
 tools/      custom tools      (custom-tool)
 skills/     skills            (skill)
+mcp/        MCP servers       (mcp-server; headers hold env references, never secrets)
 tables/     table schemas     (table)
 knowledge/  knowledge bases   (knowledge-base; documents are blobs)
 files/      workspace files   (file; every file is a blob)
@@ -99,6 +100,19 @@ and audit are a single apply's. It deviates on purpose (see the header of
 `kinds/workflow/adapter.ts`): an edited folder is checked against its own `.sim/base.json`, and a
 folder sent unchanged (`isUnchanged`) is a no-op with no drift check, because telling whether a
 workflow drifted means canonicalizing every stored workflow on every apply.
+
+### The MCP server kind
+
+`mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
+`kinds/mcp/adapter.ts`). Its id derives from its URL, so the URL is its identity: an unbound
+server at the declared URL is adopted, and a changed URL replaces it (created at the new URL, the
+old one deleted; `--allow-delete` when stored workflows call it). A header value is stored text in
+which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
+text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
+by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
+lists each server's tools through the discovery use case and checks the tools workflows call
+(`refs` with a `member`): an unknown one is `E_MCP_TOOL_UNKNOWN`, a server it cannot list
+(unreachable, created by this apply, a workspace API key) `W_MCP_TOOLS_UNCHECKED`.
 
 ## Plan and apply
 

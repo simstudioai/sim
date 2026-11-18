@@ -3,13 +3,15 @@ import type { WorkspaceDiagnostic } from './diagnostics'
 
 /**
  * Every kind a workspace source directory can declare, in the order an apply writes them: a
- * resource exists before anything that references it (a workflow names tables, tools and skills).
+ * resource exists before anything that references it (a workflow names tables, tools, skills and
+ * MCP servers).
  * Deletes run in the reverse order. Each is spelled as the resource kind a workflow references it
  * by (`ResourceKind`, from `PortableResourceKind`), so resource keys and source agree on one name.
  */
 export const APPLY_ORDER = [
   'custom-tool',
   'skill',
+  'mcp-server',
   'table',
   'knowledge-base',
   'file',
@@ -23,6 +25,7 @@ export type WorkspaceKind = (typeof APPLY_ORDER)[number]
 export const KIND_DIRS = {
   'custom-tool': 'tools',
   skill: 'skills',
+  'mcp-server': 'mcp',
   table: 'tables',
   'knowledge-base': 'knowledge',
   file: 'files',

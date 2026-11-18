@@ -8,6 +8,7 @@ import type { KindCodec, KindLayout, WorkspaceKind } from '../kind'
 import { kindOfPath } from '../layout'
 import { fileCodec } from './files'
 import { knowledgeCodec } from './knowledge'
+import { mcpCodec } from './mcp'
 import { skillCodec } from './skills'
 import { tableLayout } from './table'
 import { toolCodec } from './tools'
@@ -17,6 +18,7 @@ import { workflowCodec } from './workflow'
 export const KIND_LAYOUTS: { readonly [K in WorkspaceKind]: KindLayout } = {
   'custom-tool': toolCodec,
   skill: skillCodec,
+  'mcp-server': mcpCodec,
   table: tableLayout,
   'knowledge-base': knowledgeCodec,
   file: fileCodec,
