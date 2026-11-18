@@ -307,27 +307,73 @@ describe('standalone table diagnostics against the actual Table block', () => {
       ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
     })
 
-    it('defers a filter with more mixed references than the placeholder search covers', async () => {
-      const conditions = [
-        ...['a', 'b', 'c', 'd'].map((name) => `{"field":"name","op":"eq","value":<start.${name}>}`),
-        ...['e', 'f', 'g'].map((name) => `{"field":"name","op":"in","value":<start.${name}>}`),
-      ]
+    const manyReferenceData = `{${['a', 'b', 'c', 'd', 'e', 'f', 'g']
+      .map((name) => `"name": <start.${name}>`)
+      .join(',')},"missing":1}`
+
+    it.each([
+      ['insert_row', manyReferenceData, undefined],
+      [
+        'update_rows_by_filter',
+        manyReferenceData,
+        '{"all":[{"field":"name","op":"eq","value":<start.n>},{"field":"name","op":"in","value":<start.names>}]}',
+      ],
+    ])(
+      'checks literal row keys beside many bare references (%s)',
+      async (operation, data, filter) => {
+        setGraph(block('write', { operation, bulkFilterMode: 'json', data, filter }))
+        const result = await lint()
+        expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+        expect(
+          result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+        ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+      }
+    )
+
+    it('checks the literal conditions beside a whole-condition reference', async () => {
       setGraph(
-        block('write', {
-          operation: 'update_rows_by_filter',
-          bulkFilterMode: 'json',
-          filter: `{"all":[${conditions.join(',')}]}`,
-          data: '{"name":"Ada","missing":1}',
+        block('query', {
+          filter: '{"all":[<start.condition>,{"field":"other","op":"eq","value":1}]}',
         })
       )
       const result = await lint()
       expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
-      expect(result.notes).toContain(
-        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+    })
+
+    it('blames malformed row data, not a whole-field filter reference', async () => {
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: '<start.filter>',
+          data: '{"name":"Ada",}',
+        })
       )
-      expect(
-        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
-      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+      const result = await lint()
+      expect(result.notes).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            'Table input checks in block "write" could not complete before runtime: Invalid JSON in Row Data'
+          ),
+        ])
+      )
+    })
+
+    it('does not call deferred whole-field row data a non-static object', async () => {
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: '<start.filter>',
+          data: '<start.row>',
+        })
+      )
+      const result = await lint()
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: data, filterInput.'
+      )
+      expect(result.notes.filter((note) => note.includes('not a static object'))).toEqual([])
     })
 
     it('still reports an invalid literal condition beside a reference', async () => {

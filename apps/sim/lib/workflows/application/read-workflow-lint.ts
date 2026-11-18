@@ -258,74 +258,77 @@ function hasRuntimeReference(value: string): boolean {
 /**
  * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
  * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
- * Each reference written outside a JSON string is replaced by a placeholder so the Table block's
- * own transform reads the literal parts: a quoted string, or a one-item list for slots such as a
- * filter `in`, trying every combination. A field that is a single whole reference has no literal
- * part, so if no combination fits it is left out and returned in `runtimeFields`. When the search
- * is exhaustive and still fails, the error comes from the literal parts (malformed JSON, an
- * invalid literal condition) and is rethrown. Past the search bound that cannot be told apart, so
- * every reference-bearing field is left out instead and the other inputs are still checked. Only
- * this lint-local copy is rewritten; references to string outputs left unquoted are reported by
- * `collectUnquotedJsonStringReferences`.
+ * Each reference written outside a JSON string becomes a quoted placeholder so the Table block's
+ * own transform reads the literal parts; filter slots that need a list or a condition are adapted
+ * by {@link adaptReferencePlaceholders}. If the transform still fails and a field is one whole
+ * reference, that field has no literal part, so it is left out, returned in `runtimeFields`, and
+ * the transform runs once more; an error from that final attempt comes from the literal parts and
+ * is rethrown. Only this lint-local copy is rewritten; references to string outputs left unquoted
+ * are reported by `collectUnquotedJsonStringReferences`.
  */
 function normalizeTableInputs(
   transform: (params: Record<string, unknown>) => Record<string, unknown>,
   params: Record<string, unknown>
 ): { normalized: Record<string, unknown>; runtimeFields: string[] } {
-  const referenceFields: string[] = []
-  const wholeReferenceFields: string[] = []
+  const prepared: Record<string, unknown> = {}
+  const runtimeFields: string[] = []
   for (const [key, value] of Object.entries(params)) {
-    if (typeof value !== 'string') continue
-    const trimmed = value.trim()
-    const tokens = findWorkflowReferenceTokens(trimmed)
-    if (tokens.length === 0) continue
-    referenceFields.push(key)
-    if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
-      wholeReferenceFields.push(key)
-    }
-  }
-  if (referenceFields.length === 0) return { normalized: transform(params), runtimeFields: [] }
-  const tiers = wholeReferenceFields.length > 0 ? [[], wholeReferenceFields] : [[]]
-  let searchBounded = false
-  let firstError: unknown
-  for (const runtimeFields of tiers) {
-    const withPlaceholders = (asList: (ordinal: number) => boolean) => {
-      let ordinal = 0
-      const candidate: Record<string, unknown> = {}
-      for (const [key, value] of Object.entries(params)) {
-        if (runtimeFields.includes(key)) continue
-        candidate[key] =
-          typeof value === 'string'
-            ? replaceBareReferences(value, (reference) =>
-                asList(ordinal++) ? `[${JSON.stringify(reference)}]` : JSON.stringify(reference)
-              )
-            : value
-      }
-      return { candidate, count: ordinal }
-    }
-    const { count } = withPlaceholders(() => false)
-    if (count > MAX_PLACEHOLDER_SEARCH_REFERENCES) {
-      searchBounded = true
+    if (typeof value !== 'string') {
+      prepared[key] = value
       continue
     }
-    for (let mask = 0; mask < 2 ** count; mask++) {
-      try {
-        const { candidate } = withPlaceholders((ordinal) => ((mask >> ordinal) & 1) === 1)
-        return { normalized: transform(candidate), runtimeFields }
-      } catch (error) {
-        firstError ??= error
-      }
+    prepared[key] = withReferencePlaceholders(value)
+    const trimmed = value.trim()
+    const tokens = findWorkflowReferenceTokens(trimmed)
+    if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
+      runtimeFields.push(key)
     }
   }
-  if (!searchBounded) throw firstError
-  const literal = Object.fromEntries(
-    Object.entries(params).filter(([key]) => !referenceFields.includes(key))
-  )
-  return { normalized: transform(literal), runtimeFields: referenceFields }
+  try {
+    return { normalized: transform(prepared), runtimeFields: [] }
+  } catch (error) {
+    if (runtimeFields.length === 0) throw error
+  }
+  for (const key of runtimeFields) delete prepared[key]
+  return { normalized: transform(prepared), runtimeFields }
 }
 
-/** Bounds the placeholder search to 2^6 pure transform calls per Table block. */
-const MAX_PLACEHOLDER_SEARCH_REFERENCES = 6
+function withReferencePlaceholders(json: string): string {
+  const references = new Set<string>()
+  const quoted = replaceBareReferences(json, (reference) => {
+    references.add(reference)
+    return JSON.stringify(reference)
+  })
+  if (references.size === 0) return quoted
+  try {
+    return JSON.stringify(adaptReferencePlaceholders(JSON.parse(quoted), references))
+  } catch {
+    return quoted
+  }
+}
+
+/**
+ * A quoted placeholder fits row values and most filter values. The value of an `in`/`nin`
+ * condition must be a list, so it becomes a one-item list, and a whole condition inside an
+ * `all`/`any` group has no literal part, so it is left out while the group keeps a literal member.
+ */
+function adaptReferencePlaceholders(node: unknown, references: Set<string>): unknown {
+  const isPlaceholder = (value: unknown) => typeof value === 'string' && references.has(value)
+  if (Array.isArray(node)) return node.map((item) => adaptReferencePlaceholders(item, references))
+  if (!isPlainRecord(node)) return node
+  const adapted: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(node)) {
+    if ((key === 'all' || key === 'any') && Array.isArray(value)) {
+      const literal = value.filter((item) => !isPlaceholder(item))
+      adapted[key] = adaptReferencePlaceholders(literal.length > 0 ? literal : value, references)
+    } else if (key === 'value' && (node.op === 'in' || node.op === 'nin') && isPlaceholder(value)) {
+      adapted[key] = [value]
+    } else {
+      adapted[key] = adaptReferencePlaceholders(value, references)
+    }
+  }
+  return adapted
+}
 
 function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {
   const tokens = findWorkflowReferenceTokens(json)
@@ -411,12 +414,14 @@ async function readTableDiagnostics(
     const transform = getBlock(block.type)?.tools.config?.params
     if (!transform) throw new Error('Table input normalization is unavailable')
     let normalized: Record<string, unknown>
+    let runtimeFields: string[]
     try {
       const inputs = normalizeTableInputs(transform, params)
       normalized = inputs.normalized
-      if (inputs.runtimeFields.length > 0) {
+      runtimeFields = inputs.runtimeFields
+      if (runtimeFields.length > 0) {
         result.notes.push(
-          `Table inputs in block "${block.name || blockId}" depend on references resolved at runtime and were not checked: ${inputs.runtimeFields.join(', ')}.`
+          `Table inputs in block "${block.name || blockId}" depend on references resolved at runtime and were not checked: ${runtimeFields.join(', ')}.`
         )
       }
     } catch (error) {
@@ -464,8 +469,10 @@ async function readTableDiagnostics(
         })
       }
     }
-    if (Object.hasOwn(normalized, 'data')) inspectRow(normalized.data, 'data')
-    if (Object.hasOwn(normalized, 'rows')) {
+    if (Object.hasOwn(normalized, 'data') && !runtimeFields.includes('data')) {
+      inspectRow(normalized.data, 'data')
+    }
+    if (Object.hasOwn(normalized, 'rows') && !runtimeFields.includes('rows')) {
       if (Array.isArray(normalized.rows)) {
         normalized.rows.forEach((row, index) => inspectRow(row, `rows[${index}]`))
       } else {
