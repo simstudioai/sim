@@ -11,11 +11,11 @@ import {
   type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
+import type { SkippedItem, SkippedItemType } from '@/lib/workflows/editing/types'
+import { isBlockTypeAllowed } from '@/lib/workflows/editing/validation'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
 import { overlayVisibility } from '@/blocks/visibility/context'
-import type { SkippedItem, SkippedItemType } from './types'
-import { isBlockTypeAllowed } from './validation'
 
 /**
  * The per-user gates on a block write, as one list every writer runs: the editing engine's

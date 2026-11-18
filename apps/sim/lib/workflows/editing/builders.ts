@@ -11,19 +11,19 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
 import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
-import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
-import { getBlock } from '@/blocks/registry'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   checkRetrySetting,
   createFieldValueGate,
   createSeededValueGate,
   isToolInputField,
   partitionToolEntries,
-} from './gates'
+} from '@/lib/workflows/editing/gates'
+import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
+import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
 import { logSkippedItem } from './types'
 import {
