@@ -144,6 +144,18 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `7` | The source is over the size limits (`413`) |
 | `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
 
+| Code | `sim workflows source check` or `sim workspaces source check` |
+| --- | --- |
+| `0` | No errors (warnings may still print) |
+| `1` | The source has errors, or a warning that fails the check on a block the edit added (see `--strict`), or no block catalog is cached: run the get once |
+
+| Code | `sim workflows source get --dir` or `sim workspaces source get` |
+| --- | --- |
+| `0` | Written |
+| `1` | The directory holds edits no apply has saved (`SOURCE_LOCAL_EDITS`) or another workflow's source (`SOURCE_WORKFLOW_MISMATCH`): apply them, get into another directory, or pass `--force`; or command/request failure |
+| `7` | The workflow, or a kind of resource, is too large for one directory |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+
 | Code | `sim workspaces source apply` |
 | --- | --- |
 | `0` | Applied, or a dry run with no errors |
