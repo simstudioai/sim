@@ -45,7 +45,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { isLiteralSecret, literalSecretFinding } from '../secrets'
+import { holdsSecret, literalSecretFinding } from '../secrets'
 import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
 import {
@@ -423,9 +423,10 @@ interface WrittenParam {
 function reportLiteralSecret(
   ctx: CompileContext,
   blockKey: BlockKey,
-  entry: Pick<WrittenParam, 'property' | 'param'>
+  entry: Pick<WrittenParam, 'property' | 'param'>,
+  password: boolean
 ): void {
-  const { message, hint } = literalSecretFinding(entry.param)
+  const { message, hint } = literalSecretFinding(entry.param, password)
   ctx.reporter.report('W_LITERAL_SECRET', message, rangeOf(ctx, entry.property), {
     hint,
     blockKey,
@@ -665,8 +666,8 @@ function keepStored(
     const param = getOwn(stored.params, member.id)
     if (param) setOwn(params, member.id, param)
     else state.unset.add(member.id)
-    if (param?.kind === 'value' && member.password && isLiteralSecret(param.value)) {
-      reportLiteralSecret(ctx, decl.key, { property, param: name })
+    if (param?.kind === 'value' && holdsSecret(member, param.value)) {
+      reportLiteralSecret(ctx, decl.key, { property, param: name }, member.password === true)
     }
   }
   const mode = field && isModalPair(field) ? getOwn(stored.modes, field.param) : undefined
@@ -1313,7 +1314,9 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         param: entry.param,
       })
     }
-    if (sub.password && isLiteralSecret(entry.value)) reportLiteralSecret(ctx, decl.key, entry)
+    if (holdsSecret(sub, entry.value)) {
+      reportLiteralSecret(ctx, decl.key, entry, sub.password === true)
+    }
     if (entry.checked && !valueKindMatches(sub, entry.value)) {
       ctx.reporter.report(
         'W_VALUE_KIND',

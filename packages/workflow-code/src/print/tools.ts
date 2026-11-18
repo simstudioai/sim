@@ -25,7 +25,7 @@ import {
 } from '../model'
 import { getOwn } from '../records'
 import { CUSTOM_TOOL_TYPE, hasToolForm } from '../sdk'
-import { isLiteralSecret, literalSecretFinding } from '../secrets'
+import { holdsDetectedSecret, holdsSecret, isLiteralSecret, literalSecretFinding } from '../secrets'
 import type { PrintContext } from './context'
 import { printKey } from './strings'
 import { arrayExpr, type Expr, objectExpr, type Property } from './syntax'
@@ -142,7 +142,9 @@ function mcpToolCall(ctx: PrintContext, block: CanonicalBlock, form: McpToolForm
       value: objectExpr(
         args.map(([name, value]) => ({
           key: printKey(name),
-          value: ctx.values.value(value, nested),
+          value: holdsDetectedSecret(value)
+            ? storedSecret(ctx, block, name, false)
+            : ctx.values.value(value, nested),
         }))
       ),
     })
@@ -174,6 +176,16 @@ export function printTools(
   tools: CanonicalTool[]
 ): PrintedValue {
   const elements = tools.map((tool) => {
+    const code = tool.customTool?.snapshot?.code
+    if (code !== undefined && holdsDetectedSecret(code)) {
+      ctx.diagnostics.push({
+        code: 'W_LITERAL_SECRET',
+        severity: 'warning',
+        message: `A custom tool snapshot in ${block.key} holds what looks like a literal credential in its code, which this file carries.`,
+        hint: 'Move the credential into a workspace env variable and read it from the custom tool code, then save the custom tool again.',
+        blockKey: block.key,
+      })
+    }
     const mcp = readMcpTool(ctx.catalog, tool)
     if (mcp) return mcpToolCall(ctx, block, mcp)
     const childWorkflow = readWorkflowTool(ctx.catalog, tool)
@@ -206,12 +218,11 @@ export function printTools(
         const sb = declared?.subBlocks.find((candidate) => candidate.id === id)
         return {
           key: printKey(aliases.get(id) ?? id),
-          value:
-            sb?.password && isLiteralSecret(value)
-              ? storedSecret(ctx, block, aliases.get(id) ?? id)
-              : sb
-                ? ctx.values.field(value, { ...nested, subBlock: sb })
-                : ctx.values.value(value, nested),
+          value: holdsSecret(sb, value)
+            ? storedSecret(ctx, block, aliases.get(id) ?? id, sb?.password === true)
+            : sb
+              ? ctx.values.field(value, { ...nested, subBlock: sb })
+              : ctx.values.value(value, nested),
         }
       })
     const options: Property[] = []
@@ -294,7 +305,8 @@ function rawToolCall(
     const alias = aliases.get(subBlock.id)
     if (alias !== undefined) passwordIds.add(alias)
   }
-  const secret = (id: string, value: Value) => passwordIds.has(id) && isLiteralSecret(value)
+  const secret = (id: string, value: Value) =>
+    passwordIds.has(id) ? isLiteralSecret(value) : holdsDetectedSecret(value)
   const json = asToolJson(tool, tool)
   if (!isPlainRecord(json) || !Object.entries(tool.params).some(([id, v]) => secret(id, v))) {
     return ctx.values.call('raw', [ctx.values.json(json)])
@@ -303,7 +315,7 @@ function rawToolCall(
     Object.entries(tool.params).map(([id, value]) => ({
       key: printKey(id),
       value: secret(id, value)
-        ? storedSecret(ctx, block, id)
+        ? storedSecret(ctx, block, id, passwordIds.has(id))
         : ctx.values.json(asToolJson(tool, value)),
     }))
   )
@@ -332,11 +344,16 @@ function modesExpr(ctx: PrintContext, modes: Record<string, ParamMode>): Expr {
  * `stored()` for a password field holding literal text (`isLiteralSecret`), which keeps the
  * secret out of source, with the `W_LITERAL_SECRET` warning that it is stored as text.
  */
-export function storedSecret(ctx: PrintContext, block: CanonicalBlock, name: string): Expr {
+export function storedSecret(
+  ctx: PrintContext,
+  block: CanonicalBlock,
+  name: string,
+  password = true
+): Expr {
   ctx.diagnostics.push({
     code: 'W_LITERAL_SECRET',
     severity: 'warning',
-    ...literalSecretFinding(name),
+    ...literalSecretFinding(name, password),
     blockKey: block.key,
     param: name,
   })
