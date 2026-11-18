@@ -18,4 +18,12 @@ describe('jina_search request', () => {
 
     expect(mapped).toEqual({ returnFormat: 'html', retainImages: 'none' })
   })
+
+  it("drops Read URL's stored format and image values on Search", () => {
+    const raw = { operation: 'jina_search', returnFormat: 'screenshot', retainImages: 'none' }
+    const merged = { ...raw, ...JinaBlock.tools.config?.params?.(raw) }
+
+    expect(merged.returnFormat).toBeUndefined()
+    expect(merged.retainImages).toBeUndefined()
+  })
 })

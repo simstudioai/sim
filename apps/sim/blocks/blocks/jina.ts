@@ -176,12 +176,12 @@ export const JinaBlock: BlockConfig = {
        */
       params: (params, context) => {
         if (mapperOperation(params, context) !== 'jina_search') return {}
-        const result: Record<string, unknown> = {}
-        const returnFormat = params.searchReturnFormat || toolCallArg(context, params.returnFormat)
-        if (returnFormat) result.returnFormat = returnFormat
-        const retainImages = params.searchRetainImages || toolCallArg(context, params.retainImages)
-        if (retainImages) result.retainImages = retainImages
-        return result
+        return {
+          returnFormat:
+            params.searchReturnFormat || toolCallArg(context, params.returnFormat) || undefined,
+          retainImages:
+            params.searchRetainImages || toolCallArg(context, params.retainImages) || undefined,
+        }
       },
     },
   },

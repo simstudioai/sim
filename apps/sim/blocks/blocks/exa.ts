@@ -604,7 +604,7 @@ export const ExaBlock: BlockConfig = {
         if (params.extrasImageLinks) {
           result.extrasImageLinks = Number(params.extrasImageLinks)
         }
-        if (params.maxAgeHours !== undefined && String(params.maxAgeHours).trim() !== '') {
+        if (params.maxAgeHours != null && String(params.maxAgeHours).trim() !== '') {
           result.maxAgeHours = Number(params.maxAgeHours)
         }
         if (params.livecrawlTimeout) {

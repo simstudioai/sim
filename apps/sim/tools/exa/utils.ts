@@ -53,7 +53,7 @@ export function applyFreshness(target: Record<string, any>, params: ExaFreshness
     target.livecrawl = params.livecrawl
   }
 
-  if (params.livecrawlTimeout !== undefined && String(params.livecrawlTimeout).trim() !== '') {
+  if (params.livecrawlTimeout != null && String(params.livecrawlTimeout).trim() !== '') {
     target.livecrawlTimeout = Number(params.livecrawlTimeout)
   }
 }

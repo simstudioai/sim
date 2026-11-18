@@ -19,6 +19,7 @@
  * 2. Add the ID to ErrorExtractorId constant at the bottom of this file
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
 import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
@@ -643,13 +644,28 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   },
   {
     id: 'tavily-errors',
-    description: 'Tavily error body: `detail.error` string (FastAPI-style detail object)',
+    description:
+      'Tavily error bodies: FastAPI `detail` as an object with `error`, a string, or a validation array; a top-level `error`; or a plain-text body',
     examples: ['Tavily'],
     explicitOnly: true,
     extract: (errorInfo) => {
-      const detail = errorInfo?.data?.detail
+      const data = errorInfo?.data
+      if (typeof data === 'string') return data.trim() || errorInfo?.statusText
+      const detail = data?.detail
       if (typeof detail === 'string') return detail
-      return typeof detail?.error === 'string' ? detail.error : undefined
+      if (typeof detail?.error === 'string') return detail.error
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((issue: unknown) =>
+            isRecordLike(issue) && typeof issue.msg === 'string' ? issue.msg : undefined
+          )
+          .filter((message): message is string => Boolean(message))
+        if (messages.length > 0) return messages.join('; ')
+      }
+      if (typeof data?.error === 'string') return data.error
+      if (typeof data?.error?.message === 'string') return data.error.message
+      if (typeof data?.message === 'string') return data.message
+      return errorInfo?.statusText
     },
   },
   {
