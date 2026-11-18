@@ -1,5 +1,6 @@
 import type { GrainDeleteHookParams, GrainDeleteHookResponse } from '@/tools/grain/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteHookResponse> = {
   id: 'grain_delete_hook',
@@ -23,7 +24,8 @@ export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteH
   },
 
   request: {
-    url: (params) => `https://api.grain.com/_/public-api/hooks/${params.hookId}`,
+    url: (params) =>
+      `https://api.grain.com/_/public-api/hooks/${safeUrlPathSegment(params.hookId, 'hookId')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

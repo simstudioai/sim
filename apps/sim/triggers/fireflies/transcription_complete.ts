@@ -69,6 +69,11 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       type: 'number',
       description: 'Unix timestamp in milliseconds when the event was fired (V2 webhooks)',
     },
+    reprocessedAt: {
+      type: 'number',
+      description:
+        "Unix timestamp in milliseconds of the transcript or summary change that caused a resend (V2 webhooks; absent on a meeting's first delivery)",
+    },
   },
 
   webhook: {

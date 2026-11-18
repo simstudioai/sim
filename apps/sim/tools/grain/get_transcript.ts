@@ -1,6 +1,7 @@
 import type { GrainGetTranscriptParams, GrainGetTranscriptResponse } from '@/tools/grain/types'
 import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const grainGetTranscriptTool: ToolConfig<
   GrainGetTranscriptParams,
@@ -29,7 +30,7 @@ export const grainGetTranscriptTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId.trim()}/transcript`,
+      `https://api.grain.com/_/public-api/v2/recordings/${safeUrlPathSegment(params.recordingId, 'recordingId')}/transcript`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
