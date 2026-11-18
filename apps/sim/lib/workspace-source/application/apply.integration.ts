@@ -27,6 +27,7 @@ import * as tableUseCases from '@/lib/table/application/tables'
 import * as columnService from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
+import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -2053,6 +2054,48 @@ export default workflow('Claim Crash', {}, () => {
           )
         )
       expect(binding?.resourceId).toBe(created?.id)
+    }
+  )
+  check(
+    'a workflow deleted between the plan and its write stops the apply as stale, not refused',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(workspaceId, {
+        ...STARTER,
+        'workflows/other/workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Other', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`,
+      })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const entry = 'workflows/ingest/workflow.ts'
+      const ingestId = read.base.resources['workflow:ingest']?.id ?? ''
+      const authorize = applyWorkflowSource.authorize
+      const racing = vi.spyOn(applyWorkflowSource, 'authorize').mockImplementation(async (args) => {
+        const admitted = await authorize(args)
+        await deleteWorkflow.execute({ principal: owner, input: { workflowId: ingestId } })
+        return admitted
+      })
+
+      const result = await apply(
+        workspaceId,
+        {
+          ...read.files,
+          [entry]: read.files[entry].replace("workflow('Ingest'", "workflow('Intake'"),
+        },
+        { base: read.base }
+      ).finally(() => racing.mockRestore())
+
+      expect(result.failed).toMatchObject({
+        kind: 'workflow',
+        key: 'ingest',
+        code: 'E_APPLY_STALE',
+      })
+      expect(codes(result.diagnostics)).toEqual(['E_APPLY_STALE'])
     }
   )
 })

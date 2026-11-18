@@ -18,7 +18,7 @@ import {
   refusalDiagnostic,
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
-import { finding } from '@/lib/workspace-source/application/findings'
+import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -106,7 +106,11 @@ function writeOrder(changes: PlannedChange[]): PlannedChange[] {
   ]
 }
 
-/** A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. */
+/**
+ * A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. A resource
+ * the change found when planning that is gone by its write (deleted since) is stale, like one that
+ * changed: getting the directory again shows what the server holds now.
+ */
 function failureOf(
   error: unknown,
   change: PlannedChange
@@ -119,6 +123,13 @@ function failureOf(
     return {
       failed: { ...resource, code: 'E_APPLY_REFUSED', message: error.message },
       diagnostics: error.diagnostics,
+    }
+  }
+  if (isRefusal(error) && error.code === 'not_found' && change.action !== 'create') {
+    const message = `${change.kind} ${change.key} was deleted on the server while this apply ran.`
+    return {
+      failed: { ...resource, code: 'E_APPLY_STALE', message },
+      diagnostics: [finding('E_APPLY_STALE', message, { hint: GET_HINT, ...resource })],
     }
   }
   if (isRefusal(error)) {
