@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { buildKalshiUrl } from '@/tools/kalshi/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
@@ -209,7 +210,8 @@ export function buildKalshiCreateOrderBody(
   const cancelOnPause = optionalFlag(params.cancelOrderOnPause, 'Cancel Order on Pause')
   if (cancelOnPause !== undefined) body.cancel_order_on_pause = cancelOnPause
   if (!isBlank(params.orderGroupId)) body.order_group_id = params.orderGroupId
-  if (!isBlank(params.subaccount)) body.subaccount = parseScaled(params.subaccount, 0, 'Subaccount')
+  const subaccount = kalshiSubaccount(params.subaccount)
+  if (subaccount !== undefined) body.subaccount = subaccount
   return body
 }
 
@@ -282,6 +284,36 @@ export function kalshiOrderPath(orderId?: string, action?: 'amend'): string {
   const order = `/portfolio/events/orders/${safeUrlPathSegment(orderId, 'orderId')}`
   return action ? `${order}/${action}` : order
 }
+
+/** The subaccount number (0 primary, 1-63 numbered), or `undefined` when unset. */
+function kalshiSubaccount(value: unknown): number | undefined {
+  return isBlank(value) ? undefined : parseScaled(value, 0, 'Subaccount')
+}
+
+/**
+ * A cancel or amend URL with its query: `subaccount` (CancelOrderV2 and AmendOrderV2 take it as a
+ * query param) and any extra params. Kalshi signs the path only, never the query.
+ */
+export function kalshiOrderWriteUrl(
+  path: string,
+  subaccount: unknown,
+  query: Record<string, string> = {}
+): string {
+  const search = new URLSearchParams(query)
+  const number = kalshiSubaccount(subaccount)
+  if (number !== undefined) search.set('subaccount', String(number))
+  const text = search.toString()
+  return text ? `${buildKalshiUrl(path)}?${text}` : buildKalshiUrl(path)
+}
+
+/** The optional `subaccount` param of the cancel and amend tools. */
+export const KALSHI_ORDER_SUBACCOUNT_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'user-or-llm',
+  description:
+    'Subaccount the order belongs to (0 for primary, 1-63 for numbered subaccounts). Leave empty for the primary account',
+} as const
 
 /** Path of the documented order read (`GET /portfolio/orders/{id}`). */
 export function kalshiOrderReadPath(orderId: string): string {

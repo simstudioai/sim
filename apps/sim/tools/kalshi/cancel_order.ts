@@ -1,10 +1,12 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import {
+  KALSHI_ORDER_SUBACCOUNT_PARAM,
   kalshiCountNumber,
   kalshiLegacyOrder,
   kalshiOrderPath,
   kalshiOrderReadPath,
+  kalshiOrderWriteUrl,
 } from '@/tools/kalshi/orders'
 import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
@@ -27,10 +29,16 @@ function cancelRequestPath(params: { orderId: string; ticker?: string }): string
     : kalshiOrderPath(params.orderId)
 }
 
-function cancelRequestUrl(params: { orderId: string; ticker?: string }): string {
-  const url = buildKalshiUrl(cancelRequestPath(params))
-  if (cancelNeedsTicker(params)) return url
-  return `${url}?${new URLSearchParams({ market_ticker: String(params.ticker).trim() })}`
+/** The read takes no subaccount (GetOrder has no such param); the cancel does. */
+function cancelRequestUrl(params: {
+  orderId: string
+  ticker?: string
+  subaccount?: string
+}): string {
+  if (cancelNeedsTicker(params)) return buildKalshiUrl(cancelRequestPath(params))
+  return kalshiOrderWriteUrl(cancelRequestPath(params), params.subaccount, {
+    market_ticker: String(params.ticker).trim(),
+  })
 }
 
 function cancelRequestMethod(params: { ticker?: string }): 'GET' | 'DELETE' {
@@ -79,6 +87,7 @@ const TICKER_PARAM = {
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
   ticker?: string // Market ticker, which routes the cancel to the order's shard
+  subaccount?: string // Subaccount the order belongs to
 }
 
 export interface KalshiCancelOrderResponse {
@@ -118,6 +127,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
       },
       ticker: TICKER_PARAM,
+      subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
     },
 
     request: {
@@ -194,6 +204,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
 export interface KalshiCancelOrderV2Params extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
   ticker?: string // Market ticker, which routes the cancel to the order's shard
+  subaccount?: string // Subaccount the order belongs to
 }
 
 export interface KalshiCancelOrderV2Response {
@@ -270,6 +281,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
     },
     ticker: TICKER_PARAM,
+    subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
   },
 
   request: {

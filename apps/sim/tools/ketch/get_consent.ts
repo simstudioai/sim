@@ -104,7 +104,7 @@ export const getConsentTool: ToolConfig<KetchGetConsentParams, KetchGetConsentRe
       description:
         'List of vendor IDs for which the user has opted out (deprecated by Ketch in favor of vendorConsents)',
       optional: true,
-      items: { type: 'string' },
+      items: { type: 'string', open: true },
     },
   },
 }

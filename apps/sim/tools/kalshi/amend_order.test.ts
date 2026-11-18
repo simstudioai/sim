@@ -115,6 +115,25 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
     })
   })
 
+  it('sends the subaccount on the amend, not on the order read', () => {
+    const subaccountOf = (
+      tool: typeof kalshiAmendOrderV2Tool | typeof kalshiAmendOrderTool,
+      params: KalshiAmendOrderV2Params
+    ) => {
+      const { url } = tool.request
+      if (typeof url !== 'function') throw new Error('amend tool has no url builder')
+      return new URL(url(params)).searchParams.get('subaccount')
+    }
+    for (const tool of [kalshiAmendOrderV2Tool, kalshiAmendOrderTool]) {
+      expect(subaccountOf(tool, { ...BASE, count: '8', yesPrice: '57', subaccount: '3' })).toBe('3')
+      expect(subaccountOf(tool, { ...BASE, count: '8', subaccount: '3' })).toBeNull()
+      expect(subaccountOf(tool, { ...BASE, count: '8', yesPrice: '57' })).toBeNull()
+      expect(
+        sentRequest(tool, { ...BASE, count: '8', yesPrice: '57', subaccount: '3' }).signatureValid
+      ).toBe(true)
+    }
+  })
+
   it('quotes a no-side amend on the YES book', () => {
     const request = sentRequest(kalshiAmendOrderTool, {
       ...BASE,
@@ -204,6 +223,26 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
       fill_count_fp: '2.00',
       remaining_count_fp: '6.00',
     })
+  })
+
+  it('keeps the subaccount on the amend it sends after the order read', async () => {
+    const params = { ...BASE, count: '10', subaccount: '3' }
+    const read = await kalshiAmendOrderV2Tool.transformResponse?.(
+      Response.json({ order: CURRENT_ORDER }),
+      params
+    )
+    const postProcess = kalshiAmendOrderV2Tool.postProcess
+    const { url } = kalshiAmendOrderV2Tool.request
+    if (!read || !postProcess || typeof url !== 'function')
+      throw new Error('amend tool cannot read')
+    const forwarded: Array<string | null> = []
+    await postProcess(read, params, async (_toolId, next) => {
+      forwarded.push(
+        new URL(url(next as unknown as KalshiAmendOrderV2Params)).searchParams.get('subaccount')
+      )
+      return { success: true, output: {} }
+    })
+    expect(forwarded).toEqual(['3'])
   })
 
   it("reads Kalshi's 6-decimal response values when the extra digits are zeros", async () => {
