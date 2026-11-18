@@ -18,20 +18,13 @@ import {
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
-import { inputFormatSugar } from '../forms/input-format'
 import type { ResponseForm } from '../forms/response'
 import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } from '../json-fields'
 import { CODE_FILE_EXTENSIONS, SOURCE_CODE_DIR } from '../limits'
-import { isJson } from '../lock'
-import {
-  type AnchorKey,
-  type CanonicalBlock,
-  isSimNode,
-  type ParamMode,
-  type Value,
-} from '../model'
+import type { AnchorKey, CanonicalBlock, ParamMode, Value } from '../model'
 import { getOwn, setOwn } from '../records'
 import { isLiteralSecret } from '../secrets'
+import { structuredCodec } from '../structured'
 import { anchors } from './comments'
 import type { PrintContext } from './context'
 import { printKey } from './strings'
@@ -105,7 +98,7 @@ export function fieldContext(
   return {
     tag: tagFor(block, declared, sb),
     from: block.key,
-    variablesField: sb?.structured === 'variables',
+    variablesField: structuredCodec(sb)?.varNodes === true,
     ...(sb ? { subBlock: sb } : {}),
   }
 }
@@ -127,24 +120,12 @@ function printParamValue(
     if (literal) return literal
   }
   const context = fieldContext(block, declared, sb)
-  if (sb?.structured === 'skills' && Array.isArray(param.value)) {
-    // `SkillRef[]` types only `skill('key')`; an entry kept verbatim prints as `raw(...)`.
-    return arrayExpr(
-      param.value.map((item) =>
-        !isSimNode(item) && isJson(item)
-          ? ctx.values.call('raw', [ctx.values.json(item)])
-          : ctx.values.value(item, context)
-      )
-    )
-  }
-  if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
-    const sugar = inputFormatSugar(param.value)
-    if (sugar) return printInputFormat(ctx, block, sugar)
-    // The record form is the only one the SDK types: an empty list is `{}`, and a list the
-    // record cannot carry (an integer-like or repeated name, an unknown key) is kept verbatim.
-    if (param.value.length === 0) return objectExpr([])
-    if (isJson(param.value)) return ctx.values.call('raw', [ctx.values.json(param.value)])
-  }
+  const structured = structuredCodec(sb)?.print(param.value, {
+    values: ctx.values,
+    context,
+    block: block.key,
+  })
+  if (structured) return structured
   if (
     ctx.options.functionCode === 'files' &&
     sb?.valueKind === 'code' &&
@@ -214,31 +195,6 @@ function printJsonField(ctx: PrintContext, block: CanonicalBlock, text: string):
     return objectExpr(properties)
   }
   return render(tree)
-}
-
-function printInputFormat(
-  ctx: PrintContext,
-  block: CanonicalBlock,
-  items: Array<{ name: string; item: Record<string, Value> }>
-): PrintedValue {
-  const nested: FieldContext = { tag: 't', from: block.key }
-  return objectExpr(
-    items.map(({ name, item }) => {
-      const keys = Object.keys(item)
-      const short =
-        keys.length === 3 && 'value' in item && item.value === '' && typeof item.type === 'string'
-      if (short && typeof item.type === 'string') {
-        return { key: printKey(name), value: ctx.values.string(item.type) }
-      }
-      const properties: Property[] = []
-      for (const field of ['type', 'value', 'description', 'required']) {
-        const fieldValue = item[field]
-        if (fieldValue === undefined) continue
-        properties.push({ key: field, value: ctx.values.value(fieldValue, nested) })
-      }
-      return { key: printKey(name), value: objectExpr(properties) }
-    })
-  )
 }
 
 function printCodeFile(

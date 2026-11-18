@@ -258,7 +258,8 @@ the core shard, deterministic because tables fill in key order; it is the ETag a
 Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
 param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
 `forms/` (the response `body` form and the condition `else: true`, each printed and compiled by one
-module),
+module), `structured/` (one codec per structured subBlock kind, `CatalogStructuredKind`, with its
+canonicalize, compile, print and materialize hooks, held in a record total over the kinds),
 `catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
 
 ## Canonicalize

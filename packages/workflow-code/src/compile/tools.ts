@@ -15,7 +15,6 @@ import {
   type CanonicalTool,
   isJsonObject,
   isPlainRecord,
-  type Json,
   type ParamMode,
   type ResourceNode,
   type UnresolvedNode,

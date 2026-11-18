@@ -7,13 +7,14 @@ import {
 } from '@sim/workflow-types/workflow'
 import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
 import { parseModeMap } from '../canonicalize/modes'
-import { declarationFor, isExcludedSubBlockId, liftedFieldIds } from '../canonicalize/params'
+import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
 import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
+import { structuredCodec } from '../structured'
 import { writeBranches } from './branches'
 import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
@@ -310,10 +311,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   for (const [paramId, param] of Object.entries(target.params)) {
     if (param.kind !== 'value') continue
     const declaration = declarationFor(catalog, paramId, target.triggerMode)
-    if (declaration?.structured !== 'inputFormat') continue
-    const found = [
-      ...liftedFieldIds(parseStoredList(getOwn(subBlocks, paramId)?.value) ?? []).values(),
-    ]
+    const found = structuredCodec(declaration)?.lockItems(getOwn(subBlocks, paramId)?.value) ?? []
     if (found.length > 0) setOwn(items, paramId, found)
   }
   return { block: built, branchIds, items, needsLayout }

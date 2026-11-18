@@ -25,7 +25,6 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
-import { inputFormatItems, renamedInputFields, untypedInputFields } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import { isJson } from '../lock'
@@ -47,6 +46,7 @@ import {
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { isLiteralSecret, literalSecretFinding } from '../secrets'
+import { structuredCodec } from '../structured'
 import { checkStorableText } from './characters'
 import {
   type BlockDecl,
@@ -435,7 +435,7 @@ function reportLiteralSecret(
 
 /** The site for one field: variables-input fields read bare `vars.k` as the variable itself. */
 function fieldSite(site: ValueSite, sub: CatalogSubBlock | undefined): ValueSite {
-  return sub?.structured === 'variables' ? { ...site, varNodes: true } : site
+  return structuredCodec(sub)?.varNodes ? { ...site, varNodes: true } : site
 }
 
 /** Rows from branch entries: `else: true` is the empty else. */
@@ -755,26 +755,9 @@ function compileField(
 
   let value = compiled.value
   const checked = compiled.form === 'literal'
-  if (target.structured === 'inputFormat' && compiled.form === 'literal') {
-    for (const renamed of renamedInputFields(value)) {
-      unsupported(
-        ctx,
-        property.value,
-        `The ${renamed.key} field also writes name ${JSON.stringify(renamed.name)}; the key names the field.`,
-        `Rename the key, or remove name from ${renamed.key}.`,
-        decl.key
-      )
-    }
-    for (const key of untypedInputFields(value)) {
-      unsupported(
-        ctx,
-        property.value,
-        `The ${key} field names no type.`,
-        `Write ${key}: 'string', or ${key}: { type: 'number', value: 5 }.`,
-        decl.key
-      )
-    }
-    value = inputFormatItems(value)
+  const codec = structuredCodec(target)
+  if (codec && checked) {
+    value = codec.compileLiteral(value, { ctx, node: property.value, blockKey: decl.key })
   }
   setOwn(params, target.id, { kind: 'value', value })
   state.written.push({ property, param: field.name, target: target.id, checked, value })
