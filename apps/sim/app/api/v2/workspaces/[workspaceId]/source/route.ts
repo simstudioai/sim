@@ -4,7 +4,10 @@ import {
   v2GetWorkspaceSourceContract,
 } from '@/lib/api/contracts/v2/workspace-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2WorkspaceSourceErrorPolicy } from '@/lib/workspace-source/api/route-policies'
+import {
+  v2WorkspaceSourceErrorPolicy,
+  workspaceApplyRateCost,
+} from '@/lib/workspace-source/api/route-policies'
 import { applyWorkspaceSource } from '@/lib/workspace-source/application/apply-workspace-source'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
@@ -37,7 +40,7 @@ export const GET = defineV2JsonRoute({
  * POST /api/v2/workspaces/[workspaceId]/source — applies a workspace source directory. Any error
  * in the plan writes nothing (400, 409 stale, 423 locked, 413 over a limit); a dry run answers
  * 200 with its findings. A write that fails mid-apply answers 200 with `failed` and what was
- * written before it. Draws on the source-write budget.
+ * written before it. Draws on the source-write budget, one unit for each workflow it evaluates.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkspaceSourceContract,
@@ -57,6 +60,7 @@ export const POST = defineV2JsonRoute({
     ...(body.provenance ? { provenance: body.provenance } : {}),
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),
+  rateLimitCost: (input) => workspaceApplyRateCost(input.files),
   useCase: applyWorkspaceSource,
   present: (result) => ({ data: result }),
 })
