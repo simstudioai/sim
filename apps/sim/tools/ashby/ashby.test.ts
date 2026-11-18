@@ -6,6 +6,7 @@ import { changeApplicationStageTool } from '@/tools/ashby/change_application_sta
 import { deleteApplicationTool } from '@/tools/ashby/delete_application'
 import { getApplicationTool } from '@/tools/ashby/get_application'
 import { getCandidateTool } from '@/tools/ashby/get_candidate'
+import { getJobTool } from '@/tools/ashby/get_job'
 import { getJobPostingTool } from '@/tools/ashby/get_job_posting'
 import { listApplicationsTool } from '@/tools/ashby/list_applications'
 import { listCandidatesTool } from '@/tools/ashby/list_candidates'
@@ -261,6 +262,18 @@ describe('ashby request bodies', () => {
     })
     expect(body.includeUnpublishedJobPostings).toBe(true)
     expect(body).not.toHaveProperty('includeUnpublishedJobPostingsIds')
+  })
+
+  it('get_job sends the job.info spelling of the unpublished posting IDs flag', () => {
+    // job.info rejects unknown keys (additionalProperties: false), so the
+    // singular `includeUnpublishedJobPostingIds` never reached Ashby as intended.
+    const body = requestBody(getJobTool, {
+      apiKey: 'k',
+      jobId: ' j ',
+      includeUnpublishedJobPostingIds: true,
+    })
+    expect(body).toMatchObject({ id: 'j', includeUnpublishedJobPostingsIds: true })
+    expect(body).not.toHaveProperty('includeUnpublishedJobPostingIds')
   })
 
   it('change_application_source sends sourceId when one is provided', () => {

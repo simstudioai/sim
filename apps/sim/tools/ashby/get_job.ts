@@ -39,7 +39,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       id: params.jobId.trim(),
       expand: ['openings', 'location', 'compensation'],
       ...(params.includeUnpublishedJobPostingIds !== undefined
-        ? { includeUnpublishedJobPostingIds: params.includeUnpublishedJobPostingIds }
+        ? { includeUnpublishedJobPostingsIds: params.includeUnpublishedJobPostingIds }
         : {}),
     }),
   },
