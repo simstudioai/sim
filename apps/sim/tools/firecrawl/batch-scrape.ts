@@ -192,6 +192,13 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
       }
 
       const jobId = result.output.jobId
+      if (!jobId) {
+        return {
+          ...result,
+          success: false,
+          error: 'Firecrawl did not return a batch scrape job ID to poll',
+        }
+      }
       const signal = context?.signal
       const invalidURLs = result.output.invalidURLs ?? []
       logger.info(`Firecrawl batch scrape job ${jobId} created, polling for completion...`)
@@ -202,7 +209,7 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
         try {
           signal?.throwIfAborted()
           const statusResponse = await outboundFetch(
-            `https://api.firecrawl.dev/v2/batch/scrape/${jobId}`,
+            `https://api.firecrawl.dev/v2/batch/scrape/${encodeURIComponent(jobId)}`,
             {
               method: 'GET',
               headers: {

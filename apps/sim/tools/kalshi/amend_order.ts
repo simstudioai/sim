@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import {
   buildKalshiAmendOrderBody,
+  KALSHI_ORDER_SUBACCOUNT_PARAM,
   type KalshiLegacyOrderParams,
   kalshiAmendNeedsCurrentOrder,
   kalshiAmendParamsFromOrder,
@@ -9,6 +10,7 @@ import {
   kalshiLegacyOrder,
   kalshiOrderPath,
   kalshiOrderReadPath,
+  kalshiOrderWriteUrl,
   kalshiWrittenOrder,
 } from '@/tools/kalshi/orders'
 import type { KalshiAuthParams } from '@/tools/kalshi/types'
@@ -27,6 +29,16 @@ function amendRequestPath(
   return kalshiAmendNeedsCurrentOrder(params)
     ? kalshiOrderReadPath(params.orderId)
     : kalshiOrderPath(params.orderId, 'amend')
+}
+
+/** The read takes no subaccount (GetOrder has no such param); the amend does. */
+function amendRequestUrl(
+  params: KalshiAuthParams & KalshiLegacyOrderParams & { orderId: string }
+): string {
+  const path = amendRequestPath(params)
+  return kalshiAmendNeedsCurrentOrder(params)
+    ? buildKalshiUrl(path)
+    : kalshiOrderWriteUrl(path, params.subaccount)
 }
 
 function amendRequestMethod(params: KalshiLegacyOrderParams): 'GET' | 'POST' {
@@ -83,6 +95,7 @@ export interface KalshiAmendOrderParams extends KalshiAuthParams {
   noPrice?: string // Updated no price in cents (1-99)
   yesPriceDollars?: string // Updated yes price in dollars
   noPriceDollars?: string // Updated no price in dollars
+  subaccount?: string // Subaccount the order belongs to
 }
 
 export interface KalshiAmendOrderResponse {
@@ -180,10 +193,11 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
       visibility: 'user-or-llm',
       description: 'Updated no price in dollars (e.g., "0.56")',
     },
+    subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
   },
 
   request: {
-    url: (params) => buildKalshiUrl(amendRequestPath(params)),
+    url: (params) => amendRequestUrl(params),
     method: (params) => amendRequestMethod(params),
     headers: (params) =>
       buildKalshiAuthHeaders(
@@ -249,6 +263,7 @@ export interface KalshiAmendOrderV2Params extends KalshiAuthParams {
   yesPriceDollars?: string // Updated yes price in dollars
   noPriceDollars?: string // Updated no price in dollars
   countFp?: string // Count in fixed-point for fractional contracts
+  subaccount?: string // Subaccount the order belongs to
 }
 
 interface KalshiAmendOrderV2Order {
@@ -430,10 +445,11 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Count in fixed-point for fractional contracts',
     },
+    subaccount: KALSHI_ORDER_SUBACCOUNT_PARAM,
   },
 
   request: {
-    url: (params) => buildKalshiUrl(amendRequestPath(params)),
+    url: (params) => amendRequestUrl(params),
     method: (params) => amendRequestMethod(params),
     headers: (params) =>
       buildKalshiAuthHeaders(

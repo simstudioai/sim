@@ -792,6 +792,7 @@ Cancel an existing order on Kalshi
 | --------- | ---- | -------- | ----------- |
 | `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
 | `ticker` | string | No | Market ticker of the order \(e.g., "KXBTC-24DEC31"\), so the cancel reaches the order's exchange shard. Leave empty to look it up from the order first |
+| `subaccount` | string | No | Subaccount the order belongs to \(0 for primary, 1-63 for numbered subaccounts\). Leave empty for the primary account |
 
 #### Output
 
@@ -858,6 +859,7 @@ Modify the price or quantity of an existing order on Kalshi
 | `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
 | `noPriceDollars` | string | No | Updated no price in dollars \(e.g., "0.56"\) |
 | `countFp` | string | No | Count in fixed-point for fractional contracts |
+| `subaccount` | string | No | Subaccount the order belongs to \(0 for primary, 1-63 for numbered subaccounts\). Leave empty for the primary account |
 
 #### Output
 
