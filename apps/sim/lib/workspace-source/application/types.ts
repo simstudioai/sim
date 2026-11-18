@@ -28,6 +28,17 @@ export interface SourceContext {
   admitted: Map<string, Promise<unknown>>
   /** What every workflow this request evaluates loads the same (its catalog gate, env names). */
   shared: SourceRequestShare
+  /**
+   * Workspace-wide listings this request already started, reused by every kind and check that
+   * needs one; spread copies of the context share it.
+   */
+  listings: SourceListings
+}
+
+/** Listings one request makes once (see `SourceContext.listings`). */
+interface SourceListings {
+  /** The workspace's deployed workflows. */
+  deployedWorkflows?: Promise<ReadonlyArray<{ id: string; name: string }>>
 }
 
 export interface PlanContext extends SourceContext {

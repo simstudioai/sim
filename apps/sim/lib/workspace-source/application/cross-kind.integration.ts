@@ -59,6 +59,7 @@ import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
+import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import {
@@ -845,6 +846,82 @@ export default workflow('Answer', {}, () => {
         applyWorkspaceSource.execute({
           principal: owner,
           input: { workspaceId, files: read.files, base: read.base, kinds: ['skill'] },
+        })
+      )
+      expect(writes(again)).toEqual([])
+      expect(findings(again.diagnostics, 'error')).toEqual([])
+    }
+  )
+
+  check(
+    'a get leaves out the workflows past the directory workflow budget, and the rest applies back unchanged',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const limit = WORKSPACE_SOURCE_LIMITS.maxDirectoryWorkflowBytes
+      const prompt = 'x'.repeat(Math.ceil(limit / 9))
+      const created = await apply(
+        workspaceId,
+        {
+          files: {
+            'workflows/big/workflow.ts': `// @sim-sdk 1
+import { agent, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Big', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const answer = agent('Answer', {
+    model: 'claude-sonnet-4-6',
+    messages: [{ role: 'system', content: '${prompt}' }],
+  })
+
+  start.to(answer)
+})
+`,
+          },
+          blobs: {},
+        },
+        { kinds: ['workflow'] }
+      )
+      expect(created.failed).toBeUndefined()
+      const bigId = created.base.resources['workflow:big']?.id
+      if (!bigId) throw new Error('The workflow was not created')
+      for (let copy = 1; copy < 10; copy++) {
+        await withPermissionGroupScope(() =>
+          duplicateWorkflow.execute({
+            principal: owner,
+            input: { sourceWorkflowId: bigId, name: `Big ${copy}` },
+          })
+        )
+      }
+
+      const read = await withPermissionGroupScope(() =>
+        readWorkspaceSource.execute({
+          principal: owner,
+          input: { workspaceId, kinds: ['workflow'] },
+        })
+      )
+
+      const printed = Object.entries(read.files).filter(([path]) => path.startsWith('workflows/'))
+      const bytes = printed.reduce((total, [, text]) => total + Buffer.byteLength(text), 0)
+      expect(bytes).toBeLessThanOrEqual(limit)
+      expect(read.skipped.length).toBeGreaterThan(0)
+      for (const skipped of read.skipped) {
+        expect(skipped).toMatchObject({
+          kind: 'workflow',
+          reason: expect.stringContaining('workflow limit'),
+        })
+      }
+      const readKeys = Object.keys(read.base.resources)
+      expect(readKeys.length + read.skipped.length).toBe(10)
+
+      const again = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: Object.fromEntries(printed.filter(([path]) => path.includes('/.sim/'))),
+            base: read.base,
+            kinds: ['workflow'],
+          },
         })
       )
       expect(writes(again)).toEqual([])

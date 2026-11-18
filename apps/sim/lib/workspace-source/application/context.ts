@@ -1,7 +1,7 @@
 /**
  * The per-request context every kind reads and writes through: who acts, in which workspace, and
  * the state one request shares across kinds (its hashing budget, the admissions it already
- * checked).
+ * checked, the listings it already made).
  */
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { newHashBudget } from '@/lib/workspace-source/application/hash-budget'
@@ -10,7 +10,7 @@ import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/applica
 
 /**
  * A get's or an apply's context, with a fresh hashing budget, no admissions checked yet and
- * nothing loaded to share.
+ * nothing loaded or listed to share.
  */
 export function sourceContext(
   principal: Principal,
@@ -23,6 +23,7 @@ export function sourceContext(
     hashBudget: newHashBudget(),
     admitted: new Map(),
     shared: {},
+    listings: {},
   }
 }
 

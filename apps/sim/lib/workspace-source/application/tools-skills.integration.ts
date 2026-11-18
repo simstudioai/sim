@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { customTools, skill, user } from '@sim/db/schema'
+import { customTools, skill, user, workflowBlocks } from '@sim/db/schema'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -10,7 +10,7 @@ import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -369,7 +369,59 @@ describe('workspace source: custom tools and skills', () => {
   })
 
   check(
-    'refuses deleting a tool without --allow-delete, warning with the workflows that use it',
+    'refuses a delete whose users the in-use scan cannot confirm in time, and keeps the resource',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const created = await apply(
+        workspaceId,
+        { ...TOOLS, 'workflows/support/workflow.ts': SUPPORT },
+        { kinds: ['custom-tool', 'workflow'] }
+      )
+      expect(created.failed).toBeUndefined()
+      const before = await snapshot(workspaceId)
+      // Another transaction holds the blocks table, so the scan waits out its statement timeout.
+      let release = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let markLocked = () => {}
+      const locked = new Promise<void>((resolve) => {
+        markLocked = resolve
+      })
+      const holder = db.transaction(async (tx) => {
+        await tx.execute(sql`LOCK TABLE ${workflowBlocks} IN ACCESS EXCLUSIVE MODE`)
+        markLocked()
+        await released
+      })
+      const failsafe = setTimeout(release, 10_000)
+      await locked
+
+      const refused = await refusal(
+        apply(
+          workspaceId,
+          {},
+          { kinds: ['custom-tool'], base: created.base, allowDelete: true }
+        ).finally(() => {
+          clearTimeout(failsafe)
+          release()
+        })
+      )
+      await holder
+
+      expect(refused.diagnostics.filter((finding) => finding.severity === 'error')).toMatchObject([
+        {
+          code: 'E_APPLY_REFUSED',
+          kind: 'custom-tool',
+          key: 'lookup',
+          message: expect.stringContaining('Could not confirm in time'),
+        },
+      ])
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'refuses deleting a tool without --allow-delete without scanning for its users, which the allowed delete names',
     async () => {
       const workspaceId = await newWorkspace()
       const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'workflow']
@@ -386,9 +438,12 @@ describe('workspace source: custom tools and skills', () => {
       )
 
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
+      // Nothing is deleted, so the workspace's workflows are not scanned for its users; the
+      // refusal says how to see them.
+      expect(codes(refused.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
       expect(
-        refused.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')?.message
-      ).toContain('"Support"')
+        refused.diagnostics.find((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED')?.hint
+      ).toContain('--allow-delete --dry-run')
       expect(await snapshot(workspaceId)).toEqual(before)
 
       const dryRun = await apply(
@@ -404,6 +459,9 @@ describe('workspace source: custom tools and skills', () => {
       expect(dryRun.plan).toMatchObject([
         { action: 'delete', key: 'lookup', destructive: { counts: { workflows: 1 } } },
       ])
+      expect(
+        dryRun.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')?.message
+      ).toContain('"Support"')
 
       const deleted = await apply(
         workspaceId,

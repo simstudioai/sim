@@ -558,8 +558,17 @@ function describeStops(counts: Record<string, number>): string {
 
 type CursorKeys = Awaited<ReturnType<typeof listWorkflows.execute>>['nextCursorKeys']
 
-/** The workspace's deployed workflows. */
+/**
+ * The workspace's deployed workflows, listed once per request: the kind's load and the plan's
+ * check of edited deployed workflows both read it. It is the list as the plan saw it, so nothing
+ * that runs after a write may read it.
+ */
 function listDeployedWorkflows(ctx: SourceContext) {
+  ctx.listings.deployedWorkflows ??= listAllDeployedWorkflows(ctx)
+  return ctx.listings.deployedWorkflows
+}
+
+function listAllDeployedWorkflows(ctx: SourceContext) {
   return listUpTo(async (cursorKeys: CursorKeys | undefined) => {
     const page = await listWorkflows.execute({
       principal: ctx.principal,

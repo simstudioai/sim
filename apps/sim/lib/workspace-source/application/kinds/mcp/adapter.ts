@@ -44,7 +44,7 @@ import {
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
-import { workflowsUsing } from '@/lib/workspace-source/application/in-use'
+import { inUseUncheckedFinding, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
   declOf,
@@ -196,7 +196,9 @@ async function planReplace(
   record: StoredServer,
   ctx: PlanContext
 ): Promise<McpChange> {
-  const users = (await workflowsUsing(ctx.workspace.workspaceId, [record.id])).get(record.id) ?? []
+  // `null` when the scan ran out of time: the replace deletes the old server, so it is refused.
+  const using = await workflowsUsing(ctx.workspace.workspaceId, [record.id])
+  const users = using?.get(record.id) ?? []
   const replaced: McpChange = {
     ...change,
     fields: ['url (replaces the server)', ...(change.fields ?? []).filter((f) => f !== 'url')],
@@ -214,7 +216,9 @@ async function planReplace(
       { file, hint: 'Its id derives from its URL; the key moves to the new server.' }
     )
   )
-  if (users.length > 0 && !ctx.allowDelete) {
+  if (using === null) {
+    replaced.diagnostics.push(inUseUncheckedFinding(change))
+  } else if (users.length > 0 && !ctx.allowDelete) {
     replaced.diagnostics.push(
       kindFinding(
         'mcp-server',

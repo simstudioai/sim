@@ -4,6 +4,7 @@
  * replace is a new document), so a document id the base records at the same upload time still
  * holds the bytes the base hashed; any other document's hash is unknown until it is downloaded.
  */
+import { chunkArray } from '@sim/utils/helpers'
 import { compareStrings } from '@sim/utils/string'
 import { stableStringify } from '@sim/workflow-code'
 import { type BaseResource, fingerprintOf, type ResourceFingerprint } from '@sim/workspace-code'
@@ -18,7 +19,10 @@ import {
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
+import {
+  listKnowledgeDocumentsAfter,
+  MAX_DOCUMENTS_PAGE_AFTER,
+} from '@/lib/knowledge/application/documents'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -52,8 +56,6 @@ export function docRevision(doc: StoredDoc): number {
   return doc.uploadedAt.getTime()
 }
 
-const DOC_PAGE = 100
-
 /** A tag value as the document update parses it back: a date as `YYYY-MM-DD` in local time. */
 function tagText(value: string | number | boolean | Date): string {
   if (!(value instanceof Date)) return String(value)
@@ -74,25 +76,44 @@ function tagValues(
 }
 
 /**
- * Every document of a knowledge base the caller can read, through the document list use case,
- * walking every page while the list has more. Refuses one holding more documents than a directory lists (`maxBlobs`), on the page that passes
- * it, the last page included.
+ * Every document of a knowledge base the caller can read, through the keyset document list use
+ * case, a page of {@link MAX_DOCUMENTS_PAGE_AFTER} at a time in id order, so a document changed,
+ * added or deleted while the list is walked never makes another one skipped or listed twice.
+ * Refuses one holding more documents than a directory lists (`maxBlobs`), on the page that passes
+ * it, the last page included. With `documentIds`, lists only those (the ones still live).
  */
-export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Promise<StoredDoc[]> {
-  const docs = new Map<string, StoredDoc>()
-  for (let offset = 0; ; offset += DOC_PAGE) {
-    const page = await listKnowledgeDocuments.execute({
+export async function loadDocs(
+  ctx: SourceContext,
+  knowledgeBaseId: string,
+  documentIds?: readonly string[]
+): Promise<StoredDoc[]> {
+  if (documentIds === undefined) return walkDocs(ctx, knowledgeBaseId)
+  const docs: StoredDoc[] = []
+  for (const ids of chunkArray([...documentIds], MAX_DOCUMENTS_PAGE_AFTER)) {
+    docs.push(...(await walkDocs(ctx, knowledgeBaseId, ids)))
+  }
+  return docs
+}
+
+async function walkDocs(
+  ctx: SourceContext,
+  knowledgeBaseId: string,
+  documentIds?: string[]
+): Promise<StoredDoc[]> {
+  const docs: StoredDoc[] = []
+  for (let after: string | null = null; ; ) {
+    const page = await listKnowledgeDocumentsAfter.execute({
       principal: ctx.principal,
       input: {
         knowledgeBaseId,
         assertedWorkspaceId: ctx.workspace.workspaceId,
-        enabledFilter: 'all',
-        limit: DOC_PAGE,
-        offset,
+        after,
+        limit: MAX_DOCUMENTS_PAGE_AFTER,
+        ...(documentIds ? { documentIds } : {}),
       },
     })
     for (const doc of page.documents) {
-      docs.set(doc.id, {
+      docs.push({
         id: doc.id,
         filename: doc.filename,
         fileSize: doc.fileSize,
@@ -103,17 +124,18 @@ export async function loadDocs(ctx: SourceContext, knowledgeBaseId: string): Pro
         processingStatus: getDocumentIndexingStatus(doc),
       })
     }
-    if (docs.size > WORKSPACE_SOURCE_LIMITS.maxBlobs) {
+    if (docs.length > WORKSPACE_SOURCE_LIMITS.maxBlobs) {
       throw new OrchestrationError(
         'payload_too_large',
         `This knowledge base holds more than ${WORKSPACE_SOURCE_LIMITS.maxBlobs} documents, more than one directory lists.`
       )
     }
-    // A page can come back empty while later ones hold readable documents: the list admits each
-    // document after it pages, so only `hasMore` ends the walk.
-    if (!page.pagination.hasMore) break
+    // A page can come back short, even empty, while later ones hold readable documents: the
+    // list admits each document after it pages, so only `next` ends the walk.
+    if (page.next === null) break
+    after = page.next
   }
-  return [...docs.values()]
+  return docs
 }
 
 /**
