@@ -12,13 +12,13 @@ const ALLOWED_ALIASES = new Map([
 
 /**
  * Ketch stores `allowed` as the string `"true"` or `"false"` and records any other value
- * (including `"granted"`) as denied, so booleans and granted/denied are converted first and
- * anything else is rejected rather than silently saved as denied.
+ * (including `"granted"`) as denied, so booleans and granted/denied are converted first.
+ * Any other value is sent unchanged, as before.
  */
 function normalizePurposes(purposes: KetchSetConsentParams['purposes']): Record<string, unknown> {
   const normalized: Record<string, unknown> = {}
   for (const [code, setting] of Object.entries(purposes ?? {})) {
-    if (!setting || typeof setting !== 'object' || setting.allowed === undefined) {
+    if (!setting || typeof setting !== 'object') {
       normalized[code] = setting
       continue
     }
@@ -29,12 +29,7 @@ function normalizePurposes(purposes: KetchSetConsentParams['purposes']): Record<
         : typeof allowed === 'string'
           ? ALLOWED_ALIASES.get(allowed.trim().toLowerCase())
           : undefined
-    if (!alias) {
-      throw new Error(
-        `Purpose "${code}" has an invalid "allowed" value: use "true" or "false" ("granted"/"denied" are also accepted)`
-      )
-    }
-    normalized[code] = { ...setting, allowed: alias }
+    normalized[code] = alias ? { ...setting, allowed: alias } : setting
   }
   return normalized
 }

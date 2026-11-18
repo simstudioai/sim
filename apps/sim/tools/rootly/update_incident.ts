@@ -1,4 +1,5 @@
 import type { RootlyUpdateIncidentParams, RootlyUpdateIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -175,10 +176,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       return {
         success: false,
         output: { incident: {} as RootlyUpdateIncidentResponse['output']['incident'] },
-        error:
-          errorData.errors?.[0]?.detail ||
-          errorData.errors?.[0]?.title ||
-          `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

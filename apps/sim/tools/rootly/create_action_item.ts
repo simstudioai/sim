@@ -2,6 +2,7 @@ import type {
   RootlyCreateActionItemParams,
   RootlyCreateActionItemResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -104,10 +105,7 @@ export const rootlyCreateActionItemTool: ToolConfig<
       return {
         success: false,
         output: { actionItem: {} as RootlyCreateActionItemResponse['output']['actionItem'] },
-        error:
-          errorData.errors?.[0]?.detail ||
-          errorData.errors?.[0]?.title ||
-          `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

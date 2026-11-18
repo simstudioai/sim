@@ -86,7 +86,7 @@ export async function executeOnePasswordListVaults(
   const credentials = resolveCredentials(input)
   if (credentials.mode === 'service_account') {
     const client = await createOnePasswordClient(credentials.serviceAccountToken, context.signal)
-    const vaults = await runSdk(context.signal, () => client.vaults.list())
+    const vaults = await runSdk(context.signal, () => client.vaults.list({ decryptDetails: true }))
     const normalized = vaults.map(normalizeSdkVault)
     const filter = input.filter
     if (!filter) return normalized
@@ -118,7 +118,7 @@ export async function executeOnePasswordGetVault(
   const credentials = resolveCredentials(input)
   if (credentials.mode === 'service_account') {
     const client = await createOnePasswordClient(credentials.serviceAccountToken, context.signal)
-    const vaults = await runSdk(context.signal, () => client.vaults.list())
+    const vaults = await runSdk(context.signal, () => client.vaults.list({ decryptDetails: true }))
     const vault = vaults.find((candidate) => candidate.id === input.vaultId)
     if (!vault) {
       throw new OnePasswordOperationError(404, { error: 'Vault not found' })

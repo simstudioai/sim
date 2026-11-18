@@ -1,4 +1,5 @@
 import type { RootlyDeleteIncidentParams, RootlyDeleteIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -45,15 +46,9 @@ export const rootlyDeleteIncidentTool: ToolConfig<
         success: false,
         output: {
           success: false,
-          message:
-            errorData.errors?.[0]?.detail ||
-            errorData.errors?.[0]?.title ||
-            `HTTP ${response.status}: ${response.statusText}`,
+          message: rootlyErrorMessage(errorData, response),
         },
-        error:
-          errorData.errors?.[0]?.detail ||
-          errorData.errors?.[0]?.title ||
-          `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

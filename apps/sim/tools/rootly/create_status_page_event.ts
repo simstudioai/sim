@@ -2,6 +2,7 @@ import type {
   RootlyCreateStatusPageEventParams,
   RootlyCreateStatusPageEventResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -91,10 +92,7 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
         output: {
           statusPageEvent: {} as RootlyCreateStatusPageEventResponse['output']['statusPageEvent'],
         },
-        error:
-          errorData.errors?.[0]?.detail ||
-          errorData.errors?.[0]?.title ||
-          `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

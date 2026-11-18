@@ -53,19 +53,22 @@ describe('KetchBlock', () => {
     })
   })
 
-  it('rejects an allowed value Ketch would silently record as denied', () => {
+  it('sends an unrecognized allowed value unchanged', () => {
     const buildBody = setConsentTool.request.body
     if (!buildBody) throw new Error('set consent has no body builder')
 
-    expect(() =>
-      buildBody({
-        organizationCode: 'org',
-        propertyCode: 'web',
-        environmentCode: 'production',
-        identities: { email: 'a@example.com' },
-        purposes: { analytics: { allowed: 'yes' } },
-      })
-    ).toThrow('invalid "allowed" value')
+    const body = buildBody({
+      organizationCode: 'org',
+      propertyCode: 'web',
+      environmentCode: 'production',
+      identities: { email: 'a@example.com' },
+      purposes: { analytics: { allowed: 'yes' }, marketing: { allowed: '' } },
+    })
+    if (!body || typeof body === 'string' || body instanceof FormData) {
+      throw new Error('Expected a JSON body')
+    }
+
+    expect(body.purposes).toEqual({ analytics: { allowed: 'yes' }, marketing: { allowed: '' } })
   })
 
   it('surfaces the message of a Ketch error envelope', async () => {

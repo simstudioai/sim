@@ -1,4 +1,5 @@
 import type { RootlyAlertActionResponse, RootlyEscalateAlertParams } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -65,10 +66,7 @@ export const rootlyEscalateAlertTool: ToolConfig<
       return {
         success: false,
         output: { alert: {} as RootlyAlertActionResponse['output']['alert'] },
-        error:
-          errorData.errors?.[0]?.detail ||
-          errorData.errors?.[0]?.title ||
-          `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

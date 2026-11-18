@@ -1,4 +1,5 @@
 import type { RootlyRunWorkflowParams, RootlyRunWorkflowResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
 import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -76,10 +77,7 @@ export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRu
         return {
           success: false,
           output: { workflowRun: {} as RootlyRunWorkflowResponse['output']['workflowRun'] },
-          error:
-            errorData.errors?.[0]?.detail ||
-            errorData.errors?.[0]?.title ||
-            `HTTP ${response.status}: ${response.statusText}`,
+          error: rootlyErrorMessage(errorData, response),
         }
       }
 
