@@ -14,6 +14,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./diagnostics/codes": {
+      "types": "./src/diagnostics/codes.ts",
+      "default": "./src/diagnostics/codes.ts"
+    },
     "./code-files/references": {
       "types": "./src/code-files/references.ts",
       "default": "./src/code-files/references.ts"

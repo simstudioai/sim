@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   APPLY_ORDER,
+  type FlatDiagnostic,
   resourceAddress,
   type WorkspaceBaseV1,
   type WorkspaceKind,
@@ -62,7 +63,7 @@ export interface ApplyWorkspaceSourceResult {
   /** The changes written, in the order they were written. */
   applied: WorkspaceSourceChange[]
   /** The change that failed mid-apply; everything after it was not attempted. */
-  failed?: { kind: WorkspaceKind; key: string; code: string; message: string }
+  failed?: { kind: WorkspaceKind; key: string; code: FlatDiagnostic['code']; message: string }
   /** Blob paths whose content the next round must carry. */
   needBlobs: string[]
   /** Blob writes this round skipped for missing content; the next round continues with them. */

@@ -4,6 +4,7 @@ import type {
   WorkflowLockBlock,
   WorkflowLockV1,
 } from '@sim/workflow-code'
+import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -136,7 +137,7 @@ export const sourceBaseSchema = withExtensions({
 
 export const sourceReadDiagnosticSchema = z
   .object({
-    code: z.string().describe('Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`.'),
+    code: z.enum(DIAGNOSTIC_CODES).describe('Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`.'),
     severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
     message: z.string().describe('What was found.'),
     hint: z.string().optional().describe('How to address it.'),

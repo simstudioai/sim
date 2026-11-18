@@ -24,6 +24,7 @@ import {
 } from '@/lib/core/application'
 import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { isColumnType } from '@/lib/table/column-types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { loadEnvNames, loadVisibleCredentials } from '@/lib/workflows/code/resources'
@@ -56,7 +57,7 @@ function columnsOf(schema: unknown): ManifestColumn[] {
   if (!isRecordLike(schema) || !Array.isArray(schema.columns)) return []
   return schema.columns.flatMap((column): ManifestColumn[] => {
     if (!isRecordLike(column) || typeof column.name !== 'string') return []
-    const type = typeof column.type === 'string' ? column.type : 'string'
+    const type = isColumnType(column.type) ? column.type : 'string'
     const options = Array.isArray(column.options)
       ? column.options.flatMap((option) =>
           isRecordLike(option) && typeof option.id === 'string' ? [option.id] : []

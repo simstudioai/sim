@@ -1,3 +1,4 @@
+import { DIAGNOSTIC_CODES } from '@sim/workflow-code/diagnostics/codes'
 import { SOURCE_ENTRY_FILE, SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
@@ -96,7 +97,9 @@ const applyWorkflowSourceBodySchema = z
 
 const sourceDiagnosticSchema = sourceReadDiagnosticSchema
   .extend({
-    code: z.string().describe('Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`.'),
+    code: z
+      .enum(DIAGNOSTIC_CODES)
+      .describe('Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`.'),
     file: z.string().optional().describe('Submitted file the finding is in.'),
     line: z.number().int().optional().describe('1-based line in `file`.'),
     column: z.number().int().optional().describe('1-based column in `file`.'),
