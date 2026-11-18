@@ -1366,7 +1366,10 @@ describe('sse-handlers tool lifecycle', () => {
 
   describe('workflow tool pickup grace', () => {
     /** Dispatches a workflow call whose browser wait only ends when the server takes it over. */
-    async function dispatchUnpickedWorkflowCall(toolCallId: string, hasClientViewer: boolean) {
+    async function dispatchUnpickedWorkflowCall(
+      toolCallId: string,
+      hasClientViewer: () => Promise<boolean>
+    ) {
       waitForWorkflowToolCompletion.mockImplementationOnce((params: unknown) => {
         const abortSignal = toRecord(params).abortSignal
         return new Promise((resolve) => {
@@ -1391,14 +1394,14 @@ describe('sse-handlers tool lifecycle', () => {
         } satisfies StreamEvent,
         context,
         execContext,
-        { interactive: true, hasClientViewer: async () => hasClientViewer }
+        { interactive: true, hasClientViewer }
       )
     }
 
     it('runs a call no chat view is reading on the server after the short grace', async () => {
       vi.useFakeTimers()
       try {
-        await dispatchUnpickedWorkflowCall('tool-no-viewer', false)
+        await dispatchUnpickedWorkflowCall('tool-no-viewer', async () => false)
         await vi.advanceTimersByTimeAsync(5_000)
         expect(claimWorkflowToolExecution).toHaveBeenCalledWith(
           'tool-no-viewer',
@@ -1413,10 +1416,37 @@ describe('sse-handlers tool lifecycle', () => {
       }
     })
 
+    it('gives a view that re-attached during the short grace the rest of the full grace', async () => {
+      vi.useFakeTimers()
+      try {
+        let attached = false
+        await dispatchUnpickedWorkflowCall('tool-reattached', async () => attached)
+        // A reload: the send's response dropped, and the view re-attaches two seconds later.
+        await vi.advanceTimersByTimeAsync(2_000)
+        attached = true
+        await vi.advanceTimersByTimeAsync(27_000)
+        expect(claimWorkflowToolExecution).not.toHaveBeenCalledWith(
+          'tool-reattached',
+          expect.any(String),
+          'sim'
+        )
+
+        await vi.advanceTimersByTimeAsync(1_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+        expect(claimWorkflowToolExecution).toHaveBeenCalledWith(
+          'tool-reattached',
+          expect.any(String),
+          'sim'
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('keeps waiting the full grace for a call a chat view is reading', async () => {
       vi.useFakeTimers()
       try {
-        await dispatchUnpickedWorkflowCall('tool-viewer', true)
+        await dispatchUnpickedWorkflowCall('tool-viewer', async () => true)
         await vi.advanceTimersByTimeAsync(29_000)
         expect(claimWorkflowToolExecution).not.toHaveBeenCalledWith(
           'tool-viewer',

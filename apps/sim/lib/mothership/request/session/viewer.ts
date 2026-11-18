@@ -27,9 +27,12 @@ async function markStreamViewer(streamId: string, attachmentId: string): Promise
   const redis = getRedisClient()
   if (!redis) return
   const key = getViewersKey(streamId)
+  const now = Date.now()
+  // Drops readers that died without leaving, which a live reader's refresh keeps the key past.
   await redis
     .multi()
-    .zadd(key, Date.now() + STREAM_VIEWER_TTL_MS, attachmentId)
+    .zremrangebyscore(key, '-inf', now)
+    .zadd(key, now + STREAM_VIEWER_TTL_MS, attachmentId)
     .pexpire(key, STREAM_VIEWER_TTL_MS)
     .exec()
 }
