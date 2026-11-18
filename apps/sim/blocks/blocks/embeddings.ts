@@ -33,6 +33,7 @@ const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   gemini: 'embeddings_gemini',
   cohere: 'embeddings_cohere',
   mistral: 'embeddings_mistral',
+  perplexity: 'embeddings_perplexity',
   ollama: 'embeddings_ollama',
 }
 
@@ -42,6 +43,7 @@ const PROVIDER_LABELS: Record<EmbeddingBlockProvider, string> = {
   gemini: 'Google Gemini',
   cohere: 'Cohere',
   mistral: 'Mistral',
+  perplexity: 'Perplexity',
   ollama: 'Ollama',
 }
 
@@ -164,7 +166,7 @@ export const EmbeddingsBlock: BlockConfig = {
   description: 'Generate embeddings',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.',
+    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, Mistral, and Perplexity embedding models, plus embedding models on a self-hosted Ollama.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
@@ -237,6 +239,7 @@ export const EmbeddingsBlock: BlockConfig = {
       'embeddings_gemini',
       'embeddings_cohere',
       'embeddings_mistral',
+      'embeddings_perplexity',
       'embeddings_ollama',
     ],
     config: {

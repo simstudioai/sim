@@ -117,6 +117,7 @@ export const embeddingsMock = {
     gemini: 'gemini-embedding-001',
     cohere: 'embed-v4.0',
     mistral: 'mistral-embed',
+    perplexity: 'pplx-embed-v1-4b',
   },
   DEFAULT_OPENROUTER_EMBEDDING_MODEL: 'openrouter/openai/text-embedding-3-small',
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE:

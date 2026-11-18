@@ -1576,6 +1576,7 @@ import {
   embeddingsOllamaTool,
   embeddingsOpenAITool,
   embeddingsOpenRouterTool,
+  embeddingsPerplexityTool,
 } from '@/tools/embeddings'
 import {
   enrichCheckCreditsTool,
@@ -10100,6 +10101,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   embeddings_gemini: embeddingsGeminiTool,
   embeddings_cohere: embeddingsCohereTool,
   embeddings_mistral: embeddingsMistralTool,
+  embeddings_perplexity: embeddingsPerplexityTool,
   embeddings_openrouter: embeddingsOpenRouterTool,
   embeddings_ollama: embeddingsOllamaTool,
   enrich_check_credits: enrichCheckCreditsTool,

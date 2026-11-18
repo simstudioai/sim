@@ -5,6 +5,7 @@ import {
   createGeminiAdapter,
   createMistralAdapter,
   createOllamaAdapter,
+  createPerplexityAdapter,
 } from '@/lib/embeddings/providers'
 
 const INPUTS = ['alpha', 'beta']
@@ -77,6 +78,44 @@ describe('Mistral adapter', () => {
     expect(request.parse(json)).toEqual([
       [1, 1],
       [9, 9],
+    ])
+    expect(request.parseTokens?.(json)).toBe(4)
+  })
+})
+
+describe('Perplexity adapter', () => {
+  const adapter = createPerplexityAdapter({
+    modelName: 'pplx-embed-v1-4b',
+    apiKey: 'pplx-test',
+    nativeDimensions: 2560,
+  })
+
+  it('requests int8 output and forwards a reduced dimension', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'query', dimensions: 1024 })
+    expect(request.body).toEqual({
+      model: 'pplx-embed-v1-4b',
+      input: INPUTS,
+      encoding_format: 'base64_int8',
+      dimensions: 1024,
+    })
+    expect(request.headers).toMatchObject({
+      'User-Agent': 'Sim/1.0 (+https://sim.ai)',
+      'X-Pplx-Integration': 'sim',
+    })
+  })
+
+  it('decodes signed int8 vectors to unit vectors in input order', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+    const json = {
+      data: [
+        { embedding: Buffer.from(Int8Array.of(0, -4)).toString('base64'), index: 1 },
+        { embedding: Buffer.from(Int8Array.of(3, 4)).toString('base64'), index: 0 },
+      ],
+      usage: { total_tokens: 4 },
+    }
+    expect(request.parse(json)).toEqual([
+      [0.6, 0.8],
+      [0, -1],
     ])
     expect(request.parseTokens?.(json)).toBe(4)
   })

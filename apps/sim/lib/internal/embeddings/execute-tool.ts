@@ -16,6 +16,7 @@ const PROVIDERS_BY_TOOL_ID: Record<string, EmbeddingProvider> = {
   embeddings_gemini: 'gemini',
   embeddings_cohere: 'cohere',
   embeddings_mistral: 'mistral',
+  embeddings_perplexity: 'perplexity',
   embeddings_ollama: 'ollama',
 }
 

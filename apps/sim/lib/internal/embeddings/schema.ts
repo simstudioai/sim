@@ -9,6 +9,7 @@ export const embeddingProviders = [
   'gemini',
   'cohere',
   'mistral',
+  'perplexity',
   'ollama',
 ] as const satisfies readonly EmbeddingToolProvider[]
 
@@ -53,6 +54,7 @@ const catalogProviders = [
   'gemini',
   'cohere',
   'mistral',
+  'perplexity',
 ] as const satisfies readonly EmbeddingCatalogProvider[]
 
 export const embeddingsInputSchema = z.discriminatedUnion('provider', [
