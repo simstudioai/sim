@@ -4,7 +4,11 @@ import { WORKSPACE_DIAGNOSTIC_CODES } from '@sim/workspace-code/diagnostics/code
 import { isWorkspaceSourcePath } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { z } from 'zod'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 import { SOURCE_PATH_MAX_LENGTH } from '@/lib/api/contracts/v2/workflow-source'
@@ -342,6 +346,7 @@ export const v2StageWorkspaceSourceBlobsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workspaces/[workspaceId]/source/blobs',
   params: paramsSchema,
+  query: noInputSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(
@@ -375,6 +380,7 @@ export const v2FindMissingWorkspaceSourceBlobsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workspaces/[workspaceId]/source/blobs/missing',
   params: paramsSchema,
+  query: noInputSchema,
   body: missingBodySchema,
   response: {
     mode: 'json',

@@ -6945,6 +6945,8 @@ export type FindMissingWorkspaceSourceBlobsParams = {
   workspaceId: string
 }
 
+export type FindMissingWorkspaceSourceBlobsQuery = Record<string, unknown>
+
 export type FindMissingWorkspaceSourceBlobsBody = {
   blobs: Array<{
     sha256: string
@@ -16889,6 +16891,8 @@ export type SetSecretResponse = {
 export type StageWorkspaceSourceBlobsParams = {
   workspaceId: string
 }
+
+export type StageWorkspaceSourceBlobsQuery = Record<string, unknown>
 
 export type StageWorkspaceSourceBlobsResponse = {
   data: {

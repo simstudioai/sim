@@ -355,7 +355,9 @@ describe('revalidation by ETag', () => {
     })
     const served: Response[] = []
     vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
-      const response = await handler(new NextRequest(new URL(url, 'http://localhost'), init))
+      const response = await handler(
+        new NextRequest(new Request(new URL(url, 'http://localhost'), init))
+      )
       served.push(response.clone())
       return response
     })

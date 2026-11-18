@@ -164,6 +164,12 @@ export const workspaceSourceOpenApiRoutes = [
         'Find missing workspace source blobs path parameters',
         'Workspace the apply will target.'
       ),
+      query: documentedSchema(
+        v2FindMissingWorkspaceSourceBlobsContract.query,
+        'FindMissingWorkspaceSourceBlobsQuery',
+        'Find missing workspace source blobs query',
+        'No query parameters.'
+      ),
       body: documentedSchema(
         v2FindMissingWorkspaceSourceBlobsContract.body,
         'FindMissingWorkspaceSourceBlobsBody',
@@ -197,6 +203,12 @@ export const workspaceSourceOpenApiRoutes = [
         'StageWorkspaceSourceBlobsParams',
         'Stage workspace source blobs path parameters',
         'Workspace the apply will target.'
+      ),
+      query: documentedSchema(
+        v2StageWorkspaceSourceBlobsContract.query,
+        'StageWorkspaceSourceBlobsQuery',
+        'Stage workspace source blobs query',
+        'No query parameters.'
       ),
       requestBody: {
         schema: documentedSchema(

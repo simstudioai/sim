@@ -20,7 +20,7 @@ import { deleteFiles, downloadFile, uploadFile } from '@/lib/uploads/core/storag
 const logger = createLogger('WorkspaceSourceStaging')
 
 /** How long a staged blob is kept after it was last staged, checked for, or planned with. */
-export const STAGED_BLOB_TTL_MS = 24 * 60 * 60 * 1000
+const STAGED_BLOB_TTL_MS = 24 * 60 * 60 * 1000
 
 /** Rows one sweep pass deletes. */
 const SWEEP_BATCH = 500
