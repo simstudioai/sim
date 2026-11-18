@@ -5,7 +5,7 @@ import {
   scopeCanonicalModesForTool,
 } from '../catalog/canonical-index'
 import { compileWorkflow } from '../compile'
-import { TEST_CATALOG as catalog } from '../compile/test-catalog'
+import { TEST_CATALOG as catalog } from '../compile/catalog.test-helpers'
 import { canonicalEquals } from '../equivalence'
 import type { WorkflowLockV1 } from '../lock'
 import { materialize } from '../materialize'

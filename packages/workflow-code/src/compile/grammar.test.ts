@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { CanonicalBlock, CanonicalWorkflow } from '../model'
+import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
-import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
   "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
@@ -764,6 +764,13 @@ describe('errors, each with its code, location and hint', () => {
       'E_UNSUPPORTED_SYNTAX',
       'raw({',
       'Write a string, number, boolean, null, array or object here.',
+    ],
+    [
+      'an unresolved node of an unknown kind',
+      "const a = api('A', { url: raw({ $sim: 'unresolved', kind: 'spreadsheet', id: 's1' }) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "{ $sim: 'unresolved'",
+      "Use { $sim: 'resource', kind, key }, { $sim: 'unresolved', kind, id }, { $sim: 'var', key }, { $sim: 'csv', items } or { $sim: 'literal', value }.",
     ],
     [
       'a malformed tool in raw([...])',

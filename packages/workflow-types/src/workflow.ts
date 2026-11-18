@@ -808,10 +808,21 @@ export interface Parallel {
   locked?: boolean
 }
 
+/** Every workflow variable type, in the order the editor lists them. */
+export const VARIABLE_TYPES = ['string', 'number', 'boolean', 'object', 'array', 'plain'] as const
+
+/** A workflow variable's type. */
+export type VariableType = (typeof VARIABLE_TYPES)[number]
+
+/** Whether `type` names a workflow variable type. */
+export function isVariableType(type: string): type is VariableType {
+  return (VARIABLE_TYPES as readonly string[]).includes(type)
+}
+
 export interface Variable {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  type: VariableType
   value: unknown
 }
 

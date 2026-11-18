@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { codeFileReferences } from '../code-files/references'
+import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { type CompileLimits, sourceDepthOverflow } from './parse'
-import { MAX_ERRORS, MAX_WARNINGS, Reporter } from './report'
-import { TEST_CATALOG } from './test-catalog'
+import { MAX_ERRORS, MAX_INFOS, MAX_WARNINGS, Reporter } from './report'
 
 /**
  * Hostile sources: compile never executes anything and never throws. Each input must come
@@ -187,6 +187,18 @@ describe('hostile sources produce diagnostics only', () => {
     }
     expect(computed).toBe(MAX_WARNINGS)
     expect(reporter.diagnostics[0]?.hint).toBe('Did you mean y?')
+  })
+
+  it('keeps infos from crowding out a warning', () => {
+    const reporter = new Reporter()
+    reporter.addFile('w.ts', 'x')
+    const at = { file: 'w.ts', start: 0, end: 1 }
+    for (let i = 0; i < MAX_WARNINGS + 50; i++) reporter.report('I_SCHEDULE_UTC', 'x', at)
+    reporter.report('W_LITERAL_SECRET', 'apiKey holds a literal secret', at)
+    const listed = reporter.diagnostics.map((d) => d.code)
+    expect(listed).toContain('W_LITERAL_SECRET')
+    expect(listed).not.toContain('W_TOO_MANY_WARNINGS')
+    expect(listed.filter((code) => code === 'I_SCHEDULE_UTC')).toHaveLength(MAX_INFOS)
   })
 
   it('caps a diagnostic message that quotes a huge name', () => {

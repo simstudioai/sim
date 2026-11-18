@@ -10,10 +10,11 @@ import { literalText } from '../babel'
 import { toolModes } from '../canonicalize/modes'
 import { paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
+import { isJson } from '../lock'
 import {
   type CanonicalTool,
+  isJsonObject,
   isPlainRecord,
-  type Json,
   type ParamMode,
   type ResourceNode,
   type UnresolvedNode,
@@ -285,13 +286,12 @@ function compileToolCall(
         }
         const { ref, snapshot, ...rest } = value
         const snapshotRecord = toRecordOrNull(snapshot)
+        const code = snapshotRecord?.code
+        const schema = snapshotRecord?.schema
         if (
           Object.keys(rest).length > 0 ||
           (ref !== undefined && !isToolRef(ref)) ||
-          (snapshot !== undefined &&
-            (!snapshotRecord ||
-              typeof snapshotRecord.code !== 'string' ||
-              !('schema' in snapshotRecord)))
+          (snapshot !== undefined && (typeof code !== 'string' || !isJson(schema)))
         ) {
           return unsupported(
             ctx,
@@ -303,10 +303,7 @@ function compileToolCall(
         }
         tool.customTool = {
           ...(ref !== undefined && isToolRef(ref) && { ref }),
-          ...(snapshotRecord &&
-            typeof snapshotRecord.code === 'string' && {
-              snapshot: { schema: snapshotRecord.schema as Json, code: snapshotRecord.code },
-            }),
+          ...(typeof code === 'string' && isJson(schema) && { snapshot: { schema, code } }),
         }
         break
       }
@@ -319,7 +316,7 @@ function compileToolCall(
       case 'extra': {
         const json = compileJsonLiteral(ctx, property.value, site)
         if (json === undefined) return null
-        if (!isRecordLike(json))
+        if (!isJsonObject(json))
           return unsupported(
             ctx,
             property.value,
@@ -327,7 +324,7 @@ function compileToolCall(
             'Write extra: { key: value }.',
             site.decl.key
           )
-        tool.extra = json as Record<string, Json>
+        tool.extra = json
         break
       }
       default:
@@ -562,7 +559,7 @@ function compileMcpTool(
     } else if (option === 'snapshot') {
       const json = compileJsonLiteral(ctx, property.value, site)
       if (json === undefined) return null
-      const snapshot = toRecordOrNull(json)
+      const snapshot = isJsonObject(json) ? json : null
       const { serverName, serverUrl, schema } = snapshot ?? {}
       if (
         !snapshot ||
@@ -581,7 +578,7 @@ function compileMcpTool(
       form.snapshot = {
         ...(typeof serverName === 'string' && { serverName }),
         ...(typeof serverUrl === 'string' && { serverUrl }),
-        ...(schema !== undefined && { schema: schema as Json }),
+        ...(schema !== undefined && { schema }),
       }
     } else {
       return unsupported(

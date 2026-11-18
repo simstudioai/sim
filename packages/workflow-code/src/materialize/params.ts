@@ -1,23 +1,17 @@
 import { isRecordLike } from '@sim/utils/object'
 import { mcpBinding, mcpToolId } from '../agent-tools'
-import { shouldDecode, storedSkillEntry, uniqueFieldNames } from '../canonicalize/params'
+import { shouldDecode } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
-import {
-  type BlockKey,
-  type CanonicalParam,
-  type CanonicalTool,
-  isSimNode,
-  type SubBlockId,
-  type Value,
-} from '../model'
+import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
 import { deepEqual, getOwn, parseStoredList, setOwn } from '../records'
+import { structuredCodec } from '../structured'
 import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
 
 /** What encoding one param needs besides the value itself. */
-interface ParamSite {
+export interface ParamSite {
   blockKey: BlockKey
   param: SubBlockId
   declaration: CatalogSubBlock | undefined
@@ -49,74 +43,6 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
   if (site.forceText) return JSON.stringify(json)
   if (!shouldDecode(site.declaration)) return json
   return storesAsText(site) ? JSON.stringify(json) : json
-}
-
-/**
- * Puts inputFormat field ids back: canonicalize moved the id of every field whose name and id are
- * both unique to the lock, so each such field takes the lock's id for its name, then prev's, else a
- * new one. Fields that kept their id inline are untouched. The editor's `collapsed`
- * flag is carried over from the prev field with the same id.
- */
-function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
-  const unique = uniqueFieldNames(list)
-  const prevById = new Map<string, Record<string, unknown>>()
-  for (const item of parseStoredList(site.prevRaw) ?? []) {
-    if (isRecordLike(item) && typeof item.id === 'string') prevById.set(item.id, item)
-  }
-  const used = new Set<string>()
-  return list.map((item) => {
-    if (!isRecordLike(item) || typeof item.name !== 'string' || item.id !== undefined) return item
-    if (!unique.has(item.name)) return item
-    const name = item.name
-    const known = site.itemIds.find((entry) => entry.name === name && !used.has(entry.id))
-    const id = known?.id ?? context.hooks.newId()
-    used.add(id)
-    const restored: Record<string, unknown> = { id, ...item }
-    const prevItem = prevById.get(id)
-    if (prevItem && prevItem.collapsed !== undefined) restored.collapsed = prevItem.collapsed
-    return restored
-  })
-}
-
-/**
- * Puts table row ids back: canonicalize dropped each `{ id, cells }` row's id, so a row
- * takes the id of the first unused prev row with the same cells, else a new one.
- */
-function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
-  const prevRows = (parseStoredList(site.prevRaw) ?? []).filter(
-    (row): row is Record<string, unknown> & { id: string } =>
-      isRecordLike(row) && typeof row.id === 'string' && isRecordLike(row.cells)
-  )
-  const used = new Set<string>()
-  return list.map((row) => {
-    if (!isRecordLike(row) || !isRecordLike(row.cells) || row.id !== undefined) return row
-    const cells = row.cells
-    const match = prevRows.find((prev) => !used.has(prev.id) && deepEqual(prev.cells, cells))
-    const id = match?.id ?? context.hooks.newId()
-    used.add(id)
-    return { id, ...row }
-  })
-}
-
-/**
- * Agent skills: each `skill` node is written as `{ skillId, name }`. The name is prev's for the
- * same skill (so an unchanged entry keeps its bytes), else the skill's current name from the
- * resolver, else its key. Every other entry is written as itself.
- */
-function encodeSkills(list: Value[], site: ParamSite, context: MaterializeContext): unknown[] {
-  const location = { blockKey: site.blockKey, param: site.param }
-  const prevNames = new Map<string, string>()
-  for (const item of parseStoredList(site.prevRaw) ?? []) {
-    const entry = storedSkillEntry(item)
-    if (entry && !prevNames.has(entry.skillId)) prevNames.set(entry.skillId, entry.name)
-  }
-  return list.map((item) => {
-    const skillId = unliftValue(item, context, location)
-    const isSkill = isSimNode(item) && item.$sim === 'resource' && item.kind === 'skill'
-    if (!isSkill || typeof skillId !== 'string') return skillId
-    const name = prevNames.get(skillId) ?? context.resources?.nameOf?.('skill', skillId) ?? item.key
-    return { skillId, name }
-  })
 }
 
 /**
@@ -229,14 +155,9 @@ export function encodeParam(
   context: MaterializeContext
 ): unknown {
   if (param.kind === 'tools') return encodeTools(param.tools, site, context)
-  let json =
-    site.declaration?.structured === 'skills' && Array.isArray(param.value)
-      ? encodeSkills(param.value, site, context)
-      : unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
-  if (Array.isArray(json) && site.declaration?.structured === 'inputFormat') {
-    json = restoreInputFormatIds(json, site, context)
-  } else if (Array.isArray(json) && site.declaration?.structured === 'tableRows') {
-    json = restoreRowIds(json, site, context)
-  }
+  const codec = structuredCodec(site.declaration)
+  const json = codec
+    ? codec.encode(param.value, site, context)
+    : unliftValue(param.value, context, { blockKey: site.blockKey, param: site.param })
   return encodeStorage(json, site)
 }

@@ -113,7 +113,15 @@ export function valueKindMatches(
       return typeof value === 'object' && value !== null && '$sim' in value
     case 'upload':
       return Array.isArray(value) ? value.every(isPlainRecord) : isPlainRecord(value)
-    default:
+    case 'json':
+    case 'branches':
+    case 'tools':
+    case 'none':
       return true
+    default: {
+      // A kind from a catalog newer than this engine is not checked, as before.
+      const unknownKind: never = sub.valueKind
+      return typeof unknownKind === 'string'
+    }
   }
 }
