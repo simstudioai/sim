@@ -5,4 +5,6 @@ import { defineSecrets } from '@sim/workflow-sdk/workspace'
 // A value never appears here: set one with `sim secrets set NAME --scope workspace`.
 export default defineSecrets({
   ANTHROPIC_API_KEY: { description: 'Model access for the support agent' },
+  DOCS_MCP_KEY: { description: 'API key the docs MCP server checks' },
+  DOCS_MCP_TOKEN: { description: 'Bearer token for the docs MCP server' },
 })

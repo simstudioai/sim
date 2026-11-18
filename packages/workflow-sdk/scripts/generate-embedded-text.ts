@@ -2,7 +2,7 @@
  * Embeds the files a bundled consumer such as the CLI writes into a source directory without the
  * package on disk, each as a string (or, for a folder, a path → text record) in
  * `src/codegen/*.generated.ts`: `src/core.d.ts` as `CORE_DTS` (the authoring declarations),
- * `cookbook/workflow.ts` as `COOKBOOK_TS` (the example workflow), the workspace declaration SDK
+ * `cookbook/examples/*.ts` as `COOKBOOK_EXAMPLES` (the example workflows), the workspace declaration SDK
  * `src/workspace/*.d.ts` as `WORKSPACE_SDK_DTS`, and the example workspace directory
  * `cookbook/workspace/**` as `WORKSPACE_COOKBOOK`. `core-text.test.ts`, `cookbook-text.test.ts`
  * and `workspace-text.test.ts` fail when any drifts.
@@ -32,10 +32,11 @@ const EMBEDDED: Embedded[] = [
     doc: 'The text of `core.d.ts`, the workflow SDK authoring declarations.',
   },
   {
-    source: 'cookbook/workflow.ts',
+    source: 'cookbook/examples',
     target: 'src/codegen/cookbook-text.generated.ts',
-    name: 'COOKBOOK_TS',
-    doc: 'The text of `cookbook/workflow.ts`: one correct example of each common block.',
+    name: 'COOKBOOK_EXAMPLES',
+    doc: 'The example workflows, file name → text, written as `.sim/examples/<file>`: together one correct example of each common block.',
+    files: { recursive: false, include: (file) => file.endsWith('.ts') },
   },
   {
     source: 'src/workspace',

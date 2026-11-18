@@ -131,7 +131,7 @@ satisfy.
    `lib/workflows/application/source-evaluate.ts`.
 5. SDK: `packages/workflow-sdk/src/workspace/<kind>.d.ts` plus `index.d.ts`, a cookbook example
    under `cookbook/workspace/`, then regenerate the embedded text.
-6. CLI (`workspace-source-dir.ts`): `TSCONFIG` includes, the `AGENTS_GUIDE` section and
+6. CLI (`workspace-source-dir.ts`): `workspaceTsconfig` includes, the `AGENTS_GUIDE` section and
    `localDeclarations`.
 7. Contracts: regenerate the OpenAPI specs and `packages/sim-cli/src/generated/v2-api.ts`.
 

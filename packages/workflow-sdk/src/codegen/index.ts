@@ -1,4 +1,4 @@
-export { COOKBOOK_TS } from './cookbook-text.generated'
+export { COOKBOOK_EXAMPLES } from './cookbook-text.generated'
 export { CORE_DTS } from './core-text.generated'
 export {
   type GenerateSdkTypesFn,
@@ -6,9 +6,18 @@ export {
   type SdkTypeFile,
   sdkIndexHeader,
 } from './generate'
+export {
+  blockTypesFile,
+  defaultBlockFiles,
+  fullBlockFiles,
+  referencedBlockTypes,
+  SDK_GUIDE_FILE,
+  SDK_INDEX_FILE,
+  SDK_MODELS_FILE,
+} from './layout'
 export { SDK_MAJOR } from './major'
 export { SPECIAL_BUILDER_KEYS } from './names'
-export { SOURCE_COMPILER_OPTIONS } from './tsconfig'
+export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,
   generateWorkspaceTypes,

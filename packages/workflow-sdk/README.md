@@ -8,19 +8,29 @@ Types for Sim workflows written as TypeScript. A workflow file imports from this
 ## Edit loop
 
 ```bash
-sim workflows source get <workflowId> --dir ./wf               # 1. write the source tree
+sim workflows source get <workflowId> --dir ./wf   # 1. write the source tree
 # 2. edit ./wf/workflow.ts (and ./wf/functions/*)
-sim workflows source apply <workflowId> --dir ./wf --dry-run   # 3. check; writes nothing
-sim workflows source apply <workflowId> --dir ./wf --yes       # 4. save the draft
+sim workflows source check --dir ./wf              #    optional: compile locally, no request
+sim workflows source apply --dir ./wf --dry-run    # 3. check on the server; writes nothing
+sim workflows source apply --dir ./wf --yes        # 4. save the draft
 ```
+
+`apply` reads the workflow id from `./wf/.sim/base.json`; pass it (`apply <workflowId> --dir`) to
+have the CLI confirm the directory holds that workflow.
 
 1. **Get** writes `workflow.ts`, function files, the lock, the base and the types.
 2. **Edit** `workflow.ts`. Declare blocks with `const x = builder('Name', params)` and wire them
-   with `x.to(y)`. `tsc -p ./wf` type-checks locally.
+   with `x.to(y)`. `bunx -p typescript@7.0.2 tsc -p ./wf` type-checks locally with the TypeScript
+   release the declarations are built for. `tsconfig.json` includes only the blocks the workflow
+   uses (fast); `tsconfig.full.json` includes every current block, for a builder from a block the
+   workflow does not use yet (`has no exported member` under `tsconfig.json`).
+   `sim workflows source check --dir ./wf` compiles with the server's compiler against the cached
+   catalog, without a request; the dry run still checks what only the server knows.
 3. **Dry run** compiles and runs every server check. Fix each error it prints, then run it again
    until it exits 0.
-4. **Apply** saves the draft. It rewrites `./wf` from what was stored (normalized values show up
-   there) and refreshes `.sim/lock.json` and `.sim/base.json`. Apply never deploys.
+4. **Apply** saves the draft. It rewrites `./wf` from what was stored, in canonical form (normalized
+   values, order and quoting show up there, so re-read `workflow.ts` before the next edit), and
+   refreshes `.sim/lock.json`, `.sim/base.json` and `tsconfig.json`. Apply never deploys.
 5. **On a 409** (`SOURCE_STALE`, exit 5) the workflow changed since you read it and nothing was
    saved. Run `get` into a fresh directory, reapply your edit there (diff your copy against the old
    source to find it), dry-run, apply. Keep the fresh `.sim/` files: `.sim/base.json` holds the
@@ -44,12 +54,14 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/base.json` | The workflow, workspace, fingerprint and catalog hash the source was read at. Do not edit. |
 | `.sim/written.json` | The CLI's record of each file as it last wrote it, so a later `get` can tell your unapplied edits from files it may replace. Local only: gitignore it. Do not edit. |
 | `.sim/sdk/core.d.ts` | This package: `workflow`, `t`, `env`, `credential`, `table`, `BlockMeta`, ... |
-| `.sim/sdk/blocks/{type}.d.ts` | Every block type's builders, not only the ones in use. |
-| `.sim/sdk/operations/{type}/{operation}.d.ts` | One operation's params and outputs, 1-2 KB. Read these to learn a block. |
+| `.sim/sdk/INDEX.md` | One line per builder: `slack.sendMessage — Slack: Send Message → blocks/slack_v2.d.ts (SlackSendMessageParams)`, legacy builders apart, and the block type → builder naming rule. `grep` it to find a builder. |
+| `.sim/sdk/blocks/{type}.d.ts` | One block type's builders with their params and outputs, for every block, not only the ones in use. `grep` the params type `INDEX.md` names rather than reading a file whole. |
+| `.sim/sdk/index.d.ts` | Imports every current block (not the legacy-only ones); `tsconfig.full.json` includes it. |
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
-| `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk`. |
+| `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk` and type-checks `workflow.ts` with the blocks it uses (from the source and the server's `blockTypes`) and the core builders' blocks: about 75 files and 40 MB for `tsc`, against 570 files and 260 MB for every block. |
+| `tsconfig.full.json` | The same with every current block, plus any legacy-only block the workflow uses. |
 | `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
-| `.sim/examples/cookbook.ts` | One correct example of each common block (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response). Read it before writing. It names example resources, so `tsconfig.json` leaves it out. |
+| `.sim/examples/*.ts` | Example workflows, together one correct example of each common block: `cookbook.ts` (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response), `integrations.ts` (webhook, weekday cron, HTTP headers, table update by id, Gmail, `onError`), `agents.ts` (router, agent tools, child workflow, parallel). Read them before writing. They name example resources, so the tsconfig files leave them out. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
 
 `sim workflows source resources` lists the resource keys source can name in the active
@@ -131,9 +143,9 @@ files are stored verbatim. One file per block; imports between function files ar
 | Path | Contents |
 |------|----------|
 | `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
-| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
+| `cookbook/examples/*.ts` | The examples the CLI writes into `.sim/examples/`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles each against the real catalog (its `COOKBOOK_WORKSPACE` lists the resources they name). |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
-| `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts`, deterministic, sorted by path) and `generateWorkspaceTypes(manifest)` (`workspace.d.ts`). |
+| `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts` and `INDEX.md`, deterministic, sorted by path), `generateWorkspaceTypes(manifest)` (`workspace.d.ts`), and `layout.ts`: which declaration files a directory's tsconfig files include. |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
 | `test/negative` | Code each generated type must reject. |
 

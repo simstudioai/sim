@@ -356,11 +356,13 @@ describe('workspace source across kinds', () => {
         ),
       }
 
-      // The cookbook declares the secret its workflow reads and a Slack credential.
-      await setSecretUseCase.execute({
-        principal: owner,
-        input: { workspaceId, name: 'ANTHROPIC_API_KEY', scope: 'workspace', value: 'test' },
-      })
+      // The cookbook declares the secrets its workflow and MCP server read, and a Slack credential.
+      for (const name of ['ANTHROPIC_API_KEY', 'DOCS_MCP_KEY', 'DOCS_MCP_TOKEN']) {
+        await setSecretUseCase.execute({
+          principal: owner,
+          input: { workspaceId, name, scope: 'workspace', value: 'test' },
+        })
+      }
       await db.insert(credential).values({
         id: generateId(),
         workspaceId,
@@ -380,6 +382,8 @@ describe('workspace source across kinds', () => {
         result.applied.map((change) => `${change.action} ${change.kind}:${change.key}`)
       ).toEqual([
         'update secret:ANTHROPIC_API_KEY',
+        'update secret:DOCS_MCP_KEY',
+        'update secret:DOCS_MCP_TOKEN',
         'adopt credential:slack',
         'create custom-tool:lookup-order',
         'create skill:tone',

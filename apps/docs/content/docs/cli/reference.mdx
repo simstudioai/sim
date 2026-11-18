@@ -8240,7 +8240,7 @@ API request and response schemas: [getWorkflowSource](/api-reference/workflows/g
 Apply a workflow source directory to a workflow draft
 
 ```bash
-sim workflows source apply <workflowId> [options]
+sim workflows source apply [workflowId] [options]
 ```
 
 **Arguments**
@@ -8249,7 +8249,7 @@ sim workflows source apply <workflowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | Yes | Workflow whose draft the source replaces |
+| `workflowId` | No | Workflow whose draft the source replaces (default: the workflowId in .sim/base.json) |
 
 </CommandTable>
 
@@ -8295,6 +8295,28 @@ sim workflows source create [options]
 Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed; 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again.
 
 API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### sim workflows source check
+
+Compile a workflow source directory locally, without the server
+
+```bash
+sim workflows source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+
+</CommandTable>
+
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring); the dry run still checks what only the server knows (resource keys, credentials, stored values, deployment), so run it before applying.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run `sim workflows source get` once).
 
 ### sim workflows get
 

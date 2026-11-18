@@ -1,7 +1,11 @@
 import { toRecord } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
+import {
+  SDK_GUIDE_FILE,
+  SOURCE_COMPILER_OPTIONS,
+  typecheckCommand,
+} from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
 import type { GetWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
@@ -14,7 +18,7 @@ import {
   readPreviousLock,
   readSourceJson,
   SOURCE_SDK_DIR as SDK_DIR,
-  SOURCE_COOKBOOK_FILE,
+  SOURCE_EXAMPLES_DIR,
   updateSourceDir,
   writeBack,
 } from './source-dir'
@@ -23,9 +27,11 @@ import {
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
+  refreshTsconfigs,
   type SourceTree,
   type SourceTreeProfile,
   sourceTreeChange,
+  TSCONFIG_FULL_FILE,
   TSCONFIG_MARKER,
   WORKSPACE_TYPES_FILE,
   withSourceExitCode,
@@ -38,37 +44,43 @@ const SOURCE_DOCS_URL = 'https://docs.sim.ai/workflows/code'
 
 type WorkflowSource = GetWorkflowSourceResponse['data']
 
-/** Lets an editor or `tsc -p` resolve `@sim/workflow-sdk` to the written declarations. */
-const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
-  {
-    compilerOptions: {
-      ...SOURCE_COMPILER_OPTIONS,
-      skipLibCheck: true,
-      paths: { '@sim/workflow-sdk': [`./${SDK_DIR}/core.d.ts`] },
+/**
+ * A `tsconfig.json` that lets an editor or `tsc -p` resolve `@sim/workflow-sdk` to the written
+ * declarations and type-checks `workflow.ts` with the SDK files `sdkFiles`.
+ */
+function workflowTsconfig(sdkFiles: readonly string[]): string {
+  return `${TSCONFIG_MARKER}\n${JSON.stringify(
+    {
+      compilerOptions: {
+        ...SOURCE_COMPILER_OPTIONS,
+        skipLibCheck: true,
+        paths: { '@sim/workflow-sdk': [`./${SDK_DIR}/core.d.ts`] },
+      },
+      include: [SOURCE_ENTRY_FILE, ...sdkFiles],
     },
-    include: [SOURCE_ENTRY_FILE, `${SDK_DIR}/**/*.d.ts`],
-  },
-  null,
-  2
-)}\n`
+    null,
+    2
+  )}\n`
+}
 
 /** The guide an agent working in the directory reads first; the docs page has the rest. */
 const AGENTS_GUIDE = `# Sim workflow source
 
-This directory is a Sim workflow written as TypeScript. The server compiles \`${SOURCE_ENTRY_FILE}\` statically; nothing in it runs. The workflow id is \`workflowId\` in \`${SOURCE_BASE_FILE}\`.
+This directory is a Sim workflow written as TypeScript. The server compiles \`${SOURCE_ENTRY_FILE}\` statically; nothing in it runs. The workflow id is \`workflowId\` in \`${SOURCE_BASE_FILE}\`; every command below reads it from there.
 
 ## Start here
 
-1. Read \`${SOURCE_COOKBOOK_FILE}\` before writing: one correct example of every common block (agent, condition, function, table, knowledge search, Slack, human in the loop, loop, response). Its resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
-2. For any other block, read one \`${SDK_DIR}/operations/<block>/<operation>.d.ts\` per operation you use.
-3. Do not read \`${SDK_DIR}/blocks/*.d.ts\` or \`${SDK_DIR}/models.d.ts\` whole: they are large. \`grep\` them for a builder or a model id.
+1. Read the examples in \`${SOURCE_EXAMPLES_DIR}/\` before writing: \`cookbook.ts\` (agent with structured output, condition, function, table query and insert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
+2. For any other block, find its builder in \`${SDK_DIR}/${SDK_GUIDE_FILE}\` (one line per builder: \`grep -i "gmail" ${SDK_DIR}/${SDK_GUIDE_FILE}\`). It names the builder, the file and the params type; read just that type: \`grep -n -A40 "export type GmailSendEmailParams" ${SDK_DIR}/blocks/gmail_v2.d.ts\`. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, and \`legacy.*\` builders are old versions not to write.
+3. Do not read \`${SDK_DIR}/blocks/*.d.ts\` or \`${SDK_DIR}/models.d.ts\` whole: they are large. \`grep\` them for a type or a model id.
 
 ## Edit loop (run from this directory)
 
-1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`bunx tsc -p .\` type-checks locally (the directory has no \`package.json\`, so \`tsc\` itself may not be installed; \`bunx\` fetches it). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
-2. \`sim workflows source apply <workflowId> --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
-3. \`sim workflows source apply <workflowId> --dir . --yes\`: saves the draft (never deploys) and rewrites this directory from what was stored.
-4. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means that apply was saved: run \`sim workflows source get <workflowId> --dir . --force\`, nothing is lost.
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${typecheckCommand()}\` type-checks locally with the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
+2. \`tsconfig.json\` checks only the blocks this workflow used when it was last written, which keeps \`tsc\` fast. A builder you add from another block fails with \`has no exported member\` (or \`Property 'x' does not exist\` on its namespace): check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\` instead, which includes every current block. The next apply or get adds the block to \`tsconfig.json\`.
+3. \`sim workflows source apply --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
+4. \`sim workflows source apply --dir . --yes\`: saves the draft (never deploys). It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out), so read the file again before the next edit rather than editing from memory.
+5. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`. Exit 5 right after an apply that ended without an answer (a timeout, a dropped connection) means that apply was saved: run \`sim workflows source get <workflowId> --dir . --force\`, nothing is lost.
 
 An apply that deletes blocks (a declaration removed from \`${SOURCE_ENTRY_FILE}\`) is refused with \`E_APPLY_BLOCK_DELETE\` naming them; pass \`--allow-delete\` when the deletion is intended. The \`workflow('…')\` name and description are not editable here: an apply that changes them is refused with \`E_APPLY_META_CHANGED\`; rename the workflow in its settings and get the source again.
 
@@ -95,7 +107,8 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 ## Types
 
 - \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`BlockMeta\`).
-- \`${SDK_DIR}/operations/<block>/<operation>.d.ts\`: one operation's params and outputs; \`${SDK_DIR}/blocks/*.d.ts\` lists every builder of a block.
+- \`${SDK_DIR}/${SDK_GUIDE_FILE}\`: every builder, its block and operation, file and params type.
+- \`${SDK_DIR}/blocks/<block type>.d.ts\`: one block's builders with their params and outputs.
 - \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows and env names.
 
 ## Diagnostics and exit codes
@@ -126,17 +139,21 @@ async function writeSourceTree(
   dir: string,
   source: PrintedSource,
   catalog: BlockCatalog,
-  workspaceTypes: string | null
+  workspaceTypes: string | null,
+  blockTypes: readonly string[]
 ): Promise<SourceTree> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
-    sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE),
+    sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
+      sources: [source.files[SOURCE_ENTRY_FILE] ?? ''],
+      blockTypes,
+    }),
   ])
   const written = await writeBack(dir, source, previousLock, tree.change)
   return finishTree(dir, written, workspaceTypes, tree.ownsTsconfig)
 }
 
-const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: TSCONFIG }
+const WORKFLOW_TREE: SourceTreeProfile = { agents: AGENTS_GUIDE, tsconfig: workflowTsconfig }
 
 /** The `workflow.ts` a new directory starts from: the smallest workflow that compiles. */
 const STARTER_SOURCE = `// @sim-sdk 1
@@ -165,7 +182,9 @@ export async function writeSourceScaffold(
     loadWorkspaceTypes(client, workspaceId),
   ])
   assertSdkMajor(catalog)
-  const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE)
+  const tree = await sourceTreeChange(dir, catalog, workspaceTypes, WORKFLOW_TREE, {
+    sources: [STARTER_SOURCE],
+  })
   const write = [[SOURCE_ENTRY_FILE, STARTER_SOURCE] as const, ...tree.change.write]
   await updateSourceDir(dir, { ...tree.change, write })
   return finishTree(dir, write.length, workspaceTypes, tree.ownsTsconfig)
@@ -192,7 +211,20 @@ export async function writeSourceDirectory(
     loadWorkspaceTypes(client, source.workspaceId),
   ])
   assertSdkMajor(catalog)
-  return writeSourceTree(dir, source, catalog, workspaceTypes)
+  return writeSourceTree(dir, source, catalog, workspaceTypes, blockTypes)
+}
+
+/**
+ * After an apply, points the CLI's tsconfig files at the blocks the applied source uses, so a
+ * block the edit added is type-checked by `tsconfig.json` from then on.
+ */
+export async function refreshWorkflowTsconfigs(
+  dir: string,
+  source: Pick<PrintedSource, 'workspaceId' | 'files'>
+): Promise<void> {
+  await refreshTsconfigs(dir, source.workspaceId, WORKFLOW_TREE, {
+    sources: [source.files[SOURCE_ENTRY_FILE] ?? ''],
+  })
 }
 
 /** The workflow `.sim/base.json` says the directory holds, or `null` when it names none. */

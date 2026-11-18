@@ -22,13 +22,7 @@ const blockTypes = new Set(
     .filter((file) => file.path.startsWith('blocks/'))
     .map((file) => file.path.slice('blocks/'.length, -'.d.ts'.length))
 )
-const perBlock = [...blockTypes].map((type) =>
-  files
-    .filter(
-      (file) => file.path === `blocks/${type}.d.ts` || file.path.startsWith(`operations/${type}/`)
-    )
-    .reduce((sum, file) => sum + bytes(file), 0)
-)
+const perBlock = files.filter((file) => file.path.startsWith('blocks/')).map(bytes)
 const largest = Math.max(...perBlock)
 process.stdout.write(
   `${files.length} files, ${total} bytes; ${blockTypes.size} blocks, ${Math.round(total / blockTypes.size)} bytes per block on average, largest ${largest}\n`

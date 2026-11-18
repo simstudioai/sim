@@ -9,6 +9,7 @@ import {
   writeTypecheckProject,
 } from '../../test/typecheck-project'
 import { generateSdkTypes } from './generate'
+import { defaultBlockFiles, fullBlockFiles, referencedBlockTypes } from './layout'
 import { generateWorkspaceTypes } from './workspace'
 
 function reversedKeys<T>(record: Record<string, T>): Record<string, T> {
@@ -69,6 +70,79 @@ describe('generateSdkTypes over the fixture catalog', () => {
         builders: { ...catalog.builders, 'slack.tool': { type: 'slack_v2' } },
       })
     ).toThrow(/collides with the `tool` namespace/)
+  })
+})
+
+/** The fixture catalog plus a hidden older Slack version whose only builders are legacy ones. */
+function catalogWithLegacySlack() {
+  const catalog = loadCatalog()
+  return {
+    ...catalog,
+    blocks: { ...catalog.blocks, slack: { ...catalog.blocks.slack_v2, type: 'slack' } },
+    builders: {
+      ...catalog.builders,
+      'legacy.slack.sendMessage': { ...catalog.builders['slack.sendMessage'], type: 'slack' },
+    },
+  }
+}
+
+describe('the SDK layout', () => {
+  it('indexes every builder by block, operation, file and params type, legacy ones apart', () => {
+    const files = generateSdkTypes(catalogWithLegacySlack())
+    const index = files.find((file) => file.path === 'INDEX.md')?.text ?? ''
+    const [current, legacy] = index.split('## Legacy builders')
+
+    expect(current).toContain(
+      '- `slack.sendMessage` — Slack: Send Message → `blocks/slack_v2.d.ts` (`SlackSendMessageParams`)'
+    )
+    expect(current).toContain(
+      '- `runWorkflow` — Workflow → `blocks/workflow_input.d.ts` (`RunWorkflowParams`)'
+    )
+    expect(current).not.toContain('legacy.slack')
+    expect(legacy).toContain(
+      '- `legacy.slack.sendMessage` — Slack: Send Message → `blocks/slack.d.ts` (`LegacySlackSendMessageParams`)'
+    )
+  })
+
+  it('writes one file per block, and leaves legacy-only blocks out of index.d.ts', () => {
+    const files = generateSdkTypes(catalogWithLegacySlack())
+    const index = files.find((file) => file.path === 'index.d.ts')?.text ?? ''
+
+    expect(
+      files.filter(
+        (file) => !/^(blocks\/[\w-]+\.d\.ts|models\.d\.ts|index\.d\.ts|INDEX\.md)$/.test(file.path)
+      )
+    ).toEqual([])
+    expect(files.some((file) => file.path === 'blocks/slack.d.ts')).toBe(true)
+    expect(index).toContain("import './blocks/slack_v2'")
+    expect(index).not.toContain("import './blocks/slack'\n")
+  })
+
+  it('lists the operations of a block in its namespace doc comment', () => {
+    const slack = generateSdkTypes(loadCatalog()).find(
+      (file) => file.path === 'blocks/slack_v2.d.ts'
+    )
+
+    expect(slack?.text).toMatch(
+      /\* Slack \(`slack_v2`\) builders:\n[^/]* \* `sendMessage`: Slack: Send Message\n[\s\S]*export namespace slack \{/
+    )
+  })
+
+  it('finds the blocks a source calls, through tool forms and spacing, and keeps the core builders', () => {
+    const catalog = catalogWithLegacySlack()
+    const used = referencedBlockTypes(catalog, [
+      "const a = gmail\n  .sendEmail('A', {})",
+      "agent('B', { tools: [slack.tool.sendMessage({}), runWorkflow.tool({})] })",
+      "legacy.slack.sendMessage('C', {})",
+      '// table.queryRows, without a call, and loop.forEach(), no builder',
+    ])
+
+    expect(used).toEqual(['agent', 'gmail_v2', 'slack', 'slack_v2', 'workflow_input'])
+    const defaults = defaultBlockFiles(catalog, used)
+    expect(defaults).toContain('blocks/router_v2.d.ts')
+    expect(defaults).toContain('blocks/gmail_v2.d.ts')
+    expect(defaults).not.toContain('blocks/google_sheets_v2.d.ts')
+    expect(fullBlockFiles(catalog, used)).toEqual(['index.d.ts', 'blocks/slack.d.ts'])
   })
 })
 

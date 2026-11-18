@@ -29,7 +29,11 @@ import {
   writeBack,
 } from './source-dir'
 import { confirm, fresh, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
-import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
+import {
+  refreshWorkflowTsconfigs,
+  writeSourceDirectory,
+  writeSourceScaffold,
+} from './workflow-source-get'
 
 /** The only files an apply sends beside the entry: function code in a language a block runs. */
 const CODE_FILE_EXTENSION = new RegExp(`\\.(?:${Object.values(CODE_FILE_EXTENSIONS).join('|')})$`)
@@ -140,10 +144,11 @@ function diffSummary(data: SourceApplyData): string {
 const GET_HINT = 'Write the directory with `sim workflows source get` first.'
 
 /**
- * The base an apply sends, refused when it is not this workflow's: a directory written for one
- * workflow and applied to another would replace that workflow's draft with a stranger's source.
+ * The base an apply sends, refused when it is not the named workflow's: a directory written for
+ * one workflow and applied to another would replace that workflow's draft with a stranger's
+ * source. Without a `workflowId` the apply targets the workflow the base names.
  */
-async function readBase(directory: string, workflowId: string): Promise<SourceBase> {
+async function readBase(directory: string, workflowId: string | undefined): Promise<SourceBase> {
   const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
   if ('problem' in parsed) {
     throw new SimApiError(
@@ -152,7 +157,7 @@ async function readBase(directory: string, workflowId: string): Promise<SourceBa
     )
   }
   const { base } = parsed
-  if (base.workflowId !== workflowId) {
+  if (workflowId !== undefined && base.workflowId !== workflowId) {
     throw new SimApiError(
       `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`,
       0,
@@ -179,7 +184,7 @@ async function readLock(directory: string): Promise<WorkflowLockV1> {
  * The files a write sends: the entry file and the code files it or the lock references. A
  * referenced file that is missing is left out, and the server reports it with its source line.
  */
-async function readSourceFiles(
+export async function readSourceFiles(
   directory: string,
   lock: WorkflowLockV1 | null
 ): Promise<Record<string, string>> {
@@ -272,10 +277,11 @@ const DIR_DESCRIPTION =
   'Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json'
 
 /**
- * `sim workflows source apply <workflowId> --dir <dir>`: sends a source directory written by
+ * `sim workflows source apply [workflowId] --dir <dir>`: sends a source directory written by
  * `workflows source get` (`workflow.ts`, its function-code files, `.sim/lock.json` and
  * `.sim/base.json`) and, after a successful write, saves the re-printed files, the new lock and
- * the new base back into it, so the next apply starts from what was stored.
+ * the new base back into it, so the next apply starts from what was stored. The workflow id
+ * defaults to the one `.sim/base.json` names; given, it must match it.
  *
  * Writing needs consent: on a terminal it shows the dry-run outcome and asks; anywhere else it
  * needs `--yes`. `--dry-run` writes nothing, so it never asks.
@@ -283,7 +289,10 @@ const DIR_DESCRIPTION =
 export function attachWorkflowSourceApply(source: Command): void {
   const [command, connectApply] = apiCommand(source, 'apply', ['applyWorkflowSource'])
   command
-    .argument('<workflowId>', 'Workflow whose draft the source replaces')
+    .argument(
+      '[workflowId]',
+      'Workflow whose draft the source replaces (default: the workflowId in .sim/base.json)'
+    )
     .requiredOption('--dir <dir>', DIR_DESCRIPTION)
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
@@ -294,11 +303,12 @@ export function attachWorkflowSourceApply(source: Command): void {
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
     .addHelpText('after', APPLY_EXIT_CODES_HELP)
-    .action(async (workflowId: string, options: SourceWriteOptions) => {
+    .action(async (named: string | undefined, options: SourceWriteOptions) => {
       requireConsent(options, 'writes the workflow draft', 'apply')
       const { client, profile } = connectApply()
       const lock = await readLock(options.dir)
-      const base = await readBase(options.dir, workflowId)
+      const base = await readBase(options.dir, named)
+      const workflowId = base.workflowId
       const files = await readSourceFiles(options.dir, lock)
       await runSourceWrite({
         directory: options.dir,
@@ -311,6 +321,10 @@ export function attachWorkflowSourceApply(source: Command): void {
         operation: 'applyWorkflowSource',
         params: { workflowId },
         body: { files, lock, base, provenance: { client: 'cli' } },
+        save: async (data) => {
+          await writeBack(options.dir, data, lock)
+          await refreshWorkflowTsconfigs(options.dir, data)
+        },
         ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means it was, and \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date (the server holds your edit, so nothing is lost); otherwise apply again.`,
       })
     })
@@ -351,7 +365,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
         const { client, profile } = connectCreate()
         const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
         printError(
-          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and .sim/examples/cookbook.ts were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
         )
         printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
         return

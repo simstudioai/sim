@@ -44,10 +44,11 @@ export const SOURCE_SDK_DIR = '.sim/sdk'
 /** A short guide for an agent working in the directory; never a top-level `AGENTS.md`. */
 export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
 /**
- * One correct example of each common block, rewritten on every get like the agent guide. It names
- * example resources the workspace may lack, so the written `tsconfig.json` never includes it.
+ * Example workflows (`cookbook.ts`, `integrations.ts`, `agents.ts`): together one correct example
+ * of each common block, rewritten on every get like the agent guide. They name example resources
+ * the workspace may lack, so the written `tsconfig.json` never includes them.
  */
-export const SOURCE_COOKBOOK_FILE = '.sim/examples/cookbook.ts'
+export const SOURCE_EXAMPLES_DIR = '.sim/examples'
 /** Pins the source files to LF, merged into whatever the directory already holds. */
 export const SOURCE_GITATTRIBUTES_FILE = '.gitattributes'
 /**
