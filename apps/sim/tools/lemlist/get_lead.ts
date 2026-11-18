@@ -2,6 +2,37 @@ import type { LemlistGetLeadParams, LemlistGetLeadResponse } from '@/tools/lemli
 import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
+interface LemlistV2Lead {
+  _id?: string
+  isPaused?: boolean
+  contactId?: string
+  variables?: Record<string, string | undefined>
+  campaign?: { id?: string }
+  enrichment?: { emailStatus?: string }
+}
+
+/**
+ * Lookup by email (`GET /leads/{email}`) answers with an array of v2 leads, one per campaign, whose
+ * profile fields sit under `variables`. Maps the first onto the flat shape the ID lookup returns.
+ */
+function flattenV2Lead(lead: LemlistV2Lead | undefined): Record<string, unknown> {
+  if (!lead) throw new Error('Lead not found')
+  const variables = lead.variables ?? {}
+  return {
+    _id: lead._id,
+    email: variables.email,
+    firstName: variables.firstName,
+    lastName: variables.lastName,
+    companyName: variables.companyName,
+    jobTitle: variables.jobTitle,
+    companyDomain: variables.companyDomain,
+    isPaused: lead.isPaused,
+    campaignId: lead.campaign?.id,
+    contactId: lead.contactId,
+    emailStatus: lead.enrichment?.emailStatus,
+  }
+}
+
 export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadResponse> = {
   id: 'lemlist_get_lead',
   name: 'Lemlist Get Lead',
@@ -45,7 +76,8 @@ export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadRespons
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const body = await response.json()
+    const data = Array.isArray(body) ? flattenV2Lead(body[0]) : body
 
     return {
       success: true,

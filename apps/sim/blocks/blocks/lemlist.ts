@@ -153,16 +153,14 @@ export const LemlistBlock: BlockConfig = {
       id: 'contactId',
       title: 'Contact ID',
       type: 'short-input',
-      placeholder: 'Recipient contact ID',
-      required: { field: 'operation', value: 'send_email' },
+      placeholder: 'Recipient contact ID (or provide the lead ID)',
       condition: { field: 'operation', value: 'send_email' },
     },
     {
       id: 'leadId',
       title: 'Lead ID',
       type: 'short-input',
-      placeholder: 'Associated lead ID',
-      required: { field: 'operation', value: 'send_email' },
+      placeholder: 'Associated lead ID (or provide the contact ID)',
       condition: { field: 'operation', value: 'send_email' },
     },
     {
