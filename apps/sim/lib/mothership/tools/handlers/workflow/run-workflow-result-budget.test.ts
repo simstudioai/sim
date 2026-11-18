@@ -176,7 +176,71 @@ describe('run_workflow model-facing result budget', () => {
     expect(output.output).toEqual(finalOutput)
     const presented = output.logs as Array<Record<string, unknown>>
     expect(presented.map((log) => log.blockName)).toEqual(logs.map((log) => log.blockName))
-    expect(presented[3]).toMatchObject({ success: false, error: 'SMTP refused' })
+    // The failing block keeps its name and status; its error is the run error, said once.
+    expect(presented[3]).toMatchObject({ success: false, error: '…[same as the run error]' })
+  })
+
+  /**
+   * An HTTP block that fails with a whole HTML page as its error carried it twice, in the run error
+   * and the block entry. The entry now defers to the run error, which keeps its head, cut after
+   * projection so a secret straddling the cut leaves no fragment.
+   */
+  it('cuts a page-sized block error once, after secret projection', async () => {
+    const page = `<html>${'a'.repeat(1_480)}${SECRET}${'b'.repeat(30_000)}</html>`
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: false,
+      output: {},
+      logs: [
+        { blockId: 'start', blockName: 'Start', success: true, output: { ok: true } },
+        { blockId: 'http', blockName: 'HTTP', success: false, error: page, output: {} },
+      ],
+      metadata: { executionId: EXECUTION_ID },
+    })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+    const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
+
+    expect(projection.safe).toBe(true)
+    const serialized = JSON.stringify(projection.result)
+    expect(serialized.length).toBeLessThanOrEqual(24_000)
+    for (let length = 4; length <= SECRET.length; length += 1) {
+      expect(serialized).not.toContain(SECRET.slice(0, length))
+    }
+    expect(projection.result.error).toMatch(/^HTTP: <html>a+/)
+    expect(projection.result.error).toContain(`logs get ${EXECUTION_ID} --trace`)
+    const logs = (projection.result.output as { logs: Array<Record<string, unknown>> }).logs
+    expect(logs[1]).toMatchObject({ blockName: 'HTTP', success: false })
+    expect(String(logs[1]?.error).length).toBeLessThan(100)
+  })
+
+  /** A loop's iterations each log a block entry; past the window the middle ones give way. */
+  it('keeps the failed iteration and the ends of a long loop run', async () => {
+    const logs = Array.from({ length: 400 }, (_, index) => ({
+      blockId: `iteration-${index}`,
+      blockName: `Fetch page (iteration ${index})`,
+      success: index !== 250,
+      ...(index === 250 ? { error: 'Rate limited' } : {}),
+      output: { ok: index !== 250 },
+    }))
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: false,
+      output: {},
+      logs,
+      metadata: { executionId: EXECUTION_ID },
+    })
+    const inactive = secretRegistry({ active: false })
+
+    const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, callContext(inactive))
+    const output = settled.output as { logs: unknown[] }
+
+    expect(JSON.stringify({ output, error: settled.error }).length).toBeLessThanOrEqual(16_000)
+    expect(settled.error).toBe('Fetch page (iteration 250): Rate limited')
+    expect(output.logs).toContainEqual(expect.objectContaining({ blockId: 'iteration-250' }))
+    expect(output.logs[0]).toEqual(logs[0])
+    expect(output.logs.at(-1)).toEqual(logs[399])
+    expect(output.logs).toContainEqual(
+      expect.stringMatching(/^…\[\d+ block entries omitted; inspect with logs get /)
+    )
   })
 
   /** A short secret under a long name grows when projected, so the window is measured after it. */
@@ -211,13 +275,17 @@ describe('run_workflow model-facing result budget', () => {
     expect(output.logs[0]?.output).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID}`))
   })
 
-  /** Many small block entries leave less room than a full preview, so the preview shrinks to fit. */
+  /**
+   * Failed block entries are never dropped, so many of them (blocks that routed into error paths)
+   * leave less room than a full preview, and the preview shrinks to fit.
+   */
   it('shrinks the final output preview to the room the block entries leave', async () => {
-    const logs = Array.from({ length: 150 }, (_, index) => ({
+    const logs = Array.from({ length: 120 }, (_, index) => ({
       blockId: `step-${index}`,
       blockName: `Step ${index} of the nightly import`,
-      success: true,
-      output: { ok: true },
+      success: false,
+      error: `retry ${index}`,
+      output: { ok: false },
     }))
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
@@ -602,7 +670,7 @@ describe('run_workflow model-facing result budget', () => {
     const projection = inspectToolResultForCopilot(settled, registry, 'run_workflow')
 
     expect(projection.safe).toBe(true)
-    expect(projection.result.error).toBe(error)
+    expect(projection.result.error).toMatch(/^Report failed: e+ …\[error cut at 1500 of /)
     expect(
       (projection.result.output as { logs: Array<{ output: unknown }> }).logs[0]?.output
     ).toEqual(expect.stringContaining(`logs get ${EXECUTION_ID} --trace`))
