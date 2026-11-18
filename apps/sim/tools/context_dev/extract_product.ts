@@ -58,7 +58,7 @@ export const contextDevExtractProductTool: ToolConfig<
     body: (params) => {
       const body: Record<string, any> = { url: params.url }
       if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      if (params.timeoutMS != null) body.timeoutOpts = { milliseconds: params.timeoutMS }
       return body
     },
   },

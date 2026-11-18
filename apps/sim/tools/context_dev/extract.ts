@@ -104,7 +104,7 @@ export const contextDevExtractTool: ToolConfig<ContextDevExtractParams, ContextD
         if (params.maxDepth != null) body.maxDepth = params.maxDepth
         if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
         if (params.stopAfterMs != null) body.stopAfterMs = params.stopAfterMs
-        if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+        if (params.timeoutMS != null) body.timeoutOpts = { milliseconds: params.timeoutMS }
         return body
       },
     },

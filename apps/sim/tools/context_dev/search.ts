@@ -112,7 +112,7 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
       if (params.markdownEnabled != null) {
         body.markdownOptions = { enabled: params.markdownEnabled }
       }
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      if (params.timeoutMS != null) body.timeoutOpts = { milliseconds: params.timeoutMS }
       return body
     },
   },

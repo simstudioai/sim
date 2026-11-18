@@ -4,6 +4,7 @@ import type {
 } from '@/tools/brightdata/types'
 import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const brightDataDownloadSnapshotTool: ToolConfig<
   BrightDataDownloadSnapshotParams,
@@ -51,7 +52,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
       if (params.format) queryParams.set('format', params.format)
       if (params.compress) queryParams.set('compress', 'true')
       const qs = queryParams.toString()
-      return `https://api.brightdata.com/datasets/v3/snapshot/${params.snapshotId?.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.brightdata.com/datasets/v3/snapshot/${safeUrlPathSegment(params.snapshotId, 'snapshotId')}${qs ? `?${qs}` : ''}`
     },
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

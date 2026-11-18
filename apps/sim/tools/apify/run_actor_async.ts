@@ -1,6 +1,8 @@
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { ApifyRun, RunActorParams, RunActorResult } from '@/tools/apify/types'
 import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -136,24 +138,30 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
     }
   },
 
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     if (!result.success) {
       return result
     }
 
     const runId = result.output.runId
+    const signal = context?.signal
 
     let elapsedTime = 0
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
-      await sleep(POLL_INTERVAL_MS)
+      await interruptibleSleep(POLL_INTERVAL_MS, signal)
+      signal?.throwIfAborted()
       elapsedTime += POLL_INTERVAL_MS
 
-      const statusResponse = await outboundFetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
-        headers: {
-          Authorization: `Bearer ${params.apiKey}`,
-        },
-      })
+      const statusResponse = await outboundFetch(
+        `https://api.apify.com/v2/actor-runs/${encodeURIComponent(runId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${params.apiKey}`,
+          },
+          signal,
+        }
+      )
 
       if (!statusResponse.ok) {
         return {
@@ -163,8 +171,12 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         }
       }
 
-      const statusData = await statusResponse.json()
-      const run = statusData.data as ApifyRun
+      const statusData = await readResponseJsonWithLimit<{ data: ApifyRun }>(statusResponse, {
+        maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+        label: 'APIFY run status',
+        signal,
+      })
+      const run = statusData.data
 
       if (
         run.status === 'SUCCEEDED' ||
@@ -175,16 +187,36 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
         if (run.status === 'SUCCEEDED' && run.defaultDatasetId) {
           const limit = Math.max(1, Math.min(params.itemLimit || 100, 250000))
           const itemsResponse = await outboundFetch(
-            `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?limit=${limit}`,
+            `https://api.apify.com/v2/datasets/${encodeURIComponent(run.defaultDatasetId)}/items?limit=${limit}`,
             {
               headers: {
                 Authorization: `Bearer ${params.apiKey}`,
               },
+              signal,
             }
           )
 
           if (itemsResponse.ok) {
-            const items = await itemsResponse.json()
+            let items: unknown[]
+            try {
+              items = await readResponseJsonWithLimit<unknown[]>(itemsResponse, {
+                maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+                label: 'APIFY dataset items',
+                signal,
+              })
+            } catch (error) {
+              if (!isPayloadSizeLimitError(error)) throw error
+              return {
+                success: false,
+                output: {
+                  success: false,
+                  runId,
+                  status: run.status,
+                  datasetId: run.defaultDatasetId,
+                },
+                error: `${error.message}. Lower the item limit, or read the dataset in pages with Get Dataset Items.`,
+              }
+            }
             return {
               success: true,
               output: {

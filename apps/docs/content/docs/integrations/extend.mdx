@@ -41,7 +41,7 @@ Parse and extract content from documents using Extend AI
 | `id` | string | Unique identifier for the parser run |
 | `status` | string | Processing status |
 | `chunks` | json | Parsed document content chunks |
-| `blocks` | json | Block-level document elements with type and content |
+| `blocks` | json | Top-level block elements; Extend returns blocks inside each chunk \(chunks\[\].blocks\), so this is usually empty |
 | `pageCount` | number | Number of pages processed |
 | `creditsUsed` | number | API credits consumed |
 

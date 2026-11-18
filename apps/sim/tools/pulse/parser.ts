@@ -181,6 +181,7 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
         markdown: pulseData.markdown ?? '',
         page_count: pulseData.page_count ?? 0,
         job_id: pulseData.job_id ?? '',
+        extraction_id: pulseData.extraction_id ?? null,
         'plan-info': pulseData['plan-info'] ?? { pages_used: 0, tier: 'unknown' },
         bounding_boxes: pulseData.bounding_boxes ?? null,
         extraction_url: pulseData.extraction_url ?? null,
@@ -204,6 +205,11 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     job_id: {
       type: 'string',
       description: 'Unique job identifier',
+    },
+    extraction_id: {
+      type: 'string',
+      description: 'Persisted extraction ID, for use with Pulse split and schema steps',
+      optional: true,
     },
     'plan-info': {
       type: 'object',

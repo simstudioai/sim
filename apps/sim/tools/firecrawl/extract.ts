@@ -1,13 +1,19 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlScrapeOptionsModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
-import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
+import type {
+  ExtractParams,
+  ExtractResponse,
+  FirecrawlJobStatusBody,
+} from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlExtractTool')
@@ -157,12 +163,13 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       },
     }
   },
-  postProcess: async (result, params) => {
+  postProcess: async (result, params, _executeTool, context) => {
     if (!result.success) {
       return result
     }
 
     const jobId = result.output.jobId
+    const signal = context?.signal
     logger.info(`Firecrawl extract job ${jobId} created, polling for completion...`)
 
     let elapsedTime = 0
@@ -177,6 +184,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
               Authorization: `Bearer ${params.apiKey}`,
               'Content-Type': 'application/json',
             },
+            signal,
           }
         )
 
@@ -184,7 +192,13 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           throw new Error(`Failed to get extract status: ${statusResponse.statusText}`)
         }
 
-        const extractData = await statusResponse.json()
+        const extractData = await readResponseJsonWithLimit<
+          FirecrawlJobStatusBody<ExtractResponse['output']['data']>
+        >(statusResponse, {
+          maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+          label: 'Firecrawl job status',
+          signal,
+        })
         logger.info(`Firecrawl extract job ${jobId} status: ${extractData.status}`)
 
         if (extractData.status === 'completed') {
@@ -197,17 +211,18 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           return result
         }
 
-        if (extractData.status === 'failed') {
+        if (extractData.status === 'failed' || extractData.status === 'cancelled') {
           return {
             ...result,
             success: false,
-            error: `Extract job failed: ${extractData.error || 'Unknown error'}`,
+            error: `Extract job ${extractData.status}: ${extractData.error || 'Unknown error'}`,
           }
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await interruptibleSleep(POLL_INTERVAL_MS, signal)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
+        signal?.throwIfAborted()
         logger.error('Error polling for extract job status:', {
           message: error.message || 'Unknown error',
           jobId,

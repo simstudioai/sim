@@ -115,7 +115,7 @@ export const contextDevCrawlTool: ToolConfig<ContextDevCrawlParams, ContextDevCr
       if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
       if (params.waitForMs != null) body.waitForMs = params.waitForMs
       if (params.stopAfterMs != null) body.stopAfterMs = params.stopAfterMs
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      if (params.timeoutMS != null) body.timeoutOpts = { milliseconds: params.timeoutMS }
       return body
     },
   },

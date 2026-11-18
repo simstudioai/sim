@@ -65,7 +65,7 @@ export const contextDevExtractProductsTool: ToolConfig<
       const body: Record<string, any> = { domain: params.domain }
       if (params.maxProducts != null) body.maxProducts = params.maxProducts
       if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      if (params.timeoutMS != null) body.timeoutOpts = { milliseconds: params.timeoutMS }
       return body
     },
   },

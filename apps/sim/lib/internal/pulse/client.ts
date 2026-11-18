@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
@@ -11,7 +12,46 @@ import {
 import { PulseOperationError } from '@/lib/internal/pulse/errors'
 
 const logger = createLogger('PulseClient')
-const PULSE_ENDPOINT = 'https://api.runpulse.com/extract'
+const PULSE_API_HOST = 'api.runpulse.com'
+const PULSE_ENDPOINT = `https://${PULSE_API_HOST}/extract`
+
+/**
+ * Pulse answers a large extraction (70+ pages, or over its inline size limit) with
+ * `{ is_url: true, url, extraction_id }` instead of the result. The URL holds the full result
+ * in the normal shape; it is either Pulse's own `/results/{id}` (which needs the API key) or a
+ * presigned storage URL.
+ */
+async function downloadLargeResult(
+  apiKey: string,
+  url: string,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const validation = await validateUrlWithDNS(url, 'Pulse result URL', 'contentFetch')
+  signal?.throwIfAborted()
+  if (!validation.isValid) {
+    throw new PulseOperationError(502, {
+      success: false,
+      error: 'Pulse returned an invalid result URL',
+    })
+  }
+  const isPulseHost = new URL(url).hostname === PULSE_API_HOST
+  const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'contentFetch',
+    method: 'GET',
+    headers: isPulseHost ? { 'x-api-key': apiKey } : {},
+    maxResponseBytes: DEFAULT_MAX_RESPONSE_BYTES,
+    signal,
+  })
+  signal?.throwIfAborted()
+  if (!response.ok) {
+    logger.error('Pulse large result download failed', { status: response.status })
+    throw new PulseOperationError(response.status, {
+      success: false,
+      error: `Failed to download the Pulse result: ${response.statusText}`,
+    })
+  }
+  return response.json()
+}
 
 export async function submitPulseParse(
   apiKey: string,
@@ -51,5 +91,12 @@ export async function submitPulseParse(
       error: `Pulse API error: ${response.statusText}`,
     })
   }
-  return response.json()
+  const result: unknown = await response.json()
+  if (isRecordLike(result) && result.is_url === true && typeof result.url === 'string') {
+    const fullResult = await downloadLargeResult(apiKey, result.url, signal)
+    return isRecordLike(fullResult)
+      ? { extraction_id: result.extraction_id, ...fullResult }
+      : fullResult
+  }
+  return result
 }
