@@ -2,12 +2,14 @@
 import { copilotChats, member, settings, user, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, setEnvFlags } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { exportPKCS8, generateKeyPair, jwtVerify } from 'jose'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
@@ -98,6 +100,53 @@ describe('private memory scope', () => {
       await expect(readMemoryScope.execute({ principal: caller, input })).rejects.toThrow()
     }
   )
+  describe('attestation', () => {
+    afterEach(resetEnvMock)
+    async function signingKeys() {
+      const keys = await generateKeyPair('EdDSA', { extractable: true })
+      setEnv({ MOTHERSHIP_MEMORY_SIGNING_KEY: await exportPKCS8(keys.privateKey) })
+      return keys
+    }
+    it('signs the scope it returns, for the memory sidecar only, for one minute', async () => {
+      const { publicKey } = await signingKeys()
+      queueChat()
+      const scope = await readMemoryScope.execute({ principal: principal(), input })
+      if (!('attestation' in scope) || typeof scope.attestation !== 'string')
+        throw new Error('Expected an attestation')
+      const { payload } = await jwtVerify(scope.attestation, publicKey, {
+        issuer: 'sim',
+        audience: 'mothership-memory',
+        algorithms: ['EdDSA'],
+      })
+      expect(payload).toMatchObject({
+        sub: 'actor',
+        chat: 'chat-1',
+        org: 'org-1',
+        ws: null,
+        space: null,
+      })
+      expect((payload.exp ?? 0) - (payload.iat ?? 0)).toBe(60)
+      const other = await generateKeyPair('EdDSA')
+      await expect(jwtVerify(scope.attestation, other.publicKey)).rejects.toThrow()
+    })
+    it('signs nothing while memory is off or no key is set', async () => {
+      await signingKeys()
+      setEnvFlags({ isMothershipBenchmarkEnabled: false })
+      queueChat()
+      expect(await readMemoryScope.execute({ principal: principal(), input })).not.toHaveProperty(
+        'attestation'
+      )
+      setEnvFlags({ isMothershipBenchmarkEnabled: true })
+      setEnv({ MOTHERSHIP_MEMORY_SIGNING_KEY: undefined })
+      resetDbChainMock()
+      queueTableRows(user, [{ role: 'admin' }])
+      queueTableRows(settings, [{ superUserModeEnabled: true }])
+      queueChat()
+      expect(await readMemoryScope.execute({ principal: principal(), input })).not.toHaveProperty(
+        'attestation'
+      )
+    })
+  })
   it('rejects revoked membership, Search chats, and suspended users', async () => {
     queueChat('plan', false)
     await expect(readMemoryScope.execute({ principal: principal(), input })).rejects.toThrow()

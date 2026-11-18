@@ -6,6 +6,7 @@ import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/a
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { isMemorySpacesEnabled } from '@/lib/mothership/feature-flags'
 import type { MemoryScopeRequest } from '@/lib/mothership/generated/memory-scope'
+import { signMemoryScope } from '@/lib/mothership/memory/attestation'
 import { requireOwnedMemorySpace } from '@/lib/mothership/memory/spaces'
 
 export const MEMORY_SCOPE_AUDIENCE = 'sim:copilot-memory'
@@ -60,12 +61,24 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
         context.memorySpaceId
       )
     }
+    const workspaceId = context.workspaceId ?? null
+    // Signed only when memory is on: the attestation is what the sidecar trusts, not the worker.
+    const attestation = enabled
+      ? await signMemoryScope({
+          userId: context.userId,
+          chatId: context.chatId,
+          organizationId,
+          workspaceId,
+          spaceId: context.memorySpaceId ?? null,
+        })
+      : null
     return {
       enabled,
       ...(context.memorySpaceId ? { spaceId: context.memorySpaceId } : {}),
       userId: context.userId,
-      organizationId: context.organizationId ?? context.workspaceOrganizationId ?? null,
-      workspaceId: context.workspaceId ?? null,
+      organizationId,
+      workspaceId,
+      ...(attestation ? { attestation } : {}),
     }
   },
 })
