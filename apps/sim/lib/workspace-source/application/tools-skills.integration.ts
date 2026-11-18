@@ -369,7 +369,7 @@ describe('workspace source: custom tools and skills', () => {
   })
 
   check(
-    'refuses deleting a tool without --allow-delete, warning with the workflows that use it',
+    'refuses deleting a tool without --allow-delete without scanning for its users, which the allowed delete names',
     async () => {
       const workspaceId = await newWorkspace()
       const kinds: ApplyWorkspaceSourceInput['kinds'] = ['custom-tool', 'workflow']
@@ -386,9 +386,8 @@ describe('workspace source: custom tools and skills', () => {
       )
 
       expect(codes(refused.diagnostics)).toEqual(['E_APPLY_DELETE_NOT_ALLOWED'])
-      expect(
-        refused.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')?.message
-      ).toContain('"Support"')
+      // Nothing is deleted, so the workspace's workflows are not scanned for its users.
+      expect(codes(refused.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
       expect(await snapshot(workspaceId)).toEqual(before)
 
       const dryRun = await apply(
@@ -404,6 +403,9 @@ describe('workspace source: custom tools and skills', () => {
       expect(dryRun.plan).toMatchObject([
         { action: 'delete', key: 'lookup', destructive: { counts: { workflows: 1 } } },
       ])
+      expect(
+        dryRun.diagnostics.find((finding) => finding.code === 'W_RESOURCE_IN_USE')?.message
+      ).toContain('"Support"')
 
       const deleted = await apply(
         workspaceId,

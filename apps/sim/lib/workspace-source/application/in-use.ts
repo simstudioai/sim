@@ -5,10 +5,14 @@
  */
 import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { WorkspaceKind } from '@sim/workspace-code'
 import { sql } from 'drizzle-orm'
 import { kindFinding, refDeletedFinding, where } from '@/lib/workspace-source/application/findings'
 import type { PlannedChange } from '@/lib/workspace-source/application/types'
+
+const logger = createLogger('WorkspaceSourceInUse')
 
 /** Workflows a warning names before it only counts the rest. */
 const NAMED_WORKFLOWS = 5
@@ -18,43 +22,72 @@ interface UsingWorkflow {
   name: string
 }
 
+/** How long the scan may run before a plan gives up on it and warns instead. */
+const SCAN_TIMEOUT_MS = 5_000
+
+/** The SQLSTATE of a statement cancelled by its `statement_timeout`. */
+const QUERY_CANCELED = '57014'
+
+/** A `LIKE` pattern matching text that contains `id` anywhere. */
+function containing(id: string): string {
+  return `%${id.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
+}
+
 /**
- * The live workflows of the workspace whose blocks name any of `ids`, by resource id. A block
- * names a resource by its id as a whole sub-block value, as an item of a list, or as one part of
- * a comma-joined value, at any depth (a tool's parameters included), the forms a workflow source
- * read lifts to resource keys. An id that only appears inside other text, such as a prompt that
- * mentions it, names nothing. Each block's sub-blocks are cast to text once (a materialized CTE)
- * to find the candidates cheaply; only those are walked value by value.
+ * The live workflows of the workspace whose blocks name any of `ids`, by resource id; `null` when
+ * the scan did not finish within {@link SCAN_TIMEOUT_MS}. A block names a resource by its id as a
+ * whole sub-block value, as an item of a list, or as one part of a comma-joined value, at any
+ * depth (a tool's parameters included), the forms a workflow source read lifts to resource keys.
+ * An id that only appears inside other text, such as a prompt that mentions it, names nothing.
+ * The workspace's blocks are streamed through one text match against every id (each block's
+ * sub-blocks cast to text once), so only the few that mention one are kept and walked value by
+ * value; nothing is materialized for the rest.
  */
 export async function workflowsUsing(
   workspaceId: string,
   ids: readonly string[]
-): Promise<Map<string, UsingWorkflow[]>> {
+): Promise<Map<string, UsingWorkflow[]> | null> {
   const using = new Map<string, UsingWorkflow[]>()
   if (ids.length === 0) return using
-  const rows = await db.execute<{ resourceId: string; id: string; name: string }>(sql`
-    WITH blocks AS MATERIALIZED (
-      SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks} AS doc,
-        ${workflowBlocks.subBlocks}::text AS text
-      FROM ${workflowBlocks}
-      INNER JOIN ${workflow} ON ${workflow.id} = ${workflowBlocks.workflowId}
-      WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
-    )
-    SELECT DISTINCT referenced.id AS "resourceId", blocks.id, blocks.name
-    FROM blocks
-    INNER JOIN unnest(ARRAY[${sql.join(
-      ids.map((id) => sql`${id}`),
-      sql`, `
-    )}]::text[]) AS referenced(id) ON strpos(blocks.text, referenced.id) > 0
-    WHERE EXISTS (
-      SELECT 1
-      FROM jsonb_path_query(blocks.doc, 'strict $.**') AS leaf(value)
-      WHERE jsonb_typeof(leaf.value) = 'string'
-        AND referenced.id IN (
-          SELECT btrim(part) FROM unnest(string_to_array(leaf.value #>> '{}', ',')) AS part
+  const idList = sql`ARRAY[${sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `
+  )}]::text[]`
+  const patterns = sql`ARRAY[${sql.join(
+    ids.map((id) => sql`${containing(id)}`),
+    sql`, `
+  )}]::text[]`
+  let rows: Array<{ resourceId: string; id: string; name: string }>
+  try {
+    rows = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('statement_timeout', ${`${SCAN_TIMEOUT_MS}ms`}, true)`)
+      return tx.execute<{ resourceId: string; id: string; name: string }>(sql`
+        WITH candidates AS MATERIALIZED (
+          SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks} AS doc,
+            ${workflowBlocks.subBlocks}::text AS text
+          FROM ${workflowBlocks}
+          INNER JOIN ${workflow} ON ${workflow.id} = ${workflowBlocks.workflowId}
+          WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
+            AND ${workflowBlocks.subBlocks}::text LIKE ANY (${patterns})
         )
-    )
-  `)
+        SELECT DISTINCT referenced.id AS "resourceId", candidates.id, candidates.name
+        FROM candidates
+        INNER JOIN unnest(${idList}) AS referenced(id) ON strpos(candidates.text, referenced.id) > 0
+        WHERE EXISTS (
+          SELECT 1
+          FROM jsonb_path_query(candidates.doc, 'strict $.**') AS leaf(value)
+          WHERE jsonb_typeof(leaf.value) = 'string'
+            AND referenced.id IN (
+              SELECT btrim(part) FROM unnest(string_to_array(leaf.value #>> '{}', ',')) AS part
+            )
+        )
+      `)
+    })
+  } catch (error) {
+    if (getPostgresErrorCode(error) !== QUERY_CANCELED) throw error
+    logger.warn('Workspace source in-use scan timed out', { workspaceId, ids: ids.length })
+    return null
+  }
   for (const row of rows) {
     const list = using.get(row.resourceId) ?? []
     list.push({ id: row.id, name: row.name })
@@ -64,8 +97,7 @@ export async function workflowsUsing(
 }
 
 /**
- * Checks every delete the plan makes (or refuses for want of `--allow-delete`) against the stored
- * workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
+ * Checks every delete the plan makes against the stored workflows that use the resource. A workflow the directory declares unchanged (`unchanged` lists
  * the keys of each kind sent without files) keeps using it, so the delete is
  * `E_PLAN_REF_DELETED`; one the directory does not declare is named in a warning and counted in
  * the delete's destructive line. A workflow the apply deletes too is no user, and an edited one is
@@ -78,23 +110,36 @@ export async function checkDeletesInUse(
   workspaceId: string
 ): Promise<void> {
   // A credential delete only unbinds its key, which leaves every stored workflow using the
-  // credential working; an undeploy deletes no resource (its stored id is its workflow's).
+  // credential working; an undeploy deletes no resource (its stored id is its workflow's). A
+  // delete refused for want of --allow-delete deletes nothing, so it is not scanned: the plan that
+  // allows it (the CLI's dry run first) names the workflows. An update that would lose data (a
+  // dropped column, a removed option) deletes nothing a workflow names.
   const deleting = changes.filter(
     (change) =>
       change.kind !== 'credential' &&
       change.kind !== 'deployment' &&
       change.storedId !== undefined &&
-      (change.action === 'delete' ||
-        // An undeclared resource kept for want of --allow-delete; an update that would lose
-        // data (a dropped column, a removed option) deletes nothing a workflow names.
-        (change.action === 'noop' &&
-          change.diagnostics.some((finding) => finding.code === 'E_APPLY_DELETE_NOT_ALLOWED')))
+      change.action === 'delete'
   )
   if (deleting.length === 0) return
   const using = await workflowsUsing(
     workspaceId,
     deleting.flatMap((change) => change.storedId ?? [])
   )
+  if (using === null) {
+    for (const change of deleting) {
+      change.diagnostics.push(
+        kindFinding(
+          change.kind,
+          change.key,
+          'W_RESOURCE_IN_USE',
+          `Could not check in time which stored workflows use ${where(change.kind, change.key)}; deleting it breaks any that still do.`,
+          { hint: 'Check its workflows before applying, or keep its declaration.' }
+        )
+      )
+    }
+    return
+  }
   const deletedWorkflows = new Set<string>()
   // The workflows the directory declares, by stored id.
   const declared = new Map<string, { key: string; edited: boolean }>()
