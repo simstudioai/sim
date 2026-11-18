@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogUpdatePropertyDefinitionParams {
@@ -108,7 +108,7 @@ export const updatePropertyDefinitionTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/property_definitions/${params.propertyDefinitionId}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/property_definitions/${postHogPathSegment(params.propertyDefinitionId, 'propertyDefinitionId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

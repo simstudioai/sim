@@ -370,7 +370,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       requiresDesktopSurface: 'settings',
     },
     /** Device settings, not workspace data, so surfaces without a workspace host them too. */
-    planes: { account: { id: 'desktop', group: 'account', order: 1 } },
+    planes: { account: { id: 'desktop', group: 'account', order: 2 } },
   },
   {
     label: 'Browser',

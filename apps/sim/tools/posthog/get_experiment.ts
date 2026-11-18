@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface GetExperimentParams {
@@ -77,7 +77,7 @@ export const getExperimentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/experiments/${postHogPathSegment(params.experimentId, 'experimentId')}/`
     },
     method: 'GET',
     headers: (params) => ({

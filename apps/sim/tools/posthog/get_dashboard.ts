@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetDashboardParams {
@@ -74,7 +74,7 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/dashboards/${params.dashboardId}/`
+        return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/dashboards/${postHogPathSegment(params.dashboardId, 'dashboardId')}/`
       },
       method: 'GET',
       headers: (params) => ({

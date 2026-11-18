@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogGetOrganizationParams {
@@ -83,7 +83,7 @@ export const getOrganizationTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/organizations/${params.organizationId}/`
+      return `${baseUrl}/api/organizations/${postHogPathSegment(params.organizationId, 'organizationId')}/`
     },
     method: 'GET',
     headers: (params) => ({
