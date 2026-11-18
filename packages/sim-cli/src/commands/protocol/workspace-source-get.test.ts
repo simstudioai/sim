@@ -339,6 +339,38 @@ describe('workspaces source get', () => {
         expect(readFileSync(join(dir, 'files/a.bin'))).toEqual(bytesOf('a.bin'))
       })
 
+      it('refuses a downloads folder that is a symbolic link, writing nothing through it', async () => {
+        const elsewhere = join(rootDir, 'elsewhere')
+        mkdirSync(elsewhere)
+        mkdirSync(join(dir, '.sim'), { recursive: true })
+        symlinkSync(elsewhere, join(dir, '.sim/downloads'))
+        serve({}, { kinds: ['file'], blobs: NAMES.map((name) => listedNamed(name)) })
+        downloads(null)
+
+        await expect(get()).rejects.toMatchObject({ code: 'SOURCE_SYMLINK' })
+        expect(readdirSync(elsewhere)).toEqual([])
+        expect(requestRaw).not.toHaveBeenCalled()
+      })
+
+      it('refuses a kept download that is a symbolic link', async () => {
+        serve({}, { kinds: ['file'], blobs: NAMES.map((name) => listedNamed(name)) })
+        downloads('c.bin')
+        await expect(get()).rejects.toMatchObject({ status: 429 })
+        const keptA = String(
+          readdirSync(join(dir, '.sim/downloads')).find((name) =>
+            readFileSync(join(dir, '.sim/downloads', name)).equals(bytesOf('a.bin'))
+          )
+        )
+        const outside = join(rootDir, 'outside.bin')
+        writeFileSync(outside, bytesOf('a.bin'))
+        rmSync(join(dir, '.sim/downloads', keptA))
+        symlinkSync(outside, join(dir, '.sim/downloads', keptA))
+
+        downloads(null)
+        await expect(get()).rejects.toMatchObject({ code: 'SOURCE_SYMLINK' })
+        expect(existsSync(join(dir, 'files/a.bin'))).toBe(false)
+      })
+
       it('writes two paths listed with the same bytes', async () => {
         const twin = { ...listedNamed('a.bin'), path: 'files/copy-of-a.bin' }
         serve({}, { kinds: ['file'], blobs: [listedNamed('a.bin'), twin] })

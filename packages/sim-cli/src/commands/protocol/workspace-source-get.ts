@@ -22,6 +22,7 @@ import { apiCommand } from '../../runtime/called-operations'
 import { removeStagingOnSignal } from './files-get'
 import { printProtocolResult } from './result'
 import {
+  checkedPath,
   editedFiles,
   FILE_CONCURRENCY,
   readSourceJson,
@@ -197,7 +198,7 @@ async function writeWorkspaceSource(
   // Stale blobs download (and hash) before anything moves into place, so the base can record the
   // hash of one listed without it; they land inside the directory so each moves into place by a
   // rename.
-  const downloads = join(await downloadsRoot(dir), SOURCE_DOWNLOADS_DIR)
+  const downloads = await checkedPath(await downloadsRoot(dir), SOURCE_DOWNLOADS_DIR, new Set())
   const downloaded = new Map<string, FetchedBlob>()
   // This get's partial downloads, removed on every way out, an interrupt included; a verified
   // download kept for the next get sits beside it in `downloads`.

@@ -284,7 +284,11 @@ export async function fetchBlob(
   partial: string
 ): Promise<FetchedBlob> {
   const name = keptName(blob)
-  const file = name === null ? join(partial, `${generateShortId()}.bin`) : join(downloads, name)
+  // `downloads` was checked to be a real folder; a kept copy in it must be a plain file too.
+  const file =
+    name === null
+      ? join(partial, `${generateShortId()}.bin`)
+      : await checkedPath(downloads, name, new Set())
   if (name !== null) {
     try {
       const kept = await hashFile(file)
