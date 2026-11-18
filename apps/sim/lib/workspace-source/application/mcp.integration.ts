@@ -548,6 +548,72 @@ describe('MCP servers as workspace source', () => {
     }
   )
 
+  check(
+    'prints every literal header value as stored() to a read-only member, as the MCP API withholds them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const tenant = ['tenant', generateId()].join('-')
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url,
+          headers: { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+          authType: 'headers',
+        },
+      })
+
+      const written = await runner.get(workspaceId)
+      const [path] = Object.keys(written.files)
+      expect(written.files[path]).toContain(tenant)
+
+      const read = await runner.get(workspaceId, reader)
+      expect(JSON.stringify(read)).not.toContain(tenant)
+      expect(read.files[path]).toContain("'X-Tenant': stored()")
+      expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
+      const address = `mcp-server:${path.slice(4, -3)}`
+      expect(read.base.resources[address]).toEqual(written.base.resources[address])
+    }
+  )
+
+  check(
+    'refuses a replace that carries stored() header values to a new URL unless an admin applies it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Legacy',
+          url,
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId)
+      const [path] = Object.keys(read.files)
+      expect(read.files[path]).toContain('Authorization: stored()')
+      const moved = { [path]: read.files[path].replace(url, `${url}/elsewhere`) }
+      const key = createWorkspaceApiKeyPrincipal({ workspaceId, keyId: generateId() })
+
+      const refused = await refusal(
+        apply(workspaceId, moved, { base: read.base, allowDelete: true, principal: key })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+      ])
+      expect((await liveServers(workspaceId)).map((server) => server.url)).toEqual([url])
+
+      const replaced = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+      expect(replaced.failed).toBeUndefined()
+      const after = await liveServers(workspaceId)
+      expect(after.map((server) => [server.url, server.headers])).toEqual([
+        [`${url}/elsewhere`, { Authorization: `Bearer ${TOKEN}` }],
+      ])
+    }
+  )
+
   check('lists each server with the tools it serves in the resources manifest', async () => {
     const { workspaceId } = await setUp()
 

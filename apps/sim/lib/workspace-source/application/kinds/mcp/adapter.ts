@@ -30,8 +30,9 @@ import {
 } from '@sim/workspace-code/kinds/mcp'
 import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import type { CursorKey } from '@/lib/api/list-query'
-import { ForbiddenOperationError } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   createMcpServerUseCase,
   deleteMcpServerUseCase,
@@ -43,12 +44,15 @@ import {
 } from '@/lib/mcp/application/use-cases'
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { admitOnce } from '@/lib/workspace-source/application/context'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
 import { inUseUncheckedFinding, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
+  concealHeaderValues,
   declOf,
   headersToWrite,
+  keepsStoredHeaders,
   resolveStoredHeaders,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/mcp/stored'
@@ -285,6 +289,36 @@ function updateUseCaseOf(changed: readonly string[]) {
   return changed.includes('url') ? reconfigureMcpServerUseCase : updateMcpServerUseCase
 }
 
+/**
+ * Whether the caller may see the header values a server stores: as the MCP server list shows them
+ * only to one who may rewrite them, a get prints them only to a caller the update use case admits.
+ */
+function revealsHeaderValues(ctx: SourceContext): Promise<unknown> {
+  return admitOnce(ctx, 'mcp:header-values', () =>
+    authorizeWorkspaceOperation(ctx.principal, mcpServerOperations.update, ctx.workspace).then(
+      () => true,
+      (error: unknown) => {
+        if (error instanceof ForbiddenOperationError) return false
+        throw error
+      }
+    )
+  )
+}
+
+/**
+ * A replace that keeps `stored()` header values sends them to the new URL's host, so it needs
+ * what pointing a server at another destination needs (an admin), as the reconfigure use case
+ * requires.
+ */
+async function authorizeCarriedHeaders(change: McpChange, ctx: SourceContext): Promise<void> {
+  if (!change.detail?.replace || !change.decl || !keepsStoredHeaders(change.decl)) return
+  await authorizeWorkspaceOperation(
+    ctx.principal,
+    mcpServerOperations.changeDestination,
+    ctx.workspace
+  )
+}
+
 async function getServer(ctx: SourceContext, serverId: string): Promise<McpServerRow> {
   const { server } = await getMcpServerUseCase.execute({
     principal: ctx.principal,
@@ -409,6 +443,7 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
         input: { workspaceId, name: decl.name, url: decl.url },
       })
     }
+    await authorizeCarriedHeaders(change, ctx)
     if (!change.storedId) return
     if (change.action === 'delete' || change.detail?.replace) {
       await deleteMcpServerUseCase.authorize({
@@ -447,6 +482,7 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
     if (change.action === 'create') return written(change.key, await create())
     if (!current) throw new Error('An MCP server update needs the stored id')
     if (change.detail?.replace) {
+      await authorizeCarriedHeaders(change, ctx)
       // Created first, so a failed create leaves the stored server as it was.
       const created = await create()
       await remove(current.id)
@@ -461,7 +497,7 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
     return written(change.key, server)
   },
 
-  async read(stored) {
+  async read(stored, ctx) {
     const decl = declOf(stored.state)
     const printed = mcpCodec.print(stored.key, decl)
     const parsed = mcpCodec.parse(stored.key, printed.text, [])
@@ -473,7 +509,11 @@ export const mcpAdapter: KindAdapter<McpServerDecl, McpServerRow, McpPlan> = {
         'This MCP server holds a value source files cannot express, so it is left out.'
       )
     }
-    return { text: printed.text, blobs: [], base: { id: stored.id, fingerprint } }
+    const text =
+      (await revealsHeaderValues(ctx)) === true
+        ? printed.text
+        : mcpCodec.print(stored.key, concealHeaderValues(decl, stored.state)).text
+    return { text, blobs: [], base: { id: stored.id, fingerprint } }
   },
 
   async checkRefs(changes, ctx) {

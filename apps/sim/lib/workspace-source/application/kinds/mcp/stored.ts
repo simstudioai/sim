@@ -75,6 +75,38 @@ export function declOf(row: McpServerRow): McpServerDecl {
   }
 }
 
+/** `{{NAME}}` env references, and the auth scheme word a header value may open with. */
+const ENV_REFERENCES = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g
+const LEADING_AUTH_SCHEME = /^\s*(?:bearer|basic|token|bot|apikey)\s+/i
+
+/** Whether a header value is only env references (after an optional auth scheme word). */
+function isEnvReferenceOnly(value: string): boolean {
+  return value.replace(LEADING_AUTH_SCHEME, '').replace(ENV_REFERENCES, '').trim() === ''
+}
+
+/**
+ * `decl` (as {@link declOf} printed `row`) for a reader who may not see header values, as the MCP
+ * server list withholds them from anyone who cannot rewrite them: every header holding literal
+ * text prints as `stored()`, and only one made of env references prints as written.
+ */
+export function concealHeaderValues(decl: McpServerDecl, row: McpServerRow): McpServerDecl {
+  if (!decl.headers) return decl
+  const headers = Object.fromEntries(
+    Object.entries(decl.headers).map(([name, header]): [string, McpHeaderDecl] => [
+      name,
+      isStoredHeader(header) || isEnvReferenceOnly(header)
+        ? header
+        : { stored: storedValueHash(row, name, header) },
+    ])
+  )
+  return { ...decl, headers }
+}
+
+/** Whether `decl` keeps any header value the server stores (`stored()`). */
+export function keepsStoredHeaders(decl: McpServerDecl): boolean {
+  return Object.values(decl.headers ?? {}).some(isStoredHeader)
+}
+
 /** A stored server's fingerprint: of the declaration it prints as. */
 export function storedFingerprint(row: McpServerRow): ResourceFingerprint {
   return fingerprintOf(mcpCodec.canonical(declOf(row)))
