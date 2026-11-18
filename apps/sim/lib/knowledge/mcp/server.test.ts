@@ -212,7 +212,6 @@ describe('live organization Search MCP', () => {
       {
         documentId: 'live:message',
         title: '#release',
-        citationId: expect.any(String),
         citationUrl: 'https://example.slack.com/archives/C1/p1',
         sourceDate: '2026-09-22T10:00:00Z',
         sourceContainerUrl: 'https://example.slack.com/archives/C1',
@@ -222,13 +221,11 @@ describe('live organization Search MCP', () => {
       {
         documentId: 'live:event',
         title: 'Launch review',
-        citationId: expect.any(String),
         citationUrl: 'https://calendar.example.com/event',
         sourceModifiedAt: '2026-09-20T08:00:00.000Z',
         sourceDate: '2026-09-25T16:00:00Z',
         sourceContainerName: 'Team calendar',
         connectorType: 'google_calendar',
-        content: 'Launch review',
       },
     ])
   })
@@ -354,6 +351,7 @@ describe('live organization Search MCP', () => {
     expect(read).toMatchObject({ title: 'Release notes', citationUrl: 'https://example.com/notes' })
     expect(read).not.toHaveProperty('documentName')
     expect(read).not.toHaveProperty('sourceUrl')
+    expect(read).not.toHaveProperty('citationId')
   })
 
   it.each(['search', 'read_document'])(
