@@ -30461,6 +30461,13 @@
                                 "description": "OAuth service the field binds.",
                                 "type": "string"
                               },
+                              "credentialProviders": {
+                                "description": "Provider ids of the saved credentials the field accepts.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
                               "valueKind": {
                                 "type": "string",
                                 "enum": [
@@ -30639,6 +30646,34 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "operationOutputs": {
+                      "description": "Per operation id: the outputs its tool returns, where they differ.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Block outputs the operation returns, in order."
+                          },
+                          "nullable": {
+                            "description": "Those of them the operation may return as null.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["names"],
+                        "additionalProperties": false
+                      }
                     },
                     "dynamicOutputs": {
                       "description": "Present when outputs derive from a param at run time.",
@@ -31501,6 +31536,13 @@
                                 "description": "OAuth service the field binds.",
                                 "type": "string"
                               },
+                              "credentialProviders": {
+                                "description": "Provider ids of the saved credentials the field accepts.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
                               "valueKind": {
                                 "type": "string",
                                 "enum": [
@@ -32341,6 +32383,13 @@
                     "serviceId": {
                       "description": "OAuth service the field binds.",
                       "type": "string"
+                    },
+                    "credentialProviders": {
+                      "description": "Provider ids of the saved credentials the field accepts.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "valueKind": {
                       "type": "string",

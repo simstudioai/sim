@@ -32,23 +32,29 @@ declare const TOOL: unique symbol
 declare const NODE: unique symbol
 declare const CODE_FILE: unique symbol
 declare const RAW: unique symbol
+declare const UNTYPED: unique symbol
 
 /** Any reference, whatever it points at. */
 export interface AnyRef {
   readonly [REF]: unknown
 }
 
+/** Marks a reference into untyped JSON, which any param accepts: its value is known only at run time. */
+interface Untyped {
+  readonly [UNTYPED]: true
+}
+
 /**
  * A reference into untyped JSON, where any path is allowed at any depth. An interface rather than
  * `Ref<Json>`, which TypeScript stops resolving after one step (`a.b.c` failed at `c`).
  */
-interface UntypedRef {
+interface UntypedRef extends Untyped {
   readonly [REF]: Json
   readonly [key: string]: UntypedRef
 }
 
 type RefPaths<T> = [Json] extends [T]
-  ? { readonly [key: string]: UntypedRef }
+  ? Untyped & { readonly [key: string]: UntypedRef }
   : T extends readonly (infer E)[]
     ? { readonly [index: number]: Ref<E>; readonly length: Ref<number> }
     : T extends object
@@ -69,8 +75,22 @@ export interface EnvRef {
   readonly [ENV]: string
 }
 
-/** A param value: a literal, a reference, a template or an environment variable. */
-export type Value<T> = T | AnyRef | Template | EnvRef
+/**
+ * What a reference must hold to fill a param of type `T`. A param taking some strings takes any
+ * string (an option id computed at run time); `null` (an output a step left empty) fits anywhere.
+ */
+type RefValue<T> = [Extract<T, string>] extends [never] ? T | null : T | string | null
+
+/**
+ * A reference that fits a param of type `T`: one whose value has that type, or one into untyped
+ * JSON. A whole block is not a value: reference one of its outputs.
+ */
+export type RefTo<T> = ({ readonly [REF]: RefValue<T> } | (AnyRef & Untyped)) & {
+  readonly [NODE]?: never
+}
+
+/** A param value: a literal, a reference of a fitting type, a template or an environment variable. */
+export type Value<T> = T | RefTo<T> | Template | EnvRef
 
 /** JSON whose leaves may be references, templates or environment variables. */
 export type JsonWithRefs =
@@ -90,7 +110,10 @@ export type LiteralUnion<T extends string> = T | (string & {})
 /** A `time-input` value, `HH:MM`. */
 export type TimeString = `${number}:${number}`
 
-type Interpolation = AnyRef | EnvRef | VarRef | string | number | boolean
+/** A reference written into text: any output or variable, but not a whole block. */
+type InterpolatedRef = AnyRef & { readonly [NODE]?: never }
+
+type Interpolation = InterpolatedRef | EnvRef | VarRef | string | number | boolean
 
 /** Text with interpolated references: `` t`New ${cls.category} ticket` ``. */
 export declare function t(strings: TemplateStringsArray, ...values: Interpolation[]): Template
@@ -177,6 +200,20 @@ export interface ResourceRef<Kind extends string, Key extends string = string> {
 
 /** A saved credential: `credential('support-slack')`. */
 export type CredentialRef<Key extends string = string> = ResourceRef<'credential', Key>
+
+/**
+ * Keys of the saved credentials for one of `Providers`, as `workspace.d.ts` records each
+ * credential's provider; any key until it exists.
+ */
+export type CredentialKeyFor<Providers extends string> = keyof WorkspaceCredentials extends never
+  ? string
+  : {
+      [K in Extract<keyof WorkspaceCredentials, string>]: WorkspaceCredentials[K] extends {
+        provider: Providers
+      }
+        ? K
+        : never
+    }[Extract<keyof WorkspaceCredentials, string>]
 export declare function credential<K extends CredentialKey>(key: K): CredentialRef<K>
 
 /** The columns of a workspace table, or loose JSON when `workspace.d.ts` does not know it. */
@@ -194,9 +231,19 @@ export interface TableRow<K extends string> {
   createdAt: string
   updatedAt: string
 }
-/** Column values written to a row. */
+/**
+ * A value written to a field of type `T` (a table cell, a child workflow input): a JSON or JSON
+ * array field takes JSON with references in it, and `null` leaves the field empty.
+ */
+type FieldValue<T> = [Json] extends [T]
+  ? JsonWithRefs
+  : [Json[]] extends [T]
+    ? JsonWithRefs
+    : Value<T> | null
+
+/** Column values written to a row, each checked against its column's type. */
 export type TableData<K extends string> = K extends keyof WorkspaceTables
-  ? { [C in keyof WorkspaceTables[K]]?: Value<WorkspaceTables[K][C]> | JsonWithRefs }
+  ? { [C in keyof WorkspaceTables[K]]?: FieldValue<WorkspaceTables[K][C]> }
   : { [column: string]: JsonWithRefs }
 
 /** A workspace table: `table('leads')`. Table block operations live on `table.*`. */
@@ -210,10 +257,6 @@ export declare function knowledgeBase<K extends KnowledgeBaseKey>(key: K): Knowl
 /** A workspace skill: `skill('triage')`. */
 export type SkillRef<Key extends string = string> = ResourceRef<'skill', Key>
 export declare function skill<K extends SkillKey>(key: K): SkillRef<K>
-
-/** A sandbox image: `sandbox('node-ml')`. */
-export type SandboxRef = ResourceRef<'sandbox'>
-export declare function sandbox(key: string): SandboxRef
 
 /** A workspace folder: `folder('reports')`. */
 export type FolderRef = ResourceRef<'file-folder'>
@@ -573,9 +616,24 @@ type SpecialOutput<K extends string> = K extends keyof SpecialBuilderTypes
 /** A condition expression, or `true` for the `else` branch. */
 export type BranchExpression = Template | string | true
 
-/** A condition's branches: every key holds an expression, and only `else` may be `true`. */
+declare const ONLY_ELSE: unique symbol
+
+/** What a branch other than `else` written as `true` must be, which no value is: the error names it. */
+interface OnlyElseMayBeTrue {
+  readonly [ONLY_ELSE]: true
+}
+
+/**
+ * A condition's branches: every key holds an expression, and only `else` may be `true`. Another
+ * branch written as `true` is checked against {@link OnlyElseMayBeTrue}, so the error names that
+ * branch alone.
+ */
 type ConditionBranches<B> = {
-  [K in keyof B]: K extends 'else' ? BranchExpression : Template | string
+  [K in keyof B]: K extends 'else'
+    ? BranchExpression
+    : B[K] extends true
+      ? OnlyElseMayBeTrue
+      : Template | string
 }
 
 /**
@@ -606,10 +664,23 @@ export declare function fn(
   meta?: BlockMeta
 ): Block<SpecialOutput<'fn'>>
 
-/** Runs a child workflow. */
-export declare function runWorkflow(
+/**
+ * The inputs of a child workflow by key, each checked against the input its start block
+ * declares when `workspace.d.ts` knows the workflow; loose JSON otherwise.
+ */
+export type WorkflowInputMapping<K extends string> = K extends keyof WorkspaceWorkflows
+  ? WorkspaceWorkflows[K] extends { inputs: infer I }
+    ? { [N in keyof I]?: FieldValue<I[N]> }
+    : InputMapping
+  : InputMapping
+
+/** Runs a child workflow. A `childWorkflow('key')` checks `inputMapping` against its inputs. */
+export declare function runWorkflow<K extends string = string>(
   name: string,
-  params: SpecialParams<'runWorkflow'>,
+  params: Omit<SpecialParams<'runWorkflow'>, 'workflowId' | 'inputMapping'> & {
+    workflowId: WorkflowRef<K> | Exclude<SpecialParams<'runWorkflow'>['workflowId'], WorkflowRef>
+    inputMapping?: WorkflowInputMapping<K>
+  },
   meta?: BlockMeta
 ): Block<SpecialOutput<'runWorkflow'>>
 
@@ -634,8 +705,8 @@ export declare function human<const F extends InputFields = Record<never, never>
  */
 export interface ResponseBody {
   body: JsonWithRefs
-  /** HTTP status; 200 when omitted. */
-  status?: number | Value<string>
+  /** HTTP status; 200 when omitted. A template or reference must produce a number. */
+  status?: number | RefTo<number> | Template | EnvRef
   /** Response headers by name. */
   headers?: Record<string, Value<string>>
 }
@@ -646,7 +717,12 @@ export interface ResponseBody {
  */
 export declare function response(
   name: string,
-  params: ResponseBody | SpecialParams<'response'>,
+  params: ResponseBody,
+  meta?: BlockMeta
+): Block<SpecialOutput<'response'>>
+export declare function response(
+  name: string,
+  params: SpecialParams<'response'>,
   meta?: BlockMeta
 ): Block<SpecialOutput<'response'>>
 

@@ -52,6 +52,10 @@ const sourceResourcesDelegationPolicy = {
 /** One more row than the cap, so a full page tells a capped list from an exact one. */
 const PAGE = MAX_MANIFEST_RESOURCES_PER_KIND + 1
 
+/**
+ * A table's columns as workflow source reads them. A `select` column lists its option names:
+ * table blocks output a cell's option names and accept them on writes.
+ */
 function columnsOf(schema: unknown): ManifestColumn[] {
   if (!isRecordLike(schema) || !Array.isArray(schema.columns)) return []
   return schema.columns.flatMap((column): ManifestColumn[] => {
@@ -59,10 +63,18 @@ function columnsOf(schema: unknown): ManifestColumn[] {
     const type = typeof column.type === 'string' ? column.type : 'string'
     const options = Array.isArray(column.options)
       ? column.options.flatMap((option) =>
-          isRecordLike(option) && typeof option.id === 'string' ? [option.id] : []
+          isRecordLike(option) && typeof option.name === 'string' ? [option.name] : []
         )
       : []
-    return [{ name: column.name, type, ...(options.length > 0 ? { options } : {}) }]
+    return [
+      {
+        name: column.name,
+        type,
+        ...(options.length > 0 ? { options } : {}),
+        ...(column.multiple === true ? { multiple: true } : {}),
+        ...(column.required === true ? { required: true } : {}),
+      },
+    ]
   })
 }
 

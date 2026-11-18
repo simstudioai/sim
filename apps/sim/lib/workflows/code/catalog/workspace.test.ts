@@ -7,6 +7,7 @@ import { catalogBlock } from '@sim/workflow-code'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { type CatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'

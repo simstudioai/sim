@@ -85,7 +85,7 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 The value kind alone picks the member of a basic/advanced pair; there is no `meta.modes`.
 
 - A selector call (`credential`, `table`, `knowledgeBase`, `childWorkflow`, `skill`, `customTool`,
-  `mcp`, `sandbox`, `folder`, `file`), or a non-empty array of them, is basic. Anything else is
+  `mcp`, `folder`, `file`), or a non-empty array of them, is basic. Anything else is
   advanced.
 - Exception: a list or object literal never lands in a JSON code member (subBlock type `code`) when
   the other member takes it as written (`table_v2`'s `filterInput`: a list is the filter builder's,
@@ -151,7 +151,6 @@ round-trip such a block but never introduce one; renaming the block retires the 
 | `customTool('key', { usageControl?, usageControlExpression? })` | A custom tool; in a `tools` list, the picker's reference |
 | `mcp('key')` | An MCP server (`mcp-server`); `.tool(name)` in a `tools` list |
 | `skill('key')` | A workspace skill (`skill`) |
-| `sandbox('key')` | A sandbox image (`sandbox`) |
 | `codeFile('./functions/x.js')` | Function code kept in a file (see "Function code") |
 | `stored()` | The stored value of this param, not shown (see below) |
 | `raw(v)` | The canonical value verbatim (literals only). `$sim` objects inside are canonical nodes, shape-checked; a `literal` node's `value` is not inspected |

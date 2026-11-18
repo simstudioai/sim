@@ -51,6 +51,7 @@ const CORE_TYPE_NAMES = [
   'Block',
   'BlockMeta',
   'BranchExpression',
+  'CredentialKeyFor',
   'CredentialRef',
   'DocumentTag',
   'EvalMetric',
@@ -68,6 +69,7 @@ const CORE_TYPE_NAMES = [
   'Message',
   'Model',
   'ModelFallback',
+  'RefTo',
   'ResponseFields',
   'ResponseFormat',
   'ResponseFormatOutput',
@@ -203,6 +205,31 @@ function outputSource(
   const only =
     isTrigger && available.length === 1 ? catalogTrigger(catalog, available[0]) : undefined
   return only ? only.outputs : block.outputs
+}
+
+/**
+ * The outputs of an operation builder whose tool the catalog records (`operationOutputs`): only
+ * those the tool returns, and which of them may be `null`.
+ */
+function operationOutputs(
+  block: CatalogBlock,
+  entry: BuilderEntry,
+  outputs: Record<string, CatalogOutput>
+): { outputs: Record<string, CatalogOutput>; nullable: ReadonlySet<string> } {
+  const operation = entry.builder.operation
+  const byOperation = block.operationOutputs
+  const returned =
+    operation !== undefined &&
+    !entry.builder.triggerMode &&
+    outputs === block.outputs &&
+    byOperation &&
+    Object.hasOwn(byOperation, operation)
+      ? byOperation[operation]
+      : undefined
+  if (!returned) return { outputs, nullable: new Set() }
+  const picked: Record<string, CatalogOutput> = {}
+  for (const name of returned.names) if (Object.hasOwn(outputs, name)) picked[name] = outputs[name]
+  return { outputs: picked, nullable: new Set(returned.nullable ?? []) }
 }
 
 function operationLabel(block: CatalogBlock, operation: string): string | undefined {
@@ -358,7 +385,7 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
       `sdk codegen: builder \`${entry.key}\` names unknown block type \`${entry.builder.type}\``
     )
   }
-  const outputs = outputSource(catalog, block, entry)
+  const { outputs, nullable } = operationOutputs(block, entry, outputSource(catalog, block, entry))
   const spec = block.dynamicOutputs ?? null
   const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
   const { params, gate, candidates, context } = buildParams(block, entry, plan)
@@ -367,7 +394,7 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
   const generic = typeParameterList(plan, false)
   const genericArgs = plan ? `<${plan.typeParameter.name}>` : ''
   const outputGeneric = plan && Object.keys(plan.outputOverrides).length > 0
-  const members = builderOutputs(outputs, context, plan?.outputOverrides ?? {})
+  const members = builderOutputs(outputs, context, plan?.outputOverrides ?? {}, nullable)
   const paramsDeclaration = `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`
   const output: BuilderOutput = {
     name: outputName,

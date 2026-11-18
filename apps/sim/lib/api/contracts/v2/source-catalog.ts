@@ -184,6 +184,10 @@ const catalogSubBlockSchema = z
     columns: z.array(z.string()).optional().describe('Table column headers.'),
     selectorKey: z.string().optional().describe('Selector that lists the options.'),
     serviceId: z.string().optional().describe('OAuth service the field binds.'),
+    credentialProviders: z
+      .array(z.string())
+      .optional()
+      .describe('Provider ids of the saved credentials the field accepts.'),
     valueKind: z
       .enum([
         'string',
@@ -316,6 +320,19 @@ const catalogBlockSchema = z
       .describe('Tools the block calls.'),
     outputs: catalogOutputsSchema.optional(),
     sharedOutputs: sharedOutputsSchema,
+    operationOutputs: z
+      .record(
+        z.string(),
+        z.object({
+          names: z.array(z.string()).describe('Block outputs the operation returns, in order.'),
+          nullable: z
+            .array(z.string())
+            .optional()
+            .describe('Those of them the operation may return as null.'),
+        })
+      )
+      .optional()
+      .describe('Per operation id: the outputs its tool returns, where they differ.'),
     dynamicOutputs: z
       .object({
         source: z

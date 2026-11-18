@@ -51,7 +51,12 @@ export function writeTypecheckProject(
         compilerOptions: {
           ...SOURCE_COMPILER_OPTIONS,
           skipLibCheck: false,
-          paths: { '@sim/workflow-sdk': [path.join(packageRoot, 'src', 'core.d.ts')] },
+          paths: {
+            '@sim/workflow-sdk': [path.join(packageRoot, 'src', 'core.d.ts')],
+            '@sim/workflow-sdk/workspace': [
+              path.join(packageRoot, 'src', 'workspace', 'index.d.ts'),
+            ],
+          },
         },
         include: [
           path.join(outDir, 'types', '**', '*.d.ts'),

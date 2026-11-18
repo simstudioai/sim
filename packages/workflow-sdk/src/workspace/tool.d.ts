@@ -30,6 +30,9 @@ import type { CodeFileRef, Json } from '@sim/workflow-sdk'
 
 export { codeFile } from '@sim/workflow-sdk'
 
+/** JSON as an object literal writes it: an optional member may be absent. */
+type SchemaJson = Json | readonly SchemaJson[] | { readonly [key: string]: SchemaJson | undefined }
+
 /** The function declaration a model calls the tool by, stored verbatim. */
 export interface ToolSchema {
   type: 'function'
@@ -42,11 +45,11 @@ export interface ToolSchema {
       type: 'object'
       properties: { [name: string]: Json }
       required?: string[]
-      readonly [extra: string]: unknown
+      readonly [extra: string]: SchemaJson | undefined
     }
-    readonly [extra: string]: unknown
+    readonly [extra: string]: SchemaJson | undefined
   }
-  readonly [extra: string]: unknown
+  readonly [extra: string]: SchemaJson | undefined
 }
 
 /** A custom tool declaration. */

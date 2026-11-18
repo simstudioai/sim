@@ -1484,7 +1484,11 @@
             "bedrock/cohere.command-r-v1:0": false
           },
           "required": true,
-          "serviceId": "vertex-ai"
+          "serviceId": "vertex-ai",
+          "credentialProviders": [
+            "vertex-ai",
+            "google-service-account"
+          ]
         },
         {
           "id": "vertexManualCredential",
@@ -3867,7 +3871,11 @@
             "open-mistral-nemo": false
           },
           "required": true,
-          "serviceId": "aws"
+          "serviceId": "aws",
+          "credentialProviders": [
+            "aws",
+            "aws-service-account"
+          ]
         },
         {
           "id": "bedrockManualCredential",
@@ -7828,7 +7836,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "action",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "manualCredential",
@@ -8668,7 +8680,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "labelIds",
@@ -9074,6 +9090,205 @@
         "container": null,
         "annotationOnly": false
       },
+      "operationOutputs": {
+        "send_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "read_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds",
+            "from",
+            "to",
+            "bcc",
+            "replyTo",
+            "subject",
+            "date",
+            "rfcMessageId",
+            "inReplyTo",
+            "references",
+            "snippet",
+            "internalDate",
+            "body",
+            "results",
+            "attachments",
+            "cc"
+          ]
+        },
+        "draft_gmail": {
+          "names": [
+            "threadId",
+            "labelIds",
+            "draftId",
+            "messageId"
+          ]
+        },
+        "edit_draft_gmail": {
+          "names": [
+            "threadId",
+            "labelIds",
+            "draftId",
+            "messageId"
+          ]
+        },
+        "search_gmail": {
+          "names": [
+            "results",
+            "nextPageToken",
+            "resultSizeEstimate"
+          ]
+        },
+        "move_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "mark_read_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "mark_unread_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "archive_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "unarchive_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "delete_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "add_label_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "remove_label_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds"
+          ]
+        },
+        "list_labels_gmail": {
+          "names": [
+            "labels"
+          ]
+        },
+        "create_label_gmail": {
+          "names": [
+            "id",
+            "name",
+            "type",
+            "messageListVisibility",
+            "labelListVisibility"
+          ]
+        },
+        "update_label_gmail": {
+          "names": [
+            "id",
+            "name",
+            "type",
+            "messageListVisibility",
+            "labelListVisibility"
+          ]
+        },
+        "delete_label_gmail": {
+          "names": [
+            "labelId",
+            "deleted"
+          ]
+        },
+        "list_drafts_gmail": {
+          "names": [
+            "nextPageToken",
+            "resultSizeEstimate",
+            "drafts"
+          ]
+        },
+        "get_draft_gmail": {
+          "names": [
+            "id",
+            "threadId",
+            "labelIds",
+            "from",
+            "to",
+            "bcc",
+            "replyTo",
+            "subject",
+            "date",
+            "rfcMessageId",
+            "inReplyTo",
+            "references",
+            "snippet",
+            "body",
+            "messageId",
+            "cc"
+          ]
+        },
+        "delete_draft_gmail": {
+          "names": [
+            "deleted",
+            "draftId"
+          ]
+        },
+        "list_threads_gmail": {
+          "names": [
+            "nextPageToken",
+            "resultSizeEstimate",
+            "threads"
+          ]
+        },
+        "get_thread_gmail": {
+          "names": [
+            "id",
+            "snippet",
+            "messages",
+            "historyId"
+          ]
+        },
+        "trash_thread_gmail": {
+          "names": [
+            "id",
+            "trashed"
+          ]
+        },
+        "untrash_thread_gmail": {
+          "names": [
+            "id",
+            "untrashed"
+          ]
+        }
+      },
       "triggerAllowed": true,
       "triggers": {
         "enabled": true,
@@ -9175,7 +9390,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "action",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "manualCredential",
@@ -9791,7 +10010,11 @@
           "canonicalParamId": "oauthCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "spreadsheetId",
@@ -10290,6 +10513,141 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
+      },
+      "operationOutputs": {
+        "read": {
+          "names": [
+            "sheetName",
+            "range",
+            "values",
+            "majorDimension",
+            "metadata"
+          ],
+          "nullable": [
+            "majorDimension"
+          ]
+        },
+        "write": {
+          "names": [
+            "updatedData",
+            "updatedRange",
+            "updatedRows",
+            "updatedColumns",
+            "updatedCells",
+            "metadata"
+          ],
+          "nullable": [
+            "updatedData"
+          ]
+        },
+        "update": {
+          "names": [
+            "updatedData",
+            "updatedRange",
+            "updatedRows",
+            "updatedColumns",
+            "updatedCells",
+            "metadata"
+          ],
+          "nullable": [
+            "updatedData"
+          ]
+        },
+        "append": {
+          "names": [
+            "updatedData",
+            "updatedRange",
+            "updatedRows",
+            "updatedColumns",
+            "updatedCells",
+            "tableRange",
+            "metadata"
+          ],
+          "nullable": [
+            "updatedData"
+          ]
+        },
+        "clear": {
+          "names": [
+            "sheetName",
+            "clearedRange",
+            "metadata"
+          ]
+        },
+        "get_info": {
+          "names": [
+            "spreadsheetId",
+            "title",
+            "sheets",
+            "locale",
+            "timeZone",
+            "spreadsheetUrl"
+          ]
+        },
+        "create": {
+          "names": [
+            "spreadsheetId",
+            "title",
+            "sheets",
+            "spreadsheetUrl"
+          ]
+        },
+        "batch_get": {
+          "names": [
+            "spreadsheetId",
+            "valueRanges",
+            "metadata"
+          ]
+        },
+        "batch_update": {
+          "names": [
+            "spreadsheetId",
+            "totalUpdatedRows",
+            "totalUpdatedColumns",
+            "totalUpdatedCells",
+            "totalUpdatedSheets",
+            "responses",
+            "metadata"
+          ]
+        },
+        "batch_clear": {
+          "names": [
+            "spreadsheetId",
+            "clearedRanges",
+            "metadata"
+          ]
+        },
+        "copy_sheet": {
+          "names": [
+            "title",
+            "sheetId",
+            "index",
+            "sheetType",
+            "destinationSpreadsheetId",
+            "destinationSpreadsheetUrl"
+          ]
+        },
+        "delete_rows": {
+          "names": [
+            "spreadsheetId",
+            "sheetId",
+            "deletedRowRange",
+            "metadata"
+          ]
+        },
+        "delete_sheet": {
+          "names": [
+            "spreadsheetId",
+            "deletedSheetId",
+            "metadata"
+          ]
+        },
+        "delete_spreadsheet": {
+          "names": [
+            "spreadsheetId",
+            "deleted"
+          ]
+        }
       },
       "triggers": {
         "enabled": true,
@@ -10985,6 +11343,57 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
+      },
+      "operationOutputs": {
+        "search": {
+          "names": [
+            "results",
+            "query",
+            "totalResults",
+            "cost"
+          ]
+        },
+        "list_documents": {
+          "names": []
+        },
+        "get_document": {
+          "names": []
+        },
+        "create_document": {
+          "names": []
+        },
+        "upsert_document": {
+          "names": []
+        },
+        "delete_document": {
+          "names": []
+        },
+        "list_chunks": {
+          "names": []
+        },
+        "upload_chunk": {
+          "names": [
+            "cost"
+          ]
+        },
+        "update_chunk": {
+          "names": []
+        },
+        "delete_chunk": {
+          "names": []
+        },
+        "list_tags": {
+          "names": []
+        },
+        "list_connectors": {
+          "names": []
+        },
+        "get_connector": {
+          "names": []
+        },
+        "trigger_sync": {
+          "names": []
+        }
       },
       "legacyIds": [
         {
@@ -12634,7 +13043,11 @@
             "bedrock/cohere.command-r-v1:0": false
           },
           "required": true,
-          "serviceId": "vertex-ai"
+          "serviceId": "vertex-ai",
+          "credentialProviders": [
+            "vertex-ai",
+            "google-service-account"
+          ]
         },
         {
           "id": "vertexManualCredential",
@@ -14993,7 +15406,11 @@
             "open-mistral-nemo": false
           },
           "required": true,
-          "serviceId": "aws"
+          "serviceId": "aws",
+          "credentialProviders": [
+            "aws",
+            "aws-service-account"
+          ]
         },
         {
           "id": "bedrockManualCredential",
@@ -17130,7 +17547,11 @@
             "unfurl_links": false
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualCredential",
@@ -27562,7 +27983,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualAgentBotCredential",
@@ -27816,7 +28241,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualListBotCredential",
@@ -28225,7 +28654,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualApiBotCredential",
@@ -28302,7 +28735,11 @@
             ]
           },
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualApiOAuthCredential",
@@ -30446,7 +30883,11 @@
           "canonicalParamId": "botCredential",
           "surface": "trigger",
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualBotCredential",
@@ -31339,6 +31780,598 @@
         "container": null,
         "annotationOnly": false
       },
+      "operationOutputs": {
+        "send": {
+          "names": [
+            "message",
+            "ts",
+            "channel",
+            "fileCount",
+            "files"
+          ]
+        },
+        "ephemeral": {
+          "names": [
+            "channel",
+            "messageTs"
+          ]
+        },
+        "canvas": {
+          "names": [
+            "canvas_id"
+          ]
+        },
+        "read": {
+          "names": [
+            "messages"
+          ]
+        },
+        "get_message": {
+          "names": [
+            "message"
+          ]
+        },
+        "get_thread": {
+          "names": [
+            "messages",
+            "parentMessage",
+            "replies",
+            "replyCount",
+            "hasMore"
+          ]
+        },
+        "get_thread_replies": {
+          "names": [
+            "messages",
+            "parentMessage",
+            "replies",
+            "replyCount",
+            "hasMore",
+            "pages",
+            "nextCursor"
+          ]
+        },
+        "get_channel_history": {
+          "names": [
+            "messages",
+            "hasMore",
+            "pages",
+            "count",
+            "nextCursor"
+          ]
+        },
+        "get_permalink": {
+          "names": [
+            "channel",
+            "ok",
+            "permalink"
+          ]
+        },
+        "set_status": {
+          "names": [
+            "channel",
+            "ok",
+            "threadTs"
+          ]
+        },
+        "set_title": {
+          "names": [
+            "channel",
+            "ok",
+            "threadTs"
+          ]
+        },
+        "set_suggested_prompts": {
+          "names": [
+            "channel",
+            "ok",
+            "threadTs"
+          ]
+        },
+        "set_agent_suggested_prompts": {
+          "names": [
+            "ok"
+          ]
+        },
+        "set_agent_session_status": {
+          "names": [
+            "title",
+            "ok",
+            "status",
+            "agentStatus"
+          ],
+          "nullable": [
+            "title"
+          ]
+        },
+        "rename_agent_session": {
+          "names": [
+            "title",
+            "ok"
+          ]
+        },
+        "list_channels": {
+          "names": [
+            "hasMore",
+            "channels",
+            "count",
+            "nextCursor",
+            "ids",
+            "names"
+          ]
+        },
+        "list_members": {
+          "names": [
+            "count",
+            "nextCursor",
+            "members"
+          ]
+        },
+        "list_users": {
+          "names": [
+            "count",
+            "nextCursor",
+            "ids",
+            "names",
+            "users"
+          ]
+        },
+        "get_user": {
+          "names": [
+            "user"
+          ]
+        },
+        "download": {
+          "names": [
+            "file"
+          ]
+        },
+        "update": {
+          "names": [
+            "message",
+            "content",
+            "metadata"
+          ]
+        },
+        "delete": {
+          "names": [
+            "content",
+            "metadata"
+          ]
+        },
+        "react": {
+          "names": [
+            "content",
+            "metadata"
+          ]
+        },
+        "unreact": {
+          "names": [
+            "content",
+            "metadata"
+          ]
+        },
+        "get_channel_info": {
+          "names": [
+            "channelInfo"
+          ]
+        },
+        "get_user_presence": {
+          "names": [
+            "presence",
+            "online",
+            "autoAway",
+            "manualAway",
+            "connectionCount",
+            "lastActivity"
+          ]
+        },
+        "edit_canvas": {
+          "names": [
+            "content"
+          ]
+        },
+        "create_channel_canvas": {
+          "names": [
+            "canvas_id"
+          ]
+        },
+        "get_canvas": {
+          "names": [
+            "canvas"
+          ]
+        },
+        "list_canvases": {
+          "names": [
+            "canvases",
+            "paging"
+          ]
+        },
+        "lookup_canvas_sections": {
+          "names": [
+            "sections"
+          ]
+        },
+        "delete_canvas": {
+          "names": [
+            "ok"
+          ]
+        },
+        "create_list": {
+          "names": [
+            "listId",
+            "schema"
+          ],
+          "nullable": [
+            "schema"
+          ]
+        },
+        "rename_list": {
+          "names": [
+            "ok"
+          ]
+        },
+        "share_list": {
+          "names": [
+            "ok"
+          ]
+        },
+        "list_items": {
+          "names": [
+            "nextCursor",
+            "list",
+            "items"
+          ],
+          "nullable": [
+            "list"
+          ]
+        },
+        "get_list_item": {
+          "names": [
+            "list",
+            "item"
+          ]
+        },
+        "create_list_item": {
+          "names": [
+            "item"
+          ]
+        },
+        "update_list_items": {
+          "names": [
+            "ok"
+          ]
+        },
+        "delete_list_item": {
+          "names": [
+            "ok"
+          ]
+        },
+        "create_conversation": {
+          "names": [
+            "channelInfo"
+          ]
+        },
+        "invite_to_conversation": {
+          "names": [
+            "channelInfo",
+            "errors"
+          ]
+        },
+        "open_view": {
+          "names": [
+            "view"
+          ]
+        },
+        "update_view": {
+          "names": [
+            "view"
+          ]
+        },
+        "push_view": {
+          "names": [
+            "view"
+          ]
+        },
+        "publish_view": {
+          "names": [
+            "view"
+          ]
+        },
+        "schedule_message": {
+          "names": [
+            "message",
+            "channel",
+            "scheduledMessageId",
+            "postAt"
+          ]
+        },
+        "list_scheduled_messages": {
+          "names": [
+            "nextCursor",
+            "scheduledMessages"
+          ]
+        },
+        "delete_scheduled_message": {
+          "names": [
+            "ok"
+          ]
+        },
+        "archive_conversation": {
+          "names": [
+            "ok"
+          ]
+        },
+        "rename_conversation": {
+          "names": [
+            "channelInfo"
+          ]
+        },
+        "set_conversation_topic": {
+          "names": [
+            "channelInfo"
+          ]
+        },
+        "set_conversation_purpose": {
+          "names": [
+            "purpose"
+          ]
+        },
+        "revoke_list_access": {
+          "names": [
+            "ok"
+          ]
+        },
+        "start_list_export": {
+          "names": [
+            "ok",
+            "job_id"
+          ]
+        },
+        "get_list_export": {
+          "names": [
+            "ok",
+            "status",
+            "download_url"
+          ]
+        },
+        "delete_list_items": {
+          "names": [
+            "ok"
+          ]
+        },
+        "share_canvas": {
+          "names": [
+            "ok"
+          ]
+        },
+        "revoke_canvas_access": {
+          "names": [
+            "ok"
+          ]
+        },
+        "join_conversation": {
+          "names": [
+            "ok",
+            "conversation"
+          ]
+        },
+        "leave_conversation": {
+          "names": [
+            "ok"
+          ]
+        },
+        "kick_conversation": {
+          "names": [
+            "ok"
+          ]
+        },
+        "unarchive_conversation": {
+          "names": [
+            "ok"
+          ]
+        },
+        "close_conversation": {
+          "names": [
+            "ok"
+          ]
+        },
+        "mark_conversation_read": {
+          "names": [
+            "ok"
+          ]
+        },
+        "open_conversation": {
+          "names": [
+            "ok",
+            "conversation"
+          ]
+        },
+        "lookup_user_by_email": {
+          "names": [
+            "ok",
+            "user"
+          ]
+        },
+        "list_user_conversations": {
+          "names": [
+            "ok",
+            "channels",
+            "response_metadata"
+          ]
+        },
+        "get_user_profile": {
+          "names": [
+            "ok",
+            "profile"
+          ]
+        },
+        "set_user_presence": {
+          "names": [
+            "ok"
+          ]
+        },
+        "get_file_info": {
+          "names": [
+            "paging",
+            "ok",
+            "file",
+            "response_metadata",
+            "comments"
+          ]
+        },
+        "list_files": {
+          "names": [
+            "paging",
+            "ok",
+            "fileMetadata"
+          ]
+        },
+        "delete_file": {
+          "names": [
+            "ok"
+          ]
+        },
+        "get_reactions": {
+          "names": [
+            "message",
+            "channel",
+            "ok",
+            "file",
+            "type",
+            "comment"
+          ]
+        },
+        "list_reactions": {
+          "names": [
+            "ok",
+            "response_metadata",
+            "items"
+          ]
+        },
+        "pin_message": {
+          "names": [
+            "ok"
+          ]
+        },
+        "unpin_message": {
+          "names": [
+            "ok"
+          ]
+        },
+        "list_pins": {
+          "names": [
+            "ok",
+            "items"
+          ]
+        },
+        "add_bookmark": {
+          "names": [
+            "ok",
+            "bookmark"
+          ]
+        },
+        "edit_bookmark": {
+          "names": [
+            "ok",
+            "bookmark"
+          ]
+        },
+        "list_bookmarks": {
+          "names": [
+            "ok",
+            "bookmarks"
+          ]
+        },
+        "remove_bookmark": {
+          "names": [
+            "ok"
+          ]
+        },
+        "create_user_group": {
+          "names": [
+            "ok",
+            "usergroup"
+          ]
+        },
+        "update_user_group": {
+          "names": [
+            "ok",
+            "usergroup"
+          ]
+        },
+        "enable_user_group": {
+          "names": [
+            "ok",
+            "usergroup"
+          ]
+        },
+        "disable_user_group": {
+          "names": [
+            "ok",
+            "usergroup"
+          ]
+        },
+        "list_user_groups": {
+          "names": [
+            "ok",
+            "usergroups"
+          ]
+        },
+        "list_user_group_members": {
+          "names": [
+            "ok",
+            "users"
+          ]
+        },
+        "update_user_group_members": {
+          "names": [
+            "ok",
+            "usergroup"
+          ]
+        },
+        "get_dnd_info": {
+          "names": [
+            "ok",
+            "dnd_enabled",
+            "next_dnd_start_ts",
+            "next_dnd_end_ts",
+            "snooze_enabled",
+            "snooze_endtime",
+            "snooze_remaining",
+            "snooze_is_indefinite"
+          ]
+        },
+        "get_team_dnd_info": {
+          "names": [
+            "ok",
+            "users"
+          ]
+        },
+        "list_emoji": {
+          "names": [
+            "ok",
+            "emoji"
+          ]
+        },
+        "get_team_info": {
+          "names": [
+            "ok",
+            "team"
+          ]
+        },
+        "get_team_profile": {
+          "names": [
+            "ok",
+            "profile"
+          ]
+        },
+        "unfurl_links": {
+          "names": [
+            "ok"
+          ]
+        }
+      },
       "triggerAllowed": true,
       "triggers": {
         "enabled": true,
@@ -31996,6 +33029,91 @@
         "container": null,
         "annotationOnly": false
       },
+      "operationOutputs": {
+        "query_rows": {
+          "names": [
+            "success",
+            "rows",
+            "rowCount",
+            "totalCount",
+            "nextCursor"
+          ],
+          "nullable": [
+            "nextCursor"
+          ]
+        },
+        "insert_row": {
+          "names": [
+            "success",
+            "row",
+            "message"
+          ]
+        },
+        "upsert_row": {
+          "names": [
+            "success",
+            "row",
+            "operation",
+            "message"
+          ]
+        },
+        "batch_insert_rows": {
+          "names": [
+            "success",
+            "rows",
+            "insertedCount",
+            "message"
+          ]
+        },
+        "update_rows_by_filter": {
+          "names": [
+            "success",
+            "updatedCount",
+            "updatedRowIds",
+            "message"
+          ]
+        },
+        "delete_rows_by_filter": {
+          "names": [
+            "success",
+            "deletedCount",
+            "deletedRowIds",
+            "message"
+          ]
+        },
+        "update_row": {
+          "names": [
+            "success",
+            "row",
+            "message"
+          ]
+        },
+        "delete_row": {
+          "names": [
+            "success",
+            "deletedCount",
+            "message"
+          ]
+        },
+        "get_row": {
+          "names": [
+            "success",
+            "row",
+            "message"
+          ]
+        },
+        "get_schema": {
+          "names": [
+            "success",
+            "rowCount",
+            "name",
+            "columns",
+            "columnCount",
+            "maxRows",
+            "message"
+          ]
+        }
+      },
       "triggers": {
         "enabled": true,
         "available": [
@@ -32309,7 +33427,11 @@
           "mode": "trigger",
           "canonicalParamId": "oauthCredential",
           "required": true,
-          "serviceId": "gmail"
+          "serviceId": "gmail",
+          "credentialProviders": [
+            "google-email",
+            "google-service-account"
+          ]
         },
         {
           "id": "labelIds",
@@ -32508,7 +33630,11 @@
           "mode": "trigger",
           "canonicalParamId": "oauthCredential",
           "required": true,
-          "serviceId": "google-sheets"
+          "serviceId": "google-sheets",
+          "credentialProviders": [
+            "google-sheets",
+            "google-service-account"
+          ]
         },
         {
           "id": "spreadsheetId",
@@ -32799,7 +33925,11 @@
           "mode": "trigger",
           "canonicalParamId": "botCredential",
           "required": true,
-          "serviceId": "slack"
+          "serviceId": "slack",
+          "credentialProviders": [
+            "slack",
+            "slack-custom-bot"
+          ]
         },
         {
           "id": "manualBotCredential",

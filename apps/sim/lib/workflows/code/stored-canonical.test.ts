@@ -29,6 +29,7 @@ vi.mock('@/lib/workflows/code/resources', () => ({
   loadResourceKeyResolver: hoisted.loadResourceKeyResolver,
 }))
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
 import { canonicalizeStored, prefetchStoredResources } from '@/lib/workflows/code/stored-canonical'

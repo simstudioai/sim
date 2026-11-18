@@ -1,14 +1,23 @@
 // @sim-sdk 1
-import { slack, table, trigger, workflow } from '@sim/workflow-sdk'
+import { slack, table, todo, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: { channel: 'string' } })
-  const advancedEmpty = slack.sendMessage('Advanced empty', { text: 'd' })
+  const advancedEmpty = slack.sendMessage('Advanced empty', {
+    credential: todo(),
+    channel: todo(),
+    text: 'd',
+  })
   const basicHoldingText = slack.sendMessage('Basic holding text', {
+    credential: todo(),
     channel: start.channel,
     text: 'c',
   })
-  const bothMembers = slack.sendMessage('Both members', { channel: 'C0NEW', text: 'e' })
+  const bothMembers = slack.sendMessage('Both members', {
+    credential: todo(),
+    channel: 'C0NEW',
+    text: 'e',
+  })
   const filterBuilderList = table.queryRows('Filter builder list', {
     tableId: table('tickets'),
     filterInput: [{ column: 'status', operator: 'eq', value: 'open' }],
@@ -21,6 +30,14 @@ export default workflow('Fixture', {}, () => {
   "value": "open"
 }`,
   })
-  const manualAdvanced = slack.sendMessage('Manual advanced', { channel: start.channel, text: 'b' })
-  const pickedBasic = slack.sendMessage('Picked basic', { channel: 'C0ONE', text: 'a' })
+  const manualAdvanced = slack.sendMessage('Manual advanced', {
+    credential: todo(),
+    channel: start.channel,
+    text: 'b',
+  })
+  const pickedBasic = slack.sendMessage('Picked basic', {
+    credential: todo(),
+    channel: 'C0ONE',
+    text: 'a',
+  })
 })

@@ -9,15 +9,19 @@
 
 import { compareStrings } from '@sim/utils/string'
 import { printKey, quoteString } from '@sim/workflow-code'
-import { union } from './emit'
+import { arrayOf, union } from './emit'
 import type { SdkTypeFile } from './generate'
 
 /** A table column, as the table's schema declares it (apps/sim/lib/table/column-types). */
 export interface WorkspaceManifestColumn {
   /** The column type id: `string`, `number`, `currency`, `boolean`, `date`, `json`, `select`, ... */
   type: string
-  /** Option values of a `select` column. */
+  /** Option names of a `select` column, as table blocks read and write them. */
   options?: string[]
+  /** A `select` column whose cells hold several options. */
+  multiple?: boolean
+  /** Every row holds a value; a cell of any other column may be empty (`null`). */
+  required?: boolean
 }
 
 /** The workspace resources the SDK can name, by stable key. */
@@ -46,7 +50,13 @@ export interface WorkspaceManifest {
 
 export type GenerateWorkspaceTypesFn = (manifest: WorkspaceManifest) => SdkTypeFile
 
-function columnType(column: WorkspaceManifestColumn): string {
+/** A cell's type: its value, or `null` when the column is not required. */
+function cellType(column: WorkspaceManifestColumn): string {
+  const value = valueType(column)
+  return column.required ? value : `${value} | null`
+}
+
+function valueType(column: WorkspaceManifestColumn): string {
   switch (column.type) {
     case 'number':
     case 'currency':
@@ -55,10 +65,13 @@ function columnType(column: WorkspaceManifestColumn): string {
       return 'boolean'
     case 'json':
       return 'Json'
-    case 'select':
-      return column.options && column.options.length > 0
-        ? union(column.options.map((option) => quoteString(option)))
-        : 'string'
+    case 'select': {
+      const option =
+        column.options && column.options.length > 0
+          ? union(column.options.map((name) => quoteString(name)))
+          : 'string'
+      return column.multiple ? arrayOf(option) : option
+    }
     default:
       return 'string'
   }
@@ -106,7 +119,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
   const tables = storedTables.map((key) => {
     const columns = manifest.tables?.[key]?.columns ?? {}
     const fields = sortedKeys(columns).map(
-      (column) => `${printKey(column)}: ${columnType(columns[column])}`
+      (column) => `${printKey(column)}: ${cellType(columns[column])}`
     )
     return `${quoteString(key)}: { ${fields.join('; ')} }`
   })

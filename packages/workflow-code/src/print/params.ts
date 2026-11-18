@@ -13,6 +13,7 @@ import {
   isWrittenInSource,
   memberFor,
   requiredForBuilder,
+  requiredForValues,
   typedForBuilder,
 } from '../catalog/surface'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
@@ -259,7 +260,8 @@ function activeIfSet(
 /**
  * Params in catalog registry order, one per canonical pair, under the
  * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, a field the
- * builder's type requires (`requiredForBuilder`) with no stored value prints `todo()`, and an
+ * builder's type requires (`requiredForBuilder`, `requiredForValues`) with no stored value prints
+ * `todo()`, and an
  * active field with no stored value prints `null` when a default exists. What never executes
  * (`executableInactiveParams`: inactive values, the pair member the mode hides, undeclared ids
  * that do not run) is left out; apply restores it from the stored workflow. A stored id the
@@ -320,7 +322,7 @@ export function collectParams(
             if (typed) push(params, field.name, printed)
             else push(extra, effective.id, printed)
           }
-        } else if (typed && needsTodo(ctx, block, effective, declarations, pinnedValues)) {
+        } else if (typed && needsTodo(ctx, block, effective, declarations, pinnedValues, values)) {
           push(params, field.name, ctx.values.call('todo', []))
         } else if (
           field.members.some((member) => defaults.has(member.id)) &&
@@ -333,7 +335,7 @@ export function collectParams(
       }
       const sb = declarationFor(index, field.sub.id, lookup) ?? field.sub
       if (!hasValue(block, sb.id)) {
-        if (typed && needsTodo(ctx, block, sb, declarations, pinnedValues)) {
+        if (typed && needsTodo(ctx, block, sb, declarations, pinnedValues, values)) {
           push(params, field.name, ctx.values.call('todo', []))
         } else {
           const fallback = defaults.get(sb.id)
@@ -400,16 +402,20 @@ export function responseFormParams(
 
 /**
  * A field that prints `todo()` when it holds no stored value: one the builder's type requires
- * (`requiredForBuilder`), or a required, always-shown field with no condition, default or not.
+ * (`requiredForBuilder`) or requires in the variant the block's values select
+ * (`requiredForValues`), or a required, always-shown field with no condition, default or not.
  */
 function needsTodo(
   ctx: PrintContext,
   block: CanonicalBlock,
   sb: CatalogSubBlock,
   declarations: readonly CatalogSubBlock[],
-  pinned: Readonly<Record<string, unknown>>
+  pinned: Readonly<Record<string, unknown>>,
+  values: Readonly<Record<string, unknown>>
 ): boolean {
   if (requiredForBuilder(declarations, pinned)) return true
+  const declared = catalogBlock(ctx.catalog, block.type)
+  if (declared && requiredForValues(declared, declarations, values)) return true
   if (sb.required !== true || sb.condition !== undefined || sb.hidden || sb.readOnly) return false
   if (sb.valueKind === 'none' || sb.valueKind === 'branches' || sb.valueKind === 'tools')
     return false

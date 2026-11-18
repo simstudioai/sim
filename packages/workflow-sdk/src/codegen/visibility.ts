@@ -21,7 +21,7 @@ import {
   isConditionClause,
   isOpaqueCondition,
 } from '@sim/workflow-code/catalog/conditions'
-import { typedForBuilder } from '@sim/workflow-code/catalog/surface'
+import { isEnumerable, typedForBuilder } from '@sim/workflow-code/catalog/surface'
 
 const MAX_COMBINATIONS = 64
 
@@ -63,31 +63,47 @@ function clauseFields(clause: ConditionClause): string[] {
   return clause.and ? [clause.field, clause.and.field] : [clause.field]
 }
 
-function referencedFields(subBlock: CatalogSubBlock): string[] {
+/**
+ * The sibling fields a subBlock's visibility or requirement reads under the pinned values: its
+ * data clauses, and the clause a function condition still asks for the pinned operation.
+ */
+function referencedFields(
+  subBlock: CatalogSubBlock,
+  pinned: Readonly<Record<string, Scalar>>
+): string[] {
   const fields: string[] = []
   if (isConditionClause(subBlock.condition)) fields.push(...clauseFields(subBlock.condition))
   if (isConditionClause(subBlock.required)) fields.push(...clauseFields(subBlock.required))
+  const asked = askedForOperation(subBlock, pinned)
+  if (asked) fields.push(...clauseFields(asked))
   return fields
 }
 
+function askedForOperation(
+  subBlock: CatalogSubBlock,
+  pinned: Readonly<Record<string, Scalar>>
+): ConditionClause | undefined {
+  const { operation } = pinned
+  if (typeof operation !== 'string' || !subBlock.visibleWhen) return undefined
+  return Object.hasOwn(subBlock.visibleWhen, operation)
+    ? subBlock.visibleWhen[operation]
+    : undefined
+}
+
 function domainOf(subBlocks: readonly CatalogSubBlock[], field: string): Scalar[] | null {
+  if (!isEnumerable(subBlocks, field)) return null
   const values: Scalar[] = []
-  let found = false
   for (const subBlock of subBlocks) {
     if (subBlock.id !== field) continue
-    if (subBlock.type === 'switch') {
-      found = true
-      for (const value of [true, false]) if (!values.includes(value)) values.push(value)
-      continue
-    }
-    if (subBlock.type !== 'dropdown' || subBlock.multiple || !Array.isArray(subBlock.options)) {
-      return null
-    }
-    if (subBlock.options.length === 0) return null
-    found = true
-    for (const option of subBlock.options) if (!values.includes(option.id)) values.push(option.id)
+    const domain: Scalar[] =
+      subBlock.type === 'switch'
+        ? [true, false]
+        : Array.isArray(subBlock.options)
+          ? subBlock.options.map((option) => option.id)
+          : []
+    for (const value of domain) if (!values.includes(value)) values.push(value)
   }
-  return found ? values : null
+  return values
 }
 
 function product(domains: readonly SiblingDomain[]): number {
@@ -108,7 +124,7 @@ export function buildVisibilityContext(
 ): VisibilityContext {
   const fields = new Set<string>()
   for (const subBlock of candidates) {
-    for (const field of referencedFields(subBlock)) {
+    for (const field of referencedFields(subBlock, pinned)) {
       if (!(field in pinned)) fields.add(field)
     }
   }
@@ -158,17 +174,16 @@ export function evaluateClause(
 }
 
 /**
- * Visibility in one combination. A function condition the catalog could only mark opaque is never
- * certain here, even where its precomputed data shows the field: the types stay as permissive as
- * the registry function, and only a field that data hides is left out.
+ * Visibility in one combination. A function condition is decided by the data the catalog
+ * precomputed for the pinned operation (`visibleFor`, then the `visibleWhen` clause on siblings);
+ * without that data it is unknown.
  */
 function visibleIn(
   subBlock: CatalogSubBlock,
   context: VisibilityContext,
   combo: Readonly<Record<string, Scalar>>
 ): Tri {
-  const visible = toTri(evaluateCondition(subBlock, comboLookup(context, combo)))
-  return visible === true && isOpaqueCondition(subBlock.condition) ? null : visible
+  return toTri(evaluateCondition(subBlock, comboLookup(context, combo)))
 }
 
 function requiredIn(
@@ -202,8 +217,11 @@ function describeWhen(
     const unknown = new Set<string>()
     let opaque = false
     for (const member of members) {
-      if (isConditionClause(member.condition)) {
-        for (const field of clauseFields(member.condition)) {
+      const clause = isConditionClause(member.condition)
+        ? member.condition
+        : askedForOperation(member, context.pinned)
+      if (clause) {
+        for (const field of clauseFields(clause)) {
           if (!(field in context.pinned) && !context.siblings.some((s) => s.field === field)) {
             unknown.add(field)
           }

@@ -163,6 +163,12 @@ export interface CatalogSubBlock {
   columns?: string[]
   selectorKey?: string
   serviceId?: string
+  /**
+   * The credential providers an `oauth-input` with a `serviceId` accepts: the OAuth service's
+   * provider id, its service-account provider and any further provider ids it is reachable
+   * through, as saved credentials record them.
+   */
+  credentialProviders?: string[]
   valueKind: CatalogValueKind
   /** Set iff `valueKind` is `resource`. */
   resourceKind?: ResourceKind
@@ -220,6 +226,16 @@ export interface CatalogBlockGraph {
   branches?: { subBlockId: SubBlockId; kind: 'condition' | 'router' }
 }
 
+/**
+ * The outputs one operation's tool returns, by name, where they differ from the block's outputs
+ * (the editor's output picker reads the tool's outputs too): `names` lists the block outputs the
+ * tool declares, in block order, and `nullable` those of them it may return as `null`.
+ */
+interface CatalogOperationOutputs {
+  names: string[]
+  nullable?: string[]
+}
+
 /** Which param shapes a block's outputs at run time. */
 export interface CatalogDynamicOutputs {
   /**
@@ -255,6 +271,11 @@ export interface CatalogBlock {
    */
   tools: { access: string[]; selector: 'single' | 'operation' | 'opaque' }
   outputs: Record<string, CatalogOutput>
+  /**
+   * Per operation id, the outputs its tool returns (`CatalogOperationOutputs`), for a block whose
+   * operation picks the tool. An operation missing here returns every block output.
+   */
+  operationOutputs?: Record<string, CatalogOperationOutputs>
   /**
    * Present when outputs derive from a param at run time. Compile and codegen read output paths
    * from that param's value; where it cannot be read statically, any path is allowed and

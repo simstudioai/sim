@@ -29,6 +29,7 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'

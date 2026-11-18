@@ -11,6 +11,7 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.moc
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { canonicalize, catalogBlock, compileWorkflow, printWorkflow } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
