@@ -41,6 +41,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 
 const mocks = {
   snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
@@ -234,6 +235,148 @@ describe('standalone table diagnostics against the actual Table block', () => {
       ])
     )
     expect(result.tableFieldIssues).toEqual([])
+  })
+
+  it('checks literal row keys around bare references that resolve to JSON at runtime', async () => {
+    setGraph(
+      block('write', {
+        operation: 'insert_row',
+        data: '{"name": <start.name>, "missing": <start.count>, "note": "<3 {{SUFFIX}}", "env": {{N}}}',
+      })
+    )
+    const result = await lint()
+    expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+    expect(
+      result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+    ).toEqual([
+      expect.objectContaining({
+        blockId: 'write',
+        field: 'data',
+        value: ['missing', 'note', 'env'],
+      }),
+    ])
+  })
+
+  describe('with the registered TableV2Block predicate grammar', () => {
+    beforeEach(() => {
+      mockGetBlock.mockImplementation((type: string) =>
+        type === 'table_v2' ? TableV2Block : undefined
+      )
+    })
+
+    it('checks literal predicate fields around a bare reference value', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"name","op":"eq","value":<start.name>},{"field":"other","op":"gt","value":<start.n>}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+    })
+
+    it('checks predicate fields around an in-list reference', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"other","op":"in","value":<start.names>},{"field":"name","op":"eq","value":<start.name>}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.tableFieldIssues.map(({ field }) => field)).toEqual(['other'])
+    })
+
+    it('notes a whole-field filter reference as runtime-resolved and still checks row data', async () => {
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: '<start.filter>',
+          data: '{"name":"Ada","missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      )
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+    })
+
+    it('defers a filter with more mixed references than the placeholder search covers', async () => {
+      const conditions = [
+        ...['a', 'b', 'c', 'd'].map((name) => `{"field":"name","op":"eq","value":<start.${name}>}`),
+        ...['e', 'f', 'g'].map((name) => `{"field":"name","op":"in","value":<start.${name}>}`),
+      ]
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: `{"all":[${conditions.join(',')}]}`,
+          data: '{"name":"Ada","missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      )
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+    })
+
+    it('still reports an invalid literal condition beside a reference', async () => {
+      setGraph(
+        block('query', {
+          filter:
+            '{"all":[{"field":"name","op":"eq","value":<start.n>},{"field":"name","op":"in","value":"not a list"}]}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            'Table input checks in block "query" could not complete before runtime:'
+          ),
+        ])
+      )
+    })
+  })
+
+  it.each([
+    ['data', 'insert_row', '<start.row>', 'Table row "write".data is not a static object'],
+    [
+      'rows',
+      'batch_insert_rows',
+      '<start.rows>',
+      'Table rows in block "write" are not a static array',
+    ],
+    ['rows', 'batch_insert_rows', '[<start.first>, {"name":"Ada"}]', 'Table row "write".rows[0]'],
+  ])(
+    'notes a %s value that is a bare reference instead of a failed check (%s, %s)',
+    async (field, operation, value, note) => {
+      setGraph(block('write', { operation, [field]: value }))
+      const result = await lint()
+      expect(result.notes.filter((entry) => entry.includes('could not complete'))).toEqual([])
+      expect(result.notes).toEqual(expect.arrayContaining([expect.stringContaining(note)]))
+    }
+  )
+
+  it('still reports malformed literal JSON that contains a reference', async () => {
+    setGraph(block('write', { operation: 'insert_row', data: '{"name": <start.name>,}' }))
+    const result = await lint()
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'Table input checks in block "write" could not complete before runtime: Invalid JSON in Row Data'
+        ),
+      ])
+    )
   })
 
   it('reports a query object whose entire value requires runtime resolution', async () => {

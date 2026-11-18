@@ -1,6 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { CursorKey } from '@/lib/api/list-query'
 import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { PrincipalForOperation } from '@/lib/core/application/workspace-operation'
@@ -254,6 +255,97 @@ function hasRuntimeReference(value: string): boolean {
   return createReferencePattern().test(value) || createEnvVarPattern().test(value)
 }
 
+/**
+ * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
+ * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
+ * Each reference written outside a JSON string is replaced by a placeholder so the Table block's
+ * own transform reads the literal parts: a quoted string, or a one-item list for slots such as a
+ * filter `in`, trying every combination. A field that is a single whole reference has no literal
+ * part, so if no combination fits it is left out and returned in `runtimeFields`. When the search
+ * is exhaustive and still fails, the error comes from the literal parts (malformed JSON, an
+ * invalid literal condition) and is rethrown. Past the search bound that cannot be told apart, so
+ * every reference-bearing field is left out instead and the other inputs are still checked. Only
+ * this lint-local copy is rewritten; references to string outputs left unquoted are reported by
+ * `collectUnquotedJsonStringReferences`.
+ */
+function normalizeTableInputs(
+  transform: (params: Record<string, unknown>) => Record<string, unknown>,
+  params: Record<string, unknown>
+): { normalized: Record<string, unknown>; runtimeFields: string[] } {
+  const referenceFields: string[] = []
+  const wholeReferenceFields: string[] = []
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    const tokens = findWorkflowReferenceTokens(trimmed)
+    if (tokens.length === 0) continue
+    referenceFields.push(key)
+    if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
+      wholeReferenceFields.push(key)
+    }
+  }
+  if (referenceFields.length === 0) return { normalized: transform(params), runtimeFields: [] }
+  const tiers = wholeReferenceFields.length > 0 ? [[], wholeReferenceFields] : [[]]
+  let searchBounded = false
+  let firstError: unknown
+  for (const runtimeFields of tiers) {
+    const withPlaceholders = (asList: (ordinal: number) => boolean) => {
+      let ordinal = 0
+      const candidate: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(params)) {
+        if (runtimeFields.includes(key)) continue
+        candidate[key] =
+          typeof value === 'string'
+            ? replaceBareReferences(value, (reference) =>
+                asList(ordinal++) ? `[${JSON.stringify(reference)}]` : JSON.stringify(reference)
+              )
+            : value
+      }
+      return { candidate, count: ordinal }
+    }
+    const { count } = withPlaceholders(() => false)
+    if (count > MAX_PLACEHOLDER_SEARCH_REFERENCES) {
+      searchBounded = true
+      continue
+    }
+    for (let mask = 0; mask < 2 ** count; mask++) {
+      try {
+        const { candidate } = withPlaceholders((ordinal) => ((mask >> ordinal) & 1) === 1)
+        return { normalized: transform(candidate), runtimeFields }
+      } catch (error) {
+        firstError ??= error
+      }
+    }
+  }
+  if (!searchBounded) throw firstError
+  const literal = Object.fromEntries(
+    Object.entries(params).filter(([key]) => !referenceFields.includes(key))
+  )
+  return { normalized: transform(literal), runtimeFields: referenceFields }
+}
+
+/** Bounds the placeholder search to 2^6 pure transform calls per Table block. */
+const MAX_PLACEHOLDER_SEARCH_REFERENCES = 6
+
+function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {
+  const tokens = findWorkflowReferenceTokens(json)
+  if (tokens.length === 0) return json
+  let result = ''
+  let cursor = 0
+  let inString = false
+  for (const token of tokens) {
+    for (let index = cursor; index < token.start; index++) {
+      const char = json[index]
+      if (inString && char === '\\') index++
+      else if (char === '"') inString = !inString
+    }
+    result += json.slice(cursor, token.start)
+    result += inString ? token.value : placeholder(token.value)
+    cursor = token.end
+  }
+  return result + json.slice(cursor)
+}
+
 /** Read each active table once; column checks consume the Table block's own pure input transform. */
 async function readTableDiagnostics(
   graph: ReadWorkflowGraphResult,
@@ -320,7 +412,13 @@ async function readTableDiagnostics(
     if (!transform) throw new Error('Table input normalization is unavailable')
     let normalized: Record<string, unknown>
     try {
-      normalized = transform(params)
+      const inputs = normalizeTableInputs(transform, params)
+      normalized = inputs.normalized
+      if (inputs.runtimeFields.length > 0) {
+        result.notes.push(
+          `Table inputs in block "${block.name || blockId}" depend on references resolved at runtime and were not checked: ${inputs.runtimeFields.join(', ')}.`
+        )
+      }
     } catch (error) {
       result.notes.push(
         `Table input checks in block "${block.name || blockId}" could not complete before runtime: ${getErrorMessage(error)}`
