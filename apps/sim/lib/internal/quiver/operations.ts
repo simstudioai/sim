@@ -32,6 +32,22 @@ type ApiImage = { url: string } | { base64: string }
 
 export type QuiverSvgOutput = QuiverSvgResponse & { success: true }
 
+/**
+ * Arrow 1.x model IDs Quiver retired on 2026-10-16 (they now return 404 `model_not_found`).
+ * Saved blocks still carry them, so they are sent as `arrow-2`, the documented replacement.
+ */
+const RETIRED_QUIVER_MODELS = new Set([
+  'arrow-preview',
+  'arrow-1',
+  'arrow-1.0',
+  'arrow-1.1',
+  'arrow-1.1-max',
+])
+
+function resolveModel(model: string): string {
+  return RETIRED_QUIVER_MODELS.has(model) ? 'arrow-2' : model
+}
+
 function fail(message: string, status: number, body?: Record<string, unknown>): never {
   throw new QuiverOperationError(message, status, body)
 }
@@ -222,7 +238,7 @@ export async function executeQuiverTextToSvg(
     }
   }
 
-  const body: Record<string, unknown> = { model: input.model, prompt: input.prompt }
+  const body: Record<string, unknown> = { model: resolveModel(input.model), prompt: input.prompt }
   if (input.instructions) body.instructions = input.instructions
   if (references.length > 0) body.references = references.slice(0, 4)
   if (input.n != null) body.n = input.n
@@ -257,7 +273,7 @@ export async function executeQuiverImageToSvg(
   context.signal?.throwIfAborted()
   validateProvenance(input, context)
   const image = await resolveImage(input.image, context)
-  const body: Record<string, unknown> = { model: input.model, image }
+  const body: Record<string, unknown> = { model: resolveModel(input.model), image }
   if (input.temperature != null) body.temperature = input.temperature
   if (input.top_p != null) body.top_p = input.top_p
   if (input.max_output_tokens != null) body.max_output_tokens = input.max_output_tokens

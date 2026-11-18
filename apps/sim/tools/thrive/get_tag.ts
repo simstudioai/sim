@@ -3,6 +3,7 @@ import type { ThriveGetTagParams, ThriveTagResponse } from '@/tools/thrive/types
 import { THRIVE_TAG_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
   id: 'thrive_get_tag',
@@ -40,7 +41,7 @@ export const getTagTool: ToolConfig<ThriveGetTagParams, ThriveTagResponse> = {
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/tags/${encodeURIComponent(params.tagId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

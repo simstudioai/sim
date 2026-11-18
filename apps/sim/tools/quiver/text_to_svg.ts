@@ -32,7 +32,7 @@ export const quiverTextToSvgTool = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use for SVG generation (e.g., "arrow-preview")',
+      description: 'The model to use for SVG generation (e.g., "arrow-2")',
     },
     instructions: {
       type: 'string',
@@ -68,7 +68,7 @@ export const quiverTextToSvgTool = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum output tokens (1-131072)',
+      description: 'Maximum output tokens (1-65536)',
     },
     presence_penalty: {
       type: 'number',

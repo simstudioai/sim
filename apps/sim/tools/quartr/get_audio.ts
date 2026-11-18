@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrAudio, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetAudioTool: ToolConfig<QuartrGetAudioParams, QuartrGetAudioResponse> = {
   id: 'quartr_get_audio',
@@ -34,7 +35,7 @@ export const quartrGetAudioTool: ToolConfig<QuartrGetAudioParams, QuartrGetAudio
 
   request: {
     url: (params) =>
-      buildQuartrUrl(`/audio/${encodeURIComponent(String(params.audioId).trim())}`, {
+      buildQuartrUrl(`/audio/${safeUrlPathSegment(params.audioId, 'audioId')}`, {
         expand: 'event',
       }),
     method: 'GET',

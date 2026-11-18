@@ -13,6 +13,7 @@ import {
 } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetEventSummaryTool: ToolConfig<
   QuartrGetEventSummaryParams,
@@ -54,7 +55,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildQuartrUrl(`/events/${encodeURIComponent(String(params.eventId).trim())}/summary`, {
+      buildQuartrUrl(`/events/${safeUrlPathSegment(params.eventId, 'eventId')}/summary`, {
         length: params.summaryLength,
         plain: isQuartrToggleEnabled(params.plainSummary) ? true : undefined,
       }),

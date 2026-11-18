@@ -8,6 +8,7 @@ import {
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
 import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDocumentFileResponse> =
   {
@@ -35,7 +36,7 @@ export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDoc
 
     request: {
       url: (params) =>
-        buildQuartrUrl(`/documents/reports/${encodeURIComponent(String(params.reportId).trim())}`, {
+        buildQuartrUrl(`/documents/reports/${safeUrlPathSegment(params.reportId, 'reportId')}`, {
           expand: 'event',
         }),
       method: 'GET',

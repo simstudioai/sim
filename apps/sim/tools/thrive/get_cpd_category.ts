@@ -3,6 +3,7 @@ import type { ThriveCpdCategoryResponse, ThriveGetCpdCategoryParams } from '@/to
 import { THRIVE_CPD_CATEGORY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCpdCategoryTool: ToolConfig<ThriveGetCpdCategoryParams, ThriveCpdCategoryResponse> =
   {
@@ -41,7 +42,7 @@ export const getCpdCategoryTool: ToolConfig<ThriveGetCpdCategoryParams, ThriveCp
 
     request: {
       url: (params) =>
-        `${getThriveBaseUrl(params.host, 'v1')}/cpdCategories/${encodeURIComponent(params.categoryId)}`,
+        `${getThriveBaseUrl(params.host, 'v1')}/cpdCategories/${safeUrlPathSegment(params.categoryId, 'categoryId')}`,
       method: 'GET',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     },

@@ -26,7 +26,7 @@ export const quiverImageToSvgTool = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use for vectorization (e.g., "arrow-preview")',
+      description: 'The model to use for vectorization (e.g., "arrow-2")',
     },
     image: {
       type: 'file',
@@ -50,7 +50,7 @@ export const quiverImageToSvgTool = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum output tokens (1-131072)',
+      description: 'Maximum output tokens (1-65536)',
     },
     presence_penalty: {
       type: 'number',

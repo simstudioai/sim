@@ -21979,12 +21979,12 @@
           "description": "Query human referral traffic report with hourly granularity for a domain in Profound"
         },
         {
-          "name": "Raw Logs",
-          "description": "Get raw traffic logs with filters for a domain in Profound"
+          "name": "Raw Logs (Retired)",
+          "description": "Get raw traffic logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Referrals Report instead."
         },
         {
-          "name": "Bot Logs",
-          "description": "Get identified bot visit logs with filters for a domain in Profound"
+          "name": "Bot Logs (Retired)",
+          "description": "Get identified bot visit logs with filters for a domain in Profound. Profound retired this endpoint on 2026-06-10; use the Bots Report instead."
         },
         {
           "name": "List Optimizations",
@@ -22011,7 +22011,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "data-analytics"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-18"
     },
     {
       "type": "prospeo",
