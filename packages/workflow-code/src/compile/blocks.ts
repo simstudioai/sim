@@ -28,6 +28,7 @@ import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { inputFormatItems, renamedInputFields, untypedInputFields } from '../forms/input-format'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
+import { isJson } from '../lock'
 import {
   type AnchorKey,
   type BlockKey,
@@ -35,6 +36,7 @@ import {
   type CanonicalBranches,
   type CanonicalBranchRow,
   type CanonicalParam,
+  isJsonObject,
   isPlainRecord,
   type Json,
   type LoopSpec,
@@ -245,7 +247,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
       case 'subflowData': {
         const json = compileJsonLiteral(ctx, property.value, site)
         if (json === undefined) break
-        if (!isRecordLike(json) || Object.keys(json).some((k) => !SUBFLOW_DATA_KEYS.has(k))) {
+        if (!isJsonObject(json) || Object.keys(json).some((k) => !SUBFLOW_DATA_KEYS.has(k))) {
           unsupported(
             ctx,
             property.value,
@@ -255,7 +257,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
           )
           break
         }
-        meta.subflowData = { node: property, data: json as Record<string, Json> }
+        meta.subflowData = { node: property, data: json }
         break
       }
       default:
@@ -539,10 +541,10 @@ function applyBranchMeta(
     }
     const json = compileJsonLiteral(ctx, property.value, site)
     if (
-      !isRecordLike(json) ||
+      !isJsonObject(json) ||
       Object.keys(json).some((field) => field !== 'title' && field !== 'extra') ||
       (json.title !== undefined && json.title !== null && typeof json.title !== 'string') ||
-      (json.extra !== undefined && !isRecordLike(json.extra))
+      (json.extra !== undefined && !isJsonObject(json.extra))
     ) {
       unsupported(
         ctx,
@@ -568,7 +570,7 @@ function applyBranchMeta(
     }
     if (typeof json.title === 'string') row.titleOverride = json.title
     if (json.title === null) row.titleMissing = true
-    if (isRecordLike(json.extra)) row.extra = json.extra as Record<string, Json>
+    if (isJsonObject(json.extra)) row.extra = json.extra
   }
 }
 
@@ -1388,7 +1390,10 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
   const params: Record<SubBlockId, CanonicalParam> = {}
   compileExtraParams(ctx, meta.extra, { params, site, unset: new Set() }, () => false)
 
-  const json = (field: string): Json | undefined => fields.get(field) as Json | undefined
+  const json = (field: string): Json | undefined => {
+    const value = fields.get(field)
+    return isJson(value) ? value : undefined
+  }
   const text = (field: string): string | undefined => {
     const value = fields.get(field)
     return typeof value === 'string' ? value : undefined
@@ -1404,7 +1409,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     const doWhileCondition = text('doWhileCondition')
     subflow = {
       kind: 'loop',
-      loopType: builder.method as LoopSpec['loopType'],
+      loopType: builder.method,
       iterations: number('iterations') ?? DEFAULT_LOOP_ITERATIONS,
       ...(forEachItems !== undefined && { forEachItems }),
       ...(whileCondition !== undefined && { whileCondition }),
@@ -1416,7 +1421,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     const batchSize = number('batchSize')
     subflow = {
       kind: 'parallel',
-      ...(builder.method !== null && { parallelType: builder.method as 'count' | 'collection' }),
+      ...(builder.method !== null && { parallelType: builder.method }),
       ...(count !== undefined && { count }),
       ...(distribution !== undefined && { distribution }),
       ...(batchSize !== undefined && { batchSize }),

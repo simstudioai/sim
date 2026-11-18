@@ -766,6 +766,13 @@ describe('errors, each with its code, location and hint', () => {
       'Write a string, number, boolean, null, array or object here.',
     ],
     [
+      'an unresolved node of an unknown kind',
+      "const a = api('A', { url: raw({ $sim: 'unresolved', kind: 'spreadsheet', id: 's1' }) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "{ $sim: 'unresolved'",
+      "Use { $sim: 'resource', kind, key }, { $sim: 'unresolved', kind, id }, { $sim: 'var', key }, { $sim: 'csv', items } or { $sim: 'literal', value }.",
+    ],
+    [
       'a malformed tool in raw([...])',
       "const a = agent('A', { model: 'm', tools: raw([{ type: 'x', params: {}, modes: {} }, { type: 'y' }]) })",
       'E_UNSUPPORTED_SYNTAX',

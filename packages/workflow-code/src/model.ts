@@ -41,6 +41,11 @@ export type CanonicalParamId = string
 /** A JSON value: what the CWM stores wherever no canonical node can appear. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
+/** Whether a JSON value is an object (not an array or `null`), its members still typed `Json`. */
+export function isJsonObject(value: Json | undefined): value is { [key: string]: Json } {
+  return isRecordLike(value)
+}
+
 /** Which member of a basic/advanced pair is effective. */
 export type ParamMode = 'basic' | 'advanced'
 
@@ -103,13 +108,12 @@ export interface ResourceKeyResolver {
 }
 
 /**
- * An internal id the resolver could not map to a key (deleted resource, foreign workspace, or a
- * kind this version does not know). Kept verbatim so materialize writes the same bytes back;
- * canonicalize emits `W_CANON_UNRESOLVED_ID`. `kind` is any resolver kind or `var`.
+ * An internal id the resolver could not map to a key (deleted resource or foreign workspace). Kept
+ * verbatim so materialize writes the same bytes back; canonicalize emits `W_CANON_UNRESOLVED_ID`.
  */
 export interface UnresolvedNode {
   $sim: 'unresolved'
-  kind: string
+  kind: ResourceKind | 'var'
   id: string
 }
 

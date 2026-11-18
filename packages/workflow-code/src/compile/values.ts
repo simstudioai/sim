@@ -248,7 +248,10 @@ function isCanonicalNode(value: Record<string, unknown>): boolean {
       )
     case 'unresolved':
       return (
-        only('$sim', 'kind', 'id') && typeof value.kind === 'string' && typeof value.id === 'string'
+        only('$sim', 'kind', 'id') &&
+        typeof value.kind === 'string' &&
+        (value.kind === 'var' || RESOURCE_KINDS.has(value.kind)) &&
+        typeof value.id === 'string'
       )
     case 'csv':
       return (

@@ -12,7 +12,7 @@ import {
 import { encodeAnchor } from '../anchors'
 import { literalText } from '../babel'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
-import type { BlockKey } from '../model'
+import type { BlockKey, LoopSpec, ParallelSpec } from '../model'
 import { isSuspiciousCharacter } from '../print/strings'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
@@ -29,8 +29,26 @@ import {
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
 
-const LOOP_METHODS = new Set(['for', 'forEach', 'while', 'doWhile'])
-const PARALLEL_METHODS = new Set(['count', 'collection'])
+const LOOP_METHODS: ReadonlySet<string> = new Set<LoopSpec['loopType']>([
+  'for',
+  'forEach',
+  'while',
+  'doWhile',
+])
+const PARALLEL_METHODS: ReadonlySet<string> = new Set<NonNullable<ParallelSpec['parallelType']>>([
+  'count',
+  'collection',
+])
+
+function isLoopMethod(method: string | undefined): method is LoopSpec['loopType'] {
+  return method !== undefined && LOOP_METHODS.has(method)
+}
+
+function isParallelMethod(
+  method: string | undefined
+): method is NonNullable<ParallelSpec['parallelType']> {
+  return method !== undefined && PARALLEL_METHODS.has(method)
+}
 const EDGE_METHODS = new Set(['to', 'onError'])
 
 type CallClass =
@@ -64,20 +82,20 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   const root = binding.name
   const dotted = [root, ...path.rest].join('.')
 
-  if (root === 'loop' && path.rest.length === 1 && LOOP_METHODS.has(path.rest[0])) {
+  const method = path.rest[0]
+  if (root === 'loop' && path.rest.length === 1 && isLoopMethod(method)) {
     return {
       kind: 'builder',
       path: dotted,
-      builder: { kind: 'container', container: 'loop', method: path.rest[0] },
+      builder: { kind: 'container', container: 'loop', method },
     }
   }
   if (root === 'parallel' && path.rest.length <= 1) {
-    const method = path.rest[0] ?? null
-    if (method === null || PARALLEL_METHODS.has(method)) {
+    if (method === undefined || isParallelMethod(method)) {
       return {
         kind: 'builder',
         path: dotted,
-        builder: { kind: 'container', container: 'parallel', method },
+        builder: { kind: 'container', container: 'parallel', method: method ?? null },
       }
     }
   }

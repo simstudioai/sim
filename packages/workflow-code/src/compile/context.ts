@@ -17,6 +17,8 @@ import type {
   CanonicalParam,
   CanonicalVariable,
   CanonicalWorkflow,
+  LoopSpec,
+  ParallelSpec,
   SubBlockId,
   VarKey,
 } from '../model'
@@ -35,11 +37,12 @@ export type ResolvedBuilder =
       block: CatalogBlock | undefined
     }
   | { kind: 'generic'; type: string; block: CatalogBlock | undefined }
+  | { kind: 'container'; container: 'loop'; method: LoopSpec['loopType'] }
   | {
       kind: 'container'
-      container: 'loop' | 'parallel'
+      container: 'parallel'
       /** `null` for the bare `parallel(...)` form, which leaves `parallelType` unset. */
-      method: string | null
+      method: NonNullable<ParallelSpec['parallelType']> | null
     }
   /**
    * `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims
