@@ -149,4 +149,28 @@ describe('AWS blocks keep stale subBlock values out of tool input', () => {
     expect(body.maxResults).toBeUndefined()
     expect(awsSsmGetParametersByPathContract.body?.safeParse(body).success).toBe(true)
   })
+
+  it('a blank stored limit still lets an Agent call pass its own limit', () => {
+    const sqs = SQSBlock.tools.config?.params?.(
+      {
+        ...AWS,
+        receiveVisibilityTimeout: '',
+        visibilityTimeout: 30,
+        moveTaskMaxResults: '',
+        maxResults: 5,
+      },
+      { operation: 'receive_message' }
+    )
+    expect(sqs?.visibilityTimeout).toBe(30)
+    const moveTasks = SQSBlock.tools.config?.params?.(
+      { ...AWS, moveTaskMaxResults: '', maxResults: 5 },
+      { operation: 'list_message_move_tasks' }
+    )
+    expect(moveTasks?.maxResults).toBe(5)
+    const ssm = SSMBlock.tools.config?.params?.(
+      { ...AWS, pathMaxResults: '', maxResults: 5 },
+      { operation: 'get_parameters_by_path' }
+    )
+    expect(ssm?.maxResults).toBe(5)
+  })
 })

@@ -605,6 +605,11 @@ export const SQSBlock: BlockConfig = {
       },
       params: (params, context) => {
         const operation = mapperOperation(params, context)
+        /** A blank block-only field yields, on a tool call, the model's arg under the tool's name. */
+        const orToolArg = (blockValue: unknown, toolValue: unknown) =>
+          blockValue === undefined || blockValue === null || blockValue === ''
+            ? toolCallArg(context, toolValue)
+            : blockValue
 
         const parseJson = (value: unknown, fieldName: string) => {
           if (value === undefined || value === null || value === '') return undefined
@@ -673,7 +678,7 @@ export const SQSBlock: BlockConfig = {
             const waitTimeSeconds = parseInteger(params.waitTimeSeconds, 'waitTimeSeconds')
             if (waitTimeSeconds !== undefined) result.waitTimeSeconds = waitTimeSeconds
             result.visibilityTimeout = parseInteger(
-              params.receiveVisibilityTimeout ?? toolCallArg(context, params.visibilityTimeout),
+              orToolArg(params.receiveVisibilityTimeout, params.visibilityTimeout),
               'visibilityTimeout'
             )
             const messageAttributeNames = parseJson(
@@ -791,7 +796,7 @@ export const SQSBlock: BlockConfig = {
           case 'list_message_move_tasks': {
             result.sourceArn = params.sourceArn
             result.maxResults = parseInteger(
-              params.moveTaskMaxResults ?? toolCallArg(context, params.maxResults),
+              orToolArg(params.moveTaskMaxResults, params.maxResults),
               'maxResults'
             )
             break
