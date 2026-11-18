@@ -23,6 +23,7 @@ import {
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
+import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
@@ -218,6 +219,14 @@ export interface SourcePlan {
 
 export type SourceEvaluation = { refused: WorkflowSourceDiagnostic[] } | { plan: SourcePlan }
 
+/** Whether a compiled resource node's kind is one the resolver answers. */
+function isResourceKind(kind: string): kind is ResourceKind {
+  return (
+    kind === 'workflow' ||
+    (kind !== 'env-var' && WORKFLOW_RESOURCE_KINDS.some((candidate) => candidate === kind))
+  )
+}
+
 /** Every `(kind, key)` resource reference in a compiled model, for ident lookup. */
 function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
   if (Array.isArray(value)) {
@@ -229,9 +238,10 @@ function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
   if (
     record.$sim === 'resource' &&
     typeof record.kind === 'string' &&
+    isResourceKind(record.kind) &&
     typeof record.key === 'string'
   ) {
-    refs.push({ kind: record.kind as ResourceKind, key: record.key })
+    refs.push({ kind: record.kind, key: record.key })
   }
   for (const nested of Object.values(record)) collectResourceKeys(nested, refs)
 }
