@@ -13,11 +13,21 @@ import {
   SOURCE_STALE_EXIT_CODE,
   SOURCE_TOO_LARGE_EXIT_CODE,
 } from '../../exit-codes'
-import type { ApplyWorkflowSourceResponse } from '../../generated/v2-api'
+import type {
+  ApplyWorkflowSourceResponse,
+  ApplyWorkspaceSourceResponse,
+} from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
-type Diagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
+type WorkflowDiagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
+
+/** A workflow finding, or a workspace one: the same fields, over both code vocabularies. */
+type Diagnostic = Omit<WorkflowDiagnostic, 'code'> & {
+  code:
+    | WorkflowDiagnostic['code']
+    | ApplyWorkspaceSourceResponse['data']['diagnostics'][number]['code']
+}
 
 /** The exit status of a refused write a script can branch on; any other refusal exits 1. */
 const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
