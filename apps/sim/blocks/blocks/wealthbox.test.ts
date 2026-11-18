@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
+import { wealthboxReadContactTool } from '@/tools/wealthbox/read_contact'
 import { wealthboxReadNoteTool } from '@/tools/wealthbox/read_note'
+import { wealthboxReadTaskTool } from '@/tools/wealthbox/read_task'
 import { wealthboxWriteTaskTool } from '@/tools/wealthbox/write_task'
 
 function mapParams(params: Record<string, unknown>, context?: { operation: string }) {
@@ -65,5 +67,21 @@ describe('Wealthbox Read Note without a note ID', () => {
     const result = await transform(Response.json({ status_updates: notes }))
 
     expect(result.output).toMatchObject({ notes, metadata: { totalItems: 1 } })
+  })
+})
+
+describe('Wealthbox canvas reads without an ID', () => {
+  it('lists tasks when Read Task has no task ID', () => {
+    const params = mapParams({ operation: 'read_task', oauthCredential: 'cred', taskId: '' })
+    const url = wealthboxReadTaskTool.request.url as (p: Record<string, unknown>) => string
+
+    expect(url(params)).toBe('https://api.crmworkspace.com/v1/tasks')
+  })
+
+  it('lists contacts when Read Contact has no contact ID', () => {
+    const params = mapParams({ operation: 'read_contact', oauthCredential: 'cred', contactId: '' })
+    const url = wealthboxReadContactTool.request.url as (p: Record<string, unknown>) => string
+
+    expect(url(params)).toBe('https://api.crmworkspace.com/v1/contacts')
   })
 })

@@ -80,7 +80,7 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   request: {
     url: (params) =>
       emailBisonUrl(
-        `/api/leads/${safeUrlPathSegment(params.leadId ?? '', 'leadId')}`,
+        `/api/leads/${safeUrlPathSegment(params.leadId ?? '', 'leadId', { allowSeparators: true })}`,
         {},
         params.apiBaseUrl
       ),

@@ -117,7 +117,11 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       description: 'Task data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted task information' },
-        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        task: {
+          type: 'object',
+          description: 'Raw task data from Wealthbox',
+          optional: true,
+        },
         tasks: {
           type: 'array',
           description: 'Tasks returned when no ID is given (list request)',

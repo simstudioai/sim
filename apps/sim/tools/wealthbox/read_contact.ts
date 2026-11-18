@@ -112,7 +112,11 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       description: 'Contact data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted contact information' },
-        contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
+        contact: {
+          type: 'object',
+          description: 'Raw contact data from Wealthbox',
+          optional: true,
+        },
         contacts: {
           type: 'array',
           description: 'Contacts returned when no ID is given (list request)',

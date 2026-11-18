@@ -116,7 +116,11 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       description: 'Note data and metadata',
       properties: {
         content: { type: 'string', description: 'Formatted note information' },
-        note: { type: 'object', description: 'Raw note data from Wealthbox' },
+        note: {
+          type: 'object',
+          description: 'Raw note data from Wealthbox',
+          optional: true,
+        },
         notes: {
           type: 'array',
           description: 'Notes returned when no ID is given (list request)',

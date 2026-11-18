@@ -29,7 +29,7 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
   request: {
     url: (params) =>
       emailBisonUrl(
-        `/api/leads/${safeUrlPathSegment(params.leadId, 'leadId')}`,
+        `/api/leads/${safeUrlPathSegment(params.leadId, 'leadId', { allowSeparators: true })}`,
         {},
         params.apiBaseUrl
       ),

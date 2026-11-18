@@ -109,7 +109,7 @@ export const WealthboxBlock: BlockConfig = {
       id: 'taskId',
       title: 'Task ID',
       type: 'short-input',
-      placeholder: 'Enter Task ID',
+      placeholder: 'Enter Task ID (optional)',
       condition: { field: 'operation', value: ['read_task'] },
     },
     {
@@ -228,19 +228,13 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
           }
         }
         if (operation === 'read_contact') {
-          if (!effectiveContactId && !isToolCall(context)) {
-            throw new Error('Contact ID is required for contact operations')
-          }
           return {
             ...baseParams,
             contactId: effectiveContactId,
           }
         }
         if (operation === 'read_task') {
-          if (!taskId?.trim()) {
-            if (isToolCall(context)) return baseParams
-            throw new Error('Task ID is required for task operations')
-          }
+          if (!taskId?.trim()) return baseParams
           return {
             ...baseParams,
             taskId: taskId.trim(),
