@@ -40,7 +40,7 @@ faq:
 
 ## TL;DR
 
-Enterprise AI agent platforms usually reserve SSO, SCIM, granular RBAC, centralized audit logs, SIEM streaming, contractual SLAs, and dedicated support for enterprise plans sold through custom quotes. The real annual cost is driven by the platform subscription, users or usage, model spend, deployment model, support level, data controls, and implementation services, not by a universal per-feature surcharge.
+Enterprise AI agent platforms usually reserve company identity-provider sign-in (single sign-on, or SSO), automated user provisioning through SCIM, granular access limits based on roles (role-based access control, or RBAC), centralized audit logs, continuous delivery to security monitoring systems (SIEM streaming), contractual service-level agreements (SLAs), and dedicated support for enterprise plans sold through custom quotes. The real annual cost is driven by the platform subscription, users or usage, model spend, deployment model, support level, data controls, and implementation services, not by a universal per-feature surcharge.
 
 As of November 2026, buyers should compare written quotes rather than assume that two Enterprise plans include equivalent governance capabilities. A lower platform fee can become more expensive if audit-log retention, SIEM export, identity lifecycle management, premium support, or model usage is billed separately.
 
@@ -50,7 +50,7 @@ Enterprise AI agent platform pricing is easiest to compare when licensing, deplo
 
 - [Sim](https://www.sim.ai/pricing) is the open-source AI workspace. [Sim's core](https://github.com/simstudioai/sim/blob/main/LICENSE) is Apache 2.0, while SSO, SCIM, access control, audit logs, data drains, and other code in `apps/sim/ee` use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Sim Enterprise subscription for production use. Sim can be [self-hosted](https://docs.sim.ai/platform/self-hosting), and model costs depend on the selected provider-key and deployment approach.
 - [n8n](https://n8n.io/pricing/) is a self-hostable automation product whose public pricing is primarily based on monthly workflow executions, while its Enterprise plan uses custom pricing. Its [Sustainable Use License](https://docs.n8n.io/n8n-community-license) is a source-available fair-code license rather than an OSI-approved open-source license.
-- [Zapier](https://zapier.com/pricing) is a proprietary cloud product with task-oriented plan allowances. Its pricing page places audit logs, SAML SSO, SCIM, and other advanced administration controls in its plan comparison, with Enterprise handled through sales.
+- [Zapier](https://zapier.com/pricing) is a proprietary cloud product with task-oriented plan allowances. Its pricing page places audit logs, SSO through Security Assertion Markup Language (SAML), a standard for exchanging sign-in information with a company identity provider, SCIM, and other advanced administration controls in its plan comparison, with Enterprise handled through sales.
 
 These public pricing models and enterprise-sales routes are current as of November 2026. The signed order form and security addendum determine what a specific customer receives.
 
@@ -75,9 +75,9 @@ Vendors commonly place identity lifecycle management, centralized audit export, 
 
 | Feature | Common sales placement | What procurement should confirm |
 |---|---|---|
-| SSO | Business or Enterprise package | Supported identity protocols, number of identity providers, domain enforcement, guest behavior, and break-glass access |
-| SCIM | Enterprise package | User creation, deactivation, group synchronization, deprovisioning speed, and whether SCIM is separately priced |
-| RBAC | Team, Business, or Enterprise package | Whether roles apply at organization, workspace, project, workflow, credential, and deployment levels |
+| Single sign-on (SSO) | Business or Enterprise package | Supported identity protocols, number of identity providers, domain enforcement, guest behavior, and break-glass access |
+| Automated user provisioning (SCIM) | Enterprise package | User creation, deactivation, group synchronization, deprovisioning speed, and whether SCIM is separately priced |
+| Role-based access control (RBAC) | Team, Business, or Enterprise package | Whether roles apply at organization, workspace, project, workflow, credential, and deployment levels |
 | Audit logs | Business or Enterprise package | Events captured, actor identity, timestamps, retention period, export format, API access, and additional retention fees |
 | SIEM log streaming | Enterprise or security add-on | Push versus pull delivery, supported destinations, delivery latency, retry behavior, filtering, and volume limits |
 | Data residency | Enterprise or deployment add-on | Regions available and whether backups, logs, model traffic, and subprocessors remain in-region |
@@ -163,7 +163,7 @@ Enterprise AI agent vendors should answer the same written governance and pricin
 
 Ask these questions:
 
-1. Which exact plan includes SSO, SCIM, granular RBAC, audit logs, SIEM streaming, data residency, an SLA, and dedicated support?
+1. Which exact plan includes company identity-provider sign-in (SSO), automated user provisioning (SCIM), access limits based on roles (RBAC), continuous delivery to a security monitoring system (SIEM streaming), audit logs, data residency, a service-level agreement (SLA), and dedicated support?
 2. Is any listed capability a separately priced add-on?
 3. What user, workspace, environment, execution, task, storage, or event limits apply?
 4. Which audit events are captured, and how long are they retained?
