@@ -1150,16 +1150,20 @@ describe('permission-group tool access', () => {
     const storedId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
     const send = { type: 'slack', operation: 'send', title: 'Notify' }
     const canvas = { type: 'slack', operation: 'canvas', title: 'Post' }
-    const workflow = emptyWorkflow()
-    workflow.blocks[storedId] = {
-      id: storedId,
-      type: 'human_in_the_loop',
-      name: 'Stored approval',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      subBlocks: { notification: { id: 'notification', type: 'tool-input', value: [] } },
-      outputs: {},
-      data: {},
+    const workflow = {
+      ...emptyWorkflow(),
+      blocks: {
+        [storedId]: {
+          id: storedId,
+          type: 'human_in_the_loop',
+          name: 'Stored approval',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: { notification: { id: 'notification', type: 'tool-input', value: [] } },
+          outputs: {},
+          data: {},
+        },
+      },
     }
 
     const { state, skippedItems } = applyOperationsToWorkflowState(
