@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedEpisodesParams {
@@ -29,19 +30,12 @@ export const spotifyRemoveSavedEpisodesTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated episode IDs (max 50)',
+      description: 'Comma-separated episode IDs (max 40)',
     },
   },
 
   request: {
-    url: (params) => {
-      const ids = params.episodeIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50)
-        .join(',')
-      return `https://api.spotify.com/v1/me/episodes?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.episodeIds, 'episode'),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

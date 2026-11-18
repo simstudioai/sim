@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyRemoveSavedTracksParams {
@@ -31,22 +32,15 @@ export const spotifyRemoveSavedTracksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated track IDs to remove (max 50)',
+      description: 'Comma-separated track IDs to remove (max 40)',
     },
   },
 
   request: {
-    url: () => 'https://api.spotify.com/v1/me/tracks',
+    url: (params) => spotifyLibraryUrl(params.trackIds, 'track'),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
-      ids: params.trackIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50),
     }),
   },
 

@@ -867,7 +867,7 @@
     "apps/sim/tools/spotify/get_new_releases.ts": 2,
     "apps/sim/tools/spotify/get_playback_state.ts": 1,
     "apps/sim/tools/spotify/get_playlist_cover.ts": 1,
-    "apps/sim/tools/spotify/get_playlist_tracks.ts": 3,
+    "apps/sim/tools/spotify/get_playlist_tracks.ts": 2,
     "apps/sim/tools/spotify/get_queue.ts": 2,
     "apps/sim/tools/spotify/get_recently_played.ts": 2,
     "apps/sim/tools/spotify/get_saved_albums.ts": 2,

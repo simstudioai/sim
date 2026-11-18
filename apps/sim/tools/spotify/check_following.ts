@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckFollowingParams {
@@ -36,19 +37,13 @@ export const spotifyCheckFollowingTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated artist or user IDs (max 50)',
+      description: 'Comma-separated artist or user IDs (max 40)',
     },
   },
 
   request: {
-    url: (params) => {
-      const ids = params.ids
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50)
-        .join(',')
-      return `https://api.spotify.com/v1/me/following/contains?type=${params.type}&ids=${ids}`
-    },
+    url: (params) =>
+      spotifyLibraryUrl(params.ids, params.type === 'user' ? 'user' : 'artist', { contains: true }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

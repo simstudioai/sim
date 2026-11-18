@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifySaveAlbumsParams {
@@ -27,22 +28,15 @@ export const spotifySaveAlbumsTool: ToolConfig<SpotifySaveAlbumsParams, SpotifyS
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Comma-separated album IDs (max 20)',
+        description: 'Comma-separated album IDs (max 40)',
       },
     },
 
     request: {
-      url: () => 'https://api.spotify.com/v1/me/albums',
+      url: (params) => spotifyLibraryUrl(params.albumIds, 'album'),
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }),
-      body: (params) => ({
-        ids: params.albumIds
-          .split(',')
-          .map((id) => id.trim())
-          .slice(0, 20),
       }),
     },
 

@@ -1,4 +1,5 @@
 import type { SpotifySaveTracksParams, SpotifySaveTracksResponse } from '@/tools/spotify/types'
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifySaveTracksResponse> =
@@ -19,17 +20,15 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Comma-separated Spotify track IDs to save (max 50)',
+        description: 'Comma-separated Spotify track IDs to save (max 40)',
       },
     },
 
     request: {
-      url: (params) =>
-        `https://api.spotify.com/v1/me/tracks?ids=${encodeURIComponent(params.trackIds)}`,
+      url: (params) => spotifyLibraryUrl(params.trackIds, 'track'),
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
       }),
     },
 

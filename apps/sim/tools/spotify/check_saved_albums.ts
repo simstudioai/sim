@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckSavedAlbumsParams {
@@ -29,19 +30,12 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated album IDs (max 20)',
+      description: 'Comma-separated album IDs (max 40)',
     },
   },
 
   request: {
-    url: (params) => {
-      const ids = params.albumIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 20)
-        .join(',')
-      return `https://api.spotify.com/v1/me/albums/contains?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.albumIds, 'album', { contains: true }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

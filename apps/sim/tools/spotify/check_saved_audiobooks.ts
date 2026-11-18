@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckSavedAudiobooksParams {
@@ -29,19 +30,12 @@ export const spotifyCheckSavedAudiobooksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated audiobook IDs (max 50)',
+      description: 'Comma-separated audiobook IDs (max 40)',
     },
   },
 
   request: {
-    url: (params) => {
-      const ids = params.audiobookIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 50)
-        .join(',')
-      return `https://api.spotify.com/v1/me/audiobooks/contains?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.audiobookIds, 'audiobook', { contains: true }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
