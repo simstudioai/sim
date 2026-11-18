@@ -197,6 +197,19 @@ export async function addTableColumn(
 
       const newColumnId = getColumnId(newColumn)
 
+      // A fresh column is empty in every row; one re-added under its old id (an undo of a
+      // delete) holds only what its cells still carry. Either way a required column refuses rows
+      // it leaves empty, as setting `required` on an existing column does.
+      if (newColumn.required) {
+        const emptyCount = await countEmptyCells(trx, tableId, table.workspaceId, newColumnId)
+        if (emptyCount > 0) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${column.name}" cannot be added as required: ${emptyCount} row(s) would have no value. Add it without required, fill its cells, then make it required.`
+          )
+        }
+      }
+
       const columns = [...schema.columns]
       if (
         column.position !== undefined &&

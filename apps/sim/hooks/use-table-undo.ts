@@ -384,7 +384,10 @@ export function useTableUndo({
                   ...(action.columnId ? { id: action.columnId } : {}),
                   name: action.columnName,
                   type: action.columnType,
-                  required: action.columnRequired,
+                  // Re-added optional: its cells are restored below, and only then can the
+                  // server accept the column as required (it refuses a required column that
+                  // any row leaves empty).
+                  required: false,
                   unique: action.columnUnique,
                   // A select column is rejected without its options, and the
                   // cell data restored below is keyed by those option ids.
@@ -395,30 +398,34 @@ export function useTableUndo({
                 },
                 {
                   onSuccess: () => {
-                    if (action.cellData.length > 0) {
-                      const updates = action.cellData.map((c) => ({
-                        rowId: c.rowId,
-                        data: { [colKey]: c.value },
-                      }))
-                      void (async () => {
-                        try {
-                          for (
-                            let i = 0;
-                            i < updates.length;
-                            i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
-                          ) {
-                            await batchUpdateRowsMutation.mutateAsync({
-                              updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
-                            })
-                          }
-                        } catch (error) {
-                          logger.error('Failed to restore cell data on delete-column undo', {
-                            columnName: action.columnName,
-                            error,
+                    const updates = action.cellData.map((c) => ({
+                      rowId: c.rowId,
+                      data: { [colKey]: c.value },
+                    }))
+                    void (async () => {
+                      try {
+                        for (
+                          let i = 0;
+                          i < updates.length;
+                          i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+                        ) {
+                          await batchUpdateRowsMutation.mutateAsync({
+                            updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
                           })
                         }
-                      })()
-                    }
+                        if (action.columnRequired) {
+                          await updateColumnMutation.mutateAsync({
+                            columnName: colKey,
+                            updates: { required: true },
+                          })
+                        }
+                      } catch (error) {
+                        logger.error('Failed to restore cell data on delete-column undo', {
+                          columnName: action.columnName,
+                          error,
+                        })
+                      }
+                    })()
                     // Cell restore above runs everywhere — it's row data. The
                     // layout below belongs to the recorded view: elsewhere the
                     // restored column still reappears via the grid's append

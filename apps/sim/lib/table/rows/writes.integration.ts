@@ -22,7 +22,7 @@ vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
+import { addTableColumn, deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
@@ -2480,6 +2480,56 @@ describe('table row writes against real PostgreSQL', () => {
       } finally {
         spy.mockRestore()
       }
+    })
+  })
+  describe('adding a required column', () => {
+    it('refuses a new required column on a table that has rows, from every surface', async () => {
+      const table = await createTable(textColumns('note'))
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
+      await expect(
+        addTableColumn(table.id, { name: 'owner', type: 'string', required: true }, 'required-add')
+      ).rejects.toThrow(/cannot be added as required: 1 row\(s\) would have no value/)
+      expect((await getTableById(table.id))?.schema.columns.map((column) => column.name)).toEqual([
+        'note',
+      ])
+    })
+
+    it('adds a required column to an empty table', async () => {
+      const table = await createTable(textColumns('note'))
+      const updated = await addTableColumn(
+        table.id,
+        { name: 'owner', type: 'string', required: true },
+        'required-empty'
+      )
+      expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    })
+
+    it('restores a deleted required column only when no row leaves it empty', async () => {
+      const table = await createTable([
+        { id: 'owner', name: 'owner', type: 'string', required: true },
+        ...textColumns('note'),
+      ])
+      await seedRows(table.id, [
+        { id: generateId(), data: { owner: 'ana', note: 'a' }, orderKey: 'a0' },
+      ])
+      await deleteColumn({ tableId: table.id, columnName: 'owner' }, 'undo-delete')
+      // A row added after the delete never held the column, so an undo cannot restore it required.
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'b' }, orderKey: 'a1' }])
+      await expect(
+        addTableColumn(
+          table.id,
+          { id: 'owner', name: 'owner', type: 'string', required: true },
+          'undo-required'
+        )
+      ).rejects.toThrow(/cannot be added as required/)
+      const restored = await addTableColumn(
+        table.id,
+        { id: 'owner', name: 'owner', type: 'string' },
+        'undo-optional'
+      )
+      expect(restored.schema.columns.find((column) => column.name === 'owner')?.required).toBe(
+        false
+      )
     })
   })
 })
