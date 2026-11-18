@@ -6,7 +6,7 @@
  * Client-safe: no parser imports.
  */
 import { SOURCE_BASE_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { KIND_DIRS, type WorkspaceKind } from './kind'
+import { isFileKind, KIND_DIRS, type WorkspaceKind } from './kind'
 
 /** Per-resource ids and fingerprints for one environment (`WorkspaceBaseV1`). */
 export const WORKSPACE_BASE_FILE = '.sim/base.json'
@@ -28,15 +28,28 @@ export function isResourceKey(value: string): boolean {
   return RESOURCE_KEY_PATTERN.test(value)
 }
 
-/** The kind each top-level folder holds. */
+/** The stored secret name format (`v2SecretNameSchema` in apps/sim). */
+const SECRET_NAME_PATTERN = /^[A-Za-z0-9_]{1,255}$/
+
+/** Whether `value` is a secret name: letters, digits and `_`, at most 255 characters. */
+export function isSecretName(value: string): boolean {
+  return SECRET_NAME_PATTERN.test(value)
+}
+
+/** The kind each top-level folder or root file holds. */
 export const KIND_BY_DIR: ReadonlyMap<string, WorkspaceKind> = new Map<string, WorkspaceKind>(
   Object.entries(KIND_DIRS).map(([kind, dir]) => [dir, kind as WorkspaceKind])
 )
 
-/** The kind whose folder holds `path`, or `null` for a path outside every kind's folder. */
+/**
+ * The kind whose folder holds `path`, or whose root file it is; `null` for a path outside every
+ * kind's folder and file.
+ */
 export function kindOfPath(path: string): WorkspaceKind | null {
   const slash = path.indexOf('/')
-  return slash <= 0 ? null : (KIND_BY_DIR.get(path.slice(0, slash)) ?? null)
+  const kind = KIND_BY_DIR.get(slash === -1 ? path : path.slice(0, slash))
+  if (kind === undefined) return null
+  return (slash === -1) === isFileKind(kind) ? kind : null
 }
 
 /** A character a file name never holds: controls, backslash, and the Windows reserved set. */

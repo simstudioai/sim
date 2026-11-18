@@ -43,6 +43,28 @@ const BASE_CODES = [
   'E_BASE_UNKNOWN_FIELD',
 ] as const
 
+/** Secrets (`secrets.ts`). */
+const SECRET_CODES = [
+  /** A declared name outside the secret name format. */
+  'E_SECRET_NAME',
+  /** A workflow uses a declared secret the workspace holds no value for: it is held back. */
+  'E_SECRET_MISSING',
+  /** A declared secret the workspace holds no value for. */
+  'W_SECRET_MISSING',
+] as const
+
+/** Credentials (`credentials.ts`). */
+const CREDENTIAL_CODES = [
+  /** A workflow uses a declared key no credential of its provider binds to: it is held back. */
+  'E_CREDENTIAL_MISSING',
+  /** A workflow uses a declared key several credentials could bind to: it is held back. */
+  'E_CREDENTIAL_AMBIGUOUS',
+  /** A declared key no credential of its provider binds to. */
+  'W_CREDENTIAL_MISSING',
+  /** A declared key several credentials could bind to. */
+  'W_CREDENTIAL_AMBIGUOUS',
+] as const
+
 /** Tables. */
 const TABLE_CODES = [
   /** A column key or name outside the table name pattern. */
@@ -146,6 +168,8 @@ const PLAN_CODES = [
   'E_PLAN_TOO_LARGE',
   /** A declared resource references one this apply deletes. */
   'E_PLAN_REF_DELETED',
+  /** A declared resource references one this apply holds back, so it is held back too. */
+  'E_PLAN_REF_HELD',
   /** A resource this apply deletes is still used by stored workflows. */
   'W_RESOURCE_IN_USE',
   /** Another resource of the kind holds this name or key. */
@@ -173,6 +197,8 @@ const PLAN_CODES = [
 export const WORKSPACE_DIAGNOSTIC_CODES = [
   ...DECLARATION_CODES,
   ...BASE_CODES,
+  ...SECRET_CODES,
+  ...CREDENTIAL_CODES,
   ...TABLE_CODES,
   ...TOOL_CODES,
   ...SKILL_CODES,

@@ -1,26 +1,34 @@
-import type { Json, ResourceKind } from '@sim/workflow-code'
+import type { Json } from '@sim/workflow-code'
 import type { WorkspaceDiagnostic } from './diagnostics'
 
 /**
  * Every kind a workspace source directory can declare, in the order an apply writes them: a
- * resource exists before anything that references it (a workflow names tables, tools and skills).
- * Deletes run in the reverse order. Each is spelled as the resource kind a workflow references it
- * by (`ResourceKind`, from `PortableResourceKind`), so resource keys and source agree on one name.
+ * resource exists before anything that references it (a workflow names secrets, credentials,
+ * tables, tools and skills). Deletes run in the reverse order. A kind a workflow names by a
+ * resource key is spelled as that resource kind (`ResourceKind`), so resource keys and source
+ * agree on one name; `WORKSPACE_KIND_SPECS` records which resource kind each one is.
  */
 export const APPLY_ORDER = [
+  'secret',
+  'credential',
   'custom-tool',
   'skill',
   'table',
   'knowledge-base',
   'file',
   'workflow',
-] as const satisfies readonly ResourceKind[]
+] as const
 
 /** A resource kind a workspace source directory can declare. */
 export type WorkspaceKind = (typeof APPLY_ORDER)[number]
 
-/** The top-level folder each kind lives in; a kind is managed only when its folder exists. */
+/**
+ * Where each kind lives: a top-level folder, or for a kind one root file declares whole
+ * ({@link FILE_KINDS}), that file. A kind is managed only when its folder or file exists.
+ */
 export const KIND_DIRS = {
+  secret: 'secrets.ts',
+  credential: 'credentials.ts',
   'custom-tool': 'tools',
   skill: 'skills',
   table: 'tables',
@@ -28,6 +36,20 @@ export const KIND_DIRS = {
   file: 'files',
   workflow: 'workflows',
 } as const satisfies Record<WorkspaceKind, string>
+
+/**
+ * The kinds one root file declares whole (`secrets.ts`), each entry of it one resource: the file
+ * is the kind's only path, so it has no folder or folder marker.
+ */
+export const FILE_KINDS = ['secret', 'credential'] as const satisfies readonly WorkspaceKind[]
+
+/** A kind one root file declares whole. */
+export type FileKind = (typeof FILE_KINDS)[number]
+
+/** Whether `kind` is declared by one root file rather than a folder. */
+export function isFileKind(kind: WorkspaceKind): kind is FileKind {
+  return FILE_KINDS.some((fileKind) => fileKind === kind)
+}
 
 /** Whether `value` names a kind, as `--only` and the API's `kinds` spell it. */
 export function isWorkspaceKind(value: string): value is WorkspaceKind {
@@ -94,10 +116,11 @@ export interface KindLayout {
   isBlob?(path: string): boolean
   /**
    * What a key names: a resource key (the default), which the workspace's key table binds to the
-   * resource and a workflow names it by; or `path`, the resource's own path (a workspace file),
-   * which no key table records.
+   * resource and a workflow names it by; `path`, the resource's own path (a workspace file); or
+   * `name`, the name the resource is stored under (a secret, which a workflow reads as
+   * `env.NAME`). No key table records a path or a name.
    */
-  readonly keys?: 'resource' | 'path'
+  readonly keys?: 'resource' | 'path' | 'name'
   /**
    * The byte limit the kind's text counts against: `declaration` (the default,
    * `maxDeclarationBytes`) or `workflow` (`maxWorkflowBytes`, with `maxWorkflows`).

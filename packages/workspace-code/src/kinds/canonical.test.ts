@@ -8,8 +8,10 @@
 import { describe, expect, it } from 'vitest'
 import { fingerprintOf } from '../fingerprint'
 import type { KindCodec } from '../kind'
+import { type CredentialDecl, credentialFingerprint } from './credentials'
 import { type FileDecl, fileCodec } from './files'
 import { type KnowledgeBaseDecl, type KnowledgeChunkingDecl, knowledgeCodec } from './knowledge'
+import { type SecretDecl, secretFingerprint } from './secrets'
 import { type SkillDecl, skillCodec } from './skills'
 import type { TableColumnDecl, TableDecl } from './table'
 import { testTableCodec } from './table.test-helpers'
@@ -175,6 +177,23 @@ describe('every declared field reaches the fingerprint', () => {
 
     expect(
       unfingerprinted(fingerprintBy(fileCodec), base, { sha256: 'b'.repeat(64), size: 1 }, ['size'])
+    ).toEqual([])
+  })
+
+  it('secret', () => {
+    const base: SecretDecl = { description: 'Model access' }
+
+    expect(unfingerprinted(secretFingerprint, base, { description: 'Billing' })).toEqual([])
+  })
+
+  it('credential', () => {
+    const base: CredentialDecl = { provider: 'slack', name: 'Acme' }
+
+    expect(
+      unfingerprinted(credentialFingerprint, base, {
+        provider: 'google-email',
+        name: 'Ops',
+      })
     ).toEqual([])
   })
 })
