@@ -181,6 +181,19 @@ describe('Kalshi cancel order on a subaccount', () => {
     )
   })
 
+  it.each(TOOLS)(
+    '%s keeps the subaccount on the cancel it sends after the order read',
+    async (_, tool) => {
+      const { read, postProcess } = await readOrder(tool)
+      const forwarded: Array<URLSearchParams> = []
+      await postProcess(read as never, { ...BASE, subaccount: '2' }, async (_toolId, params) => {
+        forwarded.push(query(tool, params as unknown as KalshiCancelOrderV2Params))
+        return { success: true, output: {} }
+      })
+      expect(forwarded.map((search) => search.get('subaccount'))).toEqual(['2'])
+    }
+  )
+
   it.each(TOOLS)('%s refuses a subaccount that is not a whole number', (_, tool) => {
     expect(() => query(tool, { ...BASE, ticker: TICKER, subaccount: 'two' })).toThrow(/Subaccount/)
   })

@@ -107,6 +107,12 @@ describe('safeUrlPathSegment', () => {
     expect(safeUrlPathSegment(' doc-1 ', 'id', { preserveWhitespace: true })).toBe('%20doc-1%20')
     expect(() => safeUrlPathSegment('..', 'id', { preserveWhitespace: true })).toThrow(/id/)
     expect(() => safeUrlPathSegment('   ', 'id', { preserveWhitespace: true })).toThrow(/id/)
+    expect(safeUrlPathSegment('coll\n', 'id', { preserveWhitespace: true })).toBe('coll')
+    expect(safeUrlPathSegment('\tco\r\nll', 'id', { preserveWhitespace: true })).toBe('coll')
+    expect(safeUrlPathSegment('a b', 'id', { preserveWhitespace: true })).toBe('a%20b')
+    expect(() => safeUrlPathSegment('.\n.', 'id', { preserveWhitespace: true })).toThrow(
+      /traversal/
+    )
   })
 
   it.concurrent('every vector either throws or keeps the exact path shape', () => {

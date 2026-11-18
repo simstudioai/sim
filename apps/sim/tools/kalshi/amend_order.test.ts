@@ -225,6 +225,26 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
     })
   })
 
+  it('keeps the subaccount on the amend it sends after the order read', async () => {
+    const params = { ...BASE, count: '10', subaccount: '3' }
+    const read = await kalshiAmendOrderV2Tool.transformResponse?.(
+      Response.json({ order: CURRENT_ORDER }),
+      params
+    )
+    const postProcess = kalshiAmendOrderV2Tool.postProcess
+    const { url } = kalshiAmendOrderV2Tool.request
+    if (!read || !postProcess || typeof url !== 'function')
+      throw new Error('amend tool cannot read')
+    const forwarded: Array<string | null> = []
+    await postProcess(read, params, async (_toolId, next) => {
+      forwarded.push(
+        new URL(url(next as unknown as KalshiAmendOrderV2Params)).searchParams.get('subaccount')
+      )
+      return { success: true, output: {} }
+    })
+    expect(forwarded).toEqual(['3'])
+  })
+
   it("reads Kalshi's 6-decimal response values when the extra digits are zeros", async () => {
     const params = { ...BASE, count: '10' }
     const read = await kalshiAmendOrderV2Tool.transformResponse?.(

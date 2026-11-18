@@ -1,6 +1,8 @@
 import { jsonResponse } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { agentTool } from '@/tools/firecrawl/agent'
 import { crawlTool } from '@/tools/firecrawl/crawl'
+import { extractTool } from '@/tools/firecrawl/extract'
 import type { FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 
 const fetchMock = vi.fn()
@@ -63,4 +65,21 @@ describe('Firecrawl crawl polling', () => {
     expect(result).toMatchObject({ success: false, error: expect.stringMatching(/job ID/) })
     expect(fetchMock).not.toHaveBeenCalled()
   })
+})
+
+describe('Firecrawl agent and extract job start', () => {
+  it.each([
+    ['agent', agentTool],
+    ['extract', extractTool],
+  ] as const)(
+    '%s refuses a start response with no job id instead of polling it',
+    async (_, tool) => {
+      await expect(tool.transformResponse?.(jsonResponse({ success: true }))).rejects.toThrow(
+        /did not return an? \w+ job id/
+      )
+      await expect(
+        tool.transformResponse?.(jsonResponse({ success: false, error: 'Invalid schema' }))
+      ).rejects.toThrow('Invalid schema')
+    }
+  )
 })

@@ -5,15 +5,15 @@ import { mapTool } from '@/tools/tavily/map'
 import type { ToolConfig } from '@/tools/types'
 
 /** References that validated against the production output schemas must keep validating. */
-const SAVED_REFERENCES: Array<[string, ToolConfig['outputs'], string[]]> = [
-  ['Tavily Map', mapTool.outputs, ['results[0]', 'url']],
-  ['Tavily Map', mapTool.outputs, ['results', '0', 'url']],
-  ['Ketch Get Consent', getConsentTool.outputs, ['vendors', 'someVendor']],
-  ['Ketch Get Consent', getConsentTool.outputs, ['vendors', 'someVendor', 'status']],
+const SAVED_REFERENCES: Array<[string, string[], ToolConfig['outputs']]> = [
+  ['Tavily Map', ['results[0]', 'url'], mapTool.outputs],
+  ['Tavily Map', ['results', '0', 'url'], mapTool.outputs],
+  ['Ketch Get Consent', ['vendors', 'someVendor'], getConsentTool.outputs],
+  ['Ketch Get Consent', ['vendors', 'someVendor', 'status'], getConsentTool.outputs],
 ]
 
 describe('saved references into reshaped tool outputs', () => {
-  it.each(SAVED_REFERENCES)('%s still accepts %j', (_name, outputs, path) => {
+  it.each(SAVED_REFERENCES)('%s still accepts %j', (_name, path, outputs) => {
     expect(isPathInSchema(outputs, path)).toBe(true)
   })
 })
