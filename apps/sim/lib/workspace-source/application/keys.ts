@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import type { ResourceKind } from '@sim/workflow-code'
 import { WORKSPACE_KIND_SPECS, type WorkspaceKind } from '@sim/workspace-code'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import type { DbTransaction } from '@/lib/db/types'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
 import { reboundFinding } from '@/lib/workspace-source/application/findings'
 import type {
@@ -79,15 +80,17 @@ export async function listUpTo<T, C>(
 }
 
 /**
- * Binds `change.key` to the resource the change wrote. Called only once the write succeeded, so a
- * write that fails leaves the key free and the next apply adopts the resource by name. Returns
- * `I_KEY_REBOUND` when the key named a deleted resource. A kind keyed by another kind's keys or by
- * path (no `resourceKind`) claims nothing.
+ * Binds `change.key` to the resource the change wrote: inside the write's own transaction `tx`
+ * (a create no later apply could adopt by name, so a claim that fails rolls the create back), or
+ * once the write succeeded, so a write that fails leaves the key free and the next apply adopts
+ * the resource by name. Returns `I_KEY_REBOUND` when the key named a deleted resource. A kind
+ * keyed by another kind's keys or by path (no `resourceKind`) claims nothing.
  */
 export async function claimKey(
   change: Pick<PlannedChange, 'kind' | 'key' | 'action'>,
   ctx: SourceContext,
-  resourceId: string
+  resourceId: string,
+  tx?: DbTransaction
 ): Promise<WorkspaceSourceDiagnostic[]> {
   const kind = WORKSPACE_KIND_SPECS[change.kind].resourceKind
   if (kind === null) return []
@@ -98,6 +101,7 @@ export async function claimKey(
     resourceId,
     origin: change.action === 'create' ? 'created' : 'adopted',
     createdBy: ctx.createdBy,
+    ...(tx ? { tx } : {}),
   })
   return claim === 'rebound' ? [reboundFinding(change.kind, change.key)] : []
 }

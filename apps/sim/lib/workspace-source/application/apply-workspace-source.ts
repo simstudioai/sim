@@ -140,7 +140,9 @@ function failureOf(
  * Writes one change the way every kind's write is enveloped: an update, adopt or delete whose
  * plan recorded the resource's fingerprint first re-reads it and refuses one that moved since
  * (`E_APPLY_STALE`), and a write that binds a source key claims it only once it succeeded, so a
- * failed write leaves the key free and the next apply adopts the resource by name.
+ * failed write leaves the key free and the next apply adopts the resource by name. A write no
+ * later apply could adopt (a workflow create) claims its key in its own transaction instead
+ * (`keyClaimed`).
  */
 async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedResource> {
   const adapter = KIND_ADAPTERS[change.kind]
@@ -154,7 +156,7 @@ async function write(change: PlannedChange, ctx: ApplyContext): Promise<AppliedR
     (adapter.keys === 'every-write'
       ? change.action !== 'delete'
       : change.action === 'create' || change.action === 'adopt')
-  if (!claims) return written
+  if (!claims || written.keyClaimed) return written
   const claimed = await claimKey(change, ctx, written.id)
   return claimed.length > 0
     ? { ...written, diagnostics: [...(written.diagnostics ?? []), ...claimed] }

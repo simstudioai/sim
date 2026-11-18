@@ -148,6 +148,8 @@ export interface AppliedResource {
   base?: BaseResource
   text: Record<string, string>
   diagnostics?: WorkspaceSourceDiagnostic[]
+  /** The write bound its source key itself, in its own transaction: the apply claims nothing. */
+  keyClaimed?: true
 }
 
 /**

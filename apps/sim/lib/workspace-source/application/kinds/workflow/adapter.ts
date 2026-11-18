@@ -76,7 +76,7 @@ import {
   refuseDeclaredTwice,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
-import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
+import { bindStored, claimKey, listUpTo } from '@/lib/workspace-source/application/keys'
 import type {
   KindAdapter,
   PlanContext,
@@ -787,6 +787,9 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
       ...(ctx.provenance ? { provenance: ctx.provenance } : {}),
       ...(change.detail?.evaluated ? { evaluated: change.detail.evaluated } : {}),
     }
+    // A new folder has no base, so no later apply could adopt a workflow whose create committed
+    // without its key: the create claims it in its own transaction, and a failed claim undoes it.
+    const claimed: WorkspaceSourceDiagnostic[] = []
     const write = () =>
       update && change.storedId
         ? applyWorkflowSource.execute({
@@ -799,6 +802,9 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
               workspaceId,
               ...(change.detail?.workflowId ? { workflowId: change.detail.workflowId } : {}),
               ...submission,
+              withinCreate: async (tx, workflowId) => {
+                claimed.splice(0, claimed.length, ...(await claimKey(change, ctx, workflowId, tx)))
+              },
             },
           })
     // The pipeline's own refusal is the apply's, with its findings pinned to the folder.
@@ -818,7 +824,8 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         lock: result.lock,
         base: result.base,
       }).text,
-      diagnostics: inFolder(change.key, result.diagnostics),
+      diagnostics: [...inFolder(change.key, result.diagnostics), ...claimed],
+      ...(update ? {} : { keyClaimed: true as const }),
     }
   },
 

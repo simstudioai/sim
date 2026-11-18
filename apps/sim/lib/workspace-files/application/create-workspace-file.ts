@@ -10,6 +10,7 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileCreateHook } from '@/lib/uploads/contexts/workspace/file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -38,6 +39,8 @@ export interface CreateWorkspaceFileBufferInput
   extends Omit<CreateWorkspaceFileInput, 'content' | 'encoding'> {
   content: Buffer
   notifyWorkspaceChange?: boolean
+  /** Writes that commit with the file, in its create transaction. In-process only. */
+  withinCreate?: WorkspaceFileCreateHook
 }
 
 async function resolveCreateWorkspaceFileContext(workspaceId: string) {
@@ -75,6 +78,7 @@ export async function createAuthorizedWorkspaceFile({
         exactName: input.exactName,
         secretProvenance: input.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
         notifyWorkspaceChange: input.notifyWorkspaceChange,
+        ...(input.withinCreate ? { withinCreate: input.withinCreate } : {}),
       }
     )
   } catch (error) {

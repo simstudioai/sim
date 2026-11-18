@@ -33,6 +33,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   codes,
+  failKeyClaims,
   refusal,
   sourceChecks,
   sourceRunner,
@@ -2015,6 +2016,43 @@ export default workflow('Notes', {}, () => {
       const again = await get(workspaceId)
       const noop = await apply(workspaceId, again.files, { base: again.base })
       expect(noop.applied).toEqual([])
+    }
+  )
+  check(
+    'a workflow create whose key claim fails leaves no workflow behind, so applying again creates it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/claim-crash/workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Claim Crash', {}, () => {
+  trigger.start('Start', { inputFormat: { email: 'string' } })
+})
+`,
+      }
+      const restore = await failKeyClaims('claim-crash')
+      const crashed = await apply(workspaceId, files, { kinds: ['workflow'] }).finally(restore)
+
+      expect(crashed.failed).toMatchObject({ kind: 'workflow', key: 'claim-crash' })
+      expect(crashed.applied).toEqual([])
+      expect(await workflows(workspaceId)).toEqual([])
+
+      const again = await apply(workspaceId, files, { kinds: ['workflow'] })
+      expect(again.failed).toBeUndefined()
+      const [created] = await workflows(workspaceId)
+      expect(created?.name).toBe('Claim Crash')
+      const [binding] = await db
+        .select({ resourceId: workspaceResourceKey.resourceId })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'workflow'),
+            eq(workspaceResourceKey.key, 'claim-crash')
+          )
+        )
+      expect(binding?.resourceId).toBe(created?.id)
     }
   )
 })
