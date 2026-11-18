@@ -1,5 +1,5 @@
 /**
- * Print layout: the parent tree, declaration order, identifiers, and which blocks a block can see
+ * Print scopes: the parent tree, declaration order, identifiers, and which blocks a block can see
  * by name (`visibility`). Mirrors `compile/scope.ts`.
  */
 
@@ -80,7 +80,7 @@ function isTrigger(ctx: PrintContext, block: CanonicalBlock): boolean {
 }
 
 /** Orders each scope's declarations and assigns identifiers and container parameter names. */
-export function layout(ctx: PrintContext): void {
+export function orderDeclarations(ctx: PrintContext): void {
   const dependencies: OrderDependency[] = []
   for (const [key, block] of ctx.blocks) {
     for (const head of blockRefHeads(block)) {

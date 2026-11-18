@@ -31,6 +31,7 @@ import { JsonRef, type JsonTree, jsonFieldText, parseJsonField, refValueKind } f
 import { CODE_FILE_EXTENSIONS, SOURCE_CODE_DIR } from '../limits'
 import type { AnchorKey, CanonicalBlock, ParamMode, Value } from '../model'
 import { getOwn, setOwn } from '../records'
+import type { TemplateTag } from '../sdk'
 import { holdsSecret } from '../secrets'
 import { structuredCodec } from '../structured'
 import { anchors } from './comments'
@@ -38,7 +39,7 @@ import type { PrintContext } from './context'
 import { printKey } from './strings'
 import { arrayExpr, type Expr, objectExpr, type Property, pathDepth } from './syntax'
 import { printTools, storedSecret } from './tools'
-import { type FieldContext, type PrintedValue, refExpr, type Tag } from './values'
+import { type FieldContext, type PrintedValue, refExpr } from './values'
 
 function toLanguage(value: unknown): CodeFileLanguage | null {
   if (value === 'javascript' || value === 'js') return 'javascript'
@@ -87,7 +88,7 @@ function tagFor(
   block: CanonicalBlock,
   declared: CatalogBlock | undefined,
   sb?: CatalogSubBlock
-): Tag {
+): TemplateTag {
   if (sb?.valueKind === 'code') {
     if (sb.language === 'json') return 'json'
     const language = toLanguage(stringParam(block, 'language')) ?? toLanguage(sb.language)

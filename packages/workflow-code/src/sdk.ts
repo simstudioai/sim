@@ -30,7 +30,7 @@ export const RESPONSE_BLOCK_TYPE = 'response'
 export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
 
 /**
- * The SDK's tagged templates (`js\`...\``), each a core export. The printer's `Tag` and the
+ * The SDK's tagged templates (`js\`...\``), each a core export. The printer and the
  * compiler's template check both read this list.
  */
 export const TEMPLATE_TAGS = [
