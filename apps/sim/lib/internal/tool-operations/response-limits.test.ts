@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   capResultRows,
+  capStatementRows,
   MAX_TOOL_RESPONSE_BODY_BYTES,
   toRowsResponseBody,
 } from '@/lib/internal/tool-operations/response-limits'
@@ -20,9 +21,13 @@ describe('database result caps', () => {
 
   it('measures UTF-8 bytes, so multibyte text cannot exceed the response ceiling', () => {
     const value = '漢'.repeat(100_000)
-    const capped = capResultRows(Array.from({ length: 50 }, () => ({ value })))
+    const capped = capStatementRows(
+      Array.from({ length: 50 }, () => ({ value })),
+      50,
+      'Page the rest.'
+    )
     expect(capped.truncated).toBe(true)
-    const body = JSON.stringify(toRowsResponseBody({ ...capped, rowCount: 50 }, 'Query done.'))
+    const body = JSON.stringify(toRowsResponseBody(capped, 'Query done.'))
     expect(Buffer.byteLength(body, 'utf8')).toBeLessThanOrEqual(MAX_TOOL_RESPONSE_BODY_BYTES)
   })
 

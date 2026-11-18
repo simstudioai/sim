@@ -83,7 +83,7 @@ export async function queryPostgres(
   return capStatementRows(
     result,
     result.count ?? result.length ?? 0,
-    'Page with LIMIT and OFFSET to read the rest.'
+    'A write statement still ran in full; page a SELECT with LIMIT and OFFSET to read the rest.'
   )
 }
 

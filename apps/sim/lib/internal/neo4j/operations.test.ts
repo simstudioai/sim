@@ -24,7 +24,8 @@ const INPUT = {
   parameters: {},
 }
 
-function queryResult() {
+/** A driver `Result` streaming `count` records, recording whether the rest was discarded. */
+function streamingResult(count: number) {
   const updates = {
     nodesCreated: 0,
     nodesDeleted: 0,
@@ -38,25 +39,53 @@ function queryResult() {
     constraintsAdded: 0,
     constraintsRemoved: 0,
   }
+  const summary = {
+    resultAvailableAfter: { toNumber: () => 2 },
+    resultConsumedAfter: { toNumber: () => 3 },
+    counters: { updates: () => updates },
+  }
+  const state = { pulled: 0, discarded: false }
+  const record = { keys: ['name'], get: () => 'Ada' }
   return {
-    records: [{ keys: ['name'], get: vi.fn().mockReturnValue('Ada') }],
-    summary: {
-      resultAvailableAfter: { toNumber: () => 2 },
-      resultConsumedAfter: { toNumber: () => 3 },
-      counters: { updates: () => updates },
-    },
+    state,
+    [Symbol.asyncIterator]: () => ({
+      next: async () => {
+        if (state.pulled >= count) return { done: true, value: summary }
+        state.pulled++
+        return { done: false, value: record }
+      },
+      return: async () => {
+        state.discarded = true
+        return { done: true, value: summary }
+      },
+    }),
   }
 }
 
 describe('Neo4j operations', () => {
   beforeEach(() => {
-    mocks.run.mockResolvedValue(queryResult())
+    mocks.run.mockImplementation(() => streamingResult(1))
     mocks.sessionClose.mockResolvedValue(undefined)
     mocks.driverClose.mockResolvedValue(undefined)
     mocks.createDriver.mockResolvedValue({
       session: vi.fn().mockReturnValue({ run: mocks.run, close: mocks.sessionClose }),
       close: mocks.driverClose,
     })
+  })
+
+  it('stops pulling records at the ceiling and keeps the summary', async () => {
+    const result = streamingResult(20_000)
+    mocks.run.mockReturnValue(result)
+
+    const response = await executeNeo4jQuery(INPUT)
+
+    expect(result.state).toEqual({ pulled: 10_001, discarded: true })
+    expect(response).toMatchObject({
+      recordCount: 10_000,
+      truncated: true,
+      summary: { resultAvailableAfter: 2 },
+    })
+    expect(mocks.sessionClose).toHaveBeenCalled()
   })
 
   it('rejects invalid Cypher before opening a driver', async () => {

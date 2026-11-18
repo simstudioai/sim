@@ -1,5 +1,4 @@
 import net from 'node:net'
-import { isRecordLike } from '@sim/utils/object'
 import mysql from 'mysql2/promise'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
@@ -41,15 +40,6 @@ function assertMysqlExecuteValues(
   }
 }
 
-function isNoSslSupportError(error: unknown): boolean {
-  return isRecordLike(error) && error.code === 'HANDSHAKE_NO_SSL_SUPPORT'
-}
-
-/**
- * Connects with the requested TLS mode. mysql2 has no "prefer" mode (with `ssl` set it refuses a
- * server without TLS), so `preferred` retries unencrypted only when the server does not offer
- * TLS, matching MySQL's own `ssl-mode=PREFERRED`.
- */
 export async function createMysqlConnection(
   config: MysqlConnectionConfig,
   signal?: AbortSignal
@@ -87,11 +77,7 @@ export async function createMysqlConnection(
   }
 
   try {
-    const connection = await mysql.createConnection(connectionConfig).catch((error: unknown) => {
-      if (config.ssl !== 'preferred' || !isNoSslSupportError(error)) throw error
-      signal?.throwIfAborted()
-      return mysql.createConnection({ ...connectionConfig, ssl: undefined })
-    })
+    const connection = await mysql.createConnection(connectionConfig)
     signal?.throwIfAborted()
     return connection
   } catch (error) {

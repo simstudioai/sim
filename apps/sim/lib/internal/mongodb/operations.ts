@@ -36,7 +36,8 @@ export class MongodbOperationInputError extends Error {}
  */
 async function readCappedDocuments(
   cursor: AsyncIterable<Document>,
-  describe: (count: number) => string
+  describe: (count: number) => string,
+  paginationHint: string
 ) {
   const budget = createResultRowsBudget()
   const documents: Document[] = []
@@ -50,10 +51,7 @@ async function readCappedDocuments(
   }
   const message = describe(documents.length)
   if (!truncated) return { message, documents }
-  const truncationReason = resultTruncationReason(
-    documents.length,
-    'Narrow the filter or page with $skip and $limit to read the rest.'
-  )
+  const truncationReason = resultTruncationReason(documents.length, paginationHint)
   return {
     message: `${message} ${truncationReason}`,
     documents,
@@ -107,7 +105,11 @@ export function executeMongodbQuery(input: MongodbQueryInput, signal?: AbortSign
     }
 
     cursor = cursor.limit(input.limit || 100)
-    const result = await readCappedDocuments(cursor, (count) => `Found ${count} documents`)
+    const result = await readCappedDocuments(
+      cursor,
+      (count) => `Found ${count} documents`,
+      'Narrow the filter, or page with $skip and $limit in an aggregation pipeline.'
+    )
     signal?.throwIfAborted()
     return { ...result, documentCount: result.documents.length }
   })
@@ -126,7 +128,8 @@ export function executeMongodbAggregation(input: MongodbExecuteInput, signal?: A
   return withMongodbClient(input, signal, async (client) => {
     const result = await readCappedDocuments(
       client.db(input.database).collection(collectionName).aggregate(pipeline, { signal }),
-      (count) => `Aggregation completed, returned ${count} documents`
+      (count) => `Aggregation completed, returned ${count} documents`,
+      'Page with $skip and $limit stages to read the rest.'
     )
     signal?.throwIfAborted()
     return { ...result, documentCount: result.documents.length }
