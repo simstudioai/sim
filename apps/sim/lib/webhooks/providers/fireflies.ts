@@ -55,9 +55,10 @@ export const firefliesHandler: WebhookProviderHandler = {
     const clientReferenceId = ((isV2 ? b.client_reference_id : b.clientReferenceId) || '') as string
     const rawTimestamp = b.timestamp != null ? Number(b.timestamp) : null
     const timestamp = rawTimestamp !== null && Number.isFinite(rawTimestamp) ? rawTimestamp : null
-    const rawReprocessedAt = isV2 && b.reprocessed_at != null ? Number(b.reprocessed_at) : null
     const reprocessedAt =
-      rawReprocessedAt !== null && Number.isFinite(rawReprocessedAt) ? rawReprocessedAt : null
+      isV2 && typeof b.reprocessed_at === 'number' && Number.isFinite(b.reprocessed_at)
+        ? b.reprocessed_at
+        : null
 
     return {
       input: {
