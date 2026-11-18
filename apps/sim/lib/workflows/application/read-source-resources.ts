@@ -165,8 +165,8 @@ async function loadWorkflowInputs(
  * like `secrets.list` never a workspace API key), credentials follow the credential selector
  * (`integrations.manage`), and skills and custom tools follow their own lists (`skills.use`,
  * `custom_tools.use`; both admit a workspace API key). A withheld section is listed empty rather
- * than refusing the whole manifest, so a member restricted from one still gets the tables,
- * workflows and the rest.
+ * than refusing the whole manifest, so a member restricted from one still gets the workflows
+ * and the rest. Tables and knowledge bases follow their lists (`tables.use`, `knowledge.use`).
  */
 async function visibleSections(principal: Principal, context: WorkspaceAuthorizationContext) {
   const governedUserId = capabilityGovernedPrincipalUserId(principal)
@@ -184,15 +184,28 @@ async function visibleSections(principal: Principal, context: WorkspaceAuthoriza
   // permission-group-enforced: skills.use — omits the skills section, as the skill list refuses
   // permission-group-enforced: custom_tools.use — omits the custom tools section, as the custom tool list refuses
   // permission-group-enforced: mcp_tools.use — omits the MCP servers section, as the MCP server list refuses
-  const [secretsWithheld, integrationsWithheld, skillsWithheld, customToolsWithheld, mcpWithheld] =
-    await Promise.all([
-      withheld('secrets.manage'),
-      withheld('integrations.manage'),
-      withheld('skills.use'),
-      withheld('custom_tools.use'),
-      withheld('mcp_tools.use'),
-    ])
+  // permission-group-enforced: tables.use — omits the tables section, as the table list refuses
+  // permission-group-enforced: knowledge.use — omits the knowledge bases section, as the knowledge base list refuses
+  const [
+    secretsWithheld,
+    integrationsWithheld,
+    skillsWithheld,
+    customToolsWithheld,
+    mcpWithheld,
+    tablesWithheld,
+    knowledgeWithheld,
+  ] = await Promise.all([
+    withheld('secrets.manage'),
+    withheld('integrations.manage'),
+    withheld('skills.use'),
+    withheld('custom_tools.use'),
+    withheld('mcp_tools.use'),
+    withheld('tables.use'),
+    withheld('knowledge.use'),
+  ])
   return {
+    tables: !tablesWithheld,
+    knowledgeBases: !knowledgeWithheld,
     env: principal.kind !== 'workspace_api_key' && !secretsWithheld,
     credentials: !integrationsWithheld,
     skills: !skillsWithheld,
@@ -248,27 +261,31 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
       mcpServerRows,
       env,
     ] = await Promise.all([
-      db
-        .select({
-          id: userTableDefinitions.id,
-          name: userTableDefinitions.name,
-          schema: userTableDefinitions.schema,
-        })
-        .from(userTableDefinitions)
-        .where(
-          and(
-            eq(userTableDefinitions.workspaceId, workspaceId),
-            isNull(userTableDefinitions.archivedAt)
-          )
-        )
-        .orderBy(asc(userTableDefinitions.createdAt), asc(userTableDefinitions.id))
-        .limit(PAGE),
-      db
-        .select({ id: knowledgeBase.id, name: knowledgeBase.name })
-        .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
-        .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
-        .limit(PAGE),
+      visible.tables
+        ? db
+            .select({
+              id: userTableDefinitions.id,
+              name: userTableDefinitions.name,
+              schema: userTableDefinitions.schema,
+            })
+            .from(userTableDefinitions)
+            .where(
+              and(
+                eq(userTableDefinitions.workspaceId, workspaceId),
+                isNull(userTableDefinitions.archivedAt)
+              )
+            )
+            .orderBy(asc(userTableDefinitions.createdAt), asc(userTableDefinitions.id))
+            .limit(PAGE)
+        : [],
+      visible.knowledgeBases
+        ? db
+            .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+            .from(knowledgeBase)
+            .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+            .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
+            .limit(PAGE)
+        : [],
       visible.credentials
         ? loadVisibleCredentials(workspaceId, userId, { limit: PAGE, access })
         : [],
