@@ -1,0 +1,12 @@
+{
+  "namespace": "linkedin",
+  "methods": {
+    "get_profile": "getProfile",
+    "share_post": "sharePost"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

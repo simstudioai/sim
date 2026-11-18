@@ -1,0 +1,27 @@
+{
+  "namespace": "dub",
+  "methods": {
+    "bulk_create_links": "bulkCreateLinks",
+    "bulk_delete_links": "bulkDeleteLinks",
+    "bulk_update_links": "bulkUpdateLinks",
+    "create_link": "createLink",
+    "create_tag": "createTag",
+    "delete_link": "deleteLink",
+    "get_analytics": "getAnalytics",
+    "get_events": "listEvents",
+    "get_link": "getLink",
+    "get_links_count": "countLinks",
+    "get_qr_code": "getQrCode",
+    "list_domains": "listDomains",
+    "list_folders": "listFolders",
+    "list_links": "listLinks",
+    "list_tags": "listTags",
+    "update_link": "updateLink",
+    "upsert_link": "upsertLink"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

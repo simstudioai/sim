@@ -1,0 +1,28 @@
+{
+  "namespace": "ramp",
+  "methods": {
+    "create_memo": "createMemo",
+    "get_balance": "getBalance",
+    "get_bill": "getBill",
+    "get_business": "getBusiness",
+    "get_memo": "getMemo",
+    "get_physical_card": "getPhysicalCard",
+    "get_reimbursement": "getReimbursement",
+    "get_transaction": "getTransaction",
+    "get_user": "getUser",
+    "get_vendor": "getVendor",
+    "get_virtual_card": "getVirtualCard",
+    "list_bills": "listBills",
+    "list_physical_cards": "listPhysicalCards",
+    "list_reimbursements": "listReimbursements",
+    "list_transactions": "listTransactions",
+    "list_users": "listUsers",
+    "list_vendors": "listVendors",
+    "list_virtual_cards": "listVirtualCards"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "namespace": "onedrive",
+  "methods": {
+    "copy": "copyFile",
+    "create_file": "createFile",
+    "create_folder": "createFolder",
+    "create_share_link": "createSharingLink",
+    "delete": "deleteFile",
+    "download": "downloadFile",
+    "get_drive_info": "getDriveInfo",
+    "get_item": "getItemInfo",
+    "list": "listFiles",
+    "move": "moveRenameFile",
+    "search": "searchFiles",
+    "upload": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

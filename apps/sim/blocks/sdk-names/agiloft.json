@@ -1,0 +1,23 @@
+{
+  "namespace": "agiloft",
+  "methods": {
+    "async_status": "asyncStatus",
+    "attach_file": "attachFile",
+    "attachment_info": "attachmentInfo",
+    "create_record": "createRecord",
+    "delete_record": "deleteRecord",
+    "get_choice_line_id": "getChoiceLineId",
+    "list_tables": "listTablesFields",
+    "lock_record": "lockRecord",
+    "nlp_search": "naturalLanguageSearch",
+    "read_record": "readRecord",
+    "remove_attachment": "removeAttachment",
+    "retrieve_attachment": "retrieveAttachment",
+    "run_action_button": "runActionButton",
+    "saved_search": "savedSearch",
+    "search_records": "searchRecords",
+    "select_records": "selectRecords",
+    "update_record": "updateRecord",
+    "upsert_record": "upsertRecord"
+  }
+}

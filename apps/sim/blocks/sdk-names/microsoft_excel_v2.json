@@ -1,0 +1,34 @@
+{
+  "namespace": "microsoftExcel",
+  "methods": {
+    "calculate": "calculateWorkbook",
+    "clear_range": "clearRange",
+    "close_session": "closeSession",
+    "create_session": "createSession",
+    "create_table": "createTable",
+    "delete_table": "deleteTable",
+    "delete_table_row": "deleteTableRow",
+    "delete_worksheet": "deleteWorksheet",
+    "format_range": "formatRange",
+    "get_table": "getTable",
+    "get_table_row": "getTableRow",
+    "get_worksheet": "getWorksheet",
+    "list_table_rows": "listTableRows",
+    "list_tables": "listTables",
+    "list_worksheets": "listWorksheets",
+    "read": "readData",
+    "refresh_session": "refreshSession",
+    "sort_range": "sortRange",
+    "table_add": "addTableRows",
+    "update_table": "updateTable",
+    "update_table_row": "updateTableRow",
+    "update_worksheet": "updateWorksheet",
+    "worksheet_add": "addWorksheet",
+    "write": "writeData"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

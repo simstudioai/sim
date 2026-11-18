@@ -1,0 +1,31 @@
+{
+  "namespace": "trello",
+  "methods": {
+    "trello_add_checklist": "addChecklist",
+    "trello_add_checklist_item": "addChecklistItem",
+    "trello_add_comment": "addComment",
+    "trello_add_label": "addLabel",
+    "trello_add_member": "addMember",
+    "trello_create_board": "createBoard",
+    "trello_create_card": "createCard",
+    "trello_create_list": "createList",
+    "trello_delete_card": "deleteCard",
+    "trello_get_actions": "getActions",
+    "trello_get_board": "getBoard",
+    "trello_get_card": "getCard",
+    "trello_list_cards": "listCards",
+    "trello_list_lists": "getLists",
+    "trello_list_members": "listMembers",
+    "trello_remove_label": "removeLabel",
+    "trello_remove_member": "removeMember",
+    "trello_search": "search",
+    "trello_update_card": "updateCard",
+    "trello_update_checklist_item": "updateChecklistItem",
+    "trello_update_list": "updateList"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "namespace": "memory",
+  "methods": {
+    "add": "addMemory",
+    "delete": "deleteMemory",
+    "get": "getMemory",
+    "getAll": "getAllMemories"
+  }
+}

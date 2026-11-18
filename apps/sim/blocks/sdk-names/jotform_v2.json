@@ -1,0 +1,56 @@
+{
+  "namespace": "jotform",
+  "methods": {
+    "add_label_resources": "addLabelResources",
+    "clone_form": "cloneForm",
+    "create_form": "createForm",
+    "create_label": "createLabel",
+    "create_question": "createQuestion",
+    "create_questions": "createQuestions",
+    "create_report": "createReport",
+    "create_submission": "createSubmission",
+    "create_submissions": "createSubmissions",
+    "create_webhook": "createWebhook",
+    "delete_form": "deleteForm",
+    "delete_label": "deleteLabel",
+    "delete_question": "deleteQuestion",
+    "delete_report": "deleteReport",
+    "delete_submission": "deleteSubmission",
+    "delete_webhook": "deleteWebhook",
+    "get_form": "getForm",
+    "get_form_properties": "getFormProperties",
+    "get_history": "getHistory",
+    "get_label": "getLabel",
+    "get_question": "getQuestion",
+    "get_report": "getReport",
+    "get_settings": "getSettings",
+    "get_submission": "getSubmission",
+    "get_usage": "getUsage",
+    "get_user": "getAccount",
+    "list_form_files": "listFormFiles",
+    "list_form_reports": "listFormReports",
+    "list_form_submissions": "listFormSubmissions",
+    "list_forms": "listForms",
+    "list_label_resources": "listLabelResources",
+    "list_labels": "listLabels",
+    "list_questions": "listQuestions",
+    "list_reports": "listReports",
+    "list_submissions": "listSubmissions",
+    "list_subusers": "listSubUsers",
+    "list_webhooks": "listWebhooks",
+    "remove_label_resources": "removeLabelResources",
+    "update_form_properties": "updateFormProperties",
+    "update_label": "updateLabel",
+    "update_question": "updateQuestion",
+    "update_settings": "updateSettings",
+    "update_submission": "updateSubmission"
+  },
+  "triggers": {
+    "jotform_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

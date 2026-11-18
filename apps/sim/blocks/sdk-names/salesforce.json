@@ -1,0 +1,58 @@
+{
+  "namespace": "salesforce",
+  "methods": {
+    "create_account": "createAccount",
+    "create_case": "createCase",
+    "create_contact": "createContact",
+    "create_custom_field": "createCustomField",
+    "create_custom_object": "createCustomObject",
+    "create_lead": "createLead",
+    "create_opportunity": "createOpportunity",
+    "create_task": "createTask",
+    "delete_account": "deleteAccount",
+    "delete_case": "deleteCase",
+    "delete_contact": "deleteContact",
+    "delete_custom_field": "deleteCustomField",
+    "delete_lead": "deleteLead",
+    "delete_opportunity": "deleteOpportunity",
+    "delete_task": "deleteTask",
+    "describe_object": "describeObject",
+    "get_accounts": "getAccounts",
+    "get_cases": "getCases",
+    "get_contacts": "getContacts",
+    "get_dashboard": "getDashboard",
+    "get_leads": "getLeads",
+    "get_opportunities": "getOpportunities",
+    "get_report": "getReport",
+    "get_tasks": "getTasks",
+    "list_dashboards": "listDashboards",
+    "list_objects": "listObjects",
+    "list_report_types": "listReportTypes",
+    "list_reports": "listReports",
+    "query": "runSoqlQuery",
+    "query_more": "getMoreQueryResults",
+    "refresh_dashboard": "refreshDashboard",
+    "run_report": "runReport",
+    "tooling_query": "runToolingQuery",
+    "update_account": "updateAccount",
+    "update_case": "updateCase",
+    "update_contact": "updateContact",
+    "update_custom_field": "updateCustomField",
+    "update_lead": "updateLead",
+    "update_opportunity": "updateOpportunity",
+    "update_task": "updateTask"
+  },
+  "triggers": {
+    "salesforce_case_status_changed": "caseStatusChanged",
+    "salesforce_opportunity_stage_changed": "opportunityStageChanged",
+    "salesforce_record_created": "recordCreated",
+    "salesforce_record_deleted": "recordDeleted",
+    "salesforce_record_updated": "recordUpdated",
+    "salesforce_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

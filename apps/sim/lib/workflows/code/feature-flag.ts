@@ -2,8 +2,9 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /**
- * Workflows as code (the SDK block catalog, workflow source read and apply, the Code tab) ships
- * behind one global `workflow-code` flag; every surface of the feature gates through here.
+ * Workflows and workspaces as code (the SDK block catalog and resources, workflow source and
+ * workspace source read and apply, the Code tab) ship behind one global `workflow-code` flag;
+ * every surface of the feature gates through here.
  */
 export function isWorkflowCodeEnabled(): Promise<boolean> {
   return isFeatureEnabled('workflow-code')

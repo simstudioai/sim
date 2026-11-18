@@ -1,0 +1,26 @@
+{
+  "namespace": "legacy.azureDevops",
+  "methods": {
+    "azure_devops_add_comment": "addComment",
+    "azure_devops_create_work_item": "createWorkItem",
+    "azure_devops_get_build_log": "getBuildLog",
+    "azure_devops_get_build_timeline": "getBuildTimeline",
+    "azure_devops_get_comments": "getComments",
+    "azure_devops_get_pipeline": "getPipeline",
+    "azure_devops_get_pipeline_run": "getPipelineRun",
+    "azure_devops_get_work_item": "getWorkItem",
+    "azure_devops_get_work_items_batch": "getWorkItemsBatch",
+    "azure_devops_get_work_items_between_builds": "getWorkItemsBetweenBuilds",
+    "azure_devops_list_build_logs": "listBuildLogs",
+    "azure_devops_list_builds": "listBuilds",
+    "azure_devops_list_pipeline_runs": "listPipelineRuns",
+    "azure_devops_list_pipelines": "listPipelines",
+    "azure_devops_query_work_items": "queryWorkItems",
+    "azure_devops_update_work_item": "updateWorkItem"
+  },
+  "triggers": {
+    "azure_devops_build_failed": "buildFailed",
+    "azure_devops_webhook": "webhook",
+    "azure_devops_work_item_created": "workItemCreated"
+  }
+}

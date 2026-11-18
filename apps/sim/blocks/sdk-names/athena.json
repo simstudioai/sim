@@ -1,0 +1,32 @@
+{
+  "namespace": "legacy.athena",
+  "methods": {
+    "batch_get_named_query": "batchGetNamedQueries",
+    "batch_get_prepared_statement": "batchGetPreparedStatements",
+    "batch_get_query_execution": "batchGetQueryExecutions",
+    "create_named_query": "createNamedQuery",
+    "create_prepared_statement": "createPreparedStatement",
+    "delete_named_query": "deleteNamedQuery",
+    "delete_prepared_statement": "deletePreparedStatement",
+    "get_data_catalog": "getDataCatalog",
+    "get_database": "getDatabase",
+    "get_named_query": "getNamedQuery",
+    "get_prepared_statement": "getPreparedStatement",
+    "get_query_execution": "getQueryExecution",
+    "get_query_results": "getQueryResults",
+    "get_query_runtime_statistics": "getQueryRuntimeStatistics",
+    "get_table_metadata": "getTableMetadata",
+    "get_work_group": "getWorkgroup",
+    "list_data_catalogs": "listDataCatalogs",
+    "list_databases": "listDatabases",
+    "list_named_queries": "listNamedQueries",
+    "list_prepared_statements": "listPreparedStatements",
+    "list_query_executions": "listQueryExecutions",
+    "list_table_metadata": "listTableMetadata",
+    "list_work_groups": "listWorkgroups",
+    "start_query": "startQuery",
+    "stop_query": "stopQuery",
+    "update_named_query": "updateNamedQuery",
+    "update_prepared_statement": "updatePreparedStatement"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "namespace": "legacy.table",
+  "methods": {
+    "batch_insert_rows": "batchInsertRows",
+    "delete_row": "deleteRowById",
+    "delete_rows_by_filter": "deleteRowsByFilter",
+    "get_row": "getRowById",
+    "get_schema": "getSchema",
+    "insert_row": "insertRow",
+    "query_rows": "queryRows",
+    "update_row": "updateRowById",
+    "update_rows_by_filter": "updateRowsByFilter",
+    "upsert_row": "upsertRow"
+  },
+  "triggers": {
+    "table_new_row": "newRow"
+  }
+}

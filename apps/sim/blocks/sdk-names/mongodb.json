@@ -1,0 +1,11 @@
+{
+  "namespace": "mongodb",
+  "methods": {
+    "delete": "deleteDocuments",
+    "execute": "aggregatePipeline",
+    "insert": "insertDocuments",
+    "introspect": "introspectDatabase",
+    "query": "findDocuments",
+    "update": "updateDocuments"
+  }
+}

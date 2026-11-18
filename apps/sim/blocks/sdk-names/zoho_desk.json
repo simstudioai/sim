@@ -1,0 +1,46 @@
+{
+  "namespace": "zohoDesk",
+  "methods": {
+    "add_comment": "addComment",
+    "create_account": "createAccount",
+    "create_contact": "createContact",
+    "create_ticket": "createTicket",
+    "delete_comment": "deleteComment",
+    "get_account": "getAccount",
+    "get_agent": "getAgent",
+    "get_attachment": "getAttachment",
+    "get_comment": "getComment",
+    "get_contact": "getContact",
+    "get_department": "getDepartment",
+    "get_thread": "getThread",
+    "get_ticket": "getTicket",
+    "list_accounts": "listAccounts",
+    "list_agents": "listAgents",
+    "list_comments": "listComments",
+    "list_contacts": "listContacts",
+    "list_departments": "listDepartments",
+    "list_organizations": "listOrganizations",
+    "list_threads": "listThreads",
+    "list_tickets": "listTickets",
+    "move_ticket": "moveTicket",
+    "search_accounts": "searchAccounts",
+    "search_contacts": "searchContacts",
+    "search_tickets": "searchTickets",
+    "send_reply": "sendReply",
+    "update_account": "updateAccount",
+    "update_comment": "updateComment",
+    "update_contact": "updateContact",
+    "update_ticket": "updateTicket"
+  },
+  "triggers": {
+    "zoho_desk": "zohoDesk"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

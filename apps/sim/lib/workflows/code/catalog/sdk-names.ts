@@ -8,7 +8,7 @@ import {
 import type { BlockConfig } from '@/blocks/types'
 
 /**
- * The frozen SDK names (`apps/sim/blocks/sdk-names.json`).
+ * The frozen SDK names (`apps/sim/blocks/sdk-names/<type>.json`, one file per block type).
  *
  * A builder's method name is API: once a workflow file says `slack.sendMessage(...)`, renaming the
  * option label must not break it. So names are derived once, written to a checked-in file, and
@@ -25,7 +25,7 @@ interface SdkNamesBlockEntry {
   paramAliases?: Partial<Record<SdkSurface, Record<string, string>>>
 }
 
-/** The frozen SDK names (`blocks/sdk-names.json`): each block type's namespace and method names. */
+/** The frozen SDK names (`blocks/sdk-names/`): each block type's namespace and method names. */
 export interface SdkNamesFile {
   version: 1
   blocks: Record<string, SdkNamesBlockEntry>

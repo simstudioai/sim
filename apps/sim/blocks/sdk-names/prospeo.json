@@ -1,0 +1,13 @@
+{
+  "namespace": "prospeo",
+  "methods": {
+    "prospeo_account_information": "accountInformation",
+    "prospeo_bulk_enrich_company": "bulkEnrichCompany",
+    "prospeo_bulk_enrich_person": "bulkEnrichPerson",
+    "prospeo_enrich_company": "enrichCompany",
+    "prospeo_enrich_person": "enrichPerson",
+    "prospeo_search_company": "searchCompany",
+    "prospeo_search_person": "searchPerson",
+    "prospeo_search_suggestions": "searchSuggestions"
+  }
+}

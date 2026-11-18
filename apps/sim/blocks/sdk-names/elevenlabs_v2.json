@@ -1,0 +1,20 @@
+{
+  "namespace": "elevenlabs",
+  "methods": {
+    "audio_isolation": "audioIsolation",
+    "edit_voice_settings": "editVoiceSettings",
+    "get_user": "getUserInfo",
+    "get_voice": "getVoice",
+    "get_voice_settings": "getVoiceSettings",
+    "list_models": "listModels",
+    "list_voices": "listVoices",
+    "sound_effects": "soundEffects",
+    "speech_to_speech": "speechToSpeech",
+    "tts": "textToSpeech"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

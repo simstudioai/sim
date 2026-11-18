@@ -64,6 +64,7 @@ const NO_FIELDS: ReadonlySet<string> = new Set()
 
 /** Whether two records differ by identity in any field outside `ignored`. */
 function differsBeyond(next: object, previous: object, ignored: ReadonlySet<string>): boolean {
+  if (next === previous) return false
   const fields = (value: object) => Object.entries(value).filter(([field]) => !ignored.has(field))
   const kept = new Map(fields(previous))
   const changed = fields(next)

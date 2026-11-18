@@ -1,0 +1,17 @@
+{
+  "namespace": "legacy.splunk",
+  "methods": {
+    "splunk_cancel_search_job": "cancelSearchJob",
+    "splunk_create_search_job": "createSearchJob",
+    "splunk_dispatch_saved_search": "dispatchSavedSearch",
+    "splunk_get_fired_alerts": "getFiredAlerts",
+    "splunk_get_saved_search": "getSavedSearch",
+    "splunk_get_search_job": "getSearchJob",
+    "splunk_get_search_results": "getSearchResults",
+    "splunk_list_apps": "listApps",
+    "splunk_list_fired_alerts": "listFiredAlerts",
+    "splunk_list_indexes": "listIndexes",
+    "splunk_list_saved_searches": "listSavedSearches",
+    "splunk_run_search": "runSearch"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "namespace": "legacy.googleSheets",
+  "methods": {
+    "append": "appendData",
+    "read": "readData",
+    "update": "updateData",
+    "write": "writeData"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

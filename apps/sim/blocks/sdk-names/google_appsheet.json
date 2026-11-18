@@ -1,0 +1,9 @@
+{
+  "namespace": "googleAppsheet",
+  "methods": {
+    "google_appsheet_add_rows": "addRows",
+    "google_appsheet_delete_rows": "deleteRows",
+    "google_appsheet_edit_rows": "editRows",
+    "google_appsheet_find_rows": "findRows"
+  }
+}

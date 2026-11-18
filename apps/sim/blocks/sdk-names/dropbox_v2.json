@@ -1,0 +1,23 @@
+{
+  "namespace": "dropbox",
+  "methods": {
+    "dropbox_copy": "copyFileFolder",
+    "dropbox_create_folder": "createFolder",
+    "dropbox_create_shared_link": "createSharedLink",
+    "dropbox_delete": "deleteFileFolder",
+    "dropbox_download": "downloadFile",
+    "dropbox_get_metadata": "getMetadata",
+    "dropbox_list_folder": "listFolder",
+    "dropbox_list_revisions": "listRevisions",
+    "dropbox_list_shared_links": "listSharedLinks",
+    "dropbox_move": "moveFileFolder",
+    "dropbox_restore": "restoreFile",
+    "dropbox_search": "searchFiles",
+    "dropbox_upload": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

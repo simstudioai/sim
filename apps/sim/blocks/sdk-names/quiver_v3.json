@@ -1,0 +1,13 @@
+{
+  "namespace": "quiver",
+  "methods": {
+    "image_to_svg": "imageToSvg",
+    "list_models": "listModels",
+    "text_to_svg": "textToSvg"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

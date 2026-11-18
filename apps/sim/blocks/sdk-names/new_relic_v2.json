@@ -1,0 +1,14 @@
+{
+  "namespace": "newRelic",
+  "methods": {
+    "new_relic_create_deployment_event": "createDeploymentEvent",
+    "new_relic_get_entity": "getEntity",
+    "new_relic_nrql_query": "runNrqlQuery",
+    "new_relic_search_entities": "searchEntities"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

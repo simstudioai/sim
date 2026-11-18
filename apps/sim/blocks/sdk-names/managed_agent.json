@@ -1,0 +1,16 @@
+{
+  "namespace": "managedAgent",
+  "methods": {
+    "archive_session": "archiveSession",
+    "create_session": "createSession",
+    "delete_session": "deleteSession",
+    "get_session": "getSession",
+    "interrupt_session": "interruptSession",
+    "list_events": "listEvents",
+    "respond_custom_tool": "respondToCustomTool",
+    "respond_tool_confirmation": "respondToToolConfirmation",
+    "run_session": "runSessionCreateSendWaitForReply",
+    "send_message": "sendMessage",
+    "update_session": "updateSession"
+  }
+}

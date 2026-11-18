@@ -1,0 +1,27 @@
+{
+  "namespace": "legacy.kalshi",
+  "methods": {
+    "amend_order": "amendOrder",
+    "cancel_order": "cancelOrder",
+    "create_order": "createOrder",
+    "get_balance": "getBalance",
+    "get_candlesticks": "getCandlesticks",
+    "get_event": "getEvent",
+    "get_event_candlesticks": "getEventCandlesticks",
+    "get_events": "getEvents",
+    "get_exchange_announcements": "getExchangeAnnouncements",
+    "get_exchange_schedule": "getExchangeSchedule",
+    "get_exchange_status": "getExchangeStatus",
+    "get_fills": "getFills",
+    "get_market": "getMarket",
+    "get_markets": "getMarkets",
+    "get_order": "getOrder",
+    "get_orderbook": "getOrderbook",
+    "get_orders": "getOrders",
+    "get_positions": "getPositions",
+    "get_series_by_ticker": "getSeriesByTicker",
+    "get_series_list": "getSeriesList",
+    "get_settlements": "getSettlements",
+    "get_trades": "getTrades"
+  }
+}

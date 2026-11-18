@@ -1,0 +1,58 @@
+{
+  "namespace": "jira",
+  "methods": {
+    "add_attachment": "addAttachment",
+    "add_comment": "addComment",
+    "add_watcher": "addWatcher",
+    "add_worklog": "addWorklog",
+    "assign": "assignIssue",
+    "create_link": "createIssueLink",
+    "create_sprint": "createSprint",
+    "delete": "deleteIssue",
+    "delete_attachment": "deleteAttachment",
+    "delete_comment": "deleteComment",
+    "delete_link": "deleteIssueLink",
+    "delete_worklog": "deleteWorklog",
+    "get_attachments": "getAttachments",
+    "get_comments": "getComments",
+    "get_fields": "getFields",
+    "get_project": "getProject",
+    "get_transitions": "getTransitions",
+    "get_users": "getUsers",
+    "get_worklogs": "getWorklogs",
+    "list_issue_types": "listIssueTypes",
+    "list_projects": "listProjects",
+    "read": "readIssue",
+    "read-bulk": "readBulkIssues",
+    "remove_watcher": "removeWatcher",
+    "search": "searchIssues",
+    "search_users": "searchUsers",
+    "transition": "transitionIssue",
+    "update": "updateIssue",
+    "update_comment": "updateComment",
+    "update_worklog": "updateWorklog",
+    "write": "writeIssue"
+  },
+  "triggers": {
+    "jira_comment_deleted": "commentDeleted",
+    "jira_comment_updated": "commentUpdated",
+    "jira_issue_commented": "issueCommented",
+    "jira_issue_created": "issueCreated",
+    "jira_issue_deleted": "issueDeleted",
+    "jira_issue_updated": "issueUpdated",
+    "jira_project_created": "projectCreated",
+    "jira_sprint_closed": "sprintClosed",
+    "jira_sprint_created": "sprintCreated",
+    "jira_sprint_started": "sprintStarted",
+    "jira_version_released": "versionReleased",
+    "jira_webhook": "webhook",
+    "jira_worklog_created": "worklogCreated",
+    "jira_worklog_deleted": "worklogDeleted",
+    "jira_worklog_updated": "worklogUpdated"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

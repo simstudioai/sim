@@ -1,0 +1,20 @@
+{
+  "namespace": "obsidian",
+  "methods": {
+    "append_active": "appendToActiveFile",
+    "append_note": "appendToNote",
+    "append_periodic_note": "appendToPeriodicNote",
+    "create_note": "createNote",
+    "delete_note": "deleteNote",
+    "execute_command": "executeCommand",
+    "get_active": "getActiveFile",
+    "get_note": "getNote",
+    "get_periodic_note": "getPeriodicNote",
+    "list_commands": "listCommands",
+    "list_files": "listFiles",
+    "open_file": "openFile",
+    "patch_active": "patchActiveFile",
+    "patch_note": "patchNote",
+    "search": "search"
+  }
+}

@@ -267,7 +267,7 @@ export interface CatalogBlock {
   /**
    * The user-facing name source writes for a param, per surface: param name (a canonical id or a
    * subBlock id) → alias (`oauthCredential` → `credential`). Frozen in
-   * `apps/sim/blocks/sdk-names.json`; read through `paramAliases` in `catalog/surface.ts`.
+   * `apps/sim/blocks/sdk-names/`; read through `paramAliases` in `catalog/surface.ts`.
    */
   paramAliases?: Partial<Record<'action' | 'trigger', Record<string, string>>>
   /** Present for per-org `custom_block_<slug>` types. */
@@ -289,7 +289,7 @@ export interface CatalogTrigger {
 /**
  * One SDK builder method, keyed in `BlockCatalog.builders` by its dotted SDK path
  * (`slack.sendMessage`, `trigger.gmail.newEmail`). Method names are frozen in
- * `apps/sim/blocks/sdk-names.json`.
+ * `apps/sim/blocks/sdk-names/`.
  */
 export interface CatalogBuilder {
   /** The registry block type the builder creates. */

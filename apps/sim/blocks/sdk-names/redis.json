@@ -1,0 +1,27 @@
+{
+  "namespace": "redis",
+  "methods": {
+    "command": "command",
+    "delete": "delete_",
+    "exists": "exists",
+    "expire": "expire",
+    "get": "get",
+    "hdel": "hdel",
+    "hget": "hget",
+    "hgetall": "hgetall",
+    "hset": "hset",
+    "incr": "incr",
+    "incrby": "incrby",
+    "keys": "listKeys",
+    "llen": "llen",
+    "lpop": "lpop",
+    "lpush": "lpush",
+    "lrange": "lrange",
+    "persist": "persist",
+    "rpop": "rpop",
+    "rpush": "rpush",
+    "set": "set",
+    "setnx": "setnx",
+    "ttl": "ttl"
+  }
+}

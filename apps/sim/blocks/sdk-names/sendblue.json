@@ -1,0 +1,14 @@
+{
+  "namespace": "sendblue",
+  "methods": {
+    "sendblue_evaluate_service": "evaluateService",
+    "sendblue_get_message": "getMessage",
+    "sendblue_send_group_message": "sendGroupMessage",
+    "sendblue_send_message": "sendMessage",
+    "sendblue_send_typing_indicator": "sendTypingIndicator"
+  },
+  "triggers": {
+    "sendblue_message_received": "messageReceived",
+    "sendblue_message_status_updated": "messageStatusUpdated"
+  }
+}

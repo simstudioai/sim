@@ -1,3 +1,4 @@
+import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contracts/workflow-source'
@@ -23,12 +24,19 @@ async function fetchWorkflowSource(
   return data
 }
 
-/** The workflow's draft printed as one TypeScript file (function code inline), for display. */
-export function useWorkflowSource(workflowId?: string, options?: { enabled?: boolean }) {
+const selectEntryText = (source: WorkflowSource) => source.files[SOURCE_ENTRY_FILE] ?? ''
+
+/**
+ * The text of the workflow's draft printed as one TypeScript file (function code inline), for
+ * display. Only the entry file is selected, so a refetch that prints the same text re-renders
+ * nothing.
+ */
+export function useWorkflowSourceText(workflowId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: workflowSourceKeys.detail(workflowId),
     queryFn: ({ signal }) => fetchWorkflowSource(workflowId as string, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: WORKFLOW_SOURCE_STALE_TIME,
+    select: selectEntryText,
   })
 }

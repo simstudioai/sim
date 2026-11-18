@@ -1,0 +1,7 @@
+{
+  "namespace": "millionverifier",
+  "methods": {
+    "millionverifier_get_credits": "getRemainingCredits",
+    "millionverifier_verify_email": "verifyEmail"
+  }
+}

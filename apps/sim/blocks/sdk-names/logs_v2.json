@@ -1,0 +1,7 @@
+{
+  "namespace": "logs",
+  "methods": {
+    "get_run_details": "getRunDetails",
+    "query": "queryLogs"
+  }
+}

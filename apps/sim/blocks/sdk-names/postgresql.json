@@ -1,0 +1,11 @@
+{
+  "namespace": "legacy.postgresql",
+  "methods": {
+    "delete": "deleteData",
+    "execute": "executeRawSql",
+    "insert": "insertData",
+    "introspect": "introspectSchema",
+    "query": "querySelect",
+    "update": "updateData"
+  }
+}

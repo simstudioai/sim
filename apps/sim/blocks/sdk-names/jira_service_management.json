@@ -1,0 +1,60 @@
+{
+  "namespace": "jiraServiceManagement",
+  "methods": {
+    "add_comment": "addComment",
+    "add_customer": "addCustomer",
+    "add_organization": "addOrganization",
+    "add_participants": "addParticipants",
+    "answer_approval": "answerApproval",
+    "attach_form": "attachForm",
+    "copy_forms": "copyForms",
+    "create_object": "createAssetObject",
+    "create_organization": "createOrganization",
+    "create_request": "createRequest",
+    "delete_form": "deleteForm",
+    "delete_object": "deleteAssetObject",
+    "externalise_form": "externaliseForm",
+    "get_approvals": "getApprovals",
+    "get_comments": "getComments",
+    "get_customers": "getCustomers",
+    "get_form": "getForm",
+    "get_form_answers": "getFormAnswers",
+    "get_form_structure": "getFormStructure",
+    "get_form_templates": "getFormTemplates",
+    "get_issue_forms": "getIssueForms",
+    "get_object": "getAssetObject",
+    "get_object_schema": "getAssetSchema",
+    "get_object_type_attributes": "getAssetObjectTypeAttributes",
+    "get_organizations": "getOrganizations",
+    "get_participants": "getParticipants",
+    "get_queues": "getQueues",
+    "get_request": "getRequest",
+    "get_request_type_fields": "getRequestTypeFields",
+    "get_request_types": "getRequestTypes",
+    "get_requests": "getRequests",
+    "get_service_desks": "getServiceDesks",
+    "get_sla": "getSla",
+    "get_transitions": "getTransitions",
+    "internalise_form": "internaliseForm",
+    "list_object_schemas": "listAssetSchemas",
+    "list_object_types": "listAssetObjectTypes",
+    "reopen_form": "reopenForm",
+    "save_form_answers": "saveFormAnswers",
+    "search_objects_aql": "searchAssetsAql",
+    "submit_form": "submitForm",
+    "transition_request": "transitionRequest",
+    "update_object": "updateAssetObject"
+  },
+  "triggers": {
+    "jsm_request_commented": "requestCommented",
+    "jsm_request_created": "requestCreated",
+    "jsm_request_resolved": "requestResolved",
+    "jsm_request_updated": "requestUpdated",
+    "jsm_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

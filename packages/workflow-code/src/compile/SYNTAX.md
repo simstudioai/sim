@@ -71,8 +71,8 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 - A param is a subBlock id, or the `canonicalParamId` of a basic/advanced group (even a group of
   one). Writing a group member by its own id is `E_UNKNOWN_PARAM`, with a hint naming the right name.
   A did-you-mean covers the params visible for the chosen operation.
-- A param the catalog aliases (`paramAliases`, frozen in `sdk-names.json`: `oauthCredential` →
-  `credential`) prints under its alias. Compile accepts the alias or the param name; both at once is
+- A param the catalog aliases (`paramAliases`, frozen in `apps/sim/blocks/sdk-names/`:
+  `oauthCredential` → `credential`) prints under its alias. Compile accepts the alias or the param name; both at once is
   `E_UNSUPPORTED_SYNTAX`.
 - A pinned param (`operation`, or a builder's `fixed` entry) is `E_FIXED_PARAM`; the compiler adds
   pinned values.

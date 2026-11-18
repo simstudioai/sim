@@ -1,0 +1,16 @@
+{
+  "namespace": "googleContacts",
+  "methods": {
+    "create": "createContact",
+    "delete": "deleteContact",
+    "get": "getContact",
+    "list": "listContacts",
+    "search": "searchContacts",
+    "update": "updateContact"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

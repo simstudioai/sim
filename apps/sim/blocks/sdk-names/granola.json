@@ -1,0 +1,20 @@
+{
+  "namespace": "legacy.granola",
+  "methods": {
+    "create_webhook_endpoint": "createWebhookEndpoint",
+    "delete_webhook_endpoint": "deleteWebhookEndpoint",
+    "get_note": "getNote",
+    "get_transcript": "getTranscript",
+    "list_audit_events": "listAuditEvents",
+    "list_folders": "listFolders",
+    "list_notes": "listNotes",
+    "list_webhook_endpoints": "listWebhookEndpoints",
+    "update_webhook_endpoint": "updateWebhookEndpoint"
+  },
+  "triggers": {
+    "granola_note_access_granted": "noteAccessGranted",
+    "granola_note_edited": "noteEdited",
+    "granola_note_generated": "noteGenerated",
+    "granola_webhook": "webhook"
+  }
+}

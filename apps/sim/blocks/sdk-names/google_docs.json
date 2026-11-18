@@ -1,0 +1,25 @@
+{
+  "namespace": "googleDocs",
+  "methods": {
+    "create": "createDocument",
+    "create_named_range": "createNamedRange",
+    "create_paragraph_bullets": "createBullets",
+    "delete_content_range": "deleteContentRange",
+    "delete_named_range": "deleteNamedRange",
+    "delete_paragraph_bullets": "deleteBullets",
+    "insert_image": "insertImage",
+    "insert_page_break": "insertPageBreak",
+    "insert_table": "insertTable",
+    "insert_text": "insertText",
+    "read": "readDocument",
+    "replace_text": "findReplaceText",
+    "update_paragraph_style": "applyParagraphStyle",
+    "update_text_style": "applyTextStyle",
+    "write": "writeToDocument"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

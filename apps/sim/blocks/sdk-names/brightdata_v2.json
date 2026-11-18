@@ -1,0 +1,18 @@
+{
+  "namespace": "brightdata",
+  "methods": {
+    "cancel_snapshot": "cancelSnapshot",
+    "discover": "discover",
+    "download_snapshot": "downloadSnapshot",
+    "scrape_dataset": "scrapeDataset",
+    "scrape_url": "scrapeUrl",
+    "serp_search": "serpSearch",
+    "snapshot_status": "snapshotStatus",
+    "sync_scrape": "syncScrape"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

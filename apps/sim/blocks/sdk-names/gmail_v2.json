@@ -1,0 +1,40 @@
+{
+  "namespace": "gmail",
+  "methods": {
+    "add_label_gmail": "addLabel",
+    "archive_gmail": "archiveEmail",
+    "create_label_gmail": "createLabel",
+    "delete_draft_gmail": "deleteDraft",
+    "delete_gmail": "deleteEmail",
+    "delete_label_gmail": "deleteLabel",
+    "draft_gmail": "draftEmail",
+    "edit_draft_gmail": "editDraft",
+    "get_draft_gmail": "getDraft",
+    "get_thread_gmail": "getThread",
+    "list_drafts_gmail": "listDrafts",
+    "list_labels_gmail": "listLabels",
+    "list_threads_gmail": "listThreads",
+    "mark_read_gmail": "markAsRead",
+    "mark_unread_gmail": "markAsUnread",
+    "move_gmail": "moveEmail",
+    "read_gmail": "readEmail",
+    "remove_label_gmail": "removeLabel",
+    "search_gmail": "searchEmail",
+    "send_gmail": "sendEmail",
+    "trash_thread_gmail": "trashThread",
+    "unarchive_gmail": "unarchiveEmail",
+    "untrash_thread_gmail": "untrashThread",
+    "update_label_gmail": "updateLabel"
+  },
+  "triggers": {
+    "gmail_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

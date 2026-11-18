@@ -1,0 +1,31 @@
+{
+  "namespace": "clickhouse",
+  "methods": {
+    "count_rows": "countRows",
+    "create_database": "createDatabase",
+    "create_table": "createTable",
+    "delete": "deleteData",
+    "describe_table": "describeTable",
+    "drop_database": "dropDatabase",
+    "drop_partition": "dropPartition",
+    "drop_table": "dropTable",
+    "execute": "executeRawSql",
+    "insert": "insertRow",
+    "insert_rows": "insertRowsBulk",
+    "introspect": "introspectSchema",
+    "kill_query": "killQuery",
+    "list_clusters": "listClusters",
+    "list_databases": "listDatabases",
+    "list_mutations": "listMutations",
+    "list_partitions": "listPartitions",
+    "list_running_queries": "listRunningQueries",
+    "list_tables": "listTables",
+    "optimize_table": "optimizeTable",
+    "query": "querySelect",
+    "rename_table": "renameTable",
+    "show_create_table": "showCreateTable",
+    "table_stats": "tableStats",
+    "truncate_table": "truncateTable",
+    "update": "updateData"
+  }
+}

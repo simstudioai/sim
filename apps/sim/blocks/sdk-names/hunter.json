@@ -1,0 +1,11 @@
+{
+  "namespace": "hunter",
+  "methods": {
+    "hunter_companies_find": "findCompany",
+    "hunter_discover": "discoverCompanies",
+    "hunter_domain_search": "domainSearch",
+    "hunter_email_count": "emailCount",
+    "hunter_email_finder": "emailFinder",
+    "hunter_email_verifier": "emailVerifier"
+  }
+}

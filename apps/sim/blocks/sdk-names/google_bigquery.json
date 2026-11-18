@@ -1,0 +1,21 @@
+{
+  "namespace": "googleBigquery",
+  "methods": {
+    "create_dataset": "createDataset",
+    "create_table": "createTable",
+    "delete_dataset": "deleteDataset",
+    "delete_table": "deleteTable",
+    "get_query_results": "getQueryResults",
+    "get_table": "getTable",
+    "insert_rows": "insertRows",
+    "list_datasets": "listDatasets",
+    "list_table_data": "listTableData",
+    "list_tables": "listTables",
+    "query": "runQuery"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

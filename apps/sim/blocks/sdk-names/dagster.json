@@ -1,0 +1,24 @@
+{
+  "namespace": "dagster",
+  "methods": {
+    "delete_run": "deleteRun",
+    "get_asset": "getAsset",
+    "get_run": "getRun",
+    "get_run_logs": "getRunLogs",
+    "launch_run": "launchRun",
+    "list_assets": "listAssets",
+    "list_jobs": "listJobs",
+    "list_runs": "listRuns",
+    "list_schedules": "listSchedules",
+    "list_sensors": "listSensors",
+    "materialize_assets": "materializeAssets",
+    "reexecute_run": "reexecuteRun",
+    "report_asset_materialization": "reportAssetMaterialization",
+    "start_schedule": "startSchedule",
+    "start_sensor": "startSensor",
+    "stop_schedule": "stopSchedule",
+    "stop_sensor": "stopSensor",
+    "terminate_run": "terminateRun",
+    "wipe_asset": "wipeAsset"
+  }
+}
