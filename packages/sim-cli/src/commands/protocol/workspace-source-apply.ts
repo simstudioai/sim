@@ -31,7 +31,7 @@ import {
 import {
   appliedBlobDigests,
   assertBlobsFetched,
-  blobsToCarry,
+  blobsToStage,
   stageBlobs,
 } from './workspace-source-blobs'
 import {
@@ -185,14 +185,14 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
  * blobs the server now holds. The function files a written workflow no longer uses are removed,
- * from disk and the record. Returns the record it wrote, for the next round to read.
+ * from disk and the record.
  */
 async function saveApplied(
   dir: string,
   data: ApplyData,
   submission: WorkspaceSubmission,
   written: Written
-): Promise<Written> {
+): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
   const orphaned = await orphanedWorkflowFiles(dir, data.files)
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
@@ -210,7 +210,6 @@ async function saveApplied(
     ],
     remove: orphaned,
   })
-  return record
 }
 
 /**
@@ -324,7 +323,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         )
       }
 
-      let written = await readWritten(options.dir)
+      const written = await readWritten(options.dir)
       const submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
       assertBaseWorkspace(
         options.dir,
@@ -357,10 +356,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
       }
 
       // Without a preview, stage the blobs the base does not hold as they are.
-      await stage(submission, preview ? new Set(preview.needBlobs) : blobsToCarry(submission))
+      await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
       const data = await send(submission, false)
       printNewDiagnostics(data.diagnostics, printed)
-      written = await saveApplied(options.dir, data, submission, written)
+      await saveApplied(options.dir, data, submission, written)
       const held = data.plan.filter((change) => change.held)
       if (held.length > 0) {
         printError(
