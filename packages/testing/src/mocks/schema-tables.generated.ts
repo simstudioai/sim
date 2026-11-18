@@ -684,6 +684,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'expiresAt',
   ],
+  workspaceSourceApplyLease: ['workspaceId', 'token', 'acquiredAt', 'expiresAt'],
   workspaceForkDependentValue: [
     'id',
     'childWorkspaceId',
