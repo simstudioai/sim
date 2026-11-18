@@ -79,7 +79,12 @@ export const getActivitiesTool: ToolConfig<
       url.searchParams.append('version', 'v2')
 
       if (params.type) {
-        url.searchParams.append('type', LEGACY_ACTIVITY_TYPES[params.type] ?? params.type)
+        url.searchParams.append(
+          'type',
+          Object.hasOwn(LEGACY_ACTIVITY_TYPES, params.type)
+            ? LEGACY_ACTIVITY_TYPES[params.type]
+            : params.type
+        )
       }
       if (params.campaignId) url.searchParams.append('campaignId', params.campaignId)
       if (params.leadId) url.searchParams.append('leadId', params.leadId)

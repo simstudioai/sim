@@ -30,7 +30,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
   request: {
     url: (params) => {
-      const taskId = params.taskId?.trim()
+      const taskId = params.taskId == null ? '' : String(params.taskId).trim()
       if (!taskId) return 'https://api.crmworkspace.com/v1/tasks'
       return `https://api.crmworkspace.com/v1/tasks/${safeUrlPathSegment(taskId, 'taskId')}`
     },

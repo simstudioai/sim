@@ -47,6 +47,25 @@ describe('Lemlist Get Activities type filter', () => {
 })
 
 describe('Lemlist Send Email recipient', () => {
+  it('omits an empty contact ID when sending by lead ID', () => {
+    const body = sendEmailTool.request.body
+    if (!body) throw new Error('Send email tool has no request body')
+
+    const result = body({
+      apiKey: 'key',
+      sendUserId: 'usr_1',
+      sendUserEmail: 'me@example.com',
+      sendUserMailboxId: 'usm_1',
+      contactId: '',
+      leadId: 'lea_1',
+      subject: 'Hi',
+      message: '<p>Hi</p>',
+    })
+
+    expect(result.contactId).toBeUndefined()
+    expect(result.leadId).toBe('lea_1')
+  })
+
   it('rejects a send with neither a contact nor a lead ID', () => {
     const body = sendEmailTool.request.body
     if (!body) throw new Error('Send email tool has no request body')
