@@ -136,7 +136,7 @@ const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const
  * then warnings, then infos. The finding that counts the rest is an info, so cutting a plan's
  * findings never refuses it, nor changes how a refusal is classed.
  */
-export function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
+function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
   if (diagnostics.length <= MAX_PLAN_FINDINGS) return diagnostics
   const kept = diagnostics
     .map((entry, index) => ({ entry, index }))
