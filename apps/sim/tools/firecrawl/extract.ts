@@ -177,7 +177,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       try {
         signal?.throwIfAborted()
         const statusResponse = await outboundFetch(
-          `https://api.firecrawl.dev/v2/extract/${jobId}`,
+          `https://api.firecrawl.dev/v2/extract/${encodeURIComponent(jobId)}`,
           {
             method: 'GET',
             headers: {

@@ -84,6 +84,8 @@ export interface OutputProperty {
     description?: string
     nullable?: boolean
     properties?: Record<string, OutputProperty>
+    /** Any sub-path of an item is a valid reference, kept for references an older schema allowed. */
+    open?: boolean
   }
 }
 

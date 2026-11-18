@@ -123,14 +123,17 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
         signal?.throwIfAborted()
-        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          signal,
-        })
+        const statusResponse = await outboundFetch(
+          `https://api.firecrawl.dev/v2/agent/${encodeURIComponent(jobId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal,
+          }
+        )
 
         if (!statusResponse.ok) {
           throw new Error(`Failed to get agent status: ${statusResponse.statusText}`)

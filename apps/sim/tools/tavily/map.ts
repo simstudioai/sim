@@ -138,7 +138,7 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
     results: {
       type: 'array',
       description: 'URLs discovered during mapping',
-      items: { type: 'string', description: 'Discovered URL' },
+      items: { type: 'string', description: 'Discovered URL', open: true },
     },
     response_time: { type: 'number', description: 'Time taken for the map request in seconds' },
     request_id: {

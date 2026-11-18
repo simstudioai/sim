@@ -202,7 +202,7 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
         try {
           signal?.throwIfAborted()
           const statusResponse = await outboundFetch(
-            `https://api.firecrawl.dev/v2/batch/scrape/${jobId}`,
+            `https://api.firecrawl.dev/v2/batch/scrape/${encodeURIComponent(jobId)}`,
             {
               method: 'GET',
               headers: {

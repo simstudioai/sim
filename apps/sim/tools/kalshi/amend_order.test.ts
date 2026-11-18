@@ -115,6 +115,25 @@ describe('Kalshi amend order on the V2 event-order endpoint', () => {
     })
   })
 
+  it('sends the subaccount on the amend, not on the order read', () => {
+    const subaccountOf = (
+      tool: typeof kalshiAmendOrderV2Tool | typeof kalshiAmendOrderTool,
+      params: KalshiAmendOrderV2Params
+    ) => {
+      const { url } = tool.request
+      if (typeof url !== 'function') throw new Error('amend tool has no url builder')
+      return new URL(url(params)).searchParams.get('subaccount')
+    }
+    for (const tool of [kalshiAmendOrderV2Tool, kalshiAmendOrderTool]) {
+      expect(subaccountOf(tool, { ...BASE, count: '8', yesPrice: '57', subaccount: '3' })).toBe('3')
+      expect(subaccountOf(tool, { ...BASE, count: '8', subaccount: '3' })).toBeNull()
+      expect(subaccountOf(tool, { ...BASE, count: '8', yesPrice: '57' })).toBeNull()
+      expect(
+        sentRequest(tool, { ...BASE, count: '8', yesPrice: '57', subaccount: '3' }).signatureValid
+      ).toBe(true)
+    }
+  })
+
   it('quotes a no-side amend on the YES book', () => {
     const request = sentRequest(kalshiAmendOrderTool, {
       ...BASE,

@@ -165,6 +165,27 @@ describe('Kalshi cancel order routes to the order shard by ticker', () => {
   })
 })
 
+describe('Kalshi cancel order on a subaccount', () => {
+  const query = (tool: CancelTool, params: KalshiCancelOrderV2Params) => {
+    const { url } = tool.request
+    if (typeof url !== 'function') throw new Error('cancel tool has no url builder')
+    return new URL(url(params)).searchParams
+  }
+
+  it.each(TOOLS)('%s sends the subaccount on the cancel, not on the order read', (_, tool) => {
+    expect(query(tool, { ...BASE, ticker: TICKER, subaccount: '2' }).get('subaccount')).toBe('2')
+    expect(query(tool, { ...BASE, subaccount: '2' }).has('subaccount')).toBe(false)
+    expect(query(tool, { ...BASE, ticker: TICKER }).has('subaccount')).toBe(false)
+    expect(sentRequest(tool, { ...BASE, ticker: TICKER, subaccount: '2' }).signatureValid).toBe(
+      true
+    )
+  })
+
+  it.each(TOOLS)('%s refuses a subaccount that is not a whole number', (_, tool) => {
+    expect(() => query(tool, { ...BASE, ticker: TICKER, subaccount: 'two' })).toThrow(/Subaccount/)
+  })
+})
+
 describe('Kalshi block cancel ticker', () => {
   const mapped = (stored: Record<string, unknown>) => {
     const inputs: Record<string, unknown> = {
