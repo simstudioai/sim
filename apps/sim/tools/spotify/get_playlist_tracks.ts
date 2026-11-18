@@ -52,7 +52,9 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
     url: (params) => {
       const limit = Math.min(Math.max(params.limit || 50, 1), 50)
       const offset = params.offset || 0
-      let url = `https://api.spotify.com/v1/playlists/${params.playlistId}/items?limit=${limit}&offset=${offset}`
+      // `/items` only returns playlists the user owns or collaborates on; `/tracks` still reads any
+      // public playlist for Extended Quota Mode apps.
+      let url = `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks?limit=${limit}&offset=${offset}`
       if (params.market) {
         url += `&market=${params.market}`
       }
