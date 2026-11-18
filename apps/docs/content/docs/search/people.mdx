@@ -7,7 +7,7 @@ Open **People** in the organization sidebar to find a colleague or see who repor
 
 ## Explore the org chart
 
-The chart opens at **My position**. Your manager appears above you and your direct reports appear below you. Select another person’s card to center the chart on them. To see their peers, select their manager and browse that manager’s direct reports.
+**Org chart** opens at **My position**. Your manager appears above you and your direct reports appear below you. Select another person’s card to center the chart on them. To see their peers, select their manager and browse that manager’s direct reports.
 
 - Use **Find a person** to jump to someone by name, title, or email.
 - Select a name in the reporting path to move up the chain. Select the organization name to browse top-level teams.
@@ -18,7 +18,7 @@ When no reporting lines have been recorded, an admin can connect a directory, im
 
 ## Find and edit a profile
 
-Switch to **Directory** to search by name, email, title, department, or location. Use **Filter → Department** to narrow the list. Select a row to open the person’s profile, including their email, department, location, start date, managers, and direct reports.
+Switch to **Directory** to search by name, email, title, department, or location. Use **Filter → Department** to narrow the list. Select a row to open the person’s profile, including their email, department, location, start date, managers, and direct reports. Profiles show up to 50 direct reports. For larger teams, use the link below the list to page through the full team in the chart.
 
 Profiles managed by a directory show their source. Change their information in that directory. To update a manually managed profile as an admin, select **Edit**, change the fields, and select **Save**. To change a reporting line, choose an active member of the same organization as the manager. Sim rejects self-reporting and reporting loops. Suspended members are hidden from the directory and chart.
 
@@ -28,11 +28,11 @@ An organization admin can open **People → Directory sync** and connect one aut
 
 | Source | How to connect |
 | --- | --- |
-| **SCIM provisioning** | Enable your organization's [SCIM provisioning connection](/platform/enterprise/scim), then select it in People. Map core `title`, enterprise `department`, and enterprise `manager.value`. The manager value is the manager's SCIM resource ID in the same connection. |
-| **Okta** | Enter your Okta organization domain and an API token that can read all intended users. Sim reads active users and resolves managers using the Okta user ID in `profile.managerId`. |
-| **Microsoft Entra ID** | In your Microsoft commercial-cloud tenant, register an application, grant Microsoft Graph the **application** permission `User.Read.All`, and obtain admin consent. Enter the tenant ID, application (client) ID, and client secret **value**. Sim obtains a fresh access token for each sync and reads direct reports to build the chart. |
+| **SCIM provisioning** | Enable your organization's [SCIM provisioning connection](/platform/enterprise/scim), then select **SCIM provisioning** in People. Map core `title`, enterprise `department`, and enterprise `manager.value`. The manager value is the manager's SCIM resource ID in the same connection. |
+| **Okta** | Enter your Okta organization domain and an [API token](https://developer.okta.com/docs/guides/create-an-api-token/main/) that can read all intended users. Sim reads active users and resolves managers using the Okta user ID in `profile.managerId`. |
+| **Microsoft Entra ID** | [Register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) in your Microsoft commercial-cloud tenant, grant the Microsoft Graph **application** permission `User.Read.All`, and obtain admin consent. Enter the tenant ID, application (client) ID, and client secret **value**. Sim obtains an access token when a sync needs to read Microsoft Graph and uses direct reports to build the chart. |
 
-Select **Connect and sync** to run the first refresh. Sim stores the Okta token or Entra client secret encrypted. Use **Update credentials** to rotate them for the same directory.
+Select **Connect and sync** to start the first refresh. Sim stores the Okta token or Entra client secret encrypted. Use **Update credentials** and **Save and sync** to rotate them for the same directory.
 
 ### Who appears
 
@@ -48,17 +48,17 @@ People keeps the last published chart visible until the full replacement passes 
 
 SCIM user changes queue a refresh for the next scheduler pass, including changes that arrive while a refresh is running. Sim reads locally provisioned profiles together and publishes their reporting lines in one update. When SCIM deactivates or removes someone, their directory-managed profile is hidden immediately.
 
-Disabling the SCIM provisioning connection pauses People updates and keeps the last published chart. Re-enable provisioning in organization settings to resume syncing. **Sync now** is unavailable while provisioning is disabled.
+Disabling the SCIM provisioning connection pauses People updates and keeps the last published chart. Re-enable provisioning in organization settings to resume syncing. The sync action shows **Sync paused** while provisioning is disabled.
 
 After a failure, check the status for the cause. Correct invalid or duplicate email addresses and reporting loops in the source. Check credentials and directory permissions for an access failure. The status shows when Sim will retry automatically. After correcting a source error you can select **Retry sync** immediately. For a provider cooldown, the button becomes available when the cooldown ends.
 
 To stop syncing, select **Disconnect**. This removes directory-only profiles and source-managed details. Existing Sim members and their manual profile data remain. Disconnect the current source before changing providers or tenants.
 
-For self-hosted deployments, enable the cron service in Helm or Docker Compose. If you manage schedules yourself, call `GET /api/cron/people-directory-sync` every five minutes with your configured `CRON_SECRET` as a bearer token.
+On self-hosted deployments, set `PEOPLE=true` on the Sim app and enable the cron service in Helm or Docker Compose. If you manage schedules yourself, call `GET /api/cron/people-directory-sync` every five minutes with your configured `CRON_SECRET` as a bearer token.
 
 ## Run a one-time import
 
-Open **People → Import** and choose a source. Sim matches people to existing active members of this organization by email. Importing updates profile details and reporting lines. Membership and workspace access are managed separately. Use **Directory sync** to include people without Sim accounts or keep future changes up to date.
+Open **People → Import** and choose a source. Sim matches people to existing active members of this organization by email. Importing updates profile details and reporting lines for manually managed profiles. Membership and workspace access are managed separately. Use **Directory sync** to include people without Sim accounts or keep future changes up to date.
 
 | Source | What you need |
 | --- | --- |
@@ -67,7 +67,7 @@ Open **People → Import** and choose a source. Sim matches people to existing a
 | **SCIM provisioning** | An active [provisioning connection](/platform/enterprise/scim) with accounts already provisioned to Sim. Map core `title`, enterprise `department`, and enterprise `manager.value`. The manager value must be the manager’s SCIM User resource ID in the same connection. |
 | **Spreadsheet** | A CSV, TSV, or Excel file with an email column and at least one profile field. Use **Template** for the supported column names. |
 
-Select **Preview import**, or choose a spreadsheet to preview it. Review the counts and warnings before selecting **Import**. Skipped rows make no changes. If a provider supplies the same email for two accounts, Sim skips both. If a manager cannot be matched, or a proposed reporting line would create a loop, Sim keeps the current manager and can still update other fields.
+Select **Preview import**, or choose a spreadsheet to preview it. Review the counts and warnings before selecting **Import**. Skipped rows make no changes. If a provider supplies the same email for two accounts, Sim skips both. Sim also skips a row that assigns someone as their own manager. If another manager cannot be matched or a proposed reporting line would create a loop, Sim keeps the current manager and can still update other fields.
 
 Okta and Entra tokens are used for the current import. If Okta, Entra, or provisioned SCIM profile data changes between preview and import, Sim asks you to preview again. Run another import when you want to bring in later directory changes. Missing or empty provider fields preserve the values already in Sim. To clear an old manager, edit the profile or use a spreadsheet.
 
