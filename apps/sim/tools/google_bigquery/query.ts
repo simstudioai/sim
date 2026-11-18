@@ -80,7 +80,7 @@ export const googleBigQueryQueryTool: ToolConfig<
       if (params.maxResults !== undefined) body.maxResults = Number(params.maxResults)
       if (params.defaultDatasetId) {
         body.defaultDataset = {
-          projectId: params.projectId,
+          projectId: params.projectId.trim(),
           datasetId: params.defaultDatasetId,
         }
       }
