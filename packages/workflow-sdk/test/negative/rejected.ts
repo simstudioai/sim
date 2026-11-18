@@ -212,4 +212,17 @@ export default workflow('Rejected', {}, () => {
   lead.row.data.score satisfies Ref<number | null>
   // @ts-expect-error `score` is not required, so a cell may be empty
   lead.row.data.score satisfies Ref<number>
+
+  // An operation's outputs are what its tool returns, and may be null where the tool says so.
+  const sent = slack.sendMessage('Sent', {
+    credential: credential('support-slack'),
+    channel: 'C1',
+    text: 'x',
+  })
+  t`${sent.ts}`
+  // @ts-expect-error `canvas_id` is an output of the canvas operations, not of sendMessage
+  t`${sent.canvas_id}`
+  leads.nextCursor satisfies Ref<string | null>
+  // @ts-expect-error `nextCursor` is null on the last page
+  leads.nextCursor satisfies Ref<string>
 })

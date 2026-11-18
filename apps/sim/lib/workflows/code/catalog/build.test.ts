@@ -16,6 +16,7 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 
 import { v2SourceCatalogSchema } from '@/lib/api/contracts/v2/source-catalog'
 import {
@@ -169,6 +170,17 @@ describe('block catalog projection over the whole registry', () => {
         expect(Object.keys(subBlock.visibleFor)).toEqual(operations)
       }
     }
+  })
+
+  it('records what an operation returns and which credentials a credential field takes', () => {
+    const send = view.blocks.slack_v2.operationOutputs?.send
+    expect(send?.names).toContain('ts')
+    expect(send?.names).not.toContain('canvas_id')
+    expect(view.blocks.table_v2.operationOutputs?.query_rows?.nullable).toEqual(['nextCursor'])
+    const gmailCredential = view.blocks.gmail_v2.subBlocks.find(
+      (subBlock) => subBlock.type === 'oauth-input'
+    )
+    expect(gmailCredential?.credentialProviders).toEqual(['google-email', 'google-service-account'])
   })
 
   it('gives every operation a builder that pins it', () => {

@@ -320,6 +320,19 @@ const catalogBlockSchema = z
       .describe('Tools the block calls.'),
     outputs: catalogOutputsSchema.optional(),
     sharedOutputs: sharedOutputsSchema,
+    operationOutputs: z
+      .record(
+        z.string(),
+        z.object({
+          names: z.array(z.string()).describe('Block outputs the operation returns, in order.'),
+          nullable: z
+            .array(z.string())
+            .optional()
+            .describe('Those of them the operation may return as null.'),
+        })
+      )
+      .optional()
+      .describe('Per operation id: the outputs its tool returns, where they differ.'),
     dynamicOutputs: z
       .object({
         source: z

@@ -117,23 +117,33 @@ export function requiredForValues(
   )
 }
 
+/** Per subBlock list, the fields {@link isEnumerable} accepts, computed once per list. */
+const enumerableFields = new WeakMap<ReadonlyArray<CatalogSubBlock>, ReadonlySet<string>>()
+
 /**
  * Whether every declaration of `field` holds one of a fixed set of values: a switch, or a
  * single-value dropdown with static options. SDK codegen enumerates exactly these.
  */
 export function isEnumerable(subBlocks: ReadonlyArray<CatalogSubBlock>, field: string): boolean {
-  const declarations = subBlocks.filter((subBlock) => subBlock.id === field)
-  return (
-    declarations.length > 0 &&
-    declarations.every(
-      (subBlock) =>
+  let fields = enumerableFields.get(subBlocks)
+  if (!fields) {
+    const fixed = new Set<string>()
+    const open = new Set<string>()
+    for (const subBlock of subBlocks) {
+      const enumerable =
         subBlock.type === 'switch' ||
         (subBlock.type === 'dropdown' &&
           !subBlock.multiple &&
           Array.isArray(subBlock.options) &&
           subBlock.options.length > 0)
-    )
-  )
+      if (enumerable) fixed.add(subBlock.id)
+      else open.add(subBlock.id)
+    }
+    for (const id of open) fixed.delete(id)
+    fields = fixed
+    enumerableFields.set(subBlocks, fields)
+  }
+  return fields.has(field)
 }
 
 function requiredUnder(

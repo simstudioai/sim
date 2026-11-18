@@ -19,6 +19,7 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 vi.unmock('@/tools/registry')
 
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'

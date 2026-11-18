@@ -31,6 +31,7 @@ import {
   isMetadataOnlyBlockType,
   isSentinelBlockType,
 } from '@/executor/constants'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getSubBlockValueShape } from '@/tools/param-shape'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -462,6 +463,32 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
   return output
 }
 
+/**
+ * Per operation, the block outputs its tool declares and which of them it may return as `null`,
+ * when the operation picks the tool (`tools.selector: 'operation'`). Kept only where that differs
+ * from every block output, non-null.
+ */
+function projectOperationOutputs(
+  block: BlockConfig,
+  operations: readonly string[],
+  outputNames: readonly string[]
+): CatalogBlock['operationOutputs'] {
+  const selectTool = block.tools.config?.tool
+  if (!selectTool) return undefined
+  const projected: NonNullable<CatalogBlock['operationOutputs']> = {}
+  for (const operation of operations) {
+    const probe = probeThunk(selectTool, { operation })
+    if (!probe.ok || typeof probe.result !== 'string') continue
+    const toolOutputs = getToolOutputsMetadata(probe.result)
+    if (!toolOutputs) continue
+    const names = outputNames.filter((name) => Object.hasOwn(toolOutputs, name))
+    const nullable = names.filter((name) => toolOutputs[name]?.nullable === true)
+    if (names.length === outputNames.length && nullable.length === 0) continue
+    projected[operation] = nullable.length > 0 ? { names, nullable } : { names }
+  }
+  return Object.keys(projected).length > 0 ? projected : undefined
+}
+
 function projectTools(block: BlockConfig, operations: readonly string[]): CatalogBlock['tools'] {
   const access = [...block.tools.access]
   const selectTool = block.tools.config?.tool
@@ -599,6 +626,14 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
     lifecycle.sunset = block.sunset.replacedBy
       ? { status: block.sunset.status, replacedBy: block.sunset.replacedBy }
       : { status: block.sunset.status }
+  }
+  if (projected.tools.selector === 'operation') {
+    const operationOutputs = projectOperationOutputs(
+      block,
+      operations,
+      Object.keys(projected.outputs)
+    )
+    if (operationOutputs) projected.operationOutputs = operationOutputs
   }
   if (Object.keys(lifecycle).length > 0) projected.lifecycle = lifecycle
   if (block.hideFromToolbar) projected.addable = false

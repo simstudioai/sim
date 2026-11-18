@@ -56,12 +56,13 @@ interface OutputMember {
 
 /**
  * The outputs a builder exposes, in catalog order, with `overrides` replacing a member's type
- * (dynamic outputs such as typed table rows).
+ * (dynamic outputs such as typed table rows) and each `nullable` one also taking `null`.
  */
 export function builderOutputs(
   outputs: Record<string, CatalogOutput>,
   context: VisibilityContext,
-  overrides: Readonly<Record<string, string>> = {}
+  overrides: Readonly<Record<string, string>> = {},
+  nullable: ReadonlySet<string> = new Set()
 ): OutputMember[] {
   const members: OutputMember[] = []
   for (const name of Object.keys(outputs)) {
@@ -72,7 +73,8 @@ export function builderOutputs(
       if (available === false) continue
       if (available === null) doc.push(`@when depends on ${output.condition.field}`)
     }
-    members.push({ name, type: overrides[name] ?? outputType(output, 1), doc })
+    const type = overrides[name] ?? outputType(output, 1)
+    members.push({ name, type: nullable.has(name) ? `${type} | null` : type, doc })
   }
   return members
 }

@@ -16,6 +16,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/metadata-outputs')
 vi.unmock('@/tools/registry')
 
 import { getErrorMessage } from '@sim/utils/errors'
