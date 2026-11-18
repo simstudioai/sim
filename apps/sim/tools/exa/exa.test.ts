@@ -211,6 +211,26 @@ describe('exa_agent terminal statuses', () => {
     expect(result?.error).toMatch(/failed: error/)
   })
 
+  it("surfaces Exa's error message for a failed run", async () => {
+    const response = new Response(
+      JSON.stringify({
+        id: 'agent_run_1',
+        status: 'failed',
+        stopReason: 'error',
+        error: { type: 'INVALID_REQUEST', code: 'INVALID_OUTPUT_SCHEMA', message: 'Bad schema' },
+      })
+    )
+    const created = await agentTool.transformResponse?.(response, { apiKey: API_KEY, query: 'q' })
+    if (!created) throw new Error('exa_agent has no transformResponse')
+    const result = await agentTool.postProcess?.(
+      created,
+      { apiKey: API_KEY, query: 'q' } as never,
+      {} as never
+    )
+    expect(result?.success).toBe(false)
+    expect(result?.error).toBe('Exa agent run failed: Bad schema')
+  })
+
   it('reports a cancelled run as a failure', async () => {
     const result = await settle('cancelled')
     expect(result?.success).toBe(false)

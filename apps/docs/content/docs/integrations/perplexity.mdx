@@ -42,6 +42,13 @@ Generate completions using Perplexity AI chat models
 | --------- | ---- | ----------- |
 | `content` | string | Generated text content |
 | `model` | string | Model used for generation |
+| `citations` | array | URLs of the sources the answer cites |
+| `search_results` | array | Search results the answer was grounded in |
+|   ↳ `title` | string | Title of the result page |
+|   ↳ `url` | string | URL of the result page |
+|   ↳ `date` | string | Publication date |
+|   ↳ `last_updated` | string | Last update date |
+|   ↳ `snippet` | string | Text snippet from the page |
 | `usage` | object | Token usage information |
 |   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
 |   ↳ `completion_tokens` | number | Number of tokens in the completion |

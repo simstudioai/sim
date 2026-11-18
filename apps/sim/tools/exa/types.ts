@@ -240,5 +240,7 @@ export interface ExaAgentResponse extends ToolResponse {
       score: number
     }[]
     __costDollars?: ExaCostDollars
+    /** Exa's `error.message` for a failed run; internal, stripped before the output is returned. */
+    __errorMessage?: string
   }
 }

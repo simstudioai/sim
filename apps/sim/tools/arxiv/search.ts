@@ -77,10 +77,9 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const xmlText = await response.text()
 
-    // Parse XML response
     const papers = parseArxivXML(xmlText)
     const totalResults = extractTotalResults(xmlText)
 
@@ -89,14 +88,14 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       output: {
         papers,
         totalResults,
-        query: '', // Will be filled by the calling code
+        query: params?.searchQuery ?? '',
       },
     }
   },
 
   outputs: {
     papers: {
-      type: 'json',
+      type: 'array',
       description: 'Array of papers matching the search query',
       items: {
         type: 'object',
@@ -104,16 +103,16 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
           id: { type: 'string' },
           title: { type: 'string' },
           summary: { type: 'string' },
-          authors: { type: 'string' },
+          authors: { type: 'array', items: { type: 'string' } },
           published: { type: 'string' },
           updated: { type: 'string' },
           link: { type: 'string' },
           pdfLink: { type: 'string' },
-          categories: { type: 'string' },
+          categories: { type: 'array', items: { type: 'string' } },
           primaryCategory: { type: 'string' },
-          comment: { type: 'string' },
-          journalRef: { type: 'string' },
-          doi: { type: 'string' },
+          comment: { type: 'string', optional: true },
+          journalRef: { type: 'string', optional: true },
+          doi: { type: 'string', optional: true },
         },
       },
     },

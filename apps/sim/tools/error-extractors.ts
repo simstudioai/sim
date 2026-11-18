@@ -642,6 +642,17 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'tavily-errors',
+    description: 'Tavily error body: `detail.error` string (FastAPI-style detail object)',
+    examples: ['Tavily'],
+    explicitOnly: true,
+    extract: (errorInfo) => {
+      const detail = errorInfo?.data?.detail
+      if (typeof detail === 'string') return detail
+      return typeof detail?.error === 'string' ? detail.error : undefined
+    },
+  },
+  {
     id: 'http-status-text',
     description: 'HTTP response status text fallback',
     examples: ['Generic HTTP errors'],
@@ -735,6 +746,7 @@ export const ErrorExtractorId = {
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
+  TAVILY_ERRORS: 'tavily-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

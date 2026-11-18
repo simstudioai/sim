@@ -106,6 +106,7 @@ export const ExaBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Auto', id: 'auto' },
+        { label: 'Lite', id: 'lite' },
         { label: 'Instant', id: 'instant' },
         { label: 'Fast', id: 'fast' },
         { label: 'Deep Lite', id: 'deep-lite' },

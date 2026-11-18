@@ -32,7 +32,7 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 | `query` | string | Yes | The search query to execute \(e.g., "latest AI research papers 2024"\) |
 | `max_results` | number | No | Maximum number of results \(1-20, e.g., 5\) |
 | `topic` | string | No | Category type: general, news, or finance \(e.g., "news"\) |
-| `search_depth` | string | No | Search scope: basic \(1 credit\) or advanced \(2 credits\) \(e.g., "advanced"\) |
+| `search_depth` | string | No | Search depth: basic \(1 credit\), advanced \(2 credits\), fast \(1 credit\), or ultra-fast \(1 credit\) \(e.g., "advanced"\) |
 | `include_answer` | string | No | LLM-generated response: true/basic for quick answer or advanced for detailed \(e.g., "advanced"\) |
 | `include_raw_content` | string | No | Parsed HTML content: true/markdown or text format \(e.g., "markdown"\) |
 | `include_images` | boolean | No | Include image search results |
@@ -65,6 +65,7 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 |   ↳ `description` | string | Image description |
 | `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
 | `response_time` | number | Time taken for the search request in seconds |
+| `request_id` | string | Request identifier to share with Tavily support |
 
 </ReferenceDetails>
 
@@ -97,6 +98,7 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 |   ↳ `url` | string | The URL that failed extraction |
 |   ↳ `error` | string | Error message describing why extraction failed |
 | `response_time` | number | Time taken for the extraction request in seconds |
+| `request_id` | string | Request identifier to share with Tavily support |
 
 </ReferenceDetails>
 
@@ -165,8 +167,7 @@ Discover and visualize website structure using Tavily's map API. Maps out all ac
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was mapped |
-| `results` | array | Array of discovered URLs during mapping |
-|   ↳ `url` | string | Discovered URL |
+| `results` | array | URLs discovered during mapping |
 | `response_time` | number | Time taken for the map request in seconds |
 | `request_id` | string | Unique identifier for support reference |
 

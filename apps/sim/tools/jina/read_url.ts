@@ -106,7 +106,8 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
 
   request: {
     url: (params: ReadUrlParams) => {
-      return `https://r.jina.ai/https://${params.url.replace(/^https?:\/\//, '')}`
+      const target = params.url.trim()
+      return `https://r.jina.ai/${/^https?:\/\//i.test(target) ? target : `https://${target}`}`
     },
     method: 'GET',
     headers: (params: ReadUrlParams) => {
@@ -139,6 +140,10 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       }
       if (params.withShadowDom === true) {
         headers['X-With-Shadow-Dom'] = 'true'
+      }
+
+      if (params.noCache === true) {
+        headers['X-No-Cache'] = 'true'
       }
 
       // Advanced options

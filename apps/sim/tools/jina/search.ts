@@ -102,6 +102,8 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
         sites.forEach((s) => queryParams.push(`site=${encodeURIComponent(s.trim())}`))
       }
 
+      if (params.num) queryParams.push(`num=${encodeURIComponent(String(params.num))}`)
+
       const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : ''
       return `${baseUrl}${query}${queryString}`
     },
@@ -131,8 +133,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       if (params.withGeneratedAlt === true) {
         headers['X-With-Generated-Alt'] = 'true'
       }
-      if (params.respondWith) {
-        headers['X-Respond-With'] = params.respondWith
+      /** The block's "No Content" checkbox sends `true`; Jina expects the `no-content` mode. */
+      const respondWith = params.respondWith === true ? 'no-content' : params.respondWith
+      if (typeof respondWith === 'string' && respondWith) {
+        headers['X-Respond-With'] = respondWith
       }
       if (params.returnFormat) {
         headers['X-Return-Format'] = params.returnFormat

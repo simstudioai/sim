@@ -34,7 +34,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search type: "instant", "fast", "auto", "deep-lite", "deep", or "deep-reasoning". Default: "auto"',
+        'Search type: "auto", "lite", "deep-lite", or "deep" ("instant", "fast", and "deep-reasoning" are legacy). Default: "auto"',
     },
     includeDomains: {
       type: 'string',

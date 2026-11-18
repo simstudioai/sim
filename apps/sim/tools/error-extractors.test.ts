@@ -169,6 +169,20 @@ describe('Error Extractors', () => {
   })
 
   describe('extractErrorMessage with explicit extractorId', () => {
+    it("reads Tavily's detail.error message instead of the bare status text", () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: {
+          detail: { error: 'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.' },
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.TAVILY_ERRORS)).toBe(
+        'Invalid search_depth. Must be basic, advanced, fast, or ultra-fast.'
+      )
+    })
+
     it('formats QuickBooks faults with status guidance', () => {
       const errorInfo: ErrorInfo = {
         status: 401,

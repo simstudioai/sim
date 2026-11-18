@@ -222,6 +222,16 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       const output = taskResult.output ?? {}
       const status = taskResult.run?.status ?? 'completed'
 
+      if (status === 'failed' || status === 'cancelled') {
+        const reason = taskResult.run?.error?.message
+        return {
+          ...result,
+          success: false,
+          output: { ...result.output, status },
+          error: `Parallel AI deep research task ${status}${reason ? `: ${reason}` : ''}`,
+        }
+      }
+
       return {
         success: true,
         output: {
