@@ -13,6 +13,7 @@ import {
 import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import {
+  builderPins,
   buildFieldIndex,
   type CatalogField,
   declarationFor,
@@ -877,11 +878,7 @@ function pinParams(
 ): Set<string> {
   const pinned = new Set<string>()
   if (builder.kind !== 'catalog') return pinned
-  if (builder.builder.operation !== undefined) {
-    pinned.add('operation')
-    setOwn(params, 'operation', { kind: 'value', value: builder.builder.operation })
-  }
-  for (const [id, value] of Object.entries(builder.builder.fixed ?? {})) {
+  for (const [id, value] of builderPins(builder.builder)) {
     pinned.add(id)
     setOwn(params, id, { kind: 'value', value })
   }

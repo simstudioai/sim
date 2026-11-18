@@ -12,6 +12,7 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { builderPins } from '../catalog/surface'
 import { catalogBlock } from '../catalog/view'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
@@ -39,7 +40,7 @@ import {
 import { layout } from './scope'
 import { printKey } from './strings'
 import { arrowExpr, type Expr, objectExpr, type Property, type StatementList } from './syntax'
-import { findBuilder, pinnedIds } from './tools'
+import { findBuilder } from './tools'
 import type { Tag } from './values'
 
 /** biome.json's line width. */
@@ -132,7 +133,7 @@ function blockCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   const found = findBuilder(ctx.catalog, block.type, block.triggerMode, (id) =>
     stringParam(block, id)
   )
-  const pinned = pinnedIds(found?.builder)
+  const pinned = new Set(builderPins(found?.builder).keys())
   const collected = collectParams(ctx, block, declared, pinned)
   const { extra } = collected
   const form =
