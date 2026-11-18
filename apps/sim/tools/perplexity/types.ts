@@ -49,3 +49,41 @@ export interface PerplexitySearchResponse extends ToolResponse {
     results: PerplexitySearchResult[]
   }
 }
+
+export interface PerplexityAgentParams {
+  content: string
+  model: string
+  systemPrompt?: string
+  web_search?: boolean
+  fetch_url?: boolean
+  max_steps?: number
+  max_tokens?: number
+  apiKey: string
+}
+
+interface PerplexityAgentSource {
+  title: string
+  url: string
+  snippet: string
+  date: string | null
+  last_updated: string | null
+}
+
+interface PerplexityAgentCost {
+  total_cost?: number
+}
+
+export interface PerplexityAgentResponse extends ToolResponse {
+  output: {
+    content: string
+    model: string
+    status: string
+    sources: PerplexityAgentSource[]
+    usage: {
+      input_tokens: number
+      output_tokens: number
+      total_tokens: number
+    }
+    __cost?: PerplexityAgentCost
+  }
+}
