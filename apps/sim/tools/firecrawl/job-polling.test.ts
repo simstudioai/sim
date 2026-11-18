@@ -51,4 +51,16 @@ describe('Firecrawl crawl polling', () => {
       expect.objectContaining({ method: 'DELETE' })
     )
   })
+
+  it('fails at once instead of polling when Firecrawl returned no job ID', async () => {
+    if (!crawlTool.postProcess) throw new Error('crawlTool has no postProcess')
+    const result = await crawlTool.postProcess(
+      { success: true, output: { pages: [], total: 0 } },
+      params,
+      executeTool
+    )
+
+    expect(result).toMatchObject({ success: false, error: expect.stringMatching(/job ID/) })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
