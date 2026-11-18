@@ -35,7 +35,7 @@ import {
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
 } from './layout'
-import { mapSubBlock } from './map-subblock'
+import { mapParamType, mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
 import {
@@ -61,6 +61,7 @@ const CORE_TYPE_NAMES = [
   'Block',
   'BlockMeta',
   'BranchExpression',
+  'CredentialIdValue',
   'CredentialKeyFor',
   'CredentialRef',
   'DocumentTag',
@@ -365,12 +366,7 @@ function buildParams(
     if (coreParams.has(name)) continue
     const visibility = classifyParam(members, context)
     if (visibility.kind === 'never') continue
-    let type = union(
-      members.flatMap((member) => {
-        const mapped = mapSubBlock(member)
-        return mapped ? [mapped.type] : []
-      })
-    )
+    let type = mapParamType(members)
     if (isTableFilterPair(members)) type = 'Filter | TablePredicate | Template | string'
     if (plan && plan.param.name === name) type = plan.param.type
     else if (plan?.paramOverrides[name]) type = plan.paramOverrides[name]

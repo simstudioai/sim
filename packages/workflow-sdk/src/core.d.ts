@@ -228,6 +228,14 @@ export type CredentialKeyFor<Providers extends string> = keyof WorkspaceCredenti
     }[Extract<keyof WorkspaceCredentials, string>]
 export declare function credential<K extends CredentialKey>(key: K): CredentialRef<K>
 
+/**
+ * The other form a credential field takes beside `credential('key')`: a credential id produced at
+ * run time by a reference, a template or an environment variable, stored in the field's advanced
+ * twin (`manualCredential`). Literal text is not one, so a pasted token never type-checks; a
+ * literal id the stored workflow already holds prints as `raw('…')`.
+ */
+export type CredentialIdValue = RefTo<string> | Template | EnvRef
+
 /** The columns of a workspace table, or loose JSON when `workspace.d.ts` does not know it. */
 export type TableColumns<K extends string> = K extends keyof WorkspaceTables
   ? WorkspaceTables[K]

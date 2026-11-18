@@ -9,6 +9,7 @@
 
 import type { CatalogSubBlock } from '@sim/workflow-code'
 import { quoteString } from '@sim/workflow-code'
+import { isCredentialIdTwin } from '@sim/workflow-code/catalog/surface'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { arrayOf, literal, union } from './emit'
 
@@ -66,6 +67,21 @@ function credentialType(subBlock: CatalogSubBlock): string {
   const providers = subBlock.credentialProviders
   if (!providers || providers.length === 0) return 'CredentialRef'
   return `CredentialRef<CredentialKeyFor<${union(providers.map((id) => literal(id)))}>>`
+}
+
+/**
+ * The param type of one canonical group: the union of its members' types. The free-text twin of a
+ * credential picker takes `CredentialIdValue` instead of its own text type, so a credential param
+ * accepts `credential('key')` or a run-time id, never literal text such as a pasted token.
+ */
+export function mapParamType(members: readonly CatalogSubBlock[]): string {
+  return union(
+    members.flatMap((member) => {
+      if (isCredentialIdTwin(member, members)) return ['CredentialIdValue']
+      const mapped = mapSubBlock(member)
+      return mapped ? [mapped.type] : []
+    })
+  )
 }
 
 /** Maps one subBlock to its param type, or `null` when it is never written in source. */

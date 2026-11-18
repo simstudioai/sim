@@ -171,6 +171,20 @@ export default workflow('Rejected', {}, () => {
     data: { email: start.subject, status: 'new', score: null },
   })
 
+  // A credential field takes credential('key') or a run-time id, never literal text.
+  slack.sendMessage('Literal token', {
+    // @ts-expect-error a pasted token is literal text
+    credential: 'xoxb-1234-5678-literaltoken',
+    channel: 'C1',
+    text: 'x',
+  })
+  slack.sendMessage('Credential id from input', {
+    credential: start.subject,
+    channel: 'C1',
+    text: 'x',
+  })
+  slack.sendMessage('Credential id from env', { credential: env.CRM_KEY, channel: 'C1', text: 'x' })
+
   // A credential for another provider than the block's service.
   slack.sendMessage('Wrong credential', {
     // @ts-expect-error `finance-gmail` is a Google credential, not a Slack one
