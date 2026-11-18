@@ -482,6 +482,10 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       blockName: 'Send Email',
       blockType: 'gmail',
     })
+    // An agent reads the head of an oversized run, so the error precedes the unbounded output.
+    const keys = Object.keys(body.data)
+    expect(keys.indexOf('error')).toBeLessThan(keys.indexOf('output'))
+    expect(keys.indexOf('durationMs')).toBeLessThan(keys.indexOf('output'))
   })
 
   it('queues async runs and returns a 202 receipt with the v2 runs statusUrl', async () => {
