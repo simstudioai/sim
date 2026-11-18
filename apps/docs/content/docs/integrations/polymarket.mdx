@@ -492,8 +492,8 @@ Retrieve user positions from Polymarket
 | `market` | string | No | Condition IDs to filter positions \(e.g., "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
 | `eventId` | string | No | Event ID to filter positions \(e.g., "12345"\). Mutually exclusive with market. |
 | `sizeThreshold` | string | No | Minimum current position size in shares \(default: 0.1\) |
-| `redeemable` | string | No | Filter for redeemable positions only \(true/false\) |
-| `mergeable` | string | No | Filter for mergeable positions only \(true/false\) |
+| `redeemable` | string | No | true: only redeemable positions. false: drops redeemable positions from the returned page. |
+| `mergeable` | string | No | true: only mergeable positions. false: drops mergeable positions from the returned page. |
 | `sortBy` | string | No | Sort field: CURRENT_VALUE \(default\), TOKENS, PRICE, UNREALIZED_PNL, REALIZED_PNL, TOTAL_PNL, or TIMESTAMP |
 | `sortDirection` | string | No | Sort direction \(ASC or DESC\) |
 | `title` | string | No | Search filter by title |

@@ -15,6 +15,11 @@ describe('SSH block agent tool calls', () => {
   })
 })
 
+/** Runs the block mapper as the canvas does (no context) or as an agent tool call for `operation`. */
+function mapParams(params: Record<string, unknown>, operation?: string): Record<string, unknown> {
+  return SSHBlock.tools.config.params(params, operation ? { operation } : undefined)
+}
+
 /** The executor sends `{ ...storedInputs, ...mapped }`, so a value stored for another operation must not leak in. */
 describe('SSH block canvas runs', () => {
   it('does not apply the upload permissions to Create Directory', () => {
@@ -24,7 +29,7 @@ describe('SSH block canvas runs', () => {
       createPath: '/srv/app',
       permissions: '0644',
     }
-    expect({ ...stored, ...SSHBlock.tools.config.params(stored) }.permissions).toBeUndefined()
+    expect({ ...stored, ...mapParams(stored) }.permissions).toBeUndefined()
   })
 
   it('does not apply the Move/Rename overwrite switch to Upload File', () => {
@@ -36,17 +41,13 @@ describe('SSH block canvas runs', () => {
       remotePath: '/srv/a.txt',
       overwrite: false,
     }
-    expect({ ...stored, ...SSHBlock.tools.config.params(stored) }.overwrite).toBeUndefined()
+    expect({ ...stored, ...mapParams(stored) }.overwrite).toBeUndefined()
   })
 
   it('keeps the model permissions and overwrite on an agent tool call', () => {
     const args = { ...CONNECTION, path: '/srv/app', permissions: '0700', overwrite: false }
-    expect(
-      SSHBlock.tools.config.params(args, { operation: 'ssh_create_directory' }).permissions
-    ).toBe('0700')
-    expect(SSHBlock.tools.config.params(args, { operation: 'ssh_upload_file' }).overwrite).toBe(
-      false
-    )
+    expect(mapParams(args, 'ssh_create_directory').permissions).toBe('0700')
+    expect(mapParams(args, 'ssh_upload_file').overwrite).toBe(false)
   })
 
   it('does not send a stored private key once the block is switched to password auth', () => {
@@ -57,7 +58,7 @@ describe('SSH block canvas runs', () => {
       privateKey: 'stale key',
       passphrase: 'stale passphrase',
     }
-    expect({ ...stored, ...SSHBlock.tools.config.params(stored) }).toMatchObject({
+    expect({ ...stored, ...mapParams(stored) }).toMatchObject({
       password: 'pw',
       privateKey: undefined,
       passphrase: undefined,
@@ -71,7 +72,7 @@ describe('SSH block canvas runs', () => {
       authMethod: 'privateKey',
       privateKey: 'key',
     }
-    expect({ ...stored, ...SSHBlock.tools.config.params(stored) }).toMatchObject({
+    expect({ ...stored, ...mapParams(stored) }).toMatchObject({
       privateKey: 'key',
       password: undefined,
     })

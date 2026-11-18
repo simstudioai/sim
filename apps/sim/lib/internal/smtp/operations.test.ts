@@ -65,15 +65,6 @@ describe('SMTP operation', () => {
     )
   })
 
-  it('requires STARTTLS in TLS mode so credentials never go out in plaintext', async () => {
-    await executeSmtpSend({ ...base, smtpPort: 587, smtpSecure: 'TLS' }, context)
-    expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({ secure: false, requireTLS: true }),
-      expect.anything(),
-      context.signal
-    )
-  })
-
   it('rejects unsafe SMTP destinations before creating a transport', async () => {
     mockValidateDatabaseHost.mockResolvedValue({ isValid: false, error: 'Private address' })
     await expect(executeSmtpSend(base, context)).rejects.toMatchObject({

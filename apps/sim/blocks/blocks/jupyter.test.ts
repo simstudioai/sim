@@ -12,12 +12,14 @@ describe('Jupyter block Create Session', () => {
       path: 'analysis.ipynb',
       type: 'file',
     }
-    expect({ ...stored, ...JupyterBlock.tools.config.params(stored) }.type).toBeUndefined()
+    expect(
+      { ...stored, ...JupyterBlock.tools.config.params(stored, undefined) }.type
+    ).toBeUndefined()
   })
 
   it('sends the Session Type field, or the model type on an agent tool call', () => {
     const stored = { ...SERVER, operation: 'jupyter_create_session', sessionType: 'console' }
-    expect(JupyterBlock.tools.config.params(stored).type).toBe('console')
+    expect(JupyterBlock.tools.config.params(stored, undefined).type).toBe('console')
     expect(
       JupyterBlock.tools.config.params(
         { ...SERVER, path: 'a.ipynb', type: 'console' },

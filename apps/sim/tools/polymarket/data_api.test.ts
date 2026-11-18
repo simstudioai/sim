@@ -3,23 +3,28 @@ import { polymarketGetLeaderboardTool } from '@/tools/polymarket/get_leaderboard
 import { polymarketGetPositionsTool } from '@/tools/polymarket/get_positions'
 import { polymarketGetTradesTool } from '@/tools/polymarket/get_trades'
 
-const parseUrl = (url: unknown) => new URL(String(url))
+/** Builds the request URL a tool would call for `params`. */
+function requestUrl<P>(
+  tool: { request: { url: string | ((params: P) => string) } },
+  params: P
+): URL {
+  const { url } = tool.request
+  return new URL(typeof url === 'function' ? url(params) : url)
+}
 
 /** The unversioned Data API v1 routes answer `410 Gone`; every Data tool must call v2. */
 describe('Polymarket Data API v2', () => {
   it('sends v1-style position filters under their v2 names', () => {
-    const url = parseUrl(
-      polymarketGetPositionsTool.request.url({
-        user: '0xabc',
-        market: '0xcond',
-        eventId: '42',
-        sizeThreshold: '5',
-        redeemable: 'true',
-        sortBy: 'CURRENT',
-        limit: '10',
-        cursor: 'next-page',
-      })
-    )
+    const url = requestUrl(polymarketGetPositionsTool, {
+      user: '0xabc',
+      market: '0xcond',
+      eventId: '42',
+      sizeThreshold: '5',
+      redeemable: 'true',
+      sortBy: 'CURRENT',
+      limit: '10',
+      cursor: 'next-page',
+    })
     expect(url.pathname).toBe('/v2/positions')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       user: '0xabc',
@@ -74,9 +79,9 @@ describe('Polymarket Data API v2', () => {
 
   it("returns one wallet's volume rank from the v2 standing object", async () => {
     const params = { user: '0xw', orderBy: 'VOL' }
-    expect(
-      parseUrl(polymarketGetLeaderboardTool.request.url(params)).searchParams.get('sort_by')
-    ).toBe('VOLUME')
+    expect(requestUrl(polymarketGetLeaderboardTool, params).searchParams.get('sort_by')).toBe(
+      'VOLUME'
+    )
     const body = { data: { user_id: '0xw', rank_pnl: 9, rank_volume: 3, volume: 10, pnl: 1 } }
     const result = await polymarketGetLeaderboardTool.transformResponse?.(
       new Response(JSON.stringify(body), { status: 200 }),
@@ -85,5 +90,20 @@ describe('Polymarket Data API v2', () => {
     expect(result?.output.leaderboard).toEqual([
       expect.objectContaining({ rank: '3', proxyWallet: '0xw', vol: 10 }),
     ])
+  })
+
+  it('drops redeemable positions when Non-Redeemable Only is selected', async () => {
+    const body = {
+      data: [
+        { token_id: 'open', redeemable: false, mergeable: false },
+        { token_id: 'settled', redeemable: true, mergeable: false },
+      ],
+      pagination: { has_more: false, next_cursor: null },
+    }
+    const result = await polymarketGetPositionsTool.transformResponse?.(
+      new Response(JSON.stringify(body), { status: 200 }),
+      { user: '0xabc', redeemable: 'false' }
+    )
+    expect(result?.output.positions.map((position) => position.asset)).toEqual(['open'])
   })
 })

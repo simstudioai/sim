@@ -88,13 +88,15 @@ export const polymarketGetPositionsTool: ToolConfig<
     redeemable: {
       type: 'string',
       required: false,
-      description: 'Filter for redeemable positions only (true/false)',
+      description:
+        'true: only redeemable positions. false: drops redeemable positions from the returned page.',
       visibility: 'user-or-llm',
     },
     mergeable: {
       type: 'string',
       required: false,
-      description: 'Filter for mergeable positions only (true/false)',
+      description:
+        'true: only mergeable positions. false: drops mergeable positions from the returned page.',
       visibility: 'user-or-llm',
     },
     sortBy: {
@@ -161,7 +163,7 @@ export const polymarketGetPositionsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: PolymarketGetPositionsParams) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -169,7 +171,7 @@ export const polymarketGetPositionsTool: ToolConfig<
     }
 
     const { rows, page } = readDataPage(data)
-    const positions: PolymarketPosition[] = rows.map((p) => ({
+    const allPositions: PolymarketPosition[] = rows.map((p) => ({
       proxyWallet: (p.proxy_wallet as string) ?? null,
       asset: (p.token_id as string) ?? '',
       conditionId: (p.condition_id as string) ?? '',
@@ -197,6 +199,12 @@ export const polymarketGetPositionsTool: ToolConfig<
       negativeRisk: (p.negative_risk as boolean) ?? false,
       status: (p.status as string) ?? null,
     }))
+    // v2 has no "not redeemable" or "not mergeable" status, so those filters apply to this page.
+    const positions = allPositions.filter(
+      (position) =>
+        !(params?.redeemable === 'false' && position.redeemable) &&
+        !(params?.mergeable === 'false' && position.mergeable)
+    )
 
     return {
       success: true,
