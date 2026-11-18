@@ -260,31 +260,33 @@ function hasRuntimeReference(value: string): boolean {
  * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
  * Each reference written outside a JSON string is replaced by a placeholder so the Table block's
  * own transform reads the literal parts: a quoted string, or a one-item list for slots such as a
- * filter `in`. Every combination is tried while there are few references (otherwise all-string
- * and all-list). A field that is a single whole reference has no literal part, so if no
- * combination fits it is left out and returned in `runtimeFields`. Any other failure, such as
- * malformed JSON or an invalid literal condition, is rethrown. Only this lint-local copy is
- * rewritten; references to string outputs left unquoted are reported by
+ * filter `in`, trying every combination. A field that is a single whole reference has no literal
+ * part, so if no combination fits it is left out and returned in `runtimeFields`. When the search
+ * is exhaustive and still fails, the error comes from the literal parts (malformed JSON, an
+ * invalid literal condition) and is rethrown. Past the search bound that cannot be told apart, so
+ * every reference-bearing field is left out instead and the other inputs are still checked. Only
+ * this lint-local copy is rewritten; references to string outputs left unquoted are reported by
  * `collectUnquotedJsonStringReferences`.
  */
 function normalizeTableInputs(
   transform: (params: Record<string, unknown>) => Record<string, unknown>,
   params: Record<string, unknown>
 ): { normalized: Record<string, unknown>; runtimeFields: string[] } {
-  let hasReference = false
+  const referenceFields: string[] = []
   const wholeReferenceFields: string[] = []
   for (const [key, value] of Object.entries(params)) {
     if (typeof value !== 'string') continue
     const trimmed = value.trim()
     const tokens = findWorkflowReferenceTokens(trimmed)
     if (tokens.length === 0) continue
-    hasReference = true
+    referenceFields.push(key)
     if (tokens.length === 1 && tokens[0].start === 0 && tokens[0].end === trimmed.length) {
       wholeReferenceFields.push(key)
     }
   }
-  if (!hasReference) return { normalized: transform(params), runtimeFields: [] }
+  if (referenceFields.length === 0) return { normalized: transform(params), runtimeFields: [] }
   const tiers = wholeReferenceFields.length > 0 ? [[], wholeReferenceFields] : [[]]
+  let searchBounded = false
   let firstError: unknown
   for (const runtimeFields of tiers) {
     const withPlaceholders = (asList: (ordinal: number) => boolean) => {
@@ -302,22 +304,24 @@ function normalizeTableInputs(
       return { candidate, count: ordinal }
     }
     const { count } = withPlaceholders(() => false)
-    const assignments: Array<(ordinal: number) => boolean> =
-      count <= MAX_PLACEHOLDER_SEARCH_REFERENCES
-        ? Array.from(
-            { length: 2 ** count },
-            (_, mask) => (ordinal) => ((mask >> ordinal) & 1) === 1
-          )
-        : [() => false, () => true]
-    for (const asList of assignments) {
+    if (count > MAX_PLACEHOLDER_SEARCH_REFERENCES) {
+      searchBounded = true
+      continue
+    }
+    for (let mask = 0; mask < 2 ** count; mask++) {
       try {
-        return { normalized: transform(withPlaceholders(asList).candidate), runtimeFields }
+        const { candidate } = withPlaceholders((ordinal) => ((mask >> ordinal) & 1) === 1)
+        return { normalized: transform(candidate), runtimeFields }
       } catch (error) {
         firstError ??= error
       }
     }
   }
-  throw firstError
+  if (!searchBounded) throw firstError
+  const literal = Object.fromEntries(
+    Object.entries(params).filter(([key]) => !referenceFields.includes(key))
+  )
+  return { normalized: transform(literal), runtimeFields: referenceFields }
 }
 
 /** Bounds the placeholder search to 2^6 pure transform calls per Table block. */

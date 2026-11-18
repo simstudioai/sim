@@ -307,6 +307,29 @@ describe('standalone table diagnostics against the actual Table block', () => {
       ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
     })
 
+    it('defers a filter with more mixed references than the placeholder search covers', async () => {
+      const conditions = [
+        ...['a', 'b', 'c', 'd'].map((name) => `{"field":"name","op":"eq","value":<start.${name}>}`),
+        ...['e', 'f', 'g'].map((name) => `{"field":"name","op":"in","value":<start.${name}>}`),
+      ]
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: `{"all":[${conditions.join(',')}]}`,
+          data: '{"name":"Ada","missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(result.notes.filter((note) => note.includes('could not complete'))).toEqual([])
+      expect(result.notes).toContain(
+        'Table inputs in block "write" depend on references resolved at runtime and were not checked: filterInput.'
+      )
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
+    })
+
     it('still reports an invalid literal condition beside a reference', async () => {
       setGraph(
         block('query', {
