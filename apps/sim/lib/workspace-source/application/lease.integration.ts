@@ -18,6 +18,7 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { skillAdapter } from '@/lib/workspace-source/application/kinds/skills/adapter'
+import { toolAdapter } from '@/lib/workspace-source/application/kinds/tools/adapter'
 import {
   sourceChecks,
   sourceRunner,
@@ -169,6 +170,34 @@ describe('workspace source: one apply at a time', () => {
     expect(retried.failed).toBeUndefined()
     expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
   })
+
+  check(
+    'an apply whose lease another apply took over stops as a failure applying again continues',
+    async () => {
+      const workspaceId = await workspaces.create({ name: 'Lease taken over', ownerId })
+      const write = toolAdapter.apply.bind(toolAdapter)
+      vi.spyOn(toolAdapter, 'apply').mockImplementationOnce(async (change, ctx) => {
+        const written = await write(change, ctx)
+        // This apply stalled past its lease, and another apply took the workspace over.
+        await db
+          .update(workspaceSourceApplyLease)
+          .set({ token: generateId() })
+          .where(eq(workspaceSourceApplyLease.workspaceId, workspaceId))
+        return written
+      })
+
+      const stalled = await runner.apply(workspaceId, { files: FIRST })
+      expect(stalled.failed).toMatchObject({ kind: 'skill', key: 'tone', code: 'E_APPLY_FAILED' })
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: [] })
+
+      await db
+        .delete(workspaceSourceApplyLease)
+        .where(eq(workspaceSourceApplyLease.workspaceId, workspaceId))
+      const retried = await runner.apply(workspaceId, { files: FIRST, base: stalled.base })
+      expect(retried.failed).toBeUndefined()
+      expect(await stored(workspaceId)).toEqual({ tools: ['Lookup order'], skills: ['tone'] })
+    }
+  )
 
   check(
     'a live lease refuses an apply, and an expired one (a dead process) is taken over',
