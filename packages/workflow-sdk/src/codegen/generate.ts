@@ -35,9 +35,10 @@ import {
   SDK_GUIDE_FILE,
   SDK_INDEX_FILE,
 } from './layout'
-import { mapSubBlock } from './map-subblock'
+import { mapParamType, mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
+import { RUNTIME_SEMANTICS } from './semantics'
 import {
   buildVisibilityContext,
   classifyParam,
@@ -61,6 +62,7 @@ const CORE_TYPE_NAMES = [
   'Block',
   'BlockMeta',
   'BranchExpression',
+  'CredentialIdValue',
   'CredentialKeyFor',
   'CredentialRef',
   'DocumentTag',
@@ -87,6 +89,7 @@ const CORE_TYPE_NAMES = [
   'SkillRef',
   'Sort',
   'TableData',
+  'TableDataPatch',
   'TablePredicate',
   'TableRef',
   'TableRow',
@@ -365,12 +368,7 @@ function buildParams(
     if (coreParams.has(name)) continue
     const visibility = classifyParam(members, context)
     if (visibility.kind === 'never') continue
-    let type = union(
-      members.flatMap((member) => {
-        const mapped = mapSubBlock(member)
-        return mapped ? [mapped.type] : []
-      })
-    )
+    let type = mapParamType(members)
     if (isTableFilterPair(members)) type = 'Filter | TablePredicate | Template | string'
     if (plan && plan.param.name === name) type = plan.param.type
     else if (plan?.paramOverrides[name]) type = plan.paramOverrides[name]
@@ -399,7 +397,8 @@ function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes 
   }
   const { outputs, nullable } = operationOutputs(block, entry, outputSource(catalog, block, entry))
   const spec = block.dynamicOutputs ?? null
-  const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
+  const plan =
+    spec && !entry.special ? dynamicOutputPlan(spec, outputs, entry.builder.operation) : null
   const { params, gate, candidates, context } = buildParams(block, entry, plan)
   const paramsName = `${entry.typeName}Params`
   const outputName = `${entry.typeName}Output`
@@ -689,6 +688,7 @@ function generateSdkIndex(catalog: BlockCatalog, entries: readonly IndexEntry[])
       '',
       'Find a builder: `grep -i "gmail" .sim/sdk/INDEX.md`. Read its params and outputs: `grep -n -A40 "export type GmailSendEmailParams" .sim/sdk/blocks/gmail_v2.d.ts` (the output type follows as `GmailSendEmailOutput`).',
       '',
+      ...RUNTIME_SEMANTICS,
       '## Builders',
       '',
       ...current.map(line),

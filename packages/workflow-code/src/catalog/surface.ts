@@ -347,6 +347,24 @@ export function isModalPair(field: CatalogField): boolean {
   return field.kind === 'pair' && field.basic !== undefined && field.advanced !== undefined
 }
 
+/**
+ * Whether `subBlock` is the free-text twin of a saved-credential picker: a member of a canonical
+ * pair, among `siblings`, whose other member selects a credential (`manualCredential` beside
+ * `credential`). It holds a credential id, so source writes `credential('key')` or a reference,
+ * template or env variable that yields one at run time, never literal text (the SDK's
+ * `CredentialIdValue`); the printer writes a stored literal id as `raw()`.
+ */
+export function isCredentialIdTwin(
+  subBlock: CatalogSubBlock,
+  siblings: ReadonlyArray<CatalogSubBlock>
+): boolean {
+  const param = subBlock.canonicalParamId
+  if (param === undefined || subBlock.resourceKind === 'credential') return false
+  return siblings.some(
+    (sibling) => sibling.canonicalParamId === param && sibling.resourceKind === 'credential'
+  )
+}
+
 /** The member a group's value lands in for a mode (the printer's effective member). */
 export function memberFor(
   field: Extract<CatalogField, { kind: 'pair' }>,

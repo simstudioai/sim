@@ -10,6 +10,7 @@ import {
   customTool,
   env,
   gmail,
+  human,
   js,
   knowledge,
   knowledgeBase,
@@ -159,17 +160,60 @@ export default workflow('Rejected', {}, () => {
   table.insertRow('Bad score', {
     tableId: table('leads'),
     // @ts-expect-error `score` is a number column
-    data: { score: 'high' },
+    data: { email: 'a@b.co', score: 'high' },
   })
   table.insertRow('Bad status', {
     tableId: table('leads'),
     // @ts-expect-error `closed` is not an option of the `status` select column
-    data: { status: 'closed' },
+    data: { email: 'a@b.co', status: 'closed' },
   })
   table.insertRow('Good row', {
     tableId: table('leads'),
     data: { email: start.subject, status: 'new', score: null },
   })
+
+  // A whole-row write holds every required column; an update merges a patch over the stored row.
+  table.insertRow('No email', {
+    tableId: table('leads'),
+    // @ts-expect-error `email` is a required column of leads
+    data: { status: 'new' },
+  })
+  table.upsertRow('Upsert no email', {
+    tableId: table('leads'),
+    // @ts-expect-error an upsert checks the whole row, so `email` is required
+    data: { score: 3 },
+  })
+  table.batchInsertRows('Batch no email', {
+    tableId: table('leads'),
+    // @ts-expect-error every inserted row needs `email`
+    rows: [{ status: 'new' }],
+  })
+  table.insertRow('Null email', {
+    tableId: table('leads'),
+    // @ts-expect-error a required column cannot be null
+    data: { email: null },
+  })
+  table.updateRowById('Patch', { tableId: table('leads'), rowId: 'r1', data: { score: 2 } })
+
+  // A credential field takes credential('key') or a run-time id, never literal text.
+  slack.sendMessage('Literal token', {
+    // @ts-expect-error a pasted token is literal text
+    credential: 'xoxb-1234-5678-literaltoken',
+    channel: 'C1',
+    text: 'x',
+  })
+  slack.sendMessage('Credential id from input', {
+    credential: start.subject,
+    channel: 'C1',
+    text: 'x',
+  })
+  slack.sendMessage('Credential id from env', { credential: env.CRM_KEY, channel: 'C1', text: 'x' })
+
+  // A human-in-the-loop submission holds the fields its form declares.
+  const review = human('Review', { inputFormat: { approved: { type: 'boolean', required: true } } })
+  review.submission.approved satisfies Ref<boolean>
+  // @ts-expect-error `aproved` is not a field of the review form
+  t`${review.submission.aproved}`
 
   // A credential for another provider than the block's service.
   slack.sendMessage('Wrong credential', {

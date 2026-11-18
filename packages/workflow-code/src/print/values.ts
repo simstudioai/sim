@@ -29,6 +29,11 @@ export interface FieldContext {
    */
   variablesField?: boolean
   subBlock?: CatalogSubBlock
+  /**
+   * The free-text twin of a credential picker (`isCredentialIdTwin`), whose type takes no literal
+   * text: a stored literal id prints as `raw('…')`, which compiles back to the same text.
+   */
+  credentialId?: boolean
 }
 
 export interface PrintedValue extends Expr {
@@ -74,6 +79,9 @@ export class ValuePrinter {
       !subBlock.options.some((option) => option.id === value)
     ) {
       return this.call('raw', [this.string(value)])
+    }
+    if (context.credentialId === true && typeof value === 'string' && value !== '') {
+      return this.text(value, context, true)
     }
     return this.value(value, context)
   }
@@ -128,7 +136,8 @@ export class ValuePrinter {
     return this.call('raw', [this.json(simNodeJson(node))])
   }
 
-  private text(text: string, context: FieldContext): PrintedValue {
+  /** Text with its references; plain text is a string, or `raw()` of one when `rawPlain`. */
+  private text(text: string, context: FieldContext, rawPlain = false): PrintedValue {
     const parts = this.refs.parts(text, context.from)
     const hasRef = parts.some((part) => part.kind === 'ref')
     const [only] = parts
@@ -145,7 +154,7 @@ export class ValuePrinter {
       if (sugar !== undefined) return this.json(sugar)
     }
     const tagged = context.tag !== 't' || hasRef
-    if (!tagged) return this.string(text)
+    if (!tagged) return rawPlain ? this.call('raw', [this.string(text)]) : this.string(text)
     const tag = context.tag
     this.use(tag)
     const body: Doc[] = parts.map((part) =>

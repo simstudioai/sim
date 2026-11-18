@@ -1,0 +1,29 @@
+/**
+ * The "How it runs" section of `INDEX.md`: run-time behaviour the types cannot show and an author
+ * would otherwise guess. Each item restates what the code does today, so a change there must
+ * update it:
+ *
+ * - retries: `apps/sim/tools/index.ts` (`getRetryConfig` and the request loop),
+ *   `apps/sim/executor/execution/block-executor.ts` (`runHandlerWithRetry`),
+ *   `apps/sim/lib/workflows/blocks/retry-eligibility.ts`;
+ * - `onError`: `block-executor.ts` (`handleBlockError`), `executor/execution/edge-manager.ts`
+ *   (`shouldActivateEdge`), `executor/orchestrators/loop.ts` (`storeLoopNodeOutput`);
+ * - joins: `edge-manager.ts` (`processOutgoingEdges`, `isNodeReady`);
+ * - outputs in function code: `executor/variables/resolver.ts` (`resolveCodeWithContextVars`,
+ *   `formatContextVariableReference`);
+ * - MCP headers: `packages/workspace-code/src/kinds/mcp.ts` (`readHeaderValue`),
+ *   `apps/sim/lib/mcp/resolve-config.ts`;
+ * - MCP tool names: `codegen/workspace.ts` (`mcpServers`), the MCP workspace-source adapter's
+ *   `checkRefs`, `executor/handlers/agent/handler.ts` (`processMcpToolsBatched`).
+ */
+export const RUNTIME_SEMANTICS: readonly string[] = [
+  '## How it runs',
+  '',
+  "- **Two retries, nested.** An `api` block's `retries`, `retryDelayMs` and `retryMaxDelayMs` repeat the HTTP request inside one run of the block: only after a timeout, a connection reset, a 429 or a 5xx, only for GET, HEAD, PUT and DELETE unless `retryNonIdempotent: true`, with jittered exponential backoff capped at `retryMaxDelayMs` (a `Retry-After` beyond the cap ends the retries). `meta.retry` (`{ enabled, maxTries, waitBetweenTriesMs }`) reruns the whole block, request retries included, after any failure but a stop or a failed child workflow; `maxTries` counts every try. So `retries: 2` under `maxTries: 3` sends up to 9 requests. Only the last try's failure reaches `onError`. Triggers and `human` never retry.",
+  "- **`onError`.** `x.onError(y)` makes a failure of `x` an output, `{ error: '<message>' }`, and runs `y` instead of `x`'s other targets; the run goes on. In a loop or parallel body (`y` must be in the same body) the iteration ends normally and the loop moves to the next item, with that error output as `x`'s entry for the iteration. Without `onError`, a failure in any iteration fails the run and stops the loop.",
+  '- **Joins run once.** A block with several incoming edges runs once, after every one of them has fired or been ruled out (a condition or router branch not taken, the normal edge of a block that failed into `onError`). `a.to(join)`, `b.to(join)`, `c.to(join)` wait for all three; behind a condition only the taken branch fires, and the join runs once after it. A block never runs once per incoming branch.',
+  "- **Outputs in function code.** In `fn` code, `\u0024{a.content}` inside js`` is not spliced in as text: it becomes an expression that evaluates to the output's value, a string as a string and an object as an object. Write it where an expression goes (`const reply = \u0024{a.content}`, `[\u0024{a.content}, \u0024{b.content}]`) and never wrap it in quotes. Written inside a JavaScript string or template literal it splices in as JSON, quotes included (`'Hi \u0024{a.content}'` gives `Hi \"hello\"`). Python code works the same way.",
+  "- **MCP headers** (`mcp/<key>.ts`). A header value is plain text in which `{{NAME}}` names an env variable anywhere (`Authorization: 'Bearer {{GITHUB_TOKEN}}'`), `env.NAME` for a whole value, or `stored()` to keep the value the server holds. A `t` template or a template literal with `\u0024{}` is refused. A credential header (`Authorization`, `Cookie`, or a name with `key`, `token`, `secret`, `auth`, `password`, `session`, `signature` or `credential`) holds nothing but an optional scheme word (`Bearer`, `Basic`, `Token`, `Bot`, `ApiKey`) and `{{NAME}}` references (`E_MCP_LITERAL_SECRET`). The variables resolve when the server connects, from the personal and workspace env (the workspace value wins); a missing one fails the connection.",
+  "- **MCP tool names are checked late.** `mcp('k').tool('name')` is type-checked only when `workspace.d.ts` lists that server's tools; a server that could not be listed, or one declared but not yet applied, takes any name. `sim workflows source check` and `sim workflows source apply` do not check tool names (the apply checks only that the server exists). `sim workspaces source apply` checks the tools of each workflow it changes against the server's live listing (`E_MCP_TOOL_UNKNOWN`, or `W_MCP_TOOLS_UNCHECKED` when it cannot list the server). Otherwise a wrong name surfaces at run time: the agent block fails before the model runs, `MCP operation \"name\" is missing or not permitted`.",
+  '',
+]
