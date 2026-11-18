@@ -80,7 +80,9 @@ else one is created. A stored resource with no base entry is a no-op when it mat
 `no-base` (get first) otherwise.
 
 Undeclared resources (`planUndeclared`, `application/findings.ts`): only one the base records is
-deleted, and only with `--allow-delete`; anything else is kept and named in a warning.
+deleted, and only with `--allow-delete`; anything else is kept and named in a warning. The same
+flag passes through to each workflow folder's apply, which refuses deleting a block without it
+(`E_APPLY_BLOCK_DELETE`).
 
 **`canonical()` is load-bearing.** A field missing from it fingerprints an edit as equal to the
 base, so the rule calls it `noop` and drops the edit with no finding. Every declared field must

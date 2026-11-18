@@ -73,7 +73,9 @@ materialize. There is no separate draft type: compile returns a CWM, and ids bin
 materialize.
 
 - `meta`: the workflow row's `name` and `description` (`WorkflowState` does not carry them).
-  Apply never writes them to an existing workflow; a difference becomes a note.
+  Apply never writes them to an existing workflow; a source that changes them is refused with
+  `E_APPLY_META_CHANGED` (rename through the workflow's settings), so the edit is never dropped
+  silently.
 - `blocks[key]`: `name`, `type` (including legacy and `custom_block_<slug>`), `parent`, `enabled`,
   `locked`, `triggerMode`, `advancedMode` (semantic: it changes what serializes),
   `errorPort` (`errorEnabled || has an error edge`), `retry` (raw `BlockRetryConfig`), `params`,
@@ -309,6 +311,19 @@ catalog fields, fills defaults, resolves `stored()` from `CompileInput.stored`, 
 (anchor → source span) so later server findings map back to lines. Diagnostics carry `span` and a
 code `frame`; Babel's 0-based columns become 1-based, and lines split the way Babel does.
 
+Compile also refuses or flags source the runtime would silently mishandle:
+
+- wiring that closes a cycle among enabled blocks, a self-loop included, is `E_EDGE_CYCLE`: the
+  executor makes a block wait on every incoming edge, so no block on a cycle runs (a disabled block
+  is not in the run graph and breaks one); repetition is `loop()`/`parallel()`. A cycle made only
+  of edges the stored workflow holds is `W_EDGE_CYCLE`, so stored state keeps round-tripping;
+- a reference into an agent whose `responseFormat` declares its fields names a declared field or
+  a static output (`W_UNKNOWN_OUTPUT_PATH` otherwise); a format with references inside is unread;
+- a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does
+  not list `W_UNKNOWN_MODEL` (free text stays valid), and an unknown `operation`
+  `E_UNKNOWN_OPERATION` unless the stored block already holds it;
+- a new block of a legacy or deprecated type is `W_LEGACY_BLOCK_TYPE`, naming its replacement.
+
 ## Materialize
 
 `materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness })` →
@@ -359,12 +374,23 @@ as written (`table_v2`'s filter builder).
 
 ## Secrets
 
-A secret is never printed. Literal text in a `password` subBlock (params and tool params alike)
-prints as `stored()`, meaning "keep the stored value". `{{ENV}}` and references print as themselves.
-Compile resolves `stored()` to the value `CompileInput.stored` (the stored workflow, canonicalized
-under the submitted lock) holds for the same block key, type and param, a pair's members and mode
-included. A new block, another type or an empty field is `E_STORED_VALUE_MISSING`; `stored()` nested
-inside a value is `E_UNSUPPORTED_SYNTAX`. Without `stored` (a create), `stored()` is refused.
+A secret is never printed. `secrets.ts` holds the one predicate print and compile share
+(`holdsSecret`): literal text in a `password` subBlock, or in any other field a high-confidence
+credential (`holdsDetectedSecret`): a known token format (`sk-…`, `ghp_…`, `xoxb-…`, `AKIA…`, a
+JWT, a private key, `Bearer <token>`), a credential header row (`Authorization`, `X-Api-Key`), a
+credential-named property, code assignment or URL query parameter (`api_key`, `client_secret`,
+`password`, `token`) holding a non-placeholder literal, or a URL's userinfo password. Reference and
+`{{ENV}}` tokens never count, so `Bearer {{TOKEN}}` is not a secret; placeholders (`YOUR_API_KEY`,
+`********`) are not either. Every scan is linear in the text.
+
+Such a param (block params, agent tool params and MCP tool arguments alike) prints as `stored()`,
+meaning "keep the stored value", with `W_LITERAL_SECRET`; compile warns the same way where source
+writes one literally. A custom tool snapshot's code has no `stored()` form, so a credential there
+only warns. Compile resolves `stored()` to the value `CompileInput.stored` (the stored workflow,
+canonicalized under the submitted lock) holds for the same block key, type and param, a pair's
+members and mode included, so a get followed by an unchanged apply keeps the value. A new block,
+another type or an empty field is `E_STORED_VALUE_MISSING`; `stored()` nested inside a value is
+`E_UNSUPPORTED_SYNTAX`. Without `stored` (a create), `stored()` is refused.
 
 ## Code files
 
@@ -414,8 +440,17 @@ deploy is separate.
 2. compile against the workflow's source catalog with `knownKeys` and `stored`; on errors, add
    `W_APPLY_CATALOG_MOVED` when `base.catalogHash` differs from the current catalog;
 3. resolve or allocate resource keys the source names; set `lockFreshness`;
-4. materialize over the stored graph; drop lock ids another workflow holds and re-materialize;
+4. materialize over the stored graph; drop lock ids another workflow holds and re-materialize; on
+   `E_MAT_UNKNOWN_RESOURCE`, load the keys of the missing kinds (`ResourceKeyResolver.keysOf`) and
+   re-materialize so the finding lists them with a did-you-mean;
 5. gates, each refusal an error so nothing is written:
+   - deleted blocks: an apply that removes a block the source no longer declares is
+     `E_APPLY_BLOCK_DELETE` (naming them) unless the caller passes `allowDelete` (`--allow-delete`,
+     which a workspace apply passes through), as a workspace apply refuses a resource delete;
+   - a changed name or description is `E_APPLY_META_CHANGED`;
+   - schedules (`code/apply/schedules.ts`): an added or changed enabled schedule whose timing deploy
+     would refuse (`validateScheduleBlock`: a malformed cron, an unknown timezone, an out-of-range
+     interval) is `E_APPLY_INVALID_SCHEDULE`; a draft still missing a field is left to deploy;
    - locked blocks (`code/apply/locked.ts`): any change to a locked block or a child of a locked
      container is `E_APPLY_LOCKED_BLOCK`, admins included;
    - the editing engine's per-user gates on added and changed blocks (`code/apply/gates.ts`):

@@ -8262,6 +8262,7 @@ sim workflows source apply <workflowId> [options]
 | `--dir <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
+| `--allow-delete` | No | Delete blocks the source no longer declares; without it, an apply that deletes a block is refused. |
 
 </CommandTable>
 

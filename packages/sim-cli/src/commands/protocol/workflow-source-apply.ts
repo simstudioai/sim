@@ -70,6 +70,7 @@ interface SourceWriteOptions {
   dir: string
   dryRun?: boolean
   yes?: boolean
+  allowDelete?: boolean
 }
 
 /** The text of a file the directory must hold, or a refusal that says how to write it. */
@@ -205,9 +206,13 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
   const send = async (dryRun: boolean): Promise<SourceApplyData> => {
     try {
+      const query = {
+        ...(dryRun ? { dryRun: true } : {}),
+        ...(options.allowDelete ? { allowDelete: true } : {}),
+      }
       const response = await args.client.request<ApplyWorkflowSourceResponse>(args.operation, {
         params: args.params,
-        ...(dryRun ? { query: { dryRun: true } } : {}),
+        ...(Object.keys(query).length > 0 ? { query } : {}),
         body: args.body,
       })
       return response.data
@@ -262,6 +267,10 @@ export function attachWorkflowSourceApply(source: Command): void {
     .requiredOption('--dir <dir>', DIR_DESCRIPTION)
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
     .option('-y, --yes', 'Apply without asking for confirmation')
+    .option(
+      '--allow-delete',
+      'Delete blocks the source no longer declares; without it, an apply that deletes a block is refused'
+    )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
     .addHelpText('after', APPLY_EXIT_CODES_HELP)

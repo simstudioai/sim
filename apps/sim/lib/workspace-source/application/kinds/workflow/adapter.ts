@@ -105,6 +105,8 @@ type StoredWorkflowState = null
 interface WorkflowPlan {
   lock: WorkflowLockV1
   base: SourceBase
+  /** The apply's `--allow-delete`, which also lets a workflow's apply delete its blocks. */
+  allowDelete: boolean
 }
 
 type WorkflowChange = PlannedChange<WorkflowDecl, WorkflowPlan>
@@ -240,6 +242,7 @@ async function planWorkflow(
           files: decl.files,
           lock: read.lock,
           base,
+          allowDelete: ctx.allowDelete,
           dryRun: true,
           pendingResources: pending,
         },
@@ -253,7 +256,7 @@ async function planWorkflow(
         storedId: existing.id,
         fields: metaOnly ? ['names, order or comments'] : diffFields(result.diff),
         refs: sourceRefs(result.references),
-        detail: { lock: read.lock, base },
+        detail: { lock: read.lock, base, allowDelete: ctx.allowDelete },
       }
     }
     const result = await createWorkflowFromSource.execute({

@@ -15,7 +15,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, slugify } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -423,6 +423,38 @@ export async function resolveIds(
     })
   )
   return new Map(byKind.filter((entry) => entry !== null))
+}
+
+/**
+ * The keys bound to live resources of `kind` in `workspaceId`, sorted, at most `limit` of them:
+ * what a source could name instead of a key that resolves to nothing. Never allocates.
+ */
+export async function listLiveKeys(
+  workspaceId: string,
+  kind: ResourceKind,
+  options: ResourceKeyOptions & { limit: number }
+): Promise<Array<{ key: string; resourceId: string }>> {
+  if (!LIVE_RESOURCE_LOADERS[kind]) return []
+  const executor = options.executor ?? db
+  const rows = await executor
+    .select({ key: workspaceResourceKey.key, resourceId: workspaceResourceKey.resourceId })
+    .from(workspaceResourceKey)
+    .where(
+      and(eq(workspaceResourceKey.workspaceId, workspaceId), eq(workspaceResourceKey.kind, kind))
+    )
+    .orderBy(asc(workspaceResourceKey.key))
+    .limit(options.limit)
+  const live = new Set(
+    (
+      await loadLiveResources(
+        executor,
+        workspaceId,
+        kind,
+        rows.map((row) => row.resourceId)
+      )
+    ).map((row) => row.id)
+  )
+  return rows.filter((row) => live.has(row.resourceId))
 }
 
 /** Another live resource of the kind holds the key a source claims. */

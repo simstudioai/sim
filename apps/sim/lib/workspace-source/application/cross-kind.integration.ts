@@ -163,7 +163,11 @@ const EDITS: Record<string, { path: string; from: string; to: string }> = {
     from: "name: 'Policies'",
     to: "name: 'Policies', description: 'Edited'",
   },
-  'workflow:ingest': { path: 'workflows/ingest/workflow.ts', from: "'Ingest'", to: "'Ingest v2'" },
+  'workflow:ingest': {
+    path: 'workflows/ingest/workflow.ts',
+    from: "{ email: 'string' }",
+    to: "{ email: 'string', name: 'string' }",
+  },
 }
 
 interface Directory {
@@ -849,8 +853,8 @@ export default workflow('Answer', {}, () => {
         Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
       ),
       'workflows/ingest/workflow.ts': TEXT['workflows/ingest/workflow.ts'].replace(
-        "'Ingest'",
-        "'Ingest v2'"
+        "{ email: 'string' }",
+        "{ email: 'string', name: 'string' }"
       ),
     }
     const authorize = vi.spyOn(deleteTableUseCase, 'authorize')
