@@ -585,18 +585,26 @@ async function refusing(
 }
 
 /**
- * Refuses every planned delete when, with the workflows this apply creates, they would leave the
- * workspace no live workflow: the delete use case refuses its last workflow, so the plan says so
- * before anything is written. Creates are written before deletes, so a create counts.
+ * Refuses every planned workflow delete when, with the workflows this apply creates, they would
+ * leave the workspace no live workflow: the delete use case refuses its last workflow, so the plan
+ * says so before anything is written. Creates are written before deletes, so a create counts, but
+ * only one that will be written: the plan runs this after holding back changes, and a create held
+ * or carrying an error writes nothing.
  */
-async function refuseDeletingEveryWorkflow(
-  changes: WorkflowChange[],
-  ctx: PlanContext
+export async function refuseDeletingEveryWorkflow(
+  changes: readonly PlannedChange[],
+  workspaceId: string
 ): Promise<void> {
-  const deletes = changes.filter((change) => change.action === 'delete')
+  const workflows = changes.filter((change) => change.kind === 'workflow')
+  const deletes = workflows.filter((change) => change.action === 'delete')
   if (deletes.length === 0) return
-  const created = changes.filter((change) => change.action === 'create').length
-  const live = await countLiveWorkflows(ctx.workspace.workspaceId)
+  const created = workflows.filter(
+    (change) =>
+      change.action === 'create' &&
+      !change.held &&
+      !change.diagnostics.some((finding) => finding.severity === 'error')
+  ).length
+  const live = await countLiveWorkflows(workspaceId)
   if (live + created - deletes.length >= 1) return
   for (const change of deletes) {
     change.action = 'noop'
@@ -727,7 +735,6 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         }
       )
     )
-    await refuseDeletingEveryWorkflow(changes, ctx)
     return changes
   },
 
