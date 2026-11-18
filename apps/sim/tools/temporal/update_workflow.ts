@@ -15,6 +15,7 @@ import {
   workflowExecutionRef,
 } from '@/tools/temporal/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateWorkflowTool: ToolConfig<
   TemporalUpdateWorkflowParams,
@@ -74,7 +75,7 @@ export const updateWorkflowTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/update/${encodeURIComponent(params.updateName.trim())}`,
+      `${temporalWorkflowUrl(params.serverUrl, params.namespace, params.workflowId)}/update/${safeUrlPathSegment(params.updateName, 'updateName', { allowSeparators: true })}`,
     method: 'POST',
     headers: (params) => temporalRequestHeaders(params),
     body: (params) => {

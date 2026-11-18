@@ -5,6 +5,7 @@ import {
   createVersionedToolSelector,
   mapperOperation,
   normalizeFileInput,
+  toolCallArg,
   withSavedCredential,
 } from '@/blocks/utils'
 
@@ -342,7 +343,7 @@ export const JupyterBlock = {
             baseParams.path = params.path
             if (params.kernelName) baseParams.kernelName = params.kernelName
             if (params.sessionName) baseParams.name = params.sessionName
-            if (params.sessionType) baseParams.type = params.sessionType
+            baseParams.type = params.sessionType || toolCallArg(context, params.type)
             break
           case 'jupyter_delete_session':
             baseParams.sessionId = params.sessionId

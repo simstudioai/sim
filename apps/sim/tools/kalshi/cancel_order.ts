@@ -2,6 +2,7 @@ import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
@@ -45,10 +46,11 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     },
 
     request: {
-      url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
+      url: (params) =>
+        buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
       method: 'DELETE',
       headers: (params) => {
-        const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
+        const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
         return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
       },
     },
@@ -160,10 +162,11 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
+    url: (params) =>
+      buildKalshiUrl(`/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`),
     method: 'DELETE',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
+      const path = `/trade-api/v2/portfolio/orders/${safeUrlPathSegment(params.orderId, 'orderId')}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
     },
   },

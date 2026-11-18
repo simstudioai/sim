@@ -1,6 +1,7 @@
 import type { KalshiSeries } from '@/tools/kalshi/types'
 import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiGetSeriesByTickerParams {
   seriesTicker: string
@@ -33,7 +34,7 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return buildKalshiUrl(`/series/${params.seriesTicker.trim()}`)
+      return buildKalshiUrl(`/series/${safeUrlPathSegment(params.seriesTicker, 'seriesTicker')}`)
     },
     method: 'GET',
     headers: () => ({
@@ -132,7 +133,9 @@ export const kalshiGetSeriesByTickerV2Tool: ToolConfig<
       if (params.includeVolume) queryParams.append('include_volume', params.includeVolume)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/series/${params.seriesTicker.trim()}`)
+      const url = buildKalshiUrl(
+        `/series/${safeUrlPathSegment(params.seriesTicker, 'seriesTicker')}`
+      )
       return query ? `${url}?${query}` : url
     },
     method: 'GET',
