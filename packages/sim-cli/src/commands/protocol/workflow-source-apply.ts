@@ -10,7 +10,6 @@ import {
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
-import { SOURCE_STALE_EXIT_CODE, SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type {
   ApplyWorkflowSourceBody,
   ApplyWorkflowSourceResponse,
@@ -28,7 +27,14 @@ import {
   sourceRelativePath,
   writeBack,
 } from './source-dir'
-import { confirm, fresh, printNewDiagnostics, printRefusal, requireConsent } from './source-ui'
+import {
+  confirm,
+  fresh,
+  printNewDiagnostics,
+  printRefusal,
+  refusedExitCode,
+  requireConsent,
+} from './source-ui'
 import {
   refreshWorkflowTsconfigs,
   writeSourceDirectory,
@@ -53,23 +59,7 @@ is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was 
 minute and run it again.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
-type Diagnostic = SourceApplyData['diagnostics'][number]
 
-/**
- * The exit status of a dry run that found errors, matching the status a commit's refusal maps to:
- * 7 when a size limit refused the source (a commit answers `413`), 5 when the workflow changed
- * since the directory was read (a commit answers `409 SOURCE_STALE`), else 1.
- */
-function refusedExitCode(diagnostics: Diagnostic[]): number {
-  const codes = new Set(
-    diagnostics
-      .filter((diagnostic) => diagnostic.severity === 'error')
-      .map((diagnostic) => diagnostic.code)
-  )
-  if (codes.has('E_LIMIT_EXCEEDED')) return SOURCE_TOO_LARGE_EXIT_CODE
-  if (codes.has('E_APPLY_STALE')) return SOURCE_STALE_EXIT_CODE
-  return 1
-}
 type SourceBase = ApplyWorkflowSourceBody['base']
 
 interface SourceWriteOptions {

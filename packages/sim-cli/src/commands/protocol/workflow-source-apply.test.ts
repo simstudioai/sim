@@ -282,6 +282,24 @@ describe('sim workflows source apply', () => {
     expect(process.exitCode).toBe(7)
   })
 
+  it.each([
+    [['E_APPLY_LOCKED'], 6],
+    [['E_LIMIT_EXCEEDED', 'E_APPLY_STALE'], 5],
+    [['E_LIMIT_EXCEEDED', 'E_APPLY_LOCKED'], 6],
+  ])('exits a dry run refused with %j as the workspace apply does', async (codes, exitCode) => {
+    setTerminal(false)
+    request.mockResolvedValue(
+      outcome({
+        dryRun: true,
+        diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
+      })
+    )
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(process.exitCode).toBe(exitCode)
+  })
+
   it('names each modified block and its changed fields in the result and the preview', async () => {
     setTerminal(true)
     const modified = outcome({ dryRun: true })

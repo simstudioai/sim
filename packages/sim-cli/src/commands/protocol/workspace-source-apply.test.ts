@@ -251,6 +251,32 @@ describe('workspaces source apply', () => {
     })
   })
 
+  it.each([
+    ['E_APPLY_STALE', 5],
+    ['E_APPLY_LOCKED', 6],
+    ['E_APPLY_FORBIDDEN', 1],
+    ['E_APPLY_REFUSED', 1],
+    ['E_LIMIT_EXCEEDED', 7],
+  ])('exits a part-way apply refused with %s as that refusal, not 8', async (code, exitCode) => {
+    request.mockResolvedValue(
+      answer({
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create' },
+          { kind: 'workflow', key: 'ingest', action: 'update' },
+        ],
+        applied: [{ kind: 'table', key: 'leads', action: 'create', id: 'tbl_1' }],
+        failed: { kind: 'workflow', key: 'ingest', code, message: code },
+        files: { 'tables/leads.ts': `${LEADS}// stored\n` },
+        base: { ...BASE, resources: { 'table:leads': { id: 'tbl_1' } } },
+      })
+    )
+
+    await apply('--yes')
+
+    expect(process.exitCode).toBe(exitCode)
+    expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// stored\n`)
+  })
+
   it('stages only the blobs the base does not hold, then applies once naming them by hash', async () => {
     write('files/a.bin', Buffer.from([1, 2, 3]))
     write('files/b.bin', Buffer.from([4, 5]))

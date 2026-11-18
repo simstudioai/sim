@@ -6,6 +6,7 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
+import { type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
 import { embedStore } from '../../embed-context'
 import {
@@ -33,6 +34,29 @@ type Diagnostic = Omit<WorkflowDiagnostic, 'code'> & {
 const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
   413: SOURCE_TOO_LARGE_EXIT_CODE,
   423: SOURCE_LOCKED_EXIT_CODE,
+}
+
+/** The exit status of each refusal class, as a commit refused for it maps to it: 5, 6, 7, else 1. */
+const REFUSAL_CLASS_EXIT_CODES: Readonly<Record<RefusalClass, number>> = {
+  conflict: SOURCE_STALE_EXIT_CODE,
+  locked: SOURCE_LOCKED_EXIT_CODE,
+  payload_too_large: SOURCE_TOO_LARGE_EXIT_CODE,
+  validation: 1,
+}
+
+/**
+ * The exit status of findings that refuse a write, the same for `workflows source` and
+ * `workspaces source` and for a dry run and a commit: the status of their most specific class
+ * (`refusalClass`).
+ */
+export function refusedExitCode(
+  diagnostics: ReadonlyArray<Pick<Diagnostic, 'code' | 'severity'>>
+): number {
+  return REFUSAL_CLASS_EXIT_CODES[
+    refusalClass(
+      diagnostics.filter((finding) => finding.severity === 'error').map((finding) => finding.code)
+    )
+  ]
 }
 
 function formatDiagnostic(diagnostic: Diagnostic): string {
