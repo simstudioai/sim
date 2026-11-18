@@ -22,6 +22,8 @@ vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
 import { registryCatalog as catalog } from '@/lib/workflows/code/catalog/registry-catalog.test-helpers'
+import { generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { CORPUS_RESOURCES } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { typeCheckAgainstSdk, writeSdkTypes } from '@/lib/workflows/code/sdk-typecheck.test-helpers'
 
@@ -233,5 +235,28 @@ export default workflow('Nightly', {}, () => {
     const codes = (text: string) => compile(text).diagnostics.map((d) => `${d.severity}:${d.code}`)
     expect(codes(schedule(''))).toEqual(['info:I_SCHEDULE_UTC'])
     expect(codes(schedule(", timezone: 'America/New_York'"))).toEqual([])
+  }, 120_000)
+
+  it('reads the corpus agent with every kind of tool back through each tool form', () => {
+    const subject = generateRegistryCorpus().find(
+      (corpusCase) => corpusCase.id === 'agent-tools:agent:every-kind'
+    )
+    if (!subject) throw new Error('missing corpus case')
+    const workflow = canonicalize(subject.state, {
+      catalog,
+      meta: { name: 'Tools', description: null },
+      resources: CORPUS_RESOURCES,
+    }).workflow
+    const [entry] = printWorkflow({ workflow, catalog, options: { functionCode: 'inline' } }).files
+    for (const form of [
+      'slack.tool.sendMessage(',
+      "customTool('corpus-custom-tool'",
+      '.tool(',
+      'childWorkflow(',
+    ]) {
+      expect(entry.text).toContain(form)
+    }
+    expect(entry.text).not.toContain('modes:')
+    expect(typeCheck('every-tool', entry.text)).toBe('')
   }, 120_000)
 })

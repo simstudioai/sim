@@ -72,6 +72,9 @@ const SERIALIZING_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['P2', 'O2'])
 
 const subjects: ProofSubject[] = corpusSubjects()
 
+/** Cases the registry corpus generates from one block's declarations, every value one it can hold. */
+const REGISTRY_CASE = /^(operation|trigger|standalone-advanced|error-edge):/
+
 const report = createProofReport(SUITE)
 
 const serializer = new Serializer()
@@ -310,6 +313,69 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
       corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
     )
   }
+
+  it(
+    'compiles every printed registry case without placing a value where it does not apply',
+    () => {
+      const misplaced = subjects
+        .filter((subject) => REGISTRY_CASE.test(subject.id))
+        .flatMap((subject) =>
+          sourceRun(subject)
+            .compiled.diagnostics.filter((d) => d.code === 'W_FIELD_NOT_APPLICABLE')
+            .map((d) => `${subject.id}: ${d.param}`)
+        )
+      expect(misplaced).toEqual([])
+    },
+    corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
+  )
+
+  it(
+    'applies printed source as a new workflow, then re-applies it as a no-op',
+    () => {
+      const notNoop: string[] = []
+      let applied = 0
+      for (const subject of subjects) {
+        if (subject.unknownTypes) continue
+        const [entry, ...codeFiles] = sourceRun(subject).printed.files
+        const files = new Map(codeFiles.map((file) => [file.path, file.text]))
+        const first = compileWorkflow({ entry, files, catalog, sdkMajor: catalog.sdkMajor })
+        // `stored()` keeps a value only a stored workflow holds; a fresh apply refuses it.
+        if (!first.workflow || first.diagnostics.some((d) => d.severity === 'error')) continue
+        applied++
+        const stored = materialized(first.workflow)
+        const base = canonicalize(stored, {
+          catalog,
+          meta: first.workflow.meta,
+          resources: CORPUS_RESOURCES,
+        }).workflow
+        const again = compileWorkflow({
+          entry,
+          files,
+          catalog,
+          sdkMajor: catalog.sdkMajor,
+          knownKeys: new Set(Object.keys(base.blocks)),
+          stored: base,
+        })
+        if (!again.workflow) {
+          notNoop.push(`${subject.id}: re-compile failed`)
+          continue
+        }
+        const written = materialize(again.workflow, null, {
+          catalog,
+          hooks,
+          prev: stored,
+          resources: CORPUS_RESOURCES,
+          lockFreshness: 'none',
+        })
+        const diff = diffCanonical(base, { ...written.workflow, meta: base.meta }, new Map())
+        const identity = assertNoopIdentity({ original: stored, materialized: written.state })
+        if (!diff.noop || !identity.ok) notNoop.push(subject.id)
+      }
+      expect(applied).toBeGreaterThan(subjects.length / 2)
+      expect(notNoop).toEqual([])
+    },
+    corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
+  )
 
   it.each(generateRejectedCorpus())('rejects $id with $code instead of round-tripping', (c) => {
     const subject: ProofSubject = { id: c.id, blockTypes: [], state: c.state }
