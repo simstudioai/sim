@@ -318,7 +318,7 @@ function withReferencePlaceholders(json: string): { value: string; runtimeOnly: 
     typeof node === 'string' && references.has(node)
   const isDynamic = (node: unknown): boolean => {
     if (isPlaceholder(node)) return true
-    if (!isPlainRecord(node)) return false
+    if (!isPlainRecord(node) || Object.keys(node).length !== 1) return false
     const members = node.all ?? node.any
     return Array.isArray(members) && members.length > 0 && members.every(isDynamic)
   }

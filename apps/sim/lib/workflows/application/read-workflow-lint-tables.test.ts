@@ -361,6 +361,21 @@ describe('standalone table diagnostics against the actual Table block', () => {
       ).toEqual([expect.objectContaining({ field: 'data', value: ['missing'] })])
     })
 
+    it('checks row data whose keys resemble a reference-only filter group', async () => {
+      setGraph(
+        block('write', {
+          operation: 'update_rows_by_filter',
+          bulkFilterMode: 'json',
+          filter: '<start.filter>',
+          data: '{"all":[<start.values>],"missing":1}',
+        })
+      )
+      const result = await lint()
+      expect(
+        result.unresolvedReferences.filter((reference) => reference.kind === 'resource')
+      ).toEqual([expect.objectContaining({ field: 'data', value: ['all', 'missing'] })])
+    })
+
     it('reports a quoted in-list value that matches a bare reference elsewhere', async () => {
       setGraph(
         block('query', {
