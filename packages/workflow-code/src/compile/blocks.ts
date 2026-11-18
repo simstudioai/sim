@@ -28,6 +28,7 @@ import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-f
 import { isIdentifierName } from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
+import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
 import { CODE_FILE_EXTENSIONS, utf8Bytes } from '../limits'
 import { isJson } from '../lock'
 import {
@@ -1442,19 +1443,6 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
   }
 }
 
-/** Config keys per container builder, and the CWM field each fills (the printer's forms). */
-const CONTAINER_CONFIG: Record<string, Record<string, string>> = {
-  'loop.for': { count: 'iterations' },
-  'loop.forEach': { collection: 'forEachItems' },
-  'loop.while': { condition: 'whileCondition' },
-  'loop.doWhile': { condition: 'doWhileCondition', count: 'iterations' },
-  'parallel.count': { count: 'count', batchSize: 'batchSize' },
-  'parallel.collection': { collection: 'distribution', batchSize: 'batchSize' },
-  parallel: { count: 'count', collection: 'distribution', batchSize: 'batchSize' },
-}
-const NUMBER_FIELDS = new Set(['iterations', 'count', 'batchSize'])
-const TEXT_FIELDS = new Set(['whileCondition', 'doWhileCondition'])
-
 function numberLiteral(node: Node): number | null {
   if (node.type === 'NumericLiteral') return node.value
   if (
@@ -1502,6 +1490,67 @@ function checkSubflowCount(
 }
 
 /**
+ * The config object of a container call, compiled against its form: each key's value, checked for
+ * the kind its spec field holds, keyed by that field. A key the form does not take is
+ * `E_UNKNOWN_PARAM`.
+ */
+function compileConfig<S>(
+  ctx: CompileContext,
+  site: ValueSite,
+  container: 'loop' | 'parallel',
+  form: ContainerForm<S>,
+  configNode: ObjectExpression | undefined
+): Map<ConfigField<S>, Value> {
+  const { decl } = site
+  const fields = new Map<ConfigField<S>, Value>()
+  if (!configNode) return fields
+  for (const [key, property] of objectEntries(ctx, configNode)) {
+    const entry = getOwn(form, key)
+    if (!entry) {
+      ctx.reporter.report(
+        'E_UNKNOWN_PARAM',
+        `This ${container} has no config ${key}.`,
+        rangeOf(ctx, property),
+        { hint: didYouMean(key, Object.keys(form)), blockKey: decl.key }
+      )
+      continue
+    }
+    const node = property.value
+    const field = String(entry.field)
+    if (entry.kind === 'number') {
+      const value = numberLiteral(node)
+      if (value === null) {
+        unsupported(ctx, node, `${field} is a number.`, `Write ${field}: 3.`, decl.key)
+        continue
+      }
+      checkSubflowCount(ctx, decl, key, value, node)
+      fields.set(entry.field, value)
+      continue
+    }
+    const compiled = compileValue(ctx, node, site)
+    if (!compiled || compiled.kind !== 'value') continue
+    if (entry.kind === 'text' && typeof compiled.value !== 'string') {
+      unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl.key)
+      continue
+    }
+    fields.set(entry.field, compiled.value)
+  }
+  return fields
+}
+
+function numberField(value: Value | undefined): number | undefined {
+  return typeof value === 'number' ? value : undefined
+}
+
+function textField(value: Value | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function jsonField(value: Value | undefined): Json | undefined {
+  return isJson(value) ? value : undefined
+}
+
+/**
  * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
  * the type uses; apply keeps the other types' fields from the stored workflow. `meta.extra` holds
  * the container's stored params, and `meta.subflowData` the subflow keys of `block.data`
@@ -1516,32 +1565,8 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     unsupported(ctx, node, 'Too many arguments.', 'Pass (name, config, body, meta?).', decl.key)
   }
   const meta = compileMeta(ctx, metaNode, site)
-  const builderKey =
-    builder.method === null ? builder.container : `${builder.container}.${builder.method}`
-  const configKeys = CONTAINER_CONFIG[builderKey] ?? {}
-  const fields = new Map<string, Value>()
-
-  const setField = (key: string, field: string, node: Node): void => {
-    if (NUMBER_FIELDS.has(field)) {
-      const value = numberLiteral(node)
-      if (value === null) {
-        unsupported(ctx, node, `${field} is a number.`, `Write ${field}: 3.`, decl.key)
-        return
-      }
-      checkSubflowCount(ctx, decl, key, value, node)
-      fields.set(field, value)
-      return
-    }
-    const compiled = compileValue(ctx, node, site)
-    if (!compiled || compiled.kind !== 'value') return
-    if (TEXT_FIELDS.has(field) && typeof compiled.value !== 'string') {
-      unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl.key)
-      return
-    }
-    fields.set(field, compiled.value)
-  }
-
-  if (configNode && configNode.type !== 'ObjectExpression') {
+  const config = configNode?.type === 'ObjectExpression' ? configNode : undefined
+  if (configNode && !config) {
     unsupported(
       ctx,
       configNode,
@@ -1549,54 +1574,28 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
       'Write { count: 3 }.',
       decl.key
     )
-  } else if (configNode) {
-    for (const [key, property] of objectEntries(ctx, configNode)) {
-      const field = configKeys[key]
-      if (!field) {
-        ctx.reporter.report(
-          'E_UNKNOWN_PARAM',
-          `This ${builder.container} has no config ${key}.`,
-          rangeOf(ctx, property),
-          { hint: didYouMean(key, Object.keys(configKeys)), blockKey: decl.key }
-        )
-        continue
-      }
-      setField(key, field, property.value)
-    }
   }
 
-  const params: Record<SubBlockId, CanonicalParam> = {}
-  compileExtraParams(ctx, meta.extra, { params, site, unset: new Set() }, () => false)
-
-  const json = (field: string): Json | undefined => {
-    const value = fields.get(field)
-    return isJson(value) ? value : undefined
-  }
-  const text = (field: string): string | undefined => {
-    const value = fields.get(field)
-    return typeof value === 'string' ? value : undefined
-  }
-  const number = (field: string): number | undefined => {
-    const value = fields.get(field)
-    return typeof value === 'number' ? value : undefined
-  }
   let subflow: LoopSpec | ParallelSpec
   if (builder.container === 'loop') {
-    const forEachItems = json('forEachItems')
-    const whileCondition = text('whileCondition')
-    const doWhileCondition = text('doWhileCondition')
+    const fields = compileConfig(ctx, site, 'loop', loopForm(builder.method), config)
+    const iterations = numberField(fields.get('iterations'))
+    const forEachItems = jsonField(fields.get('forEachItems'))
+    const whileCondition = textField(fields.get('whileCondition'))
+    const doWhileCondition = textField(fields.get('doWhileCondition'))
     subflow = {
       kind: 'loop',
       loopType: builder.method,
-      iterations: number('iterations') ?? DEFAULT_LOOP_ITERATIONS,
+      iterations: iterations ?? DEFAULT_LOOP_ITERATIONS,
       ...(forEachItems !== undefined && { forEachItems }),
       ...(whileCondition !== undefined && { whileCondition }),
       ...(doWhileCondition !== undefined && { doWhileCondition }),
     }
   } else {
-    const count = number('count')
-    const distribution = json('distribution')
-    const batchSize = number('batchSize')
+    const fields = compileConfig(ctx, site, 'parallel', parallelForm(builder.method), config)
+    const count = numberField(fields.get('count'))
+    const distribution = jsonField(fields.get('distribution'))
+    const batchSize = numberField(fields.get('batchSize'))
     subflow = {
       kind: 'parallel',
       ...(builder.method !== null && { parallelType: builder.method }),
@@ -1605,6 +1604,9 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
       ...(batchSize !== undefined && { batchSize }),
     }
   }
+
+  const params: Record<SubBlockId, CanonicalParam> = {}
+  compileExtraParams(ctx, meta.extra, { params, site, unset: new Set() }, () => false)
 
   const block: CanonicalBlock = {
     key: decl.key,

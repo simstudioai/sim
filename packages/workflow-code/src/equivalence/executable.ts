@@ -16,16 +16,13 @@
  */
 
 import { compareEdges } from '../canonicalize/edges'
-import {
-  DEFAULT_LOOP_ITERATIONS,
-  effectiveBatchSize,
-  SUBFLOW_DATA_KEYS,
-} from '../canonicalize/subflows'
+import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { executableInactiveParams } from '../catalog/activity'
 import { isCanonicalPair } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
+import { LOADER_PARALLEL_TYPE, runningConfig } from '../forms/subflow'
 import type {
   BlockKey,
   CanonicalBlock,
@@ -44,26 +41,13 @@ import type {
 } from '../model'
 import { setOwn } from '../records'
 
-/** `data.count || 5` in `convertParallelBlockToParallel`. */
-const DEFAULT_PARALLEL_COUNT = 5
-
-/** A loop or parallel config exactly as the executor reads it for the type in effect. */
+/**
+ * A loop or parallel config exactly as the executor reads it for the type in effect: the fields of
+ * the type's form (`forms/subflow.ts`), keyed by spec field, each with the runtime's fallback.
+ */
 type ExecutableSubflow =
-  | {
-      kind: 'loop'
-      loopType: LoopType
-      iterations?: number
-      forEachItems?: Json
-      whileCondition?: string
-      doWhileCondition?: string
-    }
-  | {
-      kind: 'parallel'
-      parallelType: ParallelType
-      count?: number
-      distribution?: Json
-      batchSize: number
-    }
+  | { kind: 'loop'; loopType: LoopType; config: Record<string, Json> }
+  | { kind: 'parallel'; parallelType: ParallelType; config: Record<string, Json> }
 
 interface ExecutableBlock {
   key: BlockKey
@@ -91,40 +75,12 @@ interface ExecutableWorkflow {
   variables: Record<VarKey, CanonicalVariable>
 }
 
-function executableLoop(spec: LoopSpec): ExecutableSubflow {
-  const iterations = spec.iterations || DEFAULT_LOOP_ITERATIONS
-  switch (spec.loopType) {
-    case 'for':
-      return { kind: 'loop', loopType: 'for', iterations }
-    case 'forEach':
-      return { kind: 'loop', loopType: 'forEach', forEachItems: spec.forEachItems || '' }
-    case 'while':
-      return { kind: 'loop', loopType: 'while', whileCondition: spec.whileCondition || '' }
-    case 'doWhile': {
-      const doWhileCondition = spec.doWhileCondition || ''
-      return doWhileCondition === ''
-        ? { kind: 'loop', loopType: 'doWhile', doWhileCondition, iterations }
-        : { kind: 'loop', loopType: 'doWhile', doWhileCondition }
-    }
-  }
-}
-
-function executableParallel(spec: ParallelSpec): ExecutableSubflow {
-  const parallelType = spec.parallelType ?? 'count'
-  const batchSize = effectiveBatchSize(spec.batchSize)
-  return parallelType === 'count'
-    ? {
-        kind: 'parallel',
-        parallelType,
-        count: spec.count || DEFAULT_PARALLEL_COUNT,
-        batchSize,
-      }
-    : { kind: 'parallel', parallelType, distribution: spec.distribution || '', batchSize }
-}
-
 /** A loop or parallel config as the executor reads it for the type in effect. */
 export function executableSubflow(spec: LoopSpec | ParallelSpec): ExecutableSubflow {
-  return spec.kind === 'loop' ? executableLoop(spec) : executableParallel(spec)
+  const config = runningConfig(spec)
+  return spec.kind === 'loop'
+    ? { kind: 'loop', loopType: spec.loopType, config }
+    : { kind: 'parallel', parallelType: spec.parallelType ?? LOADER_PARALLEL_TYPE, config }
 }
 
 /** The executable form of one block's params: inactive values dropped, pairs keyed by id. */

@@ -17,6 +17,7 @@ import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { branchesAtTopLevel, printsAsElseTrue } from '../forms/condition'
 import { readResponseForm } from '../forms/response'
+import { printedConfig } from '../forms/subflow'
 import { SOURCE_ENTRY_FILE } from '../limits'
 import type { SourceHintBlock, SourceHints } from '../lock'
 import type { AnchorKey, BlockKey, CanonicalBlock, Json } from '../model'
@@ -219,26 +220,17 @@ function containerCall(ctx: PrintContext, block: CanonicalBlock): Expr {
   const spec = block.subflow
   if (!spec) throw new Error('containerCall requires a subflow block')
   const config: Property[] = []
-  const field = (key: string, value: Json | undefined, active: boolean, tag: Tag) => {
-    if (value === undefined || !active) return
-    config.push({ key, value: ctx.values.value(value, { tag, from: block.key }) })
+  for (const item of printedConfig(spec)) {
+    if (item.value === undefined || !item.printed) continue
+    const tag: Tag = item.kind === 'text' ? 'js' : 't'
+    config.push({ key: item.key, value: ctx.values.value(item.value, { tag, from: block.key }) })
   }
-  let callee: string
-  if (spec.kind === 'loop') {
-    callee = `loop.${spec.loopType}`
-    const countRuns =
-      spec.loopType === 'for' || (spec.loopType === 'doWhile' && !spec.doWhileCondition)
-    field('count', spec.iterations, countRuns, 't')
-    field('collection', spec.forEachItems, spec.loopType === 'forEach', 't')
-    field('condition', spec.whileCondition, spec.loopType === 'while', 'js')
-    field('condition', spec.doWhileCondition, spec.loopType === 'doWhile', 'js')
-  } else {
-    const type = spec.parallelType
-    callee = type === undefined ? 'parallel' : `parallel.${type}`
-    field('count', spec.count, type !== 'collection', 't')
-    field('collection', spec.distribution, type !== 'count', 't')
-    field('batchSize', spec.batchSize, true, 't')
-  }
+  const callee =
+    spec.kind === 'loop'
+      ? `loop.${spec.loopType}`
+      : spec.parallelType === undefined
+        ? 'parallel'
+        : `parallel.${spec.parallelType}`
   const { params, extra } = collectParams(
     ctx,
     block,
