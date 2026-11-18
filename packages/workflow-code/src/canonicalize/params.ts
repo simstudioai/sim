@@ -44,7 +44,7 @@ interface ParamsResult {
 }
 
 /** The declaration a stored value was written through: the current surface's copy first. */
-export function declarationFor(
+export function surfaceDeclaration(
   catalog: CatalogBlock | undefined,
   id: string,
   triggerMode: boolean
@@ -152,7 +152,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
     const raw = subBlock.value
     if (raw === null || raw === undefined) continue
 
-    const declaration = declarationFor(catalog, id, triggerMode)
+    const declaration = surfaceDeclaration(catalog, id, triggerMode)
     if (typeof subBlock.id === 'string' && subBlock.id !== id) {
       context.diagnostics.push({
         code: 'W_CANON_SUBBLOCK_TYPE_DRIFT',
