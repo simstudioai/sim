@@ -15,9 +15,11 @@ import {
   type CanonicalTool,
   isJsonObject,
   isPlainRecord,
+  isUsageControl,
   type ParamMode,
   type ResourceNode,
   type UnresolvedNode,
+  USAGE_CONTROLS,
   type Value,
 } from '../model'
 import { deepEqual, getOwn, setOwn } from '../records'
@@ -33,8 +35,6 @@ import {
   objectEntries,
   type ValueSite,
 } from './values'
-
-const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
 
 const TOOL_OPTIONS = [
   'operation',
@@ -63,12 +63,12 @@ function compileUsage(
 ): boolean {
   if (option === 'usageControl') {
     const text = literalText(property.value)
-    if (text !== 'auto' && text !== 'force' && text !== 'none') {
+    if (!isUsageControl(text)) {
       unsupported(
         ctx,
         property.value,
         'Unknown usage control.',
-        `Use ${[...USAGE_CONTROLS].join(', ')}.`,
+        `Use ${USAGE_CONTROLS.join(', ')}.`,
         site.decl.key
       )
       return false

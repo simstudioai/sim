@@ -187,6 +187,19 @@ export type CanonicalParam =
   | { kind: 'value'; value: Value }
   | { kind: 'tools'; tools: CanonicalTool[] }
 
+/**
+ * How an agent may call a tool (`usageControl`): the one list canonicalize, compile and the
+ * {@link UsageControl} type read, so a new control fails to type-check until each stage takes it.
+ */
+export const USAGE_CONTROLS = ['auto', 'force', 'none'] as const
+
+type UsageControl = (typeof USAGE_CONTROLS)[number]
+
+/** Whether a stored or written value is one of the {@link USAGE_CONTROLS}. */
+export function isUsageControl(value: unknown): value is UsageControl {
+  return typeof value === 'string' && USAGE_CONTROLS.some((control) => control === value)
+}
+
 /** One entry of a `tool-input` list. */
 export interface CanonicalTool {
   type: string
@@ -200,7 +213,7 @@ export interface CanonicalTool {
    * `${type}:cid`; re-indexed by position on write.
    */
   modes: Record<CanonicalParamId, ParamMode>
-  usageControl?: 'auto' | 'force' | 'none'
+  usageControl?: UsageControl
   usageControlExpression?: string
   /** The DB copy wins over the snapshot at run time (`fetchCustomToolById` in the agent handler). */
   customTool?: {
@@ -249,13 +262,37 @@ export interface CanonicalBranchRow {
 }
 
 /**
+ * The loop types the executor runs (`Loop['loopType']`). Every per-type rule (the container forms,
+ * the executable view, canonicalize's guard) derives from this list, so a new type fails to
+ * type-check until each one handles it.
+ */
+export const LOOP_TYPES = ['for', 'forEach', 'while', 'doWhile'] as const
+
+export type LoopType = (typeof LOOP_TYPES)[number]
+
+/** Whether a value is one of the {@link LOOP_TYPES}. */
+export function isLoopType(value: unknown): value is LoopType {
+  return typeof value === 'string' && LOOP_TYPES.some((type) => type === value)
+}
+
+/** The parallel types the executor runs (`Parallel['parallelType']`), like {@link LOOP_TYPES}. */
+export const PARALLEL_TYPES = ['count', 'collection'] as const
+
+export type ParallelType = (typeof PARALLEL_TYPES)[number]
+
+/** Whether a value is one of the {@link PARALLEL_TYPES}. */
+export function isParallelType(value: unknown): value is ParallelType {
+  return typeof value === 'string' && PARALLEL_TYPES.some((type) => type === value)
+}
+
+/**
  * Loop config as the `loops` map stores it (`Loop`). Optional fields are
  * absent exactly when storage omits them; canonicalize never fills defaults, so materialize can
  * write prev's config back verbatim when canonical-equal.
  */
 export interface LoopSpec {
   kind: 'loop'
-  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  loopType: LoopType
   /**
    * The count that runs: `block.data.count` raw (`0` kept with `W_CANON_SUBFLOW_REPAIRED`; the
    * runtime reads `count || 5`), or 5 when `data` has none (`loadWorkflowFromNormalizedTablesRaw`).
@@ -270,7 +307,7 @@ export interface LoopSpec {
 export interface ParallelSpec {
   kind: 'parallel'
   /** Absent in storage means the loader's fallback applies, which differs by path. */
-  parallelType?: 'count' | 'collection'
+  parallelType?: ParallelType
   count?: number
   distribution?: Json
   /** Raw stored value; the runtime clamps to 1–20 (`clampParallelBatchSize`). */

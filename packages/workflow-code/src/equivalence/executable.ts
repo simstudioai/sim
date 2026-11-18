@@ -37,7 +37,9 @@ import type {
   CanonicalWorkflowMeta,
   Json,
   LoopSpec,
+  LoopType,
   ParallelSpec,
+  ParallelType,
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
@@ -49,7 +51,7 @@ const DEFAULT_PARALLEL_COUNT = 5
 type ExecutableSubflow =
   | {
       kind: 'loop'
-      loopType: LoopSpec['loopType']
+      loopType: LoopType
       iterations?: number
       forEachItems?: Json
       whileCondition?: string
@@ -57,7 +59,7 @@ type ExecutableSubflow =
     }
   | {
       kind: 'parallel'
-      parallelType: 'count' | 'collection'
+      parallelType: ParallelType
       count?: number
       distribution?: Json
       batchSize: number
