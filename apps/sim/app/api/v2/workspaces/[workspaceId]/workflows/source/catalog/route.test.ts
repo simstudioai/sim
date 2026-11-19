@@ -87,7 +87,7 @@ describe('GET /api/v2/workspaces/{workspaceId}/workflows/source/catalog', () => 
 
     expect(response.status).toBe(200)
     expect(response.headers.get('etag')).toBe(`"${HASH}"`)
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('cache-control')).toBe('private, no-cache')
     const body = await response.json()
     expect(body.data.blocks.slack_v2.subBlocks[0].selectorKey).toBe('slack.channels')
     expect(body.data).toEqual(catalog)
