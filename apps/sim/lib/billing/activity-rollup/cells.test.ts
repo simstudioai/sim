@@ -83,8 +83,8 @@ describe('aggregateHour', () => {
     })
     const workspacePage = vi.fn(async (_range: InstantRange, after: string | null) =>
       after === null
-        ? { cells: [cell('a', 2, 7)], last: 'ws-500' }
-        : { cells: [cell('b', 1, 1)], last: null }
+        ? { cells: [cell('a', 2, 7)], last: 'ws-500', done: false }
+        : { cells: [cell('b', 1, 1)], last: null, done: true }
     )
 
     const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, {
@@ -111,7 +111,7 @@ describe('aggregateHour', () => {
     const span = vi.fn(async () => {
       throw timeout()
     })
-    const workspacePage = vi.fn(async () => ({ cells: [], last: null }))
+    const workspacePage = vi.fn(async () => ({ cells: [], last: null, done: true }))
 
     await expect(
       aggregateHour(hour, Date.now() - 1, { readers: readers({ span, workspacePage }) })
@@ -121,7 +121,11 @@ describe('aggregateHour', () => {
 
   it('retries an hour known to be too heavy a page of workspaces at a time from the start', async () => {
     const span = vi.fn(async () => [cell('a', 9, 9)])
-    const workspacePage = vi.fn(async () => ({ cells: [cell('a', 1, 2)], last: null }))
+    const workspacePage = vi.fn(async (_range: InstantRange) => ({
+      cells: [cell('a', 1, 2)],
+      last: null,
+      done: true,
+    }))
 
     const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, {
       readers: readers({ span, workspacePage }),

@@ -121,13 +121,15 @@ const WORKSPACE_CHUNK = 100
 export interface HourReaders {
   span: (range: InstantRange) => Promise<ActivityCell[]>
   /**
-   * The cells of the next page of workspaces with runs in `range`, after `after` (by id), and the
-   * last workspace the page walked, or null once every workspace with runs was walked.
+   * The cells of the next page of workspaces with runs in `range`, after `after` (by id), the
+   * workspace the next page starts after, and whether every workspace with runs was read. A page
+   * stops early, before an aggregate, once `deadline` passes.
    */
   workspacePage: (
     range: InstantRange,
-    after: string | null
-  ) => Promise<{ cells: ActivityCell[]; last: string | null }>
+    after: string | null,
+    deadline: number
+  ) => Promise<{ cells: ActivityCell[]; last: string | null; done: boolean }>
 }
 
 /** An hour that could not be read within the statement bounds, even a page of workspaces at a time. */
@@ -200,17 +202,20 @@ async function walkWorkspaces(
 
 const replicaReaders: HourReaders = {
   span: (range) => onReplica((tx) => aggregateRange(tx, range)),
-  workspacePage: (range, after) =>
+  workspacePage: (range, after, deadline) =>
     onReplica(async (tx) => {
       const walked = await walkWorkspaces(tx, range, after)
       const active = walked.filter((row) => Number(row.active) === 1).map((row) => row.id)
       /** Chunks hold different workspaces, so their cells never share a key. */
       const cells: ActivityCell[] = []
+      let last = after
       for (const chunk of chunkArray(active, WORKSPACE_CHUNK)) {
+        if (Date.now() >= deadline) return { cells, last, done: false }
         cells.push(...(await aggregateRange(tx, range, chunk)))
+        last = chunk.at(-1) ?? last
       }
-      const last = walked.length < WORKSPACE_WALK ? null : (walked.at(-1)?.id ?? null)
-      return { cells, last }
+      const done = walked.length < WORKSPACE_WALK
+      return { cells, last: done ? null : (walked.at(-1)?.id ?? null), done }
     }),
 }
 
@@ -277,9 +282,9 @@ async function readByWorkspace(
   for (;;) {
     if (Date.now() >= deadline) throw new PassDeadlineError(hour)
     try {
-      const page = await readers.workspacePage(range, after)
+      const page = await readers.workspacePage(range, after, deadline)
       parts.push(page.cells)
-      if (page.last === null) return sumCells(parts)
+      if (page.done) return sumCells(parts)
       after = page.last
     } catch (error) {
       throw isBoundedCancellation(error) ? new HeavyHourError(hour, { cause: error }) : error

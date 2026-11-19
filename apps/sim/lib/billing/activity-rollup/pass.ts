@@ -44,8 +44,8 @@ import {
   type ActivityRollupState,
   acquireLease,
   extendLease,
-  MAINTENANCE_GAP_MS,
   readRollupState,
+  refreshHeartbeat,
   releaseLease,
   resetRollup,
   truncateRollupBatch,
@@ -196,9 +196,12 @@ async function computeHour(
     .from(activityRollupBlocked)
     .where(eq(activityRollupBlocked.bucketStart, hour))
   if (block && block.retryAt.getTime() > Date.now()) return { state: null, runs: 0 }
+  /** An hour a pass ran out of budget paging: paged from the start, with no backoff or attempt. */
+  const deferred = block?.attempts === 0
+  const retry = block !== undefined && !deferred
   let retryBudgetMs = 0
   let retryInMs: number | undefined
-  if (block) {
+  if (retry) {
     /**
      * The retry's backoff is committed before it starts, so a retry that crashes or loses its
      * lease is not tried again until the backoff passes.
@@ -210,11 +213,11 @@ async function computeHour(
   }
   let cells: ActivityCell[]
   try {
-    cells = await aggregateHour(hour, block ? Date.now() + retryBudgetMs : deadline, {
-      byWorkspace: Boolean(block),
+    cells = await aggregateHour(hour, retry ? Date.now() + retryBudgetMs : deadline, {
+      byWorkspace: block !== undefined,
     })
   } catch (error) {
-    if (error instanceof PassDeadlineError && !block) {
+    if (error instanceof PassDeadlineError && !retry) {
       await deferPaging(hour)
       return { state: null, runs: 0 }
     }
@@ -478,18 +481,14 @@ async function runHousekeeping(
 }
 
 /**
- * Why the rollup must start over, or null: a pass on newer code; coverage with an end missing
- * (cleared by hand to force a rebuild, or never started); or a maintenance gap, no pass past its reset
- * decision within {@link MAINTENANCE_GAP_MS}, during which writers stopped marking the deletes and reopened
- * runs the cells would need. Read from the state alone, so a pass that fails before its reset
- * commits leaves the next pass the same reason.
+ * Why the rollup must start over regardless of its heartbeat, or null: a pass on newer code, or
+ * coverage with an end missing (cleared by hand to force a rebuild, or never started). A maintenance
+ * gap (see {@link refreshHeartbeat}) is the third reason. Read from the state alone, so a pass that
+ * fails before its reset commits leaves the next pass the same reason.
  */
 function resetReason(state: ActivityRollupState): ActivityRollupPassResult['reset'] {
   if (state.version < ACTIVITY_ROLLUP_VERSION) return 'version'
   if (!state.coverageStart || !state.freshThrough) return 'coverage'
-  if (!state.maintainedAt || Date.now() - state.maintainedAt.getTime() > MAINTENANCE_GAP_MS) {
-    return 'maintenance-gap'
-  }
   return null
 }
 
@@ -539,6 +538,19 @@ export async function runActivityRollupPass(
 
     const settledThrough = new Date(floorHour(now()).getTime() - ACTIVITY_ROLLUP_SETTLE_MS)
     result.reset = resetReason(state)
+    if (!result.reset) {
+      /**
+       * A pass at this version that got past its reset decision is maintaining the rollup: marks
+       * written from now on will be consumed by it or the next. A step failing later loses no mark
+       * (marks persist until a recompute removes them), so the heartbeat does not wait on the
+       * steps, and a failure is counted and logged instead of forcing rebuilds every gap. The
+       * heartbeat is renewed only if it has not expired by the database's clock, which writers
+       * mark by; an expired one means marks may have been skipped, so the rollup is rebuilt.
+       */
+      const refreshed = await refreshHeartbeat(owner)
+      if (refreshed) state = refreshed
+      else result.reset = 'maintenance-gap'
+    }
     if (result.reset) {
       if (state.coverageStart || result.reset !== 'coverage') {
         logger.warn('Activity rollup starting over', { reason: result.reset })
@@ -548,14 +560,6 @@ export async function runActivityRollupPass(
         if (Date.now() >= deadline) return { ...result, status: 'truncating' }
       }
       state = await startCoverage(owner, settledThrough, lateEndMarginMs)
-    } else {
-      /**
-       * A pass at this version that got past its reset decision is maintaining the rollup: marks
-       * written from now on will be consumed by it or the next. A step failing later loses no mark
-       * (marks persist until a recompute removes them), so the heartbeat does not wait on the
-       * steps, and a failure is counted and logged instead of forcing rebuilds every gap.
-       */
-      state = await updateLeasedState(owner, { maintainedAt: sql`now()` })
     }
 
     result.lateEndMarks = await captureLateEnds(deadline, {

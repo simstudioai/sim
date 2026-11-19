@@ -805,6 +805,19 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 300_000)
 
+  it('judges the maintenance gap by the database clock, not a worker clock behind it', async () => {
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET maintained_at = now() - interval '6 hours 10 minutes'`
+    )
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() - 60 * 60 * 1000 })
+    try {
+      expect((await runPass(new Date())).reset).toBe('maintenance-gap')
+    } finally {
+      vi.useRealTimers()
+    }
+    await expectEquivalent()
+  }, 300_000)
+
   it('keeps the heartbeat through a failing step and counts the failures instead of rebuilding', async () => {
     const state = await readRollupState()
     if (!state?.freshThrough) throw new Error('No coverage')
@@ -845,6 +858,14 @@ describe('organization activity rollup', () => {
     try {
       const deferred = await runPass(NOW, { budgetMs: 1500 })
       expect(deferred).toMatchObject({ finalizedHours: 0, blockedHours: 0 })
+      expect(await blockedAttempts(hour)).toBe(0)
+    } finally {
+      await ungateHour()
+    }
+    // Paging it again is not a retry: a pass that dies paging it counts no attempt.
+    await gateHour(hour, `RAISE EXCEPTION 'Synthetic connection loss';`)
+    try {
+      await expect(runPass()).rejects.toThrow()
       expect(await blockedAttempts(hour)).toBe(0)
     } finally {
       await ungateHour()

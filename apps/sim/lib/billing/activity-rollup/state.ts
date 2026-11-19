@@ -119,6 +119,31 @@ export async function updateLeasedState(
 }
 
 /**
+ * Moves the maintenance heartbeat to now only if it is still within the gap by the database's
+ * clock, the clock writers use to decide whether to mark, in the same statement. Null means it had
+ * expired (writers may already have skipped marks), so the caller must rebuild instead of renewing
+ * it. Throws when the lease is gone.
+ */
+export async function refreshHeartbeat(owner: string): Promise<ActivityRollupState | null> {
+  const [state] = await db
+    .update(activityRollupState)
+    .set({ maintainedAt: sql`now()`, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(activityRollupState.id, WORKFLOW_ROLLUP_ID),
+        eq(activityRollupState.leaseOwner, owner),
+        gt(activityRollupState.leaseExpiresAt, sql`now()`),
+        gt(activityRollupState.maintainedAt, sql`now() - ${msInterval(MAINTENANCE_GAP_MS)}`)
+      )
+    )
+    .returning()
+  if (state) return state
+  const current = await readRollupState()
+  if (current?.leaseOwner !== owner) throw new Error('Activity rollup lease lost')
+  return null
+}
+
+/**
  * Pushes the lease out to cover work that may run past the pass's budget (a retry of an hour too
  * heavy to read), while `owner` still holds it.
  */
