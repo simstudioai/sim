@@ -24,7 +24,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, posix } from 'node:path'
+import { basename, dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
@@ -34,6 +34,7 @@ import {
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
+import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
 import { embedStore } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
@@ -522,7 +523,98 @@ export async function locallyEditedFiles(
   for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
     touched.set(path, null)
   }
-  return editedFiles(dir, touched, (await readWritten(dir)).digests)
+  return editedFiles(dir, touched, (await readFolderWritten(dir)).digests)
+}
+
+/**
+ * A `workflows/<key>` folder of a workspace directory: `root` holds a workspace `.sim/base.json`.
+ * The workspace's `.sim/written.json` and base are the folder's records too, so a single-workflow
+ * write keeps them instead of writing a record of its own the workspace commands never read.
+ */
+export interface WorkspaceFolder {
+  root: string
+  workspaceId: string
+  /** The folder's key under `workflows/`. */
+  key: string
+}
+
+/** The workspace directory `dir` is a workflow folder of, or `null`. */
+export async function workspaceFolderOf(dir: string): Promise<WorkspaceFolder | null> {
+  const folder = resolve(dir)
+  if (basename(dirname(folder)) !== KIND_DIRS.workflow) return null
+  const root = dirname(dirname(folder))
+  const base = toRecord(await readSourceJson(root, SOURCE_BASE_FILE))
+  if (typeof base.workspaceId !== 'string' || base.workflowId !== undefined) return null
+  return { root, workspaceId: base.workspaceId, key: basename(folder) }
+}
+
+/** `path` of the workflow folder `key`, relative to its workspace directory. */
+function inWorkspace(key: string, path: string): string {
+  return `${KIND_DIRS.workflow}/${key}/${path}`
+}
+
+/**
+ * What the CLI last wrote into the workflow directory `dir`: its own `.sim/written.json`, or for a
+ * workflow folder of a workspace directory without one, the workspace record's entries for the
+ * folder (its `.sim/` records left out).
+ */
+export async function readFolderWritten(dir: string): Promise<Written> {
+  const own = await readWritten(dir)
+  if (Object.keys(own.digests).length > 0) return own
+  const folder = await workspaceFolderOf(dir)
+  if (!folder) return own
+  const prefix = inWorkspace(folder.key, '')
+  const record = await readWritten(folder.root)
+  const inFolder = <T>(entries: Record<string, T>) =>
+    Object.fromEntries(
+      Object.entries(entries).flatMap(([path, value]) => {
+        const relative = path.startsWith(prefix) ? path.slice(prefix.length) : null
+        return relative !== null && !relative.startsWith('.sim/') ? [[relative, value]] : []
+      })
+    )
+  return { digests: inFolder(record.digests), stats: inFolder(record.stats) }
+}
+
+/**
+ * Records a single-workflow write into workflow folder `folder` in the workspace records: each
+ * written file's digest (`written`, folder-relative path → text) replaces the one before, a
+ * `removed` file's is dropped, and the workspace base's entry for the workflow takes the
+ * fingerprint of the folder's new base, as a workspace get would record it. Written after the
+ * folder's files, so a write cut short leaves the old records.
+ */
+async function recordFolderWrite(
+  folder: WorkspaceFolder,
+  written: Record<string, string>,
+  removed: readonly string[],
+  base: unknown
+): Promise<void> {
+  const record = await readWritten(folder.root)
+  const dropped = new Set(removed.map((path) => inWorkspace(folder.key, path)))
+  const digests = {
+    ...Object.fromEntries(Object.entries(record.digests).filter(([path]) => !dropped.has(path))),
+    ...Object.fromEntries(
+      Object.entries(written).map(([path, text]) => [inWorkspace(folder.key, path), digest(text)])
+    ),
+  }
+  const write: Array<readonly [string, string]> = [
+    [SOURCE_WRITTEN_FILE, writtenFile({ digests, stats: record.stats })],
+  ]
+  const workspaceBase = toRecord(await readSourceJson(folder.root, SOURCE_BASE_FILE))
+  const resources = toRecord(workspaceBase.resources)
+  const address = `workflow:${folder.key}`
+  const entry = toRecord(resources[address])
+  const { workflowId, fingerprint } = toRecord(base)
+  if (entry.id === workflowId && typeof fingerprint === 'string') {
+    const next = {
+      ...workspaceBase,
+      resources: {
+        ...resources,
+        [address]: { ...entry, fingerprint: fingerprintOf({ source: fingerprint }) },
+      },
+    }
+    write.push([SOURCE_BASE_FILE, `${JSON.stringify(next, null, 2)}\n`])
+  }
+  await updateSourceDir(folder.root, { write })
 }
 
 /**
@@ -581,19 +673,27 @@ export async function writeBack(
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
   assertPrintedSourcePaths(answer.files)
-  const write = [
+  const folder = await workspaceFolderOf(dir)
+  const printed: Array<readonly [string, string]> = [
     ...Object.entries(answer.files),
-    [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
-    [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
-    [SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const,
+    [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`],
+    [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
+  ]
+  const write = [
+    ...printed,
+    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const]),
     ...extra.write,
   ]
+  const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
   await updateSourceDir(dir, {
     write,
     remove: [
-      ...orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files)),
+      ...orphaned,
       ...(extra.remove ?? []),
+      // A record of the folder's own, from before, would shadow the workspace's.
+      ...(folder ? [SOURCE_WRITTEN_FILE] : []),
     ],
   })
+  if (folder) await recordFolderWrite(folder, Object.fromEntries(printed), orphaned, answer.base)
   return write.length
 }
