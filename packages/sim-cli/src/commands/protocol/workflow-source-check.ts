@@ -58,6 +58,14 @@ const STRICT_CODES: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * {@link STRICT_CODES} warnings the stored workflow exempts, which a check never fails on a block
+ * the lock binds, `--strict` included: the server stays quiet when the stored workflow holds the
+ * same state, and an offline check cannot read it. `W_BRANCH_UNWIRED`: a branch the stored
+ * workflow leaves unwired.
+ */
+const STORED_EXEMPT_CODES: ReadonlySet<string> = new Set(['W_BRANCH_UNWIRED'])
+
+/**
  * Which {@link STRICT_CODES} warnings fail a check: `new` those on a block the lock does not bind
  * (one added since the get, or every block of a workflow that has no lock yet), `all` every one,
  * `off` none. Printed source can hold such a warning on a block nobody edited (a field left empty
@@ -93,7 +101,9 @@ every finding under diagnostics.
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
 does not bind (a block added since the get, or every block of a new workflow):
 ${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
---strict fails on them in every block; --no-strict never fails on a warning.`
+--strict fails on them in every block, except ${[...STORED_EXEMPT_CODES].join(', ')} on a block the
+lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict never
+fails on a warning.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
@@ -347,6 +357,7 @@ async function compileWorkflowDir(
     catalog,
     sdkMajor: catalog.sdkMajor,
     knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
+    storedUnread: true,
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
   return { lock, files, compiled }
@@ -433,16 +444,18 @@ export async function checkWorkflowDir(
           }
         )
       : []
-  const fails = (blockKey: string | undefined) =>
-    options.strict === 'all' ||
-    (options.strict === 'new' &&
-      (lock === undefined || (blockKey !== undefined && !Object.hasOwn(lock.blocks, blockKey))))
+  const bound = (blockKey: string | undefined) =>
+    lock !== undefined && blockKey !== undefined && Object.hasOwn(lock.blocks, blockKey)
+  const fails = (code: string, blockKey: string | undefined) =>
+    STRICT_CODES.has(code) &&
+    !(STORED_EXEMPT_CODES.has(code) && bound(blockKey)) &&
+    (options.strict === 'all' || (options.strict === 'new' && !bound(blockKey)))
   const prefix = options.prefix ?? ''
   const findings = [
     ...compiled.diagnostics.filter((diagnostic) => !SERVER_ONLY_CODES.has(diagnostic.code)),
     ...declared,
   ].map(({ code, severity, message, hint, frame, span, blockKey }): CheckFinding => {
-    const raised = severity === 'warning' && STRICT_CODES.has(code) && fails(blockKey)
+    const raised = severity === 'warning' && fails(code, blockKey)
     return {
       code,
       severity: raised ? 'error' : severity,

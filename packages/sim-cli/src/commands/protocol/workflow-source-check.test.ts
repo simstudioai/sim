@@ -147,6 +147,32 @@ const UNKNOWN_METHOD = CLEAN.replace(
   "  const call = api('Call', { url: 'https://example.com', method: 'FETCH' })\n  start.to(done)\n  done.to(call)"
 ).replace('import { response,', 'import { api, response,')
 
+/**
+ * Source as a get prints stored state the server keeps although new source cannot write it: an
+ * error edge out of a loop, a block wired to itself, and a condition branch left unwired.
+ */
+const STORED_SHAPES = [
+  '// @sim-sdk 1',
+  "import { api, condition, loop, trigger, workflow } from '@sim/workflow-sdk'",
+  "export default workflow('W', {}, () => {",
+  "  const start = trigger.start('Start', {})",
+  "  const l = loop.for('L', { count: 3 }, (p) => {",
+  "    const inner = api('Inner', { url: 'https://example.com', method: 'GET' })",
+  '    p.to(inner)',
+  '  })',
+  "  const fallback = api('Fallback', { url: 'https://example.com', method: 'GET' })",
+  "  const a = api('A', { url: 'https://example.com', method: 'GET' })",
+  "  const route = condition('Route', { hot: 'x > 1', else: true })",
+  '  start.to(l)',
+  '  l.onError(fallback)',
+  '  l.to(a)',
+  '  a.to(a)',
+  '  a.to(route)',
+  '  route.hot.to(fallback)',
+  '})',
+  '',
+].join('\n')
+
 function writeLock(keys: readonly string[]): void {
   writeFileSync(
     join(dir, '.sim/lock.json'),
@@ -376,6 +402,35 @@ describe('sim workflows source check', () => {
     await checkIn(dir, '--no-strict')
     expect(result()).toMatchObject({ errors: 0, warnings: 1 })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('passes what a get prints from stored state the server keeps: a loop error edge, a cycle, an unwired branch', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), STORED_SHAPES)
+    writeLock(['start', 'l', 'inner', 'fallback', 'a', 'route'])
+
+    await check()
+    expect(stderr()).toMatch(/warning W_ERROR_PORT_STORED/)
+    expect(stderr()).toMatch(/warning W_EDGE_CYCLE/)
+    expect(stderr()).toMatch(/warning W_BRANCH_UNWIRED/)
+    expect(stderr()).toMatch(/keeps this error edge only if the stored workflow already holds it/)
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(process.exitCode).toBeUndefined()
+
+    await checkIn(dir, '--strict')
+    expect(result()).toMatchObject({ errors: 0 })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses a loop error edge and a cycle on blocks the lock does not bind', async () => {
+    cacheCatalog()
+    writeFileSync(join(dir, 'workflow.ts'), STORED_SHAPES)
+    writeLock(['start', 'inner', 'fallback', 'route'])
+
+    await check()
+    expect(stderr()).toMatch(/error E_ERROR_PORT_UNSUPPORTED/)
+    expect(stderr()).toMatch(/error E_EDGE_CYCLE/)
+    expect(process.exitCode).toBe(1)
   })
 
   it('adds a block the edit added to the CLI tsconfig.json, keeping the blocks it includes', async () => {

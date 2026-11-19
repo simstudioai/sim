@@ -124,21 +124,26 @@ export class EdgeCollector {
       const stored = (this.ctx.stored?.edges ?? []).some(
         (edge) => edge.from === from.key && edge.to === to.key && edge.port.kind === 'error'
       )
-      if (!stored) {
+      const unread = !stored && this.maybeStored(from.key, to.key)
+      if (!stored && !unread) {
         this.error('E_ERROR_PORT_UNSUPPORTED', `${from.name} has no error port.`, node, {
           hint: containerKindOf(from)
-            ? `Remove this onError, and wire onError from the blocks inside ${from.name} that can fail.`
-            : 'Remove this onError; this block never fails into an error port.',
+            ? `No new error edge can leave ${from.name}: wire onError from the blocks inside it that can fail instead.`
+            : 'No new error edge can leave this block, which never fails into an error port.',
           blockKey: from.key,
         })
         return false
       }
       this.ctx.reporter.report(
         'W_ERROR_PORT_STORED',
-        `${from.name} has no error port; this error edge is kept because the stored workflow holds it.`,
+        unread
+          ? `${from.name} has no error port; an apply keeps this error edge only if the stored workflow already holds it.`
+          : `${from.name} has no error port; this error edge is kept because the stored workflow holds it.`,
         rangeOf(this.ctx, node),
         {
-          hint: 'Remove it unless you rely on it: no new error edge can leave this block.',
+          hint: unread
+            ? 'Keep it if the get printed it. Otherwise it is new and the apply refuses it: no new error edge can leave this block.'
+            : 'Remove it unless you rely on it: no new error edge can leave this block.',
           blockKey: from.key,
         }
       )
@@ -198,8 +203,9 @@ export class EdgeCollector {
    * executor (`executor/dag`) makes a block wait for every incoming edge from an enabled block, so
    * no block on a cycle ever runs; a disabled block is not in the run graph and breaks a cycle.
    * Repeating work is a loop or parallel container, whose iteration is not an edge. A cycle made
-   * only of edges the stored workflow holds is a warning, so stored state keeps round-tripping;
-   * any cycle that this source closes is an error.
+   * only of edges the stored workflow holds (or, unread, may hold: see `CompileInput.storedUnread`)
+   * is a warning, so stored state keeps round-tripping; any cycle that this source closes is an
+   * error.
    */
   reportCycles(stored: CanonicalWorkflow | undefined): void {
     const enabled = (key: string) => this.blocks.get(key)?.enabled !== false
@@ -223,7 +229,11 @@ export class EdgeCollector {
       if (inside.length === 0) continue
       const fresh = inside.filter((index) => {
         const edge = this.edges[index]
-        return edge && !storedTuples.has(edgeTupleKey(edge.from, portKey(edge.port), edge.to))
+        return (
+          edge &&
+          !storedTuples.has(edgeTupleKey(edge.from, portKey(edge.port), edge.to)) &&
+          !this.maybeStored(edge.from, edge.to)
+        )
       })
       const candidates = fresh.length > 0 ? fresh : inside
       const at = candidates.find((index) => this.isBackEdge(index)) ?? candidates[0]
@@ -245,7 +255,10 @@ export class EdgeCollector {
         message,
         rangeOf(this.ctx, node),
         {
-          hint: `${back}, and repeat work with loop() or parallel() around the blocks instead.`,
+          hint:
+            fresh.length === 0 && this.ctx.storedUnread
+              ? `An apply keeps this cycle only if the stored workflow already holds each of its edges. To make the blocks run, ${back.charAt(0).toLowerCase()}${back.slice(1)} and repeat work with loop() or parallel() around them.`
+              : `${back}, and repeat work with loop() or parallel() around the blocks instead.`,
           blockKey: edge.from,
         }
       )
@@ -283,6 +296,14 @@ export class EdgeCollector {
         )
       }
     }
+  }
+
+  /**
+   * Whether an edge between `from` and `to` may be one the stored workflow holds although this
+   * compile cannot read it (`CompileInput.storedUnread`): both ends are blocks bound to stored ids.
+   */
+  private maybeStored(from: BlockKey, to: BlockKey): boolean {
+    return this.ctx.storedUnread && this.ctx.knownKeys.has(from) && this.ctx.knownKeys.has(to)
   }
 
   /**

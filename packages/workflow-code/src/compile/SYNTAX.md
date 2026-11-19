@@ -402,7 +402,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_NO_DEFAULT_OUTPUT` | `.to()` on a condition or router; wire a branch. |
 | `E_DUPLICATE_EDGE` | The same edge twice. |
 | `E_ERROR_PORT_UNSUPPORTED` | `onError` on a block with no error port. |
-| `W_ERROR_PORT_STORED` | `onError` on a block with no error port (a loop or parallel) that the stored workflow already wires; kept so it round-trips. |
+| `W_ERROR_PORT_STORED` | `onError` on a block with no error port (a loop or parallel) that the stored workflow already wires; kept so it round-trips. An offline check, which cannot read the stored workflow, reports it for any such edge between two blocks the lock binds: an apply keeps it only if the stored workflow holds it. |
 | `E_UNKNOWN_BRANCH` | `x.key.to()` where `key` is not a branch of `x`. |
 | `E_DUPLICATE_BRANCH_KEY` | Two rows with one key. |
 | `E_BRANCH_KEY_COLLIDES` | A branch key equal to an output name, `to` or `onError`. |
@@ -410,7 +410,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `W_RAW_HANDLE` | `edge()` with a handle kept verbatim. |
 | `W_SUBFLOW_HANDLE_SCOPE` | `edge()` from a loop or parallel's start handle to a block outside it (the executor runs it as the container's exit), or from another of its handles into its own child. The canvas never draws one; stored ones print this way so they round-trip. |
 | `E_EDGE_CYCLE` | Wiring that closes a cycle among enabled blocks, a self-loop included: no block on it ever runs. Framed at the edge back to a block declared earlier, the one to remove; repeat work with `loop()`/`parallel()`. |
-| `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. |
+| `W_EDGE_CYCLE` | A cycle the stored workflow already holds, kept so it round-trips; none of it runs. An offline check reports it for a cycle among blocks the lock binds, which an apply keeps only if the stored workflow holds every edge of it. |
 | `W_BRANCH_UNWIRED` | A condition or router branch no edge leaves, so a run that takes it ends there; the hint names the wiring. Not reported for a branch the stored workflow already leaves unwired. |
 | `E_UNKNOWN_BUILDER` | A builder path the catalog does not have, a bare builder-shaped call (`apii('Name', …)`) nothing binds, or a namespace the SDK lacks or the file did not import; `hint` names the builder a common other name stands for (`http.request` → `api`), then prefers a synonymous verb (`postMessage` → `sendMessage`), then the closest path, then the namespace's builders. |
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |

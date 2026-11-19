@@ -147,6 +147,8 @@ export interface CompileContext {
   knownKeys: ReadonlySet<BlockKey>
   /** `CompileInput.stored`: the stored workflow `stored()` reads its values from. */
   stored: CanonicalWorkflow | undefined
+  /** `CompileInput.storedUnread`, false when `stored` is given. */
+  storedUnread: boolean
   /** `CompileInput.envNames`: the env names a run resolves, when known. */
   envNames: ReadonlySet<string> | undefined
   /** `CompileInput.envDeclaredIn`: the file the env names are declared in, when there is one. */

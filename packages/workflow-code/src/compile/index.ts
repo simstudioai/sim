@@ -65,6 +65,14 @@ export interface CompileInput {
    */
   stored?: CanonicalWorkflow
   /**
+   * The source continues a stored workflow this compile does not hold (`stored` absent), as an
+   * offline check reads it: an edge between two `knownKeys` blocks may be one the stored workflow
+   * holds, so an error edge out of a block with no error port (`W_ERROR_PORT_STORED`) or a cycle
+   * (`W_EDGE_CYCLE`) made of such edges is a warning saying an apply keeps it only if the stored
+   * workflow holds it, not an error. Ignored when `stored` is given.
+   */
+  storedUnread?: boolean
+  /**
    * The env variable names a run resolves (the workspace's plus the caller's personal ones).
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
@@ -466,6 +474,7 @@ function compileEntry(
     spans: new Map(),
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
+    storedUnread: input.stored === undefined && input.storedUnread === true,
     envNames: input.envNames,
     envDeclaredIn: input.envDeclaredIn,
     envReferences: new Set(),

@@ -126,7 +126,8 @@ const COMPILE_EDGE_CODES = [
   'E_ERROR_PORT_UNSUPPORTED',
   /**
    * `.onError()` on a block with no error port (a loop or parallel) that the stored workflow
-   * already wires: kept so it round-trips; source never adds one.
+   * already wires: kept so it round-trips; source never adds one. Unread (`storedUnread`), any such
+   * edge between two bound blocks, which an apply keeps only if the stored workflow holds it.
    */
   'W_ERROR_PORT_STORED',
   /** `x.key.to()` where `key` is not a branch of `x`. */
@@ -150,7 +151,10 @@ const COMPILE_EDGE_CODES = [
    * block wait for every incoming edge, so no block on a cycle ever runs; repeat work with loop().
    */
   'E_EDGE_CYCLE',
-  /** A cycle the stored workflow already holds: kept so it round-trips, but none of it runs. */
+  /**
+   * A cycle the stored workflow already holds (unread, may hold: every edge between bound blocks):
+   * kept so it round-trips, but none of it runs.
+   */
   'W_EDGE_CYCLE',
   /**
    * A condition or router branch no edge leaves, so a run that takes it ends there. A branch the

@@ -1498,13 +1498,13 @@ describe('a finding names its fix', () => {
       'onError on a trigger',
       `${START}\nconst a = api('A', { url: 'x' })\nstart.onError(a)`,
       'E_ERROR_PORT_UNSUPPORTED',
-      'Remove this onError; this block never fails into an error port.',
+      'No new error edge can leave this block, which never fails into an error port.',
     ],
     [
       'onError on a loop',
       "const l = loop.for('L', { count: 2 }, (p) => api('In', { url: 'x' }))\nconst a = api('A', { url: 'x' })\nl.onError(a)",
       'E_ERROR_PORT_UNSUPPORTED',
-      'Remove this onError, and wire onError from the blocks inside L that can fail.',
+      'No new error edge can leave L: wire onError from the blocks inside it that can fail instead.',
     ],
     [
       'meta naming no branch',
