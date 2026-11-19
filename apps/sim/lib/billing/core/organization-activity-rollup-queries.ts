@@ -151,10 +151,11 @@ function storedCells(scope: ActivityScope, span: InstantRange): SQL {
  * The rollup cells of the scope's workspaces that have a pending dirty mark, as
  * `(workspace_id, h)`: known to be stale until the mark is processed (or while it backs off after
  * failing), so reads take exactly those workspace-hours live and every other workspace's stored
- * cell for the hour still serves. Read on the mark queue's key, in the read's snapshot.
+ * cell for the hour still serves. Read on the mark queue's key, in the read's snapshot. Each row is
+ * a distinct cell: the queue's key is the workspace-hour, and each mark joins one workspace.
  */
 function markedCells(scope: ActivityScope, span: InstantRange): SQL {
-  return sql`SELECT DISTINCT d.workspace_id, d.bucket_start AS h FROM ${workspace} w
+  return sql`SELECT d.workspace_id, d.bucket_start AS h FROM ${workspace} w
     JOIN ${activityRollupDirty} d ON d.workspace_id = w.id
       AND d.bucket_start >= ${utcTimestamp(span.from)} AND d.bucket_start < ${utcTimestamp(span.to)}
     WHERE w.organization_id = ${scope.organizationId}
@@ -162,7 +163,7 @@ function markedCells(scope: ActivityScope, span: InstantRange): SQL {
 }
 
 /**
- * Whether the scope has more than {@link MAX_LIVE_MARKED_CELLS} marked cells in `span`, counted
+ * Whether the scope has more than {@link MAX_LIVE_MARKED_CELLS} marked cells in `span`, reading
  * no further than one past the bound.
  */
 async function exceedsLiveMarkedCells(

@@ -666,15 +666,21 @@ export async function runActivityRollupPass(
 }
 
 /**
- * Counts a pass that failed after taking the lease, and logs the run of failures loudly. Matched on
- * the owner alone, so a pass that overran its lease is still counted; one whose lease another pass
- * took over was already counted by that takeover, and matches nothing.
+ * Counts a pass that failed after taking the lease and releases the lease in the same update, so a
+ * takeover never counts the failure again; logs the run of failures loudly. Matched on the owner
+ * alone, so a pass that overran its lease is still counted; one whose lease another pass took over
+ * was already counted by that takeover, and matches nothing.
  */
 async function recordFailedPass(owner: string, error: unknown): Promise<void> {
   try {
     const [state] = await db
       .update(activityRollupState)
-      .set({ failedPasses: sql`${activityRollupState.failedPasses} + 1`, updatedAt: sql`now()` })
+      .set({
+        failedPasses: sql`${activityRollupState.failedPasses} + 1`,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: sql`now()`,
+      })
       .where(
         and(
           eq(activityRollupState.id, WORKFLOW_ROLLUP_ID),
