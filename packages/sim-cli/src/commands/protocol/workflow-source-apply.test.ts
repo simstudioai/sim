@@ -7,6 +7,7 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
+import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { digest } from './source-dir'
 import { TSCONFIG_MARKER } from './source-tree'
@@ -203,11 +204,7 @@ describe('sim workflows source apply', () => {
   it('points tsconfig.json at a block the applied source added, from the cached catalog', async () => {
     setTerminal(false)
     vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
-    mkdirSync(join(dir, 'config/cache/source-catalog'), { recursive: true })
-    writeFileSync(
-      join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
-      readFileSync(FIXTURE_CATALOG, 'utf8')
-    )
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
     writeFileSync(join(dir, 'tsconfig.json'), `${TSCONFIG_MARKER}\n{}\n`)
     const stored = outcome()
     stored.data.files = { 'workflow.ts': `${ENTRY}// slack.sendMessage('Post', {})\n` }

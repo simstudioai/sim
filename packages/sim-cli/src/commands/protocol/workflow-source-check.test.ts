@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SimApiError } from '../../http/client'
+import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns } from '../../test/context-mock'
 import { attachWorkflowSourceCheck } from './workflow-source-check'
 
@@ -33,11 +34,7 @@ async function check(): Promise<void> {
 }
 
 function cacheCatalog(): void {
-  mkdirSync(join(dir, 'config/cache/source-catalog'), { recursive: true })
-  writeFileSync(
-    join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
-    readFileSync(FIXTURE_CATALOG, 'utf8')
-  )
+  cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
 }
 
 function result(): Record<string, unknown> {

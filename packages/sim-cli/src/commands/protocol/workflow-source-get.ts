@@ -223,6 +223,7 @@ export async function writeSourceDirectory(
     loadCatalog(client, {
       workspaceId: source.workspaceId,
       workflowId: source.workflowId,
+      catalogHash: source.base.catalogHash,
       blockTypes: [...blockTypes],
     }),
     loadWorkspaceTypes(client, source.workspaceId),

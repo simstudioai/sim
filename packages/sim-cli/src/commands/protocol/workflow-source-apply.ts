@@ -1,4 +1,5 @@
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { toRecord } from '@sim/utils/object'
 import { parseSourceBase, parseWorkflowLock, type WorkflowLockV1 } from '@sim/workflow-code'
 import { codeFileReferences } from '@sim/workflow-code/code-files/references'
 import {
@@ -28,7 +29,7 @@ import {
   withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
-import { cachedCatalogOfBase } from './source-tree'
+import { cachedCatalogByHash } from './source-tree'
 import {
   confirm,
   fresh,
@@ -318,7 +319,10 @@ export function attachWorkflowSourceApply(source: Command): void {
           params: { workflowId },
           body: { files, lock, base, provenance: { client: 'cli' } },
           save: async (data) => {
-            const edges = storedEdgesWrite(data, cachedCatalogOfBase(data.base))
+            const edges = storedEdgesWrite(
+              data,
+              cachedCatalogByHash(toRecord(data.base).catalogHash)
+            )
             await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
             await refreshWorkflowTsconfigs(options.dir, data)
           },

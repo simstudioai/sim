@@ -5,6 +5,7 @@
  * the agent guide and the LF lines.
  */
 import { createHash } from 'node:crypto'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
@@ -77,85 +78,61 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
   )
 }
 
-/** Workspace ids are uuids; anything else is never used to name a cache file. */
+/** Workspace ids are uuids and catalog hashes hex; anything else never names a cache file. */
 const CACHE_KEY = /^[\w-]+$/
 
-/**
- * Where the workspace's catalog is cached: one file per workspace in the CLI's config directory,
- * so every `source get` in the workspace (whatever the workflow or output directory) revalidates
- * the same copy. Callers gate the id with `CACHE_KEY` first.
- */
-function catalogCachePath(workspaceId: string): string {
-  return join(configDir(), 'cache', 'source-catalog', `${workspaceId}.json`)
+/** The CLI's catalog cache: every catalog by its hash, and each workspace's current hash. */
+function catalogCacheDir(): string {
+  return join(configDir(), 'cache', 'source-catalog')
 }
 
 /**
- * Where a workflow's own source catalog is cached: the one a get fetches for a workflow holding a
- * type the workspace catalog lacks (see {@link loadCatalog}), one file per workflow beside the
- * workspace's. Callers gate both ids with `CACHE_KEY` first.
+ * Where a catalog is cached: by its content hash, so the workspace catalog and every per-workflow
+ * catalog share one file per distinct catalog, however many workflows and workspaces name it.
+ * Callers gate the hash with `CACHE_KEY` first.
  */
-function workflowCatalogCachePath(workspaceId: string, workflowId: string): string {
-  return join(configDir(), 'cache', 'source-catalog', workspaceId, `${workflowId}.json`)
-}
-
-function readCachedCatalog(path: string): BlockCatalog | null {
-  const cached = readJsonFile(path, MAX_CATALOG_CACHE_BYTES)
-  return isBlockCatalog(cached) ? cached : null
+function catalogCachePath(hash: string): string {
+  return join(catalogCacheDir(), `${hash}.json`)
 }
 
 /**
- * The cached catalog, or `null`. Standalone runs only: an embedded run has no local disk of its
- * own to cache on. The file is read without following a link and under a size cap.
+ * Where the hash of a workspace's catalog is recorded, so a get revalidates it by ETag and an
+ * offline command finds it. Callers gate the id with `CACHE_KEY` first.
  */
+function workspaceCatalogPointerPath(workspaceId: string): string {
+  return join(catalogCacheDir(), 'workspaces', `${workspaceId}.json`)
+}
+
+/** A pointer is one hash; a larger file was not written by this CLI. */
+const MAX_POINTER_BYTES = 4096
+
+/**
+ * The cached catalog of `hash`, or `null`. Standalone runs only: an embedded run has no local disk
+ * of its own to cache on. The file is read without following a link and under a size cap, and
+ * kept only when the catalog in it names the hash its file does.
+ */
+export function cachedCatalogByHash(hash: unknown): BlockCatalog | null {
+  if (embedStore.getStore() || typeof hash !== 'string' || !CACHE_KEY.test(hash)) return null
+  const cached = readJsonFile(catalogCachePath(hash), MAX_CATALOG_CACHE_BYTES)
+  return isBlockCatalog(cached) && cached.hash === hash ? cached : null
+}
+
+/** The cached catalog of the workspace, by the hash its last catalog read recorded, or `null`. */
 export function cachedCatalog(workspaceId: string): BlockCatalog | null {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
-  return readCachedCatalog(catalogCachePath(workspaceId))
+  const pointer = readJsonFile(workspaceCatalogPointerPath(workspaceId), MAX_POINTER_BYTES)
+  return isRecordLike(pointer) ? cachedCatalogByHash(pointer.hash) : null
 }
 
 /**
- * The cached catalog a source directory was printed against, or `null`: the workflow's own
- * catalog when `.sim/base.json` names a workflow whose cached catalog has the hash the base
- * records (a workflow holding a type the workspace catalog lacks, which only that catalog
- * declares), else the workspace's ({@link cachedCatalog}). An offline check compiles against it,
- * so it agrees with the dry run, which compiles against the same per-workflow catalog.
+ * The cached catalog a workflow source directory was printed against, by the hash its
+ * `.sim/base.json` records (the workspace's, or the workflow's own for a workflow holding a type
+ * the workspace catalog lacks), or `null` when the directory has no base or that catalog is not
+ * cached. An offline check compiles against it, so it agrees with the dry run, which compiles
+ * against the same catalog.
  */
-export async function cachedSourceCatalog(
-  dir: string,
-  workspaceId: string
-): Promise<BlockCatalog | null> {
-  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
-  const { workflowId, catalogHash } = base
-  if (
-    !embedStore.getStore() &&
-    CACHE_KEY.test(workspaceId) &&
-    typeof workflowId === 'string' &&
-    CACHE_KEY.test(workflowId) &&
-    base.workspaceId === workspaceId &&
-    typeof catalogHash === 'string'
-  ) {
-    const own = readCachedCatalog(workflowCatalogCachePath(workspaceId, workflowId))
-    if (own?.hash === catalogHash) return own
-  }
-  return cachedCatalog(workspaceId)
-}
-
-/**
- * The cached catalog a printed source's base names by hash (`.sim/base.json` of a get, apply or
- * create answer): the workflow's own or the workspace's, or `null` when neither cached catalog
- * has that hash.
- */
-export function cachedCatalogOfBase(base: unknown): BlockCatalog | null {
-  const { workspaceId, workflowId, catalogHash } = toRecord(base)
-  if (embedStore.getStore() || typeof workspaceId !== 'string' || !CACHE_KEY.test(workspaceId)) {
-    return null
-  }
-  const candidates = [
-    typeof workflowId === 'string' && CACHE_KEY.test(workflowId)
-      ? readCachedCatalog(workflowCatalogCachePath(workspaceId, workflowId))
-      : null,
-    cachedCatalog(workspaceId),
-  ]
-  return candidates.find((catalog) => catalog !== null && catalog.hash === catalogHash) ?? null
+export async function cachedSourceCatalog(dir: string): Promise<BlockCatalog | null> {
+  return cachedCatalogByHash(toRecord(await readSourceJson(dir, SOURCE_BASE_FILE)).catalogHash)
 }
 
 /** The catalog a `getSourceCatalog` answer carries. */
@@ -166,23 +143,71 @@ function catalogFrom(response: { data: unknown }): BlockCatalog {
   return response.data
 }
 
-/** Replaces the cached catalog atomically; a failed write only costs the next get a download. */
-function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
-  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
-  writeJsonFile(catalogCachePath(workspaceId), catalog)
+/**
+ * Caches `catalog` by its hash, replacing the file atomically; a failed write only costs the next
+ * get a download. An unchanged catalog is not rewritten.
+ */
+function writeCachedCatalog(catalog: BlockCatalog): void {
+  if (embedStore.getStore() || !CACHE_KEY.test(catalog.hash)) return
+  if (cachedCatalogByHash(catalog.hash)) return
+  writeJsonFile(catalogCachePath(catalog.hash), catalog)
 }
 
 /**
- * The workspace's block catalog, revalidated by ETag against the per-workspace cache: a `304`
- * reuses it, anything else replaces it. A workflow can hold a type the workspace no longer offers
- * (a legacy version, a block an allowlist now withholds); only then is that workflow's compile
- * catalog fetched instead, so its types still resolve, and cached per workflow for the offline
- * check ({@link cachedSourceCatalog}).
+ * Records `hash` as the workspace's catalog, dropping the per-workspace copy and the
+ * per-workflow copies an older CLI cached under the workspace id.
+ */
+function writeWorkspaceCatalogPointer(workspaceId: string, hash: string): void {
+  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
+  writeJsonFile(workspaceCatalogPointerPath(workspaceId), { hash })
+  for (const legacy of [`${workspaceId}.json`, workspaceId]) {
+    if (legacy === `${hash}.json`) continue
+    try {
+      rmSync(join(catalogCacheDir(), legacy), { recursive: true, force: true })
+    } catch {}
+  }
+}
+
+/**
+ * The catalog of the workflow `workflowId` (the workspace catalog plus the types it stores that the
+ * workspace catalog lacks), fetched and cached by hash; `knownHash`, a hash the workflow's catalog
+ * may have, is sent as its ETag, so a catalog already cached answers `304` with no body.
+ */
+export async function loadWorkflowCatalog(
+  client: OperationClient<'getSourceCatalog'>,
+  workspaceId: string,
+  workflowId: string,
+  knownHash?: string
+): Promise<BlockCatalog> {
+  const known = cachedCatalogByHash(knownHash)
+  try {
+    const catalog = catalogFrom(
+      await client.request<{ data: unknown }>('getSourceCatalog', {
+        params: { workspaceId },
+        query: { workflowId },
+        ...(known ? { headers: { 'if-none-match': `"${known.hash}"` } } : {}),
+      })
+    )
+    writeCachedCatalog(catalog)
+    return catalog
+  } catch (error) {
+    if (!known || !(error instanceof SimApiError) || error.status !== 304) throw error
+    return known
+  }
+}
+
+/**
+ * The workspace's block catalog, revalidated by ETag against the cached one: a `304` reuses it,
+ * anything else replaces it. A workflow can hold a type the workspace no longer offers (a legacy
+ * version, a block an allowlist now withholds); only then is that workflow's own catalog used
+ * instead, so its types still resolve: the one cached under the hash its base records
+ * (`catalogHash`), else fetched ({@link loadWorkflowCatalog}).
  */
 export async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
   source: Pick<GetWorkflowSourceResponse['data'], 'workspaceId' | 'blockTypes'> & {
     workflowId?: string
+    catalogHash?: string
   }
 ): Promise<BlockCatalog> {
   const cached = cachedCatalog(source.workspaceId)
@@ -194,31 +219,18 @@ export async function loadCatalog(
         ...(cached ? { headers: { 'if-none-match': `"${cached.hash}"` } } : {}),
       })
     )
-    writeCachedCatalog(source.workspaceId, catalog)
+    writeCachedCatalog(catalog)
   } catch (error) {
     if (!cached || !(error instanceof SimApiError) || error.status !== 304) throw error
     catalog = cached
   }
-  if (
-    source.workflowId === undefined ||
-    source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)
-  ) {
-    return catalog
-  }
-  const own = catalogFrom(
-    await client.request<{ data: unknown }>('getSourceCatalog', {
-      params: { workspaceId: source.workspaceId },
-      query: { workflowId: source.workflowId },
-    })
-  )
-  if (
-    !embedStore.getStore() &&
-    CACHE_KEY.test(source.workspaceId) &&
-    CACHE_KEY.test(source.workflowId)
-  ) {
-    writeJsonFile(workflowCatalogCachePath(source.workspaceId, source.workflowId), own)
-  }
-  return own
+  writeWorkspaceCatalogPointer(source.workspaceId, catalog.hash)
+  const declaresAll = (candidate: BlockCatalog) =>
+    source.blockTypes.every((type) => catalogBlock(candidate, type) !== undefined)
+  if (source.workflowId === undefined || declaresAll(catalog)) return catalog
+  const printedWith = cachedCatalogByHash(source.catalogHash)
+  if (printedWith && declaresAll(printedWith)) return printedWith
+  return loadWorkflowCatalog(client, source.workspaceId, source.workflowId)
 }
 
 /**
@@ -520,7 +532,7 @@ export async function refreshTsconfigs(
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
 ): Promise<void> {
-  const catalog = await cachedSourceCatalog(dir, workspaceId)
+  const catalog = (await cachedSourceCatalog(dir)) ?? cachedCatalog(workspaceId)
   if (!catalog) return
   const [tsconfig, full, workspaceTypes] = await Promise.all([
     readSourceText(dir, TSCONFIG_FILE),

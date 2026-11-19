@@ -527,8 +527,12 @@ describe('catalog and declarations', () => {
   })
 
   it('heals a torn catalog cache by fetching the catalog whole and rewriting it', async () => {
-    const cache = join(root, 'config/cache/source-catalog', `${WORKSPACE_ID}.json`)
-    mkdirSync(join(cache, '..'), { recursive: true })
+    const cache = join(root, 'config/cache/source-catalog', `${CATALOG.hash}.json`)
+    mkdirSync(join(cache, '../workspaces'), { recursive: true })
+    writeFileSync(
+      join(cache, '../workspaces', `${WORKSPACE_ID}.json`),
+      JSON.stringify({ hash: CATALOG.hash })
+    )
     writeFileSync(cache, '{"hash":"torn","catalog":{"blo')
 
     await get()
@@ -994,6 +998,27 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
         ({ code, message, line }) => ({ code, message, line })
       )
     ).toEqual(dryRun)
+  })
+
+  it('caches each catalog once by its hash, fetching the workflow catalog only while uncached', async () => {
+    const cacheDir = join(root, 'config/cache/source-catalog')
+    mkdirSync(join(cacheDir, WORKSPACE_ID), { recursive: true })
+    writeFileSync(join(cacheDir, `${WORKSPACE_ID}.json`), '{}')
+    serve(TICKET_ROUTER)
+    const queries: string[] = []
+    const answer = server.catalog
+    server.catalog = (headers, url) => {
+      queries.push(url.searchParams.get('workflowId') ?? 'workspace')
+      return answer(headers, url)
+    }
+
+    await get()
+    await get()
+
+    expect(readdirSync(cacheDir).sort()).toEqual(
+      [`${CATALOG.hash}.json`, `${WORKSPACE_CATALOG.hash}.json`, 'workspaces'].sort()
+    )
+    expect(queries.filter((query) => query === WORKFLOW_ID)).toHaveLength(1)
   })
 
   it('checks against the workspace catalog again once a later get no longer needs its own', async () => {

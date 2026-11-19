@@ -556,7 +556,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
         )
       }
       const catalog = cachedOrRefuse(
-        await cachedSourceCatalog(options.dir, workspaceId),
+        (await cachedSourceCatalog(options.dir)) ?? cachedCatalog(workspaceId),
         workspaceId,
         workspace
           ? `\`sim workspaces source get --dir ${workspace.root}\``

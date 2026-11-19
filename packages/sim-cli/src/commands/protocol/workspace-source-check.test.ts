@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
+import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns } from '../../test/context-mock'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
@@ -74,10 +75,7 @@ beforeEach(() => {
       '',
     ].join('\n')
   )
-  writeFile(
-    `config/cache/source-catalog/${WORKSPACE_ID}.json`,
-    readFileSync(FIXTURE_CATALOG, 'utf8')
-  )
+  cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, readFileSync(FIXTURE_CATALOG, 'utf8'))
   vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
   contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_other', output: 'json' })
   contextMockFns.mockRequest.mockReset()
@@ -155,10 +153,7 @@ describe('sim workspaces source check', () => {
   })
 
   it('in a fresh clone (no cached catalog), downloads the catalog once and checks', async () => {
-    const catalog = readFileSync(
-      join(dir, `config/cache/source-catalog/${WORKSPACE_ID}.json`),
-      'utf8'
-    )
+    const catalog = readFileSync(FIXTURE_CATALOG, 'utf8')
     rmSync(join(dir, 'config'), { recursive: true })
     writeFile('workflows/first/workflow.ts', insertWorkflow())
     contextMockFns.mockRequest.mockResolvedValue({ data: JSON.parse(catalog) })
