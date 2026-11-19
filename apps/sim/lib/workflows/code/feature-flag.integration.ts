@@ -24,6 +24,7 @@ const { mockFetchProfile } = vi.hoisted(() => ({ mockFetchProfile: vi.fn() }))
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/appconfig', () => ({ fetchAppConfigProfile: mockFetchProfile }))
 
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { readSourceCatalog } from '@/lib/workflows/application/read-source-catalog'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
@@ -164,5 +165,23 @@ describe('workflows as code rolled out to one organization', () => {
         input: { workspaceId: notRolledOut.workspaceId },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('grants a chat the workflow-code entitlement only where the source commands would run', async () => {
+    const granted = async (owner: Parameters<typeof computeEntitlements>[0]) =>
+      (await computeEntitlements(owner)).includes('workflow-code')
+
+    expect(
+      await granted({ principal: ownerOf(rolledOut), workspaceId: rolledOut.workspaceId })
+    ).toBe(true)
+    expect(
+      await granted({ principal: ownerOf(notRolledOut), workspaceId: notRolledOut.workspaceId })
+    ).toBe(false)
+    expect(await granted({ principal: ownerOf(rolledOut), organizationId: rolledOut.orgId })).toBe(
+      true
+    )
+    expect(
+      await granted({ principal: ownerOf(notRolledOut), organizationId: notRolledOut.orgId })
+    ).toBe(false)
   })
 })
