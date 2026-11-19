@@ -105,6 +105,8 @@ describe('cleanup logs worker', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledWith({
       id: schemaMock.workflowExecutionLogs.id,
       files: schemaMock.workflowExecutionLogs.files,
+      workspaceId: schemaMock.workflowExecutionLogs.workspaceId,
+      startedAt: schemaMock.workflowExecutionLogs.startedAt,
     })
     expect(dbChainMockFns.execute).not.toHaveBeenCalled()
     expect(mockDeleteFiles).toHaveBeenCalledWith(
@@ -159,6 +161,8 @@ describe('cleanup logs worker', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledWith({
       id: schemaMock.workflowExecutionLogs.id,
       files: schemaMock.workflowExecutionLogs.files,
+      workspaceId: schemaMock.workflowExecutionLogs.workspaceId,
+      startedAt: schemaMock.workflowExecutionLogs.startedAt,
     })
     expect(dbChainMockFns.select).not.toHaveBeenCalledWith(
       expect.objectContaining({ executionData: expect.anything() })
