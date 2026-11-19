@@ -161,7 +161,10 @@ required column and its values in one apply.
 `mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
 `kinds/mcp/adapter.ts`). Its id derives from its URL, so the URL is its identity: an unbound
 server at the declared URL is adopted, and a changed URL replaces it (created at the new URL, the
-old one deleted; `--allow-delete` when stored workflows call it). A header value is stored text in
+old one deleted; `--allow-delete` when stored workflows call it). A replace that stopped partway
+resumes: the server it created holds exactly the declaration and no key, so the next apply adopts
+it, deleting the old one if it is still there; a different server already at the new URL is
+`E_NAME_TAKEN`. A header value is stored text in
 which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
 text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
 by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
