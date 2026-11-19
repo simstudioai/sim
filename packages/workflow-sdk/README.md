@@ -11,6 +11,7 @@ in the Sim repository the full grammar is `packages/workflow-code/src/compile/SY
 sim workflows source get <workflowId> --dir ./wf   # 1. write the source tree
 # 2. edit ./wf/workflow.ts (and ./wf/functions/*)
 sim workflows source check --dir ./wf              #    compile locally, no request; exit 0 to go on
+sim workflows source status --dir ./wf             #    what changed here and on the server; diff shows it
 sim workflows source apply --dir ./wf --dry-run    # 3. check on the server; writes nothing
 sim workflows source apply --dir ./wf --yes        # 4. save the draft
 ```

@@ -138,7 +138,10 @@ const GET_HINT = 'Write the directory with `sim workflows source get` first.'
  * one workflow and applied to another would replace that workflow's draft with a stranger's
  * source. Without a `workflowId` the apply targets the workflow the base names.
  */
-async function readBase(directory: string, workflowId: string | undefined): Promise<SourceBase> {
+export async function readBase(
+  directory: string,
+  workflowId: string | undefined
+): Promise<SourceBase> {
   const parsed = parseSourceBase(await readJson(directory, BASE_FILE, GET_HINT))
   if ('problem' in parsed) {
     throw new SimApiError(
@@ -158,7 +161,7 @@ async function readBase(directory: string, workflowId: string | undefined): Prom
 }
 
 /** The directory's lock, refused with every problem the lock parser finds. */
-async function readLock(directory: string): Promise<WorkflowLockV1> {
+export async function readLock(directory: string): Promise<WorkflowLockV1> {
   const parsed = parseWorkflowLock(await readJson(directory, LOCK_FILE, GET_HINT))
   if (parsed.lock) return parsed.lock
   const problems = parsed.diagnostics.map(

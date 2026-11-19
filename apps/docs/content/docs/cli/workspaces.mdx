@@ -710,6 +710,29 @@ Exit codes: 0 written; 1 the command failed, the directory holds edits no apply 
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
 
+### Show what changed locally and on the server since the directory was read
+
+```bash
+sim workspaces source status [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--only <kinds>` | No | Report only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--offline` | No | Report local changes only, without asking the server. |
+| `--json` | No | Print the machine-readable status (same as --output json). |
+
+</CommandTable>
+
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+
 ### Apply a workspace source directory
 
 ```bash
@@ -757,6 +780,38 @@ Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each na
 Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once).
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN. --strict fails on them in every block; --no-strict never fails on a warning.
+
+### Show the content of the changes in a workspace source directory
+
+```bash
+sim workspaces source diff [paths...] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `paths...` | No | Files, folders or kind:key resources to compare (default: every file) |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--server` | No | Compare with the server's current source instead of the base. |
+| `--json` | No | Print the machine-readable diff (same as --output json). |
+
+</CommandTable>
+
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 1 the command failed.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource).
 
 ## Related docs
 

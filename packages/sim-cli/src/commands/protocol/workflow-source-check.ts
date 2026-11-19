@@ -103,7 +103,9 @@ ${STRICT_HELP}`
  * The workspace directory a workflow folder `dir` sits in (`<root>/workflows/<key>`, with a
  * workspace `.sim/base.json` at the root), or `null`.
  */
-async function workspaceRootOf(dir: string): Promise<{ root: string; workspaceId: string } | null> {
+export async function workspaceRootOf(
+  dir: string
+): Promise<{ root: string; workspaceId: string } | null> {
   const folder = resolve(dir)
   if (basename(dirname(folder)) !== KIND_DIRS.workflow) return null
   const root = dirname(dirname(folder))
