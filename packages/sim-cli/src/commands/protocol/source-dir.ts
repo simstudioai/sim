@@ -303,7 +303,12 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
         await rm(scratch, { recursive: true, force: true })
       }
     }
-    for (const [path, content] of [...change.write, ...fetched]) {
+    const all = [...change.write, ...fetched]
+    // The host has no rename, so the records go last here too: after every file and blob.
+    for (const [path, content] of [
+      ...all.filter(([path]) => !isRecordFile(path)),
+      ...all.filter(([path]) => isRecordFile(path)),
+    ]) {
       await saveToFile(new Blob([content]).stream(), posix.join(dir, path), true)
     }
     return
