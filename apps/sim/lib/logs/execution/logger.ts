@@ -17,6 +17,7 @@ import {
 import { generateId } from '@sim/utils/id'
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { markFinishedRunsDirty } from '@/lib/billing/activity-rollup/marks'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
@@ -1374,6 +1375,7 @@ export class ExecutionLogger {
         },
         completedExecutionLargeValueKeys
       )
+      await markFinishedRunsDirty(tx, [log])
 
       return { updatedLog: log, completionPersisted: true }
     })

@@ -8,7 +8,13 @@ import {
   inflightBackoffMs,
   recomputeCell,
 } from '@/lib/billing/activity-rollup/cells'
-import { floorHour, msInterval, utcTimestamp } from '@/lib/billing/activity-rollup/source'
+import {
+  ACTIVITY_ROLLUP_SETTLE_MS,
+  floorHour,
+  HOUR_MS,
+  msInterval,
+  utcTimestamp,
+} from '@/lib/billing/activity-rollup/source'
 import {
   type ActivityRollupState,
   MAINTENANCE_GAP_MS,
@@ -21,7 +27,8 @@ const logger = createLogger('ActivityRollupMarks')
 /**
  * How far behind now the late-end scan stays: an end is stamped by the app before its write
  * commits, so the scan only consumes ends old enough that every write stamped with them is
- * visible. Ends younger than this are read by a later pass.
+ * visible. Ends younger than this are read by a later pass. A writer whose stamp can trail its
+ * commit by longer marks the runs it finishes itself (see {@link markFinishedRunsDirty}).
  */
 export const LATE_END_SCAN_MARGIN_MS = 5 * 60 * 1000
 
@@ -39,7 +46,8 @@ interface ChangedRun {
 /**
  * Marks the rollup cells of `runs` for recomputing, in the caller's transaction so the marks
  * commit exactly when the change does. For changes the rollup pass cannot see on its own:
- * deleted runs, and finished runs reopened without an end.
+ * deleted runs, finished runs reopened without an end, and runs whose end committed too late for
+ * the late-end scan (see {@link markFinishedRunsDirty}).
  *
  * Runs in a savepoint and never throws: a mark that fails (the table missing mid-deploy) is logged
  * and the caller's change goes ahead, so retention and resumes behave exactly as without the
@@ -70,6 +78,8 @@ export async function markWorkflowActivityDirty(
           SELECT 1 FROM ${activityRollupState}
           WHERE maintained_at > now() - ${msInterval(MAINTENANCE_GAP_MS)}
         )
+        -- Writers of several marks lock them in key order, so two can never deadlock.
+        ORDER BY 1, 2
         ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
       `)
     })
@@ -79,6 +89,22 @@ export async function markWorkflowActivityDirty(
       error: getErrorMessage(error),
     })
   }
+}
+
+/** Runs younger than this lie in hours not computed yet: the settle lag less an hour of clock margin. */
+const FINISHED_RUN_MARK_AGE_MS = ACTIVITY_ROLLUP_SETTLE_MS - HOUR_MS
+
+/**
+ * Marks the cells of runs whose final status is being written, in the transaction that writes it,
+ * when their hours may already be computed. Their ends were stamped before the write, so it can
+ * commit after the late-end scan passed the end, or after the hour was computed without a late end.
+ */
+export async function markFinishedRunsDirty(tx: DbTransaction, runs: ChangedRun[]): Promise<void> {
+  const settled = Date.now() - FINISHED_RUN_MARK_AGE_MS
+  await markWorkflowActivityDirty(
+    tx,
+    runs.filter((run) => run.startedAt.getTime() <= settled)
+  )
 }
 
 /**
@@ -123,6 +149,7 @@ export async function captureLateEnds(
           FROM ${workflowExecutionLogs} l, bound
           WHERE l.ended_at >= l.started_at + interval '2 hours'
             AND l.ended_at > bound.cursor AND l.ended_at <= bound.boundary
+          ORDER BY 1, 2
           ON CONFLICT (workspace_id, bucket_start) DO NOTHING
           RETURNING 1
         ), moved AS (

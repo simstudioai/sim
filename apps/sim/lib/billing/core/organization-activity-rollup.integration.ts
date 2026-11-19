@@ -1,6 +1,7 @@
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -48,6 +49,7 @@ vi.mock('@/lib/billing/core/usage-segment-cache', () => ({
   },
 }))
 
+import { markFinishedRunsDirty } from '@/lib/billing/activity-rollup/marks'
 import {
   type ActivityRollupPassOptions,
   markStaleHours,
@@ -634,6 +636,28 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 120_000)
 
+  it('marks a late-committing completion so its computed hour reads live', async () => {
+    const run = await oneLog(
+      `status = 'running' AND started_at < (now() AT TIME ZONE 'UTC') - interval '3 days'`
+    )
+    await database.transaction(async (tx) => {
+      const [finished] = await tx
+        .update(schema.workflowExecutionLogs)
+        .set({
+          status: 'completed',
+          totalDurationMs: 1800,
+          endedAt: sql`${schema.workflowExecutionLogs.startedAt} + interval '30 minutes'`,
+        })
+        .where(eq(schema.workflowExecutionLogs.id, run.id))
+        .returning()
+      if (!finished) throw new Error('No run to finish')
+      await markFinishedRunsDirty(tx, [finished])
+    })
+    await expectEquivalent()
+    await runPass()
+    await expectEquivalent()
+  }, 120_000)
+
   it('runs one pass at a time and rewrites nothing when run again', async () => {
     const results = await Promise.all([runPass(), runPass()])
     expect(results.map((result) => result.status).sort()).toEqual(['leased', 'ran'])
@@ -711,13 +735,16 @@ describe('organization activity rollup', () => {
         FOR EACH ROW WHEN (NEW.bucket_start = '${failing.toISOString().replace('T', ' ').slice(0, 19)}')
         EXECUTE FUNCTION fail_rollup_write();
     `)
-    await expect(runPass()).rejects.toThrow()
-    const crashed = await readRollupState()
-    expect(crashed?.coverageStart?.getTime()).toBeGreaterThan(failing.getTime())
-    expect(crashed?.leaseOwner).toBeNull()
-    await connection.unsafe(
-      `DROP TRIGGER fail_rollup_write ON workflow_activity_hourly; DROP FUNCTION fail_rollup_write()`
-    )
+    try {
+      await expect(runPass()).rejects.toThrow()
+      const crashed = await readRollupState()
+      expect(crashed?.coverageStart?.getTime()).toBeGreaterThan(failing.getTime())
+      expect(crashed?.leaseOwner).toBeNull()
+    } finally {
+      await connection.unsafe(
+        `DROP TRIGGER fail_rollup_write ON workflow_activity_hourly; DROP FUNCTION fail_rollup_write()`
+      )
+    }
     expect((await runPass()).backfillComplete).toBe(true)
     await expectEquivalent()
   }, 300_000)
@@ -923,6 +950,29 @@ describe('organization activity rollup', () => {
     expect((await readRollupState())?.failedPasses).toBe(0)
   }, 300_000)
 
+  it('counts a pass that died holding the lease as failed, so a deferred hour backs off', async () => {
+    const hour = await reopenLastSettledHour()
+    await connection.unsafe(
+      `INSERT INTO activity_rollup_blocked VALUES ($1::timestamp, 0, now())`,
+      [hour]
+    )
+    // Two passes threw; a third was killed paging the hour, so its lease was never released.
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET failed_passes = 2, lease_owner = 'killed-pass',
+        lease_expires_at = now() - interval '1 second'`
+    )
+    await gateHour(hour, `RAISE EXCEPTION 'Synthetic crash';`)
+    try {
+      await expect(runPass()).rejects.toThrow()
+      expect(await blockedAttempts(hour)).toBe(1)
+    } finally {
+      await ungateHour()
+    }
+    await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
+    expect(await runPass()).toMatchObject({ finalizedHours: 1, blockedHours: 0 })
+    expect((await readRollupState())?.failedPasses).toBe(0)
+  }, 300_000)
+
   it('commits a retry backoff before the retry, so a retry that dies still backs off', async () => {
     const hour = await reopenLastSettledHour()
     await connection.unsafe(
@@ -1115,6 +1165,41 @@ describe('organization activity rollup', () => {
     }
     expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
     await runPass()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).not.toBeNull()
+    await expectEquivalent()
+  }, 300_000)
+
+  it('stops serving the rollup while the late-end scan has fallen behind', async () => {
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET last_end_scan = (now() AT TIME ZONE 'UTC') - interval '1 hour'`
+    )
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+    expect(
+      await readRollupActivityBreakdown(scopeOf(longWindow()), 'workflow', 'runs', 0)
+    ).toBeNull()
+    await runPass()
+    expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).not.toBeNull()
+    await expectEquivalent()
+  }, 300_000)
+
+  it('uses the legacy read when more cells are marked than are worth reading live', async () => {
+    const state = await readRollupState()
+    if (!state?.freshThrough) throw new Error('No coverage')
+    // Past the read's bound of 5,000 marked cells: organization A's workspaces, inside the long
+    // window, due only after the test so no pass takes them.
+    await connection`INSERT INTO activity_rollup_dirty (workspace_id, bucket_start, due_at)
+      SELECT w, ${state.freshThrough.toISOString()}::timestamptz AT TIME ZONE 'UTC' - h * interval '1 hour',
+        now() + interval '1 day'
+      FROM unnest(ARRAY['ws1', 'ws2', 'ws4']) AS w, generate_series(1, 1700) AS h
+      ON CONFLICT (workspace_id, bucket_start) DO NOTHING`
+    try {
+      expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).toBeNull()
+      expect(
+        await readRollupActivityBreakdown(scopeOf(longWindow()), 'workflow', 'runs', 0)
+      ).toBeNull()
+    } finally {
+      await connection`DELETE FROM activity_rollup_dirty WHERE due_at > now() + interval '1 hour'`
+    }
     expect(await readRollupActivityDays(scopeOf(longWindow()), 'UTC')).not.toBeNull()
     await expectEquivalent()
   }, 300_000)

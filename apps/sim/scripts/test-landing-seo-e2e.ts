@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SIM_SITE_URL } from '@sim/utils/site'
+import { load } from 'cheerio'
 import matter from 'gray-matter'
 import {
   dustProfile,
@@ -191,9 +192,11 @@ async function run() {
         for (const directive of [...robotsDirectives(body), headers.get('x-robots-tag') ?? '']) {
           assert.doesNotMatch(directive, /\b(?:noindex|none)\b/i)
         }
-        const headings = [...body.matchAll(/<h1\b[^>]*>(.*?)<\/h1>/gs)]
+        const $ = load(body)
+        $('template').remove()
+        const headings = $('h1')
         assert.equal(headings.length, 1, 'HTML does not have exactly one H1')
-        assert(headings[0]?.[1].replace(/<[^>]*>/g, '').trim(), 'H1 has no text')
+        assert(headings.prop('innerText')?.trim(), 'H1 has no text')
       })
     }
     return

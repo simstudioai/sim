@@ -80,6 +80,11 @@ function collectSqlParams(fragment: unknown): unknown[] {
   })
 }
 
+/** A swept log as the sweep's update returns it: recent, so it is not marked for the rollup. */
+function sweptRun(id: string) {
+  return { id, workspaceId: 'workspace-1', startedAt: new Date() }
+}
+
 describe('stale execution cleanup deadline grace', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -324,9 +329,9 @@ describe('stale execution cleanup deadline grace', () => {
     }))
 
     for (let batch = 0; batch < 10; batch++) {
-      const workflowBatch = Array.from({ length: 100 }, (_, index) => ({
-        id: `workflow-state-${batch}-${index}`,
-      }))
+      const workflowBatch = Array.from({ length: 100 }, (_, index) =>
+        sweptRun(`workflow-state-${batch}-${index}`)
+      )
       queueTableRows(workflowExecutionLogs, workflowBatch)
       dbChainMockFns.returning.mockResolvedValueOnce(workflowBatch)
     }
@@ -396,12 +401,10 @@ describe('stale execution cleanup deadline grace', () => {
   })
 
   it('preserves committed workflow cleanup counts when a later batch fails', async () => {
-    const firstBatch = Array.from({ length: 100 }, (_, index) => ({
-      id: `execution-${index}`,
-    }))
-    const failedBatch = Array.from({ length: 37 }, (_, index) => ({
-      id: `failed-execution-${index}`,
-    }))
+    const firstBatch = Array.from({ length: 100 }, (_, index) => sweptRun(`execution-${index}`))
+    const failedBatch = Array.from({ length: 37 }, (_, index) =>
+      sweptRun(`failed-execution-${index}`)
+    )
     queueTableRows(workflowExecutionLogs, firstBatch)
     queueTableRows(workflowExecutionLogs, failedBatch)
     queueTableRows(asyncJobs, [{ id: 'async-job-1' }])
@@ -426,11 +429,11 @@ describe('stale execution cleanup deadline grace', () => {
   })
 
   it('continues draining when an atomic race updates fewer rows than were selected', async () => {
-    const firstCandidates = Array.from({ length: 100 }, (_, index) => ({
-      id: `execution-${index}`,
-    }))
+    const firstCandidates = Array.from({ length: 100 }, (_, index) =>
+      sweptRun(`execution-${index}`)
+    )
     const firstUpdated = firstCandidates.slice(0, 99)
-    const secondBatch = [{ id: 'execution-100' }]
+    const secondBatch = [sweptRun('execution-100')]
     queueTableRows(workflowExecutionLogs, firstCandidates)
     queueTableRows(workflowExecutionLogs, secondBatch)
     dbChainMockFns.returning.mockResolvedValueOnce(firstUpdated).mockResolvedValueOnce(secondBatch)

@@ -88,17 +88,15 @@ func remindersStore() throws -> EKEventStore {
 }
 /// A due date: `YYYY-MM-DD` is date-only; a date-time is ISO 8601, and one without an offset is this
 /// Mac's local time, as typing it into the app would be.
-func dueComponents(_ text: String) throws -> DateComponents {
+func dueComponents(_ text: String, _ field: String = "Due") throws -> DateComponents {
     var calendar = Calendar(identifier: .gregorian)
-    if text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+    if text.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil {
         let parts = text.split(separator: "-").compactMap { Int($0) }
         let components = DateComponents(calendar: calendar, year: parts[0], month: parts[1], day: parts[2])
-        guard components.isValidDate else { throw ComputerError("invalid_arguments", "Due date is not a real date.", dispatchState: "not_started") }
+        guard components.isValidDate else { throw invalidCommand("\(field) is not a real date.") }
         return DateComponents(year: parts[0], month: parts[1], day: parts[2])
     }
-    guard let date = isoDateTime(text) else {
-        throw ComputerError("invalid_arguments", "Due must be YYYY-MM-DD or an ISO 8601 date-time.", dispatchState: "not_started")
-    }
+    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be YYYY-MM-DD or a real ISO 8601 date-time.") }
     calendar.timeZone = .current
     return calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .timeZone], from: date)
 }
@@ -134,29 +132,43 @@ func localGregorian() -> Calendar {
     var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
     return calendar
 }
-/// An ISO 8601 date-time; without an offset it is this Mac's local time.
+// [0-9], not \d: ICU's \d also matches other scripts' digits, which Int() cannot read.
+let isoDateTimePattern = try! NSRegularExpression(pattern: #"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.[0-9]{1,9})?)?(?:(Z)|([+-])([0-9]{2}):([0-9]{2}))?$"#)
+/// An ISO 8601 date-time; without an offset it is this Mac's local time. Fractions of a second do not
+/// matter to a calendar item, so they are dropped. Every field must be in range: `ISO8601DateFormatter`
+/// rolls Feb 30 into March and accepts any offset, so a zoned time is checked part by part.
 func isoDateTime(_ text: String) -> Date? {
-    for options: ISO8601DateFormatter.Options in [[.withInternetDateTime], [.withInternetDateTime, .withFractionalSeconds]] {
-        let zoned = ISO8601DateFormatter(); zoned.formatOptions = options
-        if let date = zoned.date(from: text) { return date }
+    guard let match = isoDateTimePattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+    func part(_ index: Int) -> String? { Range(match.range(at: index), in: text).map { String(text[$0]) } }
+    func number(_ index: Int) -> Int? { part(index).flatMap { Int($0) } }
+    var zone: TimeZone?
+    if part(7) != nil { zone = TimeZone(secondsFromGMT: 0) }
+    if let sign = part(8), let hours = number(9), let minutes = number(10) {
+        guard minutes < 60, hours < 14 || (hours == 14 && minutes == 0) else { return nil }
+        zone = TimeZone(secondsFromGMT: (sign == "-" ? -1 : 1) * (hours * 3600 + minutes * 60))
     }
-    // Fractions of a second do not matter to a calendar item, so a local time drops them.
-    guard text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?$"#, options: .regularExpression) != nil else { return nil }
-    let whole = String(text.prefix(19))
-    let local = DateFormatter(); local.locale = Locale(identifier: "en_US_POSIX"); local.timeZone = .current
-    local.dateFormat = whole.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
-    local.isLenient = false
-    return local.date(from: whole)
+    guard let zone else {
+        // A local time keeps the formatter, which resolves a repeated hour at a daylight-saving change.
+        let whole = String(text.prefix(19))
+        let local = DateFormatter(); local.locale = Locale(identifier: "en_US_POSIX"); local.timeZone = .current
+        local.dateFormat = whole.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
+        local.isLenient = false
+        return local.date(from: whole)
+    }
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+    let components = DateComponents(year: number(1), month: number(2), day: number(3), hour: number(4), minute: number(5), second: number(6) ?? 0)
+    guard components.isValidDate(in: calendar) else { return nil }
+    return calendar.date(from: components)
 }
 /// An event boundary: an ISO 8601 date-time (local without an offset), or `YYYY-MM-DD` for all-day events.
 func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
     let text = try commandText(text, field, max: 64)
     if allDay {
-        let parts = try dueComponents(text)
+        let parts = try dueComponents(text, field)
         guard parts.hour == nil, let date = localGregorian().date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
         return date
     }
-    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be an ISO 8601 date-time.") }
+    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be a real ISO 8601 date-time.") }
     return date
 }
 func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
@@ -168,11 +180,10 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         }
         return ["kind": "command", "command": command.name, "items": lists, "truncated": allLists.count > 200]
     case "create_reminder":
-        let title = (command.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, title.count <= 1024 else { throw ComputerError("invalid_arguments", "A reminder needs a title of at most 1024 characters.", dispatchState: "not_started") }
-        guard (command.notes?.count ?? 0) <= 8000 else { throw ComputerError("invalid_arguments", "Notes are limited to 8000 characters.", dispatchState: "not_started") }
-        guard [0, 1, 5, 9].contains(command.priority ?? 0) else { throw ComputerError("invalid_arguments", "Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).", dispatchState: "not_started") }
-        let due = try command.due.map(dueComponents)
+        let title = try commandText(command.title, "Title")
+        let notes = try optionalText(command.notes, "Notes", max: 8000)
+        guard [0, 1, 5, 9].contains(command.priority ?? 0) else { throw invalidCommand("Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).") }
+        let due = try command.due.map { try dueComponents($0) }
         let store = try remindersStore()
         let list: EKCalendar
         if let listId = command.listId {
@@ -186,7 +197,7 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         }
         guard list.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
         let reminder = EKReminder(eventStore: store)
-        reminder.calendar = list; reminder.title = title; reminder.notes = command.notes
+        reminder.calendar = list; reminder.title = title; reminder.notes = notes
         reminder.priority = command.priority ?? 0; reminder.dueDateComponents = due
         try checkCancellation()
         inputDispatched = true

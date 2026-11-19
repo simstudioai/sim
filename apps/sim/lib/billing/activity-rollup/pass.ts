@@ -31,6 +31,7 @@ import {
   processDirtyMarks,
 } from '@/lib/billing/activity-rollup/marks'
 import {
+  ACTIVITY_ROLLUP_SETTLE_MS,
   floorHour,
   HOUR_MS,
   type InstantRange,
@@ -50,18 +51,11 @@ import {
   resetRollup,
   truncateRollupBatch,
   updateLeasedState,
+  WORKFLOW_ROLLUP_ID,
 } from '@/lib/billing/activity-rollup/state'
 import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ActivityRollupPass')
-
-/**
- * How long after an hour ends before it is computed. A run that ends within two hours of its start
- * (the predicate of `workflow_execution_logs_late_end_idx`) has ended, and its write committed, by
- * then; one that ends later is found by its late end. The hour of margin covers commit and replica
- * lag, so this must stay at least an hour above that threshold.
- */
-const ACTIVITY_ROLLUP_SETTLE_MS = 3 * HOUR_MS
 
 /** The lease a heavy-hour retry adds on top of its own budget, for the statements around it. */
 const LEASE_MARGIN_MS = 60 * 1000
@@ -143,8 +137,9 @@ function startCoverage(
 }
 
 /**
- * Once this many passes in a row have failed, a deferred hour counts as a retry, so a pass that
- * keeps crashing while paging it backs it off instead of starting it again every tick.
+ * Once this many passes in a row have failed (thrown, or died holding the lease), a deferred hour
+ * counts as a retry, so a pass that keeps crashing while paging it backs it off instead of starting
+ * it again every tick.
  */
 const CRASHING_PASSES = 3
 
@@ -477,6 +472,7 @@ export function markStaleHours(workspaceId: string, range: InstantRange): Promis
         SELECT 1 FROM ${activityRollupInflight} q
         WHERE q.workspace_id = ${workspaceId} AND q.bucket_start = d.hour
       )
+      ORDER BY d.hour
       ON CONFLICT (workspace_id, bucket_start) DO NOTHING
     `)
     return marked.count
@@ -663,14 +659,31 @@ export async function runActivityRollupPass(
   }
 }
 
-/** Counts a pass that failed after taking the lease, and logs the run of failures loudly. */
+/**
+ * Counts a pass that failed after taking the lease and releases the lease in the same update, so a
+ * takeover never counts the failure again; logs the run of failures loudly. Matched on the owner
+ * alone, so a pass that overran its lease is still counted; one whose lease another pass took over
+ * was already counted by that takeover, and matches nothing.
+ */
 async function recordFailedPass(owner: string, error: unknown): Promise<void> {
   try {
-    const state = await updateLeasedState(owner, {
-      failedPasses: sql`${activityRollupState.failedPasses} + 1`,
-    })
+    const [state] = await db
+      .update(activityRollupState)
+      .set({
+        failedPasses: sql`${activityRollupState.failedPasses} + 1`,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(activityRollupState.id, WORKFLOW_ROLLUP_ID),
+          eq(activityRollupState.leaseOwner, owner)
+        )
+      )
+      .returning({ failedPasses: activityRollupState.failedPasses })
     logger.error('Activity rollup pass failed', {
-      consecutiveFailures: state.failedPasses,
+      consecutiveFailures: state?.failedPasses ?? null,
       error: getErrorMessage(error),
     })
   } catch (countError) {
