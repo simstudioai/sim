@@ -10,8 +10,9 @@
  *   bun scripts/generate-embedded-text.ts && bunx biome check --write src/codegen
  */
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { type EmbeddedFolder, embeddedFolderTexts } from '../src/codegen/embedded-files'
 
 const packageRoot = path.resolve(import.meta.dirname, '..')
 
@@ -20,8 +21,8 @@ interface Embedded {
   target: string
   name: string
   doc: string
-  /** For a folder: which of its files are embedded, by path relative to it. */
-  files?: { recursive: boolean; include: (file: string) => boolean }
+  /** For a folder: which of its files are embedded, by path relative to it (never a dotfile). */
+  files?: EmbeddedFolder
 }
 
 const EMBEDDED: Embedded[] = [
@@ -54,19 +55,6 @@ const EMBEDDED: Embedded[] = [
   },
 ]
 
-/** A folder's embedded files, by `/`-separated path relative to it, in path order. */
-function folderTexts(dir: string, files: NonNullable<Embedded['files']>): Record<string, string> {
-  return Object.fromEntries(
-    readdirSync(dir, { recursive: files.recursive, withFileTypes: true })
-      .filter((entry) => entry.isFile())
-      .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
-      .map((file) => file.split(path.sep).join('/'))
-      .filter(files.include)
-      .sort()
-      .map((file) => [file, readFileSync(path.join(dir, file), 'utf8')])
-  )
-}
-
 /**
  * `value` as a TypeScript literal. Single quotes are written as `\u0027` so embedded source, such
  * as a `.d.ts` re-exporting `'./file'`, never reads as one of this module's own imports.
@@ -78,7 +66,7 @@ function literal(value: unknown): string {
 for (const { source, target, name, doc, files } of EMBEDDED) {
   const absolute = path.join(packageRoot, source)
   const declaration = files
-    ? `export const ${name}: Readonly<Record<string, string>> = ${literal(folderTexts(absolute, files))}`
+    ? `export const ${name}: Readonly<Record<string, string>> = ${literal(embeddedFolderTexts(absolute, files))}`
     : `export const ${name} = ${literal(readFileSync(absolute, 'utf8'))}`
   writeFileSync(
     path.join(packageRoot, target),
