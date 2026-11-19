@@ -1,27 +1,39 @@
 import { db, dbReplica } from '@sim/db'
 import {
+  activityRollupBlocked,
   activityRollupDirty,
   activityRollupInflight,
+  activityRollupState,
+  workflow,
   workflowActivityHourly,
   workflowExecutionLogs,
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
-import { and, gte, inArray, lt, max, sql } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import {
+  type ActivityCell,
   aggregateHour,
   boundedTransaction,
+  HeavyHourError,
   inflightBackoffMs,
   recomputeCell,
   writeHour,
 } from '@/lib/billing/activity-rollup/cells'
-import { captureLateEnds, processDirtyMarks } from '@/lib/billing/activity-rollup/marks'
+import {
+  captureLateEnds,
+  LATE_END_SCAN_MARGIN_MS,
+  processDirtyMarks,
+} from '@/lib/billing/activity-rollup/marks'
 import {
   floorHour,
   HOUR_MS,
+  type InstantRange,
+  msInterval,
   utcTimestamp,
   workflowRunCounters,
   workflowRunsStartedIn,
@@ -30,12 +42,15 @@ import {
   ACTIVITY_ROLLUP_VERSION,
   type ActivityRollupState,
   acquireLease,
+  extendLease,
+  MAINTENANCE_GAP_MS,
   readRollupState,
   releaseLease,
-  resetToCurrentVersion,
+  resetRollup,
   truncateRollupBatch,
   updateLeasedState,
 } from '@/lib/billing/activity-rollup/state'
+import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ActivityRollupPass')
 
@@ -46,6 +61,9 @@ const logger = createLogger('ActivityRollupPass')
  * lag, so this must stay at least an hour above that threshold.
  */
 const ACTIVITY_ROLLUP_SETTLE_MS = 3 * HOUR_MS
+
+/** The lease a heavy-hour retry adds on top of its own budget, for the statements around it. */
+const LEASE_MARGIN_MS = 60 * 1000
 
 /** Hours are read on the replica only when it replays the pass's lease within this long. */
 const MAX_REPLICA_LAG_MS = 10 * 1000
@@ -63,11 +81,19 @@ export interface ActivityRollupPassOptions {
   backfillRowsPerSecond: number
   /** The least sleep between two backfilled hours. */
   backfillMinGapMs: number
+  /** Late ends read per statement; smaller only to exercise a scan's batching. */
+  lateEndBatchRows?: number
+  /** How far behind now the late-end scan stays; shorter only where nothing writes concurrently. */
+  lateEndMarginMs?: number
   now?: () => Date
 }
 
 export interface ActivityRollupPassResult {
   status: 'ran' | 'leased' | 'newer-version' | 'truncating'
+  /** Why the pass started the rollup over, when it did. */
+  reset: 'version' | 'coverage' | 'maintenance-gap' | null
+  /** Hours being retried with backoff because no read could aggregate them. */
+  blockedHours: number
   finalizedHours: number
   backfilledHours: number
   lateEndMarks: number
@@ -97,16 +123,95 @@ async function waitForReplica(owner: string): Promise<number | null> {
   }
 }
 
-/** Creates the coverage on the first pass of a version: empty, ending at the last settled hour. */
-function startCoverage(owner: string, settledThrough: Date): Promise<ActivityRollupState> {
+/**
+ * Creates the coverage after a reset: empty, ending at the last settled hour. The late-end scan
+ * starts a margin back, since every hour is then computed from what the source holds after it.
+ */
+function startCoverage(
+  owner: string,
+  settledThrough: Date,
+  marginMs: number
+): Promise<ActivityRollupState> {
   return updateLeasedState(owner, {
     coverageStart: settledThrough,
     freshThrough: settledThrough,
-    lastEndScan: sql`(now() AT TIME ZONE 'UTC')`,
+    lastEndScan: sql`(now() AT TIME ZONE 'UTC') - ${msInterval(marginMs)}`,
+    maintainedAt: sql`now()`,
   })
 }
 
-/** Computes every hour that has settled since the last pass, oldest first. */
+/** How long a retry of an hour too heavy to read may page through workspaces. */
+const HEAVY_RETRY_MS = 2 * 60 * 1000
+/** A retry's budget grows with its attempts up to this, still inside the task's duration. */
+const MAX_HEAVY_RETRY_MS = 6 * 60 * 1000
+
+/**
+ * Backs off an hour no read could aggregate, loudly, so passes stop retrying it every tick and
+ * their other steps keep running. Each blocked hour keeps its own backoff, so a heavy hour on the
+ * finalize side and one on the backfill side never reset each other's delay.
+ */
+async function blockHour(hour: Date, attempts: number, error: HeavyHourError): Promise<void> {
+  const retryInMs = inflightBackoffMs(attempts - 1)
+  logger.error('Activity rollup hour too heavy to read; backing off', {
+    hour: hour.toISOString(),
+    attempts,
+    retryInMs,
+    error: getErrorMessage(error),
+  })
+  await db
+    .insert(activityRollupBlocked)
+    .values({ bucketStart: hour, attempts, retryAt: new Date(Date.now() + retryInMs) })
+    .onConflictDoUpdate({
+      target: activityRollupBlocked.bucketStart,
+      set: { attempts, retryAt: new Date(Date.now() + retryInMs) },
+    })
+}
+
+/**
+ * Aggregates and writes `hour` with the progress it completes, or leaves it: still backing off,
+ * or found too heavy to read. A retry of a blocked hour skips the reads known to time out and
+ * pages through workspaces under its own budget, which grows with its attempts (the lease is
+ * extended to cover it), and a write that completes it forgets the block in the same transaction.
+ */
+async function computeHour(
+  owner: string,
+  hour: Date,
+  deadline: number,
+  write: (
+    cells: ActivityCell[],
+    progress: (
+      tx: DbTransaction,
+      changes: Parameters<typeof updateLeasedState>[1]
+    ) => Promise<ActivityRollupState>
+  ) => Promise<ActivityRollupState>
+): Promise<{ state: ActivityRollupState | null; runs: number }> {
+  const [block] = await db
+    .select()
+    .from(activityRollupBlocked)
+    .where(eq(activityRollupBlocked.bucketStart, hour))
+  if (block && block.retryAt.getTime() > Date.now()) return { state: null, runs: 0 }
+  const retryBudgetMs = block ? Math.min(MAX_HEAVY_RETRY_MS, HEAVY_RETRY_MS * block.attempts) : 0
+  if (block) await extendLease(owner, retryBudgetMs + LEASE_MARGIN_MS)
+  let cells: ActivityCell[]
+  try {
+    cells = await aggregateHour(hour, block ? Date.now() + retryBudgetMs : deadline, {
+      byWorkspace: Boolean(block),
+    })
+  } catch (error) {
+    if (!(error instanceof HeavyHourError)) throw error
+    await blockHour(hour, (block?.attempts ?? 0) + 1, error)
+    return { state: null, runs: 0 }
+  }
+  const state = await write(cells, async (tx, changes) => {
+    if (block) {
+      await tx.delete(activityRollupBlocked).where(eq(activityRollupBlocked.bucketStart, hour))
+    }
+    return updateLeasedState(owner, changes, tx, { requireCoverage: true })
+  })
+  return { state, runs: cells.reduce((sum, cell) => sum + cell.runs, 0) }
+}
+
+/** Computes the hours that settled since the last pass, oldest first, stopping at a blocked hour. */
 async function finalizeSettledHours(
   owner: string,
   state: ActivityRollupState,
@@ -117,10 +222,13 @@ async function finalizeSettledHours(
   let current = state
   while (current.freshThrough && current.freshThrough < settledThrough && Date.now() < deadline) {
     const hour = current.freshThrough
-    const cells = await aggregateHour(hour)
-    current = await writeHour(hour, cells, (tx) =>
-      updateLeasedState(owner, { freshThrough: new Date(hour.getTime() + HOUR_MS) }, tx)
+    const computed = await computeHour(owner, hour, deadline, (cells, progress) =>
+      writeHour(hour, cells, (tx) =>
+        progress(tx, { freshThrough: new Date(hour.getTime() + HOUR_MS) })
+      )
     )
+    if (!computed.state) break
+    current = computed.state
     result.finalizedHours++
   }
   return current
@@ -154,7 +262,7 @@ async function recheckInflightCells(deadline: number): Promise<number> {
       await tx.execute(sql`
         UPDATE ${activityRollupInflight}
         SET attempts = ${attempts},
-          next_check_at = now() + ${`${inflightBackoffMs(attempts)} milliseconds`}::interval
+          next_check_at = now() + ${msInterval(inflightBackoffMs(attempts))}
         WHERE ${key}
       `)
     })
@@ -190,21 +298,23 @@ async function backfill(
     }
     const hour = floorHour(latest.startedAt)
     const started = Date.now()
-    const cells = await aggregateHour(hour)
-    current = await writeHour(hour, cells, async (tx) => {
-      await tx
-        .delete(workflowActivityHourly)
-        .where(
-          and(
-            gte(workflowActivityHourly.bucketStart, new Date(hour.getTime() + HOUR_MS)),
-            lt(workflowActivityHourly.bucketStart, coverageStart)
+    const computed = await computeHour(owner, hour, deadline, (cells, progress) =>
+      writeHour(hour, cells, async (tx) => {
+        await tx
+          .delete(workflowActivityHourly)
+          .where(
+            and(
+              gte(workflowActivityHourly.bucketStart, new Date(hour.getTime() + HOUR_MS)),
+              lt(workflowActivityHourly.bucketStart, coverageStart)
+            )
           )
-        )
-      return updateLeasedState(owner, { coverageStart: hour }, tx)
-    })
+        return progress(tx, { coverageStart: hour })
+      })
+    )
+    if (!computed.state) break
+    current = computed.state
     result.backfilledHours++
-    const rows = cells.reduce((sum, cell) => sum + cell.runs, 0)
-    const pacedMs = (rows / options.backfillRowsPerSecond) * 1000 - (Date.now() - started)
+    const pacedMs = (computed.runs / options.backfillRowsPerSecond) * 1000 - (Date.now() - started)
     const gapMs = Math.max(options.backfillMinGapMs, pacedMs)
     if (gapMs > 0) await sleep(Math.min(gapMs, Math.max(0, deadline - Date.now())))
   }
@@ -245,40 +355,32 @@ async function collectDeletedWorkspaces(): Promise<number> {
 }
 
 /**
- * The backstop for changes nothing marked: compares the stored cells of a few random workspace
- * days with the source runs, hour by hour, in one statement on the primary, and marks every hour
- * that disagrees. Hours whose unfinished runs are queued for a recheck are expected to disagree
- * and are left to that.
+ * Compares one workspace's stored cells in `range` with its source runs, hour by hour, in one
+ * statement on the primary, and marks every hour that disagrees. Returns how many it marked.
+ *
+ * A stored cell's workflow is resolved the way reads resolve it (a deleted workflow's runs read as
+ * deleted, as their nulled source rows do), and the cells are summed again after resolving. Hours
+ * already marked, or queued for an unfinished-run recheck, are expected to disagree and left to
+ * that.
  */
-async function sampleStoredDays(state: ActivityRollupState, deadline: number): Promise<number> {
-  const { coverageStart, freshThrough } = state
-  if (!coverageStart || !freshThrough || freshThrough <= coverageStart) return 0
-  let mismatches = 0
-  for (let sample = 0; sample < SAMPLED_WORKSPACE_DAYS && Date.now() < deadline; sample++) {
-    const span = freshThrough.getTime() - coverageStart.getTime()
-    const hour = floorHour(new Date(coverageStart.getTime() + randomFloat() * span))
-    mismatches += await boundedTransaction(async (tx) => {
-      const [picked] = await tx.execute<{ workspaceId: string }>(sql`
-      SELECT workspace_id AS "workspaceId" FROM ${workflowActivityHourly}
-      WHERE bucket_start = ${utcTimestamp(hour)}
-      ORDER BY random() LIMIT 1
-    `)
-      if (!picked) return 0
-      const dayStart = new Date(Math.max(coverageStart.getTime(), hour.getTime() - 12 * HOUR_MS))
-      const dayEnd = new Date(Math.min(freshThrough.getTime(), hour.getTime() + 12 * HOUR_MS))
-      const differing = await tx.execute(sql`
+export function markStaleHours(workspaceId: string, range: InstantRange): Promise<number> {
+  return boundedTransaction(async (tx) => {
+    const marked = await tx.execute(sql`
       WITH source AS (
         SELECT date_trunc('hour', a.started_at) AS hour, a.workflow_id, a.trigger,
           ${workflowRunCounters}
-        FROM (${workflowRunsStartedIn({ from: dayStart, to: dayEnd }, picked.workspaceId)}) a
+        FROM (${workflowRunsStartedIn(range, [workspaceId])}) a
         GROUP BY 1, 2, 3
       ), stored AS (
-        SELECT h.bucket_start AS hour, nullif(h.workflow_id, '') AS workflow_id, h.trigger,
-          h.runs, h.completed, h.failed, h.cancelled, h.in_flight, h.duration_sum_ms,
-          h.duration_count
+        SELECT h.bucket_start AS hour,
+          (SELECT f.id FROM ${workflow} f WHERE f.id = nullif(h.workflow_id, '')) AS workflow_id,
+          h.trigger, sum(h.runs) AS runs, sum(h.completed) AS completed, sum(h.failed) AS failed,
+          sum(h.cancelled) AS cancelled, sum(h.in_flight) AS in_flight,
+          sum(h.duration_sum_ms) AS duration_sum_ms, sum(h.duration_count) AS duration_count
         FROM ${workflowActivityHourly} h
-        WHERE h.workspace_id = ${picked.workspaceId}
-          AND h.bucket_start >= ${utcTimestamp(dayStart)} AND h.bucket_start < ${utcTimestamp(dayEnd)}
+        WHERE h.workspace_id = ${workspaceId}
+          AND h.bucket_start >= ${utcTimestamp(range.from)} AND h.bucket_start < ${utcTimestamp(range.to)}
+        GROUP BY 1, 2, 3
       ), differing AS (
         SELECT DISTINCT coalesce(s.hour, t.hour) AS hour
         FROM source s FULL JOIN stored t
@@ -290,14 +392,37 @@ async function sampleStoredDays(state: ActivityRollupState, deadline: number): P
             t.duration_sum_ms, t.duration_count)
       )
       INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
-      SELECT ${picked.workspaceId}, d.hour, now() FROM differing d
+      SELECT ${workspaceId}, d.hour, now() FROM differing d
       WHERE NOT EXISTS (
         SELECT 1 FROM ${activityRollupInflight} q
-        WHERE q.workspace_id = ${picked.workspaceId} AND q.bucket_start = d.hour
+        WHERE q.workspace_id = ${workspaceId} AND q.bucket_start = d.hour
       )
-      ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
+      ON CONFLICT (workspace_id, bucket_start) DO NOTHING
     `)
-      return differing.count
+    return marked.count
+  })
+}
+
+/**
+ * The backstop for changes nothing marked: compares a few random workspace days with the source
+ * (see {@link markStaleHours}).
+ */
+async function sampleStoredDays(state: ActivityRollupState, deadline: number): Promise<number> {
+  const { coverageStart, freshThrough } = state
+  if (!coverageStart || !freshThrough || freshThrough <= coverageStart) return 0
+  let mismatches = 0
+  for (let sample = 0; sample < SAMPLED_WORKSPACE_DAYS && Date.now() < deadline; sample++) {
+    const span = freshThrough.getTime() - coverageStart.getTime()
+    const hour = floorHour(new Date(coverageStart.getTime() + randomFloat() * span))
+    const [picked] = await dbReplica.execute<{ workspaceId: string }>(sql`
+      SELECT workspace_id AS "workspaceId" FROM ${workflowActivityHourly}
+      WHERE bucket_start = ${utcTimestamp(hour)}
+      ORDER BY random() LIMIT 1
+    `)
+    if (!picked) continue
+    mismatches += await markStaleHours(picked.workspaceId, {
+      from: new Date(Math.max(coverageStart.getTime(), hour.getTime() - 12 * HOUR_MS)),
+      to: new Date(Math.min(freshThrough.getTime(), hour.getTime() + 12 * HOUR_MS)),
     })
   }
   if (mismatches > 0) logger.warn('Activity rollup sampler found stale cells', { mismatches })
@@ -305,26 +430,68 @@ async function sampleStoredDays(state: ActivityRollupState, deadline: number): P
 }
 
 /**
+ * Reclaims deleted workspaces' cells and samples stored days, each in its own error boundary, so
+ * neither can fail the pass or keep the other from running.
+ */
+async function runHousekeeping(
+  state: ActivityRollupState,
+  deadline: number,
+  result: ActivityRollupPassResult
+): Promise<void> {
+  try {
+    result.collectedWorkspaces = await collectDeletedWorkspaces()
+  } catch (error) {
+    logger.error('Activity rollup workspace collection failed', { error: getErrorMessage(error) })
+  }
+  try {
+    result.samplerMismatches = await sampleStoredDays(state, deadline)
+  } catch (error) {
+    logger.error('Activity rollup sampler failed', { error: getErrorMessage(error) })
+  }
+}
+
+/**
+ * Why the rollup must start over, or null: a pass on newer code; coverage with an end missing
+ * (cleared by hand to force a rebuild, or never started); or a maintenance gap, no completed pass
+ * within {@link MAINTENANCE_GAP_MS}, during which writers stopped marking the deletes and reopened
+ * runs the cells would need. Read from the state alone, so a pass that fails before its reset
+ * commits leaves the next pass the same reason.
+ */
+function resetReason(state: ActivityRollupState): ActivityRollupPassResult['reset'] {
+  if (state.version < ACTIVITY_ROLLUP_VERSION) return 'version'
+  if (!state.coverageStart || !state.freshThrough) return 'coverage'
+  if (!state.maintainedAt || Date.now() - state.maintainedAt.getTime() > MAINTENANCE_GAP_MS) {
+    return 'maintenance-gap'
+  }
+  return null
+}
+
+/**
  * One maintenance pass over the workflow activity rollup. Idempotent and safe to stop anywhere:
  * every hour is recomputed whole from the source and written with the progress it completes.
  *
  * 1. Marks the cells of runs that ended late since the last pass.
- * 2. Computes the hours that settled since the last pass (on the replica).
+ * 2. Computes the hours that settled since the last pass (on the replica). An hour no read can
+ *    aggregate is backed off, holding finalize/backfill progress at it while the other steps run.
  * 3. Recomputes cells marked dirty (deletes, reopened runs, late ends) and cells rechecked for
  *    runs that were unfinished (on the primary).
  * 4. Extends the backfill toward the oldest run (on the replica, paced).
  * 5. Hourly, reclaims deleted workspaces' cells and samples stored days against the source.
  *
- * A pass on code older than the stored version does nothing; one on newer code first resets the
- * rollup to its version.
+ * A pass on code older than the stored version does nothing. A pass starts the rollup over (see
+ * {@link resetRollup}) on newer code, when either end of the coverage is missing, or after a
+ * maintenance gap.
  */
 export async function runActivityRollupPass(
   options: ActivityRollupPassOptions
 ): Promise<ActivityRollupPassResult> {
   const now = options.now ?? (() => new Date())
+  const lateEndMarginMs = options.lateEndMarginMs ?? LATE_END_SCAN_MARGIN_MS
   const deadline = Date.now() + options.budgetMs
   const result: ActivityRollupPassResult = {
     status: 'ran',
+    reset: null,
+    blockedHours: 0,
     finalizedHours: 0,
     backfilledHours: 0,
     lateEndMarks: 0,
@@ -342,17 +509,24 @@ export async function runActivityRollupPass(
   if (!state) return { ...result, status: 'leased' }
   try {
     if (state.version > ACTIVITY_ROLLUP_VERSION) return { ...result, status: 'newer-version' }
-    if (state.version < ACTIVITY_ROLLUP_VERSION) state = await resetToCurrentVersion(owner)
 
     const settledThrough = new Date(floorHour(now()).getTime() - ACTIVITY_ROLLUP_SETTLE_MS)
-    if (!state.freshThrough) {
+    result.reset = resetReason(state)
+    if (result.reset) {
+      if (state.coverageStart || result.reset !== 'coverage') {
+        logger.warn('Activity rollup starting over', { reason: result.reset })
+      }
+      state = await resetRollup(owner)
       while (await truncateRollupBatch()) {
         if (Date.now() >= deadline) return { ...result, status: 'truncating' }
       }
-      state = await startCoverage(owner, settledThrough)
+      state = await startCoverage(owner, settledThrough, lateEndMarginMs)
     }
 
-    result.lateEndMarks = await captureLateEnds()
+    result.lateEndMarks = await captureLateEnds(deadline, {
+      batchRows: options.lateEndBatchRows,
+      marginMs: lateEndMarginMs,
+    })
     result.replicaLagSeconds = await waitForReplica(owner)
     const replicaCurrent = result.replicaLagSeconds !== null
     if (replicaCurrent) {
@@ -369,11 +543,21 @@ export async function runActivityRollupPass(
     const housekeepingDue =
       !state.housekeepingAt ||
       Date.now() - state.housekeepingAt.getTime() >= HOUSEKEEPING_INTERVAL_MS
-    if (housekeepingDue && Date.now() < deadline) {
-      result.collectedWorkspaces = await collectDeletedWorkspaces()
-      result.samplerMismatches = await sampleStoredDays(state, deadline)
-      state = await updateLeasedState(owner, { housekeepingAt: sql`now()` })
-    }
+    const housekeeping = housekeepingDue && Date.now() < deadline
+    if (housekeeping) await runHousekeeping(state, deadline, result)
+    /**
+     * The heartbeat moves only if the last one was still within the gap when this pass ends: one
+     * that expired while the pass ran means writers already stopped marking, so it is left to
+     * expire and the next pass rebuilds.
+     */
+    state = await updateLeasedState(owner, {
+      maintainedAt: sql`CASE
+        WHEN ${activityRollupState.maintainedAt} > now() - ${msInterval(MAINTENANCE_GAP_MS)}
+        THEN now() ELSE ${activityRollupState.maintainedAt} END`,
+      ...(housekeeping ? { housekeepingAt: sql`now()` } : {}),
+    })
+    const [blocked] = await db.select({ count: count() }).from(activityRollupBlocked)
+    result.blockedHours = Number(blocked?.count ?? 0)
 
     result.coverageStart = state.coverageStart?.toISOString() ?? null
     result.freshThrough = state.freshThrough?.toISOString() ?? null

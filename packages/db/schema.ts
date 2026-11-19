@@ -801,7 +801,22 @@ export const activityRollupState = pgTable('activity_rollup_state', {
   leaseOwner: text('lease_owner'),
   leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
   housekeepingAt: timestamp('housekeeping_at', { withTimezone: true }),
+  /**
+   * When a pass last completed (or started a coverage). Writers mark changes only while this is
+   * recent, and a pass that finds it older than the maintenance gap rebuilds the rollup.
+   */
+  maintainedAt: timestamp('maintained_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Hours no read could aggregate within its statement bounds, retried with backoff. Finalize and
+ * backfill wait at a blocked hour until a retry reads it; the pass's other steps keep running.
+ */
+export const activityRollupBlocked = pgTable('activity_rollup_blocked', {
+  bucketStart: timestamp('bucket_start').primaryKey(),
+  attempts: integer('attempts').notNull(),
+  retryAt: timestamp('retry_at', { withTimezone: true }).notNull(),
 })
 
 /** Rollup cells whose source rows were deleted or reopened, recomputed once due. */
