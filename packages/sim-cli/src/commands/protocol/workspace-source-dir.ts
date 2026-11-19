@@ -382,7 +382,7 @@ export async function readWorkspaceDir(
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
   written: Written,
-  options: { limits?: Pick<typeof WORKSPACE_SOURCE_LIMITS, 'maxBlobs' | 'maxBlobBytes'> } = {}
+  options: { limits?: { maxBlobs: number; maxBlobBytes: number } } = {}
 ): Promise<WorkspaceSubmission> {
   const { maxBlobs, maxBlobBytes } = options.limits ?? WORKSPACE_SOURCE_LIMITS
   const {
