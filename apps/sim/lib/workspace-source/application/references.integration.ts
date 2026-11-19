@@ -522,6 +522,44 @@ export default defineCredentials({})
     expect(kept?.displayName).toBe('Acme Slack')
   })
 
+  check('a credential bound to a key outside source is never taken from that key', async () => {
+    const workspaceId = await newWorkspace()
+    const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
+    await bindCredentialKey.execute({
+      principal: owner,
+      input: { workspaceId, key: 'legacy', credentialId: slackId },
+    })
+    const files = { 'credentials.ts': CREDENTIALS(), 'workflows/notify/workflow.ts': NOTIFY }
+
+    const result = await apply(workspaceId, files)
+
+    expect(findings(result.diagnostics)).toEqual(['E_CREDENTIAL_MISSING workflow:notify'])
+    const missing = result.diagnostics.find((finding) => finding.code === 'W_CREDENTIAL_MISSING')
+    expect(missing?.message).toContain('"Acme Slack" (key "legacy")')
+    expect(await boundKey(workspaceId, 'legacy')).toBe(slackId)
+    expect(await boundKey(workspaceId, 'slack')).toBeUndefined()
+  })
+
+  check('a key renamed in source moves its credential to the new key', async () => {
+    const workspaceId = await newWorkspace()
+    const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
+    const legacy = await apply(workspaceId, {
+      'credentials.ts': CREDENTIALS().replace('slack: {', 'legacy: {'),
+    })
+    expect(await boundKey(workspaceId, 'legacy')).toBe(slackId)
+
+    const renamed = await apply(
+      workspaceId,
+      { 'credentials.ts': CREDENTIALS(), 'workflows/notify/workflow.ts': NOTIFY },
+      { base: legacy.base }
+    )
+
+    expect(findings(renamed.diagnostics)).toEqual([])
+    expect(actions(renamed.applied)).toEqual(['adopt credential:slack', 'create workflow:notify'])
+    expect(await boundKey(workspaceId, 'slack')).toBe(slackId)
+    expect(await boundKey(workspaceId, 'legacy')).toBeUndefined()
+  })
+
   check(
     'binding, rebinding and releasing a credential key each record who moved it where',
     async () => {
