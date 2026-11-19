@@ -57,7 +57,8 @@ export default workflow(
     })
 
     // Child workflow: inputMapping is checked against the child's start inputs. Its output is
-    // enrich.result (untyped JSON).
+    // enrich.result (untyped JSON): the child's response block output, so a field of the child's
+    // response body is enrich.result.data.<field>.
     const enrich = runWorkflow('Enrich Lead', {
       workflowId: childWorkflow('enrich-lead'),
       inputMapping: { email: start.email },

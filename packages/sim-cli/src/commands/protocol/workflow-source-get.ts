@@ -124,6 +124,7 @@ Findings print as \`file:line:column severity CODE: message\`, then the code fra
 - Beside the header and the imports from \`@sim/workflow-sdk\`, the file holds only the default-exported workflow. Its callback holds block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
 - Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.blockKey.path\` (the block's key: its name lowercased with every whitespace run and every \`.\` removed, so "Triage Agent" is \`triageagent\`; not its variable) and env vars as \`$env.NAME\`.
 - Hosted Sim supplies an agent's model key. On self-hosted Sim the agent needs \`apiKey: env.NAME\` (a secret the workspace holds); without it \`check\` reports \`W_REQUIRED_MISSING: apiKey is required\`.
+- A child workflow's output is \`c.result\`, untyped: its \`response\` block's \`{ data, status, headers }\`, so a field of the child's response body is \`c.result.data.field\` (\`${SDK_DIR}/${SDK_GUIDE_FILE}\` "How it runs" has the rest).
 - A table block's row is \`{ id, data }\`: read a cell as \`row.data.column\` (in a loop over \`query.rows\`, \`p.currentItem.data.column\`).
 - Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\` as written: they bind each block to its stored id and make the next apply safe.
 
