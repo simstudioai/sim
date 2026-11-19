@@ -465,7 +465,11 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const kept = keptCredentials(
     compiledWorkflow,
     storedCanonical.workflow,
-    (key) => resources.toId('credential', key) === null
+    (key) =>
+      resources.toId('credential', key) === null &&
+      !(input.pendingResources ?? []).some(
+        (entry) => entry.kind === 'credential' && entry.key === key
+      )
   )
   if (kept.length > 0) {
     const idsByKey = new Map(kept.map(({ key, id }) => [key, id]))
