@@ -1107,7 +1107,10 @@ function resolveCodeFile(
 function compileMetaParams(ctx: CompileContext, state: BlockState, shape: BlockShape): void {
   const { pinned, index, branchField } = shape
   const pinnedValues: Record<string, unknown> = {}
-  for (const id of pinned) setOwn(pinnedValues, id, storedValues(state.params).get(id))
+  for (const id of pinned) {
+    const param = getOwn(state.params, id)
+    setOwn(pinnedValues, id, param?.kind === 'value' ? param.value : undefined)
+  }
   compileExtraParams(
     ctx,
     state.meta.extra,
