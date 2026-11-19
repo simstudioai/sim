@@ -1,5 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
+import { refusalClass } from '../diagnostics'
 import { fingerprintOf } from '../fingerprint'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import type { TableColumnDecl, TableDecl } from './table'
@@ -198,6 +199,7 @@ describe('createTableCodec', () => {
         (finding) => finding.code
       )
     ).toEqual(['E_TABLE_TOO_MANY_COLUMNS'])
+    expect(refusalClass(['E_TABLE_TOO_MANY_COLUMNS'])).toBe('payload_too_large')
   })
 
   it('reads a currency code in any letter case as the upper-case code the server stores', () => {

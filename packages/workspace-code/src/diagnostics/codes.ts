@@ -78,7 +78,7 @@ const TABLE_CODES = [
   'E_TABLE_COLUMN_NAME',
   /** Two columns resolve to one name. */
   'E_TABLE_DUPLICATE_COLUMN',
-  /** More columns than a table may hold. */
+  /** More columns than a table may hold: a size limit, classed like `E_LIMIT_EXCEEDED`. */
   'E_TABLE_TOO_MANY_COLUMNS',
   /** A select column without options, an option declared twice, or options on another type. */
   'E_TABLE_OPTIONS',
@@ -293,7 +293,8 @@ export function refusalClass(
   if (
     present.has('E_LIMIT_EXCEEDED') ||
     present.has('E_PLAN_TOO_LARGE') ||
-    present.has('E_FILE_TOO_LARGE')
+    present.has('E_FILE_TOO_LARGE') ||
+    present.has('E_TABLE_TOO_MANY_COLUMNS')
   ) {
     return 'payload_too_large'
   }
