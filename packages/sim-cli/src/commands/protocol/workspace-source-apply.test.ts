@@ -158,6 +158,17 @@ describe('workspaces source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('refuses a workflow source directory before sending anything', async () => {
+    write('.sim/base.json', INGEST_BASE)
+
+    const error = await apply('--yes').catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining('is a workflow source directory'),
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('sends a workflow folder whole only when it was edited since the CLI wrote it', async () => {
     write(
       '.sim/written.json',

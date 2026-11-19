@@ -142,10 +142,10 @@ function printPlan(plan: Change[]): void {
       if (change.action === 'noop') continue
       const fields =
         change.fields && change.fields.length > 0 ? ` (${change.fields.join(', ')})` : ''
-      const counts = Object.entries(change.destructive?.counts ?? {})
+      const lost = Object.entries(change.destructive?.counts ?? {})
       const loses =
-        counts.length > 0
-          ? ` — deletes ${counts.map(([what, count]) => `${count} ${what}`).join(', ')}`
+        lost.length > 0
+          ? ` — deletes ${lost.map(([what, count]) => `${count} ${what}`).join(', ')}`
           : ''
       const held = change.held ? ' — held back (see its error)' : ''
       printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
@@ -196,14 +196,21 @@ const WORKFLOW_LOCK_PATH = new RegExp(
  * kept one.
  */
 async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
+  const filesByFolder = new Map<string, string[]>()
+  for (const path of Object.keys(files)) {
+    if (!path.startsWith(`${KIND_DIRS.workflow}/`)) continue
+    const folder = path.split('/', 2).join('/')
+    const inFolder = filesByFolder.get(folder)
+    const file = path.slice(folder.length + 1)
+    if (inFolder) inFolder.push(file)
+    else filesByFolder.set(folder, [file])
+  }
   const orphaned: string[] = []
   for (const [path, text] of Object.entries(files)) {
     const match = WORKFLOW_LOCK_PATH.exec(path)
     if (!match) continue
     const folder = `${KIND_DIRS.workflow}/${match[1]}`
-    const written = Object.keys(files)
-      .filter((file) => file.startsWith(`${folder}/`))
-      .map((file) => file.slice(folder.length + 1))
+    const written = filesByFolder.get(folder) ?? []
     let next: unknown = null
     try {
       next = JSON.parse(text)
@@ -301,14 +308,18 @@ function assertBaseWorkspace(
   workspaceId: string,
   explicit: boolean
 ): void {
-  const readFrom =
-    typeof base === 'object' && base !== null && 'workspaceId' in base ? base.workspaceId : null
-  if (typeof readFrom !== 'string' || readFrom === workspaceId || explicit) return
+  const readFrom = baseWorkspaceOf(base)
+  if (readFrom === null || readFrom === workspaceId || explicit) return
   throw new SimApiError(
     `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --to ${workspaceId} to promote it: its resources bind by key to that workspace's own, and the directory stays bound to ${readFrom}.`,
     0,
     'SOURCE_OTHER_WORKSPACE'
   )
+}
+
+/** The workflow a directory's base belongs to (a workflow source directory), or `null`. */
+function baseWorkflowOf(base: unknown): string | null {
+  return isRecordLike(base) && typeof base.workflowId === 'string' ? base.workflowId : null
 }
 
 /** The workspace a directory's base was read from, or `null` when it has none. */
@@ -384,7 +395,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
-      await assertWorkspaceDir(options.dir)
       const { client, profile } = connect()
       const workspaceId = options.to ?? client.requireWorkspace()
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
@@ -454,6 +464,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
       await withSourceDirLock(options.dir, async () => {
         const written = await readWritten(options.dir)
         const read = await readWorkspaceDir(options.dir, only, workspaceId, written)
+        // The read already walked the kind folders: only a read that found none, or a workflow
+        // directory's base, needs the full check (which refuses with the reason).
+        if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
+          await assertWorkspaceDir(options.dir)
+        }
         if (!options.to) {
           assertBaseWorkspace(
             options.dir,
