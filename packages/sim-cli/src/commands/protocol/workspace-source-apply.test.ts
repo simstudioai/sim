@@ -378,6 +378,33 @@ describe('workspaces source apply', () => {
     expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
   })
 
+  it('removes the code file of a tool the apply reprinted as stored(), from disk and the record', async () => {
+    const declaration = (code: string) =>
+      `// @sim-sdk 1\nexport default defineTool({ title: 'Lookup', code: ${code} })\n`
+    write('tools/lookup.ts', declaration("codeFile('./lookup.js')"))
+    write('tools/lookup.js', 'return 1\n')
+    write('tools/other.js', 'return 2\n')
+    request.mockResolvedValue(
+      answer({
+        applied: [{ kind: 'custom-tool', key: 'lookup', action: 'update', id: 'tool_1' }],
+        files: { 'tools/lookup.ts': declaration('stored()') },
+      })
+    )
+
+    await apply('--yes')
+
+    expect(bodies()[0].files['tools/lookup.js']).toBe('return 1\n')
+    expect(existsSync(join(dir, 'tools/lookup.js'))).toBe(false)
+    expect(readFileSync(join(dir, 'tools/other.js'), 'utf8')).toBe('return 2\n')
+    const record = JSON.parse(readFileSync(join(dir, '.sim/written.json'), 'utf8'))
+    expect(Object.keys(record.files)).toContain('tools/lookup.ts')
+    expect(Object.keys(record.files)).not.toContain('tools/lookup.js')
+
+    request.mockResolvedValue(answer({ dryRun: true }))
+    await apply('--dry-run')
+    expect(Object.keys(bodies()[1].files)).not.toContain('tools/lookup.js')
+  })
+
   it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
     const lock = (codeFiles: string[]) =>
       `${JSON.stringify({ version: 1, blocks: Object.fromEntries(codeFiles.map((file, index) => [`b${index}`, { id: `blk_${index}`, codeFile: file }])), variables: {} })}\n`

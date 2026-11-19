@@ -1,7 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { APPLY_ORDER, KIND_DIRS, parseWorkspaceBase } from '@sim/workspace-code'
-import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { promotionSubmission } from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -148,7 +149,7 @@ function printPlan(plan: Change[]): void {
 }
 
 /** The changes that delete something (a resource, rows, documents, columns, a deployment). */
-function destructiveChanges(changes: readonly Change[]): number {
+export function destructiveChanges(changes: readonly Change[]): number {
   return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
     .length
 }
@@ -204,10 +205,39 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
 }
 
 /**
+ * The text files the directory sent for a resource the apply reprinted that the reprint no longer
+ * holds: a tool whose code the server keeps as `stored()` (a credential in it) is reprinted
+ * without `tools/<key>.js`, which left on disk would refuse the next apply (`E_TOOL_CODE`).
+ * Workflow folders keep files no lock named, so their function files are pruned by lock instead
+ * ({@link orphanedWorkflowFiles}); blobs are never reprinted.
+ */
+function droppedResourceFiles(
+  sent: Readonly<Record<string, string>>,
+  reprinted: Readonly<Record<string, string>>
+): string[] {
+  const byResource = (paths: readonly string[]) => {
+    const resources = new Map<string, string[]>()
+    for (const path of paths) {
+      const kind = kindOfPath(path)
+      if (kind === null || kind === 'workflow' || isBlobPath(path)) continue
+      for (const [key, files] of KIND_LAYOUTS[kind].group([path]).groups) {
+        const address = `${kind}:${key}`
+        resources.set(address, [...(resources.get(address) ?? []), ...files])
+      }
+    }
+    return resources
+  }
+  const sentByResource = byResource(Object.keys(sent))
+  return [...byResource(Object.keys(reprinted)).keys()].flatMap((address) =>
+    (sentByResource.get(address) ?? []).filter((path) => !Object.hasOwn(reprinted, path))
+  )
+}
+
+/**
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
- * blobs the server now holds. The function files a written workflow no longer uses are removed,
- * from disk and the record.
+ * blobs the server now holds. The function files a written workflow no longer uses, and the files
+ * a reprinted resource no longer has, are removed from disk and the record.
  */
 async function saveApplied(
   dir: string,
@@ -216,7 +246,10 @@ async function saveApplied(
   written: Written
 ): Promise<void> {
   assertWorkspacePaths(Object.keys(data.files))
-  const orphaned = await orphanedWorkflowFiles(dir, data.files)
+  const orphaned = [
+    ...(await orphanedWorkflowFiles(dir, data.files)),
+    ...droppedResourceFiles(submission.files, data.files),
+  ]
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
   for (const path of orphaned) delete kept[path]
   const record = writtenRecord(

@@ -233,13 +233,16 @@ progress back into the directory and exits 8 (`SOURCE_PARTIAL_EXIT_CODE`). Re-ru
 directory converges.
 
 **One apply at a time.** A write's re-read and the write itself are separate statements, and a
-knowledge base's write spans many transactions (one per document), so the write phase holds a
-per-workspace lease row (`workspace_source_apply_lease`, `lib/workspace-source/lease/store.ts`).
-A second apply meanwhile is refused with nothing written: `409` with `details.code`
+knowledge base's write spans many transactions (one per document), so an apply holds a
+per-workspace lease row (`workspace_source_apply_lease`, `lib/workspace-source/lease/store.ts`)
+from before it plans until its last write. Taken only for the writes, a plan made before another
+apply's writes would write half of itself and then fail (a name taken, a resource changed, a
+delete another apply started using). A second apply meanwhile is refused before it reads
+anything, with nothing written: `409` with `details.code`
 `SOURCE_BUSY`, CLI exit 10 (`SOURCE_BUSY_EXIT_CODE`). A dry run takes no lease. It is a row, not a
 Postgres advisory lock: a transaction lock cannot span the write phase's transactions, and a
-session lock does not survive PgBouncer transaction pooling. The apply renews it while it writes
-and checks it is still held before each write; a process that dies stops renewing, and the lease
+session lock does not survive PgBouncer transaction pooling. The apply renews it in the background
+while it plans and writes, and checks it is still held before each write; a process that dies stops renewing, and the lease
 lapses after two minutes. The lease orders applies, not UI edits: a UI write between a re-read and
 the write is still caught only where the child use case takes a precondition (a file's
 `expectedRevision`, a workflow's fingerprint under its row lock).
