@@ -185,6 +185,8 @@ const DEPLOYMENT_CODES = [
   'E_DEPLOY_SECRET',
   /** A chat output names a block the workflow does not have. */
   'E_DEPLOY_CHAT_OUTPUT',
+  /** A chat identifier another live chat already holds. */
+  'E_DEPLOY_CHAT_IDENTIFIER',
   /** A chat change on a pinned deployment whose draft differs: deploying a chat publishes it. */
   'E_DEPLOY_PINNED_CHAT',
   /** An apply edits a deployed workflow that no `live: 'draft'` deployment republishes. */

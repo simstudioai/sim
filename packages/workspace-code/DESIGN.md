@@ -197,7 +197,13 @@ is the workflow's id. The three-way rule covers what the server stores (public A
 is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
 `'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
 redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
-fingerprint and the live version it replaces. A chat password is `env.NAME` (resolved at apply,
+fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
+apply checks what the chat write refuses (an identifier another chat holds,
+`E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
+outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
+(`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
+either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
+part that matches neither is still `E_APPLY_STALE`. A chat password is `env.NAME` (resolved at apply,
 never stored in source) or `stored()`; the base records the variable under `x-passwordEnv`, since
 the server keeps only the encrypted value. Removing the file undeploys (`--allow-delete`), and the
 plan counts what stops. Whether or not the kind is managed, an apply that edits a deployed workflow
