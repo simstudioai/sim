@@ -32,6 +32,7 @@ import {
   loadWorkflowGraph,
   loadWorkflowGraphs,
 } from '@/lib/workflows/application/read-workflow-graph'
+import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
@@ -236,10 +237,12 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       }),
     ])
-    return printLoadedSource(
+    const read = await printLoadedSource(
       { scope: context, stored, gate, sourceMeta, prefetched },
       input.functionCode ?? 'files'
     )
+    recordSourceRead(principal, context)
+    return read
   },
 })
 
