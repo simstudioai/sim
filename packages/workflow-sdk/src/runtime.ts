@@ -7,32 +7,9 @@
  * declarations.
  */
 
-/** Thrown by every runtime export: workflow files are compiled, never executed. */
-export class SimSdkNotExecutable extends Error {
-  readonly export: string
+import { stub } from './not-executable'
 
-  constructor(exportName: string) {
-    super(
-      `@sim/workflow-sdk: \`${exportName}\` does not run. Workflow files are compiled by Sim, never executed; check them with \`sim workflows source apply --dry-run\` or a type-check.`
-    )
-    this.name = 'SimSdkNotExecutable'
-    this.export = exportName
-  }
-}
-
-function notExecutable(exportName: string): never {
-  throw new SimSdkNotExecutable(exportName)
-}
-
-/** A function that throws when called, and whose properties throw when read. */
-function stub(exportName: string): (...args: unknown[]) => never {
-  const target = () => notExecutable(exportName)
-  return new Proxy(target, {
-    apply: () => notExecutable(exportName),
-    construct: () => notExecutable(exportName),
-    get: (_target, property) => notExecutable(`${exportName}.${String(property)}`),
-  })
-}
+export { SimSdkNotExecutable } from './not-executable'
 
 export const t = stub('t')
 export const js = stub('js')

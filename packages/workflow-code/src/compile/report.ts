@@ -1,5 +1,5 @@
 import { truncateAtCodePoint } from '@sim/utils/string'
-import type { CompileDiagnosticCode } from '../diagnostics/codes'
+import { type CompileDiagnosticCode, framesSource } from '../diagnostics/codes'
 import {
   codeFrame,
   LINE_BREAK,
@@ -144,7 +144,8 @@ export class Reporter {
           'E_TOO_MANY_ERRORS',
           `Stopped after ${MAX_ERRORS} errors. The next: ${message}`,
           at,
-          { hint: 'Fix the errors listed and compile again to see the rest.' }
+          { hint: 'Fix the errors listed and compile again to see the rest.' },
+          framesSource(code)
         )
         throw new ErrorLimitReached()
       }
@@ -156,19 +157,22 @@ export class Reporter {
           'W_TOO_MANY_WARNINGS',
           `Listed ${MAX_WARNINGS} warnings; the rest are omitted. The next: ${message}`,
           at,
-          {}
+          {},
+          framesSource(code)
         )
       }
       return
     }
-    this.record(code, message, at, extras)
+    this.record(code, message, at, extras, framesSource(code))
   }
 
+  /** Records one diagnostic; `framed` is false when the finding at `at` is about a literal secret. */
   private record(
     code: CompileDiagnosticCode,
     message: string,
     at: Range,
-    extras: ReportExtras
+    extras: ReportExtras,
+    framed: boolean
   ): void {
     const span = this.span(at)
     const lines = this.indexes.get(at.file)?.lines ?? ['']
@@ -182,7 +186,7 @@ export class Reporter {
       severity,
       message: capLength(message),
       span,
-      frame: codeFrame(lines, span),
+      ...(framed && { frame: codeFrame(lines, span) }),
       ...(hint !== undefined && { hint: capLength(hint) }),
       ...(extras.blockKey !== undefined && { blockKey: extras.blockKey }),
       ...(extras.param !== undefined && { param: extras.param }),

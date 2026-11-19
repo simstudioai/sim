@@ -7,6 +7,7 @@
  * SDK codegen, the catalog projection) asks here.
  */
 
+import { compareStrings } from '@sim/utils/string'
 import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import type { CanonicalParamId, SubBlockId } from '../model'
 import { buildCanonicalIndex, type CanonicalIndex } from './canonical-index'
@@ -289,19 +290,19 @@ export type CatalogField =
 /** The params a block surface accepts, indexed by written name, original param name, member id and subBlock id. */
 export interface FieldIndex {
   /** By written name: the alias, else the subBlock id for singles or canonical id for groups. */
-  fields: Map<string, CatalogField>
+  fields: ReadonlyMap<string, CatalogField>
   /** Params written under an alias, by their own name: compile accepts both spellings. */
-  aliased: Map<string, CatalogField>
+  aliased: ReadonlyMap<string, CatalogField>
   /** Group member ids whose own id is not the written name, mapped to that name. */
-  memberAliases: Map<SubBlockId, string>
+  memberAliases: ReadonlyMap<SubBlockId, string>
   /** Every subBlock on this surface by id (first declaration wins). */
-  subBlocks: Map<SubBlockId, CatalogSubBlock>
+  subBlocks: ReadonlyMap<SubBlockId, CatalogSubBlock>
   /**
    * Every declaration on this surface by id, in registry order: a block may declare one id several
    * times under exclusive conditions (ElevenLabs' `modelId` per operation, each with its own
    * options). Read through {@link declarationFor}.
    */
-  declarations: Map<SubBlockId, CatalogSubBlock[]>
+  declarations: ReadonlyMap<SubBlockId, readonly CatalogSubBlock[]>
 }
 
 /**
@@ -318,14 +319,41 @@ export function declarationFor(
   return declared.find((sub) => evaluateCondition(sub, lookup) !== false) ?? declared[0]
 }
 
+/** Built indexes by block, then by trigger mode and pinned ids (`fieldIndexKey`). */
+const fieldIndexMemo = new WeakMap<CatalogBlock, Map<string, FieldIndex>>()
+
+function fieldIndexKey(triggerMode: boolean, pinned: ReadonlySet<string>): string {
+  return [triggerMode ? 'trigger' : 'action', ...[...pinned].sort(compareStrings)].join('\u0000')
+}
+
 /**
  * The params a builder accepts: subBlock ids, with every `canonicalParamId` group written once
  * under its canonical id, each under its alias when the catalog gives one. The surface (action or
  * trigger copy of a duplicated id) follows the block's trigger mode, the first declaration of an
- * id stands for the field (`declarationFor` picks the one a block's values use), the branches subBlock and the builder's pinned ids are excluded. This is exactly the
- * set the printer emits as params.
+ * id stands for the field (`declarationFor` picks the one a block's values use), the branches
+ * subBlock and the builder's pinned ids are excluded. This is exactly the set the printer emits as
+ * params. Built once per block, trigger mode and pinned ids; the index is shared, so it is
+ * read-only.
  */
 export function buildFieldIndex(
+  block: CatalogBlock,
+  triggerMode: boolean,
+  pinned: ReadonlySet<string>
+): FieldIndex {
+  let byKey = fieldIndexMemo.get(block)
+  if (!byKey) {
+    byKey = new Map()
+    fieldIndexMemo.set(block, byKey)
+  }
+  const key = fieldIndexKey(triggerMode, pinned)
+  const known = byKey.get(key)
+  if (known) return known
+  const index = indexFields(block, triggerMode, pinned)
+  byKey.set(key, index)
+  return index
+}
+
+function indexFields(
   block: CatalogBlock,
   triggerMode: boolean,
   pinned: ReadonlySet<string>
@@ -347,6 +375,15 @@ export function buildFieldIndex(
     fields.set(field.name, field)
     if (field.name !== field.param) aliased.set(field.param, field)
   }
+  /** Each group's unpinned members on this surface, in declaration order. */
+  const groupMembers = new Map<CanonicalParamId, CatalogSubBlock[]>()
+  for (const sub of subBlocks.values()) {
+    const cid = sub.canonicalParamId
+    if (cid === undefined || pinned.has(sub.id)) continue
+    const members = groupMembers.get(cid)
+    if (members) members.push(sub)
+    else groupMembers.set(cid, [sub])
+  }
   const branchId = block.graph.branches?.subBlockId
   for (const sub of subBlocks.values()) {
     if (sub.id === branchId || pinned.has(sub.id)) continue
@@ -358,9 +395,7 @@ export function buildFieldIndex(
     const name = aliases.get(cid) ?? cid
     if (sub.id !== name) memberAliases.set(sub.id, name)
     if (fields.has(name)) continue
-    const members = [...subBlocks.values()].filter(
-      (member) => member.canonicalParamId === cid && !pinned.has(member.id)
-    )
+    const members = groupMembers.get(cid) ?? []
     add({
       kind: 'pair',
       param: cid,

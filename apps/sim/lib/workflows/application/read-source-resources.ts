@@ -163,10 +163,10 @@ async function loadWorkflowInputs(
  * Which manifest sections the caller may see, by the gates the editor's own pickers apply: env
  * names follow the env-var autocomplete (the workspace environment read, `secrets.manage`, and
  * like `secrets.list` never a workspace API key), credentials follow the credential selector
- * (`integrations.manage`), and skills and custom tools follow their own lists (`skills.use`,
- * `custom_tools.use`; both admit a workspace API key). A withheld section is listed empty rather
- * than refusing the whole manifest, so a member restricted from one still gets the workflows
- * and the rest. Tables and knowledge bases follow their lists (`tables.use`, `knowledge.use`).
+ * (`integrations.manage`), and skills, custom tools, MCP servers, tables and knowledge bases
+ * follow their own lists (`skills.use`, `custom_tools.use`, `mcp_tools.use`, `tables.use`,
+ * `knowledge.use`). A withheld section is listed empty rather than refusing the whole manifest,
+ * so a member restricted from one still gets the workflows and the rest.
  */
 async function visibleSections(principal: Principal, context: WorkspaceAuthorizationContext) {
   const governedUserId = capabilityGovernedPrincipalUserId(principal)
@@ -225,9 +225,9 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
  * with their columns, knowledge bases, saved credentials with their provider, workflows with
  * the inputs their start block declares, workspace skills and custom tools, MCP servers with the
  * tool names they list (best effort, see `loadMcpToolNames`), and env variable names (never
- * values). Credentials are the ones the caller's credential listing shows, and
- * credentials, env names, skills and custom tools are omitted where the editor's own pickers or
- * the resource's own list would withhold them (see `visibleSections`). The CLI writes it as
+ * values). Credentials are the ones the caller's credential listing shows, and every section is
+ * omitted where the editor's own pickers or the resource's own list would withhold it (see
+ * `visibleSections`). The CLI writes it as
  * `workspace.d.ts`, so `table('tickets')`, `skill('triage')` and `env.X` type-check.
  *
  * Every listed resource gets its key here (`resolveKeys` allocates one for a resource no source

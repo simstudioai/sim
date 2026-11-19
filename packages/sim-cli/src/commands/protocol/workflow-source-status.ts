@@ -34,7 +34,7 @@ import {
   type DiffReport,
   type FileDiff,
   nextStep,
-  pathSelector,
+  pathFilter,
   printDiffReport,
   printStatusReport,
   type ServerCheck,
@@ -44,6 +44,7 @@ import {
   textDiff,
   unreachableReason,
 } from './source-status'
+import { withSourceExitCode } from './source-tree'
 import { readBase, readLock, readSourceFiles } from './workflow-source-apply'
 
 type ApplyData = ApplyWorkflowSourceResponse['data']
@@ -182,7 +183,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
             note = 'The server has no workflow by this id that this profile can read.'
           } else {
             const reason = unreachableReason(error)
-            if (reason === null) throw error
+            if (reason === null) throw withSourceExitCode(error)
             server = 'unreachable'
             note = `${reason} Showing local changes only.`
           }
@@ -237,19 +238,24 @@ export function attachWorkflowSourceDiff(source: Command): void {
     .action(async (filters: string[], options: DiffOptions, invoked: Command) => {
       const output = options.json ? 'json' : profileFrom(invoked).output
       const local = await readLocalWorkflow(options.dir)
-      const selects = pathSelector(filters)
+      const filter = pathFilter(filters, options.dir)
+      const selects = filter.selects
       const read = async () => {
         const { client } = connect()
-        const response = await client.request<GetWorkflowSourceResponse>('getWorkflowSource', {
-          params: { workflowId: local.workflowId },
-        })
-        return response.data.files
+        try {
+          const response = await client.request<GetWorkflowSourceResponse>('getWorkflowSource', {
+            params: { workflowId: local.workflowId },
+          })
+          return response.data.files
+        } catch (error) {
+          throw withSourceExitCode(error)
+        }
       }
       if (options.server) {
         const serverFiles = await read()
-        const paths = [...new Set([...Object.keys(local.texts), ...Object.keys(serverFiles)])]
-          .filter(selects)
-          .sort(compareStrings)
+        const every = [...new Set([...Object.keys(local.texts), ...Object.keys(serverFiles)])]
+        filter.assertEachMatches(every)
+        const paths = every.filter(selects).sort(compareStrings)
         printDiffReport(output, {
           dir: options.dir,
           against: 'server',
@@ -259,6 +265,7 @@ export function attachWorkflowSourceDiff(source: Command): void {
         })
         return
       }
+      filter.assertEachMatches([...Object.keys(local.texts), ...Object.keys(local.written.digests)])
       const selected = local.changed.filter((file) => selects(file.path))
       let serverFiles: Record<string, string> | null = null
       let unreachable: string | null = null

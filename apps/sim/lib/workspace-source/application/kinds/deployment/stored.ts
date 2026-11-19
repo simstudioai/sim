@@ -34,7 +34,8 @@ interface StoredChat {
   identifier: string
   title: string
   description: string | null
-  authType: 'public' | 'password' | 'email' | 'sso'
+  /** How the chat gates access; `null` for a stored value source cannot name. */
+  authType: ChatAuthType | null
   hasPassword: boolean
   allowedEmails: string[]
   outputs: StoredChatOutput[]
@@ -53,8 +54,11 @@ export interface StoredDeployment {
 
 const AUTH_TYPES = ['public', 'password', 'email', 'sso'] as const
 
-function authTypeOf(value: string): StoredChat['authType'] {
-  return AUTH_TYPES.find((type) => type === value) ?? 'public'
+type ChatAuthType = (typeof AUTH_TYPES)[number]
+
+/** The stored auth type, or `null` for one source cannot name: never read as public. */
+function authTypeOf(value: string): ChatAuthType | null {
+  return AUTH_TYPES.find((type) => type === value) ?? null
 }
 
 function stringsOf(value: unknown): string[] {
@@ -144,8 +148,8 @@ export async function readDeployment(
 /**
  * How a stored deployment reads as a declaration. A password reads as the variable the last apply
  * set it from (`passwordEnv`, which the base records, since the server keeps only the encrypted
- * value), else as `stored()`. `null` when a chat output names a block the draft no longer has,
- * which no declaration can name.
+ * value), else as `stored()`. `null` when a chat output names a block the draft no longer has, or
+ * the chat gates access in a way no declaration can name.
  */
 export function declOf(
   state: StoredDeployment,
@@ -155,6 +159,8 @@ export function declOf(
   if (state.isPublicApi) decl.api = { public: true }
   const { chat } = state
   if (!chat) return decl
+  const { authType } = chat
+  if (authType === null) return null
   const outputs: NonNullable<ChatDecl['outputs']> = []
   for (const output of chat.outputs) {
     if (output.block === undefined) return null
@@ -164,7 +170,7 @@ export function declOf(
     identifier: chat.identifier,
     title: chat.title,
     ...(chat.description ? { description: chat.description } : {}),
-    auth: authOf(chat, options.passwordEnv),
+    auth: authOf(authType, chat.allowedEmails, options.passwordEnv),
     ...(outputs.length > 0 ? { outputs } : {}),
     ...(Object.keys(chat.customizations).length > 0 ? { customizations: chat.customizations } : {}),
     ...(chat.includeThinking ? { includeThinking: true } : {}),
@@ -173,23 +179,27 @@ export function declOf(
   return decl
 }
 
-function authOf(chat: StoredChat, passwordEnv: string | undefined): ChatAuthDecl {
-  switch (chat.authType) {
+function authOf(
+  authType: ChatAuthType,
+  allowedEmails: string[],
+  passwordEnv: string | undefined
+): ChatAuthDecl {
+  switch (authType) {
     case 'password':
       return { password: passwordEnv ? { env: passwordEnv } : 'stored' }
     case 'email':
-      return { emails: chat.allowedEmails }
+      return { emails: allowedEmails }
     case 'sso':
-      return { sso: chat.allowedEmails }
-    default:
+      return { sso: allowedEmails }
+    case 'public':
       return 'public'
   }
 }
 
 /**
  * A stored deployment's fingerprint: of the declaration it reads as (`live` is outside every
- * fingerprint). A chat output on a block the draft dropped fingerprints by block id, so it never
- * equals a declaration.
+ * fingerprint). A chat no declaration can name (an output on a block the draft dropped, an auth
+ * type source cannot name) fingerprints by its output block ids, so it never equals a declaration.
  */
 export function storedFingerprint(
   state: StoredDeployment,

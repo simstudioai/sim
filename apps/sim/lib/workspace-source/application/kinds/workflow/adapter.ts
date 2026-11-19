@@ -779,8 +779,12 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
         const locked = await lockOf(workflow)
         if (locked) locks.set(workflow.id, locked)
         try {
-          fingerprints.set(workflow.id, await readStoredFingerprint(ctx, workflow.id))
-          triggers.set(workflow.id, await liveTriggerCounts(ctx, workflow.id))
+          // Both or neither: a fingerprint without its trigger counts would plan a delete that
+          // claims no live trigger is lost.
+          const fingerprint = await readStoredFingerprint(ctx, workflow.id)
+          const counts = await liveTriggerCounts(ctx, workflow.id)
+          fingerprints.set(workflow.id, fingerprint)
+          triggers.set(workflow.id, counts)
         } catch (error) {
           logger.warn('Could not read a workflow to fingerprint its delete', {
             workflowId: workflow.id,

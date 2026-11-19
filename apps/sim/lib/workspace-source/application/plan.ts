@@ -507,6 +507,16 @@ function holdUnavailable(changes: PlannedChange[]): void {
     )
   )
   if (unavailable.size === 0) return
+  // An unbindable credential key dry-runs under a placeholder id, which the workflow's credential
+  // gate refuses as unreachable, naming the id: the hold says why, so that refusal is dropped. A
+  // refusal of another key's credential stays.
+  const placeholders = new Map(
+    changes.flatMap((change) =>
+      change.kind === 'credential' && change.unavailable && change.pending?.placeholder
+        ? [[change.key, change.pending.id]]
+        : []
+    )
+  )
   const writes = changes.filter((change) => change.action !== 'noop' && change.action !== 'delete')
   const held = new Set<string>()
   for (const change of writes) {
@@ -515,11 +525,12 @@ function holdUnavailable(changes: PlannedChange[]): void {
       if (!reference) continue
       change.diagnostics.push(refUnavailableFinding(change, reference))
       change.held = true
-      // An unbindable credential key dry-runs under a placeholder id, which the workflow's
-      // credential gate refuses as unreachable: the hold says why, so that refusal is dropped.
-      if (ref.kind === 'credential') {
+      const placeholder = ref.kind === 'credential' ? placeholders.get(ref.key) : undefined
+      if (placeholder !== undefined) {
         change.diagnostics = change.diagnostics.filter(
-          (finding) => finding.code !== 'E_APPLY_CREDENTIAL_UNREACHABLE'
+          (finding) =>
+            finding.code !== 'E_APPLY_CREDENTIAL_UNREACHABLE' ||
+            !finding.message.includes(`"${placeholder}"`)
         )
       }
     }

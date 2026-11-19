@@ -12,7 +12,7 @@
 import type { CatalogDynamicOutputs, CatalogOutput } from '@sim/workflow-code'
 import { printKey } from '@sim/workflow-code'
 import { arrayOf, jsdoc } from './emit'
-import { evaluateClause, type VisibilityContext } from './visibility'
+import { clauseFields, evaluateClause, type VisibilityContext } from './visibility'
 
 const MAX_OUTPUT_DEPTH = 4
 
@@ -71,7 +71,9 @@ export function builderOutputs(
     if (output.condition) {
       const available = evaluateClause(output.condition, context, {})
       if (available === false) continue
-      if (available === null) doc.push(`@when depends on ${output.condition.field}`)
+      if (available === null) {
+        doc.push(`@when depends on ${clauseFields(output.condition).join(' and ')}`)
+      }
     }
     const type = overrides[name] ?? outputType(output, 1)
     members.push({ name, type: nullable.has(name) ? `${type} | null` : type, doc })

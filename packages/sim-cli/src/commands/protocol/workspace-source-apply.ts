@@ -1,6 +1,15 @@
+import { lstat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { APPLY_ORDER, KIND_DIRS, parseWorkspaceBase } from '@sim/workspace-code'
+import {
+  APPLY_ORDER,
+  isFileKind,
+  KIND_DIRS,
+  parseResourceAddress,
+  parseWorkspaceBase,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { promotionSubmission } from '@sim/workspace-code/promote'
@@ -17,6 +26,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  isMissing,
   orphanedCodeFiles,
   readSourceJson,
   readWritten,
@@ -39,6 +49,7 @@ import {
 import {
   appliedBlobDigests,
   assertBlobsFetched,
+  baseBlobDigests,
   blobsToStage,
   stageBlobs,
 } from './workspace-source-blobs'
@@ -131,10 +142,10 @@ function printPlan(plan: Change[]): void {
       if (change.action === 'noop') continue
       const fields =
         change.fields && change.fields.length > 0 ? ` (${change.fields.join(', ')})` : ''
-      const counts = Object.entries(change.destructive?.counts ?? {})
+      const lost = Object.entries(change.destructive?.counts ?? {})
       const loses =
-        counts.length > 0
-          ? ` — deletes ${counts.map(([what, count]) => `${count} ${what}`).join(', ')}`
+        lost.length > 0
+          ? ` — deletes ${lost.map(([what, count]) => `${count} ${what}`).join(', ')}`
           : ''
       const held = change.held ? ' — held back (see its error)' : ''
       printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
@@ -185,14 +196,21 @@ const WORKFLOW_LOCK_PATH = new RegExp(
  * kept one.
  */
 async function orphanedWorkflowFiles(dir: string, files: Record<string, string>) {
+  const filesByFolder = new Map<string, string[]>()
+  for (const path of Object.keys(files)) {
+    if (!path.startsWith(`${KIND_DIRS.workflow}/`)) continue
+    const folder = path.split('/', 2).join('/')
+    const inFolder = filesByFolder.get(folder)
+    const file = path.slice(folder.length + 1)
+    if (inFolder) inFolder.push(file)
+    else filesByFolder.set(folder, [file])
+  }
   const orphaned: string[] = []
   for (const [path, text] of Object.entries(files)) {
     const match = WORKFLOW_LOCK_PATH.exec(path)
     if (!match) continue
     const folder = `${KIND_DIRS.workflow}/${match[1]}`
-    const written = Object.keys(files)
-      .filter((file) => file.startsWith(`${folder}/`))
-      .map((file) => file.slice(folder.length + 1))
+    const written = filesByFolder.get(folder) ?? []
     let next: unknown = null
     try {
       next = JSON.parse(text)
@@ -202,6 +220,48 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
     orphaned.push(...orphanedCodeFiles(previous, next, written).map((file) => `${folder}/${file}`))
   }
   return orphaned
+}
+
+/** Whether `path` under `dir` is gone from disk. */
+async function goneFromDisk(dir: string, path: string): Promise<boolean> {
+  try {
+    await lstat(join(dir, path))
+    return false
+  } catch (error) {
+    return isMissing(error)
+  }
+}
+
+/**
+ * The recorded paths whose resource an apply deleted: of a submitted kind, gone from disk, and no
+ * longer in the base the apply returned (a blob the base no longer lists; a text file whose
+ * resource it no longer records, or for a root-file kind no resource of that kind). A delete the
+ * apply held or that failed leaves the resource in the base, so its record stays and a later
+ * apply can still send it.
+ */
+async function deletedRecordedPaths(
+  dir: string,
+  recorded: Written['digests'],
+  kinds: readonly WorkspaceKind[],
+  returned: unknown
+): Promise<string[]> {
+  const base = parseWorkspaceBase(returned).base
+  if (!base) return []
+  const addresses = new Set(Object.keys(base.resources))
+  const kindsHeld = new Set(
+    [...addresses].flatMap((address) => parseResourceAddress(address)?.kind ?? [])
+  )
+  const blobs = baseBlobDigests(returned, kinds)
+  const candidates = Object.keys(recorded).filter((path) => {
+    const kind = kindOfPath(path)
+    if (kind === null || !kinds.includes(kind)) return false
+    if (isBlobPath(path)) return !blobs.has(path)
+    if (isFileKind(kind)) return !kindsHeld.has(kind)
+    const [key] = KIND_LAYOUTS[kind].group([path]).groups.keys()
+    return key !== undefined && !addresses.has(`${kind}:${key}`)
+  })
+  const gone = await Promise.all(candidates.map((path) => goneFromDisk(dir, path)))
+  return candidates.filter((_, index) => gone[index])
 }
 
 /**
@@ -237,7 +297,8 @@ function droppedResourceFiles(
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
  * blobs the server now holds. The function files a written workflow no longer uses, and the files
- * a reprinted resource no longer has, are removed from disk and the record.
+ * a reprinted resource no longer has, are removed from disk and the record; the record also drops
+ * the files of resources the apply deleted ({@link deletedRecordedPaths}).
  */
 async function saveApplied(
   dir: string,
@@ -251,7 +312,8 @@ async function saveApplied(
     ...droppedResourceFiles(submission.files, data.files),
   ]
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
-  for (const path of orphaned) delete kept[path]
+  const deleted = await deletedRecordedPaths(dir, written.digests, submission.kinds, data.base)
+  for (const path of [...orphaned, ...deleted]) delete kept[path]
   const record = writtenRecord(
     data.files,
     kept,
@@ -278,14 +340,18 @@ function assertBaseWorkspace(
   workspaceId: string,
   explicit: boolean
 ): void {
-  const readFrom =
-    typeof base === 'object' && base !== null && 'workspaceId' in base ? base.workspaceId : null
-  if (typeof readFrom !== 'string' || readFrom === workspaceId || explicit) return
+  const readFrom = baseWorkspaceOf(base)
+  if (readFrom === null || readFrom === workspaceId || explicit) return
   throw new SimApiError(
     `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --to ${workspaceId} to promote it: its resources bind by key to that workspace's own, and the directory stays bound to ${readFrom}.`,
     0,
     'SOURCE_OTHER_WORKSPACE'
   )
+}
+
+/** The workflow a directory's base belongs to (a workflow source directory), or `null`. */
+function baseWorkflowOf(base: unknown): string | null {
+  return isRecordLike(base) && typeof base.workflowId === 'string' ? base.workflowId : null
 }
 
 /** The workspace a directory's base was read from, or `null` when it has none. */
@@ -361,7 +427,6 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
-      await assertWorkspaceDir(options.dir)
       const { client, profile } = connect()
       const workspaceId = options.to ?? client.requireWorkspace()
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
@@ -431,6 +496,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
       await withSourceDirLock(options.dir, async () => {
         const written = await readWritten(options.dir)
         const read = await readWorkspaceDir(options.dir, only, workspaceId, written)
+        // The read already walked the kind folders: only a read that found none, or a workflow
+        // directory's base, needs the full check (which refuses with the reason).
+        if (read.kinds.length === 0 || baseWorkflowOf(read.base) !== null) {
+          await assertWorkspaceDir(options.dir)
+        }
         if (!options.to) {
           assertBaseWorkspace(
             options.dir,

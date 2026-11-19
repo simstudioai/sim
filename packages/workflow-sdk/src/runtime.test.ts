@@ -9,6 +9,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { BlockMeta, BlockRetryConfig, VariableType } from './core'
 import * as runtimeModule from './runtime'
 import { SimSdkNotExecutable } from './runtime'
+import * as workspaceRuntime from './workspace/runtime'
 
 const runtime: Record<string, unknown> = { ...runtimeModule }
 
@@ -33,7 +34,22 @@ describe('the SDK value surface', () => {
       const value: unknown = runtime[name]
       if (typeof value !== 'function') throw new Error(`${name} is not a stub`)
       expect(() => value('x')).toThrow(SimSdkNotExecutable)
+      expect(() => Reflect.construct(value, [])).toThrow(SimSdkNotExecutable)
       expect(() => Reflect.get(value, 'anything')).toThrow(SimSdkNotExecutable)
+    }
+  })
+
+  it('every workspace runtime export throws SimSdkNotExecutable when called or constructed', () => {
+    for (const [name, value] of Object.entries(workspaceRuntime)) {
+      if (name === 'column') {
+        const string: unknown = Reflect.get(workspaceRuntime.column, 'string')
+        if (typeof string !== 'function') throw new Error('column.string is not a stub')
+        expect(() => string()).toThrow(SimSdkNotExecutable)
+        continue
+      }
+      if (typeof value !== 'function') throw new Error(`${name} is not a stub`)
+      expect(() => value()).toThrow(SimSdkNotExecutable)
+      expect(() => Reflect.construct(value, [])).toThrow(SimSdkNotExecutable)
     }
   })
 

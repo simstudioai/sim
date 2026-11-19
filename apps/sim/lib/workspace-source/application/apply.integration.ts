@@ -1293,6 +1293,17 @@ export default workflow('Notes', {}, () => {
     expect((row.data as Record<string, unknown>)[emailId ?? '']).toBe('a@b.c')
     const again = await apply(workspaceId, { ...files, ...result.files }, { base: result.base })
     expect(again.plan.find((change) => change.key === 'leads')?.action).toBe('noop')
+    // The audit names each column, as the single-column use cases do, never its id.
+    await vi.waitFor(async () => {
+      const descriptions = (
+        await db
+          .select({ description: auditLog.description })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+      ).map((entry) => entry.description)
+      expect(descriptions).toContain('Deleted column "status" from table "leads"')
+      expect(descriptions).toContain('Updated column "email" in table "leads"')
+    })
   })
 
   check(
@@ -1342,6 +1353,42 @@ export default workflow('Notes', {}, () => {
       expect(await cellsByName()).toEqual({ c: 'first', b: 'second' })
     }
   )
+
+  check('a reshape swapping two columns addressed by name keeps their cells', async () => {
+    const workspaceId = await newWorkspace()
+    const created = await apply(
+      workspaceId,
+      { 'tables/pairs.ts': PAIRS },
+      { kinds: ['table'], only: ['table'] }
+    )
+    expect(created.failed).toBeUndefined()
+    await insertRow(workspaceId, { a: 'first', b: 'second' })
+    const { id: tableId } = await storedTable(workspaceId)
+
+    await tableReshape.reshapeTableUseCase.execute({
+      principal: owner,
+      input: {
+        tableId,
+        workspaceId,
+        update: [
+          { columnName: 'a', updates: { name: 'b' } },
+          { columnName: 'b', updates: { name: 'a' } },
+        ],
+      },
+    })
+
+    const table = await storedTable(workspaceId)
+    const [row] = await db
+      .select({ data: userTableRows.data })
+      .from(userTableRows)
+      .where(eq(userTableRows.workspaceId, workspaceId))
+    const data = row.data as Record<string, unknown>
+    expect(
+      Object.fromEntries(
+        table.schema.columns.map((column) => [column.name, data[column.id ?? column.name]])
+      )
+    ).toEqual({ b: 'first', a: 'second' })
+  })
 
   check('moves a one-per-table column type from one column to another in one apply', async () => {
     const workspaceId = await newWorkspace()

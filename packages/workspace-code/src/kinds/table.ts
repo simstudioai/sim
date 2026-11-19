@@ -66,7 +66,10 @@ type TableColumnMetadataKey = (typeof TABLE_COLUMN_METADATA_KEYS)[number]
 
 /** One column type as the server's column-type registry describes it. */
 export interface TableColumnTypeDescriptor {
-  /** The type-specific options a column of this type owns, in print order. */
+  /**
+   * The type-specific options a column of this type owns. A column prints them in
+   * `TABLE_COLUMN_METADATA_KEYS` order, whatever their order here.
+   */
   owns: readonly TableColumnMetadataKey[]
   /** Whether a column of this type may be unique. */
   unique: boolean
@@ -204,17 +207,24 @@ const METADATA_READERS: Record<TableColumnMetadataKey, MetadataReader> = {
       return
     }
     const names = raw as string[]
-    // The server folds letter case when it checks option names for repeats.
-    const folded = names.map((item) => item.toLowerCase())
-    const duplicate = names.find((_, index) => folded.indexOf(folded[index]) !== index)
-    if (duplicate !== undefined)
-      report('E_TABLE_OPTIONS', at, `Option "${duplicate}" is listed twice.`)
-    if (names.length > catalog.maxOptions)
+    if (names.length > catalog.maxOptions) {
       report(
         'E_TABLE_OPTIONS',
         at,
         `Column "${key}" lists ${names.length} options; a column holds at most ${catalog.maxOptions}.`
       )
+      return
+    }
+    // The server folds letter case when it checks option names for repeats.
+    const folded = new Set<string>()
+    const duplicate = names.find((item) => {
+      const name = item.toLowerCase()
+      if (folded.has(name)) return true
+      folded.add(name)
+      return false
+    })
+    if (duplicate !== undefined)
+      report('E_TABLE_OPTIONS', at, `Option "${duplicate}" is listed twice.`)
     column.options = [...names]
   },
   multiple(column, _key, options, pointer, report) {
@@ -445,7 +455,7 @@ function readColumns(
     if (previous !== undefined) {
       report(
         'E_TABLE_DUPLICATE_COLUMN',
-        pointer,
+        columnPointer,
         `Columns "${previous}" and "${columnKey}" share the name "${stored}".`
       )
     }

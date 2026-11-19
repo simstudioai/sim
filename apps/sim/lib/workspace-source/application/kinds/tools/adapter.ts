@@ -162,7 +162,11 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
           })
         )
       }
-      if (isStoredToolCode(declared.code) && !target) {
+      // A renamed key or a taken title already says which tool the declaration meant.
+      const refusedForName = change.diagnostics.some(
+        (finding) => finding.code === 'E_KEY_RENAMED' || finding.code === 'E_NAME_TAKEN'
+      )
+      if (isStoredToolCode(declared.code) && !target && !refusedForName) {
         change.diagnostics.push(
           kindFinding(
             'custom-tool',

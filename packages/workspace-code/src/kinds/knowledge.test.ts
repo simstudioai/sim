@@ -192,6 +192,32 @@ describe('knowledgeCodec', () => {
     ])
   })
 
+  it('caps document findings without spending the declaration file its own findings', () => {
+    const bad = Array.from({ length: 150 }, (_, index) => ({
+      path: `knowledge/policies/docs/d${index}.md`,
+      sha256: 'abc',
+      size: 1,
+    }))
+    const parsed = knowledgeCodec.parse(
+      'policies',
+      declaration("{ name: 'Policies', overlp: 1 }"),
+      bad
+    )
+    const counts = new Map<string, number>()
+    for (const finding of parsed.diagnostics) {
+      counts.set(finding.code, (counts.get(finding.code) ?? 0) + 1)
+    }
+    expect(Object.fromEntries(counts)).toEqual({
+      E_DECL_SHAPE: 100,
+      E_LIMIT_EXCEEDED: 1,
+      E_DECL_UNKNOWN_FIELD: 1,
+    })
+    expect(parsed.diagnostics.at(-1)).toMatchObject({
+      code: 'E_DECL_UNKNOWN_FIELD',
+      span: { file: 'knowledge/policies/knowledge.ts' },
+    })
+  })
+
   it('refuses document names no disk can hold', () => {
     const long = `${'日'.repeat(100)}.md`
     const parsed = knowledgeCodec.parse('policies', declaration("{ name: 'Policies' }"), [

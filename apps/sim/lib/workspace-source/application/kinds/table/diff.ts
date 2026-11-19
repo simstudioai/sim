@@ -289,14 +289,15 @@ export async function diffTable(
   for (const [columnKey, declared] of Object.entries(decl.columns)) {
     const current = pairs.get(columnKey)
     const target = columnInput(columnKey, declared)
+    // Managed rows make the table hold exactly them, so when each fills the column, every row the
+    // table keeps does: the reshape writes them before it makes the column required.
+    const filled =
+      decl.rows?.mode === 'managed' && decl.rows.data.every((row) => !isEmptyCell(row[columnKey]))
     if (!current) {
       changes.columns.push({ op: 'add', key: columnKey, column: target })
       changes.fields.push(`columns.${columnKey} (add)`)
       // A new column is empty in every row, so a required one would hold rows that break it,
-      // unless managed rows fill it in every row they keep (the reshape adds it optional, writes
-      // them, then makes it required).
-      const filled =
-        decl.rows?.mode === 'managed' && decl.rows.data.every((row) => !isEmptyCell(row[columnKey]))
+      // unless managed rows fill it.
       if (target.required && table.rowCount > 0 && !filled) {
         report(
           'E_APPLY_REFUSED',
@@ -336,7 +337,7 @@ export async function diffTable(
     if (Boolean(target.required) !== Boolean(current.required)) {
       updates.required = Boolean(target.required)
       fields.push('required')
-      if (target.required) {
+      if (target.required && !filled) {
         const empty = await countEmptyCells(db, table.id, table.workspaceId, columnId)
         if (empty > 0) {
           report(

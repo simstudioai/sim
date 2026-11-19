@@ -28,6 +28,7 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { listWorkflowTriggers } from '@/lib/workflows/application/triggers'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
 import {
@@ -390,9 +391,48 @@ describe('workspace source: deployments', () => {
       { base: renamed.base }
     )
     expect(removed.failed).toBeUndefined()
+    expect(renamed.base.resources['deployment:nightly']).toHaveProperty('x-passwordEnv', 'CHAT_PW')
+    expect(removed.base.resources['deployment:nightly']).not.toHaveProperty('x-passwordEnv')
     expect((await deployState(id)).chat).toBeUndefined()
     expect((await deployState(id)).isDeployed).toBe(true)
   })
+
+  check(
+    'a chat stored with an auth type source cannot name is left out of a get and never rewritten as public',
+    async () => {
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const created = await apply(
+        workspaceId,
+        { ...files, [DEPLOYMENT]: answerChat('gated-chat') },
+        { base }
+      )
+      expect(created.failed).toBeUndefined()
+      await db.update(chat).set({ authType: 'magic-link' }).where(eq(chat.workflowId, id))
+
+      const read = await runner.get(workspaceId)
+      expect(read.files[DEPLOYMENT]).toBeUndefined()
+      expect(read.skipped).toContainEqual(
+        expect.objectContaining({ kind: 'deployment', key: 'nightly' })
+      )
+
+      const retitled = await refusal(
+        apply(
+          workspaceId,
+          {
+            ...files,
+            ...created.files,
+            [DEPLOYMENT]: created.files[DEPLOYMENT].replace("title: 'Answers'", "title: 'Asked'"),
+          },
+          { base: created.base }
+        )
+      )
+      expect(codes(retitled.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect((await deployState(id)).chat).toMatchObject({
+        title: 'Answers',
+        authType: 'magic-link',
+      })
+    }
+  )
 
   check(
     'refuses at plan time a chat output naming a block the edit removes, deploying nothing',
@@ -645,6 +685,42 @@ describe('workspace source: deployments', () => {
         key: 'nightly',
         destructive: { what: 'workflow', counts: { schedules: 1 } },
       })
+    }
+  )
+
+  check(
+    'refuses deleting a workflow whose live triggers could not be counted, never claiming none end',
+    async () => {
+      const { workspaceId, files, base } = await deployedWorkspace()
+      const kept = NIGHTLY.replace("workflow('Nightly'", "workflow('Kept'")
+      const withKept = await apply(
+        workspaceId,
+        { ...files, 'workflows/kept/workflow.ts': kept },
+        { base }
+      )
+      expect(withKept.failed).toBeUndefined()
+      const withoutNightly = Object.fromEntries(
+        Object.entries({ ...files, ...withKept.files }).filter(
+          ([path]) => !path.startsWith('workflows/nightly/') && path !== DEPLOYMENT
+        )
+      )
+      // The workflow plan reads the trigger listing first; the deployment's undeploy reads it next.
+      const listTriggers = listWorkflowTriggers.execute.bind(listWorkflowTriggers)
+      vi.spyOn(listWorkflowTriggers, 'execute')
+        .mockRejectedValueOnce(new Error('trigger listing went away'))
+        .mockImplementation(listTriggers)
+
+      const plan = await apply(workspaceId, withoutNightly, {
+        base: withKept.base,
+        allowDelete: true,
+        dryRun: true,
+      }).finally(() => vi.mocked(listWorkflowTriggers.execute).mockRestore())
+
+      expect(
+        plan.diagnostics
+          .filter((finding) => finding.severity === 'error')
+          .map((finding) => `${finding.code} ${finding.kind}:${finding.key}`)
+      ).toEqual(['E_APPLY_STALE workflow:nightly'])
     }
   )
 

@@ -18,6 +18,7 @@ import {
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
 } from '../diagnostics'
+import { notAnObject } from './read'
 
 /** Reports one finding at the value under a JSON Pointer. */
 export type FieldReport = (
@@ -28,9 +29,20 @@ export type FieldReport = (
 ) => void
 
 /**
- * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once
- * `diagnostics` holds `MAX_FINDINGS_PER_FILE` findings it records one `E_LIMIT_EXCEEDED` and
- * drops the rest.
+ * Codes whose finding is about a literal secret written in the file: they carry a span but never a
+ * code frame, so the secret is not echoed back over the API into logs or agent context.
+ */
+const SECRET_VALUE_CODES: ReadonlySet<WorkspaceDiagnosticCode> = new Set([
+  'E_DEPLOY_SECRET',
+  'E_MCP_LITERAL_SECRET',
+  'W_TOOL_LITERAL_SECRET',
+])
+
+/**
+ * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once it
+ * has appended `MAX_FINDINGS_PER_FILE` findings (findings already in `diagnostics`, such as ones
+ * about other files of the resource, do not count) it records one `E_LIMIT_EXCEEDED` (with a span
+ * but no frame, since the value it points at may be a secret) and drops the rest.
  */
 export function fieldReporter(
   text: string,
@@ -40,6 +52,7 @@ export function fieldReporter(
 ): FieldReport {
   let locator: ReturnType<typeof sourceLocator> | undefined
   let capped = false
+  const start = diagnostics.length
   return (code, pointer, message, hint) => {
     if (capped) return
     let at = pointer
@@ -48,12 +61,16 @@ export function fieldReporter(
       at = at.slice(0, Math.max(0, at.lastIndexOf('/')))
       span = spans.get(at)
     }
-    const location = span ? (locator ??= sourceLocator(span.file, text)).located(span) : {}
-    if (diagnostics.length >= MAX_FINDINGS_PER_FILE) {
+    if (diagnostics.length - start >= MAX_FINDINGS_PER_FILE) {
       capped = true
-      diagnostics.push(findingLimitReached({ ...resource, ...location }))
+      diagnostics.push(findingLimitReached({ ...resource, ...(span ? { span } : {}) }))
       return
     }
+    const location = !span
+      ? {}
+      : SECRET_VALUE_CODES.has(code)
+        ? { span }
+        : (locator ??= sourceLocator(span.file, text)).located(span)
     diagnostics.push(
       diagnostic(code, message, { ...resource, ...location, ...(hint ? { hint } : {}) })
     )
@@ -172,13 +189,23 @@ export function readFolderField(
   return folder
 }
 
-/** `value` as an object, reporting anything else. */
+/** `value` as an object, reporting anything else (a helper call or `env.NAME` included). */
 export function readObject(
   value: Json | undefined,
   pointer: string,
   report: FieldReport,
   what: string
 ): Record<string, Json> | undefined {
+  const helper = notAnObject(value)
+  if (helper) {
+    report(
+      'E_DECL_SHAPE',
+      pointer,
+      `${what} must be an object, but ${helper.message}.`,
+      helper.hint
+    )
+    return undefined
+  }
   if (isRecordLike(value)) return value as Record<string, Json>
   report('E_DECL_SHAPE', pointer, `${what} must be an object.`)
   return undefined

@@ -20,7 +20,7 @@ import type {
   ApplyWorkflowSourceResponse,
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
+import { noAnswer, REQUEST_CANCELLED, SimApiError } from '../../http/client'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
 type WorkflowDiagnostic = ApplyWorkflowSourceResponse['data']['diagnostics'][number]
@@ -179,10 +179,10 @@ const LOST_ANSWER_STATUSES = new Set([502, 504])
 
 /**
  * Whether a write failed without the server's answer (a timeout, a dropped connection, a gateway
- * that gave up), so it may or may not have been stored.
+ * that gave up, a cancellation), so it may or may not have been stored.
  */
 function answerLost(error: SimApiError): boolean {
-  return (error.status === 0 && error.code === null) || LOST_ANSWER_STATUSES.has(error.status)
+  return noAnswer(error, LOST_ANSWER_STATUSES) || error.code === REQUEST_CANCELLED
 }
 
 /**

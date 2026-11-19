@@ -376,7 +376,10 @@ export function recordHashedBlobs(
  * workspace file's entry names its path, a knowledge base's names a document under its `docs/`
  * folder.
  */
-function baseBlobDigests(base: unknown, kinds: readonly WorkspaceKind[]): Map<string, string> {
+export function baseBlobDigests(
+  base: unknown,
+  kinds: readonly WorkspaceKind[]
+): Map<string, string> {
   const digests = new Map<string, string>()
   const resources = base === undefined ? {} : (parseWorkspaceBase(base).base?.resources ?? {})
   for (const [address, resource] of Object.entries(resources)) {

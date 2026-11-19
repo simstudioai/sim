@@ -64,7 +64,7 @@ export interface ToolDecl {
  * The code kept as the server holds it: `stored()` in source. `stored` is the server's keyed hash
  * of the stored code, `null` until the server resolves a declaration's `stored()` against it.
  */
-export interface StoredToolCode {
+interface StoredToolCode {
   stored: string | null
 }
 

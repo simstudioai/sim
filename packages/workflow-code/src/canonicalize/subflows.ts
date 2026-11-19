@@ -56,8 +56,9 @@ function stringField(value: unknown, context: CanonContext): string | undefined 
 }
 
 /**
- * Json fields of a subflow (collection / distribution) keep references rewritten in strings, but
- * never carry model nodes, so the value is JSON.
+ * Json fields of a subflow (collection / distribution) keep references rewritten in strings. An
+ * object carrying its own `$sim` key is wrapped as a `literal` node, as everywhere in the model;
+ * the wrapper is itself JSON, and materialize writes the object back unwrapped.
  */
 function jsonField(value: unknown, context: CanonContext): Json | undefined {
   if (value === undefined) return undefined

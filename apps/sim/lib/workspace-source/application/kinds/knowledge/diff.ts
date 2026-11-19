@@ -3,7 +3,7 @@
  * chunking) and its documents, each kept, uploaded, replaced or deleted by file name and hash.
  * A replace is an upload followed by a delete of the old document, never an in-place edit, since
  * the knowledge use cases have none (`upsertKnowledgeDocument` creates a new document too). The
- * replacement therefore has a new id and none of the old one's tag values.
+ * replacement therefore has a new id; the apply copies the old one's tag values onto it.
  */
 import { createLogger } from '@sim/logger'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
