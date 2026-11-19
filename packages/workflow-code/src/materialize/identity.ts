@@ -75,6 +75,14 @@ interface IdentityInputs {
 
 type TypeRelation = 'same' | 'replaced' | 'different'
 
+/** A key that ends as a created block. */
+interface SettledKey {
+  /** The lock id to reuse for it, when unclaimed. */
+  lockId?: string
+  /** The prev block it matched across types, which rename inference must not hand to another. */
+  retypedPrevId?: string
+}
+
 /** A key match across types keeps the id only for a catalog `sunset.replacedBy` pair. */
 function typeRelation(catalog: BlockCatalog, prevType: string, nextType: string): TypeRelation {
   if (prevType === nextType) return 'same'
@@ -142,7 +150,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
   }
   const claimed = new Set<string>()
   /** Keys that end as created blocks no later rule may match (retype, or a lock id to reuse). */
-  const settled = new Map<BlockKey, { lockId?: string }>()
+  const settled = new Map<BlockKey, SettledKey>()
 
   const match = (key: BlockKey, prevId: string, via: IdentityMatchRule): boolean => {
     const target = workflow.blocks[key]
@@ -157,7 +165,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
         message: `Block "${key}" changed type from "${stored.type}" to "${target.type}"; it is deleted and re-created, so its webhook URL and schedules are lost`,
         blockKey: key,
       })
-      settled.set(key, {})
+      settled.set(key, { retypedPrevId: prevId })
       return true
     }
     claimed.add(prevId)
@@ -307,7 +315,7 @@ interface InferenceState {
   claimed: Set<string>
   open: () => BlockKey[]
   match: (key: BlockKey, prevId: string, via: IdentityMatchRule) => boolean
-  settled: Map<BlockKey, { lockId?: string }>
+  settled: Map<BlockKey, SettledKey>
   diagnostics: IdentityInputs['diagnostics']
 }
 
@@ -345,9 +353,10 @@ function inferRenames(state: InferenceState): void {
   const { workflow, prev, resolved, claimed } = state
   const prevCanonical = prev.canonical.workflow
   const prevIdentity = prev.canonical.identity.blocks
+  /** Prev blocks a settled key accounts for: a retype's own prev, else the prev under its key. */
   const retyped = new Set(
-    [...state.settled.keys()].flatMap((key) => {
-      const id = getOwn(prevIdentity, key)?.id
+    [...state.settled].flatMap(([key, { retypedPrevId }]) => {
+      const id = retypedPrevId ?? getOwn(prevIdentity, key)?.id
       return id !== undefined ? [id] : []
     })
   )
