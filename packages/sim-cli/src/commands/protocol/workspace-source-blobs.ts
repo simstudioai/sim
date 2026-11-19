@@ -29,7 +29,11 @@ import {
   KIND_LAYOUTS,
 } from '@sim/workspace-code/kinds/registry'
 import { isWorkspaceSourcePath, kindOfPath } from '@sim/workspace-code/layout'
-import { stageBatches, WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import {
+  stageBatches,
+  WORKSPACE_SOURCE_LIMITS,
+  WORKSPACE_SOURCE_STAGE_MAX_BYTES,
+} from '@sim/workspace-code/limits'
 import type {
   FindMissingWorkspaceSourceBlobsResponse,
   GetWorkspaceSourceResponse,
@@ -470,7 +474,7 @@ type StagingClient = OperationClient<
 /**
  * Stages the bytes of the blobs at `paths` for an apply to `workspaceId`: asks which of their
  * hashes the server does not hold staged for this caller, then uploads only those, in requests of
- * at most `maxBlobBytesPerRequest`. A blob staged by an earlier, interrupted run is not sent
+ * at most `maxBlobBytesPerRequest` (a larger blob alone). A blob staged by an earlier, interrupted run is not sent
  * again. A file whose bytes no longer hash to what the directory read is refused before it is
  * sent. Returns how many blobs and bytes were uploaded.
  */
@@ -516,11 +520,35 @@ export async function stageBlobs(
       form.append(blob.sha256, new Blob([new Uint8Array(content)]), blob.sha256)
       bytes += content.byteLength
     }
-    await client.request<StageWorkspaceSourceBlobsResponse>('stageWorkspaceSourceBlobs', {
-      params: { workspaceId },
-      form,
-      retryRateLimited: true,
-    })
+    try {
+      await client.request<StageWorkspaceSourceBlobsResponse>('stageWorkspaceSourceBlobs', {
+        params: { workspaceId },
+        form,
+        retryRateLimited: true,
+      })
+    } catch (error) {
+      throw stagingTooLarge(error, batch)
+    }
   }
   return { count: sending.length, bytes }
+}
+
+/**
+ * A staging request the server refused as too large (`413`), re-raised naming what it carried and
+ * what to do: nothing was applied, and since this CLI batches within the limits it shares with the
+ * server, a refusal means the server runs other limits (another version, or a proxy in front of
+ * it with a smaller body limit). Any other error passes through.
+ */
+function stagingTooLarge(error: unknown, batch: readonly BlobEntry[]): unknown {
+  if (!(error instanceof SimApiError) || error.status !== 413) return error
+  const bytes = batch.reduce((sum, blob) => sum + blob.size, 0)
+  const largest = batch.reduce((top, blob) => (blob.size > top.size ? blob : top), batch[0])
+  return new SimApiError(
+    `The server refused an upload of ${batch.length} binary file(s), ${bytes} bytes (largest ${largest.path}), as too large: ${error.message} Nothing was applied. Update the CLI (\`sim update\`) so it splits uploads the way this server accepts; if a proxy in front of the server limits request bodies, raise its limit above ${WORKSPACE_SOURCE_STAGE_MAX_BYTES} bytes.`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
 }

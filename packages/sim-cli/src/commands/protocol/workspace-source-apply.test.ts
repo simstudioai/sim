@@ -647,6 +647,36 @@ describe('workspaces source apply', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('a staging request the server refuses as too large applies nothing, names the upload and the fix, and exits 7', async () => {
+    write('files/a.bin', Buffer.alloc(3_000, 1))
+    mockRequest.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path.endsWith('/source/blobs')) {
+        throw new SimApiError('Request body is too large', 413, 'PAYLOAD_TOO_LARGE')
+      }
+      return path.includes('/source/blobs') ? stagingAnswer(path, options) : request(path, options)
+    })
+
+    const refused = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({ status: 413, code: 'PAYLOAD_TOO_LARGE', exitCode: 7 })
+    expect((refused as SimApiError).message).toContain('files/a.bin')
+    expect((refused as SimApiError).message).toContain('sim update')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('uploads two files that would overflow one request body in two requests', async () => {
+    write('files/a.bin', Buffer.alloc(6_000_000, 1))
+    write('files/b.bin', Buffer.alloc(6_000_000, 2))
+    request.mockResolvedValueOnce(answer())
+
+    await apply('--yes')
+
+    expect(staging.uploaded.map((batch) => batch.length)).toEqual([1, 1])
+  })
+
   describe('rate limiting', () => {
     const limited = () =>
       new SimApiError('API rate limit exceeded', 429, 'RATE_LIMITED', undefined, 9)

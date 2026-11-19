@@ -267,7 +267,9 @@ the write is still caught only where the child use case takes a precondition (a 
 **Staged blobs.** Blob bytes never travel in an apply. A client first asks which of the blobs it
 will send it has not staged (`POST /source/blobs/missing`, by SHA-256 and size), uploads only
 those (`POST /source/blobs`, multipart, one part per blob named by its hash, at most
-`maxBlobBytesPerRequest` per request, `stageBatches` in `src/limits.ts`), then sends one apply
+`maxBlobBytesPerRequest` per request framing included, a larger blob alone, `stageBatches` in
+`src/limits.ts`; every body stays under the 10 MiB Next.js proxy ceiling, past which the route
+would receive a truncated body, and the route answers a larger one `413 PAYLOAD_TOO_LARGE`), then sends one apply
 whose manifest names each blob by path, hash and size. The server checks every uploaded part
 against its hash before staging it, so a staged blob is verified bytes. The plan resolves the
 blobs its writes need against the staging area once, before any write: a missing one (never
