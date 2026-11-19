@@ -44,7 +44,7 @@ import {
   type DiffReport,
   type FileDiff,
   nextStep,
-  pathSelector,
+  pathFilter,
   printDiffReport,
   printStatusReport,
   type ServerCheck,
@@ -54,6 +54,7 @@ import {
   textDiff,
   unreachableReason,
 } from './source-status'
+import { withSourceExitCode } from './source-tree'
 import { readWorkspaceDir, type WorkspaceSubmission } from './workspace-source-dir'
 import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
@@ -93,6 +94,15 @@ async function readLocalWorkspace(
     return kind !== null && (!only || only.includes(kind))
   })
   return { submission, written, changed, readFrom }
+}
+
+/** Every path the directory holds or its record names: what a diff's filters must select from. */
+function localPaths(local: LocalWorkspace): string[] {
+  return [
+    ...Object.keys(local.submission.files),
+    ...local.submission.blobs.map((blob) => blob.path),
+    ...Object.keys(local.written.digests),
+  ]
 }
 
 /**
@@ -235,7 +245,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             data = response.data
           } catch (error) {
             const reason = unreachableReason(error)
-            if (reason === null) throw error
+            if (reason === null) throw withSourceExitCode(error)
             server = 'unreachable'
             note = `${reason} Showing local changes only.`
           }
@@ -416,19 +426,30 @@ export function attachWorkspaceSourceDiff(source: Command): void {
       // directory an apply or get is halfway through rewriting (exit 10 while one runs).
       await withSourceDirLock(options.dir, async () => {
         const local = await readLocalWorkspace(options.dir, undefined)
-        const selects = pathSelector(filters, resourceOf)
+        const filter = pathFilter(filters, options.dir, resourceOf)
+        const selects = filter.selects
         const read = async (kinds: readonly WorkspaceKind[]) => {
           const connection = connect()
           const workspaceId = targetWorkspace(connection, local.readFrom)
-          const response = await connection.client.request<GetWorkspaceSourceResponse>(
-            'getWorkspaceSource',
-            { params: { workspaceId }, query: { kinds: kinds.join(',') } }
-          )
-          return response.data
+          try {
+            const response = await connection.client.request<GetWorkspaceSourceResponse>(
+              'getWorkspaceSource',
+              { params: { workspaceId }, query: { kinds: kinds.join(',') } }
+            )
+            return response.data
+          } catch (error) {
+            throw withSourceExitCode(error)
+          }
         }
         if (options.server) {
           const kinds = filteredKinds(filters) ?? local.submission.kinds
           const source = kinds.length > 0 ? await read(kinds) : null
+          filter.assertEachMatches([
+            ...localPaths(local),
+            ...(source
+              ? [...Object.keys(source.files), ...source.blobs.map((blob) => blob.path)]
+              : []),
+          ])
           const report: DiffReport = {
             dir: options.dir,
             against: 'server',
@@ -437,6 +458,7 @@ export function attachWorkspaceSourceDiff(source: Command): void {
           printDiffReport(output, report)
           return
         }
+        filter.assertEachMatches(localPaths(local))
         const selected = local.changed.filter((file) => selects(file.path))
         const needed = [
           ...new Set(

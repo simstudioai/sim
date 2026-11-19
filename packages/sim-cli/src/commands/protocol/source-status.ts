@@ -4,11 +4,14 @@
  * status, the unified diff of each changed file, and the rule for when the server counts as
  * unreachable, so both commands degrade to the local view the same way.
  */
+
+import { realpathSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
 import type { OutputFormat } from '../../config/index'
 import { SOURCE_DRIFT_EXIT_CODE, SOURCE_LOCAL_CHANGES_EXIT_CODE } from '../../exit-codes'
-import { SimApiError } from '../../http/client'
+import { noAnswer, SimApiError } from '../../http/client'
 import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
@@ -61,14 +64,13 @@ const UNREACHABLE_STATUSES = new Set([502, 503, 504])
 
 /**
  * Why the server could not be reached (no connection, a timeout, a gateway that gave up), or
- * `null` for any other failure, which a status reports rather than hides.
+ * `null` for any other failure (a cancelled request included), which a status reports rather
+ * than hides.
  */
 export function unreachableReason(error: unknown): string | null {
-  if (!(error instanceof SimApiError)) return null
-  if ((error.status === 0 && error.code === null) || UNREACHABLE_STATUSES.has(error.status)) {
-    return error.message
-  }
-  return null
+  return error instanceof SimApiError && noAnswer(error, UNREACHABLE_STATUSES)
+    ? error.message
+    : null
 }
 
 const SERVER_WORDS = {
@@ -248,25 +250,88 @@ export function printDiffReport(format: OutputFormat, report: DiffReport): void 
   printLine(lines.join('\n'))
 }
 
+/** The paths a `diff [paths...]` names. */
+export interface PathFilter {
+  /** Whether `path` (relative to the directory) is selected: every path when no filter is given. */
+  selects(path: string): boolean
+  /**
+   * Refuses, naming each filter that selects none of `paths` (every path the comparison could
+   * show), so a mistyped filter is an error rather than "No local changes."
+   */
+  assertEachMatches(paths: Iterable<string>): void
+}
+
 /**
- * Whether `path` is selected by `filters`: none selects every path; otherwise a filter selects
- * the path it names, every path under a folder it names, or (as `kind:key` given to `keyOf`)
- * every file of that resource.
+ * `path` with symlinks resolved (`/var` is `/private/var` on macOS), through its nearest existing
+ * ancestor when it does not exist (a deleted file).
  */
-export function pathSelector(
+function realPath(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    const parent = dirname(path)
+    return parent === path ? path : join(realPath(parent), basename(path))
+  }
+}
+
+/**
+ * The directory-relative forms of one filter: as given (`./` and a trailing `/` dropped, an empty
+ * one meaning the whole directory) and resolved from the current directory, so both
+ * `diff --dir wf workflow.ts` and `diff --dir wf wf/workflow.ts` (or an absolute path) name it.
+ * A path outside `dir` has no resolved form.
+ */
+function filterForms(filter: string, dir: string): string[] {
+  const forms = new Set<string>()
+  if (!isAbsolute(filter)) {
+    const given = filter
+      .replace(/\\/g, '/')
+      .replace(/^(\.\/)+/, '')
+      .replace(/\/+$/, '')
+    forms.add(given === '' ? '.' : given)
+  }
+  const resolved = relative(realPath(resolve(dir)), realPath(resolve(filter)))
+    .split(sep)
+    .join('/')
+  if (resolved === '') forms.add('.')
+  else if (resolved !== '..' && !resolved.startsWith('../') && !isAbsolute(resolved)) {
+    forms.add(resolved)
+  }
+  return [...forms]
+}
+
+/**
+ * The filter of `filters` against `dir`: a filter selects the path it names, every path under a
+ * folder it names, or (as `kind:key` given to `keyOf`) every file of that resource.
+ */
+export function pathFilter(
   filters: readonly string[],
+  dir: string,
   keyOf: (path: string) => string | null = () => null
-): (path: string) => boolean {
-  if (filters.length === 0) return () => true
-  const normalized = filters.map((filter) =>
-    filter.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')
-  )
-  return (path) => {
+): PathFilter {
+  const each = filters.map((filter) => ({ filter, forms: filterForms(filter, dir) }))
+  const matches = (forms: readonly string[], path: string) => {
     const key = keyOf(path)
-    return normalized.some(
-      (filter) =>
-        filter === '.' || filter === path || path.startsWith(`${filter}/`) || filter === key
+    return forms.some(
+      (form) => form === '.' || form === path || path.startsWith(`${form}/`) || form === key
     )
+  }
+  return {
+    selects: (path) => each.length === 0 || each.some(({ forms }) => matches(forms, path)),
+    assertEachMatches(paths) {
+      if (each.length === 0) return
+      const unmatched = new Set(each.map(({ filter }) => filter))
+      for (const path of paths) {
+        for (const { filter, forms } of each) {
+          if (unmatched.has(filter) && matches(forms, path)) unmatched.delete(filter)
+        }
+        if (unmatched.size === 0) return
+      }
+      throw new SimApiError(
+        `${[...unmatched].map((filter) => `"${sanitize(filter)}"`).join(', ')} selects no file in ${sanitize(dir)}; name a file or folder relative to --dir, or a path from the current directory inside it.`,
+        0,
+        'SOURCE_PATH_UNMATCHED'
+      )
+    },
   }
 }
 
