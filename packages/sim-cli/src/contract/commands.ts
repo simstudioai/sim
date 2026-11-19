@@ -1284,6 +1284,21 @@ export const CLI_CONTRACT: CliContract = {
     command: 'organizations search sources permissions get',
     pathFlags: ORGANIZATION_FLAG,
   },
+  createSourcePermissionImport: {
+    command: 'organizations search sources permissions imports create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  putSourcePermissionImportPart: {
+    command: 'organizations search sources permissions imports put-part',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { content: { textSource: true } },
+  },
+  completeSourcePermissionImport: {
+    command: 'organizations search sources permissions imports complete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
+  },
   replaceSearchSourcePermissions: {
     command: 'organizations search sources permissions replace',
     pathFlags: ORGANIZATION_FLAG,
