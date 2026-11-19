@@ -83,3 +83,28 @@ describe('printWorkflow round trip', () => {
     expect(output.files[0]?.text).toContain('${zed.content}')
   })
 })
+
+describe('a container param holding a detected credential', () => {
+  it('prints as stored() under meta.extra and compiles back to the stored value', () => {
+    const token = ['Bearer', 'abcdef0123456789abcdef'].join(' ')
+    const text =
+      "// @sim-sdk 1\nimport { api, loop, workflow } from '@sim/workflow-sdk'\n\n" +
+      `export default workflow('Test', {}, () => {\n  const l = loop.for('L', { count: 2 }, (p) => {\n    const a = api('A', { url: 'x' })\n    p.to(a)\n  }, { extra: { legacyAuth: '${token}' } })\n})\n`
+    const first = compile(text)
+    const workflow = first.workflow
+    if (!workflow) throw new Error('expected a workflow')
+    expect(workflow.blocks.l?.params.legacyAuth).toEqual({ kind: 'value', value: token })
+    const entry = printed(workflow).files[0]?.text ?? ''
+    expect(entry).toContain('legacyAuth: stored()')
+    expect(entry).not.toContain(token)
+    const again = compileWorkflow({
+      entry: { path: 'workflow.ts', text: entry },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      stored: workflow,
+    })
+    expect(again.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(again.workflow?.blocks.l?.params).toEqual(workflow.blocks.l?.params)
+  })
+})

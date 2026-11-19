@@ -303,9 +303,11 @@ export function isParallelType(value: unknown): value is ParallelType {
 }
 
 /**
- * Loop config as the `loops` map stores it (`Loop`). Optional fields are
- * absent exactly when storage omits them; canonicalize never fills defaults, so materialize can
- * write prev's config back verbatim when canonical-equal.
+ * Loop config as it executes (`loopSpec` in canonicalize): each field from `block.data` first,
+ * which the serializer rebuilds loops from, with the `loops` map (`Loop`) filling a field `data`
+ * omits. The count is the exception: the map's count is read only when `data.count` is not a
+ * number (the loader repairs it from the map), and a missing one is the 5 that runs. Optional
+ * fields are absent exactly when both omit them; a missing or unknown type is `for`.
  */
 export interface LoopSpec {
   kind: 'loop'

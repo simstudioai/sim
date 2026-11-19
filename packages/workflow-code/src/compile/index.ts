@@ -6,8 +6,9 @@ import {
   VARIABLE_TYPES,
   type VariableType,
 } from '@sim/workflow-types/workflow'
-import { encodeAnchor, portKey } from '../anchors'
+import { encodeAnchor } from '../anchors'
 import { literalText } from '../babel'
+import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
@@ -628,12 +629,7 @@ function compileEntry(
   const spans: Partial<Record<AnchorKey, SourceSpan>> = {}
   for (const [key, span] of ctx.spans) spans[key] = span
 
-  const sortedEdges = [...edges.edges].sort(
-    (a, b) =>
-      compareStrings(a.from, b.from) ||
-      compareStrings(portKey(a.port), portKey(b.port)) ||
-      compareStrings(a.to, b.to)
-  )
+  const sortedEdges = [...edges.edges].sort(compareEdges)
   const workflow: CanonicalWorkflow | null =
     reporter.hasErrors || !workflowHeader
       ? null

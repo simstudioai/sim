@@ -8,7 +8,8 @@ import {
 } from '../agent-tools'
 import { literalText } from '../babel'
 import { toolModes } from '../canonicalize/modes'
-import { paramAliases } from '../catalog/surface'
+import { builderPins, paramAliases } from '../catalog/surface'
+import type { CatalogBuilder } from '../catalog/types'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import { isJson } from '../lock'
 import {
@@ -111,14 +112,14 @@ function isToolRef(value: Value): value is ResourceNode | UnresolvedNode {
 }
 
 /**
- * The builder path a tool call names: `slack.tool.sendMessage(...)` → `slack.sendMessage`,
+ * The builder a tool call names: `slack.tool.sendMessage(...)` → `slack.sendMessage`,
  * `agent.tool(...)` → `agent` (the printer's `printTools` forms).
  */
-function toolBuilderPath(
+function toolBuilder(
   ctx: CompileContext,
   site: ValueSite,
   call: CallExpression
-): string | null {
+): CatalogBuilder | null {
   const path = calleePath(call.callee)
   if (!path) return null
   const binding = lookup(site.scope, path.root)
@@ -127,8 +128,25 @@ function toolBuilderPath(
   const toolIndex = segments.lastIndexOf('tool')
   if (toolIndex < 1 || toolIndex < segments.length - 2) return null
   segments.splice(toolIndex, 1)
-  const builderPath = segments.join('.')
-  return catalogBuilder(ctx.catalog, builderPath) ? builderPath : null
+  return catalogBuilder(ctx.catalog, segments.join('.')) ?? null
+}
+
+/**
+ * Refuses a tool param or `operation` option the builder already pins, as a block call does: the
+ * method name fixes it, and a written value would make the tool print as another builder.
+ */
+function fixedParam(
+  ctx: CompileContext,
+  property: ObjectProperty,
+  key: string,
+  site: ValueSite
+): null {
+  ctx.reporter.report('E_FIXED_PARAM', `The builder already sets ${key}.`, rangeOf(ctx, property), {
+    hint: `Remove ${key}; the method name pins it.`,
+    blockKey: site.decl.key,
+    param: key,
+  })
+  return null
 }
 
 /** A `stored()` tool param, resolved once the whole list is matched to the stored tools. */
@@ -148,8 +166,8 @@ function compileToolCall(
   call: CallExpression,
   site: ValueSite
 ): CompiledToolCall | null {
-  const builderPath = toolBuilderPath(ctx, site, call)
-  if (builderPath === null) {
+  const builder = toolBuilder(ctx, site, call)
+  if (builder === null) {
     const path = calleePath(call.callee)
     ctx.reporter.report(
       'E_UNKNOWN_BUILDER',
@@ -168,8 +186,6 @@ function compileToolCall(
     )
     return null
   }
-  const builder = catalogBuilder(ctx.catalog, builderPath)
-  if (!builder) return null
   const [paramsNode, optionsNode, ...extra] = call.arguments
   for (const node of extra)
     unsupported(ctx, node, 'Too many arguments.', 'Write tool(params, options).', site.decl.key)
@@ -185,14 +201,16 @@ function compileToolCall(
   const params: Record<string, Value> = {}
   const pending: PendingStoredParam[] = []
   for (const [id, value] of Object.entries(builder.fixed ?? {})) setOwn(params, id, value)
+  const pins = builderPins(builder)
   const block = catalogBlock(ctx.catalog, builder.type)
   const paramOf = new Map<string, string>()
   for (const [param, alias] of block ? paramAliases(block, false) : []) paramOf.set(alias, param)
   for (const [key, property] of objectEntries(ctx, paramsNode)) {
     const param = paramOf.get(key) ?? key
+    if (pins.has(param)) return fixedParam(ctx, property, key, site)
     const compiled = compileValue(ctx, property.value, site)
     if (!compiled) return null
-    if (Object.hasOwn(params, param) && !Object.hasOwn(builder.fixed ?? {}, param)) {
+    if (Object.hasOwn(params, param)) {
       return unsupported(
         ctx,
         property,
@@ -230,6 +248,7 @@ function compileToolCall(
   }
   for (const [key, property] of objectEntries(ctx, optionsNode)) {
     const text = literalText(property.value)
+    if (key === 'operation' && pins.has(key)) return fixedParam(ctx, property, key, site)
     switch (key) {
       case 'operation':
       case 'toolId':
