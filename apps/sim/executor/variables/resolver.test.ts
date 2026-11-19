@@ -1303,6 +1303,17 @@ describe('VariableResolver JSON text inputs', () => {
   })
 
   function createJsonResolver(blockType: string, params: Record<string, unknown>) {
+    return {
+      resolve: (extra: { env?: Record<string, string>; output?: Record<string, unknown> } = {}) =>
+        resolveJsonInputs(blockType, params, extra),
+    }
+  }
+
+  function resolveJsonInputs(
+    blockType: string,
+    params: Record<string, unknown>,
+    extra: { env?: Record<string, string>; output?: Record<string, unknown> }
+  ) {
     const producer = createBlock('producer', 'Producer', BlockType.API)
     const consumer = createBlock('consumer', 'Consumer', blockType, params)
     const workflow: SerializedWorkflow = {
@@ -1320,11 +1331,12 @@ describe('VariableResolver JSON text inputs', () => {
       flag: true,
       nothing: null,
       record: { name: 'Ada "the first"', tags: ['x', 'y'] },
+      ...extra.output,
     })
     const ctx = {
       blockStates: state.getBlockStates(),
       blockLogs: [],
-      environmentVariables: { QUOTED_SECRET: 'p"ss\\word' },
+      environmentVariables: { QUOTED_SECRET: 'p"ss\\word', ...extra.env },
       workflowVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopExecutions: new Map(),
@@ -1333,15 +1345,12 @@ describe('VariableResolver JSON text inputs', () => {
       completedLoops: new Set(),
       metadata: {},
     } as unknown as ExecutionContext
-    return {
-      resolve: () =>
-        new VariableResolver(workflow, {}, state).resolveInputs(
-          ctx,
-          'consumer',
-          consumer.config.params,
-          consumer
-        ),
-    }
+    return new VariableResolver(workflow, {}, state).resolveInputs(
+      ctx,
+      'consumer',
+      consumer.config.params,
+      consumer
+    )
   }
 
   async function resolveResponseBody(data: string): Promise<unknown> {
@@ -1397,6 +1406,22 @@ describe('VariableResolver JSON text inputs', () => {
   it('escapes environment variables inside JSON strings', async () => {
     await expect(resolveResponseBody('{"auth": "Bearer {{QUOTED_SECRET}}"}')).resolves.toEqual({
       auth: 'Bearer p"ss\\word',
+    })
+  })
+
+  it('keeps splicing a value that is already escaped JSON string content raw', async () => {
+    const escapedKey = ['-----BEGIN KEY-----', 'abc', '-----END KEY-----'].join('\\n')
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '{"key": "{{ESCAPED_KEY}}", "quote": "<producer.escaped>"}',
+    })
+    const resolved = await resolve({
+      env: { ESCAPED_KEY: escapedKey },
+      output: { escaped: 'say \\"hi\\"' },
+    })
+    expect(JSON.parse(resolved.data)).toEqual({
+      key: '-----BEGIN KEY-----\nabc\n-----END KEY-----',
+      quote: 'say "hi"',
     })
   })
 

@@ -132,8 +132,24 @@ async function replaceEnvVarsAsync(
 }
 
 /**
+ * Whether `value` already reads as the content of a JSON string literal: no bare quote or control
+ * character, and every backslash starts a valid escape. Such a value cannot close the string, and
+ * workflows built before references were escaped (an env var holding a key with literal `\n`
+ * escapes, a value a Function block escaped) rely on it being spliced as written.
+ */
+function isJsonStringContent(value: string): boolean {
+  try {
+    JSON.parse(`"${value}"`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Splices placeholder values into `text`. When `text` is JSON, a value landing inside one of its
- * string literals becomes escaped string content, so it cannot close the string. Placeholders
+ * string literals that would break the literal becomes escaped string content, so it cannot close
+ * the string; a value that is already valid string content is spliced as written. Placeholders
  * must arrive in ascending offset order: the lexer resumes where the previous one stopped, then
  * skips the placeholder itself, so characters inside its own text never toggle the state.
  */
@@ -155,7 +171,7 @@ function placeholderSplicer(
       position++
     }
     position = Math.max(position, end)
-    return inString ? JSON.stringify(value).slice(1, -1) : value
+    return inString && !isJsonStringContent(value) ? JSON.stringify(value).slice(1, -1) : value
   }
 }
 
