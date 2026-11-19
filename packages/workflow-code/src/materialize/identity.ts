@@ -98,7 +98,9 @@ function duplicateLockKeys(
 ): Set<BlockKey> {
   const keysById = new Map<string, BlockKey[]>()
   for (const [key, entry] of Object.entries(lock?.blocks ?? {})) {
-    keysById.set(entry.id, [...(keysById.get(entry.id) ?? []), key])
+    const keys = keysById.get(entry.id)
+    if (keys) keys.push(key)
+    else keysById.set(entry.id, [key])
   }
   const duplicates = new Set<BlockKey>()
   for (const [id, keys] of keysById) {
@@ -375,7 +377,9 @@ function inferRenames(state: InferenceState): void {
       const parentId = block.parent === null ? '' : idOfTarget(block.parent)
       if (parentId === undefined) continue
       const group = `${block.type}\u0000${parentId}`
-      targetGroups.set(group, [...(targetGroups.get(group) ?? []), key])
+      const keys = targetGroups.get(group)
+      if (keys) keys.push(key)
+      else targetGroups.set(group, [key])
     }
     const prevGroups = new Map<string, BlockKey[]>()
     for (const [key, identity] of Object.entries(prevIdentity)) {
@@ -384,7 +388,9 @@ function inferRenames(state: InferenceState): void {
       const parentId = block.parent === null ? '' : idOfPrev(block.parent)
       if (parentId === undefined) continue
       const group = `${block.type}\u0000${parentId}`
-      prevGroups.set(group, [...(prevGroups.get(group) ?? []), key])
+      const keys = prevGroups.get(group)
+      if (keys) keys.push(key)
+      else prevGroups.set(group, [key])
     }
     for (const [group, targets] of targetGroups) {
       const prevKeys = prevGroups.get(group)
