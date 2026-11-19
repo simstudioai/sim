@@ -6,7 +6,9 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
@@ -95,11 +97,12 @@ describe('withSourceDirLock', () => {
   it('a takeover that found the lock stale before another command replaced it leaves the live lock', async () => {
     const lock = join(dir, SOURCE_DIR_LOCK)
     writeOwner(lock, deadPid())
+    const seen = statSync(lock)
 
     // One command takes the stale lock over and runs; the other found the same lock stale before
     // that and only now acts on it.
     const owner = await withSourceDirLock(dir, async () => {
-      await takeOverStaleLock(lock)
+      await takeOverStaleLock(lock, seen)
       return readFileSync(join(lock, 'owner.json'), 'utf8')
     })
 
@@ -110,12 +113,23 @@ describe('withSourceDirLock', () => {
   it('two takeovers of one stale lock: the first removes it, the second finds it gone', async () => {
     const lock = join(dir, SOURCE_DIR_LOCK)
     writeOwner(lock, deadPid())
+    const seen = statSync(lock)
 
-    await takeOverStaleLock(lock)
+    await takeOverStaleLock(lock, seen)
     expect(existsSync(lock)).toBe(false)
-    await takeOverStaleLock(lock)
+    await takeOverStaleLock(lock, seen)
 
     expect(await withSourceDirLock(dir, async () => 'ran')).toBe('ran')
+  })
+
+  it('takes over a lock whose command died before recording its owner', async () => {
+    const lock = join(dir, SOURCE_DIR_LOCK)
+    mkdirSync(lock, { recursive: true })
+    const twoMinutesAgo = Date.now() / 1000 - 120
+    utimesSync(lock, twoMinutesAgo, twoMinutesAgo)
+
+    expect(await withSourceDirLock(dir, async () => 'ran')).toBe('ran')
+    expect(existsSync(lock)).toBe(false)
   })
 
   it('refuses a .sim that is a symbolic link, creating nothing where it points', async () => {
