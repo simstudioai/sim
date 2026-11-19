@@ -52,6 +52,7 @@ import { getTableById } from '@/lib/table/service'
 import type { RowData } from '@/lib/table/types'
 import { validateRowSize } from '@/lib/table/validation'
 import {
+  GET_HINT,
   keyRenamedChange,
   kindFinding,
   missingFolderFinding,
@@ -369,6 +370,24 @@ function withRows(
   return { ...change, base: { ...recorded, rows: rows.base } }
 }
 
+/**
+ * The declared column names the stored table no longer holds under the same column: a table whose
+ * declaration is unchanged writes no columns, so its rows are written by the names the server
+ * holds, and a column renamed or removed there since the base would silently drop its cells.
+ */
+function columnsRenamedOnServer(
+  decl: TableDecl,
+  state: StoredTableState,
+  entry: BaseResource | undefined
+): string[] {
+  const { decl: storedDecl } = tableAsDecl(state, entry?.columns)
+  return Object.entries(decl.columns).flatMap(([key, column]) => {
+    const stored = storedDecl.columns[key]
+    const name = columnName(key, column)
+    return stored && columnName(key, stored) === name ? [] : [name]
+  })
+}
+
 async function planTable(
   key: string,
   decl: TableDecl,
@@ -403,12 +422,21 @@ async function planTable(
     const settled = planned.settled
     const resource = resolution.action === 'noop' ? resolution.stored : undefined
     if (!resource || settled.action !== 'noop' || !decl.rows) return settled
-    return withRows(
-      settled,
-      await planRows(key, decl, resource.state, entry, ctx),
-      resource.state,
-      entry
-    )
+    const rows = await planRows(key, decl, resource.state, entry, ctx)
+    const renamed = rows.plan?.write ? columnsRenamedOnServer(decl, resource.state, entry) : []
+    if (renamed.length > 0) {
+      settled.diagnostics.push(
+        kindFinding(
+          'table',
+          key,
+          'E_APPLY_STALE',
+          `Column(s) ${renamed.map((name) => `"${name}"`).join(', ')} of table "${resource.state.table.name}" were renamed or removed on the server since this directory was read, so its rows cannot be written by those names.`,
+          { hint: GET_HINT }
+        )
+      )
+      return settled
+    }
+    return withRows(settled, rows, resource.state, entry)
   }
   switch (planned.action) {
     case 'create': {
@@ -617,6 +645,26 @@ function reshapeInput(
   }
 }
 
+/**
+ * The undeclared tables an `--allow-delete` plan may delete whose managed rows were written since
+ * the base recorded them (their rows version moved), by id.
+ */
+async function managedRowsMovedSinceBase(
+  desired: ReadonlyMap<string, unknown>,
+  stored: StoredSet<StoredTableState>,
+  ctx: PlanContext
+): Promise<Set<string>> {
+  const moved = new Set<string>()
+  if (!ctx.allowDelete) return moved
+  for (const [key, resource] of stored.bound) {
+    if (desired.has(key)) continue
+    const entry = ctx.base?.resources[resourceAddress('table', key)]
+    if (entry?.id !== resource.id || !entry.rows) continue
+    if ((await rowsVersion(ctx, resource.id)) !== entry.rows.version) moved.add(resource.id)
+  }
+  return moved
+}
+
 export const tableAdapter: KindAdapter<'table', StoredTableState> = {
   codec: tableCodec,
 
@@ -647,9 +695,13 @@ export const tableAdapter: KindAdapter<'table', StoredTableState> = {
       refuseDeclaredTwice(declaredNames, change, decl.name.toLowerCase(), decl.name)
       changes.push(change)
     }
+    const rowsMoved = await managedRowsMovedSinceBase(desired, stored, ctx)
     const undeclared = planUndeclared('table', desired, stored, ctx, {
       declared: changes,
-      fingerprint: (resource, entry) => storedFingerprint(resource.state, entry.columns),
+      // Its fingerprint leaves out the rows, so a delete of a table whose managed rows moved since
+      // the base reads as changed (stale), as an edit of those rows would.
+      fingerprint: (resource, entry) =>
+        rowsMoved.has(resource.id) ? '' : storedFingerprint(resource.state, entry.columns),
       counts: (resource) => ({ rows: resource.state.table.rowCount }),
       locked: ({ state }) =>
         state.table.locks.deleteLocked

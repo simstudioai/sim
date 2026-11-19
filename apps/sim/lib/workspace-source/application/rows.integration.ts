@@ -453,6 +453,52 @@ export default defineTable({
     )
   })
 
+  check(
+    'refuses deleting a managed table whose rows the server changed since the base, even with --allow-delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      await editStoredSeats(workspaceId, 'team', 99)
+
+      const stale = await refusal(apply(workspaceId, {}, { base: read.base, allowDelete: true }))
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect((await storedRows(workspaceId))[1]).toMatchObject({ code: 'team', seats: 99 })
+
+      // Read again, the delete goes ahead.
+      const fresh = await runner.get(workspaceId)
+      const deleted = await apply(workspaceId, {}, { base: fresh.base, allowDelete: true })
+      expect(deleted.applied).toMatchObject([{ kind: 'table', key: 'plans', action: 'delete' }])
+    }
+  )
+
+  check(
+    'refuses a row edit whose column the server renamed since the base, rather than dropping its cells',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      const table = await storedTable(workspaceId)
+      await db
+        .update(userTableDefinitions)
+        .set({
+          schema: {
+            ...table.schema,
+            columns: table.schema.columns.map((column) =>
+              column.name === 'seats' ? { ...column, name: 'licenses' } : column
+            ),
+          },
+        })
+        .where(eq(userTableDefinitions.id, table.id))
+
+      const edited = {
+        ...read.files,
+        'tables/plans.rows.jsonl': ROWS.replace('"seats":1', '"seats":3'),
+      }
+      const stale = await refusal(apply(workspaceId, edited, { base: read.base }))
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect((await storedRows(workspaceId))[0]).toMatchObject({ code: 'solo', licenses: 1 })
+    }
+  )
+
   check('refuses a row write whose version moved after the plan read it', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)
