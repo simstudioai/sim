@@ -73,10 +73,16 @@ function toTypeScript(schema: JsonSchema, indent: number, refs?: Map<string, str
       return 'boolean'
     case 'null':
       return 'null'
-    case 'array':
-      return isRecordLike(schema.items)
-        ? `Array<${toTypeScript(schema.items, indent, refs)}>`
-        : 'unknown[]'
+    case 'array': {
+      const tuple = schemaList(schema.prefixItems)
+      const rest = isRecordLike(schema.items) ? toTypeScript(schema.items, indent, refs) : null
+      if (tuple) {
+        const elements = tuple.map((item) => toTypeScript(item, indent, refs))
+        if (rest) elements.push(`...Array<${rest}>`)
+        return `[${elements.join(', ')}]`
+      }
+      return rest ? `Array<${rest}>` : 'unknown[]'
+    }
     case 'object': {
       const properties = toRecord(schema.properties)
       const required = Array.isArray(schema.required) ? schema.required : []
@@ -90,13 +96,21 @@ function toTypeScript(schema: JsonSchema, indent: number, refs?: Map<string, str
         return `Record<string, ${value}>`
       }
 
+      const types: string[] = []
       const lines = keys.map((key) => {
         const property = properties[key]
         const optional = required.includes(key) ? '' : '?'
         const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key)
         const type = isRecordLike(property) ? toTypeScript(property, indent + 1, refs) : 'unknown'
+        types.push(optional ? `${type} | undefined` : type)
         return `${pad}${safeKey}${optional}: ${type}`
       })
+      // Extra keys are allowed; an index signature must also cover the named properties' types.
+      if (isRecordLike(schema.additionalProperties)) {
+        const extra = toTypeScript(schema.additionalProperties, indent + 1, refs)
+        const value = extra === 'unknown' ? extra : [...new Set([extra, ...types])].join(' | ')
+        lines.push(`${pad}[key: string]: ${value}`)
+      }
       return `{\n${lines.join('\n')}\n${closePad}}`
     }
   }

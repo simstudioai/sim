@@ -447,7 +447,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -456,7 +458,9 @@ type ApplyWorkflowOperationsBodyRef0 =
       params: {
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       } & Record<string, unknown>
     }
   | {
@@ -472,7 +476,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -480,6 +486,7 @@ type ApplyWorkflowOperationsBodyRef0 =
       block_id: string
       params: {
         subflowId: string
+        [key: string]: unknown
       }
     }
 
@@ -497,6 +504,7 @@ type ApplyWorkflowOperationsBodyRef3 = {
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
   params?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef4 =
@@ -505,6 +513,7 @@ type ApplyWorkflowOperationsBodyRef4 =
       customToolId: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
   | {
       type: 'custom-tool'
@@ -514,11 +523,14 @@ type ApplyWorkflowOperationsBodyRef4 =
           name: string
           description?: string
           parameters: Record<string, unknown>
+          [key: string]: unknown
         }
+        [key: string]: unknown
       }
       code: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
@@ -526,9 +538,11 @@ type ApplyWorkflowOperationsBodyRef5 = {
   params: {
     serverId: string
     toolName: string
+    [key: string]: unknown
   } & Record<string, unknown>
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef6 = {
@@ -550,6 +564,7 @@ type ApplyWorkflowOperationsBodyRef6 = {
   }
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 export type ApplyWorkflowOperationsBody = {
@@ -2138,8 +2153,11 @@ export type CreateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
 }
@@ -2156,8 +2174,11 @@ type CreateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -2361,6 +2382,7 @@ type CreateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type CreateKnowledgeBaseResponseRef1 = {
@@ -6235,8 +6257,11 @@ type GetCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -6416,6 +6441,7 @@ type GetKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type GetKnowledgeBaseResponseRef1 = {
@@ -6652,8 +6678,10 @@ type GetLogResponseRef1 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<GetLogResponseRef1>
+  [key: string]: unknown
 }
 
 type GetLogResponseRef2 = {
@@ -7937,6 +7965,7 @@ type GetWorkflowResponseRef1 = {
   type: string
   properties?: Record<string, unknown>
   required?: Array<string>
+  [key: string]: unknown
 }
 
 type GetWorkflowResponseRef2 = {
@@ -9113,8 +9142,11 @@ type ListCustomToolsResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -9289,6 +9321,7 @@ type ListKnowledgeBasesResponseRef1 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 export type ListKnowledgeBasesResponse = {
@@ -9614,8 +9647,10 @@ type ListLogsResponseRef2 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<ListLogsResponseRef2>
+  [key: string]: unknown
 }
 
 export type ListLogsResponse = {
@@ -9678,11 +9713,13 @@ type ListMcpServerToolsResponseRef0 = {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   outputSchema?: {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   serverId: string
   serverName: string
@@ -13783,6 +13820,7 @@ type RestoreKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type RestoreKnowledgeBaseResponseRef1 = {
@@ -14941,8 +14979,11 @@ export type UpdateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code?: string
 }
@@ -14959,8 +15000,11 @@ type UpdateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -15045,6 +15089,7 @@ type UpdateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type UpdateKnowledgeBaseResponseRef1 = {
