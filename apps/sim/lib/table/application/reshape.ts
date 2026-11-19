@@ -26,7 +26,12 @@ import {
   writeTableFields,
 } from '@/lib/table/application/tables'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName, columnMatchesRef, rowDataNameToId } from '@/lib/table/column-keys'
+import {
+  buildIdByName,
+  columnMatchesRef,
+  getColumnId,
+  rowDataNameToId,
+} from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
@@ -153,7 +158,9 @@ function freeColumnName(table: TableDefinition): string {
  * waits while another pending update still moves a column off it. When every update waits (a
  * swap, or any longer rename cycle), a column another update waits on for its name is parked
  * under a free name first, which unblocks that update. A name held by a column that is not being
- * renamed, or a capped type no pending update frees, is left to the update to refuse.
+ * renamed, or a capped type no pending update frees, is left to the update to refuse. Each update's
+ * column is resolved to its id first, so one addressed by name is still found once another rename
+ * took or parked that name.
  */
 async function updateColumns(
   table: TableDefinition,
@@ -164,7 +171,12 @@ async function updateColumns(
     updates: ReshapeColumnUpdate['updates']
   ) => Promise<TableDefinition>
 ): Promise<TableDefinition> {
-  const pending = [...updates]
+  const pending = updates.map((entry) => {
+    const column = table.schema.columns.find((candidate) =>
+      columnMatchesRef(candidate, entry.columnName)
+    )
+    return column ? { ...entry, columnName: getColumnId(column) } : entry
+  })
   let current = table
   const renaming = (column: ColumnDefinition) =>
     pending.some(
