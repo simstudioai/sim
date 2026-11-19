@@ -1,6 +1,6 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { isJsonObject, type Json, type LoopSpec, type ParallelSpec } from '../model'
-import { setOrDelete } from '../records'
+import { deepEqual, setOrDelete } from '../records'
 
 /** `block.data` keys each subflow kind owns, and the model field each one holds. */
 function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefined> {
@@ -24,15 +24,21 @@ function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefi
 /**
  * Writes a changed subflow config into `block.data`. A field the spec
  * omits is removed, so storage omits it again. Keys listed in `skip` hold a
- * value canonicalize could not read as config and kept under `extra`; that copy wins.
+ * value canonicalize could not read as config and kept under `extra`; that copy wins. A field
+ * equal to `prev`'s keeps its stored spelling, absence included: canonicalize fills the count
+ * that runs (5) and the collection and conditions the subflow map holds when `data` omits them,
+ * and writing those back would store fields the edit never touched.
  */
 export function writeSubflowData(
   data: Record<string, unknown>,
   spec: LoopSpec | ParallelSpec,
-  skip: ReadonlySet<string>
+  skip: ReadonlySet<string>,
+  prev?: LoopSpec | ParallelSpec
 ): void {
+  const before = prev?.kind === spec.kind ? dataFields(prev) : undefined
   for (const [key, value] of Object.entries(dataFields(spec))) {
     if (skip.has(key)) continue
+    if (before && deepEqual(before[key], value)) continue
     if (value === undefined) delete data[key]
     else data[key] = value
   }
