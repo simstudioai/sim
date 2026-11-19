@@ -637,22 +637,13 @@ export interface WorkflowEdgeScopeBlock extends WorkflowLockBlock {
   type?: string
 }
 
-/** An edge as the scope check reads it; the handle is checked only when the edge carries one. */
-export interface WorkflowScopedEdge extends WorkflowEdgeEndpoints {
-  sourceHandle?: string | null
-}
-
 /**
  * Checks whether an edge crosses loop/parallel scope boundaries — an edge is
  * only valid within the same container, or between a container and its
  * direct parent/child.
- *
- * When the edge carries its source handle, a container's edges are also held to the port the
- * canvas draws them from (and workflow source writes them with): its start handle connects only
- * into the container, and any other handle (its end, the default `null`/`source`) never does.
  */
 export function getWorkflowEdgeScopeDropReason(
-  edge: WorkflowScopedEdge,
+  edge: WorkflowEdgeEndpoints,
   blocks: Record<string, WorkflowEdgeScopeBlock>
 ): string | null {
   const sourceBlock = blocks[edge.source]
@@ -664,21 +655,12 @@ export function getWorkflowEdgeScopeDropReason(
 
   const sourceParent = getWorkflowBlockParentId(sourceBlock) ?? null
   const targetParent = getWorkflowBlockParentId(targetBlock) ?? null
-  const sourceType = sourceBlock.type ?? ''
-  const intoOwnChild =
-    targetParent === edge.source && WORKFLOW_CONTAINER_BLOCK_TYPES.has(sourceType)
 
-  if (edge.sourceHandle !== undefined && isSubflowType(sourceType)) {
-    const fromStart = edge.sourceHandle === getWorkflowSubflowHandleIds(sourceType).start
-    if (fromStart && !intoOwnChild) {
-      return `a ${sourceType} start handle connects only to a block inside that ${sourceType}`
-    }
-    if (!fromStart && intoOwnChild) {
-      return `only a ${sourceType} start handle connects to a block inside that ${sourceType}`
-    }
+  if (sourceParent === targetParent) {
+    return null
   }
 
-  if (sourceParent === targetParent || intoOwnChild) {
+  if (targetParent === edge.source && WORKFLOW_CONTAINER_BLOCK_TYPES.has(sourceBlock.type ?? '')) {
     return null
   }
 
