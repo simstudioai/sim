@@ -23,12 +23,17 @@ import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { createMcpServerUseCase, updateMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import {
+  createMcpServerUseCase,
+  deleteMcpServerUseCase,
+  updateMcpServerUseCase,
+} from '@/lib/mcp/application/use-cases'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
+  failKeyClaims,
   refusal,
   sourceChecks,
   sourceRunner,
@@ -410,6 +415,58 @@ describe('MCP servers as workspace source', () => {
   )
 
   check(
+    'a re-run finishes a replace that stopped before deleting the old server or binding the key',
+    async () => {
+      /** The GitHub server under `key`, its URL moved, the replace stopped by `stop`. */
+      const stopped = async (key: string, stop: () => Promise<() => Promise<void>>) => {
+        const workspaceId = await newWorkspace()
+        const path = `mcp/${key}.ts`
+        const created = await apply(workspaceId, { [path]: github() })
+        expect(created.failed).toBeUndefined()
+        const moved = { [path]: github().replace(url, `${url}/v2`) }
+        const resume = await stop()
+        try {
+          const failed = await apply(workspaceId, moved, { base: created.base })
+          expect(failed.failed?.key).toBe(key)
+        } finally {
+          await resume()
+        }
+        return { workspaceId, moved, base: created.base }
+      }
+      const converges = async (run: Awaited<ReturnType<typeof stopped>>, key: string) => {
+        const rerun = await apply(run.workspaceId, run.moved, {
+          base: run.base,
+          allowDelete: true,
+        })
+        expect(rerun.failed).toBeUndefined()
+        const after = await liveServers(run.workspaceId)
+        expect(after.map((server) => server.url)).toEqual([`${url}/v2`])
+        expect(rerun.base.resources[`mcp-server:${key}`]?.id).toBe(after[0]?.id)
+        const settled = await apply(run.workspaceId, run.moved, { base: rerun.base })
+        expect(settled.applied).toEqual([])
+        expect(findings(settled.diagnostics, 'error')).toEqual([])
+      }
+
+      // Stopped after the create, before the old server is deleted: both servers are live.
+      const beside = await stopped('beside-hub', async () => {
+        const removing = vi
+          .spyOn(deleteMcpServerUseCase, 'execute')
+          .mockRejectedValueOnce(new Error('process stopped'))
+        return async () => removing.mockRestore()
+      })
+      expect((await liveServers(beside.workspaceId)).length).toBe(2)
+      await converges(beside, 'beside-hub')
+
+      // Stopped after the old server is deleted, before the key moves to the new one.
+      const unbound = await stopped('unbound-hub', () => failKeyClaims('unbound-hub'))
+      expect((await liveServers(unbound.workspaceId)).map((server) => server.url)).toEqual([
+        `${url}/v2`,
+      ])
+      await converges(unbound, 'unbound-hub')
+    }
+  )
+
+  check(
     'sets a URL that keeps the id in place, without --allow-delete, keeping the server row',
     async () => {
       const { workspaceId, read } = await setUp()
@@ -459,6 +516,64 @@ describe('MCP servers as workspace source', () => {
       expect((await liveServers(workspaceId)).map((server) => [server.id, server.url])).toEqual([
         [serverId, unresolvable],
       ])
+    }
+  )
+
+  check(
+    'a re-run that adopts a stopped replace carrying stored() headers still needs an admin',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const tenant = ['tenant', generateId()].join('-')
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Legacy',
+          url,
+          headers: { Authorization: `Bearer ${TOKEN}`, 'X-Tenant': tenant },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId)
+      const [path] = Object.keys(read.files)
+      const key = path.slice(4, -3)
+      expect(read.files[path]).toContain('Authorization: stored()')
+      const moved = { [path]: read.files[path].replace(url, `${url}/v2`) }
+
+      // The owner's replace stops after creating the new server, before deleting the old one.
+      const removing = vi
+        .spyOn(deleteMcpServerUseCase, 'execute')
+        .mockRejectedValueOnce(new Error('process stopped'))
+      try {
+        const stopped = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+        expect(stopped.failed?.key).toBe(key)
+      } finally {
+        removing.mockRestore()
+      }
+      expect((await liveServers(workspaceId)).length).toBe(2)
+
+      const apiKey = createWorkspaceApiKeyPrincipal({ workspaceId, keyId: generateId() })
+      const refused = await refusal(
+        apply(workspaceId, moved, { base: read.base, allowDelete: true, principal: apiKey })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${key}`,
+      ])
+      expect(
+        (await liveServers(workspaceId)).map((server) => server.url ?? '').sort(compareStrings)
+      ).toEqual([url, `${url}/v2`].sort(compareStrings))
+
+      const resumed = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+      expect(resumed.failed).toBeUndefined()
+      const after = await liveServers(workspaceId)
+      expect(after.map((server) => [server.url, server.headers])).toEqual([
+        [`${url}/v2`, { Authorization: `Bearer ${TOKEN}`, 'X-Tenant': tenant }],
+      ])
+
+      const shown = await runner.get(workspaceId, reader)
+      expect(JSON.stringify(shown)).not.toContain(tenant)
+      expect(JSON.stringify(shown)).not.toContain(TOKEN)
+      expect(shown.files[path]).toContain("'X-Tenant': stored()")
     }
   )
 
@@ -544,6 +659,72 @@ describe('MCP servers as workspace source', () => {
       )
       expect(findings(missing.diagnostics, 'error')).toEqual([
         `E_MCP_STORED_MISSING mcp-server:${path.slice(4, -3)}`,
+      ])
+    }
+  )
+
+  check(
+    'prints every literal header value as stored() to a read-only member, as the MCP API withholds them',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const tenant = ['tenant', generateId()].join('-')
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Tenant',
+          url,
+          headers: { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+          authType: 'headers',
+        },
+      })
+
+      const written = await runner.get(workspaceId)
+      const [path] = Object.keys(written.files)
+      expect(written.files[path]).toContain(tenant)
+
+      const read = await runner.get(workspaceId, reader)
+      expect(JSON.stringify(read)).not.toContain(tenant)
+      expect(read.files[path]).toContain("'X-Tenant': stored()")
+      expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
+      const address: `mcp-server:${string}` = `mcp-server:${path.slice(4, -3)}`
+      expect(read.base.resources[address]).toEqual(written.base.resources[address])
+    }
+  )
+
+  check(
+    'refuses a replace that carries stored() header values to a new URL unless an admin applies it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Legacy',
+          url,
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId)
+      const [path] = Object.keys(read.files)
+      expect(read.files[path]).toContain('Authorization: stored()')
+      const moved = { [path]: read.files[path].replace(url, `${url}/elsewhere`) }
+      const key = createWorkspaceApiKeyPrincipal({ workspaceId, keyId: generateId() })
+
+      const refused = await refusal(
+        apply(workspaceId, moved, { base: read.base, allowDelete: true, principal: key })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${path.slice(4, -3)}`,
+      ])
+      expect((await liveServers(workspaceId)).map((server) => server.url)).toEqual([url])
+
+      const replaced = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+      expect(replaced.failed).toBeUndefined()
+      const after = await liveServers(workspaceId)
+      expect(after.map((server) => [server.url, server.headers])).toEqual([
+        [`${url}/elsewhere`, { Authorization: `Bearer ${TOKEN}` }],
       ])
     }
   )

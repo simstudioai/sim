@@ -185,7 +185,10 @@ async function planDeclared(
       })
       continue
     }
-    const fitting = all.filter((credential) => fits(credential, entry))
+    // By name, then id: the finding names them and its hint picks the first, the same every plan.
+    const fitting = all
+      .filter((credential) => fits(credential, entry))
+      .sort((a, b) => compareStrings(a.name, b.name) || compareStrings(a.id, b.id))
     const candidates = fitting.filter((credential) => !taken.has(credential.id))
     const only = candidates.length === 1 ? candidates[0] : undefined
     if (!only || hidden.has(key)) {

@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  auditLog,
   folder,
   user,
   userTableDefinitions,
@@ -16,6 +17,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
@@ -119,6 +121,7 @@ async function tables(workspaceId: string) {
         isNull(userTableDefinitions.archivedAt)
       )
     )
+    .orderBy(userTableDefinitions.id)
 }
 
 async function workflows(workspaceId: string) {
@@ -248,6 +251,43 @@ describe('workspace source apply', () => {
       )
     }
   }
+
+  check(
+    'every audit entry an apply writes carries its apply id, and the next apply has another',
+    async () => {
+      const workspaceId = await newWorkspace()
+
+      const first = await apply(workspaceId, STARTER)
+      const second = await apply(
+        workspaceId,
+        { 'tables/leads.ts': LEADS.replace("'won'", "'won', 'lost'") },
+        { base: first.base, kinds: ['table'] }
+      )
+
+      expect(first.applyId).toEqual(expect.any(String))
+      expect(second.applyId).toEqual(expect.any(String))
+      expect(second.applyId).not.toBe(first.applyId)
+      await vi.waitFor(async () => {
+        const rows = await db
+          .select({ action: auditLog.action, metadata: auditLog.metadata })
+          .from(auditLog)
+          .where(eq(auditLog.workspaceId, workspaceId))
+        const grouped = (applyId: string | undefined) =>
+          rows
+            .filter((row) => isRecordLike(row.metadata) && row.metadata.correlationId === applyId)
+            .map((row) => row.action)
+            .sort()
+        expect(grouped(first.applyId)).toEqual([
+          'table.created',
+          'workflow.created',
+          'workspace.updated',
+        ])
+        expect(grouped(second.applyId)).toEqual(
+          expect.arrayContaining(['table.updated', 'workspace.updated'])
+        )
+      })
+    }
+  )
 
   check('the workflow-code flag off refuses a get, and no key is allocated', async () => {
     const workspaceId = await newWorkspace()
@@ -2019,6 +2059,43 @@ export default workflow('Notes', {}, () => {
       expect(noop.applied).toEqual([])
     }
   )
+
+  check(
+    'refuses at plan time two writes that leave one name twice in a folder: a rename and a create, or two renames',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await apply(workspaceId, {
+        ...STARTER,
+        'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+      })
+      const read = await get(workspaceId)
+      const before = (await workflows(workspaceId)).map((stored) => stored.name).sort()
+      const renamed = (key: string, from: string, to: string) => {
+        const entry = `workflows/${key}/workflow.ts`
+        return { [entry]: read.files[entry].replace(`workflow('${from}'`, `workflow('${to}'`) }
+      }
+
+      for (const files of [
+        {
+          ...read.files,
+          ...renamed('ingest', 'Ingest', 'Shared'),
+          'workflows/shared/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Shared'"),
+        },
+        {
+          ...read.files,
+          ...renamed('ingest', 'Ingest', 'Shared'),
+          ...renamed('intake', 'Intake', 'Shared'),
+        },
+      ]) {
+        const dryRun = await apply(workspaceId, files, { base: read.base, dryRun: true })
+        expect(codes(dryRun.diagnostics)).toEqual(['E_NAME_TAKEN'])
+        const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+        expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+        expect((await workflows(workspaceId)).map((stored) => stored.name).sort()).toEqual(before)
+      }
+    }
+  )
+
   check(
     'a workflow create whose key claim fails leaves no workflow behind, so applying again creates it',
     async () => {

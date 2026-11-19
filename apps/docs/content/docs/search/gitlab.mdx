@@ -59,6 +59,13 @@ Group search stops at 10,000 candidates per content type to respect GitLab's Adv
 
 To expand an existing deployment, create a **separate group source** after the application deployment finishes. Keep the working project source and its CI variables unchanged while validating the group. Give the group job its new `SIM_SOURCE_ID`, then pause the old source after confirming the wider setup. Regular knowledge-base ingestion remains project-scoped.
 
+An organization admin can add more groups without contacting Sim:
+
+1. Open **Settings → Sources → GitLab → Add connection**, choose **Scope → Group**, and enter the group ID and matching **Include subgroups** setting.
+2. Supply a token with access to that group and both permission CSVs, then save. For a large group, start with a small valid subset of grants and use CI to upload the full snapshot before expanding access to the wider team.
+3. Open the saved connection and copy **Source ID**. It is also the final segment of `/o/<organizationId>/settings/integrations/sources/<sourceId>`.
+4. Create a CI job for that group using its new `SIM_SOURCE_ID` and matching `--group` value. Reuse `SIM_ORG_ID` and the admin-owned `SIM_API_KEY`; leave existing groups' jobs unchanged.
+
 ## Non-admin CSV permissions
 
 Use **Download template** beside each field, replace the examples, and upload both files.
@@ -82,7 +89,8 @@ engineering/platform,456
 Use the full namespace path even if **Project** contains a numeric ID. Include inherited members explicitly. A grant without an email mapping grants nothing; rows for other projects cannot expand this source.
 
 - Each file has exactly two columns in the shown order and at least one data row. Template headers or headerless data are accepted.
-- Use UTF-8 CSV, at most **8 MiB and 500,000 data rows per file**. The complete JSON upload, including escaped CSV content, must fit **10 MiB**. These are independent limits; split large deployments into narrower sources when either is reached.
+- Use UTF-8 CSV. Manual uploads accept **8 MiB and 500,000 data rows per file**. The existing single-request API also requires the complete JSON body to fit **10 MiB**.
+- For larger files, use the [CI uploader](#automate-updates-with-gitlab-ci): up to **500,000 user records**, **5,000,000 project-permission records**, and **1 GiB across both CSVs**, uploaded in at most **4,096 parts**. Counts include duplicate data records; saved mappings and grants are deduplicated.
 - Identical rows are deduplicated. Conflicting user-ID/email mappings and malformed rows are rejected.
 
 In this example, Alice can search `engineering/platform` because the files link GitLab user `123` to both that project and `alice@example.com`. Sim checks that Alice is a current organization member and that her verified Sim email uniquely matches the grant. It checks again when she opens a result. GitLab receives the request under the source's read-only service account; Alice does not sign in to GitLab or authorize Sim individually.
@@ -136,21 +144,24 @@ Reads recheck current settings, permissions, and metadata. A reference from anot
 
 ## Update permissions or rotate the token
 
-In source settings, replace either CSV file, retaining the other when appropriate. Sim validates the resulting pair before saving. Invalid or stale updates preserve saved grants. Removed readers lose access on the next operation.
+For manually uploaded CSVs, source settings can replace either file while retaining the other. For a large snapshot uploaded through CI, use the CI uploader to replace both files together. Sim validates the resulting pair before publishing it. Invalid or stale updates preserve saved grants. Removed readers lose access on the next operation.
 
-To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Changing host, scope, or permission strategy requires valid configuration for the new identity.
+To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Saving settings without replacing CSVs preserves the uploaded permissions. Changing host, scope, or permission strategy requires valid configuration for the new identity.
 
 ### Automate updates with GitLab CI
 
-After an admin configures a source in **Non-admin token** mode, a job can [read its revision](/api-reference/organizations/getSearchSourcePermissions) and [replace both CSVs](/api-reference/organizations/replaceSearchSourcePermissions). Copy `SIM_ORG_ID` and `SIM_SOURCE_ID` from the source settings URL: `/o/<organizationId>/settings/integrations/sources/<sourceId>`. Set `SIM_BASE_URL` to your Sim origin (for hosted Sim, `https://www.sim.ai`).
+After an admin configures a source in **Non-admin token** mode, a job can [read its revision](/api-reference/organizations/getSearchSourcePermissions), export current permissions, and upload both CSVs. Copy **Source ID** from the saved connection into `SIM_SOURCE_ID`; copy `SIM_ORG_ID` from `/o/<organizationId>/settings/integrations/sources/<sourceId>`. Set `SIM_BASE_URL` to your Sim origin (for hosted Sim, `https://www.sim.ai`).
 
-Store an organization admin's [personal Sim API key](/api-reference/authentication) with [**Full access**](/api-reference/authentication#key-access) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access; a read-only key can read the revision but not replace the CSVs. This endpoint can only read the revision or replace both CSVs; it cannot change the GitLab PAT, host, or configured scope.
+Store an organization admin's [personal Sim API key](/api-reference/authentication) with [**Full access**](/api-reference/authentication#key-access) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access; a read-only key can read the revision but not replace the CSVs. Permission uploads cannot change the GitLab PAT, host, or configured scope.
 
-Commit [the exporter above](#export-both-csvs-from-gitlab) at `ci/export-gitlab-permissions.py`. Set `GITLAB_EXPORT_TOKEN`, `GITLAB_PROJECT` (full path or numeric ID), and the Sim variables above. This example uses `CI_SERVER_URL` for the GitLab host and runs on a schedule against a protected branch. Choose the schedule based on how quickly permission changes must reach Sim.
+Commit [the exporter above](#export-both-csvs-from-gitlab) at `ci/export-gitlab-permissions.py` and [upload-permissions.py](/static/examples/gitlab/upload-permissions.py) at `ci/upload-permissions.py`. Both use Python 3.10 or later with no extra packages. Set `GITLAB_EXPORT_TOKEN`, `GITLAB_PROJECT` (full path or numeric ID), and the Sim variables above. This example uses `CI_SERVER_URL` for the GitLab host and runs on a schedule against a protected branch. Choose the schedule based on how quickly permission changes must reach Sim.
+
+The uploader stages the files on the runner, then sends CSV parts of at most 5,000 records and 1 MiB. Allow temporary disk space for the CSV pair and another copy for staging. Sim validates each part and publishes the complete pair atomically only if the original revision still matches. Searches keep using the previous permissions during the upload.
 
 ```yaml title=".gitlab-ci.yml"
 sync_gitlab_permissions:
   image: alpine:3.22
+  timeout: 2 days
   resource_group: "sim-permissions-$SIM_SOURCE_ID"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_PROTECTED == "true"'
@@ -169,19 +180,13 @@ sync_gitlab_permissions:
       python3 ci/export-gitlab-permissions.py \
         --gitlab-url "$CI_SERVER_URL" --project "$GITLAB_PROJECT" \
         --output-dir "$export_root/permissions" --requests-per-minute 60
-      jq -n --argjson rev "$revision" \
-        --rawfile users "$export_root/permissions/users.csv" \
-        --rawfile grants "$export_root/permissions/project-permissions.csv" \
-        '{expectedRevision: $rev, permissions: {provider: "gitlab",
-          userMapping: {filename: "users.csv", content: $users},
-          projectPermissions: {filename: "project-permissions.csv", content: $grants}}}' > "$export_root/update.json"
-      if [ "$(wc -c < "$export_root/update.json")" -gt 10485760 ]; then
-        echo "Permission upload exceeds 10 MiB; use a narrower source." >&2
-        exit 1
-      fi
-      curl --fail --silent --show-error --request PUT -H "$auth" \
-        -H 'Content-Type: application/json' --data-binary "@$export_root/update.json" "$url"
+      python3 ci/upload-permissions.py --provider gitlab \
+        --expected-revision "$revision" \
+        --user-mapping "$export_root/permissions/users.csv" \
+        --project-permissions "$export_root/permissions/project-permissions.csv"
 ```
+
+Adjust the [job timeout](https://docs.gitlab.com/ci/yaml/#timeout) to the export's expected duration and ensure the [runner's maximum timeout](https://docs.gitlab.com/ci/runners/configure_runners/#set-the-maximum-job-timeout) permits it. Two days is an example, not a completion guarantee. Keep the default export ceiling of 60 requests per minute unless your GitLab administrator approves a different rate.
 
 For a group source, keep the same revision/read/upload steps and replace only the exporter command above:
 
@@ -191,9 +196,50 @@ python3 ci/export-gitlab-permissions.py \
   --output-dir "$export_root/permissions" --requests-per-minute 60
 ```
 
-Set `GITLAB_GROUP` to the configured group's full path or numeric ID. Add `--include-subgroups` if enabled in Sim. The existing `--project` command, CSV headers, upload endpoint, and revision checks are unchanged. Grants for projects outside the configured group are rejected; a reused path with a different project ID requires a new connection.
+Set `GITLAB_GROUP` to the configured group's full path or numeric ID. Add `--include-subgroups` if enabled in Sim. The existing `--project` command, CSV headers, source IDs, and revision checks are unchanged. The [single-request replacement API](/api-reference/organizations/replaceSearchSourcePermissions) remains available within its original limits. Grants for projects outside the configured group are rejected; a reused path with a different project ID requires a new connection.
 
-A successful update returns the new revision. A `409 Conflict` means someone updated the source after the job read its revision. Rerun the job from the beginning so it exports current grants. An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the source should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
+A successful update returns the new revision. The uploader retries identical part and completion requests after transient connection errors, `429`, or server errors, honoring `Retry-After`. It never substitutes a newer revision. On a conflict, rerun the job from the revision read and export so the files reflect current permissions. Interrupted imports expire; they do not replace the previous grants. If the connection drops after completion, the update may already have succeeded.
+
+An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the source should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
+
+## Manage sources from the CLI
+
+Organization admins can also configure sources with the [Sim CLI](/cli/organizations). Use a personal Sim API key with Full access, or an OAuth login with the required API scopes. Workspace API keys cannot administer organization sources.
+
+```bash
+sim organizations search sources list --organization "$SIM_ORG_ID"
+sim organizations search sources get "$SIM_SOURCE_ID" --organization "$SIM_ORG_ID"
+```
+
+The returned `id` is `SIM_SOURCE_ID`. Creating an additional group requires a separate source and CI job targeting that ID. Existing sources and CI upload commands remain unchanged.
+
+For a new source, prepare the shared configuration once, then create the connection:
+
+```bash
+sim organizations search sources prepare --organization "$SIM_ORG_ID" \
+  --connector-type gitlab --access-mode admin
+sim organizations search sources create --organization "$SIM_ORG_ID" \
+  --connector-type gitlab --access-mode admin --api-key @gitlab-pat.txt \
+  --source-config @source-config.json --permission-config @permission-config.json
+```
+
+Use the same host, project/group selection, and permission strategy as Settings. `source-config.json` contains the complete source configuration. `permission-config.json` contains `provider: "gitlab"`, `mode: "csv"`, and both CSVs as `{ "filename": "...", "content": "..." }` under `userMapping` and `projectPermissions`. For large exports, create the source using a valid subset of grants, then upload the full snapshot. The [create API reference](/api-reference/organizations/createSearchSource) describes every field. Keep PAT files and permission files out of version control.
+
+To change a group, read the source first, edit the complete configuration, and supply matching CSVs with the current permission revision. To rotate only the GitLab PAT, use `sim organizations search sources update <sourceId> --organization <organizationId> --api-key @replacement-pat.txt --permission-config '{"provider":"gitlab","mode":"csv","expectedRevision":<revision>}' --yes`. Omitted CSVs retain their grants; a successful rotation advances the revision. Use `--status paused --yes` or `--status active --yes` to pause or resume. Neither action changes the source ID. Integration approval remains a separate organization setting.
+
+The CLI can replace the Python uploader in an existing CI job:
+
+```bash
+# Pin before running the GitLab export.
+REVISION="$(sim organizations search sources permissions get "$SIM_SOURCE_ID" \
+  --organization "$SIM_ORG_ID" --output json | jq -er '.revision')"
+# Run export-permissions.py here to generate both CSVs.
+sim organizations search sources permissions upload "$SIM_SOURCE_ID" \
+  --organization "$SIM_ORG_ID" --provider gitlab --expected-revision "$REVISION" \
+  --user-mapping users.csv --project-permissions project-permissions.csv --yes
+```
+
+This uses the same staged-import limits, revision checks, and atomic activation as the Python uploader. A conflict requires a new export; the command never fetches a newer revision to overwrite it. Personal OAuth consent and GitLab token issuance still happen in their respective services.
 
 ## Troubleshooting
 

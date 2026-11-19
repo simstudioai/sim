@@ -8,7 +8,10 @@
  * that keeps the id (only its query string differs) is set in place through the reconfigure use
  * case, which validates the URL before it writes anything. A URL with a new id replaces the server
  * (created at the new URL, then the old one deleted). A replace breaks stored workflows that still
- * call the old server by id, so it needs `--allow-delete` when any does. Servers a Credential Group manages are not source's to manage
+ * call the old server by id, so it needs `--allow-delete` when any does. A replace that stopped
+ * partway resumes: the server it created is unbound and holds exactly the declaration, so the next
+ * apply adopts it, before deleting the old server (a replacement left beside it) or in its place
+ * (the old server already deleted). Servers a Credential Group manages are not source's to manage
  * and are left out.
  *
  * `checkRefs` checks the tools workflows call (`mcp(key).tool(name)`) against the server's own
@@ -30,8 +33,9 @@ import {
 } from '@sim/workspace-code/kinds/mcp'
 import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import type { CursorKey } from '@/lib/api/list-query'
-import { ForbiddenOperationError } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   createMcpServerUseCase,
   deleteMcpServerUseCase,
@@ -43,12 +47,16 @@ import {
 } from '@/lib/mcp/application/use-cases'
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { admitOnce } from '@/lib/workspace-source/application/context'
 import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
 import { inUseUncheckedFinding, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
+  concealHeaderValues,
   declOf,
   headersToWrite,
+  holdsDeclaration,
+  keepsStoredHeaders,
   resolveStoredHeaders,
   storedFingerprint,
 } from '@/lib/workspace-source/application/kinds/mcp/stored'
@@ -76,6 +84,11 @@ export interface McpPlan {
   changed: string[]
   /** The URL changed its id: create the server at the new URL and delete the stored one. */
   replace?: boolean
+  /**
+   * The server at the new URL an interrupted replace already created, which this replace adopts
+   * instead of creating one.
+   */
+  replacement?: string
 }
 
 type McpChange = PlannedChange<'mcp-server'>
@@ -152,14 +165,26 @@ async function planServer(
     return change
   }
 
-  const resolution = resolveDeclared({
-    local: fingerprintOf(mcpCodec.canonical(decl)),
-    stored: bound,
-    adoptable,
-    base: ctx.base?.resources[resourceAddress('mcp-server', key)],
-    fingerprint: (record) => storedFingerprint(record.state),
-    holds: holdsIn(stored),
-  })
+  const base = ctx.base?.resources[resourceAddress('mcp-server', key)]
+  const holds = holdsIn(stored)
+  // A replace that deleted the old server and stopped before binding the key to the new one: the
+  // base's server is gone and the new one holds the declaration, so it is adopted, not `deleted`.
+  const resumed =
+    !bound &&
+    adoptable &&
+    base?.fingerprint &&
+    !holds(base.id) &&
+    holdsDeclaration(declared, adoptable.state)
+  const resolution = resumed
+    ? { action: 'adopt' as const, stored: adoptable }
+    : resolveDeclared({
+        local: fingerprintOf(mcpCodec.canonical(decl)),
+        stored: bound,
+        adoptable,
+        base,
+        fingerprint: (record) => storedFingerprint(record.state),
+        holds,
+      })
   const planned = settle(resolution, change, baseOf)
   if ('settled' in planned) return planned.settled
   if (planned.action === 'create') {
@@ -184,7 +209,18 @@ async function planServer(
   }
   // A URL that keeps the id is set in place (see `apply`); only a new id replaces the server.
   if (record.state.url === decl.url || record.id === id) return update
-  return planReplace(update, record, ctx)
+  if (!adoptable) return planReplace(update, record, ctx)
+  // A server already at the new URL: the one an earlier replace created before it stopped, when it
+  // holds the declaration (its `stored()` headers copied from this one).
+  if (holdsDeclaration(declared, adoptable.state, record.state)) {
+    return planReplace(update, record, ctx, adoptable)
+  }
+  finding(
+    'E_NAME_TAKEN',
+    `${declared.url} is already MCP server "${adoptable.name}", which differs from ${where('mcp-server', key)}.`,
+    'Delete that server, or declare it under its own key.'
+  )
+  return change
 }
 
 /**
@@ -194,7 +230,8 @@ async function planServer(
 async function planReplace(
   change: McpChange,
   record: StoredServer,
-  ctx: PlanContext
+  ctx: PlanContext,
+  replacement?: StoredServer
 ): Promise<McpChange> {
   // `null` when the scan ran out of time: the replace deletes the old server, so it is refused.
   const using = await workflowsUsing(ctx.workspace.workspaceId, [record.id])
@@ -203,8 +240,17 @@ async function planReplace(
     ...change,
     fields: ['url (replaces the server)', ...(change.fields ?? []).filter((f) => f !== 'url')],
     destructive: { what: 'MCP server (replaced)', counts: { workflows: users.length } },
-    pending: pendingOf({ ...change, action: 'create' }, { name: change.decl?.name }),
-    detail: { changed: change.detail?.changed ?? [], replace: true },
+    pending: replacement
+      ? pendingOf(
+          { ...change, action: 'adopt', storedId: replacement.id },
+          { name: change.decl?.name }
+        )
+      : pendingOf({ ...change, action: 'create' }, { name: change.decl?.name }),
+    detail: {
+      changed: change.detail?.changed ?? [],
+      replace: true,
+      ...(replacement ? { replacement: replacement.id } : {}),
+    },
   }
   const file = mcpDeclarationPath(change.key)
   replaced.diagnostics.push(
@@ -212,7 +258,9 @@ async function planReplace(
       'mcp-server',
       change.key,
       'W_MCP_REPLACE',
-      `The URL of ${where('mcp-server', change.key)} changed, which replaces the server: it is created at ${change.decl?.url} and "${record.name}" is deleted.`,
+      replacement
+        ? `The URL of ${where('mcp-server', change.key)} changed, and an earlier apply already created the server at ${change.decl?.url}: it takes the key and "${record.name}" is deleted.`
+        : `The URL of ${where('mcp-server', change.key)} changed, which replaces the server: it is created at ${change.decl?.url} and "${record.name}" is deleted.`,
       { file, hint: 'Its id derives from its URL; the key moves to the new server.' }
     )
   )
@@ -283,6 +331,36 @@ function updateInput(
  */
 function updateUseCaseOf(changed: readonly string[]) {
   return changed.includes('url') ? reconfigureMcpServerUseCase : updateMcpServerUseCase
+}
+
+/**
+ * Whether the caller may see the header values a server stores: as the MCP server list shows them
+ * only to one who may rewrite them, a get prints them only to a caller the update use case admits.
+ */
+function revealsHeaderValues(ctx: SourceContext): Promise<unknown> {
+  return admitOnce(ctx, 'mcp:header-values', () =>
+    authorizeWorkspaceOperation(ctx.principal, mcpServerOperations.update, ctx.workspace).then(
+      () => true,
+      (error: unknown) => {
+        if (error instanceof ForbiddenOperationError) return false
+        throw error
+      }
+    )
+  )
+}
+
+/**
+ * A replace that keeps `stored()` header values sends them to the new URL's host, so it needs
+ * what pointing a server at another destination needs (an admin), as the reconfigure use case
+ * requires.
+ */
+async function authorizeCarriedHeaders(change: McpChange, ctx: SourceContext): Promise<void> {
+  if (!change.detail?.replace || !change.decl || !keepsStoredHeaders(change.decl)) return
+  await authorizeWorkspaceOperation(
+    ctx.principal,
+    mcpServerOperations.changeDestination,
+    ctx.workspace
+  )
 }
 
 async function getServer(ctx: SourceContext, serverId: string): Promise<McpServerRow> {
@@ -400,12 +478,16 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     const { principal } = ctx
     const workspaceId = ctx.workspace.workspaceId
     const decl = change.decl
-    if ((change.action === 'create' || change.detail?.replace) && decl) {
+    if (
+      (change.action === 'create' || (change.detail?.replace && !change.detail.replacement)) &&
+      decl
+    ) {
       await createMcpServerUseCase.authorize({
         principal,
         input: { workspaceId, name: decl.name, url: decl.url },
       })
     }
+    await authorizeCarriedHeaders(change, ctx)
     if (!change.storedId) return
     if (change.action === 'delete' || change.detail?.replace) {
       await deleteMcpServerUseCase.authorize({
@@ -444,8 +526,13 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     if (change.action === 'create') return written(change.key, await create())
     if (!current) throw new Error('An MCP server update needs the stored id')
     if (change.detail?.replace) {
-      // Created first, so a failed create leaves the stored server as it was.
-      const created = await create()
+      // Adopting a leftover replacement moves the key and its stored() values to the new host as
+      // a create would, so it needs the same check.
+      await authorizeCarriedHeaders(change, ctx)
+      // Created first, so a failed create leaves the stored server as it was; a re-run after a
+      // stop between the two adopts the server created here (`replacement`).
+      const { replacement } = change.detail
+      const created = replacement ? await getServer(ctx, replacement) : await create()
       await remove(current.id)
       return written(change.key, created)
     }
@@ -458,7 +545,7 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
     return written(change.key, server)
   },
 
-  async read(stored) {
+  async read(stored, ctx) {
     const decl = declOf(stored.state)
     const printed = mcpCodec.print(stored.key, decl)
     const parsed = mcpCodec.parse(stored.key, printed.text, [])
@@ -470,7 +557,11 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
         'This MCP server holds a value source files cannot express, so it is left out.'
       )
     }
-    return { text: printed.text, blobs: [], base: { id: stored.id, fingerprint } }
+    const text =
+      (await revealsHeaderValues(ctx)) === true
+        ? printed.text
+        : mcpCodec.print(stored.key, concealHeaderValues(decl, stored.state)).text
+    return { text, blobs: [], base: { id: stored.id, fingerprint } }
   },
 
   async checkRefs(changes, ctx) {

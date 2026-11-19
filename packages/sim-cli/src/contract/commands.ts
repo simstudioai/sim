@@ -1309,9 +1309,55 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  prepareSearchSources: {
+    command: 'organizations search sources prepare',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listSearchSources: {
+    command: 'organizations search sources list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'provider', path: 'connectorType' },
+      { header: 'status' },
+      { header: 'approved', format: 'bool' },
+    ],
+  },
+  getSearchSource: { command: 'organizations search sources get', pathFlags: ORGANIZATION_FLAG },
+  createSearchSource: {
+    command: 'organizations search sources create',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { apiKey: { textSource: true } },
+  },
+  updateSearchSource: {
+    command: 'organizations search sources update',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { apiKey: { textSource: true } },
+    confirm: 'This updates source settings and may replace its permission grants.',
+  },
+  deleteSearchSource: {
+    command: 'organizations search sources delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the source and its permission grants.',
+  },
   getSearchSourcePermissions: {
     command: 'organizations search sources permissions get',
     pathFlags: ORGANIZATION_FLAG,
+  },
+  createSourcePermissionImport: {
+    command: 'organizations search sources permissions imports create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  putSourcePermissionImportPart: {
+    command: 'organizations search sources permissions imports put-part',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { content: { textSource: true } },
+  },
+  completeSourcePermissionImport: {
+    command: 'organizations search sources permissions imports complete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
   },
   replaceSearchSourcePermissions: {
     command: 'organizations search sources permissions replace',

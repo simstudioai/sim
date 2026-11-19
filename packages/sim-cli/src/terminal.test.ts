@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -54,6 +54,40 @@ class ExitCalled extends Error {
 }
 
 describe('API errors at the terminal', () => {
+  it('reports CSV file failures as structured JSON instead of crashing', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-cli-missing-csv-'))
+    try {
+      const { stderr, exitCode } = await runAgainst(
+        [
+          '--output',
+          'json',
+          'organizations',
+          'search',
+          'sources',
+          'permissions',
+          'upload',
+          'source-1',
+          '--organization',
+          'org_test',
+          '--provider',
+          'gitlab',
+          '--expected-revision',
+          '1',
+          '--user-mapping',
+          join(directory, 'missing.csv'),
+          '--project-permissions',
+          join(directory, 'projects.csv'),
+          '--yes',
+        ],
+        Response.json({})
+      )
+      expect(exitCode).toBe(1)
+      expect(JSON.parse(stderr).error.message).toContain('ENOENT')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('names the server request id in JSON output', async () => {
     const { stderr, exitCode } = await runAgainst(
       ['--output', 'json', 'workflows', 'get', 'wf-missing'],
@@ -83,5 +117,57 @@ describe('API errors at the terminal', () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain('Unauthorized')
     expect(stderr).toMatch(/request id: req-header/)
+  })
+})
+
+describe('a refused source write in JSON output', () => {
+  it('keeps the refusal findings in the error document, without their frames', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-cli-refusal-'))
+    const workflowId = '00000000-0000-4000-8000-00000000000a'
+    mkdirSync(join(dir, '.sim'))
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      "// @sim-sdk 1\nexport default workflow('W', () => {})\n"
+    )
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({ version: 1, blocks: {}, variables: {} })
+    )
+    writeFileSync(
+      join(dir, '.sim/base.json'),
+      JSON.stringify({ workflowId, workspaceId: 'ws_1', fingerprint: 'sf1:a', catalogHash: 'h' })
+    )
+    const finding = {
+      code: 'E_APPLY_STALE',
+      severity: 'error',
+      message: 'The workflow changed since this source was read.',
+      file: 'workflow.ts',
+      line: 1,
+      column: 1,
+    }
+    try {
+      const { stderr, exitCode } = await runAgainst(
+        ['--output', 'json', 'workflows', 'source', 'apply', workflowId, '--dir', dir, '--dry-run'],
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'CONFLICT',
+              message: 'The workflow changed since this source was read.',
+              details: { code: 'SOURCE_STALE', diagnostics: [{ ...finding, frame: '> 1 | x' }] },
+            },
+          }),
+          { status: 409, headers: { 'content-type': 'application/json' } }
+        )
+      )
+
+      expect(exitCode).toBe(5)
+      const document = stderr.split('\n').find((line) => line.startsWith('{"error"'))
+      expect(JSON.parse(document ?? '{}')).toMatchObject({
+        error: { code: 'CONFLICT', details: { code: 'SOURCE_STALE', diagnostics: [finding] } },
+      })
+      expect(document).not.toContain('frame')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

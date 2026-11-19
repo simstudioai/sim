@@ -213,7 +213,11 @@ function writes(result: ApplyWorkspaceSourceResult) {
   return result.plan.filter((change) => change.action !== 'noop')
 }
 
-/** Live rows of every kind in a workspace: what "nothing was written" compares. */
+/**
+ * Live rows of every kind in a workspace, each kind ordered by id: what "nothing was written"
+ * compares. Without the order, rows come back in whichever index the planner picks, and that
+ * choice can change between two calls once autovacuum analyzes the table.
+ */
 async function snapshot(workspaceId: string) {
   const [tables, workflows, tools, skills, files, bases] = await Promise.all([
     db
@@ -224,27 +228,33 @@ async function snapshot(workspaceId: string) {
           eq(userTableDefinitions.workspaceId, workspaceId),
           isNull(userTableDefinitions.archivedAt)
         )
-      ),
+      )
+      .orderBy(userTableDefinitions.id),
     db
       .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
+      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+      .orderBy(workflow.id),
     db
       .select({ id: customTools.id, title: customTools.title, code: customTools.code })
       .from(customTools)
-      .where(eq(customTools.workspaceId, workspaceId)),
+      .where(eq(customTools.workspaceId, workspaceId))
+      .orderBy(customTools.id),
     db
       .select({ id: skill.id, content: skill.content })
       .from(skill)
-      .where(eq(skill.workspaceId, workspaceId)),
+      .where(eq(skill.workspaceId, workspaceId))
+      .orderBy(skill.id),
     db
       .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
       .from(workspaceFiles)
-      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt))),
+      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+      .orderBy(workspaceFiles.id),
     db
       .select({ id: knowledgeBase.id, name: knowledgeBase.name })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
+      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+      .orderBy(knowledgeBase.id),
   ])
   const documents =
     bases.length === 0
@@ -261,6 +271,7 @@ async function snapshot(workspaceId: string) {
               isNull(document.deletedAt)
             )
           )
+          .orderBy(document.id)
   return { tables, workflows, tools, skills, files, bases, documents }
 }
 
@@ -850,6 +861,23 @@ export default workflow('Answer', {}, () => {
       )
       expect(writes(again)).toEqual([])
       expect(findings(again.diagnostics, 'error')).toEqual([])
+
+      const deleting = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: read.files,
+            base: read.base,
+            kinds: ['skill'],
+            allowDelete: true,
+          },
+        })
+      )
+      expect(writes(deleting)).toEqual([])
+      expect(
+        deleting.diagnostics.filter((finding) => finding.code === 'W_UNDECLARED')
+      ).toHaveLength(read.skipped.length)
     }
   )
 
@@ -926,6 +954,23 @@ export default workflow('Big', {}, () => {
       )
       expect(writes(again)).toEqual([])
       expect(findings(again.diagnostics, 'error')).toEqual([])
+
+      const deleting = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: Object.fromEntries(printed.filter(([path]) => path.includes('/.sim/'))),
+            base: read.base,
+            kinds: ['workflow'],
+            allowDelete: true,
+          },
+        })
+      )
+      expect(writes(deleting)).toEqual([])
+      expect(
+        deleting.diagnostics.filter((finding) => finding.code === 'W_UNDECLARED')
+      ).toHaveLength(read.skipped.length)
     }
   )
 
@@ -1048,6 +1093,24 @@ export default workflow('Big', {}, () => {
       )
     )
     expect(refused.code).toBe('validation')
+    // A size limit found after the first 1000 errors still classes the refusal as too large.
+    const oversized = await refusal(
+      withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: {
+            workspaceId,
+            files: {
+              ...files,
+              'tables/big.ts': 'x'.repeat(WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + 1),
+            },
+            kinds: KINDS,
+          },
+        })
+      )
+    )
+    expect(oversized.code).toBe('payload_too_large')
+    expect(codes(oversized.diagnostics)).toContain('E_LIMIT_EXCEEDED')
   })
 
   check(
@@ -1133,6 +1196,53 @@ export default workflow('Secret', {}, () => {
         action: 'delete',
         destructive: { counts: { workflows: 1 } },
       })
+    }
+  )
+
+  check(
+    'refuses deleting a child workflow an edited parent still runs, and deletes one that runs only itself',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        ...CHILD_AND_PARENT,
+        'workflows/self/workflow.ts': caller('Self', 'self'),
+      }
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const selfId = created.base.resources['workflow:self']?.id
+      if (!selfId) throw new Error('The workflow was not created')
+      expect(await runsWorkflow(selfId)).toEqual([selfId])
+      const read = await get(workspaceId)
+      const folder = (key: string) =>
+        Object.fromEntries(
+          Object.entries(read.files).filter(([path]) => path.startsWith(`workflows/${key}/`))
+        )
+      const parent = folder('parent')
+      const entry = 'workflows/parent/workflow.ts'
+      const before = await snapshot(workspaceId)
+
+      // The parent is edited (renamed) but still runs the child, whose folder is gone.
+      const edited = {
+        ...folder('keep'),
+        ...folder('self'),
+        ...parent,
+        [entry]: parent[entry].replace("workflow('Parent'", "workflow('Parent v2'"),
+      }
+      const refused = await refusal(
+        apply(workspaceId, { files: edited, blobs: {} }, { base: read.base, allowDelete: true })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:parent'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+
+      // A workflow that runs only itself is no user of itself: deleting it is clean.
+      const deleted = await apply(
+        workspaceId,
+        { files: { ...folder('keep'), ...parent, ...folder('child') }, blobs: {} },
+        { base: read.base, allowDelete: true }
+      )
+      expect(codes(deleted.diagnostics)).toEqual([])
+      expect(codes(deleted.diagnostics, 'warning')).not.toContain('W_RESOURCE_IN_USE')
+      expect(deleted.applied).toMatchObject([{ kind: 'workflow', key: 'self', action: 'delete' }])
     }
   )
 

@@ -952,6 +952,50 @@ export interface PostHogEventMap {
     ops: number
     error_kind?: string
   }
+
+  /**
+   * A workflow's source was read (`workflows source get`). A read carries no client, so `source`
+   * is `copilot` for a Copilot delegation and `api` for any key or token, the CLI's included.
+   */
+  workflow_source_read: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+  }
+
+  /**
+   * A workflow source dry run settled: every check of an apply or create, nothing written. `ok:
+   * false` is a run that found errors or was refused (`error_kind` `stale`, `rejected` or
+   * `locked`); `ops` counts the changes a commit would make. A dry-run create has an empty
+   * `workflow_id`.
+   */
+  workflow_source_dry_run: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+    operation: 'apply' | 'create'
+    ok: boolean
+    ops: number
+    error_kind?: string
+  }
+
+  /**
+   * A workspace source apply settled (dry runs are not recorded). `committed` wrote every change;
+   * `partial` stopped at a failed write, the changes before it committed; `refused` wrote nothing.
+   * `error_kind` is `rejected` (error findings) or `busy` (another apply held the workspace) for a
+   * refusal, and the failed write's diagnostic code for a partial apply. `kinds` are the resource
+   * kinds with a change planned; the counts are the changes written, by action.
+   */
+  workspace_source_applied: {
+    workspace_id: string
+    source: WorkflowWriteSource
+    outcome: 'committed' | 'partial' | 'refused'
+    kinds: string[]
+    created: number
+    updated: number
+    deleted: number
+    error_kind?: string
+  }
 }
 
 export type PostHogEventName = keyof PostHogEventMap

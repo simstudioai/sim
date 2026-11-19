@@ -1,4 +1,3 @@
-import { basename, dirname, resolve } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
@@ -17,9 +16,9 @@ import { profileFrom } from '../../context'
 import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
-import { readSourceJson, readSourceText } from './source-dir'
+import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
 import { cachedCatalog, refreshTsconfigs } from './source-tree'
-import { printNewDiagnostics } from './source-ui'
+import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readSourceFiles } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
@@ -73,17 +72,18 @@ export function strictMode(options: StrictOptions): StrictMode {
 
 /** Help shared by both check commands: what fails, and the strict flags. */
 export const STRICT_HELP = `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
-no cached catalog (run the get once).
+no cached catalog (run the get once). With --output json, stdout is one document that also lists
+every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
 does not bind (a block added since the get, or every block of a new workflow):
-${[...STRICT_CODES].join(', ')}. --strict fails on them in every block; --no-strict never fails on
-a warning.`
+${[...STRICT_CODES].map((code) => `  ${code}`).join(',\n')}.
+--strict fails on them in every block; --no-strict never fails on a warning.`
 
 /** Adds the `--strict` / `--no-strict` pair to a check command. */
 export function strictFlags(command: Command): Command {
   return command
-    .option('--strict', 'Fail on those warnings in every block, not only the blocks the edit added')
+    .option('--strict', 'Fail on the warnings listed below in every block, not only new ones')
     .option('--no-strict', 'Never fail on a warning')
 }
 
@@ -104,12 +104,8 @@ ${STRICT_HELP}`
  * workspace `.sim/base.json` at the root), or `null`.
  */
 async function workspaceRootOf(dir: string): Promise<{ root: string; workspaceId: string } | null> {
-  const folder = resolve(dir)
-  if (basename(dirname(folder)) !== KIND_DIRS.workflow) return null
-  const root = dirname(dirname(folder))
-  const base = toRecord(await readSourceJson(root, SOURCE_BASE_FILE))
-  if (typeof base.workspaceId !== 'string' || base.workflowId !== undefined) return null
-  return { root, workspaceId: base.workspaceId }
+  const folder = await workspaceFolderOf(dir)
+  return folder && { root: folder.root, workspaceId: folder.workspaceId }
 }
 
 /** Every workflow key of the workspace directory `root` that has a `workflow.ts`. */
@@ -356,6 +352,7 @@ export function reportCheck(
     errors,
     warnings: findings.filter((finding) => finding.severity === 'warning').length,
     ...result,
+    ...resultDiagnostics(output, findings),
   })
 }
 
@@ -387,6 +384,16 @@ export function attachWorkflowSourceCheck(source: Command): void {
     .action(async (options: { dir: string } & StrictOptions, command: Command) => {
       const profile = profileFrom(command)
       const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
+      if (
+        typeof base.workspaceId === 'string' &&
+        base.workflowId === undefined &&
+        (await readSourceText(options.dir, SOURCE_ENTRY_FILE)) === null
+      ) {
+        throw new SimApiError(
+          `${options.dir} is a workspace source directory: check it with \`sim workspaces source check --dir ${options.dir}\`.`,
+          0
+        )
+      }
       const workspace = await workspaceRootOf(options.dir)
       const workspaceId =
         typeof base.workspaceId === 'string'

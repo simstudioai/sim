@@ -1,5 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
+import { refusalClass } from '../diagnostics'
 import { fingerprintOf } from '../fingerprint'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import type { TableColumnDecl, TableDecl } from './table'
@@ -175,6 +176,30 @@ describe('createTableCodec', () => {
       ['E_TABLE_OPTIONS', 8],
       ['E_DECL_SHAPE', 9],
     ])
+  })
+
+  it('refuses two columns whose stored names differ only in letter case, and more columns than a table holds', () => {
+    const table = (columns: string) =>
+      testTableCodec.parse(
+        'leads',
+        {
+          'tables/leads.ts': `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({ name: 'leads', columns: { ${columns} } })\n`,
+        },
+        []
+      )
+    const columns = (count: number) =>
+      Array.from({ length: count }, (_, index) => `c${index}: column.string()`).join(', ')
+
+    const cased = table("Email: column.string(), email: column.string({ name: 'EMAIL' })")
+    expect(cased.diagnostics.map((finding) => finding.code)).toEqual(['E_TABLE_DUPLICATE_COLUMN'])
+    expect(cased.decl).toBeUndefined()
+    expect(table(columns(WORKSPACE_SOURCE_LIMITS.maxColumns)).diagnostics).toEqual([])
+    expect(
+      table(columns(WORKSPACE_SOURCE_LIMITS.maxColumns + 1)).diagnostics.map(
+        (finding) => finding.code
+      )
+    ).toEqual(['E_TABLE_TOO_MANY_COLUMNS'])
+    expect(refusalClass(['E_TABLE_TOO_MANY_COLUMNS'])).toBe('payload_too_large')
   })
 
   it('reads a currency code in any letter case as the upper-case code the server stores', () => {

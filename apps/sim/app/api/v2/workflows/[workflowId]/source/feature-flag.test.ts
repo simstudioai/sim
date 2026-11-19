@@ -2,6 +2,7 @@
  * The two source reads are `headSafe: false`, so a `HEAD` runs only the use case's authorize
  * phase. These run the real use cases behind both routes with the `workflow-code` flag off, so a
  * `HEAD` answers the same 403 its `GET` does instead of a 200 that says the feature is reachable.
+ * The flag is rolled out by organization, so both resolve the (existing) workspace first.
  */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
@@ -11,12 +12,26 @@ import {
   v2RouteMocks,
 } from '@sim/testing'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/application/principal-scope', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/application/principal-scope')>()),
+  resolvePrincipalWorkflowContext: vi.fn(async () => ({
+    ...createMockWorkspaceApplicationContext({ workspaceId: WORKSPACE_ID }),
+    workflowId: '66666666-7777-4888-9999-000000000000',
+    workflow: {},
+  })),
+}))
 
 import { GET as getSource } from '@/app/api/v2/workflows/[workflowId]/source/route'
 import { GET as getResources } from '@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route'

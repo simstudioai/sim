@@ -21,10 +21,12 @@ import {
   realpath,
   rename,
   rm,
+  rmdir,
+  stat,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join, posix } from 'node:path'
+import { hostname, tmpdir } from 'node:os'
+import { basename, dirname, join, posix, resolve } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
@@ -34,7 +36,9 @@ import {
   SOURCE_CODE_DIR as SOURCE_FUNCTIONS_DIR,
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
+import { fingerprintOf, KIND_DIRS } from '@sim/workspace-code'
 import { embedStore } from '../../embed-context'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
@@ -51,11 +55,21 @@ export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
 export const SOURCE_EXAMPLES_DIR = '.sim/examples'
 /** Pins the source files to LF, merged into whatever the directory already holds. */
 export const SOURCE_GITATTRIBUTES_FILE = '.gitattributes'
+/** Keeps a command's transient files out of a repository, merged like `.gitattributes`. */
+export const SOURCE_GITIGNORE_FILE = '.gitignore'
 /**
  * A digest of each source file as the CLI last wrote it, so a later get can tell an unapplied
  * edit from a file it may replace. The CLI's own record: never sent to the server.
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
+/**
+ * Where a workspace get keeps the blobs it verified until they move into place. A get that fails
+ * leaves them there, so the next one downloads only the rest; the one that completes removes the
+ * folder.
+ */
+export const SOURCE_DOWNLOADS_DIR = '.sim/downloads'
+/** The folder a write stages its files in before moving them into place; removed when it ends. */
+export const SOURCE_STAGING_PREFIX = '.sim-staging-'
 
 /**
  * The only files a server answer may name: the entry file and function code under `functions/`,
@@ -155,7 +169,7 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   }
 }
 
-/** `.gitattributes` with `lines` appended where missing, or `null` when it has them all. */
+/** `.gitattributes` (or `.gitignore`) with `lines` appended where missing, or `null` when it has them all. */
 export function mergedGitattributes(
   existing: string | null,
   lines: readonly string[] = GITATTRIBUTES_LINES
@@ -303,7 +317,12 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
         await rm(scratch, { recursive: true, force: true })
       }
     }
-    for (const [path, content] of [...change.write, ...fetched]) {
+    const all = [...change.write, ...fetched]
+    // The host has no rename, so the records go last here too: after every file and blob.
+    for (const [path, content] of [
+      ...all.filter(([path]) => !isRecordFile(path)),
+      ...all.filter(([path]) => isRecordFile(path)),
+    ]) {
       await saveToFile(new Blob([content]).stream(), posix.join(dir, path), true)
     }
     return
@@ -320,7 +339,7 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
   let staging: string | null = null
   const disposeSignalCleanup = removeStagingOnSignal(() => staging)
   try {
-    const stagingDir = await mkdtemp(join(root, '.sim-staging-'))
+    const stagingDir = await mkdtemp(join(root, SOURCE_STAGING_PREFIX))
     staging = stagingDir
     const indexes = writes.map((_, index) => index)
     const staged = (index: number) => join(stagingDir, String(index))
@@ -517,7 +536,106 @@ export async function locallyEditedFiles(
   for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
     touched.set(path, null)
   }
-  return editedFiles(dir, touched, (await readWritten(dir)).digests)
+  return editedFiles(dir, touched, (await readFolderWritten(dir)).digests)
+}
+
+/**
+ * A `workflows/<key>` folder of a workspace directory: `root` holds a workspace `.sim/base.json`.
+ * The workspace's `.sim/written.json` and base are the folder's records too, so a single-workflow
+ * write keeps them instead of writing a record of its own the workspace commands never read.
+ */
+export interface WorkspaceFolder {
+  root: string
+  workspaceId: string
+  /** The folder's key under `workflows/`. */
+  key: string
+}
+
+/** The workspace directory `dir` is a workflow folder of, or `null`. */
+export async function workspaceFolderOf(dir: string): Promise<WorkspaceFolder | null> {
+  const folder = resolve(dir)
+  if (basename(dirname(folder)) !== KIND_DIRS.workflow) return null
+  const root = dirname(dirname(folder))
+  const base = toRecord(await readSourceJson(root, SOURCE_BASE_FILE))
+  if (typeof base.workspaceId !== 'string' || base.workflowId !== undefined) return null
+  return { root, workspaceId: base.workspaceId, key: basename(folder) }
+}
+
+/** `path` of the workflow folder `key`, relative to its workspace directory. */
+function inWorkspace(key: string, path: string): string {
+  return `${KIND_DIRS.workflow}/${key}/${path}`
+}
+
+/**
+ * What the CLI last wrote into the workflow directory `dir`: its own `.sim/written.json`, or for a
+ * workflow folder of a workspace directory, the workspace record's entries for the folder (its
+ * `.sim/` records left out). A write into such a folder records there and never in the folder, but
+ * a CLI from before that left a record of the folder's own. That record wins only when it is the
+ * later one: when the workspace record's digest of the folder's `.sim/base.json` is not the base on
+ * disk, a single-workflow write replaced the base after the workspace record was taken. Otherwise
+ * the folder's own record is stale and ignored.
+ */
+export async function readFolderWritten(dir: string): Promise<Written> {
+  const own = await readWritten(dir)
+  const folder = await workspaceFolderOf(dir)
+  if (!folder) return own
+  const record = await readWritten(folder.root)
+  if (Object.keys(own.digests).length > 0) {
+    const base = await readSourceText(dir, SOURCE_BASE_FILE)
+    const recorded = record.digests[inWorkspace(folder.key, SOURCE_BASE_FILE)]
+    if (base !== null && recorded !== digest(base)) return own
+  }
+  const prefix = inWorkspace(folder.key, '')
+  const inFolder = <T>(entries: Record<string, T>) =>
+    Object.fromEntries(
+      Object.entries(entries).flatMap(([path, value]) => {
+        const relative = path.startsWith(prefix) ? path.slice(prefix.length) : null
+        return relative !== null && !relative.startsWith('.sim/') ? [[relative, value]] : []
+      })
+    )
+  return { digests: inFolder(record.digests), stats: inFolder(record.stats) }
+}
+
+/**
+ * Records a single-workflow write into workflow folder `folder` in the workspace records: each
+ * written file's digest (`written`, folder-relative path → text) replaces the one before, a
+ * `removed` file's is dropped, and the workspace base's entry for the workflow takes the
+ * fingerprint of the folder's new base, as a workspace get would record it. Written after the
+ * folder's files, so a write cut short leaves the old records.
+ */
+async function recordFolderWrite(
+  folder: WorkspaceFolder,
+  written: Record<string, string>,
+  removed: readonly string[],
+  base: unknown
+): Promise<void> {
+  const record = await readWritten(folder.root)
+  const dropped = new Set(removed.map((path) => inWorkspace(folder.key, path)))
+  const digests = {
+    ...Object.fromEntries(Object.entries(record.digests).filter(([path]) => !dropped.has(path))),
+    ...Object.fromEntries(
+      Object.entries(written).map(([path, text]) => [inWorkspace(folder.key, path), digest(text)])
+    ),
+  }
+  const write: Array<readonly [string, string]> = [
+    [SOURCE_WRITTEN_FILE, writtenFile({ digests, stats: record.stats })],
+  ]
+  const workspaceBase = toRecord(await readSourceJson(folder.root, SOURCE_BASE_FILE))
+  const resources = toRecord(workspaceBase.resources)
+  const address = `workflow:${folder.key}`
+  const entry = toRecord(resources[address])
+  const { workflowId, fingerprint } = toRecord(base)
+  if (entry.id === workflowId && typeof fingerprint === 'string') {
+    const next = {
+      ...workspaceBase,
+      resources: {
+        ...resources,
+        [address]: { ...entry, fingerprint: fingerprintOf({ source: fingerprint }) },
+      },
+    }
+    write.push([SOURCE_BASE_FILE, `${JSON.stringify(next, null, 2)}\n`])
+  }
+  await updateSourceDir(folder.root, { write })
 }
 
 /**
@@ -576,19 +694,135 @@ export async function writeBack(
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
   assertPrintedSourcePaths(answer.files)
-  const write = [
+  const folder = await workspaceFolderOf(dir)
+  const printed: Array<readonly [string, string]> = [
     ...Object.entries(answer.files),
-    [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
-    [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
-    [SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const,
+    [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`],
+    [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`],
+  ]
+  const write = [
+    ...printed,
+    ...(folder ? [] : [[SOURCE_WRITTEN_FILE, writtenFile(writtenRecord(answer.files))] as const]),
     ...extra.write,
   ]
+  const orphaned = orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files))
   await updateSourceDir(dir, {
     write,
     remove: [
-      ...orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files)),
+      ...orphaned,
       ...(extra.remove ?? []),
+      // A record of the folder's own, from before, would shadow the workspace's.
+      ...(folder ? [SOURCE_WRITTEN_FILE] : []),
     ],
   })
+  if (folder) await recordFolderWrite(folder, Object.fromEntries(printed), orphaned, answer.base)
   return write.length
+}
+
+/**
+ * Held while a command reads and rewrites a source directory, so two commands on one directory
+ * (an agent and a person, two terminals) never interleave their writes: each file moves into
+ * place atomically, but a set of them does not, and records from one command beside text from
+ * another would send stale text as an edit. A folder, since creating one is atomic everywhere.
+ */
+export const SOURCE_DIR_LOCK = '.sim/command.lock'
+
+/** The help line every command that holds {@link SOURCE_DIR_LOCK} adds to its exit codes. */
+export const SOURCE_DIR_BUSY_HELP = `
+Exit 10 (busy, retry): another sim workspaces source command is using this directory
+(SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
+
+/** A lock whose owner never recorded itself is stale after this long (it died while taking it). */
+const UNRECORDED_LOCK_STALE_MS = 60_000
+
+/** Who holds the lock, as its owner file records it. */
+interface LockOwner {
+  pid: number
+  host: string
+}
+
+/** A file-system or process error's code (`EEXIST`, `ESRCH`), if it has one. */
+function errorCode(error: unknown): string | undefined {
+  return isRecordLike(error) && typeof error.code === 'string' ? error.code : undefined
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return errorCode(error) === 'EPERM'
+  }
+}
+
+/**
+ * Whether the lock at `lock` was left by a command that is gone: its process on this machine no
+ * longer runs, or it never recorded an owner and is older than a minute. A lock another machine
+ * holds (a shared folder) is never taken over.
+ */
+async function isStaleLock(lock: string): Promise<boolean> {
+  const owner = toRecord(
+    await readFile(join(lock, 'owner.json'), 'utf8').then(
+      (text): unknown => JSON.parse(text),
+      () => null
+    )
+  )
+  if (typeof owner.pid === 'number' && typeof owner.host === 'string') {
+    return owner.host === hostname() && !isAlive(owner.pid)
+  }
+  const taken = await stat(lock).then(
+    (stats) => stats.mtimeMs,
+    () => null
+  )
+  return taken !== null && Date.now() - taken > UNRECORDED_LOCK_STALE_MS
+}
+
+/**
+ * Runs `run` holding the directory's command lock ({@link SOURCE_DIR_LOCK}). A second command on
+ * the directory meanwhile is refused (`SOURCE_DIR_BUSY`, exit 10) with nothing read or written; a
+ * lock its command left behind when it died is taken over. An embedded run has no local directory
+ * to lock.
+ */
+export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): Promise<T> {
+  if (embedStore.getStore()) return run()
+  const records = join(dir, '.sim')
+  const absent = async (path: string) =>
+    stat(path).then(
+      () => false,
+      () => true
+    )
+  const createdDir = await absent(dir)
+  const createdRecords = createdDir || (await absent(records))
+  await mkdir(records, { recursive: true })
+  const lock = join(dir, SOURCE_DIR_LOCK)
+  let held = false
+  for (let attempt = 0; attempt < 2 && !held; attempt += 1) {
+    try {
+      await mkdir(lock)
+      held = true
+    } catch (error) {
+      if (errorCode(error) !== 'EEXIST') throw error
+      if (attempt === 0 && (await isStaleLock(lock)))
+        await rm(lock, { recursive: true, force: true })
+    }
+  }
+  if (!held) {
+    throw new SimApiError(
+      `Another sim command is using ${dir}; nothing was read or written. Run this one again once it finished. If none is running, remove ${join(dir, SOURCE_DIR_LOCK)}.`,
+      0,
+      'SOURCE_DIR_BUSY',
+      undefined,
+      SOURCE_BUSY_EXIT_CODE
+    )
+  }
+  const owner: LockOwner = { pid: process.pid, host: hostname() }
+  try {
+    await writeFile(join(lock, 'owner.json'), JSON.stringify(owner))
+    return await run()
+  } finally {
+    await rm(lock, { recursive: true, force: true })
+    // Folders the lock alone created go with it; one the command filled stays.
+    if (createdRecords) await rmdir(records).catch(() => {})
+    if (createdDir) await rmdir(dir).catch(() => {})
+  }
 }

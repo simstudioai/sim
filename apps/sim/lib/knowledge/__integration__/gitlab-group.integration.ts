@@ -37,6 +37,10 @@ import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-so
 import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import {
+  createManagedSearchSource,
+  updateManagedSearchSource,
+} from '@/lib/knowledge/application/manage-search-sources'
+import {
   readSearchSourcePermissions,
   replaceSearchSourcePermissions,
 } from '@/lib/knowledge/application/source-permissions'
@@ -62,6 +66,8 @@ describe('GitLab group Search permission boundary', () => {
   let nativeGroup = false
   const checks: string[] = []
   const token = 'disposable-group-test-token'
+  const rotatedToken = 'disposable-rotated-group-test-token'
+  let rejectOriginalToken = false
   const principal = (userId: string): Principal => ({
     kind: 'personal_api_key',
     userId,
@@ -92,9 +98,13 @@ describe('GitLab group Search permission boundary', () => {
       response.writeHead(status, { 'content-type': 'application/json', ...headers })
       response.end(JSON.stringify(body))
     }
+    const acceptedTokens = rejectOriginalToken ? [rotatedToken] : [token, rotatedToken]
     if (
-      request.headers['private-token'] !== token &&
-      request.headers.authorization !== `Bearer ${token}`
+      !acceptedTokens.some(
+        (accepted) =>
+          request.headers['private-token'] === accepted ||
+          request.headers.authorization === `Bearer ${accepted}`
+      )
     )
       return reply(401, {})
     if (providerState === 'revoked') return reply(401, {})
@@ -330,7 +340,19 @@ describe('GitLab group Search permission boundary', () => {
       })
     legacyId = (await create({ host: config.host, project: '11', contentTypes: 'issues' }))
       .connector.id
-    sourceId = (await create(config)).connector.id
+    sourceId = (
+      await createManagedSearchSource.execute({
+        principal: principal(ids.aliceId),
+        input: {
+          organizationId: ids.organizationId,
+          connectorType: 'gitlab',
+          accessMode: 'admin',
+          apiKey: token,
+          sourceConfig: config,
+          permissionConfig: { ...permissions(), mode: 'csv' },
+        },
+      })
+    ).connector.id
   }, 60000)
 
   afterAll(async () => {
@@ -876,5 +898,79 @@ describe('GitLab group Search permission boundary', () => {
     } finally {
       nativeGroup = false
     }
+  })
+
+  it('rotates the Search token atomically while retaining grants and rejecting stale revisions', async () => {
+    const before = await loadConnectorPermissionSnapshot(sourceId)
+    if (!before) throw new Error('Missing group fixture')
+    const [previous] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, sourceId))
+    const input = {
+      organizationId: ids.organizationId,
+      sourceId,
+      updates: {
+        apiKey: rotatedToken,
+        permissionConfig: {
+          provider: 'gitlab' as const,
+          mode: 'csv' as const,
+          expectedRevision: before.revision,
+        },
+      },
+    }
+    const updated = await updateManagedSearchSource.execute({
+      principal: principal(ids.aliceId),
+      input,
+    })
+    expect(updated.connector.id).toBe(sourceId)
+    expect(JSON.stringify(updated)).not.toContain(rotatedToken)
+    const after = await loadConnectorPermissionSnapshot(sourceId)
+    expect(after).toMatchObject({
+      revision: before.revision + 1,
+      metadata: before.metadata,
+      payload: before.payload,
+    })
+    const [saved] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, sourceId))
+    expect(saved?.encryptedApiKey).not.toBe(previous?.encryptedApiKey)
+    expect(saved?.nextSyncAt).toBeNull()
+    expect(saved?.nextMemberSyncAt).toBeNull()
+    rejectOriginalToken = true
+    try {
+      const alice = await search(ids.aliceId, '11')
+      const aliceAdditional = await search(ids.aliceId, '13')
+      const bob = await search(ids.bobId, '12')
+      expect(
+        new Set(
+          [...alice.results, ...aliceAdditional.results].map(
+            (row) => decodeLiveReference(row.documentId).container
+          )
+        )
+      ).toEqual(new Set(['11', '13']))
+      expect(
+        new Set(bob.results.map((row) => decodeLiveReference(row.documentId).container))
+      ).toEqual(new Set(['12']))
+      const first = alice.results[0]
+      if (!first) throw new Error('Missing authorized result after token rotation')
+      expect((await read(ids.aliceId, first.documentId)).chunks.length).toBeGreaterThan(0)
+      await expect(read(ids.bobId, first.documentId)).rejects.toMatchObject({ code: 'not_found' })
+      await expect(
+        updateManagedSearchSource.execute({ principal: principal(ids.aliceId), input })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(await loadConnectorPermissionSnapshot(sourceId)).toEqual(after)
+      const [unchanged] = await db
+        .select()
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, sourceId))
+      expect(unchanged).toEqual(saved)
+    } finally {
+      rejectOriginalToken = false
+    }
+    checks.push(
+      'Search source token rotation preserves grants and rejects stale revisions atomically'
+    )
   })
 })

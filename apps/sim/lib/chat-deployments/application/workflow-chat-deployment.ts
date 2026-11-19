@@ -9,7 +9,6 @@ import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/applicati
 import {
   requireWorkflowChatDeployment,
   resolveWorkflowChatDeploymentApplicationContext,
-  type WorkflowChatDeploymentApplicationContext,
 } from '@/lib/chat-deployments/application/context'
 import {
   ChatIdentifierInUseError,
@@ -22,6 +21,7 @@ import {
   toEffectiveChatDeploymentView,
 } from '@/lib/chat-deployments/application/read-chat-deployments'
 import {
+  type ChatDeploymentRow,
   getChatDeploymentIdOwningIdentifier,
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
@@ -153,16 +153,45 @@ export const readWorkflowChatDeploymentStatus = defineAuthorizedWorkspaceUseCase
  * other field.
  */
 async function assertAuthModePermitted(
-  context: WorkflowChatDeploymentApplicationContext,
+  existing: ChatDeploymentRow | null,
   principal: Principal,
+  workspaceId: string,
   authType: ChatAuthType
 ): Promise<void> {
-  if (authType === context.chatDeployment?.authType) return
-  await validateChatDeployAuth(
-    requirePrincipalSubjectUserId(principal),
-    context.workspaceId,
-    authType
-  )
+  if (authType === existing?.authType) return
+  await validateChatDeployAuth(requirePrincipalSubjectUserId(principal), workspaceId, authType)
+}
+
+/**
+ * Whether a live chat other than workflow `workflowId`'s holds `identifier` (any live chat, for a
+ * workflow not created yet).
+ */
+export async function isChatIdentifierHeldElsewhere(
+  identifier: string,
+  workflowId: string | undefined
+): Promise<boolean> {
+  const owner = await getChatDeploymentIdOwningIdentifier(identifier)
+  if (!owner) return false
+  const existing = workflowId ? await getLiveChatDeploymentForWorkflow(workflowId) : null
+  return owner !== existing?.id
+}
+
+/**
+ * Refuses what a replace of workflow `workflowId`'s chat would refuse that the request alone
+ * predicts: an identifier another live chat holds ({@link ChatIdentifierInUseError}) and an auth
+ * mode the caller's permission group denies. A caller that commits another write before the
+ * replace (workspace source sets the public API flag first) checks this before that write, so a
+ * predictable refusal leaves nothing half-applied.
+ */
+export async function assertChatReplaceAllowed(
+  principal: Principal,
+  input: { workspaceId: string; workflowId: string; identifier: string; authType: ChatAuthType }
+): Promise<void> {
+  if (await isChatIdentifierHeldElsewhere(input.identifier, input.workflowId)) {
+    throw new ChatIdentifierInUseError()
+  }
+  const existing = await getLiveChatDeploymentForWorkflow(input.workflowId)
+  await assertAuthModePermitted(existing, principal, input.workspaceId, input.authType)
 }
 
 /**
@@ -201,7 +230,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
       throw new ChatIdentifierInUseError()
     }
 
-    await assertAuthModePermitted(context, principal, authType)
+    await assertAuthModePermitted(existing, principal, context.workspaceId, authType)
 
     /**
      * Replace semantics: a mode that owns no password stores none. Resolved

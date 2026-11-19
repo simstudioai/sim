@@ -58,7 +58,7 @@ const FEATURE_FLAGS = {
   },
   'workflow-code': {
     description:
-      'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Global on/off; disabled by default.',
+      'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Supports global, organization, workspace and user rollout; disabled by default.',
     fallback: 'WORKFLOW_CODE',
   },
   changelog: {

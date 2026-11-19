@@ -21,6 +21,8 @@ import type {
  * | equal | any | `noop`, `serverChanged` when the server drifted |
  * | differs | equal | `apply` |
  * | differs | differs | `noop` if local equals server (base refreshed), else `stale` |
+ *
+ * A kind that writes a resource in parts refines `stale` part by part (see `partway`).
  */
 type ThreeWayOutcome =
   | { action: 'noop'; serverChanged: boolean; refreshed?: boolean }
@@ -33,6 +35,24 @@ function decide(local: string, base: string, server: string): ThreeWayOutcome {
   return local === server
     ? { action: 'noop', serverChanged: false, refreshed: true }
     : { action: 'stale' }
+}
+
+/**
+ * A resource's fingerprint split into parts that its write commits one at a time (a deployment's
+ * `api` and `chat`), each the fingerprint of that part's canonical value. A part missing from one
+ * side differs from every part present on the other.
+ */
+export type PartFingerprints = Readonly<Record<string, string>>
+
+/**
+ * Whether a server that differs from both the base and the directory is only partway from one to
+ * the other: every part the server holds is either the base's or the directory's. That is what an
+ * apply interrupted between two of a resource's writes leaves, and applying the rest finishes it.
+ * A part that matches neither moved on the server since the base: stale.
+ */
+function partway(local: PartFingerprints, base: PartFingerprints, server: PartFingerprints) {
+  const parts = new Set([...Object.keys(local), ...Object.keys(base), ...Object.keys(server)])
+  return [...parts].every((part) => server[part] === base[part] || server[part] === local[part])
 }
 
 /** How a declared resource resolves against the server and the base, before kind diffing. */
@@ -80,6 +100,17 @@ export function resolveDeclared<S>(input: {
   fingerprint: (stored: StoredResource<S>, base?: BaseResource) => string
   /** Whether the server still holds a resource by id (see {@link holdsIn}). */
   holds: (id: string) => boolean
+  /**
+   * For a kind whose write commits in parts: the directory's parts, the base's (as the base entry
+   * records them; absent in a base written before it did), and the stored resource's. With all
+   * three, a server partway from the base to the directory is an update, not stale (see
+   * {@link partway}).
+   */
+  parts?: {
+    local: PartFingerprints
+    base: PartFingerprints | undefined
+    server: (stored: StoredResource<S>, base?: BaseResource) => PartFingerprints | undefined
+  }
 }): DeclaredResolution<S> {
   const { stored, base } = input
   if (!stored) {
@@ -92,7 +123,13 @@ export function resolveDeclared<S>(input: {
     const server = input.fingerprint(stored, base)
     const outcome = decide(input.local, base.fingerprint, server)
     if (outcome.action === 'apply') return { action: 'update', stored, base }
-    if (outcome.action === 'stale') return { action: 'stale', stored }
+    if (outcome.action === 'stale') {
+      const { parts } = input
+      const server = parts?.base ? parts.server(stored, base) : undefined
+      return parts?.base && server && partway(parts.local, parts.base, server)
+        ? { action: 'update', stored, base }
+        : { action: 'stale', stored }
+    }
     return {
       action: 'noop',
       stored,

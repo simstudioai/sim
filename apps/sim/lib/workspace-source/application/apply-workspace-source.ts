@@ -1,6 +1,7 @@
-import { AuditAction, AuditResourceType } from '@sim/audit'
+import { AuditAction, AuditResourceType, withAuditCorrelation } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import {
   APPLY_ORDER,
   type FlatDiagnostic,
@@ -11,6 +12,7 @@ import {
 import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
+import { recordWorkspaceSourceApplied } from '@/lib/workspace-source/application/analytics'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
   assertUnchanged,
@@ -33,7 +35,12 @@ import type {
   PlannedChange,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { acquireApplyLease } from '@/lib/workspace-source/lease/store'
+import {
+  type ApplyLease,
+  acquireApplyLease,
+  isApplyLeaseLost,
+  WorkspaceSourceBusyError,
+} from '@/lib/workspace-source/lease/store'
 import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -73,6 +80,11 @@ export interface ApplyWorkspaceSourceResult {
    * client stages exactly those; an apply with any is refused (`E_BLOB_MISSING`).
    */
   needBlobs: string[]
+  /**
+   * The id of an apply that writes (absent on a dry run): every audit entry its writes record
+   * carries it as `metadata.correlationId`, as does the apply's own roll-up.
+   */
+  applyId?: string
   /** Files reprinted from what was stored, for every resource written. */
   files: Record<string, string>
   /** The base after this apply: the next apply's `base`. */
@@ -110,7 +122,8 @@ function writeOrder(changes: PlannedChange[]): PlannedChange[] {
 /**
  * A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. A resource
  * the change found when planning that is gone by its write (deleted since) is stale, like one that
- * changed: getting the directory again shows what the server holds now.
+ * changed: getting the directory again shows what the server holds now. A lease another apply took
+ * over is a failure applying again continues (`E_APPLY_FAILED`), not a refusal of the change.
  */
 function failureOf(
   error: unknown,
@@ -124,6 +137,13 @@ function failureOf(
     return {
       failed: { ...resource, code: 'E_APPLY_REFUSED', message: error.message },
       diagnostics: error.diagnostics,
+    }
+  }
+  if (isApplyLeaseLost(error)) {
+    const message = `This apply stalled and another apply took over the workspace before ${change.kind} ${change.key}; the changes before it were applied. Apply again once the other apply finished.`
+    return {
+      failed: { ...resource, code: 'E_APPLY_FAILED', message },
+      diagnostics: [finding('E_APPLY_FAILED', message, resource)],
     }
   }
   if (isRefusal(error) && error.code === 'not_found' && change.action !== 'create') {
@@ -191,14 +211,22 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true
     const plan = await planWorkspaceSource(input, ctx, { requireBlobs: !dryRun })
-    if (plan.refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
+    const facts = {
+      principal,
+      client: input.provenance?.client,
+      workspaceId: context.workspaceId,
+    }
+    if (plan.refused && !dryRun) {
+      recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
+      throw new WorkspaceSourceRejectedError(plan.diagnostics)
+    }
     const result: ApplyWorkspaceSourceResult = {
       workspaceId: context.workspaceId,
       dryRun,
@@ -230,31 +258,26 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     }
     // One apply writes a workspace at a time: each write's re-check and write are separate
     // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved.
-    const lease = await acquireApplyLease(context.workspaceId)
-    try {
-      for (const change of writeOrder(plan.changes)) {
-        try {
-          await lease.confirm()
-          const written = await write(change, writeCtx)
-          const address = resourceAddress(change.kind, change.key)
-          if (written.base) base.resources[address] = written.base
-          else delete base.resources[address]
-          Object.assign(result.files, written.text)
-          result.diagnostics.push(...(written.diagnostics ?? []))
-          result.applied.push(summarize(change, written.id))
-        } catch (error) {
-          const failure = failureOf(error, change)
-          result.failed = failure.failed
-          result.diagnostics.push(...failure.diagnostics)
-          break
-        }
+    const lease = await acquireApplyLease(context.workspaceId).catch((error: unknown) => {
+      if (error instanceof WorkspaceSourceBusyError) {
+        recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'busy' })
       }
+      throw error
+    })
+    const applyId = generateId()
+    result.applyId = applyId
+    try {
+      await withAuditCorrelation(applyId, () =>
+        writeAll(plan.changes, writeCtx, lease, base, result)
+      )
     } finally {
       await lease.release()
     }
     result.base = base
+    recordWorkspaceSourceApplied(facts, plan.changes, result)
     logger.info('Applied workspace source', {
       workspaceId: context.workspaceId,
+      applyId,
       applied: result.applied.length,
       failed: result.failed !== undefined,
     })
@@ -269,6 +292,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
           description: `Applied workspace source: ${result.applied.length} change(s)${result.failed ? `, stopped at ${result.failed.kind} ${result.failed.key}` : ''}`,
           metadata: {
             op: 'apply_workspace_source',
+            ...(result.applyId ? { correlationId: result.applyId } : {}),
             changes: result.applied.map(({ kind, key, action }) => `${action} ${kind}:${key}`),
             ...(result.failed ? { failed: `${result.failed.kind}:${result.failed.key}` } : {}),
             ...(input.provenance ? { client: input.provenance.client } : {}),
@@ -278,3 +302,33 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
         }
       : [],
 })
+
+/**
+ * Writes the plan's changes in write order under `lease`, recording each into `base` and
+ * `result`; the first failure stops it and is reported as `result.failed`.
+ */
+async function writeAll(
+  changes: PlannedChange[],
+  writeCtx: ApplyContext,
+  lease: Pick<ApplyLease, 'confirm'>,
+  base: WorkspaceBaseV1,
+  result: ApplyWorkspaceSourceResult
+): Promise<void> {
+  for (const change of writeOrder(changes)) {
+    try {
+      await lease.confirm()
+      const written = await write(change, writeCtx)
+      const address = resourceAddress(change.kind, change.key)
+      if (written.base) base.resources[address] = written.base
+      else delete base.resources[address]
+      Object.assign(result.files, written.text)
+      result.diagnostics.push(...(written.diagnostics ?? []))
+      result.applied.push(summarize(change, written.id))
+    } catch (error) {
+      const failure = failureOf(error, change)
+      result.failed = failure.failed
+      result.diagnostics.push(...failure.diagnostics)
+      break
+    }
+  }
+}

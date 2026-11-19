@@ -1,7 +1,7 @@
 import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZepResponse } from '@/tools/zep/types'
+import { zepFinalPathSegment } from '@/tools/zep/utils'
 
 export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_delete_thread',
@@ -27,11 +27,7 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.getzep.com/api/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId', {
-        allowSeparators: true,
-        preserveWhitespace: true,
-        stripTabsAndNewlines: true,
-      })}`,
+      `https://api.getzep.com/api/v2/threads/${zepFinalPathSegment(params.threadId, 'threadId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { readChangelogAvailability } from '@/lib/changelog/application/availability'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
@@ -6,6 +6,8 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
 import { readWorkflowTestAvailability } from '@/lib/workflow-tests/application/availability'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { readWorkflowCodeAvailability } from '@/lib/workflows/application/code-availability'
+import { isWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 
 /** The owner of one chat turn: exactly one of a workspace or an organization. */
 export interface EntitlementOwner {
@@ -36,6 +38,17 @@ interface EntitlementEvaluator {
 }
 
 /**
+ * Entitlements Sim grants before the worker's generated `ENTITLEMENTS` lists them. The wire takes
+ * any name, so Sim sends these now and the worker gates on them once it declares them. Move each
+ * into `ENTITLEMENTS` (drop it here) when `contracts:sync` brings it.
+ */
+const PENDING_ENTITLEMENTS = { workflowCode: 'workflow-code' } as const
+
+type GrantedEntitlement =
+  | Entitlement
+  | (typeof PENDING_ENTITLEMENTS)[keyof typeof PENDING_ENTITLEMENTS]
+
+/**
  * Entitlements are gated capabilities sent to Mothership as the chat payload's
  * `entitlements` list. The worker hides the matching commands, skills and prompt
  * sections when one is absent, so an organization without the feature never hears of it.
@@ -49,7 +62,7 @@ interface EntitlementEvaluator {
  * 3. Keep enforcement in Sim. The payload is forgeable, so the operation behind the gated
  *    surface must re-check the same predicate when it runs.
  */
-const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
+const EVALUATORS: Record<GrantedEntitlement, EntitlementEvaluator> = {
   [ENTITLEMENTS.dashboards]: {
     workspace: ({ principal, workspaceId }) =>
       readDashboardAvailability.execute({ principal, input: { workspaceId } }),
@@ -64,6 +77,16 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
     workspace: ({ principal, workspaceId }) =>
       readChangelogAvailability.execute({ principal, input: { workspaceId } }),
     organization: ({ organizationId }) => isChangelogEnabled(organizationId),
+  },
+  /** The `workflows source` and `workspaces source` commands; their use cases re-check it. */
+  [PENDING_ENTITLEMENTS.workflowCode]: {
+    workspace: ({ principal, workspaceId }) =>
+      readWorkflowCodeAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ principal, organizationId }) =>
+      isWorkflowCodeEnabled({
+        orgId: organizationId,
+        userId: principal ? resolvePrincipalSubjectUserId(principal) : undefined,
+      }),
   },
 }
 
@@ -82,8 +105,8 @@ function evaluate(evaluator: EntitlementEvaluator, owner: EntitlementOwner): Pro
 }
 
 /** The entitlements Sim grants a turn's owner, evaluated fresh for every turn. */
-export async function computeEntitlements(owner: EntitlementOwner): Promise<Entitlement[]> {
-  const names = Object.values(ENTITLEMENTS)
+export async function computeEntitlements(owner: EntitlementOwner): Promise<GrantedEntitlement[]> {
+  const names = [...Object.values(ENTITLEMENTS), ...Object.values(PENDING_ENTITLEMENTS)]
   const granted = await Promise.all(names.map((name) => evaluate(EVALUATORS[name], owner)))
   return names.filter((_, index) => granted[index])
 }

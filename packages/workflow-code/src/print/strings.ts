@@ -15,7 +15,7 @@ import { isIdentifierName } from '../code-files/ref-path'
  * (U+206A–U+206F). The printer escapes them and compile warns on a block name holding one, so
  * printed text never reads differently from what it stores.
  */
-export function isSuspiciousCharacter(code: number): boolean {
+function isSuspiciousCharacter(code: number): boolean {
   return (
     code === 0x061c ||
     code === 0x180e ||
@@ -24,6 +24,14 @@ export function isSuspiciousCharacter(code: number): boolean {
     (code >= 0x2060 && code <= 0x206f) ||
     code === 0xfeff
   )
+}
+
+/** Whether `text` holds a character {@link isSuspiciousCharacter} names. */
+export function hasSuspiciousCharacter(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    if (isSuspiciousCharacter(text.charCodeAt(index))) return true
+  }
+  return false
 }
 
 function hex4(code: number): string {

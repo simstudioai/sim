@@ -4,12 +4,27 @@
  * their authorization, title rules and audit apply. A declared schema is checked with
  * `assertValidCustomToolDeclaration` at plan time when it is created or changed, as the use case
  * checks a schema it is sent; an unchanged stored schema is never re-judged by a newer rule.
+ *
+ * Code holding what looks like a literal credential prints as `code: stored()`, fingerprinted by a
+ * keyed hash of the code, as an MCP server's credential header is: the code never leaves the
+ * server, and neither does a plain hash a short secret could be guessed from. `stored()` resolves
+ * against the tool bound to the key (or adopted by title) and is never written.
  */
+
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import type { Json } from '@sim/workflow-code'
-import { type ToolDecl, toolCodec, toolDeclarationPath } from '@sim/workspace-code/kinds/tools'
+import { holdsSecret, type Json } from '@sim/workflow-code'
+import {
+  isStoredToolCode,
+  type ToolCode,
+  type ToolDecl,
+  toolCodec,
+  toolDeclarationPath,
+  toolLiteralSecret,
+} from '@sim/workspace-code/kinds/tools'
 import type { CursorKey } from '@/lib/api/list-query'
+import { env } from '@/lib/core/config/env'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceCustomToolUseCase,
@@ -40,6 +55,7 @@ import type {
 
 /** A stored custom tool as source reads it. */
 interface StoredTool {
+  id: string
   title: string
   schema: unknown
   code: string
@@ -49,6 +65,28 @@ type ToolChange = PlannedChange<'custom-tool'>
 
 const PAGE_SIZE = 200
 
+/** A tool's code as source holds it: the keyed hash of code holding a literal credential, else the code. */
+function codeOf(tool: Pick<StoredTool, 'id' | 'code'>): ToolCode {
+  if (!holdsSecret(undefined, tool.code)) return tool.code
+  return {
+    stored: hmacSha256Hex(
+      `custom-tool-code\u0000${tool.id}\u0000${tool.code}`,
+      env.BETTER_AUTH_SECRET
+    ),
+  }
+}
+
+/** The code a write stores: never `stored()`, which a plan resolves to the stored code. */
+function codeToWrite(code: ToolCode): string {
+  if (isStoredToolCode(code)) {
+    throw new OrchestrationError(
+      'validation',
+      'stored() keeps the stored code; it is never written.'
+    )
+  }
+  return code
+}
+
 const tools: NamedKind<'custom-tool', StoredTool> = {
   kind: 'custom-tool',
   codec: toolCodec,
@@ -57,8 +95,9 @@ const tools: NamedKind<'custom-tool', StoredTool> = {
   declOf: (state) => ({
     title: state.title,
     schema: isSchemaObject(state.schema) ? state.schema : {},
-    code: state.code,
+    code: codeOf(state),
   }),
+  resolve: (decl, state) => (isStoredToolCode(decl.code) ? { ...decl, code: codeOf(state) } : decl),
 }
 
 function isSchemaObject(value: unknown): value is Record<string, Json> {
@@ -97,7 +136,12 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
   async plan(desired, stored, ctx) {
     const claimed = new Map<string, string>()
     const changes: ToolChange[] = []
-    for (const [key, decl] of desired) {
+    for (const [key, declared] of desired) {
+      // `stored()` keeps the code of the tool the key is bound to, else the one adopted by title.
+      const target = isStoredToolCode(declared.code)
+        ? (stored.bound.get(key) ?? stored.unbound.find((record) => record.name === declared.title))
+        : undefined
+      const decl = target ? (tools.resolve?.(declared, target.state) ?? declared) : declared
       const change = planNamed(
         tools,
         key,
@@ -118,6 +162,20 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
           })
         )
       }
+      if (isStoredToolCode(declared.code) && !target) {
+        change.diagnostics.push(
+          kindFinding(
+            'custom-tool',
+            key,
+            'E_TOOL_STORED_MISSING',
+            'The code is stored(), which keeps the code of the stored tool, but no tool is stored under this key or title.',
+            {
+              file: toolDeclarationPath(key),
+              hint: `Write the code in tools/${key}.js, or get the directory from the workspace that holds the tool.`,
+            }
+          )
+        )
+      }
       changes.push(change)
     }
     return [...changes, ...planNamedUndeclared(tools, desired, stored, ctx, changes)]
@@ -128,7 +186,15 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
     const workspaceId = ctx.workspace.workspaceId
     await authorizeNamed(change, {
       create: (decl) =>
-        createWorkspaceCustomToolUseCase.authorize({ principal, input: { workspaceId, ...decl } }),
+        createWorkspaceCustomToolUseCase.authorize({
+          principal,
+          input: {
+            workspaceId,
+            title: decl.title,
+            schema: decl.schema,
+            code: codeToWrite(decl.code),
+          },
+        }),
       update: (toolId) =>
         updateWorkspaceCustomToolUseCase.authorize({ principal, input: { workspaceId, toolId } }),
       remove: (toolId) =>
@@ -148,15 +214,27 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
       async create(decl) {
         const { tool } = await createWorkspaceCustomToolUseCase.execute({
           principal,
-          input: { workspaceId, ...decl, source: 'api' },
+          input: {
+            workspaceId,
+            title: decl.title,
+            schema: decl.schema,
+            code: codeToWrite(decl.code),
+            source: 'api',
+          },
         })
         return { id: tool.id, state: tool }
       },
       get: (toolId) => getTool(ctx, toolId),
-      async update(toolId, fields) {
+      async update(toolId, { code, ...fields }) {
         const { tool } = await updateWorkspaceCustomToolUseCase.execute({
           principal,
-          input: { workspaceId, toolId, ...fields, source: 'api' },
+          input: {
+            workspaceId,
+            toolId,
+            ...fields,
+            ...(code === undefined ? {} : { code: codeToWrite(code) }),
+            source: 'api',
+          },
         })
         return tool
       },
@@ -173,6 +251,17 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
     if (!isSchemaObject(stored.state.schema)) {
       throw new OrchestrationError('validation', 'The stored schema is not an object.')
     }
-    return readRecord(tools, stored)
+    const read = readRecord(tools, stored)
+    if (!isStoredToolCode(tools.declOf(stored.state).code)) return read
+    const { message, hint } = toolLiteralSecret(true)
+    return {
+      ...read,
+      diagnostics: [
+        kindFinding('custom-tool', stored.key, 'W_TOOL_LITERAL_SECRET', message, {
+          file: toolDeclarationPath(stored.key),
+          hint,
+        }),
+      ],
+    }
   },
 }

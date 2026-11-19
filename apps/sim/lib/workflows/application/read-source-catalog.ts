@@ -67,7 +67,7 @@ export const readSourceCatalog = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<BlockCatalog> => {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const [gate, storedTypes] = await Promise.all([
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       input.workflowId ? loadStoredTypes(context.workspaceId, input.workflowId) : undefined,

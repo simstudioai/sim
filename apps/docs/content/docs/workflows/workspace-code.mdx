@@ -8,12 +8,14 @@ import { Callout } from '@/components/ui/callout'
 A whole workspace can be read and written as a directory: one folder per kind of resource, with each workflow written exactly as [workflows as code](/workflows/code) writes it. One apply creates the resources before the workflows that use them, so a coding agent can build a working setup from scratch.
 
 <Callout type="info">
-Workspace as code is in preview, behind the same setting as workflows as code. It adds the `sim workspaces source` commands to the [CLI](/cli/workspaces).
+Workspace as code is in preview, behind the [same setting](/platform/self-hosting/environment-variables#preview-features) as workflows as code. It adds the `sim workspaces source` commands to the [CLI](/cli/workspaces).
 </Callout>
 
 ## The directory
 
 ```
+secrets.ts                        the env variable names workflows read (never a value)
+credentials.ts                    the saved credentials workflows use, by provider
 tables/orders.ts                  a table: name, description, columns
 knowledge/policies/knowledge.ts   a knowledge base: name, chunking
 knowledge/policies/docs/*.md      one file per document
@@ -21,7 +23,9 @@ files/templates/reply.md          a workspace file, at its folder path
 tools/lookup-order.ts             a custom tool: title and schema
 tools/lookup-order.js             the tool's code
 skills/tone.md                    a skill: name and description, then its content
+mcp/docs.ts                       an MCP server: url, headers
 workflows/support/workflow.ts     a workflow source directory
+deployments/support.ts            how workflows/support is deployed
 ```
 
 A resource's key is its file or folder name, and a workflow names it by that key:
@@ -50,13 +54,22 @@ const log = table.insertRow('Log Question', {
 ```bash
 sim workspaces source get --dir ./my-workspace
 sim workspaces source check --dir ./my-workspace
+sim workspaces source status --dir ./my-workspace
 sim workspaces source apply --dir ./my-workspace --dry-run
 sim workspaces source apply --dir ./my-workspace --yes
 ```
 
-`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, custom tool, MCP server or workflow key, or a table row write naming a column the table does not declare, is reported, and an env name `secrets.ts` lacks is a warning. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
+`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, custom tool, MCP server or workflow key, or a table row write naming a column the table does not declare, is reported, and an env name `secrets.ts` lacks is a warning. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. Run `bunx -p typescript@7.0.2 tsc -p ./my-workspace` after it to type-check every file. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
+
+`status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
+
+## Workspace API keys [#workspace-api-keys]
+
+A personal API key or an OAuth login can apply every kind its workspace role allows. A workspace API key cannot create or change workflows, skills, secrets or deployments. An apply with one that would is refused with `E_APPLY_FORBIDDEN`, naming each resource, before anything is written. A `get` with a workspace key leaves out the kinds it cannot read, such as `secrets.ts`, and names them with the same code.
+
+To apply the rest with a workspace key, such as in CI, narrow the apply to the kinds it can write: `sim workspaces source apply --dir ./my-workspace --only tables,knowledge,files,tools,mcp --yes`.
 
 ## Deletes
 
@@ -65,6 +78,22 @@ The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resou
 - A resource the directory never managed is kept, and the apply names it in a warning.
 - Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
 - Rows, connector-synced documents and run history are never part of the directory.
+- A delete cannot be undone by applying an older copy of the directory, such as a reverted commit. The resource stays deleted, and its rows, documents, run history, webhook URLs and schedules are gone. The dry run marks each change that deletes data and counts them as `destructive`.
+
+## Promote to another workspace
+
+Apply a directory read from one workspace (dev) to another (prod) with `--to`:
+
+```bash
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry-run
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. Resources only the target holds are kept unless you pass `--allow-delete`. The directory is not changed and stays bound to the workspace it was read from. Without `--to`, an apply refuses a directory read from another workspace.
+
+## Git and CI
+
+Commit the whole directory, including `.sim/`: its base files are what an apply compares with, from any clone. The generated `.gitignore` leaves out only temporary files. A fresh clone can run `check`, `apply --dry-run` and `apply` with nothing else. See [Workspace source in CI](/cli/scripting#workspace-source-in-ci) for a GitHub Actions setup.
 
 ## Good to know
 

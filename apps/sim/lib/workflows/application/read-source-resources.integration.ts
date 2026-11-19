@@ -13,6 +13,7 @@ import {
   credentialMember,
   customTools,
   environment,
+  knowledgeBase,
   member,
   organization,
   permissionGroup,
@@ -321,6 +322,12 @@ describe('source resources manifest', () => {
         ],
       },
     })
+    await db.insert(knowledgeBase).values({
+      id: generateId(),
+      workspaceId,
+      userId: adminId,
+      name: 'Handbook',
+    })
     await db.insert(customTools).values([
       {
         id: ids.customTool,
@@ -460,6 +467,31 @@ describe('source resources manifest', () => {
         skills: listedSkills,
         customTools: [],
       })
+    })
+
+    it('omits tables when the caller’s group hides them, as the table list refuses', async () => {
+      const visible = await readSourceResources.execute({
+        principal: session(readerId),
+        input: { workspaceId },
+      })
+      expect(visible.tables.map((table) => table.name)).toEqual(['leads'])
+      await withholdInGroup({ hideTablesTab: true })
+      const manifest = await readSourceResources.execute({
+        principal: session(readerId),
+        input: { workspaceId },
+      })
+      expect(manifest.tables).toEqual([])
+      expect(manifest.knowledgeBases.map((kb) => kb.name)).toEqual(['Handbook'])
+    })
+
+    it('omits knowledge bases when the caller’s group hides them, as their list refuses', async () => {
+      await withholdInGroup({ hideKnowledgeBaseTab: true })
+      const manifest = await readSourceResources.execute({
+        principal: session(readerId),
+        input: { workspaceId },
+      })
+      expect(manifest.knowledgeBases).toEqual([])
+      expect(manifest.tables.map((table) => table.name)).toEqual(['leads'])
     })
 
     it('omits env names for a workspace API key, which the secrets listing denies', async () => {

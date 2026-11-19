@@ -32,6 +32,7 @@ import {
   loadWorkflowGraph,
   loadWorkflowGraphs,
 } from '@/lib/workflows/application/read-workflow-graph'
+import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
@@ -221,8 +222,9 @@ async function printLoadedSource(
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
   resolveContext: async (args: { principal: Principal; input: GetWorkflowSourceInput }) => {
-    await requireWorkflowCodeEnabled()
-    return resolvePrincipalWorkflowContext(args)
+    const context = await resolvePrincipalWorkflowContext(args)
+    await requireWorkflowCodeEnabled(args.principal, context)
+    return context
   },
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     const [stored, gate, sourceMeta, prefetched] = await Promise.all([
@@ -235,10 +237,12 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
       }),
     ])
-    return printLoadedSource(
+    const read = await printLoadedSource(
       { scope: context, stored, gate, sourceMeta, prefetched },
       input.functionCode ?? 'files'
     )
+    recordSourceRead(principal, context)
+    return read
   },
 })
 
@@ -262,9 +266,16 @@ export type WorkflowSourceRead =
  */
 export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
-  resolveContext: async ({ input }: { input: ReadWorkflowSourcesInput }) => {
-    await requireWorkflowCodeEnabled()
-    return resolveActiveWorkspaceApplicationContext(input.workspaceId)
+  resolveContext: async ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkflowSourcesInput
+  }) => {
+    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
+    await requireWorkflowCodeEnabled(principal, context)
+    return context
   },
   async execute({ principal, input, context }): Promise<Map<string, WorkflowSourceRead>> {
     const { workspaceId } = context

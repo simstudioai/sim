@@ -2,11 +2,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compileWorkflow } from '@sim/workflow-code'
+import { fingerprintOf } from '@sim/workspace-code'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { digest } from './source-dir'
 import { TSCONFIG_MARKER } from './source-tree'
 import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
@@ -116,6 +118,13 @@ afterEach(() => {
   process.exitCode = undefined
   rmSync(dir, { recursive: true, force: true })
 })
+
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
 
 function stderrLines(): string[] {
   return vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
@@ -448,6 +457,18 @@ describe('sim workflows source apply', () => {
     message: 'The workflow changed since this directory was read.',
   }
 
+  it('puts each finding of a dry run in the JSON on stdout', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [{ code: 'E_APPLY_STALE', severity: 'error', message: STALE.message }],
+    })
+  })
+
   it('exits 5 when a dry run finds the directory stale', async () => {
     setTerminal(false)
     request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
@@ -465,6 +486,62 @@ describe('sim workflows source apply', () => {
 
     expect(prompt.question).not.toHaveBeenCalled()
     expect(process.exitCode).toBe(5)
+  })
+})
+
+describe('sim workflows source apply in a workflow folder of a workspace directory', () => {
+  const folder = () => join(dir, 'workflows/w')
+  const rootJson = (path: string) => JSON.parse(readFileSync(join(dir, path), 'utf8'))
+  const FOLDER_FILES = {
+    'workflow.ts': ENTRY,
+    '.sim/lock.json': JSON.stringify(LOCK),
+    '.sim/base.json': JSON.stringify(BASE),
+  }
+
+  beforeEach(() => {
+    rmSync(join(dir, 'workflow.ts'))
+    rmSync(join(dir, '.sim'), { recursive: true })
+    mkdirSync(join(folder(), '.sim'), { recursive: true })
+    mkdirSync(join(dir, '.sim'))
+    for (const [path, text] of Object.entries(FOLDER_FILES)) {
+      writeFileSync(join(folder(), path), text)
+    }
+    writeFileSync(
+      join(dir, '.sim/base.json'),
+      JSON.stringify({
+        version: 1,
+        workspaceId: WORKSPACE_ID,
+        resources: {
+          'workflow:w': { id: WORKFLOW_ID, fingerprint: fingerprintOf({ source: 'sf1:a' }) },
+          'table:leads': { id: 'tbl_1', fingerprint: 'rf1:t' },
+        },
+      })
+    )
+    const digests = Object.fromEntries(
+      Object.entries(FOLDER_FILES).map(([path, text]) => [`workflows/w/${path}`, digest(text)])
+    )
+    writeFileSync(
+      join(dir, '.sim/written.json'),
+      JSON.stringify({ version: 1, files: { ...digests, 'tables/leads.ts': 'd' } })
+    )
+  })
+
+  it('records the write in the workspace records, never a record of the folder of its own', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome())
+
+    await apply('--dir', folder(), '--yes')
+
+    expect(existsSync(join(folder(), '.sim/written.json'))).toBe(false)
+    const files = rootJson('.sim/written.json').files
+    for (const path of ['workflow.ts', '.sim/lock.json', '.sim/base.json']) {
+      expect(files[`workflows/w/${path}`]).toBe(digest(readFileSync(join(folder(), path), 'utf8')))
+    }
+    expect(files['tables/leads.ts']).toBe('d')
+    expect(rootJson('.sim/base.json').resources).toEqual({
+      'workflow:w': { id: WORKFLOW_ID, fingerprint: fingerprintOf({ source: 'sf1:b' }) },
+      'table:leads': { id: 'tbl_1', fingerprint: 'rf1:t' },
+    })
   })
 })
 

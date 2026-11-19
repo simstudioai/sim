@@ -1,0 +1,45 @@
+{
+  "name": "Route a support request",
+  "nodes": [
+    {
+      "id": "request",
+      "name": "Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "route-support-request",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "5bc4611e-24ae-4534-bfe8-054945a25edb"
+    },
+    {
+      "id": "route",
+      "name": "Route request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, 0],
+      "parameters": {
+        "jsCode": "const rawPriority = $input.first().json.body.priority;\nconst priority = typeof rawPriority === 'string' ? rawPriority.trim().toLowerCase() : '';\nif (priority !== 'normal' && priority !== 'urgent') {\n  throw new Error('Priority must be normal or urgent');\n}\nreturn [{ json: { queue: priority === 'urgent' ? 'escalations' : 'support' } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Request": {
+      "main": [
+        [
+          {
+            "node": "Route request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

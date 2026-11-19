@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListSurveysParams {
@@ -93,7 +93,9 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      const url = new URL(`${baseUrl}/api/projects/${params.projectId}/surveys/`)
+      const url = new URL(
+        `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/surveys/`
+      )
 
       if (params.limit) {
         url.searchParams.set('limit', params.limit.toString())

@@ -258,7 +258,7 @@ const applyBodySchema = z
       )
       .optional()
       .describe(
-        'Binary files by path, with the SHA-256 and size of their bytes. Stage the bytes a write needs first (Stage Workspace Source Blobs); an apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.'
+        'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.'
       ),
     base: baseSchema.optional(),
     kinds: z
@@ -314,6 +314,12 @@ const applyDataSchema = z
       .array(z.string())
       .describe(
         'Binary paths a write needs whose bytes are not staged: on a dry run, exactly what to stage before applying.'
+      ),
+    applyId: z
+      .string()
+      .optional()
+      .describe(
+        'The id of an apply that wrote: every audit log entry its writes recorded carries it as `metadata.correlationId`. Absent on a dry run.'
       ),
     files: z
       .record(z.string(), z.string())

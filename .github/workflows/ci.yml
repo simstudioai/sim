@@ -683,6 +683,44 @@ jobs:
           fi
           bunx trigger.dev@4.8.3 promote "$VERSION" "${TARGET_ARGS[@]}"
 
+  landing-seo-live:
+    name: landing-seo-live
+    needs: [promote, trigger-promote]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.promote.outputs.promoted == 'true' &&
+      needs.trigger-promote.outputs.cutover == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: github
+          node-version: ''
+
+      - name: Check priority landing pages after cutover
+        env:
+          LANDING_SEO_E2E_BASE_URL: https://www.sim.ai
+          LANDING_SEO_E2E_REPORT_PATH: ${{ runner.temp }}/landing-seo-live.json
+        run: bun run --cwd apps/sim test:landing-seo:e2e --live
+
+      - name: Upload live landing SEO results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: landing-seo-live
+          path: ${{ runner.temp }}/landing-seo-live.json
+
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
   indexnow:

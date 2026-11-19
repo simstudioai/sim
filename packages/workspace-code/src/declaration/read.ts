@@ -115,18 +115,22 @@ function calleeName(node: Node): string | null {
   return null
 }
 
+const BYTE_ORDER_MARK = '\uFEFF'
+
 /**
  * Parses one declaration file and decodes its default export's argument. Refuses (with every
  * finding located in `text`) a missing header, an import from anywhere but the workspace SDK, a
  * renamed import, anything beside the imports and the one default export, and any value outside
- * the grammar. Unused imports are accepted. Bytes and nesting are capped before Babel runs,
+ * the grammar. Unused imports are accepted. A leading byte order mark is dropped first, as a
+ * workflow compile drops it, and every span is into the text after it. Bytes and nesting are capped before Babel runs,
  * locating every value is linear in the file, and decoding stops at `MAX_FINDINGS_PER_FILE`.
  */
 export function readDeclaration(
   file: string,
-  text: string,
+  raw: string,
   options: ReadDeclarationOptions
 ): ReadDeclaration {
+  const text = raw.startsWith(BYTE_ORDER_MARK) ? raw.slice(BYTE_ORDER_MARK.length) : raw
   const spans = new Map<string, SourceSpan>()
   const diagnostics: WorkspaceDiagnostic[] = []
   const locator = sourceLocator(file, text)

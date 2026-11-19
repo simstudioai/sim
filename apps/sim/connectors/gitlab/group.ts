@@ -47,3 +47,12 @@ export function gitLabGroupMatchesConfig(
     return false
   }
 }
+
+/** A path reused by another project must never inherit the previous project's CSV grants. */
+export function gitLabProjectIdentitiesMatch(
+  previous: GitLabGroupScope['projects'],
+  current: GitLabGroupScope['projects']
+): boolean {
+  const ids = new Map(previous.map((project) => [project.path, project.id]))
+  return current.every((project) => !ids.has(project.path) || ids.get(project.path) === project.id)
+}

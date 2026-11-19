@@ -32,7 +32,7 @@ import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
-import { collectBody, collisionSuffix } from './scope'
+import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
   checkResponseFormatRefs,
@@ -266,6 +266,8 @@ function compileWorkflowCall(
         hint: "Write workflow('Name', {}, ({ vars }) => { ... }).",
       }
     )
+  } else if (nameNode) {
+    checkSuspiciousName(ctx, name, nameNode, 'workflow')
   }
   const optionsNode: Node | undefined = third ? second : undefined
   const bodyNode: Node | undefined = third ?? second
@@ -450,6 +452,7 @@ function compileEntry(
     decls: [],
     declsByKey: new Map(),
     declsByIdent: new Map(),
+    declsByLookalike: new Map(),
     variables: new Map(),
     wiring: [],
     implied: [],
@@ -461,6 +464,7 @@ function compileEntry(
     jsonFields: [],
     responseFormatRefs: [],
     refusedBranches: new Map(),
+    valueConsts: new Set(),
   }
 
   const moduleScope: Scope = { parent: null, bindings: new Map(), container: null }

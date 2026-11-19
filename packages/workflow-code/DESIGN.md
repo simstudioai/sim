@@ -430,7 +430,7 @@ start line, and clamps bad input (NaN to 1, ±Infinity to a bound).
 
 `applyWorkflowSource` and `createWorkflowFromSource` (`apps/sim/lib/workflows/application/`) share
 one pipeline. Create uses an empty graph as the stored draft, so every block is new and no
-fingerprint is checked. Both are gated on the global `workflow-code` flag and change only the draft;
+fingerprint is checked. Both are gated on the `workflow-code` flag (see Rollout) and change only the draft;
 deploy is separate.
 
 ```
@@ -558,6 +558,31 @@ Beside it:
   step.
 - **SDK examples** (`sdk-examples.test.ts`): the five `@sim/workflow-sdk` examples compile against
   the real catalog with no diagnostics.
+
+## Rollout
+
+Every surface (the v2 source routes and their MCP operations, the CLI `workflows source` and
+`workspaces source` commands, the Code tab, and the Mothership source commands) gates on one
+runtime flag, `workflow-code` (`apps/sim/lib/workflows/code/feature-flag.ts`). Each use case checks
+it against the workspace it runs in: that workspace's organization, the workspace itself, or the
+acting user. A refused call answers `403`, and a chat without the flag is not granted the
+`workflow-code` entitlement, so the worker hides the source commands from it.
+
+Turning it on:
+
+- **Hosted (AppConfig).** Edit the `workflow-code` entry of the `feature-flags` profile and deploy
+  it like any other flag change. `orgIds`, `workspaceIds` and `userIds` allowlist one tenant at a
+  time; `enabled: true` turns it on for everyone. No code change or redeploy of the app.
+- **Self-hosted, or AppConfig off.** Set `WORKFLOW_CODE=true` in the app's environment: it turns
+  the feature on for the whole deployment, with no per-organization scoping.
+
+Stages, each held until the previous one is quiet (no unexpected `403`s, refusals or apply
+failures in `workflow_source_applied`, `workflow_source_dry_run` and `workspace_source_applied`):
+
+1. **Internal.** Our own organization by `orgIds`; dogfood the CLI, MCP and chat paths.
+2. **Design partners.** Add each partner's organization to `orgIds` as it opts in.
+3. **GA.** `enabled: true`. Once it has held, delete the flag, its `WORKFLOW_CODE` fallback, the
+   entitlement and every call site.
 
 ## Known limitations
 

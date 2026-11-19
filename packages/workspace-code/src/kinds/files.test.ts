@@ -71,6 +71,13 @@ describe('fileCodec', () => {
     })
   })
 
+  it('refuses paths that differ only in Unicode normalization, which macOS holds as one file', () => {
+    expect(grouped(['files/caf\u00e9.txt', 'files/cafe\u0301.txt'])).toEqual({
+      keys: ['caf\u00e9.txt'],
+      codes: ['E_FILE_PATH_COLLISION'],
+    })
+  })
+
   it('refuses folders a case-insensitive disk holds as one folder', () => {
     expect(grouped(['files/Docs/a.txt', 'files/docs/b.txt'])).toEqual({
       keys: ['Docs/a.txt'],
@@ -96,6 +103,16 @@ describe('fileCodec', () => {
     expect(fileKeyConflicts(['Docs/a.txt', 'docs/b.txt'])).toEqual(
       new Map([['docs/b.txt', expect.stringContaining('files/Docs')]])
     )
+  })
+
+  it('groups 20,000 deeply nested paths in linear time', () => {
+    const deep = (index: number) =>
+      `files/k${index}/${Array.from({ length: 500 }, () => 'a').join('/')}`
+    const started = Date.now()
+    const grouped = fileCodec.group(Array.from({ length: 20_000 }, (_, index) => deep(index)))
+    expect(Date.now() - started).toBeLessThan(6_000)
+    expect(grouped.groups.size).toBe(20_000)
+    expect(grouped.diagnostics).toEqual([])
   })
 
   it('refuses a file sent as text, a malformed hash, and a file over the blob cap', () => {

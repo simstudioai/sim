@@ -134,8 +134,12 @@ function actions(plan: ReadonlyArray<{ kind: string; key: string; action: string
 /** Every stored tool and skill, with update times: what "nothing was written" compares. */
 async function snapshot(workspaceId: string) {
   const [toolRows, skillRows] = await Promise.all([
-    db.select().from(customTools).where(eq(customTools.workspaceId, workspaceId)),
-    db.select().from(skill).where(eq(skill.workspaceId, workspaceId)),
+    db
+      .select()
+      .from(customTools)
+      .where(eq(customTools.workspaceId, workspaceId))
+      .orderBy(customTools.id),
+    db.select().from(skill).where(eq(skill.workspaceId, workspaceId)).orderBy(skill.id),
   ])
   return {
     tools: toolRows.map(({ id, title, schema, code, updatedAt }) => ({
@@ -843,4 +847,69 @@ describe('workspace source: custom tools and skills', () => {
       expect(again.plan.filter((change) => change.action !== 'noop')).toEqual([])
     }
   )
+
+  check(
+    'a get prints a tool whose code holds a literal credential as stored(), and applies it back keeping the code',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const token = ['gh', 'p_', 'a'.repeat(36)].join('')
+      const code = `const res = await fetch('https://api.example', { headers: { Authorization: 'token ${token}' } })\nreturn res.json()`
+      const { tool } = await createWorkspaceCustomToolUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          title: 'Lookup order',
+          schema: {
+            type: 'function',
+            function: { name: 'lookup_order', parameters: { type: 'object', properties: {} } },
+          },
+          code,
+        },
+      })
+
+      const read = await get(workspaceId)
+
+      expect(JSON.stringify(read.files)).not.toContain(token)
+      const [declaration] = Object.keys(read.files)
+      expect(Object.keys(read.files)).toHaveLength(1)
+      expect(read.files[declaration ?? '']).toContain('code: stored()')
+      expect(codes(read.diagnostics, 'warning')).toEqual(['W_TOOL_LITERAL_SECRET'])
+      const before = await snapshot(workspaceId)
+
+      const again = await apply(workspaceId, read.files, { base: read.base })
+
+      expect(again.failed).toBeUndefined()
+      expect(again.plan.filter((change) => change.action !== 'noop')).toEqual([])
+      expect(await snapshot(workspaceId)).toEqual(before)
+      expect(before.tools[0]?.code).toBe(code)
+
+      const retitled = await apply(
+        workspaceId,
+        {
+          [declaration ?? '']:
+            read.files[declaration ?? '']?.replace('Lookup order', 'Find order') ?? '',
+        },
+        { base: again.base }
+      )
+      expect(retitled.failed).toBeUndefined()
+      const [renamed] = (await snapshot(workspaceId)).tools
+      expect(renamed).toMatchObject({ id: tool.id, title: 'Find order', code })
+
+      const elsewhere = await newWorkspace()
+      const refused = await refusal(apply(elsewhere, read.files))
+      expect(codes(refused.diagnostics)).toEqual(['E_TOOL_STORED_MISSING'])
+    }
+  )
+
+  check('warns when an applied tool code holds a literal credential, and stores it', async () => {
+    const workspaceId = await newWorkspace()
+    const token = ['gh', 'p_', 'b'.repeat(36)].join('')
+    const result = await apply(workspaceId, {
+      ...TOOLS,
+      'tools/lookup.js': `return '${token}'\n`,
+    })
+    expect(result.failed).toBeUndefined()
+    expect(codes(result.diagnostics, 'warning')).toContain('W_TOOL_LITERAL_SECRET')
+    expect((await snapshot(workspaceId)).tools[0]?.code).toBe(`return '${token}'\n`)
+  })
 })

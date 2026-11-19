@@ -1,8 +1,6 @@
 import { z } from 'zod'
-import {
-  GITLAB_CSV_MAX_ROWS,
-  GITLAB_PERMISSION_MODES,
-} from '@/connectors/gitlab/permission-config/types'
+import { PERMISSION_IMPORT_MAX_ROWS } from '@/lib/knowledge/connectors/permission-import-limits'
+import { GITLAB_PERMISSION_MODES } from '@/connectors/gitlab/permission-config/types'
 
 const gitLabCsvUploadSchema = z
   .object({
@@ -18,7 +16,9 @@ const gitLabCsvUploadSchema = z
 export const gitLabPermissionInputSchema = z
   .object({
     provider: z.literal('gitlab').describe('Provider of the configured Search source.'),
-    mode: z.enum(GITLAB_PERMISSION_MODES),
+    mode: z
+      .enum(GITLAB_PERMISSION_MODES)
+      .describe('Administrator lookup or externally managed CSV permissions.'),
     expectedRevision: z
       .number()
       .int()
@@ -35,15 +35,26 @@ export const gitLabPermissionInputSchema = z
   .strict()
 export type GitLabPermissionUploadInput = z.input<typeof gitLabPermissionInputSchema>
 const gitLabCsvFileSummarySchema = z.object({
-  filename: z.string().min(1).max(255),
-  uploadedAt: z.string().datetime(),
-  rowCount: z.number().int().nonnegative().max(GITLAB_CSV_MAX_ROWS),
+  filename: z.string().min(1).max(255).describe('Uploaded CSV filename.'),
+  uploadedAt: z.string().datetime().describe('Upload time in UTC.'),
+  rowCount: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(PERMISSION_IMPORT_MAX_ROWS)
+    .describe('Number of uploaded data records.'),
 })
 export const gitLabPermissionSummarySchema = z.object({
-  provider: z.literal('gitlab'),
-  mode: z.enum(GITLAB_PERMISSION_MODES),
+  provider: z.literal('gitlab').describe('Permission provider.'),
+  mode: z
+    .enum(GITLAB_PERMISSION_MODES)
+    .describe('Administrator lookup or externally managed CSV permissions.'),
   revision: z.number().int().nonnegative().describe('Current revision of the stored permissions.'),
-  userMapping: gitLabCsvFileSummarySchema.nullable(),
-  projectPermissions: gitLabCsvFileSummarySchema.nullable(),
+  userMapping: gitLabCsvFileSummarySchema
+    .nullable()
+    .describe('User mapping file summary, or null when not supplied.'),
+  projectPermissions: gitLabCsvFileSummarySchema
+    .nullable()
+    .describe('Project permission file summary, or null when not supplied.'),
 })
 export type GitLabPermissionData = z.output<typeof gitLabPermissionSummarySchema>

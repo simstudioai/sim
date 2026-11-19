@@ -328,11 +328,28 @@ export class EdgeCollector {
     return null
   }
 
-  private targets(scope: Scope, call: CallExpression, blockKey: BlockKey): BlockDecl[] | null {
+  private targets(
+    scope: Scope,
+    call: CallExpression,
+    blockKey: BlockKey,
+    method: string
+  ): BlockDecl[] | null {
     const targets: BlockDecl[] = []
     for (const argument of call.arguments) {
       const decl = this.blockFor(scope, argument, blockKey)
       if (decl === 'reported') return null
+      if (!decl && argument.type === 'ObjectExpression') {
+        this.error(
+          'E_UNSUPPORTED_SYNTAX',
+          `.${method}() takes blocks only; an edge has no options.`,
+          argument,
+          {
+            hint: "Set a block's options, such as retry, in its builder's third argument: api('Name', { ... }, { retry: { enabled: true, maxTries: 3 } }).",
+            blockKey,
+          }
+        )
+        return null
+      }
       if (!decl) {
         this.error('E_UNSUPPORTED_SYNTAX', 'Wire blocks by their binding.', argument, {
           hint: HINTS.bindInline,
@@ -396,7 +413,7 @@ export class EdgeCollector {
     }
     const sources = this.endpoints(scope, callee.object, anchors, statement)
     const [first] = sources ?? []
-    const targets = first ? this.targets(scope, call, first.decl.key) : null
+    const targets = first ? this.targets(scope, call, first.decl.key, method) : null
     if (!sources || !targets) return null
     for (const source of sources) {
       let port: Port | null

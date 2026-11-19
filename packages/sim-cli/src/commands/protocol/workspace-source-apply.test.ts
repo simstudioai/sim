@@ -1,3 +1,4 @@
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   existsSync,
@@ -10,7 +11,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +19,7 @@ import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
+import { readWorkspaceDir } from './workspace-source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -126,6 +128,36 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('puts each finding of a dry run in the JSON on stdout', async () => {
+    const finding = {
+      code: 'E_DECL_SHAPE',
+      severity: 'error',
+      message: 'tables/leads.ts does not read.',
+      file: 'tables/leads.ts',
+      line: 1,
+      column: 1,
+      kind: 'table',
+      key: 'leads',
+    }
+    request.mockResolvedValue(answer({ dryRun: true, diagnostics: [finding] }))
+
+    await apply('--dry-run')
+
+    const calls = vi.mocked(console.log).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0].join(' '))).toMatchObject({ errors: 1, diagnostics: [finding] })
+  })
+
+  it('refuses a directory holding no workspace source before sending anything', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    rmSync(join(dir, 'workflows'), { recursive: true })
+
+    const error = await apply('--yes').catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ message: expect.stringContaining('holds no workspace source') })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('sends a workflow folder whole only when it was edited since the CLI wrote it', async () => {
     write(
       '.sim/written.json',
@@ -171,6 +203,179 @@ describe('workspaces source apply', () => {
     await apply('--yes')
 
     expect(bodies()[0].files['workflows/ingest/workflow.ts']).toBe(INGEST)
+  })
+
+  it('promotes with --to: the target binds by key, and the directory stays bound to its own workspace', async () => {
+    const prodBase = {
+      version: 1,
+      workspaceId: 'ws_prod',
+      resources: {
+        'table:leads': { id: 'tbl_prod', fingerprint: `rf1:${'a'.repeat(64)}` },
+        'table:audit': { id: 'tbl_audit', fingerprint: `rf1:${'b'.repeat(64)}` },
+        'workflow:ingest': { id: 'wf_prod' },
+      },
+    }
+    const prodFolderBase = JSON.stringify({
+      ...JSON.parse(folderBase('ws_prod')),
+      workflowId: 'wf_prod',
+    })
+    write('workflows/ingest/.sim/lock.json', '{"version":1,"blocks":{},"variables":{}}')
+    write(
+      '.sim/written.json',
+      JSON.stringify({
+        files: {
+          'workflows/ingest/workflow.ts': digest(INGEST),
+          'workflows/ingest/.sim/base.json': digest(INGEST_BASE),
+        },
+      })
+    )
+    const before = readFileSync(join(dir, '.sim/base.json'), 'utf8')
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table', 'workflow'],
+            files: {
+              'tables/leads.ts': LEADS,
+              'tables/audit.ts': LEADS,
+              'workflows/ingest/workflow.ts': INGEST,
+              'workflows/ingest/.sim/base.json': prodFolderBase,
+            },
+            blobs: [],
+            base: prodBase,
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        applied: [{ kind: 'table', key: 'leads', action: 'update', id: 'tbl_prod' }],
+        files: { 'tables/leads.ts': '// reprinted by prod\n' },
+        base: prodBase,
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--yes')
+
+    const post = request.mock.calls.find(([, options]) => options.body !== undefined)
+    const sent = post?.[1].body
+    expect(sent.base).toEqual({
+      ...prodBase,
+      resources: {
+        'table:leads': prodBase.resources['table:leads'],
+        'workflow:ingest': prodBase.resources['workflow:ingest'],
+      },
+    })
+    expect(sent.files).toEqual({
+      'tables/leads.ts': LEADS,
+      'workflows/ingest/workflow.ts': INGEST,
+      'workflows/ingest/.sim/base.json': prodFolderBase,
+    })
+    expect(readFileSync(join(dir, '.sim/base.json'), 'utf8')).toBe(before)
+    expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(LEADS)
+  })
+
+  it('counts the changes that delete data in a dry run, and says re-applying an older directory does not restore it', async () => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [
+          {
+            kind: 'table',
+            key: 'leads',
+            action: 'update',
+            destructive: { what: 'rows', counts: { rows: 40 } },
+          },
+          {
+            kind: 'skill',
+            key: 'tone',
+            action: 'delete',
+            destructive: { what: 'skill', counts: {} },
+          },
+          { kind: 'workflow', key: 'ingest', action: 'update' },
+        ],
+      })
+    )
+
+    await apply('--dry-run')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(summary).toMatchObject({ deleted: 1, destructive: 2 })
+    const stderr = vi
+      .mocked(console.error)
+      .mock.calls.map((call) => call.join(' '))
+      .join('\n')
+    expect(stderr).toContain('2 change(s) delete data that applying an older directory')
+  })
+
+  it('prints a --to dry run with its findings in the JSON result', async () => {
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table', 'workflow'],
+            files: {},
+            blobs: [],
+            base: { version: 1, workspaceId: 'ws_prod', resources: {} },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [{ kind: 'table', key: 'leads', action: 'create' }],
+        diagnostics: [
+          {
+            code: 'W_UNDECLARED',
+            severity: 'warning',
+            message: 'kept',
+            kind: 'table',
+            key: 'audit',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--dry-run')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(summary).toMatchObject({
+      workspaceId: 'ws_prod',
+      dryRun: true,
+      created: 1,
+      diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
+    })
+  })
+
+  it('refuses --to naming the workspace the directory was read from', async () => {
+    await expect(apply('--to', 'ws_local', '--yes')).rejects.toThrow(/apply it without --to/)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses while another command holds the directory, and takes over a lock its dead owner left', async () => {
+    request.mockResolvedValue(answer())
+    mkdirSync(join(dir, '.sim/command.lock'))
+    write('.sim/command.lock/owner.json', JSON.stringify({ pid: process.pid, host: hostname() }))
+
+    const busy = await apply('--yes').then(
+      () => null,
+      (error: unknown) => error
+    )
+    expect(busy).toBeInstanceOf(SimApiError)
+    expect(busy).toMatchObject({ code: 'SOURCE_DIR_BUSY', exitCode: 10 })
+    expect(request).not.toHaveBeenCalled()
+
+    const exited = spawnSync(process.execPath, ['-e', '0'])
+    write('.sim/command.lock/owner.json', JSON.stringify({ pid: exited.pid, host: hostname() }))
+    await apply('--yes')
+
+    expect(request).toHaveBeenCalled()
+    expect(existsSync(join(dir, '.sim/command.lock'))).toBe(false)
   })
 
   it('removes the function files an applied workflow no longer uses, keeping files no lock named', async () => {
@@ -532,6 +737,67 @@ describe('workspaces source apply', () => {
     expect(request).toHaveBeenCalled()
   })
 
+  it('runs from a fresh clone of the committed directory: a removed blob is a delete, and a stale base exits 5', async () => {
+    const sha256 = createHash('sha256').update('hello').digest('hex')
+    write('files/a.txt', 'hello')
+    write('files/b.txt', 'hello')
+    write(
+      '.sim/base.json',
+      JSON.stringify({
+        ...BASE,
+        resources: {
+          'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: 1, sha256 } } },
+          'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: 1, sha256 } } },
+        },
+      })
+    )
+    write(
+      '.sim/written.json',
+      JSON.stringify({ files: { 'files/a.txt': sha256, 'files/b.txt': sha256 } })
+    )
+    write('.sim/command.lock/owner.json', '{}')
+    write('.sim/downloads/partial.bin', 'x')
+    write('.gitignore', '.sim/downloads/\n.sim/command.lock/\n.sim-staging-*/\n')
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        'git',
+        ['-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t.invalid', ...args],
+        { cwd, stdio: 'pipe' }
+      )
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'workspace')
+    const clone = mkdtempSync(join(tmpdir(), 'sim-workspace-clone-'))
+    git(clone, 'clone', '-q', dir, 'repo')
+    const repo = join(clone, 'repo')
+    expect(existsSync(join(repo, '.sim/command.lock'))).toBe(false)
+    expect(existsSync(join(repo, '.sim/downloads'))).toBe(false)
+    git(repo, 'rm', '-q', 'files/b.txt')
+    git(repo, 'commit', '-q', '-m', 'drop b')
+    request.mockResolvedValue(answer({ dryRun: true }))
+
+    await runWorkspaceSource('apply', repo, '--dry-run', '--allow-delete')
+
+    expect(bodies()[0].blobs?.map((blob) => blob.path)).toEqual(['files/a.txt'])
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        diagnostics: [
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message: 'changed',
+            kind: 'file',
+            key: 'a.txt',
+          },
+        ],
+      })
+    )
+    await runWorkspaceSource('apply', repo, '--dry-run')
+    expect(process.exitCode).toBe(5)
+    rmSync(clone, { recursive: true, force: true })
+  })
+
   it('records the blobs an apply uploaded, so removing one later deletes it', async () => {
     const sha256 = createHash('sha256').update('hello').digest('hex')
     const other = createHash('sha256').update('stale').digest('hex')
@@ -593,6 +859,20 @@ describe('workspaces source apply', () => {
       message: expect.stringContaining('files/huge.bin'),
     })
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses a directory listing more binary files than one holds before hashing any, exit 7', async () => {
+    write('files/a.bin', 'a')
+    write('knowledge/kb/docs/b.txt', 'b')
+    write('files/c.bin', 'c')
+    const limits = { ...WORKSPACE_SOURCE_LIMITS, maxBlobs: 2 }
+
+    await expect(
+      readWorkspaceDir(dir, undefined, 'ws_local', { digests: {}, stats: {} }, { limits })
+    ).rejects.toMatchObject({ exitCode: 7, message: expect.stringContaining('3 binary files') })
+    await expect(
+      readWorkspaceDir(dir, ['table'], 'ws_local', { digests: {}, stats: {} }, { limits })
+    ).resolves.toMatchObject({ blobs: [] })
   })
 
   it('warns that a hidden file under a kind folder is not sent', async () => {

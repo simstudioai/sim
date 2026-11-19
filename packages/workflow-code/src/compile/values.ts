@@ -475,6 +475,36 @@ function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegmen
 }
 
 /**
+ * The fix for a path {@link outputKnown} rejects: a did-you-mean over the names where it first
+ * misses, else those names (`Outputs: data, status.`, or `headers holds: contentType.` below the
+ * top level).
+ */
+function unknownOutputHint(
+  outputs: Record<string, CatalogOutput>,
+  segments: RefSegment[]
+): string | undefined {
+  let level = outputs
+  for (const [index, segment] of segments.entries()) {
+    if (segment.kind === 'index') return undefined
+    const output = getOwn(level, segment.name)
+    if (output?.properties) {
+      level = output.properties
+      continue
+    }
+    if (output) return undefined
+    const names = Object.keys(level)
+    if (names.length === 0) return undefined
+    return (
+      didYouMean(segment.name, names) ??
+      (index === 0
+        ? `Outputs: ${names.join(', ')}.`
+        : `${formatStoredPath(segments.slice(0, index))} holds: ${names.join(', ')}.`)
+    )
+  }
+  return undefined
+}
+
+/**
  * Compiles an identifier or member chain to its stored token text: a block chain to
  * `<key.path>`, `vars.x` to `<variable.x>`, `env.X` to `{{X}}`, a loop param to `<loop.prop>` (innermost loop of its kind) or `<key.prop>` (named form).
  */
@@ -634,7 +664,9 @@ function checkEnvName(ctx: CompileContext, name: string, at: Range, blockKey: Bl
     `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
     at,
     {
-      hint: `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
+      hint:
+        didYouMean(name, ctx.envNames) ??
+        `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
       blockKey,
     }
   )
@@ -673,12 +705,13 @@ function checkOutputPath(
   // Table rows only refine the element type of `rows`/`row`; the outputs themselves are static.
   if (!block || (block.dynamicOutputs && block.dynamicOutputs.source !== 'tableRows')) return
   const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
-  if (!outputKnown(builderOutputSchemas(ctx.catalog, block, builder), segments)) {
+  const outputs = builderOutputSchemas(ctx.catalog, block, builder)
+  if (!outputKnown(outputs, segments)) {
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
-      `${block.name} has no output ${formatStoredPath(segments)}.`,
+      `${target.name} has no output ${formatStoredPath(segments)}.`,
       at,
-      { blockKey }
+      { hint: () => unknownOutputHint(outputs, segments), blockKey }
     )
   }
 }

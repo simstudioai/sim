@@ -201,6 +201,14 @@ import {
   v2UpdateSandboxContract,
 } from '@/lib/api/contracts/v2/sandboxes'
 import {
+  v2CreateSearchSourceContract,
+  v2DeleteSearchSourceContract,
+  v2GetSearchSourceContract,
+  v2ListSearchSourcesContract,
+  v2PrepareSearchSourcesContract,
+  v2UpdateSearchSourceContract,
+} from '@/lib/api/contracts/v2/search-sources'
+import {
   v2DeleteSecretContract,
   v2ListSecretsContract,
   v2SetSecretContract,
@@ -217,6 +225,11 @@ import {
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
+import {
+  v2CompleteSourcePermissionImportContract,
+  v2CreateSourcePermissionImportContract,
+  v2PutSourcePermissionImportPartContract,
+} from '@/lib/api/contracts/v2/source-permission-imports'
 import { v2GetSourceResourcesContract } from '@/lib/api/contracts/v2/source-resources'
 import {
   v2AddOrganizationDomainContract,
@@ -489,7 +502,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ApplyWorkspaceSourceContract,
     summary: 'Apply workspace source',
     description:
-      'Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first (Find Missing Workspace Source Blobs, then Stage Workspace Source Blobs) and the apply names them by hash: a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); another apply still writing the workspace `409` (`SOURCE_BUSY`: nothing was written, apply again once it finished; a dry run never waits on one); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+      'Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first and the apply names them by hash: `sim workspaces source apply` stages them itself, and other clients find the ones the server lacks (Find Missing Workspace Source Blobs) and upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs`, a binary upload MCP clients cannot send. A directory without binary files needs no staging; a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); another apply still writing the workspace `409` (`SOURCE_BUSY`: nothing was written, apply again once it finished; a dry run never waits on one); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow and skill changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for workflows and skills (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.POST),
   },
@@ -673,6 +686,16 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/knowledge/imports/[importId]/complete/route').then(
         (route) => route.POST
       ),
+  },
+  completeSourcePermissionImport: {
+    contract: v2CompleteSourcePermissionImportContract,
+    summary: 'Complete source permission import',
+    description:
+      'Validate and activate a complete permission snapshot atomically. The source revision must still match the revision pinned before export. Incomplete, expired, or invalid imports preserve current access. Retrying a completed import returns its committed revision.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete/route'
+      ).then((route) => route.POST),
   },
   completeTableImport: {
     contract: v2CompleteTableImportContract,
@@ -864,6 +887,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/route').then((route) => route.POST),
   },
+  createSearchSource: {
+    contract: v2CreateSearchSourceContract,
+    summary: 'Create Search source',
+    description:
+      'Create a source in the prepared organization Search index using the same provider validation as Settings. Use connector-types list for provider configuration. This does not override an explicit integration approval decision. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/route').then(
+        (route) => route.POST
+      ),
+  },
   createServiceAccountCredential: {
     contract: v2CreateServiceAccountCredentialContract,
     summary: 'Create service-account credential',
@@ -879,6 +912,16 @@ export const V2_MCP_OPERATIONS = {
       'Create a workspace skill with a unique kebab-case name that is not reserved by a built-in skill. Requires workspace write access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/skills/route').then((route) => route.POST),
+  },
+  createSourcePermissionImport: {
+    contract: v2CreateSourcePermissionImportContract,
+    summary: 'Create source permission import',
+    description:
+      'Stage a complete permission snapshot without changing active access. Upload numbered CSV parts, then complete the import within 24 hours using the same credential. Requires organization Admin access. Existing inline uploads remain supported.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/route'
+      ).then((route) => route.POST),
   },
   createTable: {
     contract: v2CreateTableContract,
@@ -1124,6 +1167,16 @@ export const V2_MCP_OPERATIONS = {
       'Delete a sandbox. Function blocks using it fail until reconfigured. Requires workspace Admin access and sandbox entitlement: with billing enabled, Max or Enterprise is required unless deployment entitlement overrides it; billing-disabled deployments require sandbox entitlement. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.DELETE),
+  },
+  deleteSearchSource: {
+    contract: v2DeleteSearchSourceContract,
+    summary: 'Delete Search source',
+    description:
+      'Remove a source and its associated permission grants. Cleanup is asynchronous. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.DELETE
+      ),
   },
   deleteSecret: {
     contract: v2DeleteSecretContract,
@@ -1577,6 +1630,16 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Get a sandbox’s dependency configuration, current build state, and any build failure. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.GET),
+  },
+  getSearchSource: {
+    contract: v2GetSearchSourceContract,
+    summary: 'Get Search source',
+    description:
+      'Read source configuration and permission revision summaries. Organization admin required.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.GET
+      ),
   },
   getSearchSourcePermissions: {
     contract: v2GetSearchSourcePermissionsContract,
@@ -2187,6 +2250,16 @@ export const V2_MCP_OPERATIONS = {
       'List reusable dependency environments for Function blocks, including language packages, managed CLIs, and system packages. Requires workspace read access. Existing sandboxes remain visible after a plan downgrade.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/route').then((route) => route.GET),
   },
+  listSearchSources: {
+    contract: v2ListSearchSourcesContract,
+    summary: 'List Search sources',
+    description:
+      'List source IDs and administrative configuration with cursor pagination. Organization admin required. Credentials and CSV contents are never returned.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/route').then(
+        (route) => route.GET
+      ),
+  },
   listSecrets: {
     contract: v2ListSecretsContract,
     summary: 'List secrets',
@@ -2406,6 +2479,16 @@ export const V2_MCP_OPERATIONS = {
       'Move up to 100 workflows to one folder with workspace write access. Each move succeeds or fails independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/move/route').then((route) => route.POST),
   },
+  prepareSearchSources: {
+    contract: v2PrepareSearchSourcesContract,
+    summary: 'Prepare Search sources',
+    description:
+      'Idempotently initialize shared Search configuration before creating a source. Does not create a connector or change existing sources. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/prepare/route').then(
+        (route) => route.POST
+      ),
+  },
   previewOrganizationAccessRequest: {
     contract: v2PreviewOrganizationAccessRequestContract,
     summary: 'Preview organization access request',
@@ -2475,6 +2558,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/fork/push/route').then((route) => route.POST),
+  },
+  putSourcePermissionImportPart: {
+    contract: v2PutSourcePermissionImportPartContract,
+    summary: 'Upload source permission import part',
+    description:
+      'Upload one CSV part in order, with all user-mapping parts before project-permission parts. Each part supports 5,000 data rows and 1 MiB of UTF-8 content. An identical retry is safe; changed or out-of-order parts conflict.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]/route'
+      ).then((route) => route.PUT),
   },
   queryRows: {
     contract: v2QueryRowsContract,
@@ -3039,6 +3132,16 @@ export const V2_MCP_OPERATIONS = {
       'Update a sandbox; omitted fields stay unchanged and supplied lists replace their contents. Dependency changes may start a build; resending a failed specification retries it. `buildStatus: null` means no image build is needed. Requires workspace Admin access and a configured remote Function runtime. With billing enabled, Max or Enterprise is required unless deployment entitlement overrides it; billing-disabled deployments require sandbox entitlement. Creates and updates share a rate limit; respect `Retry-After`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.PATCH),
+  },
+  updateSearchSource: {
+    contract: v2UpdateSearchSourceContract,
+    summary: 'Update Search source',
+    description:
+      'Update source selection, supported provider credentials, or permission settings; pause or resume a source. Omitted fields are retained. sourceConfig replaces the complete configuration. GitLab token rotation retains saved grants and advances the permission revision; supply permissionConfig with the current expectedRevision for rotation or CSV updates. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.PATCH
+      ),
   },
   updateSkill: {
     contract: v2UpdateSkillContract,

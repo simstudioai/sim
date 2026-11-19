@@ -252,6 +252,7 @@ async function knowledgeBases(workspaceId: string) {
     .select()
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+    .orderBy(knowledgeBase.id)
 }
 
 async function knowledgeBaseNamed(workspaceId: string, name: string) {

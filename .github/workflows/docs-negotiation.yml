@@ -295,6 +295,10 @@ jobs:
         run: bun run --cwd apps/docs test:headers:e2e
       - name: Verify GitLab CSV export over HTTPS
         run: python3 apps/docs/scripts/test-gitlab-export-e2e.py
+      - name: Verify permission imports over HTTPS
+        env:
+          PERMISSION_UPLOAD_REPORT_PATH: apps/docs/test-results/permission-upload-e2e.json
+        run: python3 apps/docs/scripts/test-permission-upload-e2e.py
       - name: Bound the generated content cache
         if: always()
         run: bash .github/actions/docs-content-cache/prune.sh content

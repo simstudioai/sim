@@ -26,9 +26,17 @@
       "types": "./src/layout.ts",
       "default": "./src/layout.ts"
     },
+    "./promote": {
+      "types": "./src/promote.ts",
+      "default": "./src/promote.ts"
+    },
     "./limits": {
       "types": "./src/limits.ts",
       "default": "./src/limits.ts"
+    },
+    "./status": {
+      "types": "./src/status.ts",
+      "default": "./src/status.ts"
     },
     "./kinds/*": {
       "types": "./src/kinds/*.ts",

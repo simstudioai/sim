@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogSurveyQuestion {
@@ -177,7 +177,7 @@ export const updateSurveyTool: ToolConfig<PostHogUpdateSurveyParams, PostHogUpda
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/surveys/${params.surveyId}/`
+        return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/surveys/${postHogPathSegment(params.surveyId, 'surveyId')}/`
       },
       method: 'PATCH',
       headers: (params) => ({

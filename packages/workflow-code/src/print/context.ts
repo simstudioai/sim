@@ -54,8 +54,18 @@ export interface PrintContext {
   readonly comments: CommentPlacer
   readonly codeFiles: Array<{ path: string; text: string }>
   readonly codeFileHints: Map<BlockKey, string>
-  readonly takenCodePaths: Set<string>
+  /**
+   * Code-file paths by their case-folded spelling ({@link foldCodePath}), each with the block that
+   * holds it. A hinted path is held for its block from the start, so a block printed earlier never
+   * takes it, and two paths one case-insensitive disk holds as one never both print.
+   */
+  readonly codePathOwners: Map<string, BlockKey>
   readonly refTypes: RefTypeScope
+}
+
+/** How a case-insensitive disk spells a path: NFC, lower case. */
+export function foldCodePath(path: string): string {
+  return path.normalize('NFC').toLowerCase()
 }
 
 /** The context for printing `input`, with its parent tree built; `layout` fills the rest. */
@@ -104,12 +114,18 @@ export function createPrintContext(input: PrintInput): PrintContext {
     comments: new CommentPlacer(workflow.annotations.comments),
     codeFiles: [],
     codeFileHints: new Map(),
-    takenCodePaths: new Set(),
+    codePathOwners: new Map(),
     refTypes: {
       catalog,
       block: (key) => blocks.get(key),
       variable: (key) => getOwn(workflow.variables, key),
     },
+  }
+  for (const key of blocks.keys()) {
+    const hinted = getOwn(ctx.hints.blocks, key)?.codeFile
+    if (hinted !== undefined && !ctx.codePathOwners.has(foldCodePath(hinted))) {
+      ctx.codePathOwners.set(foldCodePath(hinted), key)
+    }
   }
   for (const [key, block] of blocks) {
     const parent = block.parent === null ? undefined : blocks.get(block.parent)

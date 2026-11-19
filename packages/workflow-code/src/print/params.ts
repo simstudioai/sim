@@ -35,7 +35,7 @@ import type { TemplateTag } from '../sdk'
 import { holdsSecret } from '../secrets'
 import { structuredCodec } from '../structured'
 import { anchors } from './comments'
-import type { PrintContext } from './context'
+import { foldCodePath, type PrintContext } from './context'
 import { printKey } from './strings'
 import { arrayExpr, type Expr, objectExpr, type Property, pathDepth } from './syntax'
 import { printTools, storedSecret } from './tools'
@@ -232,17 +232,21 @@ function printCodeFile(
   const text = check.file
   const extension = CODE_FILE_EXTENSIONS[language]
   const hinted = getOwn(ctx.hints.blocks, block.key)?.codeFile
+  const free = (candidate: string) => {
+    const owner = ctx.codePathOwners.get(foldCodePath(candidate))
+    return owner === undefined || owner === block.key
+  }
   let path =
-    hinted?.endsWith(`.${extension}`) && !ctx.takenCodePaths.has(hinted)
+    hinted?.endsWith(`.${extension}`) && free(hinted)
       ? hinted
       : `${SOURCE_CODE_DIR}/${kebab(ctx.idents.get(block.key) ?? block.key)}.${extension}`
   let suffix = 2
   const base = path.slice(0, -(extension.length + 1))
-  while (ctx.takenCodePaths.has(path)) {
+  while (!free(path)) {
     path = `${base}-${suffix}.${extension}`
     suffix += 1
   }
-  ctx.takenCodePaths.add(path)
+  ctx.codePathOwners.set(foldCodePath(path), block.key)
   ctx.codeFileHints.set(block.key, path)
   ctx.codeFiles.push({ path, text })
   return ctx.values.call('codeFile', [ctx.values.string(`./${path}`)])

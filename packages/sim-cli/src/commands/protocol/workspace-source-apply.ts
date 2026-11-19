@@ -1,14 +1,19 @@
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { APPLY_ORDER, KIND_DIRS } from '@sim/workspace-code'
+import { APPLY_ORDER, KIND_DIRS, parseWorkspaceBase } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import { promotionSubmission } from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
 import { SOURCE_PARTIAL_EXIT_CODE } from '../../exit-codes'
-import type { ApplyWorkspaceSourceBody, ApplyWorkspaceSourceResponse } from '../../generated/v2-api'
+import type {
+  ApplyWorkspaceSourceBody,
+  ApplyWorkspaceSourceResponse,
+  GetWorkspaceSourceResponse,
+} from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { apiCommand } from '../../runtime/called-operations'
+import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   orphanedCodeFiles,
@@ -18,6 +23,7 @@ import {
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
   type Written,
+  withSourceDirLock,
   writtenFile,
   writtenRecord,
 } from './source-dir'
@@ -27,6 +33,7 @@ import {
   printRefusal,
   refusedExitCode,
   requireConsent,
+  resultDiagnostics,
 } from './source-ui'
 import {
   appliedBlobDigests,
@@ -35,6 +42,7 @@ import {
   stageBlobs,
 } from './workspace-source-blobs'
 import {
+  assertWorkspaceDir,
   assertWorkspacePaths,
   readWorkspaceDir,
   type WorkspaceSubmission,
@@ -50,24 +58,26 @@ interface ApplyOptions {
   yes?: boolean
   allowDelete?: boolean
   only?: string
+  to?: string
 }
 
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
 file:line:column with its frame and hint), or changes were held back because they use a declared
-secret the workspace has no value for or a declared credential key nothing binds to (the rest
-was applied: set the secret or connect the credential, then apply again), the directory was read from another workspace than
-the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), its base records binary
-files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed;
-5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE:
-get it again into a fresh directory, reapply the edit, retry); 6 a resource is locked; 7 the
-directory is too large; 8 the apply stopped part-way on a server failure: what was written is
-saved into the directory, and applying again continues. An apply a resource refused part-way
-(stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1;
-9 rate limited (HTTP 429) after the CLI's retries,
-before anything was written: wait a minute and apply again (binary files already uploaded are
-not sent again); 10 another apply is writing the workspace (SOURCE_BUSY): nothing was written,
-apply again once it finished.`
+secret the workspace has no value for or a declared credential key nothing binds to (the rest was
+applied: set the secret or connect the credential, then apply again), the directory was read from
+another workspace than the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose, or --to
+to promote it), its
+base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the
+command failed; 5 a resource changed or was deleted on the server since the directory was read
+(SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource is
+locked; 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was
+written is saved into the directory, and applying again continues. An apply a resource refused
+part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6
+or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a
+minute and apply again (binary files already uploaded are not sent again); 10 another apply is
+writing the workspace (SOURCE_BUSY), or another command is using the directory
+(SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished.`
 
 const SYMBOLS: Record<Change['action'], string> = {
   create: '+',
@@ -129,6 +139,18 @@ function printPlan(plan: Change[]): void {
       printError(`  ${SYMBOLS[change.action]} ${change.key}${fields}${loses}${held}`)
     }
   }
+  const destructive = destructiveChanges(plan)
+  if (destructive > 0) {
+    printError(
+      `${destructive} change(s) delete data that applying an older directory (a reverted commit) does not bring back: a deleted resource stays deleted, and its rows, documents, run history and webhook URLs are gone.`
+    )
+  }
+}
+
+/** The changes that delete something (a resource, rows, documents, columns, a deployment). */
+function destructiveChanges(changes: readonly Change[]): number {
+  return changes.filter((change) => change.action === 'delete' || change.destructive !== undefined)
+    .length
 }
 
 /**
@@ -227,10 +249,53 @@ function assertBaseWorkspace(
     typeof base === 'object' && base !== null && 'workspaceId' in base ? base.workspaceId : null
   if (typeof readFrom !== 'string' || readFrom === workspaceId || explicit) return
   throw new SimApiError(
-    `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --workspace ${workspaceId} to create its resources anew in this one.`,
+    `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --to ${workspaceId} to promote it: its resources bind by key to that workspace's own, and the directory stays bound to ${readFrom}.`,
     0,
     'SOURCE_OTHER_WORKSPACE'
   )
+}
+
+/** The workspace a directory's base was read from, or `null` when it has none. */
+function baseWorkspaceOf(base: unknown): string | null {
+  return isRecordLike(base) && typeof base.workspaceId === 'string' ? base.workspaceId : null
+}
+
+/**
+ * The submission that promotes `submission` (read for the target, so every workflow folder is
+ * whole) to `target`: the target's get supplies its base and each workflow's lock and base, so
+ * its resources are bound by key and updated in place. Refuses a target the directory was read
+ * from, which a plain apply serves.
+ */
+async function promoted(
+  client: OperationClient<'getWorkspaceSource'>,
+  dir: string,
+  submission: WorkspaceSubmission,
+  target: string,
+  allowDelete: boolean
+): Promise<WorkspaceSubmission> {
+  if (baseWorkspaceOf(submission.base) === target) {
+    throw new SimApiError(
+      `${dir} was read from workspace ${target}; apply it without --to.`,
+      0,
+      'SOURCE_PROMOTE_SAME_WORKSPACE'
+    )
+  }
+  const { data } = await client.request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
+    params: { workspaceId: target },
+    query: { kinds: submission.kinds.join(',') },
+  })
+  const targetBase = parseWorkspaceBase(data.base).base
+  if (!targetBase) {
+    throw new SimApiError(`Workspace ${target} answered with a base this CLI cannot read.`, 0)
+  }
+  const composed = promotionSubmission({
+    files: submission.files,
+    blobPaths: submission.blobs.map((blob) => blob.path),
+    kinds: submission.kinds,
+    target: { files: data.files, base: targetBase },
+    allowDelete,
+  })
+  return { ...submission, files: composed.files, base: composed.base }
 }
 
 /**
@@ -245,6 +310,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     'applyWorkspaceSource',
     'findMissingWorkspaceSourceBlobs',
     'stageWorkspaceSourceBlobs',
+    'getWorkspaceSource',
   ])
   command
     .requiredOption('--dir <dir>', 'Workspace source directory written by `workspaces source get`')
@@ -252,14 +318,19 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
     .option('--only <kinds>', `Apply only these kinds (${ONLY_KINDS_HELP})`)
+    .option(
+      '--to <workspaceId>',
+      "Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place; the directory is not changed"
+    )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')
       const only = parseKinds(options.only)
+      await assertWorkspaceDir(options.dir)
       const { client, profile } = connect()
-      const workspaceId = client.requireWorkspace()
+      const workspaceId = options.to ?? client.requireWorkspace()
       const post = async (submission: WorkspaceSubmission, dryRun: boolean) => {
         const body: ApplyWorkspaceSourceBody = {
           files: submission.files,
@@ -289,7 +360,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
         try {
           staged = await stageBlobs(client, workspaceId, options.dir, submission.blobs, paths)
         } catch (error) {
-          return printRefusal(error)
+          return printRefusal(error, profile.output)
         }
         if (staged.count > 0) {
           printError(`Uploaded ${staged.count} binary file(s), ${staged.bytes} bytes.`)
@@ -317,61 +388,79 @@ export function attachWorkspaceSourceApply(source: Command): void {
         }
         return printRefusal(
           refusal,
+          profile.output,
           dryRun
             ? undefined
             : `It may have been written. Run \`sim workspaces source apply --dir ${options.dir} --dry-run\`: no changes, or only the workflows you edited refused as stale (exit 5), means it may have been, or someone else changed those resources. Run \`sim workspaces source get --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edits, \`sim workspaces source get --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edits in the fresh directory. Any other outcome means it was not written: apply again.`
         )
       }
 
-      const written = await readWritten(options.dir)
-      const submission = await readWorkspaceDir(options.dir, only, workspaceId, written)
-      assertBaseWorkspace(
-        options.dir,
-        submission.base,
-        workspaceId,
-        profile.sources.workspaceId === 'flag'
-      )
-      assertBlobsFetched(options.dir, submission, written.digests)
-      if (submission.ignored.length > 0) {
-        printError(
-          `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
-        )
-      }
-      // The apply repeats findings the preview already showed.
-      const printed = new Set<string>()
-      let preview: ApplyData | null = null
-      if (options.dryRun || !options.yes) {
-        preview = await send(submission, true)
-        printPlan(preview.plan)
-        printNewDiagnostics(preview.diagnostics, printed)
-        const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
-        if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
-        if (options.dryRun || refusesApply(preview)) {
-          printProtocolResult(profile.output, summarize(preview))
-          return
+      await withSourceDirLock(options.dir, async () => {
+        const written = await readWritten(options.dir)
+        const read = await readWorkspaceDir(options.dir, only, workspaceId, written)
+        if (!options.to) {
+          assertBaseWorkspace(
+            options.dir,
+            read.base,
+            workspaceId,
+            profile.sources.workspaceId === 'flag'
+          )
         }
-        if (!options.yes && !(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
-          throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+        assertBlobsFetched(options.dir, read, written.digests)
+        const submission = options.to
+          ? await promoted(client, options.dir, read, options.to, options.allowDelete === true)
+          : read
+        if (submission.ignored.length > 0) {
+          printError(
+            `Not sent (a hidden name, or a character no workspace path holds): ${submission.ignored.join(', ')}`
+          )
         }
-      }
+        // The apply repeats findings the preview already showed.
+        const printed = new Set<string>()
+        let preview: ApplyData | null = null
+        if (options.dryRun || !options.yes) {
+          preview = await send(submission, true)
+          printPlan(preview.plan)
+          printNewDiagnostics(preview.diagnostics, printed)
+          const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
+          if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
+          if (options.dryRun || refusesApply(preview)) {
+            printProtocolResult(profile.output, {
+              ...summarize(preview),
+              ...resultDiagnostics(profile.output, preview.diagnostics),
+            })
+            return
+          }
+          if (
+            !options.yes &&
+            !(await confirm(`Apply these changes to workspace ${workspaceId}?`))
+          ) {
+            throw new SimApiError('Nothing was applied.', 0, 'CANCELLED')
+          }
+        }
 
-      // Without a preview, stage the blobs the base does not hold as they are.
-      await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
-      const data = await send(submission, false)
-      printNewDiagnostics(data.diagnostics, printed)
-      await saveApplied(options.dir, data, submission, written)
-      const held = data.plan.filter((change) => change.held)
-      if (held.length > 0) {
-        printError(
-          `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
-        )
-        setSoftExitCode(1)
-      }
-      if (data.failed) {
-        printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
-        setSoftExitCode(failedExitCode(data.failed))
-      }
-      printProtocolResult(profile.output, summarize(data))
+        // Without a preview, stage the blobs the base does not hold as they are.
+        await stage(submission, preview ? new Set(preview.needBlobs) : blobsToStage(submission))
+        const data = await send(submission, false)
+        printNewDiagnostics(data.diagnostics, printed)
+        // A promotion leaves the directory bound to the workspace it was read from.
+        if (!options.to) await saveApplied(options.dir, data, submission, written)
+        const held = data.plan.filter((change) => change.held)
+        if (held.length > 0) {
+          printError(
+            `Held back, not written: ${held.map((change) => `${change.kind} ${change.key}`).join(', ')}. Fix what each one's error names, then apply again.`
+          )
+          setSoftExitCode(1)
+        }
+        if (data.failed) {
+          printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
+          setSoftExitCode(failedExitCode(data.failed))
+        }
+        printProtocolResult(profile.output, {
+          ...summarize(data),
+          ...resultDiagnostics(profile.output, data.diagnostics),
+        })
+      })
     })
 }
 
@@ -387,9 +476,11 @@ function summarize(data: ApplyData) {
     created: count('create'),
     updated: count('update') + count('adopt'),
     deleted: count('delete'),
+    destructive: destructiveChanges(changes),
     unchanged: data.plan.filter((change) => change.action === 'noop').length,
     held: data.plan.filter((change) => change.held).length,
     ...(data.failed ? { failed: `${data.failed.kind}:${data.failed.key}` } : {}),
+    ...(data.applyId ? { applyId: data.applyId } : {}),
     errors: data.diagnostics.filter((finding) => finding.severity === 'error').length,
     warnings: data.diagnostics.filter((finding) => finding.severity === 'warning').length,
   }

@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogGetEventDefinitionParams {
@@ -77,7 +77,7 @@ export const getEventDefinitionTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${params.eventDefinitionId}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/event_definitions/${postHogPathSegment(params.eventDefinitionId, 'eventDefinitionId')}`
     },
     method: 'GET',
     headers: (params) => ({

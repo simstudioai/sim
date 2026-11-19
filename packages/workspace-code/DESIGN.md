@@ -160,7 +160,10 @@ required column and its values in one apply.
 `mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
 `kinds/mcp/adapter.ts`). Its id derives from its URL, so the URL is its identity: an unbound
 server at the declared URL is adopted, and a changed URL replaces it (created at the new URL, the
-old one deleted; `--allow-delete` when stored workflows call it). A header value is stored text in
+old one deleted; `--allow-delete` when stored workflows call it). A replace that stopped partway
+resumes: the server it created holds exactly the declaration and no key, so the next apply adopts
+it, deleting the old one if it is still there; a different server already at the new URL is
+`E_NAME_TAKEN`. A header value is stored text in
 which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
 text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
 by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
@@ -196,7 +199,15 @@ is the workflow's id. The three-way rule covers what the server stores (public A
 is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
 `'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
 redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
-fingerprint and the live version it replaces. A chat password is `env.NAME` (resolved at apply,
+fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
+apply checks what the chat write refuses (an identifier another chat holds,
+`E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
+outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
+(`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
+either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
+part that matches neither is still `E_APPLY_STALE`. A first deploy that stopped before its chat leaves a deployment with no
+base entry: when it holds the declared flag and no chat (or the declared one), the next apply
+finishes it instead of answering `E_APPLY_NO_BASE`. A chat password is `env.NAME` (resolved at apply,
 never stored in source) or `stored()`; the base records the variable under `x-passwordEnv`, since
 the server keeps only the encrypted value. Removing the file undeploys (`--allow-delete`), and the
 plan counts what stops. Whether or not the kind is managed, an apply that edits a deployed workflow
@@ -256,6 +267,59 @@ share one scope; a workspace API key has its own), capped per scope at `maxStage
 hourly cron (`/api/cron/cleanup-source-staging`) deletes expired rows and objects. Both staging
 calls need write access, as the apply does, and draw on their own rate bucket. A manifest entry
 never carries bytes: the contract refuses `blobs[].content`.
+
+**One correlation id per apply.** An apply that writes mints an `applyId` and runs its writes
+inside `withAuditCorrelation` (`@sim/audit`): every audit entry a child use case records then
+carries it as `metadata.correlationId` (a rolled-up entry too, keyed by it), and so does the
+apply's own roll-up. The id is in the response, and the CLI prints it.
+
+**Deleting a deployed workflow.** A workflow delete counts the live triggers its deployment serves
+(`liveTriggerCounts`, `kinds/deployment/triggers.ts`) as its destructive counts, as an undeploy
+does: their webhook URLs and schedules go with the workflow, and a workflow created in its place
+gets new ones. An update never moves them: block identity comes from the folder's lock, and
+`webhookId`/`triggerPath` are copied from the stored block (`packages/workflow-code/DESIGN.md`); a
+block retyped or deleted while live warns `W_APPLY_TRIGGER_REMOVED`.
+
+## Promotion
+
+`sim workspaces source apply --to <workspace>` applies a directory read from one workspace (dev)
+to another (prod) without rebinding the directory. The CLI reads the target as a get would
+(`GET /source` for the managed kinds, no blob downloads) and composes the submission with
+`promotionSubmission` (`src/promote.ts`): the directory's text with every workflow folder whole,
+each folder's `.sim/lock.json` and `.sim/base.json` replaced by the target's folder of the same key
+(or dropped, so the key is created), and the target's root base, narrowed to the keys the
+directory declares unless `--allow-delete`. The server sees an ordinary apply against its own base,
+so every rule holds unchanged: a resource bound under the key is updated in place (a workflow keeps
+its id and block ids through the target's lock), an unbound one of the same name is adopted, a
+missing one created, a change in the target between the read and the apply is `E_APPLY_STALE`, and
+secrets and credentials bind by name and key to the target's own. The answer is not saved: the
+directory stays bound to the workspace it was read from. Without `--to`, the CLI refuses a
+directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <target>` instead
+applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
+apply to an empty target survives (a second is `E_APPLY_NO_BASE` for everything it created).
+
+A directory's root base is authoritative for the workspace it belongs to: `get` into a directory
+holding one refreshes that workspace whatever the profile's default, and refuses a `--workspace`
+naming another (`SOURCE_OTHER_WORKSPACE`), as `apply` refuses one; `apply --to` is the one way to
+send a directory to another workspace.
+
+## Git and the CLI's files
+
+Everything a get writes is meant to be committed: the base files are what an apply compares with
+from any clone, and `.sim/written.json` is what tells a removed blob from one no get downloaded
+(`SOURCE_BLOBS_NOT_FETCHED`). The generated `.gitignore` lists only what a command holds while it
+runs (`.sim/downloads/`, `.sim/command.lock/`, `.sim-staging-*`), and `.gitattributes` marks
+`files/**` and `knowledge/*/docs/**` `-text` after the LF lines, since a commit that rewrote a
+blob's line endings would change its hash. In a fresh clone `check` downloads the block catalog
+once (the cache lives in the CLI's config directory, not the repository). Every text file is read
+with CRLF folded to LF and a byte-order mark dropped, so a Windows checkout reads as unchanged.
+
+One command at a time per directory: `get`, `apply` and `check` hold `.sim/command.lock` (a
+folder, created atomically, recording the pid and host). A second command meanwhile exits 10
+(`SOURCE_DIR_BUSY`) with nothing read or written; a lock whose process on this host is gone (or
+that never recorded an owner within a minute) is taken over. Each file moves into place by a
+rename, and the record files last, but a set of renames is not atomic: without the lock, two
+commands' files and records could interleave and a later apply would send stale text as an edit.
 
 ## Limits
 

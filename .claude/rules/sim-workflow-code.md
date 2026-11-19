@@ -10,6 +10,9 @@ paths:
   - "apps/sim/lib/workspace-source/**"
   - "apps/sim/blocks/sdk-names/**"
   - "apps/sim/app/workspace/**/panel/components/code/**"
+  - "apps/sim/app/api/v2/**/source/**"
+  - "apps/sim/lib/api/contracts/v2/*source*"
+  - "apps/sim/app/api/cron/cleanup-source-staging/**"
 ---
 
 # Workflows and Workspaces as Code

@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetInsightParams {
@@ -72,7 +72,7 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/insights/${params.insightId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/insights/${postHogPathSegment(params.insightId, 'insightId')}/`
     },
     method: 'GET',
     headers: (params) => ({
