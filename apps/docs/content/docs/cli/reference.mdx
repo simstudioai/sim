@@ -8651,7 +8651,7 @@ sim workflows source status [options]
 
 </CommandTable>
 
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
 
 API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
@@ -8685,7 +8685,7 @@ sim workflows source diff [paths...] [options]
 
 </CommandTable>
 
-Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 1 the command failed.
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 7 the source is too large for the server to read; 1 the command failed.
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
@@ -10000,7 +10000,7 @@ sim workspaces source status [options]
 
 </CommandTable>
 
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
 
 Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
@@ -10036,7 +10036,7 @@ sim workspaces source diff [paths...] [options]
 
 </CommandTable>
 
-Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 1 the command failed.
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 7 the source is too large for the server to read; 1 the command failed.
 
 Exit 10 (busy, retry): another sim workspaces source command is using this directory (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
 
