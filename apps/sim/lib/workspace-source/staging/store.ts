@@ -236,32 +236,50 @@ export async function readStagedBlob(blob: StagedBlob): Promise<Buffer> {
 
 /**
  * Deletes expired staged blobs, oldest first, up to `maxBatches` passes of {@link SWEEP_BATCH}:
- * each pass removes the rows, then their objects. Returns how many rows it removed.
+ * each pass removes the objects, then the rows of the objects it removed. A row whose object could
+ * not be removed stays expired (moved to the back of the queue), so a later sweep retries it
+ * rather than orphaning the object. Returns how many rows it removed.
  */
 export async function sweepExpiredStagedBlobs(maxBatches = 20): Promise<number> {
   let removed = 0
+  const sweepStart = new Date()
   for (let pass = 0; pass < maxBatches; pass++) {
     const expired = await db
-      .select({ id: workspaceSourceStagedBlob.id })
+      .select({
+        id: workspaceSourceStagedBlob.id,
+        storageKey: workspaceSourceStagedBlob.storageKey,
+      })
       .from(workspaceSourceStagedBlob)
-      .where(lt(workspaceSourceStagedBlob.expiresAt, new Date()))
+      .where(lt(workspaceSourceStagedBlob.expiresAt, sweepStart))
       .orderBy(asc(workspaceSourceStagedBlob.expiresAt))
       .limit(SWEEP_BATCH)
     if (expired.length === 0) break
-    const rows = await db
-      .delete(workspaceSourceStagedBlob)
-      .where(
-        and(
-          inArray(
-            workspaceSourceStagedBlob.id,
-            expired.map((row) => row.id)
-          ),
-          lt(workspaceSourceStagedBlob.expiresAt, new Date())
+    const { failed } = await deleteFiles(
+      expired.map((row) => row.storageKey),
+      STORAGE_CONTEXT
+    )
+    const kept = new Set(failed.map((failure) => failure.key))
+    if (kept.size > 0) logger.warn('Could not remove staged blob objects', { failed })
+    const gone = expired.filter((row) => !kept.has(row.storageKey)).map((row) => row.id)
+    const stuck = expired.filter((row) => kept.has(row.storageKey)).map((row) => row.id)
+    if (gone.length > 0) {
+      const rows = await db
+        .delete(workspaceSourceStagedBlob)
+        .where(
+          and(
+            inArray(workspaceSourceStagedBlob.id, gone),
+            lt(workspaceSourceStagedBlob.expiresAt, sweepStart)
+          )
         )
-      )
-      .returning({ storageKey: workspaceSourceStagedBlob.storageKey })
-    await removeObjects(rows.map((row) => row.storageKey))
-    removed += rows.length
+        .returning({ id: workspaceSourceStagedBlob.id })
+      removed += rows.length
+    }
+    if (stuck.length > 0) {
+      await db
+        .update(workspaceSourceStagedBlob)
+        .set({ expiresAt: sweepStart })
+        .where(inArray(workspaceSourceStagedBlob.id, stuck))
+    }
     if (expired.length < SWEEP_BATCH) break
   }
   return removed

@@ -53,8 +53,17 @@ export interface DeclarationCall {
 }
 
 /** An environment variable reference, `env.NAME`, as the reader encodes it: by name, never value. */
-export interface DeclarationEnvRef {
+interface DeclarationEnvRef {
   $env: string
+}
+
+/**
+ * Whether `key` may be an object key in a declaration: not `__proto__`, and not a key the reader
+ * encodes a helper call or `env.NAME` under. A resource or entry named otherwise cannot be
+ * declared, so a get leaves it out rather than print a file that does not read back.
+ */
+export function isDeclarableKey(key: string): boolean {
+  return key !== CALL_KEY && key !== ENV_KEY && key !== '__proto__'
 }
 
 /** An environment variable name `env.NAME` may spell: an identifier. */
@@ -93,6 +102,26 @@ export function isDeclarationCall(value: unknown): value is DeclarationCall {
 /** Whether a decoded value is an `env.NAME` reference the reader produced. */
 export function isDeclarationEnvRef(value: unknown): value is DeclarationEnvRef {
   return isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_NAME.test(value[ENV_KEY])
+}
+
+/**
+ * Why a decoded value that is a helper call or an `env.NAME` reference is not an object, or `null`
+ * when it is neither. The reader encodes both as records, so an object check must ask this first.
+ */
+export function notAnObject(value: Json | undefined): { message: string; hint: string } | null {
+  if (isDeclarationEnvRef(value)) {
+    return {
+      message: `is \`env.${value.$env}\`, one value`,
+      hint: `Put it under a key: \`{ <name>: env.${value.$env} }\`.`,
+    }
+  }
+  if (isDeclarationCall(value)) {
+    return {
+      message: `is \`${value.$call}()\`, a helper value`,
+      hint: 'Write the object itself: `{ <name>: <value> }`.',
+    }
+  }
+  return null
 }
 
 /** Why `text` cannot be stored (a NUL, an unpaired UTF-16 surrogate), or `null` when it can. */
@@ -307,7 +336,7 @@ export function readDeclaration(
           : property.key.type === 'StringLiteral'
             ? property.key.value
             : null
-      if (key === null || key === CALL_KEY || key === ENV_KEY || key === '__proto__') {
+      if (key === null || !isDeclarableKey(key)) {
         unsupported(
           property.key,
           key === null ? 'A key is a name or a quoted string.' : `"${key}" cannot be a key.`
@@ -459,7 +488,14 @@ export function readDeclaration(
   }
 
   const value = readValue(exported, '')
-  if (
+  const helper = notAnObject(value)
+  if (helper) {
+    unsupported(
+      exported,
+      `${options.callee} takes an object, but this ${helper.message}.`,
+      helper.hint
+    )
+  } else if (
     value !== undefined &&
     (typeof value !== 'object' || value === null || Array.isArray(value))
   ) {

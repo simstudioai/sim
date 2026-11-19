@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { workflow, workflowBlocks } from '@sim/db/schema'
+import { workflowBlocks } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import {
   type BlockCatalog,
@@ -27,7 +27,7 @@ import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import type { WorkspaceKind } from '@sim/workspace-code'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, inArray, ne } from 'drizzle-orm'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
@@ -71,6 +71,8 @@ export interface SourceEvaluationInput {
     workspaceOrganizationId: string | null
     /** The human the write is performed as, for gates, permission groups and lint. */
     subjectUserId: string
+    /** The folder the workflow sits in (`null` at the root), for a rename's name check. */
+    folderId: string | null
   }
   /** The draft the source applies to; an empty graph for a workflow the apply creates. */
   stored: StoredSource
@@ -240,8 +242,6 @@ export interface SourcePlan {
   storedVariables: WorkflowState['variables']
   /** Warnings (on a dry run, every finding), pinned to the submitted files. */
   diagnostics: WorkflowSourceDiagnostic[]
-  /** Non-fatal notes about the write. */
-  notes: string[]
   diff: SourceDiffSummary
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
@@ -343,16 +343,6 @@ function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowL
     blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
   }
   return { version: 1, blocks, variables: identity.variables }
-}
-
-/** The folder workflow `workflowId` sits in (`null` at the root), for a rename's name check. */
-async function workflowFolderId(workflowId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ folderId: workflow.folderId })
-    .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
-  return row?.folderId ?? null
 }
 
 /**
@@ -556,7 +546,6 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     { ...materialized.workflow, meta: storedCanonical.workflow.meta },
     renamesBetween(storedCanonical.identity, materialized.identity)
   )
-  const notes: string[] = []
   const sourceRefusals: Diagnostic[] = []
   const headerSpan = compiled.spans[encodeAnchor({ kind: 'header' })]
   if (
@@ -564,7 +553,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     (await workflowNameExistsInFolder({
       workspaceId: scope.workspaceId,
       name: meta.name,
-      folderId: await workflowFolderId(scope.workflowId),
+      folderId: scope.folderId,
       excludeWorkflowId: scope.workflowId,
     }))
   ) {
@@ -695,7 +684,6 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       storedVariables:
         variables === undefined ? state.variables : (parseWorkflowVariables(variables) ?? {}),
       diagnostics,
-      notes,
       diff: summarizeDiff(
         canonicalDiff,
         storedCanonical.identity,

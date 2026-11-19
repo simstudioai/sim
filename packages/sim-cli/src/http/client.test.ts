@@ -372,6 +372,7 @@ describe('raw requests', () => {
     ).rejects.toMatchObject({
       message: 'Request cancelled.',
       status: 0,
+      code: 'REQUEST_CANCELLED',
     })
   })
 
@@ -548,7 +549,10 @@ describe('rate limiting', () => {
     controller.abort()
     const [outcome] = await settled
 
-    expect(outcome).toMatchObject({ status: 'rejected', reason: { message: 'Request cancelled.' } })
+    expect(outcome).toMatchObject({
+      status: 'rejected',
+      reason: { message: 'Request cancelled.', code: 'REQUEST_CANCELLED' },
+    })
     expect(fetch).toHaveBeenCalledOnce()
   })
 })

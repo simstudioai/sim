@@ -72,11 +72,11 @@ export const MCP_DEFAULTS = {
 } as const
 
 /**
- * A header value kept as the server stores it: `stored()` in source. `hash` is the server's keyed
- * hash of the stored value; `null` until the server resolves a declaration's `stored()` against
- * what it holds.
+ * A header value kept as the server stores it: `stored()` in source. `stored` is the server's
+ * keyed hash of the stored value; `null` until the server resolves a declaration's `stored()`
+ * against what it holds.
  */
-export interface McpStoredHeader {
+interface McpStoredHeader {
   stored: string | null
 }
 

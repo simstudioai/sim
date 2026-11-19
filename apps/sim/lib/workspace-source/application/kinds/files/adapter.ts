@@ -70,7 +70,6 @@ import type {
 import {
   claimResourceKey,
   nextFreeKey,
-  ResourceKeyTakenError,
   resolveIds,
   resourceKeyBase,
 } from '@/lib/workspaces/resource-keys'
@@ -394,7 +393,7 @@ function refuseCollisions(
   }
 }
 
-/** Free keys past a resource key's base a plan checks before it offers the next one unchecked. */
+/** Keys past those a plan's creates of one key base take, checked for files holding them live. */
 const KEY_CANDIDATES = 8
 
 /**
@@ -410,9 +409,12 @@ async function keyCreates(ctx: PlanContext, files: FileChange[]): Promise<void> 
   const bases = creates.map((change) =>
     resourceKeyBase('file', change.key.slice(change.key.lastIndexOf('/') + 1))
   )
-  const candidates = [...new Set(bases)].flatMap((base) => {
+  const sharing = new Map<string, number>()
+  for (const base of bases) sharing.set(base, (sharing.get(base) ?? 0) + 1)
+  // Every key the creates of a base could take: one each, plus as many as live files may hold.
+  const candidates = [...sharing].flatMap(([base, creates]) => {
     const keys = new Set<string>()
-    while (keys.size < KEY_CANDIDATES) keys.add(nextFreeKey(base, keys))
+    while (keys.size < creates + KEY_CANDIDATES) keys.add(nextFreeKey(base, keys))
     return [...keys]
   })
   const live = (
@@ -433,9 +435,9 @@ async function keyCreates(ctx: PlanContext, files: FileChange[]): Promise<void> 
 
 /**
  * Binds `resourceKey` to a file this apply creates, inside the create's transaction `tx`, so a
- * claim that fails undoes the create rather than leaving a file no later apply keys. A key some
- * other live file took since the plan leaves the file without it: the file is written, and a
- * workflow naming the key fails its own write, which reports why.
+ * claim that fails undoes the create rather than leaving a file no later apply keys. A key another
+ * live file took since the plan refuses the create (`E_NAME_TAKEN`); applying again picks a free
+ * key.
  */
 async function claimFileKey(
   ctx: SourceContext,
@@ -443,20 +445,15 @@ async function claimFileKey(
   fileId: string,
   tx: DbTransaction
 ): Promise<void> {
-  try {
-    await claimResourceKey({
-      workspaceId: ctx.workspace.workspaceId,
-      kind: 'file',
-      key: resourceKey,
-      resourceId: fileId,
-      origin: 'created',
-      createdBy: ctx.createdBy,
-      tx,
-    })
-  } catch (error) {
-    if (!(error instanceof ResourceKeyTakenError)) throw error
-    logger.warn('A created file could not claim its key', { fileId, resourceKey })
-  }
+  await claimResourceKey({
+    workspaceId: ctx.workspace.workspaceId,
+    kind: 'file',
+    key: resourceKey,
+    resourceId: fileId,
+    origin: 'created',
+    createdBy: ctx.createdBy,
+    tx,
+  })
 }
 
 /**

@@ -30,6 +30,18 @@ export class SimApiError extends Error {
   }
 }
 
+/** The code of a request the caller cancelled (its signal aborted): not an unreachable server. */
+export const REQUEST_CANCELLED = 'REQUEST_CANCELLED'
+
+/**
+ * Whether a request got no answer from the server: no connection or a timeout (status 0 with no
+ * code, so never a cancellation), or one of the gateway `statuses` the caller treats as a gateway
+ * that gave up.
+ */
+export function noAnswer(error: SimApiError, statuses: ReadonlySet<number>): boolean {
+  return (error.status === 0 && error.code === null) || statuses.has(error.status)
+}
+
 /** `{ data, nextCursor }` — one page of a list. */
 export interface V2Page<T> {
   data: T[]
@@ -697,7 +709,7 @@ export class SimClient {
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
     const caller = combineSignals(options.signal, this.profile.signal)
-    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
     const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
@@ -724,7 +736,7 @@ export class SimClient {
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
       if (caller?.aborted) {
-        throw new SimApiError('Request cancelled.', 0)
+        throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       }
       if (timeout?.aborted) {
         throw new SimApiError(
@@ -771,7 +783,7 @@ export class SimClient {
       )
       const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
       await interruptibleSleep(Math.max(retryAfterMs ?? 0, backoffMs), caller)
-      if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+      if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)
     }
 

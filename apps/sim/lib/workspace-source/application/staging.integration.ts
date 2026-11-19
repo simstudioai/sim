@@ -5,7 +5,7 @@
  * directly, so "nothing was staged" means no row and no object. Writes a report to
  * `WORKSPACE_SOURCE_STAGING_REPORT_PATH`.
  */
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readdirSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -271,6 +271,35 @@ describe('workspace source staging', () => {
       expect(left.map((row) => row.sha256)).toEqual([fresh.sha256])
       expect(stored(expiredRow.storageKey)).toBe(false)
       expect(stored(left[0].storageKey)).toBe(true)
+    }
+  )
+
+  check(
+    'an expired blob whose object cannot be removed keeps its row, so a later sweep removes both',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const old = blob('undeletable bytes')
+      await stage(owner, workspaceId, [old])
+      await db
+        .update(workspaceSourceStagedBlob)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(workspaceSourceStagedBlob.workspaceId, workspaceId))
+      const [row] = await rows(workspaceId)
+      const folder = path.dirname(path.join(storageRoot, row.storageKey))
+      // A folder its objects cannot be unlinked from: storage refusing the delete.
+      chmodSync(folder, 0o555)
+      try {
+        await sweepExpiredStagedBlobs()
+      } finally {
+        chmodSync(folder, 0o755)
+      }
+      expect((await rows(workspaceId)).map((left) => left.storageKey)).toEqual([row.storageKey])
+      expect(stored(row.storageKey)).toBe(true)
+
+      await sweepExpiredStagedBlobs()
+
+      expect(await rows(workspaceId)).toEqual([])
+      expect(stored(row.storageKey)).toBe(false)
     }
   )
 })

@@ -895,6 +895,19 @@ describe('workspace source: custom tools and skills', () => {
       const [renamed] = (await snapshot(workspaceId)).tools
       expect(renamed).toMatchObject({ id: tool.id, title: 'Find order', code })
 
+      // A renamed declaration file says only that the key never changes.
+      const moved = await refusal(
+        apply(
+          workspaceId,
+          {
+            'tools/finder.ts':
+              read.files[declaration ?? '']?.replace('Lookup order', 'Find order') ?? '',
+          },
+          { base: retitled.base }
+        )
+      )
+      expect(codes(moved.diagnostics)).toEqual(['E_KEY_RENAMED'])
+
       const elsewhere = await newWorkspace()
       const refused = await refusal(apply(elsewhere, read.files))
       expect(codes(refused.diagnostics)).toEqual(['E_TOOL_STORED_MISSING'])

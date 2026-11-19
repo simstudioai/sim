@@ -45,7 +45,12 @@ export {
   sourceDepthOverflow,
 } from './compile/parse'
 export { LineIndex } from './compile/report'
-export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
+export {
+  type ApplyDiagnosticCode,
+  type DiagnosticCode,
+  type DiagnosticSeverity,
+  framesSource,
+} from './diagnostics/codes'
 export {
   codeFrame,
   type Diagnostic,

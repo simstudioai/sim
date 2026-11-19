@@ -124,13 +124,13 @@ function parseSkill(
 ): { decl?: SkillDecl; diagnostics: WorkspaceDiagnostic[] } {
   const file = skillPath(key)
   const source = text[file] ?? ''
-  const at = sourceLocator(file, source)
+  const locator = sourceLocator(file, source)
   const diagnostics: WorkspaceDiagnostic[] = []
   const report = (start: number, end: number, message: string) => {
     diagnostics.push(
       diagnostic('E_SKILL_FRONTMATTER', message, {
         ...resourceOf('skill', key),
-        ...at.located(at.span(start, end)),
+        ...locator.located(locator.span(start, end)),
         hint: `A skill file opens with a \`${FENCE}\` line, \`name: …\`, \`description: …\` and a \`${FENCE}\` line; its content follows.`,
       })
     )
@@ -150,19 +150,18 @@ function parseSkill(
     report(0, FENCE.length, `The frontmatter has no closing \`${FENCE}\` line.`)
     return { diagnostics }
   }
-  const locate = (start: number, end: number) => at.located(at.span(start, end))
   const values: Partial<Frontmatter> = {}
   const attempted = new Set<string>()
   let offset = open.length
   for (const line of close < offset ? [] : source.slice(offset, close).split('\n')) {
-    const at = offset
+    const lineStart = offset
     offset += line.length + 1
     const colon = line.indexOf(':')
     const field = colon === -1 ? '' : line.slice(0, colon)
     if (!isFrontmatterField(field) || line[colon + 1] !== ' ') {
       report(
-        at,
-        at + line.length,
+        lineStart,
+        lineStart + line.length,
         isFrontmatterField(field) || colon === -1
           ? 'Each frontmatter line is `field: value`.'
           : `Unknown frontmatter field "${field}"; a skill has only name and description.`
@@ -170,12 +169,12 @@ function parseSkill(
       continue
     }
     if (attempted.has(field)) {
-      report(at, at + line.length, `"${field}" is declared twice.`)
+      report(lineStart, lineStart + line.length, `"${field}" is declared twice.`)
       continue
     }
     attempted.add(field)
     const reportLine: FieldReport = (_code, _pointer, message) =>
-      report(at, at + line.length, message)
+      report(lineStart, lineStart + line.length, message)
     const value = FRONTMATTER_FIELDS[field].read(
       { [field]: line.slice(colon + 2) },
       field,
@@ -191,7 +190,7 @@ function parseSkill(
           'The name holds an invisible bidi control or zero-width character.',
           {
             ...resourceOf('skill', key),
-            ...locate(at, at + line.length),
+            ...locator.located(locator.span(lineStart, lineStart + line.length)),
             hint: SUSPICIOUS_CHARACTER_HINT,
           }
         )

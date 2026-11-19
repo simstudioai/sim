@@ -105,10 +105,11 @@ export const workflowOperations = {
    * like `workflows.source.catalog.read`. Listing allocates keys for resources that have none,
    * which changes no resource (see `readSourceResources`). The result is names, ids, keys, table
    * column schemas and env names, never stored content, so `contentDelivery` is `none`. Its
-   * credential and env sections are gated inside the use case, not here, so a member whose group
-   * hides one still gets the rest of the manifest.
+   * sections (env names, credentials, skills, custom tools, MCP servers, tables, knowledge bases)
+   * are gated inside the use case, not here, so a member whose group hides one still gets the rest
+   * of the manifest.
    */
-  // permission-group-exempt: the manifest as a whole stays readable to every member; its credentials (integrations.manage) and env names (secrets.manage) are omitted in the use case when withheld
+  // permission-group-exempt: the manifest as a whole stays readable to every member; each section is omitted in the use case when its capability is withheld (see visibleSections)
   readSourceResources: defineWorkspaceOperation({
     id: 'workflows.source.resources.read',
     oauthScope: 'api:read',

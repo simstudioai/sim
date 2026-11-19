@@ -35,6 +35,24 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+/** Credential ids the editing gate refuses as unreachable, as if the caller lost access mid-plan. */
+const revokedCredentials = new Set<string>()
+vi.mock('@/lib/workflows/editing/selector-validator', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workflows/editing/selector-validator')>()
+  return {
+    ...actual,
+    validateSelectorIds: async (...args: Parameters<typeof actual.validateSelectorIds>) => {
+      const result = await actual.validateSelectorIds(...args)
+      const revoked = result.valid.filter((id) => revokedCredentials.has(id))
+      return {
+        ...result,
+        valid: result.valid.filter((id) => !revokedCredentials.has(id)),
+        invalid: [...result.invalid, ...revoked],
+      }
+    },
+  }
+})
+
 const ownerId = generateId()
 const readerId = generateId()
 const writerId = generateId()
@@ -395,6 +413,28 @@ describe('workspace source: secrets and credentials', () => {
     }
   )
 
+  check(
+    'a secret declared without a description, then with one, is never stale on its own description',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await setSecret(workspaceId, 'prod')
+      const bare = SECRETS().replace("{ description: 'Model access' }", '{}')
+
+      const first = await apply(workspaceId, { 'secrets.ts': bare })
+      expect(actions(first.applied)).toEqual([])
+      const again = await apply(workspaceId, { 'secrets.ts': bare }, { base: first.base })
+      expect(codes(again.diagnostics, 'info')).toEqual([])
+
+      const described = await apply(
+        workspaceId,
+        { 'secrets.ts': SECRETS('new') },
+        { base: again.base }
+      )
+      expect(actions(described.applied)).toEqual(['update secret:OPENAI_API_KEY'])
+      expect((await get(workspaceId)).files['secrets.ts']).toBe(SECRETS('new'))
+    }
+  )
+
   check('a credential key adopts the provider’s only credential', async () => {
     const workspaceId = await newWorkspace()
     const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
@@ -522,6 +562,44 @@ export default defineCredentials({})
     expect(kept?.displayName).toBe('Acme Slack')
   })
 
+  check('a credential bound to a key outside source is never taken from that key', async () => {
+    const workspaceId = await newWorkspace()
+    const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
+    await bindCredentialKey.execute({
+      principal: owner,
+      input: { workspaceId, key: 'legacy', credentialId: slackId },
+    })
+    const files = { 'credentials.ts': CREDENTIALS(), 'workflows/notify/workflow.ts': NOTIFY }
+
+    const result = await apply(workspaceId, files)
+
+    expect(findings(result.diagnostics)).toEqual(['E_CREDENTIAL_MISSING workflow:notify'])
+    const missing = result.diagnostics.find((finding) => finding.code === 'W_CREDENTIAL_MISSING')
+    expect(missing?.message).toContain('"Acme Slack" (key "legacy")')
+    expect(await boundKey(workspaceId, 'legacy')).toBe(slackId)
+    expect(await boundKey(workspaceId, 'slack')).toBeUndefined()
+  })
+
+  check('a key renamed in source moves its credential to the new key', async () => {
+    const workspaceId = await newWorkspace()
+    const slackId = await addSlackCredential(workspaceId, 'Acme Slack')
+    const legacy = await apply(workspaceId, {
+      'credentials.ts': CREDENTIALS().replace('slack: {', 'legacy: {'),
+    })
+    expect(await boundKey(workspaceId, 'legacy')).toBe(slackId)
+
+    const renamed = await apply(
+      workspaceId,
+      { 'credentials.ts': CREDENTIALS(), 'workflows/notify/workflow.ts': NOTIFY },
+      { base: legacy.base }
+    )
+
+    expect(findings(renamed.diagnostics)).toEqual([])
+    expect(actions(renamed.applied)).toEqual(['adopt credential:slack', 'create workflow:notify'])
+    expect(await boundKey(workspaceId, 'slack')).toBe(slackId)
+    expect(await boundKey(workspaceId, 'legacy')).toBeUndefined()
+  })
+
   check(
     'binding, rebinding and releasing a credential key each record who moved it where',
     async () => {
@@ -588,6 +666,47 @@ export default defineCredentials({})
   )
 
   check(
+    'a workflow held for a missing credential key still reports another key it cannot reach',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const opsId = await addSlackCredential(workspaceId, 'Ops Slack')
+      const credentials = `// @sim-sdk 1
+import { defineCredentials } from '@sim/workflow-sdk/workspace'
+
+export default defineCredentials({
+  ops: { provider: 'slack', name: 'Ops Slack' },
+  slack: { provider: 'slack', name: 'Missing Slack' },
+})
+`
+      const both = NOTIFY.replace(
+        '  start.to(post)',
+        `  const relay = slack.sendMessage('Relay', {
+    credential: credential('ops'),
+    destinationType: 'channel',
+    channel: 'ops',
+    messageFormat: 'text',
+    text: start.text,
+  })
+
+  start.to(post)
+  start.to(relay)`
+      )
+      revokedCredentials.add(opsId)
+
+      const result = await apply(workspaceId, {
+        'credentials.ts': credentials,
+        'workflows/notify/workflow.ts': both,
+      }).finally(() => revokedCredentials.delete(opsId))
+
+      expect(held(result.plan)).toEqual(['workflow:notify'])
+      expect(findings(result.diagnostics).sort()).toEqual([
+        'E_APPLY_CREDENTIAL_UNREACHABLE workflow:notify',
+        'E_CREDENTIAL_MISSING workflow:notify',
+      ])
+    }
+  )
+
+  check(
     'a credential key binds only for a writer, and only to a credential the writer sees',
     async () => {
       const workspaceId = await workspaces.create({
@@ -634,6 +753,25 @@ export default defineCredentials({})
     expect(again.files['secrets.ts']).toBe(read.files['secrets.ts'])
     expect(again.files['credentials.ts']).toBe(read.files['credentials.ts'])
   })
+
+  check(
+    'a get leaves out a secret secrets.ts cannot declare, and the file still applies',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await setSecret(workspaceId)
+      await setSecretUseCase.execute({
+        principal: owner,
+        input: { workspaceId, name: '__proto__', scope: 'workspace', value: SECRET_VALUE },
+      })
+
+      const read = await get(workspaceId)
+      expect(read.files['secrets.ts']).toBe(SECRETS())
+      expect(read.skipped).toMatchObject([{ kind: 'secret', key: '__proto__' }])
+      const again = await apply(workspaceId, read.files, { base: read.base, allowDelete: true })
+      expect(codes(again.diagnostics.filter((finding) => finding.severity === 'error'))).toEqual([])
+      expect(actions(again.plan)).toEqual([])
+    }
+  )
 
   check('a read-only member and a workspace API key are refused', async () => {
     const workspaceId = await newWorkspace()

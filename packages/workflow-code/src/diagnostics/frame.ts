@@ -23,7 +23,7 @@ export interface DiagnosticFields {
   /** The supported form, or a did-you-mean. */
   hint?: string
   span?: SourceSpan
-  /** `codeFrame(text, span)`; present whenever `span` is. */
+  /** `codeFrame(text, span)`; present whenever `span` is, unless the code is not `framesSource`. */
   frame?: string
   /** Other locations that explain this one, such as the first declaration for a duplicate name. */
   related?: Array<{ span: SourceSpan; message: string }>
@@ -46,7 +46,6 @@ export type Diagnostic<C extends DiagnosticCode = DiagnosticCode> = C extends Di
 /** A diagnostic pinned to source, as every compile diagnostic is. */
 export type LocatedDiagnostic<C extends DiagnosticCode = DiagnosticCode> = Diagnostic<C> & {
   span: SourceSpan
-  frame: string
 }
 
 /** Where `codeFrame` points. `endLine`/`endColumn` default to a one-character span. */

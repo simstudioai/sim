@@ -49,6 +49,7 @@ import {
 } from '@/lib/workflows/application/source-commit'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
+  WORKFLOW_SOURCE_STALE_MESSAGE,
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
@@ -423,6 +424,7 @@ async function runSourceApply(
     workspaceId: context.workspaceId,
     workspaceOrganizationId: context.workspaceOrganizationId,
     subjectUserId,
+    folderId: target.kind === 'existing' ? target.context.workflow.folderId : target.folderId,
   }
   if (input.evaluated && input.evaluated.workflowId !== context.workflowId) {
     throw new Error('An evaluated source commits only to the workflow it was evaluated for')
@@ -551,8 +553,7 @@ async function runSourceApply(
           {
             code: 'E_APPLY_STALE',
             severity: 'error',
-            message:
-              'The workflow changed since this source was read. Get the source again, reapply your edit and retry.',
+            message: WORKFLOW_SOURCE_STALE_MESSAGE,
           },
         ])
       }
@@ -655,7 +656,6 @@ async function runSourceApply(
         diagnostics,
         references: plan.references,
         envReferences: plan.envReferences,
-        notes: plan.notes,
         wroteSourceMeta,
         sourceMetaChanged,
         ...(planOnly ? { evaluated } : {}),
@@ -682,7 +682,6 @@ async function runSourceApply(
           mintedIds,
           references: plan.references,
           envReferences: plan.envReferences,
-          notes: plan.notes,
           workflowName: plan.meta.name,
           evaluated,
         }
@@ -705,7 +704,7 @@ async function runSourceApply(
         mintedIds,
         references: plan.references,
         envReferences: plan.envReferences,
-        notes: [...plan.notes, ...preview.warnings],
+        notes: preview.warnings,
         workflowName: plan.meta.name,
       })
     }
@@ -738,7 +737,7 @@ async function runSourceApply(
       references: plan.references,
       envReferences: plan.envReferences,
       workflowName: committed.name,
-      notes: [...plan.notes, ...committed.warnings],
+      notes: committed.warnings,
     })
   })
 }
