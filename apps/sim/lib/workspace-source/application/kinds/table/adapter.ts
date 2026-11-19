@@ -22,7 +22,12 @@ import {
   type ResourceFingerprint,
   resourceAddress,
 } from '@sim/workspace-code'
-import { columnName, refusedTableRows, type TableDecl } from '@sim/workspace-code/kinds/table'
+import {
+  columnName,
+  declaredRowKeyText,
+  refusedTableRows,
+  type TableDecl,
+} from '@sim/workspace-code/kinds/table'
 import {
   rowKeyText,
   type TableRowsDecl,
@@ -303,7 +308,7 @@ async function planRows(
     )
     return outcome
   }
-  const declared = new Set(rows.data.map((row) => rowKeyText(row[rowKey])))
+  const declared = new Set(rows.data.map((row) => declaredRowKeyText(decl, row)))
   outcome.removed = stored.data.filter((row) => !declared.has(rowKeyText(row[rowKey]))).length
   if (outcome.removed > 0 && !ctx.allowDelete) {
     outcome.diagnostics.push(
