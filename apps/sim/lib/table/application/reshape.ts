@@ -370,7 +370,10 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         const deferredAdds = input.rows ? (input.add ?? []).filter((column) => column.required) : []
         for (const column of input.add ?? []) {
           const optional = deferredAdds.includes(column) ? { ...column, required: false } : column
-          table = await addTableColumn(table.id, optional, requestId, options)
+          table = await addTableColumn(table.id, optional, requestId, {
+            ...options,
+            refuseEmptyRequired: true,
+          })
         }
         const idByName = buildIdByName(table.schema)
         if (input.sourceRows !== undefined) {

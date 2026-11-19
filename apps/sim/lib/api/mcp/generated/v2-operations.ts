@@ -450,7 +450,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2AddTableColumnContract,
     summary: 'Add column',
     description:
-      'Add a typed column and return the complete resulting table schema. A `required` column is refused (400) while any row would hold no value for it: add it optional, fill its cells, then make it required.\n\nOAuth scope: `api:write`.',
+      'Add a typed column and return the complete resulting table schema.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/columns/route').then((route) => route.POST),
   },

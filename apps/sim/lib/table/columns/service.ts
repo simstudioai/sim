@@ -81,6 +81,16 @@ export interface ColumnMutationOptions {
   tx?: TableWriteTx
 }
 
+/** Options only {@link addTableColumn} reads. */
+export interface AddColumnOptions extends ColumnMutationOptions {
+  /**
+   * Refuse a `required` column that any existing row would leave empty. Only workspace-source
+   * apply sets it, so an applied manifest refuses what its plan reported. The table, v1 and v2
+   * APIs leave it unset and keep accepting such a column, which then constrains later writes.
+   */
+  refuseEmptyRequired?: boolean
+}
+
 /**
  * One page of `columnKey`'s stored values (missing and null cells skipped), by row id after
  * `afterId`. Pages of {@link getColumnRetypeScanBatchSize} rows stay under the scan's byte cap.
@@ -135,7 +145,7 @@ export async function addTableColumn(
     currencyCode?: string
   },
   requestId: string,
-  options?: ColumnMutationOptions
+  options?: AddColumnOptions
 ): Promise<TableDefinition> {
   return withLockedTable(
     tableId,
@@ -197,10 +207,9 @@ export async function addTableColumn(
 
       const newColumnId = getColumnId(newColumn)
 
-      // A fresh column is empty in every row; one re-added under its old id (an undo of a
-      // delete) holds only what its cells still carry. Either way a required column refuses rows
-      // it leaves empty, as setting `required` on an existing column does.
-      if (newColumn.required) {
+      // A fresh column is empty in every row; one re-added under its old id holds only what its
+      // cells still carry. Workspace-source apply refuses a required column over any empty row.
+      if (newColumn.required && options?.refuseEmptyRequired) {
         const emptyCount = await countEmptyCells(trx, tableId, table.workspaceId, newColumnId)
         if (emptyCount > 0) {
           throw new OrchestrationError(

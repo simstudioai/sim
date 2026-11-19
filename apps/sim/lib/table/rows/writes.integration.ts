@@ -2655,11 +2655,27 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
   describe('adding a required column', () => {
-    it('refuses a new required column on a table that has rows, from every surface', async () => {
+    it('accepts a new required column on a table that has rows, as the table APIs always have', async () => {
+      const table = await createTable(textColumns('note'))
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
+      const updated = await addTableColumn(
+        table.id,
+        { name: 'owner', type: 'string', required: true },
+        'required-add'
+      )
+      expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    })
+
+    it('refuses a new required column that rows leave empty when workspace-source apply asks', async () => {
       const table = await createTable(textColumns('note'))
       await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
       await expect(
-        addTableColumn(table.id, { name: 'owner', type: 'string', required: true }, 'required-add')
+        addTableColumn(
+          table.id,
+          { name: 'owner', type: 'string', required: true },
+          'required-add-source',
+          { refuseEmptyRequired: true }
+        )
       ).rejects.toThrow(/cannot be added as required: 1 row\(s\) would have no value/)
       expect((await getTableById(table.id))?.schema.columns.map((column) => column.name)).toEqual([
         'note',
@@ -2676,7 +2692,7 @@ describe('table row writes against real PostgreSQL', () => {
       expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
     })
 
-    it('restores a deleted required column only when no row leaves it empty', async () => {
+    it('restores a deleted required column under workspace-source apply only when no row leaves it empty', async () => {
       const table = await createTable([
         { id: 'owner', name: 'owner', type: 'string', required: true },
         ...textColumns('note'),
@@ -2691,7 +2707,8 @@ describe('table row writes against real PostgreSQL', () => {
         addTableColumn(
           table.id,
           { id: 'owner', name: 'owner', type: 'string', required: true },
-          'undo-required'
+          'undo-required',
+          { refuseEmptyRequired: true }
         )
       ).rejects.toThrow(/cannot be added as required/)
       const restored = await addTableColumn(
