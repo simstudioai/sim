@@ -213,7 +213,11 @@ function writes(result: ApplyWorkspaceSourceResult) {
   return result.plan.filter((change) => change.action !== 'noop')
 }
 
-/** Live rows of every kind in a workspace: what "nothing was written" compares. */
+/**
+ * Live rows of every kind in a workspace, each kind ordered by id: what "nothing was written"
+ * compares. Without the order, rows come back in whichever index the planner picks, and that
+ * choice can change between two calls once autovacuum analyzes the table.
+ */
 async function snapshot(workspaceId: string) {
   const [tables, workflows, tools, skills, files, bases] = await Promise.all([
     db
@@ -224,27 +228,33 @@ async function snapshot(workspaceId: string) {
           eq(userTableDefinitions.workspaceId, workspaceId),
           isNull(userTableDefinitions.archivedAt)
         )
-      ),
+      )
+      .orderBy(userTableDefinitions.id),
     db
       .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
+      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+      .orderBy(workflow.id),
     db
       .select({ id: customTools.id, title: customTools.title, code: customTools.code })
       .from(customTools)
-      .where(eq(customTools.workspaceId, workspaceId)),
+      .where(eq(customTools.workspaceId, workspaceId))
+      .orderBy(customTools.id),
     db
       .select({ id: skill.id, content: skill.content })
       .from(skill)
-      .where(eq(skill.workspaceId, workspaceId)),
+      .where(eq(skill.workspaceId, workspaceId))
+      .orderBy(skill.id),
     db
       .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
       .from(workspaceFiles)
-      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt))),
+      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+      .orderBy(workspaceFiles.id),
     db
       .select({ id: knowledgeBase.id, name: knowledgeBase.name })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
+      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+      .orderBy(knowledgeBase.id),
   ])
   const documents =
     bases.length === 0
@@ -261,6 +271,7 @@ async function snapshot(workspaceId: string) {
               isNull(document.deletedAt)
             )
           )
+          .orderBy(document.id)
   return { tables, workflows, tools, skills, files, bases, documents }
 }
 

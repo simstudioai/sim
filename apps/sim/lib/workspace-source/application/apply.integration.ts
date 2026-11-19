@@ -121,6 +121,7 @@ async function tables(workspaceId: string) {
         isNull(userTableDefinitions.archivedAt)
       )
     )
+    .orderBy(userTableDefinitions.id)
 }
 
 async function workflows(workspaceId: string) {

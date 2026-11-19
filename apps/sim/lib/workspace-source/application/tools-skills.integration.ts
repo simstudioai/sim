@@ -134,8 +134,12 @@ function actions(plan: ReadonlyArray<{ kind: string; key: string; action: string
 /** Every stored tool and skill, with update times: what "nothing was written" compares. */
 async function snapshot(workspaceId: string) {
   const [toolRows, skillRows] = await Promise.all([
-    db.select().from(customTools).where(eq(customTools.workspaceId, workspaceId)),
-    db.select().from(skill).where(eq(skill.workspaceId, workspaceId)),
+    db
+      .select()
+      .from(customTools)
+      .where(eq(customTools.workspaceId, workspaceId))
+      .orderBy(customTools.id),
+    db.select().from(skill).where(eq(skill.workspaceId, workspaceId)).orderBy(skill.id),
   ])
   return {
     tools: toolRows.map(({ id, title, schema, code, updatedAt }) => ({
