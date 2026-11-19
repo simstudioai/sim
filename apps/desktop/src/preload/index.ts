@@ -29,6 +29,7 @@ import type {
   BrowserSiteInfo,
   BrowserToolbarCommand,
   ComputerUseActivity,
+  ComputerUsePermission,
   DesktopAppearanceTheme,
   DesktopCommand,
   DesktopExecutorDevice,
@@ -51,7 +52,7 @@ import type {
   TerminalShortcutCommand,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
-import type { ComputerUseInput } from '@sim/desktop-bridge/computer-use'
+import type { ComputerUseWithAppCommandsInput } from '@sim/desktop-bridge/computer-use'
 import {
   type ScopedTerminalCommandEvent,
   type ScopedTerminalTabsState,
@@ -128,15 +129,16 @@ const api: SimDesktopApi = {
     ? {
         computerUse: {
           stableElementIds: true,
+          appCommands: true,
           getActivity: () => ipcRenderer.invoke('computer-use:get-activity'),
           getStatus: () => ipcRenderer.invoke('computer-use:status'),
           setEnabled: (enabled: boolean) => ipcRenderer.invoke('computer-use:set-enabled', enabled),
-          requestPermission: (permission: 'accessibility' | 'screenCapture') =>
+          requestPermission: (permission: ComputerUsePermission) =>
             ipcRenderer.invoke('computer-use:request-permission', permission),
           setAskForApps: (ask: boolean) => ipcRenderer.invoke('computer-use:set-ask-for-apps', ask),
           listAppPermissions: () => ipcRenderer.invoke('computer-use:list-permissions'),
           revokeApp: (bundleId: string) => ipcRenderer.invoke('computer-use:revoke-app', bundleId),
-          executeTool: (toolCallId: string, params: ComputerUseInput) =>
+          executeTool: (toolCallId: string, params: ComputerUseWithAppCommandsInput) =>
             ipcRenderer.invoke('computer-use:execute-tool', toolCallId, params),
           cancel: (toolCallId?: string) => ipcRenderer.invoke('computer-use:cancel', toolCallId),
           onActivity: (callback: (activity: ComputerUseActivity | null) => void) => {

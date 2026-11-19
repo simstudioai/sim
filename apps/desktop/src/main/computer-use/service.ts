@@ -2,13 +2,15 @@ import {
   type ComputerUseActivity,
   type ComputerUseAppPermission,
   ComputerUseError,
+  type ComputerUsePermission,
   type ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import {
-  type ComputerUseInput,
+  type AppCommand,
   type ComputerUseResult,
-  ComputerUseSchema,
   type ComputerUseSnapshot,
+  type ComputerUseWithAppCommandsInput,
+  ComputerUseWithAppCommandsSchema,
 } from '@sim/desktop-bridge/computer-use'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -23,15 +25,20 @@ interface ComputerUseServiceDeps {
     app: ComputerUseAppPermission,
     signal: AbortSignal
   ) => Promise<'once' | 'always' | 'deny'>
+  /** Confirms one app-command write. It shows the exact fields, since nothing happens on screen. */
+  confirmAppCommand: (
+    request: { appName: string; summary: string },
+    signal: AbortSignal
+  ) => Promise<boolean>
   onActivity: (activity: ComputerUseActivity | null) => void
   setStopShortcutActive?: (active: boolean) => boolean
-  openPermissionSettings?: (permission: 'accessibility' | 'screenCapture') => Promise<void>
+  openPermissionSettings?: (permission: ComputerUsePermission) => Promise<void>
 }
 
 interface ToolWork {
   toolCallId: string
   scopeId: string
-  input: ComputerUseInput
+  input: ComputerUseWithAppCommandsInput
   controller: AbortController
 }
 
@@ -40,6 +47,75 @@ interface SnapshotOwnership {
   bundleId: string
   windowId: string
   elementWindows: Map<string, string>
+}
+
+/** The app each command writes to; its Computer Use app permission governs the command. */
+const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
+  list_reminder_lists: 'com.apple.reminders',
+  create_reminder: 'com.apple.reminders',
+  list_calendars: 'com.apple.iCal',
+  create_event: 'com.apple.iCal',
+  list_contact_groups: 'com.apple.AddressBook',
+  create_contact_group: 'com.apple.AddressBook',
+  create_contact: 'com.apple.AddressBook',
+}
+
+const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
+
+/** The app a call operates; an app command operates the app its data belongs to. */
+function workBundleId(input: ComputerUseWithAppCommandsInput): string | undefined {
+  if (input.action === 'app_command') return APP_COMMAND_APPS[input.command.name]
+  return 'bundleId' in input ? input.bundleId : undefined
+}
+
+/** The exact fields a write will save, for the user to confirm; null for a read, which needs none. */
+function writeSummary(command: AppCommand): string | null {
+  // Trimmed exactly as the helper trims before saving, so the user confirms the saved values.
+  const lines = (entries: Array<[string, string | number | undefined]>) =>
+    entries
+      .map(([label, value]) => [label, typeof value === 'string' ? value.trim() : value] as const)
+      .filter(([, value]) => value !== undefined && value !== '')
+      .map(([label, value]) => `${label}: ${value}`)
+      .join('\n')
+  switch (command.name) {
+    case 'create_reminder':
+      return lines([
+        ['Reminder', command.title],
+        ['Due', command.due],
+        ['Priority', command.priority ? PRIORITY_NAMES[command.priority] : undefined],
+        ['List', command.listId ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_event':
+      return lines([
+        ['Event', command.title],
+        ['Starts', command.start],
+        ['Ends', command.end],
+        ['All day', command.allDay ? 'yes' : undefined],
+        ['Location', command.location],
+        [
+          'Alert',
+          command.alertMinutesBefore !== undefined
+            ? `${command.alertMinutesBefore} minutes before`
+            : undefined,
+        ],
+        ['Calendar', command.calendarId ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_contact_group':
+      return lines([['Contact group', command.title]])
+    case 'create_contact':
+      return lines([
+        ['Contact', [command.givenName, command.familyName].filter(Boolean).join(' ') || undefined],
+        ['Organization', command.organization],
+        ['Job title', command.jobTitle],
+        ['Emails', command.emails?.map((email) => email.trim()).join(', ')],
+        ['Phones', command.phones?.map((phone) => phone.trim()).join(', ')],
+        ['Group', command.groupId],
+      ])
+    default:
+      return null
+  }
 }
 
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
@@ -82,6 +158,9 @@ export class ComputerUseService {
     status.permissions = {
       accessibility: native.accessibility,
       screenCapture: native.screenRecording,
+      reminders: native.reminders === 'granted',
+      calendars: native.calendars === 'granted',
+      contacts: native.contacts === 'granted',
     }
     status.enabled = this.isEnabled()
     status.activeAction = this.activity
@@ -111,9 +190,7 @@ export class ComputerUseService {
     return this.getStatus()
   }
 
-  async requestPermission(
-    permission: 'accessibility' | 'screenCapture'
-  ): Promise<ComputerUseStatus> {
+  async requestPermission(permission: ComputerUsePermission): Promise<ComputerUseStatus> {
     if (!this.deps.supported) return this.getStatus()
     await this.deps.native.request('request_permission', { permission })
     await this.deps.openPermissionSettings?.(permission)
@@ -131,7 +208,7 @@ export class ComputerUseService {
     )
     const persisted = this.deps.config.flush()
     for (const work of this.queued.values()) {
-      if ('bundleId' in work.input && work.input.bundleId === bundleId) this.cancel(work.toolCallId)
+      if (workBundleId(work.input) === bundleId) this.cancel(work.toolCallId)
     }
     for (const apps of this.taskGrants.values()) apps.delete(bundleId)
     this.invalidateSnapshots()
@@ -200,7 +277,7 @@ export class ComputerUseService {
     if (this.queued.has(toolCallId))
       return Promise.reject(new Error('This Computer Use action is already running.'))
     // A newer server can send arguments this build predates; nothing has been queued yet.
-    const parsed = ComputerUseSchema.safeParse(raw)
+    const parsed = ComputerUseWithAppCommandsSchema.safeParse(raw)
     if (!parsed.success)
       return Promise.reject(
         new ComputerUseError({
@@ -240,6 +317,7 @@ export class ComputerUseService {
         stopShortcutAvailable: this.deps.setStopShortcutActive?.(true) ?? false,
       }
       this.deps.onActivity(this.activity)
+      if (input.action === 'app_command') return await this.runAppCommand(input.command, work)
       if ('bundleId' in input) {
         if (/^ai\.sim\.desktop(?:\.|$)/.test(input.bundleId)) {
           throw new Error('Computer Use cannot operate Sim or its own permission controls.')
@@ -347,6 +425,37 @@ export class ComputerUseService {
       this.activity = null
       this.deps.onActivity(null)
     }
+  }
+
+  /**
+   * A typed write through the OS's data frameworks leaves nothing on screen to watch, so each one
+   * needs the app's usual Computer Use permission and its own confirmation of the exact fields.
+   */
+  private async runAppCommand(command: AppCommand, work: ToolWork): Promise<ComputerUseResult> {
+    const appName = await this.authorizeApp(APP_COMMAND_APPS[command.name], work)
+    if (this.activity) {
+      this.activity = { ...this.activity, appName }
+      this.deps.onActivity(this.activity)
+    }
+    const summary = writeSummary(command)
+    if (summary !== null) {
+      const confirmed = await this.deps.confirmAppCommand(
+        { appName, summary },
+        work.controller.signal
+      )
+      this.check(work)
+      if (!confirmed)
+        throw new ComputerUseError({
+          code: 'user_declined',
+          message: 'The user declined to add this item. Do not retry it.',
+          dispatchState: 'not_started',
+        })
+    }
+    this.check(work)
+    const result = await this.deps.native.request('app_command', { command })
+    if (result.kind !== 'command' || result.command !== command.name)
+      throw new Error('Computer Use returned a result for a different command.')
+    return result
   }
 
   private rememberSnapshot(work: ToolWork, snapshot: ComputerUseSnapshot, windowId?: string): void {

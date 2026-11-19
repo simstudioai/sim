@@ -607,6 +607,7 @@ describe('registerIpcHandlers', () => {
       native,
       supported: true,
       approveApp,
+      confirmAppCommand: vi.fn(async () => true),
       onActivity: vi.fn(),
     })
     deps.computerUse = service

@@ -70,6 +70,9 @@ mac:
   # unless the bundle declares why it wants the device.
   extendInfo:
     NSScreenCaptureUsageDescription: Mothership captures approved app windows to understand and verify computer-use actions.
+    NSRemindersFullAccessUsageDescription: Mothership adds reminders you confirm and lists your reminder lists so it can file them correctly.
+    NSCalendarsFullAccessUsageDescription: Mothership adds calendar events you confirm and lists your calendars so it can file them correctly.
+    NSContactsUsageDescription: Mothership adds contacts and contact groups you confirm.
     NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat and for meetings you join in the built-in browser.
     NSCameraUsageDescription: Sim uses your camera for meetings you join in the built-in browser, such as Google Meet.
     # macOS 15 blocks connections to private addresses (self-hosted servers on a

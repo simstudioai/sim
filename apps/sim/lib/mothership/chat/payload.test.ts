@@ -888,6 +888,26 @@ describe('desktop request capabilities', () => {
     }
   )
 
+  it.each([false, true])(
+    'offers app commands only where computer use itself is allowed (allowed=%s)',
+    async (allowed) => {
+      mockComputerUseAvailable.mockResolvedValueOnce(allowed)
+      const payload = await buildCopilotRequestPayload({
+        message: 'Add my sprint reminders',
+        workspaceId: 'workspace',
+        userId: 'user',
+        principal: { kind: 'session', userId: 'user', sessionId: 'session' },
+        userMessageId: 'message',
+        mode: 'agent',
+        model: 'gpt-6-astra',
+        browser: true,
+        computerUse: true,
+        computerUseAppCommands: true,
+      })
+      expect(payload.desktop?.computerUseAppCommands ?? false).toBe(allowed)
+    }
+  )
+
   it('preserves desktop capabilities and current session hints on the worker wire', async () => {
     const payload = await buildCopilotRequestPayload({
       message: 'Inspect my local page',
@@ -905,6 +925,7 @@ describe('desktop request capabilities', () => {
     })
     expect(payload.desktop).toEqual({
       computerUse: false,
+      computerUseAppCommands: false,
       browser: true,
       terminal: true,
       terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
@@ -926,6 +947,7 @@ describe('desktop request capabilities', () => {
     })
     expect(payload.desktop).toEqual({
       computerUse: false,
+      computerUseAppCommands: false,
       localFiles: true,
       browser: false,
       terminal: false,
