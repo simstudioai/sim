@@ -71,51 +71,71 @@ export function foldedFileKey(key: string): string {
  * keeps its path, so the same keys in the same order always keep the same files.
  */
 export function fileKeyConflicts(keys: Iterable<string>): Map<string, string> {
-  const files = new Map<string, string>()
-  const folders = new Map<string, string>()
+  const root: PathNode = { spelling: '', children: new Map() }
   const conflicts = new Map<string, string>()
   for (const key of keys) {
-    const conflict = keyConflict(key, files, folders)
-    if (conflict !== null) {
-      conflicts.set(key, conflict)
-      continue
-    }
-    files.set(foldedFileKey(key), key)
-    const segments = key.split('/')
-    for (let depth = 1; depth < segments.length; depth += 1) {
-      const folder = segments.slice(0, depth).join('/')
-      if (!folders.has(foldedFileKey(folder))) folders.set(foldedFileKey(folder), folder)
-    }
+    const conflict = keyConflict(key, root)
+    if (conflict !== null) conflicts.set(key, conflict)
+    else insertKey(key, root)
   }
   return conflicts
 }
 
-function keyConflict(
-  key: string,
-  files: ReadonlyMap<string, string>,
-  folders: ReadonlyMap<string, string>
-): string | null {
-  const file = files.get(foldedFileKey(key))
-  if (file !== undefined) {
-    return `${fileBlobPath(key)} and ${fileBlobPath(file)} differ only in letter case`
-  }
-  const folder = folders.get(foldedFileKey(key))
-  if (folder !== undefined) {
-    return `${fileBlobPath(folder)} is a folder, so ${fileBlobPath(key)} cannot also be a file`
-  }
+/**
+ * The paths kept so far as a tree of folded segments: each node keeps the spelling of the key
+ * that made it, and a file node the key it holds. Every key costs one fold of each of its
+ * segments, and the tree holds each segment once.
+ */
+interface PathNode {
+  spelling: string
+  file?: string
+  children: Map<string, PathNode>
+}
+
+function keyConflict(key: string, root: PathNode): string | null {
   const segments = key.split('/')
-  for (let depth = 1; depth < segments.length; depth += 1) {
-    const prefix = segments.slice(0, depth).join('/')
-    const asFile = files.get(foldedFileKey(prefix))
-    if (asFile !== undefined) {
-      return `${fileBlobPath(asFile)} is a file, so it cannot also be a folder of ${fileBlobPath(key)}`
+  const folders: Array<{ prefix: string; stored: string; node: PathNode }> = []
+  let node = root
+  let prefix = ''
+  let stored = ''
+  for (const [index, segment] of segments.entries()) {
+    const child = node.children.get(foldedFileKey(segment))
+    if (child === undefined) break
+    const separator = index === 0 ? '' : '/'
+    prefix += separator + segment
+    stored += separator + child.spelling
+    if (index === segments.length - 1) {
+      if (child.file !== undefined) {
+        return `${fileBlobPath(key)} and ${fileBlobPath(child.file)} differ only in letter case`
+      }
+      return `${fileBlobPath(stored)} is a folder, so ${fileBlobPath(key)} cannot also be a file`
     }
-    const asFolder = folders.get(foldedFileKey(prefix))
-    if (asFolder !== undefined && asFolder !== prefix) {
-      return `the folder ${fileBlobPath(prefix)} differs only in letter case from ${fileBlobPath(asFolder)}`
+    folders.push({ prefix, stored, node: child })
+    node = child
+  }
+  for (const folder of folders) {
+    if (folder.node.file !== undefined) {
+      return `${fileBlobPath(folder.node.file)} is a file, so it cannot also be a folder of ${fileBlobPath(key)}`
+    }
+    if (folder.stored !== folder.prefix) {
+      return `the folder ${fileBlobPath(folder.prefix)} differs only in letter case from ${fileBlobPath(folder.stored)}`
     }
   }
   return null
+}
+
+function insertKey(key: string, root: PathNode): void {
+  let node = root
+  for (const segment of key.split('/')) {
+    const folded = foldedFileKey(segment)
+    let child = node.children.get(folded)
+    if (child === undefined) {
+      child = { spelling: segment, children: new Map() }
+      node.children.set(folded, child)
+    }
+    node = child
+  }
+  node.file = key
 }
 
 function pathFinding(

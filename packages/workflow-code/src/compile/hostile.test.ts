@@ -149,6 +149,28 @@ describe('hostile sources produce diagnostics only', () => {
     ).toBe(true)
   })
 
+  it('scans a 400 KB value of overlapping token prefixes for secrets in linear time', () => {
+    const value = '-eyJ'.repeat(100_000)
+    const started = Date.now()
+    const result = run(wrap(`const a = api('A', { url: 'https://x', body: '${value}' })`))
+    expect(Date.now() - started).toBeLessThan(3_000)
+    expect(result.workflow).not.toBeNull()
+    expect(codes(result)).not.toContain('W_LITERAL_SECRET')
+    const segment = 'A'.repeat(12)
+    const jwt = ['eyJ' + segment, 'eyJ' + segment, segment].join('.')
+    const detected = run(wrap(`const a = api('A', { url: 'https://x', body: 'token ${jwt}' })`))
+    expect(codes(detected)).toContain('W_LITERAL_SECRET')
+  })
+
+  it('checks the precision of a 100 KB numeric literal in linear time', () => {
+    const started = Date.now()
+    const result = run(
+      wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(100_000)}1 })`)
+    )
+    expect(Date.now() - started).toBeLessThan(3_000)
+    expect(codes(result)).toContain('W_NUMBER_PRECISION')
+  })
+
   it('stops after 100 errors, framing a 40 KB line in bounded output', () => {
     const result = run(wrap('x;'.repeat(20_000)))
     expect(result.workflow).toBeNull()

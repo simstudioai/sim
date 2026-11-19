@@ -105,6 +105,16 @@ describe('fileCodec', () => {
     )
   })
 
+  it('groups 20,000 deeply nested paths in linear time', () => {
+    const deep = (index: number) =>
+      `files/k${index}/${Array.from({ length: 500 }, () => 'a').join('/')}`
+    const started = Date.now()
+    const grouped = fileCodec.group(Array.from({ length: 20_000 }, (_, index) => deep(index)))
+    expect(Date.now() - started).toBeLessThan(6_000)
+    expect(grouped.groups.size).toBe(20_000)
+    expect(grouped.diagnostics).toEqual([])
+  })
+
   it('refuses a file sent as text, a malformed hash, and a file over the blob cap', () => {
     const path = 'files/a.txt'
     const codes = (text: Record<string, string>, blobs: Parameters<typeof fileCodec.parse>[2]) =>
