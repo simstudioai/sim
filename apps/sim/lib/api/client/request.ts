@@ -258,7 +258,7 @@ export async function requestJson<C extends AnyApiRouteContract>(
 }
 
 /** A conditional read's outcome: the representation the caller holds is current, or a new one. */
-export type RevalidatedJson<C extends AnyApiRouteContract> =
+type RevalidatedJson<C extends AnyApiRouteContract> =
   | { notModified: true; etag: string }
   | { notModified: false; body: ContractJsonResponse<C>; etag: string | null }
 

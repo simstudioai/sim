@@ -214,7 +214,9 @@ function envCredentialGrants(
  * personal entries; each shared personal key from the owner {@link envCredentialGrants} selects,
  * when that owner stores a value for it (overriding their own); and the workspace keys the grants
  * allow. `T` is a ciphertext on the values path and a presence marker on the names path, so both
- * paths list exactly the same names.
+ * paths list exactly the same names. That holds because an owner's stored entry counts when it is
+ * non-empty on both paths: the names path drops `''` in SQL (`envNamesOf(…, true)`), and the
+ * values path's `if (stored)` drops it here, since a stored value is never empty ciphertext.
  */
 function selectGrantedEnvironment<T>(args: {
   userId: string

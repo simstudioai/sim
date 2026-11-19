@@ -20,7 +20,7 @@ import {
   releaseResourceKey,
 } from '@/lib/workspaces/resource-keys'
 
-export interface BindCredentialKeyInput {
+interface BindCredentialKeyInput {
   workspaceId: string
   key: string
   credentialId: string
@@ -31,7 +31,7 @@ export interface BindCredentialKeyInput {
   takeFrom?: string
 }
 
-export interface BindCredentialKeyResult {
+interface BindCredentialKeyResult {
   /** Bound anew, already bound to it, or moved off a credential (`takeFrom`, or a deleted one). */
   claim: ResourceKeyClaim
   credentialId: string
@@ -40,13 +40,13 @@ export interface BindCredentialKeyResult {
   previousCredentialId: string | null
 }
 
-export interface ReleaseCredentialKeyInput {
+interface ReleaseCredentialKeyInput {
   workspaceId: string
   key: string
   credentialId: string
 }
 
-export interface ReleaseCredentialKeyResult {
+interface ReleaseCredentialKeyResult {
   /** Whether the key was bound to the credential and is now free. */
   released: boolean
   credentialId: string

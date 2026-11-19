@@ -11,7 +11,10 @@ import {
   isCopilotRequest,
 } from '@/lib/api/server/routes/copilot-request'
 import {
+  entityTagMatches,
   methodMatchesContract,
+  notModifiedResponse,
+  REVALIDATE_CACHE_CONTROL,
   requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
@@ -585,20 +588,15 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * A strong validator for a result whose content is already content-addressed (the block
    * catalog's hash). When set, a success carries `ETag`, and a request whose `If-None-Match`
    * names that tag (or `*`) is answered `304` with no body, after the use case ran, so
-   * authorization is unchanged. The tag identifies the representation, so the route keeps the last
-   * few validated bodies by tag and skips re-validating one it already served. Every other route
-   * leaves it unset (`v2-api-conventions`).
+   * authorization is unchanged. A tagged 200 and its 304 say `private, no-cache`, so a client may
+   * keep the body and revalidate it. Every other route leaves it unset (`v2-api-conventions`).
+   *
+   * Must be a strong validator of `result` for every caller: equal tags mean equal results,
+   * whoever asked. The route keeps the last few validated bodies keyed by the tag and the parsed
+   * request, and serves one to any principal whose request matches, without presenting it again;
+   * `present` never sees the principal, so the body is a function of exactly that key.
    */
   entityTag?(result: NoInfer<R>): string
-}
-
-/** `If-None-Match` uses weak comparison (RFC 9110 §13.1.2), so `W/` prefixes are ignored. */
-function ifNoneMatchSatisfied(header: string | null, tag: string): boolean {
-  if (!header) return false
-  return header
-    .split(',')
-    .map((candidate) => candidate.trim().replace(/^W\//, ''))
-    .some((candidate) => candidate === '*' || candidate === tag)
 }
 
 /**
@@ -625,7 +623,10 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
-  /** Validated bodies by entity tag, so a repeat 200 skips presenting and re-validating. */
+  /**
+   * Validated bodies by entity tag and parsed request, so a repeat 200 skips presenting and
+   * re-validating (see `entityTag` for why that is safe across principals).
+   */
   const validatedByTag = options.entityTag
     ? new LRUCache<string, NonNullable<unknown>>({ max: VALIDATED_BODY_CACHE_MAX })
     : undefined
@@ -713,27 +714,25 @@ export function defineV2JsonRoute<
           request,
         })
         const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
-        if (entityTag && ifNoneMatchSatisfied(request.headers.get('if-none-match'), entityTag)) {
+        if (entityTag && entityTagMatches(request, entityTag)) {
           await options.onSuccess?.({ principal: auth.principal, input, result })
-          return new NextResponse(null, {
-            status: 304,
-            headers: { 'Cache-Control': 'private, no-store', ETag: entityTag },
-          })
+          return notModifiedResponse(entityTag)
         }
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('V2 JSON route response mode changed after initialization')
         }
-        const cached = entityTag ? validatedByTag?.get(entityTag) : undefined
+        const cacheKey = entityTag ? `${entityTag} ${JSON.stringify(parsed.data)}` : undefined
+        const cached = cacheKey ? validatedByTag?.get(cacheKey) : undefined
         const validatedBody: unknown =
           cached ?? responseSchema.schema.parse(await options.present(result, parsed.data))
         if (
-          entityTag &&
+          cacheKey &&
           cached === undefined &&
           validatedBody !== undefined &&
           validatedBody !== null
         ) {
-          validatedByTag?.set(entityTag, validatedBody)
+          validatedByTag?.set(cacheKey, validatedBody)
         }
         const responseStatus = options.statusForResult?.(result) ?? successStatus
         if (!successStatuses.includes(responseStatus)) {
@@ -744,10 +743,9 @@ export function defineV2JsonRoute<
         await options.onSuccess?.({ principal: auth.principal, input, result })
         return NextResponse.json(validatedBody, {
           status: responseStatus,
-          headers: {
-            'Cache-Control': 'private, no-store',
-            ...(entityTag ? { ETag: entityTag } : {}),
-          },
+          headers: entityTag
+            ? { 'Cache-Control': REVALIDATE_CACHE_CONTROL, ETag: entityTag }
+            : { 'Cache-Control': 'private, no-store' },
         })
       } catch (error) {
         const response = options.errorPolicy.render(error)

@@ -162,6 +162,15 @@ async function assertAuthModePermitted(
   await validateChatDeployAuth(requirePrincipalSubjectUserId(principal), workspaceId, authType)
 }
 
+/** Whether a live chat other than `chatId` (any live chat, when there is none) holds `identifier`. */
+async function isChatIdentifierHeldByAnotherChat(
+  identifier: string,
+  chatId: string | undefined
+): Promise<boolean> {
+  const owner = await getChatDeploymentIdOwningIdentifier(identifier)
+  return Boolean(owner) && owner !== chatId
+}
+
 /**
  * Whether a live chat other than workflow `workflowId`'s holds `identifier` (any live chat, for a
  * workflow not created yet).
@@ -170,10 +179,8 @@ export async function isChatIdentifierHeldElsewhere(
   identifier: string,
   workflowId: string | undefined
 ): Promise<boolean> {
-  const owner = await getChatDeploymentIdOwningIdentifier(identifier)
-  if (!owner) return false
   const existing = workflowId ? await getLiveChatDeploymentForWorkflow(workflowId) : null
-  return owner !== existing?.id
+  return isChatIdentifierHeldByAnotherChat(identifier, existing?.id)
 }
 
 /**
@@ -187,10 +194,10 @@ export async function assertChatReplaceAllowed(
   principal: Principal,
   input: { workspaceId: string; workflowId: string; identifier: string; authType: ChatAuthType }
 ): Promise<void> {
-  if (await isChatIdentifierHeldElsewhere(input.identifier, input.workflowId)) {
+  const existing = await getLiveChatDeploymentForWorkflow(input.workflowId)
+  if (await isChatIdentifierHeldByAnotherChat(input.identifier, existing?.id)) {
     throw new ChatIdentifierInUseError()
   }
-  const existing = await getLiveChatDeploymentForWorkflow(input.workflowId)
   await assertAuthModePermitted(existing, principal, input.workspaceId, input.authType)
 }
 
@@ -225,8 +232,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
      * write — is caught by {@link chatIdentifierUniquenessConflict} below and
      * answers the same conflict.
      */
-    const identifierOwnerId = await getChatDeploymentIdOwningIdentifier(input.identifier)
-    if (identifierOwnerId && identifierOwnerId !== existing?.id) {
+    if (await isChatIdentifierHeldByAnotherChat(input.identifier, existing?.id)) {
       throw new ChatIdentifierInUseError()
     }
 

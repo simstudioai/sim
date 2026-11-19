@@ -11,6 +11,7 @@
  */
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { generateId } from '@sim/utils/id'
 import { type BaseResource, resourceAddress } from '@sim/workspace-code'
 import {
@@ -23,7 +24,6 @@ import {
 } from '@sim/workspace-code/kinds/files'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'

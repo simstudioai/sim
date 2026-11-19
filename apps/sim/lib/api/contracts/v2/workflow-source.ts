@@ -208,8 +208,6 @@ const applyWorkflowSourceDataSchema = z
   })
   .describe('The outcome of applying workflow source.')
 
-export type V2ApplyWorkflowSourceData = z.output<typeof applyWorkflowSourceDataSchema>
-
 /** `POST /api/v2/workflows/{workflowId}/source`: write TypeScript source to the draft graph. */
 export const v2ApplyWorkflowSourceContract = defineRouteContract({
   method: 'POST',

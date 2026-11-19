@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -18,7 +19,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'

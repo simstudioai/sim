@@ -1,5 +1,6 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
@@ -24,7 +25,6 @@ import {
   withCatalogBlockScope,
 } from '@/lib/catalog/application/context'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'

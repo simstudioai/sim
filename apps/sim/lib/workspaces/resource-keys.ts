@@ -15,7 +15,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, slugify } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, asc, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, like, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -49,6 +49,12 @@ const TAKEN_PREFIX_LENGTH = 48
 
 /** Insert rounds before an allocation that keeps losing races is left unresolved. */
 const MAX_ALLOCATION_ROUNDS = 5
+
+/**
+ * Claim retries after an insert that lost a race on one of the two unique indexes; each retry
+ * re-reads the committed winner, so a second attempt normally settles it.
+ */
+const MAX_CLAIM_ATTEMPTS = 3
 
 interface LiveResource {
   id: string
@@ -509,6 +515,12 @@ export type ResourceKeyClaim = 'bound' | 'kept' | 'rebound'
  * the key moves off it (a source that rebinds a key on purpose). A key the resource held before
  * (allocated by a get) is replaced, since the source now names it. Runs in one transaction: `tx`
  * when given, so the claim commits or rolls back with the write that made the resource.
+ *
+ * An unheld key has no row to lock, so a concurrent get or claim can bind the key, or bind the
+ * resource to another key, between the read and the insert. The insert skips on either unique
+ * index and the claim re-reads the committed winner: its own key is `'kept'`, another live
+ * resource's key throws {@link ResourceKeyTakenError}, and a key allocated to the resource
+ * meanwhile is replaced on the retry.
  */
 export async function claimResourceKey(input: {
   workspaceId: string
@@ -524,52 +536,54 @@ export async function claimResourceKey(input: {
 }): Promise<ResourceKeyClaim> {
   const { workspaceId, kind, key, resourceId } = input
   const claim = async (tx: DbTransaction): Promise<ResourceKeyClaim> => {
-    const [holder] = await tx
-      .select({ id: workspaceResourceKey.id, resourceId: workspaceResourceKey.resourceId })
-      .from(workspaceResourceKey)
-      .where(
-        and(
-          eq(workspaceResourceKey.workspaceId, workspaceId),
-          eq(workspaceResourceKey.kind, kind),
-          eq(workspaceResourceKey.key, key)
+    for (let attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt += 1) {
+      const [holder] = await tx
+        .select({ id: workspaceResourceKey.id, resourceId: workspaceResourceKey.resourceId })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, kind),
+            eq(workspaceResourceKey.key, key)
+          )
         )
-      )
-      .for('update')
-    if (holder?.resourceId === resourceId) return 'kept'
-    if (holder && holder.resourceId !== input.takeFrom) {
-      const live = await loadLiveResources(tx, workspaceId, kind, [holder.resourceId])
-      if (live.length > 0) throw new ResourceKeyTakenError(kind, key, holder.resourceId)
-    }
-    await tx
-      .delete(workspaceResourceKey)
-      .where(
-        and(
-          eq(workspaceResourceKey.workspaceId, workspaceId),
-          eq(workspaceResourceKey.kind, kind),
-          eq(workspaceResourceKey.resourceId, resourceId),
-          ne(workspaceResourceKey.key, key)
-        )
-      )
-    const now = new Date()
-    if (holder) {
+        .for('update')
+      if (holder?.resourceId === resourceId) return 'kept'
+      if (holder && holder.resourceId !== input.takeFrom) {
+        const live = await loadLiveResources(tx, workspaceId, kind, [holder.resourceId])
+        if (live.length > 0) throw new ResourceKeyTakenError(kind, key, holder.resourceId)
+      }
       await tx
-        .update(workspaceResourceKey)
-        .set({ resourceId, origin: input.origin, updatedAt: now })
-        .where(eq(workspaceResourceKey.id, holder.id))
-      return 'rebound'
+        .delete(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, kind),
+            or(
+              eq(workspaceResourceKey.resourceId, resourceId),
+              holder ? eq(workspaceResourceKey.id, holder.id) : undefined
+            )
+          )
+        )
+      const now = new Date()
+      const inserted = await tx
+        .insert(workspaceResourceKey)
+        .values({
+          id: generateId(),
+          workspaceId,
+          kind,
+          key,
+          resourceId,
+          origin: input.origin,
+          createdBy: input.createdBy,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ id: workspaceResourceKey.id })
+      if (inserted.length > 0) return holder ? 'rebound' : 'bound'
     }
-    await tx.insert(workspaceResourceKey).values({
-      id: generateId(),
-      workspaceId,
-      kind,
-      key,
-      resourceId,
-      origin: input.origin,
-      createdBy: input.createdBy,
-      createdAt: now,
-      updatedAt: now,
-    })
-    return 'bound'
+    throw new Error(`Claiming the ${kind} key "${key}" kept losing to concurrent writers`)
   }
   return input.tx ? claim(input.tx) : db.transaction(claim)
 }

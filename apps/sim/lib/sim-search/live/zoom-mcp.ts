@@ -1,6 +1,6 @@
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { dateSortDirection, nativeText } from '@/lib/sim-search/live/dates'
 import { NativeSearchError, object } from '@/lib/sim-search/live/http'
 import type { ManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'

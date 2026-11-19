@@ -17,6 +17,7 @@
  * Publishing to an MCP server is not part of source.
  */
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
@@ -42,7 +43,6 @@ import {
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   deployWorkflow,

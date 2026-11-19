@@ -19,6 +19,7 @@
  * - New folders get their workflow ids at plan time, so folders that run each other resolve.
  */
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -45,7 +46,6 @@ import {
   workflowSourceBase,
 } from '@sim/workspace-code/kinds/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   applyWorkflowSource,
   createWorkflowFromSource,

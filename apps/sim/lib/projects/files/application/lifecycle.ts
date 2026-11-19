@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRow } from '@sim/db/schema'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
   ProjectFileAuthorizationContext,

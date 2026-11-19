@@ -6,6 +6,7 @@
  * replacement therefore has a new id; the apply copies the old one's tag values onto it.
  */
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BaseResource } from '@sim/workspace-code'
 import {
@@ -16,7 +17,6 @@ import {
 } from '@sim/workspace-code/kinds/knowledge'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { chunkingConfigSchema } from '@/lib/api/contracts/knowledge/base'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'

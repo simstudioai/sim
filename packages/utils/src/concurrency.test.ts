@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapWithConcurrency } from './concurrency.js'
+import { mapSettledWithConcurrency, mapWithConcurrency } from './concurrency.js'
 
 /** A promise resolved from outside, to hold an item in flight until the test releases it. */
 function deferred<T = void>() {
@@ -59,5 +59,24 @@ describe('mapWithConcurrency', () => {
     await expect(mapWithConcurrency([1], 0, async (item) => item)).rejects.toThrow(
       'positive integer'
     )
+  })
+})
+
+describe('mapSettledWithConcurrency', () => {
+  it('attempts every item after a failure and reports each outcome in input order', async () => {
+    const started: number[] = []
+    const failure = new Error('one failed')
+    const outcomes = await mapSettledWithConcurrency([0, 1, 2, 3], 2, async (item) => {
+      started.push(item)
+      if (item === 1) throw failure
+      return item * 10
+    })
+    expect([...started].sort()).toEqual([0, 1, 2, 3])
+    expect(outcomes).toEqual([
+      { status: 'fulfilled', value: 0 },
+      { status: 'rejected', reason: failure },
+      { status: 'fulfilled', value: 20 },
+      { status: 'fulfilled', value: 30 },
+    ])
   })
 })

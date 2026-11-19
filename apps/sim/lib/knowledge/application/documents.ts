@@ -561,8 +561,10 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           : {}),
       }
     )
-    // Dispatched now, not when the outbox drains, and not awaited: the in-process backend indexes
-    // the document inside the dispatch, and an upload answers once its document is registered.
+    // Dispatched now, as every other document-creating path dispatches, not when the outbox
+    // drains; not awaited, since the in-process backend indexes inside the dispatch. The relay
+    // claims the event under the drain's lock and leaves it pending on failure, so it never
+    // double-runs and the drain still retries it.
     if (processingEventId) void relayKnowledgeDocumentProcessing(processingEventId)
     return { document, created: true as const }
   },

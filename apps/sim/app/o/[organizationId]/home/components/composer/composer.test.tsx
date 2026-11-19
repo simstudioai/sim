@@ -238,6 +238,7 @@ async function render(
           flags={{
             dashboards: false,
             'workflow-tests': false,
+            'workflow-code': false,
             changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
@@ -325,6 +326,7 @@ it.each([false, true])(
             flags={{
               dashboards: false,
               'workflow-tests': false,
+              'workflow-code': false,
               changelog: false,
               'mothership-model-selector': mocks.advanced,
               'mothership-plan-mode': mocks.plan,

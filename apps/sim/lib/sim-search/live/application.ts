@@ -2,6 +2,7 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -26,11 +27,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
-import {
-  createConcurrencyLimit,
-  mapWithConcurrency,
-  waitWithAbort,
-} from '@/lib/core/utils/concurrency'
+import { createConcurrencyLimit, waitWithAbort } from '@/lib/core/utils/concurrency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'

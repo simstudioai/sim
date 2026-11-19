@@ -12,7 +12,10 @@ import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import {
+  entityTagMatches,
   methodMatchesContract,
+  notModifiedResponse,
+  REVALIDATE_CACHE_CONTROL,
   requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
@@ -342,15 +345,6 @@ type InternalJsonRouteOptions<
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
 } & InternalJsonPresenter<C, I, R, P>
 
-/** `If-None-Match` uses weak comparison (RFC 9110 §13.1.2), so `W/` prefixes are ignored. */
-function ifNoneMatchSatisfied(header: string | null, tag: string): boolean {
-  if (!header) return false
-  return header
-    .split(',')
-    .map((candidate) => candidate.trim().replace(/^W\//, ''))
-    .some((candidate) => candidate === '*' || candidate === tag)
-}
-
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
   return NextResponse.json(withRequestId(descriptor.body), {
     status: descriptor.status,
@@ -404,6 +398,7 @@ export function defineInternalJsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
+  const headAuthorize = options.headSafe === false ? options.useCase.authorize : undefined
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -445,10 +440,8 @@ export function defineInternalJsonRoute<
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })
-        if (request.method === 'HEAD' && options.headSafe === false) {
-          const { authorize } = options.useCase
-          if (!authorize) throw new Error('A HEAD reached a use case with no authorize()')
-          await authorize({ principal, input, request })
+        if (request.method === 'HEAD' && headAuthorize) {
+          await headAuthorize({ principal, input, request })
           return new NextResponse(null, { status: successStatus })
         }
         const result = await options.useCase.execute({
@@ -458,11 +451,8 @@ export function defineInternalJsonRoute<
         })
         await options.onSuccess?.({ principal, input, result })
         const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
-        if (entityTag && ifNoneMatchSatisfied(request.headers.get('if-none-match'), entityTag)) {
-          return new NextResponse(null, {
-            status: 304,
-            headers: { 'Cache-Control': 'private, no-cache', ETag: entityTag },
-          })
+        if (entityTag && entityTagMatches(request, entityTag)) {
+          return notModifiedResponse(entityTag)
         }
         const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
@@ -494,7 +484,7 @@ export function defineInternalJsonRoute<
               entityTag
                 ? appendFinalizedHeaders(headers, {
                     ETag: entityTag,
-                    'Cache-Control': 'private, no-cache',
+                    'Cache-Control': REVALIDATE_CACHE_CONTROL,
                   })
                 : headers,
               finalization?.headers

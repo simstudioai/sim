@@ -30,7 +30,7 @@ export interface ListWorkspaceCredentialsResult {
 }
 
 /** What a caller asks the visible workspace credentials for: a filter, an order and a page. */
-export type VisibleCredentialsQuery = Omit<ListWorkspaceCredentialsInput, 'workspaceId'> & {
+type VisibleCredentialsQuery = Omit<ListWorkspaceCredentialsInput, 'workspaceId'> & {
   /** Only these credentials, of those visible. */
   ids?: readonly string[]
 }

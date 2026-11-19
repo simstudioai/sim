@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Tooltip, useCopyToClipboard } from '@sim/emcn'
 import { BookOpen, Check, TerminalWindow } from '@sim/emcn/icons'
 import { BLOCK_OPERATIONS, BLOCKS_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { slugify } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import type { editor } from 'monaco-editor'
 import { DOCS_URL } from '@/lib/help-links'
@@ -130,11 +131,7 @@ interface CodeHeaderProps {
  */
 function CodeHeader({ workflowId, workflowName }: CodeHeaderProps) {
   const { copied, copy } = useCopyToClipboard()
-  const dir =
-    (workflowName ?? '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'workflow'
+  const dir = slugify(workflowName ?? '') || 'workflow'
 
   return (
     <div className='mx-[-1px] flex shrink-0 items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>

@@ -207,6 +207,50 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
+  it('lets a client cache a tagged success and revalidate it: no-cache on the 200 and the 304', async () => {
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input },
+      entityTag: (result) => `v-${result.value}`,
+      present: (result) => ({ data: result }),
+    })
+
+    const served = await handler(request())
+    expect(served.headers.get('ETag')).toBe('"v-ok"')
+    expect(served.headers.get('Cache-Control')).toBe('private, no-cache')
+
+    const revalidating = request()
+    revalidating.headers.set('if-none-match', 'W/"v-ok"')
+    const unchanged = await handler(revalidating)
+    expect(unchanged.status).toBe(304)
+    expect(unchanged.headers.get('Cache-Control')).toBe('private, no-cache')
+  })
+
+  it('never serves a cached body to a request whose input presents it differently', async () => {
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async () => ({ value: 'shared' }) },
+      entityTag: (result) => result.value,
+      present: (result, parsed) => ({ data: { value: `${result.value}:${parsed.body.value}` } }),
+    })
+
+    const first = await handler(request({ value: 'a' }))
+    const second = await handler(request({ value: 'b' }))
+
+    await expect(first.json()).resolves.toEqual({ data: { value: 'shared:a' } })
+    await expect(second.json()).resolves.toEqual({ data: { value: 'shared:b' } })
+  })
+
   it('fails closed before authentication when the IP bucket cannot admit the request', async () => {
     v2RouteMocks.preauthRate.mockResolvedValueOnce({
       allowed: false,

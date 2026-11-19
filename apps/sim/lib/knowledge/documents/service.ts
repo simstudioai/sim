@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -58,7 +59,6 @@ import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,

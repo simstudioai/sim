@@ -12,12 +12,18 @@ import {
   workspaceResourceKey,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
-import { resolveIds, resolveKeys } from '@/lib/workspaces/resource-keys'
+import {
+  claimResourceKey,
+  ResourceKeyTakenError,
+  resolveIds,
+  resolveKeys,
+} from '@/lib/workspaces/resource-keys'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -57,6 +63,48 @@ async function keyRows(wsId: string, kind: ResourceKind, resourceId: string) {
         eq(workspaceResourceKey.resourceId, resourceId)
       )
     )
+}
+
+/**
+ * Holds a transaction open with one uncommitted key row, so a concurrent writer that collides on
+ * a unique index blocks on it. Resolves `committed` once the row is committed.
+ */
+function holdUncommittedKey(row: { key: string; resourceId: string }): {
+  committed: Promise<void>
+  commit: () => void
+} {
+  let commit = () => {}
+  const released = new Promise<void>((resolve) => {
+    commit = resolve
+  })
+  const committed = db.transaction(async (tx) => {
+    const now = new Date()
+    await tx.insert(workspaceResourceKey).values({
+      id: generateId(),
+      workspaceId,
+      kind: 'table',
+      key: row.key,
+      resourceId: row.resourceId,
+      origin: 'allocated',
+      createdBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await released
+  })
+  return { committed, commit }
+}
+
+/** Waits until some backend is blocked on a lock while writing `workspace_resource_key`. */
+async function untilKeyWriteBlocks() {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const rows = await db.execute<{ pid: number }>(
+      sql`select pid from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%workspace_resource_key%'`
+    )
+    if (rows.length > 0) return
+    await sleep(25)
+  }
+  throw new Error('no key write blocked on a lock')
 }
 
 describe('workspace resource keys against PostgreSQL', () => {
@@ -315,5 +363,58 @@ describe('workspace resource keys against PostgreSQL', () => {
     ).rejects.toThrow('roll back')
 
     expect(await keyRows(workspaceId, 'table', id)).toEqual([])
+  })
+
+  it('refuses a claim with ResourceKeyTakenError when another resource takes the key concurrently', async () => {
+    const holder = generateId()
+    const claimant = generateId()
+    await insertTable(holder, workspaceId, 'Race Holder', at(50))
+    await insertTable(claimant, workspaceId, 'Race Claimant', at(51))
+    const held = holdUncommittedKey({ key: 'race-leads', resourceId: holder })
+
+    const claim = claimResourceKey({
+      workspaceId,
+      kind: 'table',
+      key: 'race-leads',
+      resourceId: claimant,
+      origin: 'created',
+      createdBy: userId,
+    }).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error })
+    )
+    await untilKeyWriteBlocks()
+    held.commit()
+    await held.committed
+
+    const outcome = await claim
+    expect('error' in outcome && outcome.error).toBeInstanceOf(ResourceKeyTakenError)
+    expect(await keyRows(workspaceId, 'table', holder)).toEqual([
+      { key: 'race-leads', origin: 'allocated' },
+    ])
+    expect(await keyRows(workspaceId, 'table', claimant)).toEqual([])
+  })
+
+  it('binds the claimed key when a get allocates the resource another key concurrently', async () => {
+    const id = generateId()
+    await insertTable(id, workspaceId, 'Race Allocated', at(52))
+    const held = holdUncommittedKey({ key: 'race-allocated', resourceId: id })
+
+    const claim = claimResourceKey({
+      workspaceId,
+      kind: 'table',
+      key: 'race-named',
+      resourceId: id,
+      origin: 'adopted',
+      createdBy: userId,
+    })
+    await untilKeyWriteBlocks()
+    held.commit()
+    await held.committed
+
+    expect(await claim).toBe('bound')
+    expect(await keyRows(workspaceId, 'table', id)).toEqual([
+      { key: 'race-named', origin: 'adopted' },
+    ])
   })
 })
