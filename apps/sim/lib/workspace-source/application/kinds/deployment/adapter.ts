@@ -17,6 +17,7 @@
  * Publishing to an MCP server is not part of source.
  */
 import { sha256Hex } from '@sim/security/hash'
+import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import {
@@ -33,7 +34,9 @@ import {
 } from '@sim/workspace-code/kinds/deployment'
 import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import {
+  assertChatReplaceAllowed,
   deleteWorkflowChatDeployment,
+  isChatIdentifierHeldElsewhere,
   replaceWorkflowChatDeployment,
 } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
@@ -63,7 +66,12 @@ import {
   liveTriggerCounts,
   oneTrigger,
 } from '@/lib/workspace-source/application/kinds/deployment/triggers'
-import { holdsIn, resolveDeclared, settle } from '@/lib/workspace-source/application/three-way'
+import {
+  holdsIn,
+  type PartFingerprints,
+  resolveDeclared,
+  settle,
+} from '@/lib/workspace-source/application/three-way'
 import type {
   ApplyContext,
   KindAdapter,
@@ -82,6 +90,13 @@ const READ_CONCURRENCY = 4
 
 /** The base entry field naming the variable a chat password was last set from. */
 const PASSWORD_ENV = 'x-passwordEnv'
+
+/**
+ * The base entry field holding each part's fingerprint (`api`, `chat`): an apply writes the flag
+ * and the chat through separate use cases, so one stopped between them leaves the server partway,
+ * and a re-run tells that from a teammate's edit part by part.
+ */
+const PARTS = 'x-parts'
 
 /** What an apply carries out for one deployment, decided at plan time. */
 interface DeploymentPlan {
@@ -110,6 +125,68 @@ type DeploymentChange = PlannedChange<DeploymentDecl, DeploymentPlan>
 function passwordEnvOf(base: BaseResource | undefined): string | undefined {
   const name = base?.[PASSWORD_ENV]
   return typeof name === 'string' ? name : undefined
+}
+
+/** Each part's fingerprint (`api`, `chat`) of a declaration. */
+function partsOf(decl: DeploymentDecl): PartFingerprints {
+  return Object.fromEntries(
+    Object.entries(fieldsOf(deploymentCodec.canonical(decl))).map(([part, value]) => [
+      part,
+      fingerprintOf(value),
+    ])
+  )
+}
+
+/** A stored deployment's parts; `undefined` when it cannot be read as a declaration. */
+function storedParts(
+  state: StoredDeployment,
+  passwordEnv: string | undefined
+): PartFingerprints | undefined {
+  const decl = declOf(state, { live: 'draft', passwordEnv })
+  return decl ? partsOf(decl) : undefined
+}
+
+/** The parts a base entry records, or `undefined` for a base written before it recorded them. */
+function basePartsOf(base: BaseResource | undefined): PartFingerprints | undefined {
+  const parts = base?.[PARTS]
+  if (!isRecordLike(parts)) return undefined
+  const read: Record<string, string> = {}
+  for (const [part, value] of Object.entries(parts)) {
+    if (typeof value !== 'string') return undefined
+    read[part] = value
+  }
+  return read
+}
+
+/**
+ * Whether a deployment the base has no entry for is a first deploy of `decl` that stopped before
+ * its chat: the workflow is deployed with the declared API flag and either no chat yet or the
+ * declared one. Finishing it overwrites nothing the server holds, so it resumes instead of asking
+ * for a get, which would print over the declared chat.
+ */
+function startedFirstDeploy(decl: DeploymentDecl, state: StoredDeployment): boolean {
+  const server = storedParts(state, undefined)
+  if (!server) return false
+  const local = partsOf(decl)
+  const noChat = fingerprintOf(null)
+  return Object.keys({ ...local, ...server }).every(
+    (part) => server[part] === local[part] || (part === 'chat' && server[part] === noChat)
+  )
+}
+
+/** The base entry for a stored deployment, the chat password read as `passwordEnv`. */
+function baseEntry(
+  id: string,
+  state: StoredDeployment,
+  passwordEnv: string | undefined
+): BaseResource {
+  const parts = storedParts(state, passwordEnv)
+  return {
+    id,
+    fingerprint: storedFingerprint(state, passwordEnv),
+    ...(parts ? { [PARTS]: parts } : {}),
+    ...(passwordEnv ? { [PASSWORD_ENV]: passwordEnv } : {}),
+  }
 }
 
 /** The variable a declaration sets the chat password from, if any. */
@@ -158,8 +235,9 @@ function changedFields(before: DeploymentDecl | null, after: DeploymentDecl): st
 }
 
 /**
- * Checks, before anything is written, what the chat needs: when the apply writes it, that the
- * password variable is set (a `stored()` password needs one stored); and that each output names a
+ * Checks, before anything is written, what the chat needs: when the apply writes it, that no other
+ * live chat holds its identifier and the password variable is set (a `stored()` password needs one
+ * stored); and that each output names a
  * block of the draft the chat answers from. For a workflow this apply edits or creates, that is
  * the graph its plan evaluated (`editedBlocks`), so an output naming a block the edit removes
  * refuses the plan before anything goes live; otherwise it is the stored draft.
@@ -178,6 +256,19 @@ async function checkChat(
 ): Promise<void> {
   const { key } = change
   const { auth } = chat
+  if (
+    options.writesChat &&
+    (await isChatIdentifierHeldElsewhere(chat.identifier, options.workflowId))
+  ) {
+    change.diagnostics.push(
+      deploymentFinding(
+        key,
+        'E_DEPLOY_CHAT_IDENTIFIER',
+        `Another chat already serves at "${chat.identifier}".`,
+        'Choose another chat identifier.'
+      )
+    )
+  }
   if (options.writesChat && auth !== 'public' && 'password' in auth) {
     if (auth.password === 'stored') {
       if (!options.storedPassword) {
@@ -306,18 +397,25 @@ async function planDeployment(
   const draftEdited = workflowChange?.action === 'update' || creating
   const base = ctx.base?.resources[resourceAddress('deployment', key)]
   const basePasswordEnv = passwordEnvOf(base)
-  const resolution = resolveDeclared({
+  const resolved = resolveDeclared({
     local: fingerprintOf(deploymentCodec.canonical(decl)),
     stored: deployed,
     base,
     fingerprint: (record, entry) => storedFingerprint(record.state, passwordEnvOf(entry)),
     holds: holdsIn(stored),
+    parts: {
+      local: partsOf(decl),
+      base: basePartsOf(base),
+      server: (record, entry) => storedParts(record.state, passwordEnvOf(entry)),
+    },
   })
-  const planned = settle(resolution, change, (record) => ({
-    id: record.id,
-    fingerprint: storedFingerprint(record.state, basePasswordEnv),
-    ...(basePasswordEnv ? { [PASSWORD_ENV]: basePasswordEnv } : {}),
-  }))
+  const resolution =
+    resolved.action === 'no-base' && startedFirstDeploy(decl, resolved.stored.state)
+      ? { action: 'adopt' as const, stored: resolved.stored }
+      : resolved
+  const planned = settle(resolution, change, (record) =>
+    baseEntry(record.id, record.state, basePasswordEnv)
+  )
   // A no-op leaves the stored settings as they are, but the draft may still go live.
   if ('settled' in planned && resolution.action !== 'noop') return planned.settled
 
@@ -470,8 +568,9 @@ type ChatReplaceInput = Parameters<typeof replaceWorkflowChatDeployment.execute>
 
 /**
  * The replace input for the declared chat: its password read from its variable and its outputs
- * resolved to block ids of the (already written) draft. Resolved before the deployment publishes
- * anything, so a chat that cannot be written refuses while the live version is still the old one.
+ * resolved to block ids of the (already written) draft, with the replace's own predictable refusals
+ * (identifier taken, auth mode denied) checked. Resolved before the deployment writes anything, so a
+ * chat that cannot be written refuses while the flag and the live version are still the old ones.
  */
 async function resolveChat(
   ctx: ApplyContext,
@@ -502,6 +601,12 @@ async function resolveChat(
         : 'emails' in auth
           ? 'email'
           : 'sso'
+  await assertChatReplaceAllowed(ctx.principal, {
+    workspaceId: ctx.workspace.workspaceId,
+    workflowId,
+    identifier: chat.identifier,
+    authType,
+  })
   return {
     workflowId,
     identifier: chat.identifier,
@@ -699,8 +804,8 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     }
     const { decl, detail } = change
     if (!decl || !detail) throw new Error('A deployment write needs its declaration and plan')
-    // Everything the chat needs is resolved first: a chat that cannot be written refuses before
-    // the flag or the deploy changes what is live.
+    // Everything the chat needs is resolved and checked first: a chat that cannot be written
+    // refuses before the flag or the deploy changes anything.
     const chatInput =
       detail.chat === 'replace' && decl.chat
         ? await resolveChat(ctx, change.key, workflowId, decl.chat)
@@ -724,11 +829,7 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     const written = declOf(state, { live: decl.live, passwordEnv })
     return {
       id: workflowId,
-      base: {
-        id: workflowId,
-        fingerprint: storedFingerprint(state, passwordEnv),
-        ...(passwordEnv ? { [PASSWORD_ENV]: passwordEnv } : {}),
-      },
+      base: baseEntry(workflowId, state, passwordEnv),
       text: written ? deploymentCodec.print(change.key, written).text : {},
     }
   },
@@ -746,7 +847,7 @@ export const deploymentAdapter: KindAdapter<DeploymentDecl, StoredDeployment, De
     return {
       text: deploymentCodec.print(stored.key, decl).text,
       blobs: [],
-      base: { id: stored.id, fingerprint: storedFingerprint(state, undefined) },
+      base: baseEntry(stored.id, state, undefined),
     }
   },
 }

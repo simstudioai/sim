@@ -23,12 +23,17 @@ import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { createMcpServerUseCase, updateMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import {
+  createMcpServerUseCase,
+  deleteMcpServerUseCase,
+  updateMcpServerUseCase,
+} from '@/lib/mcp/application/use-cases'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { readSourceResources } from '@/lib/workflows/application/read-source-resources'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
+  failKeyClaims,
   refusal,
   sourceChecks,
   sourceRunner,
@@ -406,6 +411,58 @@ describe('MCP servers as workspace source', () => {
       expect(after.map((server) => server.url)).toEqual([`${url}/v2`])
       expect(after[0]?.id).not.toBe(before.id)
       expect(replaced.base.resources['mcp-server:github']?.id).toBe(after[0]?.id)
+    }
+  )
+
+  check(
+    'a re-run finishes a replace that stopped before deleting the old server or binding the key',
+    async () => {
+      /** The GitHub server under `key`, its URL moved, the replace stopped by `stop`. */
+      const stopped = async (key: string, stop: () => Promise<() => Promise<void>>) => {
+        const workspaceId = await newWorkspace()
+        const path = `mcp/${key}.ts`
+        const created = await apply(workspaceId, { [path]: github() })
+        expect(created.failed).toBeUndefined()
+        const moved = { [path]: github().replace(url, `${url}/v2`) }
+        const resume = await stop()
+        try {
+          const failed = await apply(workspaceId, moved, { base: created.base })
+          expect(failed.failed?.key).toBe(key)
+        } finally {
+          await resume()
+        }
+        return { workspaceId, moved, base: created.base }
+      }
+      const converges = async (run: Awaited<ReturnType<typeof stopped>>, key: string) => {
+        const rerun = await apply(run.workspaceId, run.moved, {
+          base: run.base,
+          allowDelete: true,
+        })
+        expect(rerun.failed).toBeUndefined()
+        const after = await liveServers(run.workspaceId)
+        expect(after.map((server) => server.url)).toEqual([`${url}/v2`])
+        expect(rerun.base.resources[`mcp-server:${key}`]?.id).toBe(after[0]?.id)
+        const settled = await apply(run.workspaceId, run.moved, { base: rerun.base })
+        expect(settled.applied).toEqual([])
+        expect(findings(settled.diagnostics, 'error')).toEqual([])
+      }
+
+      // Stopped after the create, before the old server is deleted: both servers are live.
+      const beside = await stopped('beside-hub', async () => {
+        const removing = vi
+          .spyOn(deleteMcpServerUseCase, 'execute')
+          .mockRejectedValueOnce(new Error('process stopped'))
+        return async () => removing.mockRestore()
+      })
+      expect((await liveServers(beside.workspaceId)).length).toBe(2)
+      await converges(beside, 'beside-hub')
+
+      // Stopped after the old server is deleted, before the key moves to the new one.
+      const unbound = await stopped('unbound-hub', () => failKeyClaims('unbound-hub'))
+      expect((await liveServers(unbound.workspaceId)).map((server) => server.url)).toEqual([
+        `${url}/v2`,
+      ])
+      await converges(unbound, 'unbound-hub')
     }
   )
 
