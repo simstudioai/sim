@@ -86,8 +86,8 @@ func remindersStore() throws -> EKEventStore {
     }
     return EKEventStore()
 }
-/// A due date: `YYYY-MM-DD` is date-only; a date-time must be ISO 8601 with an explicit offset or `Z`,
-/// so the reminder never depends on the helper's time zone guess.
+/// A due date: `YYYY-MM-DD` is date-only; a date-time is ISO 8601, and one without an offset is this
+/// Mac's local time, as typing it into the app would be.
 func dueComponents(_ text: String) throws -> DateComponents {
     var calendar = Calendar(identifier: .gregorian)
     if text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
@@ -96,9 +96,8 @@ func dueComponents(_ text: String) throws -> DateComponents {
         guard components.isValidDate else { throw ComputerError("invalid_arguments", "Due date is not a real date.", dispatchState: "not_started") }
         return DateComponents(year: parts[0], month: parts[1], day: parts[2])
     }
-    let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime]
-    guard let date = formatter.date(from: text) else {
-        throw ComputerError("invalid_arguments", "Due must be YYYY-MM-DD or an ISO 8601 date-time with an offset.", dispatchState: "not_started")
+    guard let date = isoDateTime(text) else {
+        throw ComputerError("invalid_arguments", "Due must be YYYY-MM-DD or an ISO 8601 date-time.", dispatchState: "not_started")
     }
     calendar.timeZone = .current
     return calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: date)
@@ -130,7 +129,17 @@ func contactStore() throws -> CNContactStore {
     }
     return CNContactStore()
 }
-/// An event boundary: an ISO 8601 date-time with an explicit offset, or `YYYY-MM-DD` for all-day events.
+/// An ISO 8601 date-time; without an offset it is this Mac's local time.
+func isoDateTime(_ text: String) -> Date? {
+    let zoned = ISO8601DateFormatter(); zoned.formatOptions = [.withInternetDateTime]
+    if let date = zoned.date(from: text) { return date }
+    guard text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$"#, options: .regularExpression) != nil else { return nil }
+    let local = DateFormatter(); local.locale = Locale(identifier: "en_US_POSIX"); local.timeZone = .current
+    local.dateFormat = text.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
+    local.isLenient = false
+    return local.date(from: text)
+}
+/// An event boundary: an ISO 8601 date-time (local without an offset), or `YYYY-MM-DD` for all-day events.
 func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
     let text = try commandText(text, field, max: 64)
     if allDay {
@@ -138,8 +147,7 @@ func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
         guard parts.hour == nil, let date = Calendar.current.date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
         return date
     }
-    let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime]
-    guard let date = formatter.date(from: text) else { throw invalidCommand("\(field) must be an ISO 8601 date-time with an offset.") }
+    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be an ISO 8601 date-time.") }
     return date
 }
 func runAppCommand(_ command: AppCommand) throws -> [String: Any] {

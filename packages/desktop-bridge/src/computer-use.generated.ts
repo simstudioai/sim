@@ -236,7 +236,9 @@ const EventBoundary = z
   .string()
   .min(10)
   .max(64)
-  .describe("ISO 8601 date-time with an explicit offset, or YYYY-MM-DD when allDay is true.");
+  .describe(
+    "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
+  );
 
 /** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
 export const AppCommandSchema = z.discriminatedUnion("name", [
@@ -250,7 +252,9 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
       .min(10)
       .max(64)
       .optional()
-      .describe("YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time with an explicit offset."),
+      .describe(
+        "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+      ),
     listId: z
       .string()
       .min(1)

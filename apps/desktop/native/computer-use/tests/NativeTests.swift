@@ -40,13 +40,17 @@ import AppKit
         precondition(dateOnly.year == 2027 && dateOnly.month == 5 && dateOnly.day == 4 && dateOnly.hour == nil)
         let timed = try dueComponents("2027-05-04T09:30:00Z")
         precondition(timed.hour != nil && timed.minute != nil)
-        for due in ["2027-02-30", "2027-05-04T09:30:00", "May 4", "2027-5-4"] {
+        let localDue = try dueComponents("2027-05-04T09:30")
+        precondition(localDue.hour == 9 && localDue.minute == 30)
+        for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4"] {
             expectError("invalid_arguments") { _ = try dueComponents(due) }
         }
         expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
-        expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00", "Start", allDay: false) }
+        var local = Calendar(identifier: .gregorian); local.timeZone = .current
+        precondition(local.dateComponents([.hour, .minute], from: try eventDate("2027-06-09T07:15:00", "Start", allDay: false)) == DateComponents(hour: 7, minute: 15))
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09 07:15", "Start", allDay: false) }
         expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: true) }
         precondition(try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: false) == Date(timeIntervalSince1970: 1_812_521_700))
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Flight", start: "2027-06-09T08:10:00Z", end: "2027-06-09T07:15:00Z")) }
