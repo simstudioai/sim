@@ -597,6 +597,31 @@ check(
   }
 )
 
+check('a new baseline withdraws a verdict recorded between a build and its baseline', async () => {
+  const { workflowId, startId } = await seedWorkflow()
+  await createNotes(workflowId)
+  await writeNotes(workflowId, notesWith(functionBatch(startId, 'score')))
+  expect((await evaluate(workflowId)).passed).toBe(true)
+  const evaluatedOn = await notesRow(workflowId)
+  // A late verdict lands while the recorded baseline is still the one it was evaluated against.
+  expect(
+    await recordBuildNotesEvaluation(
+      evaluatedOn.id,
+      {
+        evaluatedNotesHash: evaluatedOn.evaluatedNotesHash ?? '',
+        evaluatedOperationsHash: evaluatedOn.evaluatedOperationsHash ?? '',
+      },
+      { baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt }
+    )
+  ).toBe(true)
+  await apply(person, workflowId, functionBatch(startId, 'committed'))
+  await writeBaseline(evaluatedOn, await loadCurrentBaselineState(workflowId), {
+    userId: ownerId,
+    source: 'copilot',
+  })
+  expect((await notesRow(workflowId)).evaluatedNotesHash).toBeNull()
+})
+
 check('notes created while their workflow is archived roll back with their files', async () => {
   const { workflowId } = await seedWorkflow()
   await archiveWorkflow(workflowId, { requestId: generateId(), notifySocket: false })

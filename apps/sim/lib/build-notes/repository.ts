@@ -68,6 +68,8 @@ export async function getLiveBuildNotesByFileId(
 /**
  * Records a baseline only if it is not older than the one recorded, so a rebase that read the
  * graph before a build committed cannot replace that build's baseline. False when it is older.
+ * A new baseline also withdraws any recorded evaluation: it was reached against the previous one,
+ * including a late verdict recorded after a build committed but before its baseline was saved.
  */
 export async function setBuildNotesBaseline(
   notesId: string,
@@ -76,7 +78,12 @@ export async function setBuildNotesBaseline(
 ): Promise<boolean> {
   const set = await executor
     .update(workflowBuildNotes)
-    .set({ ...baseline, updatedAt: new Date() })
+    .set({
+      ...baseline,
+      evaluatedNotesHash: null,
+      evaluatedOperationsHash: null,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(workflowBuildNotes.id, notesId),
