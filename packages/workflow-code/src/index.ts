@@ -68,6 +68,7 @@ export {
 } from './equivalence'
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
+export { parseJsonField } from './json-fields'
 export {
   type DefinedField,
   fieldNames,
