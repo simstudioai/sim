@@ -519,6 +519,64 @@ describe('MCP servers as workspace source', () => {
     }
   )
 
+  check(
+    'a re-run that adopts a stopped replace carrying stored() headers still needs an admin',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const tenant = ['tenant', generateId()].join('-')
+      await createMcpServerUseCase.execute({
+        principal: owner,
+        input: {
+          workspaceId,
+          name: 'Legacy',
+          url,
+          headers: { Authorization: `Bearer ${TOKEN}`, 'X-Tenant': tenant },
+          authType: 'headers',
+        },
+      })
+      const read = await runner.get(workspaceId)
+      const [path] = Object.keys(read.files)
+      const key = path.slice(4, -3)
+      expect(read.files[path]).toContain('Authorization: stored()')
+      const moved = { [path]: read.files[path].replace(url, `${url}/v2`) }
+
+      // The owner's replace stops after creating the new server, before deleting the old one.
+      const removing = vi
+        .spyOn(deleteMcpServerUseCase, 'execute')
+        .mockRejectedValueOnce(new Error('process stopped'))
+      try {
+        const stopped = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+        expect(stopped.failed?.key).toBe(key)
+      } finally {
+        removing.mockRestore()
+      }
+      expect((await liveServers(workspaceId)).length).toBe(2)
+
+      const apiKey = createWorkspaceApiKeyPrincipal({ workspaceId, keyId: generateId() })
+      const refused = await refusal(
+        apply(workspaceId, moved, { base: read.base, allowDelete: true, principal: apiKey })
+      )
+      expect(findings(refused.diagnostics, 'error')).toEqual([
+        `E_APPLY_FORBIDDEN mcp-server:${key}`,
+      ])
+      expect(
+        (await liveServers(workspaceId)).map((server) => server.url).sort(compareStrings)
+      ).toEqual([url, `${url}/v2`].sort(compareStrings))
+
+      const resumed = await apply(workspaceId, moved, { base: read.base, allowDelete: true })
+      expect(resumed.failed).toBeUndefined()
+      const after = await liveServers(workspaceId)
+      expect(after.map((server) => [server.url, server.headers])).toEqual([
+        [`${url}/v2`, { Authorization: `Bearer ${TOKEN}`, 'X-Tenant': tenant }],
+      ])
+
+      const shown = await runner.get(workspaceId, reader)
+      expect(JSON.stringify(shown)).not.toContain(tenant)
+      expect(JSON.stringify(shown)).not.toContain(TOKEN)
+      expect(shown.files[path]).toContain("'X-Tenant': stored()")
+    }
+  )
+
   check('deletes an undeclared server only with --allow-delete', async () => {
     const workspaceId = await newWorkspace()
     const created = await apply(workspaceId, {
