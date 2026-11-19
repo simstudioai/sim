@@ -96,6 +96,11 @@ const TABLE_CODES = [
   'E_TABLE_ROWS',
   /** Seed rows declared for a table that already holds rows: only a new or empty table is seeded. */
   'I_TABLE_SEED_SKIPPED',
+  /**
+   * Managed rows whose key cell is empty (a row the table's "add row" made and nobody keyed): no
+   * file line can name them, so a get leaves them out and an apply keeps them as they are.
+   */
+  'I_TABLE_ROWS_UNKEYED',
   /** A column dropped and one of the same type added: probably a rename, which loses the cells. */
   'W_LIKELY_RENAME',
 ] as const

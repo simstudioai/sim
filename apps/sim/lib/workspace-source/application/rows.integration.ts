@@ -19,6 +19,7 @@ import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
+import { createTableRows } from '@/lib/table/application/rows'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { getTableById } from '@/lib/table/service'
 import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
@@ -158,6 +159,22 @@ async function editStoredSeats(workspaceId: string, code: string, seats: number)
     .where(
       and(eq(userTableRows.tableId, table.id), sql`${userTableRows.data}->>${id('code')} = ${code}`)
     )
+}
+
+/** Adds a row as the table grid's "add row" does: the cells given by column name, the rest empty. */
+async function addUiRow(workspaceId: string, data: Record<string, string | number>) {
+  const table = await storedTable(workspaceId)
+  await createTableRows.execute({
+    principal: owner,
+    input: {
+      tableId: table.id,
+      assertedWorkspaceId: workspaceId,
+      strictWrite: false,
+      dataKeying: 'names',
+      kind: 'single',
+      data,
+    },
+  })
 }
 
 /** A managed `plans` table applied from scratch, then read back. */
@@ -759,4 +776,80 @@ export default defineTable({
     expect(created.failed).toBeUndefined()
     expect(await storedRows(workspaceId)).toHaveLength(2)
   })
+
+  check(
+    'leaves a row the UI added without a key out of the rows file, so the get applies back unchanged and the row is kept',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const optionalKey = MANAGED.replace(
+        'column.string({ required: true, unique: true })',
+        'column.string({ unique: true })'
+      )
+      const created = await apply(workspaceId, {
+        'tables/plans.ts': optionalKey,
+        'tables/plans.rows.jsonl': ROWS,
+      })
+      expect(created.failed).toBeUndefined()
+      await addUiRow(workspaceId, {})
+
+      const read = await runner.get(workspaceId)
+      expect(read.files['tables/plans.rows.jsonl']).toBe(ROWS)
+      expect(codes(read.diagnostics, 'info')).toEqual(['I_TABLE_ROWS_UNKEYED'])
+
+      const again = await apply(workspaceId, read.files, { base: read.base })
+      expect(codes(again.diagnostics)).toEqual([])
+      expect(again.applied).toEqual([])
+      expect(await storedRows(workspaceId)).toHaveLength(3)
+
+      // A rows write leaves it alone, even with --allow-delete, and counts it as no removal.
+      const edited = {
+        ...read.files,
+        'tables/plans.rows.jsonl': ROWS.replace('"seats":1', '"seats":2'),
+      }
+      const written = await apply(workspaceId, edited, { base: read.base, allowDelete: true })
+      expect(written.failed).toBeUndefined()
+      expect(written.applied[0]).not.toHaveProperty('destructive')
+      expect(await storedRows(workspaceId)).toEqual([
+        { code: 'solo', seats: 2, tier: 'basic' },
+        { code: 'team', seats: 10, tier: 'pro' },
+        {},
+      ])
+
+      // Its empty cells still refuse a column made required, at plan time.
+      const required = {
+        'tables/plans.ts': read.files['tables/plans.ts'].replace(
+          'seats: column.number()',
+          'seats: column.number({ required: true })'
+        ),
+        'tables/plans.rows.jsonl': ROWS,
+      }
+      const refused = await refusal(apply(workspaceId, required, { base: written.base }))
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+    }
+  )
+
+  check(
+    'refuses at plan time a column made required that a row the UI added leaves empty, though the rows file is unchanged',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await managedPlans(workspaceId)
+      await addUiRow(workspaceId, { code: 'trio' })
+      const required = {
+        ...read.files,
+        'tables/plans.ts': read.files['tables/plans.ts'].replace(
+          'seats: column.number()',
+          'seats: column.number({ required: true })'
+        ),
+      }
+
+      const refused = await refusal(apply(workspaceId, required, { base: read.base }))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+      expect(refused.diagnostics[0].message).toContain('"seats" cannot become required')
+      const seats = (await storedTable(workspaceId)).schema.columns.find(
+        (column) => column.name === 'seats'
+      )
+      expect(seats?.required).toBeFalsy()
+    }
+  )
 })

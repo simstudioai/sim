@@ -141,7 +141,10 @@ apart from the declarations').
   `base.rows`; the server's changed from the base is `E_APPLY_STALE`; else the rows are written. A
   write records the row version the plan read in its fingerprint, so the apply's pre-write check
   refuses a version that moved. Rows the file no longer lists are deleted only with
-  `--allow-delete`. The server marks a managed table in its metadata (`sourceRows`, by key column id),
+  `--allow-delete`. A stored row whose key cell is empty (the grid's "add row" makes one) has
+  nothing a line could match it by, so it is not managed: a get leaves it out of the file with
+  `I_TABLE_ROWS_UNKEYED`, neither fingerprint counts it, and no rows write changes or removes it
+  (a column made required still counts its empty cells). The server marks a managed table in its metadata (`sourceRows`, by key column id),
   so a get prints the declaration's `rows` and the rows file.
 
 Every rows write is the table's one reshape (`reshapeTableUseCase`, `rows` and `sourceRows`):

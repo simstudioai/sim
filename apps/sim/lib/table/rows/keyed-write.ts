@@ -3,7 +3,8 @@
  * caller's transaction: workspace source's managed rows. Only what differs is written, through the
  * row service's transaction-bound writers: stored rows whose key no declared row has are deleted,
  * rows whose declared cells changed are patched (cells of other columns, a workflow group's
- * outputs say, are left alone), and new keys are inserted. An unchanged row is not touched, so
+ * outputs say, are left alone), and new keys are inserted. A stored row with no key value (the
+ * grid's "add row" makes one) is no declared row's, so it is kept. An unchanged row is not touched, so
  * its id, `updated_at`, run state and provenance stay, and no trigger fires for it.
  */
 
@@ -91,10 +92,15 @@ export async function writeKeyedRowsWithTx(
       and(eq(userTableRows.tableId, table.id), eq(userTableRows.workspaceId, table.workspaceId))
     )
   const storedByKey = new Map<string, { id: string; data: RowData }>()
+  // A stored row with no key value is no declared row's (the grid's "add row" makes one): it is
+  // never matched, and kept.
+  const keyedIds = new Set<string>()
   for (const row of stored) {
     const data = row.data as RowData
     const key = rowKeyText(data[keyColumnId])
-    if (key !== undefined) storedByKey.set(key, { id: row.id, data })
+    if (key === undefined) continue
+    storedByKey.set(key, { id: row.id, data })
+    keyedIds.add(row.id)
   }
 
   const inserts: RowData[] = []
@@ -118,7 +124,7 @@ export async function writeKeyedRowsWithTx(
     }
     if (Object.keys(patch).length > 0) updates.push({ rowId: existing.id, data: patch })
   })
-  const removed = stored.filter((row) => !matched.has(row.id)).map((row) => row.id)
+  const removed = [...keyedIds].filter((id) => !matched.has(id))
   if (removed.length > 0 && !declared.allowDelete) {
     throw new OrchestrationError(
       'validation',

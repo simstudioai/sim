@@ -14,7 +14,9 @@
  *
  * Only managed rows are fingerprinted, and apart from the table's declaration
  * ({@link tableRowsFingerprint}): telling whether stored rows drifted means reading them, which a
- * plan does only when the directory's rows changed.
+ * plan does only when the directory's rows changed. A stored row whose key cell is empty (the
+ * table's "add row" makes one) has nothing a line could match it by, so it is not managed: it is
+ * printed and fingerprinted by neither side, and an apply never writes or removes it.
  */
 
 import { isRecordLike } from '@sim/utils/object'
@@ -64,6 +66,11 @@ export function rowKeyText(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() === '' ? undefined : value.toLowerCase()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return undefined
+}
+
+/** Whether a managed row holds a value in its key column, so a rows file can name it. */
+export function hasRowKey(row: TableRowCells, rowKey: string): boolean {
+  return rowKeyText(row[rowKey]) !== undefined
 }
 
 /** A row without its empty cells (null, `''` and `[]`, which a table stores as no value). */
@@ -168,10 +175,11 @@ export function parseTableRows(
 
 /**
  * Managed rows in canonical order: by key, each without its empty cells, so a reordered file or a
- * `null` written for an absent cell reads as the same rows.
+ * `null` written for an absent cell reads as the same rows. A row without a key is left out.
  */
 function sortedRows(data: readonly TableRowCells[], rowKey: string): TableRowCells[] {
   return data
+    .filter((row) => hasRowKey(row, rowKey))
     .map(filledCells)
     .sort((a, b) => compareStrings(rowKeyText(a[rowKey]) ?? '', rowKeyText(b[rowKey]) ?? ''))
 }
@@ -181,8 +189,8 @@ export function printTableRows(
   rows: TableRowsDecl,
   columnOrder: readonly string[]
 ): string | undefined {
-  if (rows.data.length === 0) return undefined
   const ordered = rows.mode === 'managed' && rows.key ? sortedRows(rows.data, rows.key) : rows.data
+  if (ordered.length === 0) return undefined
   const lines = ordered.map((row) => {
     const cells = filledCells(row)
     const printed: TableRowCells = {}

@@ -7,6 +7,7 @@
 import type { Json } from '@sim/workflow-code'
 import type { BaseRows } from '@sim/workspace-code'
 import {
+  hasRowKey,
   type TableRowCells,
   type TableRowsDecl,
   tableRowsFingerprint,
@@ -25,8 +26,18 @@ import type { SourceContext } from '@/lib/workspace-source/application/types'
 export interface StoredRows {
   /** Each row's source cells, keyed by column key. */
   data: TableRowCells[]
+  /** Each row's stored cells, keyed by column id, in the order of `data`. */
+  byColumnId: RowData[]
   /** The table's row version when the rows were read. */
   version: number
+}
+
+/**
+ * The stored rows (cells by column id) whose `rowKey` cell is empty: rows source does not manage,
+ * which no rows write changes or removes.
+ */
+export function unkeyedRows(rows: StoredRows, rowKey: string): RowData[] {
+  return rows.byColumnId.filter((_, index) => !hasRowKey(rows.data[index], rowKey))
 }
 
 /** The table's live row version, refusing a table that left the workspace. */
@@ -60,6 +71,7 @@ export async function readStoredRows(
   const version = await rowsVersion(ctx, table.id)
   const columnsById = new Map(table.schema.columns.map((column) => [getColumnId(column), column]))
   const data: TableRowCells[] = []
+  const byColumnId: RowData[] = []
   let cursor: string | undefined
   do {
     const page = await listTableRows.execute({
@@ -79,10 +91,11 @@ export async function readStoredRows(
         if (column && key !== undefined) cells[key] = sourceCell(column, value)
       }
       data.push(cells)
+      byColumnId.push(row.data)
     }
     cursor = page.nextCursor ?? undefined
   } while (cursor)
-  return { data, version }
+  return { data, byColumnId, version }
 }
 
 /** The base entry of managed rows read or written as `rows`. */

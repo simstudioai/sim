@@ -23,7 +23,7 @@ import {
   selectValueForConversion,
 } from '@/lib/table/columns/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
-import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
+import type { ColumnDefinition, ColumnType, RowData, SelectOption } from '@/lib/table/types'
 import { finding } from '@/lib/workspace-source/application/findings'
 import {
   type StoredTableState,
@@ -230,13 +230,16 @@ function isEmptyCell(value: unknown): boolean {
  * and cells a removed select option takes a selection from. It refuses what the column write
  * would: empty cells of a newly required column, a required column's rows a removal empties,
  * rows a multi→single switch leaves with several options, and cells a type change cannot convert
- * (`E_TABLE_TYPE_CONVERSION`).
+ * (`E_TABLE_TYPE_CONVERSION`). `unkeyedRows` is set only when the apply writes managed rows: the stored
+ * rows (cells by column id) that write leaves as they are, so declared rows that fill a column
+ * stand for every other row.
  */
 export async function diffTable(
   key: string,
   decl: TableDecl,
   stored: StoredTableState,
-  bindings: Readonly<Record<string, BaseColumn>> | undefined
+  bindings: Readonly<Record<string, BaseColumn>> | undefined,
+  unkeyedRows?: readonly RowData[]
 ): Promise<TableChanges> {
   const { table } = stored
   const diagnostics: WorkspaceSourceDiagnostic[] = []
@@ -289,10 +292,14 @@ export async function diffTable(
   for (const [columnKey, declared] of Object.entries(decl.columns)) {
     const current = pairs.get(columnKey)
     const target = columnInput(columnKey, declared)
-    // Managed rows make the table hold exactly them, so when each fills the column, every row the
-    // table keeps does: the reshape writes them before it makes the column required.
+    // A managed rows write makes every keyed row hold exactly a declared one, so when each fills
+    // the column and so does every row the write keeps, every row does: the reshape writes the
+    // rows before it makes the column required. Rows this apply writes nothing to prove nothing.
     const filled =
-      decl.rows?.mode === 'managed' && decl.rows.data.every((row) => !isEmptyCell(row[columnKey]))
+      unkeyedRows !== undefined &&
+      decl.rows?.mode === 'managed' &&
+      decl.rows.data.every((row) => !isEmptyCell(row[columnKey])) &&
+      unkeyedRows.every((row) => current !== undefined && !isEmptyCell(row[getColumnId(current)]))
     if (!current) {
       changes.columns.push({ op: 'add', key: columnKey, column: target })
       changes.fields.push(`columns.${columnKey} (add)`)

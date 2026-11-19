@@ -29,6 +29,7 @@ import {
   type TableDecl,
 } from '@sim/workspace-code/kinds/table'
 import {
+  hasRowKey,
   rowKeyText,
   type TableRowsDecl,
   tableRowsFingerprint,
@@ -74,6 +75,7 @@ import {
   namedRows,
   readStoredRows,
   rowsVersion,
+  unkeyedRows,
 } from '@/lib/workspace-source/application/kinds/table/rows'
 import {
   printStoredTable,
@@ -145,6 +147,11 @@ interface RowsOutcome {
   removed: number
   /** The base's rows entry a no-op records, read from the server. */
   base?: BaseResource['rows']
+  /**
+   * The stored rows (cells by column id) a planned managed write leaves as they are, their key
+   * cell empty; absent when no managed rows are written.
+   */
+  kept?: RowData[]
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
@@ -179,6 +186,22 @@ function rowsWrite(decl: TableDecl, allowDelete: boolean): ReshapeRows | undefin
         allowDelete,
       }
     : { mode: 'seed', rows: named }
+}
+
+/** `I_TABLE_ROWS_UNKEYED` for `count` stored rows of table `name` with an empty `rowKey` cell. */
+function unkeyedFinding(
+  key: string,
+  name: string,
+  rowKey: string,
+  count: number
+): WorkspaceSourceDiagnostic {
+  return kindFinding(
+    'table',
+    key,
+    'I_TABLE_ROWS_UNKEYED',
+    `${count} row(s) of "${name}" have no "${rowKey}" value, so ${tableRowsPath(key)} leaves them out and an apply keeps them as they are.`,
+    { hint: `Fill their "${rowKey}" cells in the table to manage them as source.` }
+  )
 }
 
 /** How many refused rows a finding lists before it counts the rest. */
@@ -291,6 +314,10 @@ async function planRows(
   if (based && based.fingerprint === local && marked) return outcome
   const rowKey = rows.key ?? ''
   const stored = await readStoredRows(ctx, state.table, keyById)
+  const kept = unkeyedRows(stored, rowKey)
+  if (kept.length > 0) {
+    outcome.diagnostics.push(unkeyedFinding(key, state.table.name, rowKey, kept.length))
+  }
   const server = tableRowsFingerprint({ ...rows, data: stored.data })
   if (server === local) {
     if (!marked) outcome.plan = { mark: markOf(decl), version: stored.version }
@@ -310,7 +337,9 @@ async function planRows(
     return outcome
   }
   const declared = new Set(rows.data.map((row) => declaredRowKeyText(decl, row)))
-  outcome.removed = stored.data.filter((row) => !declared.has(rowKeyText(row[rowKey]))).length
+  outcome.removed = stored.data.filter(
+    (row) => hasRowKey(row, rowKey) && !declared.has(rowKeyText(row[rowKey]))
+  ).length
   if (outcome.removed > 0 && !ctx.allowDelete) {
     outcome.diagnostics.push(
       kindFinding(
@@ -328,6 +357,7 @@ async function planRows(
     ...(marked ? {} : { mark: markOf(decl) }),
     version: stored.version,
   }
+  outcome.kept = kept
   outcome.fields.push(`rows (${rows.data.length})`)
   outcome.diagnostics.push(...writeFindings(key, decl, write))
   return outcome
@@ -465,8 +495,6 @@ async function planTable(
       const holder = nameHolder(stored, decl.name, { self: planned.stored.id, fold: true })
       if (holder) change.diagnostics.push(nameTakenFinding('table', key, decl.name, holder))
       const bindings = planned.action === 'update' ? planned.base.columns : undefined
-      const changes = await diffTable(key, decl, state, bindings)
-      change.diagnostics.push(...changes.diagnostics)
       const rows = await planRows(
         key,
         decl,
@@ -474,7 +502,8 @@ async function planTable(
         planned.action === 'update' ? planned.base : undefined,
         ctx
       )
-      change.diagnostics.push(...rows.diagnostics)
+      const changes = await diffTable(key, decl, state, bindings, rows.kept)
+      change.diagnostics.push(...changes.diagnostics, ...rows.diagnostics)
       const changed =
         changes.columns.length > 0 || changes.fields.length > 0 || rows.plan !== undefined
       const locked = lockFinding(key, state, changes)
@@ -609,7 +638,7 @@ async function rowsToPrint(
 ) {
   const { decl: storedDecl, keyById } = tableAsDecl(state, bindings)
   const rowKey = storedDecl.rows?.key
-  if (rowKey !== undefined) return readStoredRows(ctx, state.table, keyById)
+  if (rowKey !== undefined) return { ...(await readStoredRows(ctx, state.table, keyById)), rowKey }
   return decl?.rows?.mode === 'seed' ? { seed: decl.rows } : undefined
 }
 
@@ -788,6 +817,19 @@ export const tableAdapter: KindAdapter<'table', StoredTableState> = {
   async read(stored, ctx) {
     const rows = await rowsToPrint(ctx, stored.state, undefined)
     const { base, printed } = printStoredTable(stored.state, stored.key, undefined, rows)
-    return { text: printed.text, blobs: [], base }
+    const managed = rows && 'rowKey' in rows ? rows : undefined
+    const unkeyed = managed ? unkeyedRows(managed, managed.rowKey).length : 0
+    return {
+      text: printed.text,
+      blobs: [],
+      base,
+      ...(managed && unkeyed > 0
+        ? {
+            diagnostics: [
+              unkeyedFinding(stored.key, stored.state.table.name, managed.rowKey, unkeyed),
+            ],
+          }
+        : {}),
+    }
   },
 }
