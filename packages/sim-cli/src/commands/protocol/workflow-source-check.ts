@@ -32,6 +32,7 @@ import {
   refreshWorkspaceTypes,
 } from './source-tree'
 import { printNewDiagnostics, resultDiagnostics } from './source-ui'
+import { readStoredEdges } from './stored-edges'
 import { readSourceFiles } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
@@ -356,7 +357,10 @@ async function compileWorkflowDir(
   declarations?: WorkspaceDeclarations
 ) {
   const { lock } = parseWorkflowLock(await readSourceJson(dir, SOURCE_LOCK_FILE))
-  const files = await readSourceFiles(dir, lock ?? null)
+  const [files, storedEdges] = await Promise.all([
+    readSourceFiles(dir, lock ?? null),
+    readStoredEdges(dir),
+  ])
   const envNames = declarations?.envNames
   const compiled = compileWorkflow({
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
@@ -365,6 +369,7 @@ async function compileWorkflowDir(
     sdkMajor: catalog.sdkMajor,
     knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
     storedUnread: lock ?? undefined,
+    ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   })
   return { lock, files, compiled }

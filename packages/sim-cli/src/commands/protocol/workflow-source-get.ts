@@ -39,6 +39,7 @@ import {
   type WorkspaceTypes,
   withSourceExitCode,
 } from './source-tree'
+import { storedEdgesWrite } from './stored-edges'
 
 const DIR_FLAG = 'dir'
 const FORCE_FLAG = 'force'
@@ -155,7 +156,13 @@ async function writeSourceTree(
       blockTypes,
     }),
   ])
-  const written = await writeBack(dir, source, previousLock, tree.change)
+  const edges = storedEdgesWrite(source, catalog)
+  const written = await writeBack(
+    dir,
+    source,
+    previousLock,
+    edges ? { ...tree.change, write: [...tree.change.write, edges] } : tree.change
+  )
   return finishTree(dir, written, workspaceTypes, tree.ownsTsconfig)
 }
 

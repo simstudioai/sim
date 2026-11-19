@@ -139,6 +139,25 @@ export async function cachedSourceCatalog(
   return cachedCatalog(workspaceId)
 }
 
+/**
+ * The cached catalog a printed source's base names by hash (`.sim/base.json` of a get, apply or
+ * create answer): the workflow's own or the workspace's, or `null` when neither cached catalog
+ * has that hash.
+ */
+export function cachedCatalogOfBase(base: unknown): BlockCatalog | null {
+  const { workspaceId, workflowId, catalogHash } = toRecord(base)
+  if (embedStore.getStore() || typeof workspaceId !== 'string' || !CACHE_KEY.test(workspaceId)) {
+    return null
+  }
+  const candidates = [
+    typeof workflowId === 'string' && CACHE_KEY.test(workflowId)
+      ? readCachedCatalog(workflowCatalogCachePath(workspaceId, workflowId))
+      : null,
+    cachedCatalog(workspaceId),
+  ]
+  return candidates.find((catalog) => catalog !== null && catalog.hash === catalogHash) ?? null
+}
+
 /** The catalog a `getSourceCatalog` answer carries. */
 function catalogFrom(response: { data: unknown }): BlockCatalog {
   if (!isBlockCatalog(response.data)) {

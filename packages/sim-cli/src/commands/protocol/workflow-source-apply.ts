@@ -28,6 +28,7 @@ import {
   withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
+import { cachedCatalogOfBase } from './source-tree'
 import {
   confirm,
   fresh,
@@ -37,6 +38,7 @@ import {
   requireConsent,
   resultDiagnostics,
 } from './source-ui'
+import { storedEdgesWrite } from './stored-edges'
 import {
   refreshWorkflowTsconfigs,
   writeSourceDirectory,
@@ -316,7 +318,8 @@ export function attachWorkflowSourceApply(source: Command): void {
           params: { workflowId },
           body: { files, lock, base, provenance: { client: 'cli' } },
           save: async (data) => {
-            await writeBack(options.dir, data, lock)
+            const edges = storedEdgesWrite(data, cachedCatalogOfBase(data.base))
+            await writeBack(options.dir, data, lock, { write: edges ? [edges] : [] })
             await refreshWorkflowTsconfigs(options.dir, data)
           },
           ifAnswerLost: `It may have been saved. Run \`sim workflows source apply ${workflowId} --dir ${options.dir} --dry-run\`: exit 5 (stale) means the draft changed since this directory was read, by this apply or by someone else. Run \`sim workflows source get ${workflowId} --dir <fresh dir>\` and compare it with ${options.dir}: if it holds your edit, \`sim workflows source get ${workflowId} --dir ${options.dir} --force\` brings this directory up to date; if not, reapply your edit in the fresh directory. Any other outcome means it was not saved: apply again.`,

@@ -1009,3 +1009,100 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
     expect(checked()).toMatchObject({ errors: 0, catalogHash: revealed.hash })
   })
 })
+
+/** A get's source holding a stored cycle between A and B, every block bound by the lock. */
+const STORED_CYCLE = `// @sim-sdk 1
+import { api, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('W', {}, () => {
+  const start = trigger.start('Start', {})
+  const a = api('A', { url: 'https://example.com', method: 'GET' })
+  const b = api('B', { url: 'https://example.com', method: 'GET' })
+  const c = api('C', { url: 'https://example.com', method: 'GET' })
+
+  start.to(a)
+  a.to(b)
+  b.to(a)
+  b.to(c)
+})
+`
+
+const STORED_CYCLE_LOCK = {
+  version: 1,
+  blocks: Object.fromEntries(
+    ['start', 'a', 'b', 'c'].map((key, order) => [
+      key,
+      { id: `id-${key}`, parent: null, ident: key, order },
+    ])
+  ),
+  variables: {},
+}
+
+describe('checking wiring between blocks the lock binds', () => {
+  beforeEach(() => {
+    server.source = () =>
+      json({
+        data: {
+          ...sourceResponse({ 'workflow.ts': STORED_CYCLE }, STORED_CYCLE_LOCK).data,
+          blockTypes: ['start_trigger', 'api'],
+        },
+      })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+
+  function codes(): string[] {
+    const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+    return (printed.diagnostics as Array<{ code: string }>).map(({ code }) => code)
+  }
+
+  function edit(change: (source: string) => string): void {
+    writeFileSync(join(dir, 'workflow.ts'), change(read('workflow.ts')))
+  }
+
+  it('refuses a cycle the edit closes between bound blocks, as the dry run does', async () => {
+    await get()
+    edit((source) => source.replace('  b.to(c)\n', '  b.to(c)\n  c.to(b)\n'))
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['E_EDGE_CYCLE'])
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('keeps the cycle the get printed a warning', async () => {
+    await get()
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['W_EDGE_CYCLE'])
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('keeps the printed cycle a warning through a block renamed in source', async () => {
+    await get()
+    edit((source) => source.replace("api('B',", "api('Bee',"))
+
+    await check('--strict')
+
+    expect(codes()).toEqual(['W_EDGE_CYCLE'])
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('records the edges an apply printed, for the base it saves', async () => {
+    await get()
+    server.apply = () =>
+      json(appliedResponse({ 'workflow.ts': STORED_CYCLE }, { lock: STORED_CYCLE_LOCK }))
+    await apply()
+    edit((source) => source.replace('  b.to(c)\n', '  b.to(c)\n  c.to(b)\n'))
+
+    await check()
+
+    expect(JSON.parse(read('.sim/stored-edges.json')).fingerprint).toBe(SECOND)
+    expect(codes()).toEqual(['E_EDGE_CYCLE'])
+  })
+})

@@ -6,7 +6,7 @@ import {
   VARIABLE_TYPES,
   type VariableType,
 } from '@sim/workflow-types/workflow'
-import { encodeAnchor } from '../anchors'
+import { edgeTupleKey, encodeAnchor, portKey } from '../anchors'
 import { literalText } from '../babel'
 import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
@@ -21,6 +21,7 @@ import type {
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
+  PortKey,
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
@@ -74,6 +75,14 @@ export interface CompileInput {
    */
   storedUnread?: WorkflowLockV1
   /**
+   * With `storedUnread`, the edges the stored workflow held when that lock was written, by lock
+   * key (a get's printed source compiled: `CompileResult.edges`). An edge between bound blocks
+   * then counts as possibly stored only when it is one of these, so a cycle or an error edge the
+   * source adds between bound blocks is the error the server reports. Absent, any such edge may
+   * be stored.
+   */
+  storedUnreadEdges?: ReadonlyArray<StoredEdgeRef>
+  /**
    * The env variable names a run resolves (the workspace's plus the caller's personal ones).
    * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
    */
@@ -102,6 +111,19 @@ export interface CompileResult {
    * workspace apply checks against the secrets its directory declares.
    */
   envReferences: string[]
+  /**
+   * Every edge the wiring denotes that passed validation, by block key, whether or not the
+   * compile failed elsewhere: what an offline check records of a get's printed source as
+   * `CompileInput.storedUnreadEdges`.
+   */
+  edges: StoredEdgeRef[]
+}
+
+/** One edge as `CompileInput.storedUnreadEdges` names it: block keys and the port's `portKey`. */
+export interface StoredEdgeRef {
+  from: BlockKey
+  port: PortKey
+  to: BlockKey
 }
 
 const WORKFLOW_OPTIONS = ['description', 'variables']
@@ -387,6 +409,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
     hints: { blocks: {} },
     sdkMajor,
     envReferences: [],
+    edges: [],
   }
 }
 
@@ -622,11 +645,21 @@ function compileEntry(
   const edges = new EdgeCollector(
     ctx,
     compiled,
-    unread &&
-      new Set([
-        ...Object.keys(unread.blocks),
-        ...lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key)).values(),
-      ])
+    unread && {
+      lockKeys: new Map([
+        ...Object.keys(unread.blocks).map((key) => [key, key] as const),
+        ...[...lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))].map(
+          ([lockKey, key]) => [key, lockKey] as const
+        ),
+      ]),
+      ...(input.storedUnreadEdges
+        ? {
+            edges: new Set(
+              input.storedUnreadEdges.map((edge) => edgeTupleKey(edge.from, edge.port, edge.to))
+            ),
+          }
+        : {}),
+    }
   )
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
@@ -667,5 +700,6 @@ function compileEntry(
     hints,
     sdkMajor: parsed.sdkMajor,
     envReferences: [...ctx.envReferences].sort(compareStrings),
+    edges: sortedEdges.map((edge) => ({ from: edge.from, port: portKey(edge.port), to: edge.to })),
   }
 }

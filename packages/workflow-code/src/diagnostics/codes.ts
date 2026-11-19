@@ -127,7 +127,8 @@ const COMPILE_EDGE_CODES = [
   /**
    * `.onError()` on a block with no error port (a loop or parallel) that the stored workflow
    * already wires: kept so it round-trips; source never adds one. Unread (`storedUnread`), any such
-   * edge between two bound blocks, which an apply keeps only if the stored workflow holds it.
+   * edge between two bound blocks (with `storedUnreadEdges`, one the get printed), which an apply
+   * keeps only if the stored workflow holds it.
    */
   'W_ERROR_PORT_STORED',
   /** `x.key.to()` where `key` is not a branch of `x`. */

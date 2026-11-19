@@ -310,8 +310,8 @@ print compiles with zero errors.
 
 ## Compile
 
-`compileWorkflow({ entry, files, catalog, sdkMajor, limits?, knownKeys?, stored?, storedUnread? })` → `{ workflow,
-diagnostics, spans, hints, sdkMajor }`. It parses with Babel and interprets the AST statically; it
+`compileWorkflow({ entry, files, catalog, sdkMajor, limits?, knownKeys?, stored?, storedUnread?,
+storedUnreadEdges? })` → `{ workflow, diagnostics, spans, hints, sdkMajor, envReferences, edges }`. It parses with Babel and interprets the AST statically; it
 never executes the file. `workflow` is `null` iff any diagnostic is an error. It accepts exactly
 what the printer emits plus the conveniences SYNTAX.md lists, checks names, scope, wiring and
 catalog fields, fills defaults, resolves `stored()` from `CompileInput.stored`, and returns `spans`
@@ -326,7 +326,8 @@ Compile also refuses or flags source the runtime would silently mishandle:
   of edges the stored workflow holds is `W_EDGE_CYCLE`, so stored state keeps round-tripping
   (`storedUnread`, the CLI's offline check, which has the lock but not the stored workflow, takes
   every edge between two blocks its lock binds, by key or by ident for a block renamed in source,
-  as one it may hold; the same goes for `W_ERROR_PORT_STORED`);
+  as one it may hold, or with `storedUnreadEdges`, the edges the get printed by lock key, only
+  those; the same goes for `W_ERROR_PORT_STORED`);
 - a reference into an agent whose `responseFormat` declares its fields names a declared field or
   a static output (`W_UNKNOWN_OUTPUT_PATH` otherwise); a format with references inside is unread;
 - a dropdown value outside its static options is `W_UNKNOWN_OPTION`, a `model` the catalog does

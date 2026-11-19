@@ -64,6 +64,12 @@ export const SOURCE_GITIGNORE_FILE = '.gitignore'
  */
 export const SOURCE_WRITTEN_FILE = '.sim/written.json'
 /**
+ * The edges of the workflow a get or apply printed, by lock key, with the base fingerprint they
+ * belong to, so an offline check tells an edge the stored workflow holds from one the source
+ * adds. The CLI's own record: never sent to the server.
+ */
+export const SOURCE_STORED_EDGES_FILE = '.sim/stored-edges.json'
+/**
  * Where a workspace get keeps the blobs it verified until they move into place. A get that fails
  * leaves them there, so the next one downloads only the rest; the one that completes removes the
  * folder.
@@ -283,12 +289,17 @@ export interface SourceDirChange {
 }
 
 /**
- * The files that record what the directory was read from: each workflow's lock, base and
- * `.sim/written.json`, and the workspace base. They move into place only after every other file,
+ * The files that record what the directory was read from: each workflow's lock, base,
+ * `.sim/written.json` and stored edges, and the workspace base. They move into place only after every other file,
  * so a write cut short leaves the old records beside whatever text did land: the next apply is
  * refused as stale, never sent as if the old text were current.
  */
-const RECORD_FILES = [SOURCE_BASE_FILE, SOURCE_LOCK_FILE, SOURCE_WRITTEN_FILE]
+const RECORD_FILES = [
+  SOURCE_BASE_FILE,
+  SOURCE_LOCK_FILE,
+  SOURCE_WRITTEN_FILE,
+  SOURCE_STORED_EDGES_FILE,
+]
 
 function isRecordFile(path: string): boolean {
   return RECORD_FILES.some((file) => path === file || path.endsWith(`/${file}`))
