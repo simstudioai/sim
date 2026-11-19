@@ -26,6 +26,7 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+import { replaceWorkflowChatDeployment } from '@/lib/chat-deployments/application/workflow-chat-deployment'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
 import { deploymentAdapter } from '@/lib/workspace-source/application/kinds/deployment/adapter'
@@ -191,6 +192,20 @@ async function deployedWorkspace(deploymentFile = DRAFT) {
     files: { ...created.files, [DEPLOYMENT]: created.files[DEPLOYMENT] ?? deploymentFile },
     base: created.base,
   }
+}
+
+/** A public chat at `identifier` on workflow `id`, as a teammate adds one outside source. */
+async function serveChat(id: string, identifier: string) {
+  await replaceWorkflowChatDeployment.execute({
+    principal: owner,
+    input: {
+      workflowId: id,
+      identifier,
+      title: 'Theirs',
+      authType: 'public',
+      requestId: generateId(),
+    },
+  })
 }
 
 function edited(files: Files): Files {
@@ -644,6 +659,169 @@ describe('workspace source: deployments', () => {
       expect(redeployed.failed).toBeUndefined()
       expect(actions(redeployed.applied)).toContain('create deployment:nightly')
       expect(await deployState(id)).toMatchObject({ isDeployed: true, isPublicApi: false })
+    }
+  )
+
+  check(
+    'refuses a chat identifier another chat holds before the public API flag changes',
+    async () => {
+      await deployedWorkspace(answerChat('held-chat'))
+      const { workspaceId, id, files, base } = await deployedWorkspace()
+      const publicWithChat = {
+        ...files,
+        [DEPLOYMENT]: withChat(
+          "{ identifier: 'held-chat', title: 'Mine', auth: 'public' }",
+          'draft',
+          'defineDeployment'
+        ).replace("live: 'draft',", "live: 'draft', api: { public: true },"),
+      }
+      expect(publicWithChat[DEPLOYMENT]).toContain('api: { public: true }')
+
+      // Taken when the plan runs: refused with nothing written.
+      const planned = await refusal(apply(workspaceId, publicWithChat, { base }))
+      expect(deploymentCodes(planned.diagnostics, 'error')).toEqual(['E_DEPLOY_CHAT_IDENTIFIER'])
+      expect(await deployState(id)).toMatchObject({ isPublicApi: false, chat: undefined })
+
+      // Taken between the plan and the write: the write refuses before it sets the flag.
+      const check = deploymentAdapter.fingerprintNow
+      if (!check) throw new Error('The deployment adapter checks fingerprints before writing')
+      const other = await deployedWorkspace()
+      const claimed = vi
+        .spyOn(deploymentAdapter, 'fingerprintNow')
+        .mockImplementation(async (change, ctx) => {
+          await serveChat(other.id, 'raced-chat')
+          return check.call(deploymentAdapter, change, ctx)
+        })
+      try {
+        const raced = await apply(
+          workspaceId,
+          {
+            ...publicWithChat,
+            [DEPLOYMENT]: publicWithChat[DEPLOYMENT].replace('held-chat', 'raced-chat'),
+          },
+          { base }
+        )
+        expect(claimed).toHaveBeenCalledOnce()
+        expect(raced.failed?.key).toBe('nightly')
+      } finally {
+        claimed.mockRestore()
+      }
+      expect((await deployState(other.id)).chat?.identifier).toBe('raced-chat')
+      expect(await deployState(id)).toMatchObject({ isPublicApi: false, chat: undefined })
+    }
+  )
+
+  check(
+    'a re-run finishes a deployment an apply left partway, and still refuses a teammate edit',
+    async () => {
+      /** A public API and a chat at `identifier`: two writes, the flag first. */
+      const target = (identifier: string) =>
+        withChat(
+          `{ identifier: '${identifier}', title: 'Partway', auth: 'public' }`,
+          'draft',
+          'defineDeployment'
+        ).replace("live: 'draft',", "live: 'draft', api: { public: true },")
+      expect(target('partway-chat')).toContain('api: { public: true }')
+
+      /** Applies `target`, stopping it after the flag is set and before the chat is written. */
+      const interrupted = async (identifier: string) => {
+        const deployed = await deployedWorkspace()
+        const stopped = vi
+          .spyOn(replaceWorkflowChatDeployment, 'execute')
+          .mockRejectedValueOnce(new Error('process stopped'))
+        try {
+          const result = await apply(
+            deployed.workspaceId,
+            { ...deployed.files, [DEPLOYMENT]: target(identifier) },
+            { base: deployed.base }
+          )
+          expect(result.failed?.key).toBe('nightly')
+        } finally {
+          stopped.mockRestore()
+        }
+        expect(await deployState(deployed.id)).toMatchObject({
+          isPublicApi: true,
+          chat: undefined,
+        })
+        return deployed
+      }
+
+      // The base is the one from before the interrupted apply, as a crash leaves it.
+      const resumed = await interrupted('partway-chat')
+      const rerun = await apply(
+        resumed.workspaceId,
+        { ...resumed.files, [DEPLOYMENT]: target('partway-chat') },
+        { base: resumed.base }
+      )
+      expect(rerun.failed).toBeUndefined()
+      expect(actions(rerun.applied)).toEqual(['update deployment:nightly'])
+      expect(rerun.plan.find((change) => change.kind === 'deployment')?.fields).toEqual(['chat'])
+      expect(await deployState(resumed.id)).toMatchObject({
+        isPublicApi: true,
+        chat: { identifier: 'partway-chat', title: 'Partway' },
+      })
+      const settled = await apply(
+        resumed.workspaceId,
+        { ...resumed.files, ...rerun.files },
+        { base: rerun.base }
+      )
+      expect(settled.applied).toEqual([])
+
+      // A part that matches neither the base nor the directory moved on the server: stale.
+      const teammate = await interrupted('mine-chat')
+      await serveChat(teammate.id, 'teammate-chat')
+      const stale = await refusal(
+        apply(
+          teammate.workspaceId,
+          { ...teammate.files, [DEPLOYMENT]: target('mine-chat') },
+          { base: teammate.base }
+        )
+      )
+      expect(codes(stale.diagnostics)).toEqual(['E_APPLY_STALE'])
+      expect((await deployState(teammate.id)).chat?.identifier).toBe('teammate-chat')
+    }
+  )
+
+  check(
+    'a re-run finishes a first deploy that stopped before its chat, and still asks for a get when the flag differs',
+    async () => {
+      /** The nightly workflow, first deployed with a chat by an apply stopped before the chat. */
+      const stopped = async (identifier: string) => {
+        const workspaceId = await workspaces.create({ name: 'First deploy stopped', ownerId })
+        const created = await apply(workspaceId, { [WORKFLOW]: NIGHTLY })
+        expect(created.failed).toBeUndefined()
+        const files = { ...created.files, [DEPLOYMENT]: answerChat(identifier) }
+        const chatWrite = vi
+          .spyOn(replaceWorkflowChatDeployment, 'execute')
+          .mockRejectedValueOnce(new Error('process stopped'))
+        let failed: Awaited<ReturnType<typeof apply>>
+        try {
+          failed = await apply(workspaceId, files, { base: created.base })
+        } finally {
+          chatWrite.mockRestore()
+        }
+        expect(failed.failed?.key).toBe('nightly')
+        expect(failed.base.resources['deployment:nightly']).toBeUndefined()
+        const id = await workflowId(workspaceId)
+        expect(await deployState(id)).toMatchObject({ isDeployed: true, chat: undefined })
+        return { workspaceId, id, files, base: failed.base }
+      }
+
+      const resumed = await stopped('first-deploy-chat')
+      const rerun = await apply(resumed.workspaceId, resumed.files, { base: resumed.base })
+      expect(rerun.failed).toBeUndefined()
+      expect(actions(rerun.applied)).toEqual(['update deployment:nightly'])
+      expect((await deployState(resumed.id)).chat?.identifier).toBe('first-deploy-chat')
+      expect(rerun.base.resources['deployment:nightly']?.id).toBe(resumed.id)
+
+      // A flag the directory does not declare was set by someone else: get it first.
+      const moved = await stopped('moved-flag-chat')
+      await updateWorkflowPublicApi.execute({
+        principal: owner,
+        input: { workflowId: moved.id, isPublicApi: true },
+      })
+      const refused = await refusal(apply(moved.workspaceId, moved.files, { base: moved.base }))
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
     }
   )
 
