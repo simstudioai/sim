@@ -1,5 +1,5 @@
 import fc from 'fast-check'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseWorkspaceBase } from '../base'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { type FileDecl, fileCodec, fileKeyConflicts } from './files'
@@ -105,14 +105,37 @@ describe('fileCodec', () => {
     )
   })
 
-  it('groups 20,000 deeply nested paths in linear time', () => {
-    const deep = (index: number) =>
-      `files/k${index}/${Array.from({ length: 500 }, () => 'a').join('/')}`
-    const started = Date.now()
-    const grouped = fileCodec.group(Array.from({ length: 20_000 }, (_, index) => deep(index)))
-    expect(Date.now() - started).toBeLessThan(6_000)
-    expect(grouped.groups.size).toBe(20_000)
-    expect(grouped.diagnostics).toEqual([])
+  it('groups deeply nested paths with work linear in their depth', () => {
+    // Counted, not timed: the characters case folding reads (every fold normalizes its text) grow
+    // four times with four times the depth when each segment is folded once, and sixteen times
+    // when every folder prefix of every path is.
+    const paths = (depth: number) =>
+      Array.from(
+        { length: 1_000 },
+        (_, index) => `files/k${index}/${Array.from({ length: depth }, () => 'a').join('/')}`
+      )
+    const normalize = String.prototype.normalize
+    const foldedCharacters = (depth: number) => {
+      let characters = 0
+      const spy = vi.spyOn(String.prototype, 'normalize').mockImplementation(function (
+        this: string,
+        form?: string
+      ) {
+        characters += this.length
+        return normalize.call(this, form)
+      })
+      try {
+        const grouped = fileCodec.group(paths(depth))
+        expect(grouped.groups.size).toBe(1_000)
+        expect(grouped.diagnostics).toEqual([])
+      } finally {
+        spy.mockRestore()
+      }
+      return characters
+    }
+    const shallow = foldedCharacters(100)
+    expect(shallow).toBeGreaterThan(0)
+    expect(foldedCharacters(400) / shallow).toBeLessThan(6)
   })
 
   it('refuses a file sent as text, a malformed hash, and a file over the blob cap', () => {

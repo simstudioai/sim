@@ -43,6 +43,22 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+/** Lets a check run another apply while an apply plans, once its deletes are planned. */
+const planGate = vi.hoisted(() => ({
+  whilePlanning: undefined as (() => Promise<void>) | undefined,
+}))
+vi.mock('@/lib/workspace-source/application/in-use', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workspace-source/application/in-use')>()
+  return {
+    ...actual,
+    checkDeletesInUse: async (...args: Parameters<typeof actual.checkDeletesInUse>) => {
+      const whilePlanning = planGate.whilePlanning
+      planGate.whilePlanning = undefined
+      await whilePlanning?.()
+      return actual.checkDeletesInUse(...args)
+    },
+  }
+})
 
 import {
   createWorkspaceCustomToolUseCase,
@@ -78,6 +94,7 @@ import {
   sourceWorkspaces,
   stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
+import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
 let storageRoot = ''
@@ -1196,6 +1213,47 @@ export default workflow('Secret', {}, () => {
         action: 'delete',
         destructive: { counts: { workflows: 1 } },
       })
+    }
+  )
+
+  check(
+    'no apply saves a workflow using a resource while another apply plans its delete',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { 'workflows/parent/workflow.ts': parentFile, ...childAndKeep } = CHILD_AND_PARENT
+      const created = await apply(workspaceId, { files: childAndKeep, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const keep = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => path.startsWith('workflows/keep/'))
+      )
+
+      // While the delete of the child is planned, another apply tries to save a parent that runs
+      // it: it is refused, so the delete never breaks a workflow its plan did not see.
+      let concurrent: unknown = null
+      planGate.whilePlanning = async () => {
+        concurrent = await apply(workspaceId, {
+          files: { 'workflows/parent/workflow.ts': parentFile },
+          blobs: {},
+        }).then(
+          () => null,
+          (error: unknown) => error
+        )
+      }
+      const deleted = await apply(
+        workspaceId,
+        { files: keep, blobs: {} },
+        { base: read.base, allowDelete: true }
+      )
+      expect(planGate.whilePlanning).toBeUndefined()
+      expect(concurrent).toBeInstanceOf(WorkspaceSourceBusyError)
+      expect(deleted.failed).toBeUndefined()
+      expect(deleted.applied).toMatchObject([{ kind: 'workflow', key: 'child', action: 'delete' }])
+      const live = await db
+        .select({ name: workflow.name })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+      expect(live.map((row) => row.name)).toEqual(['Keep'])
     }
   )
 

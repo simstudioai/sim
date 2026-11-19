@@ -19,6 +19,28 @@ function wrap(body: string, options = '{}'): string {
   return `${HEADER}export default workflow('Hostile', ${options}, () => {\n${body}\n})\n`
 }
 
+/**
+ * How many times longer `work` takes at four times the size `size`, the fastest of three timings
+ * each: about 4 for linear work and about 16 for quadratic, on a slow machine as on a fast one.
+ * A wall-clock budget instead fails on a loaded runner and passes a quadratic scan on a fast one.
+ * The work repeats until one timing at `size` spans 25 ms, so the clock's millisecond steps are
+ * small beside it.
+ */
+function growth(work: (size: number) => void, size: number): number {
+  let repeats = 1
+  const time = (at: number) => {
+    const started = Date.now()
+    for (let repeat = 0; repeat < repeats; repeat += 1) work(at)
+    return Date.now() - started
+  }
+  while (time(size) < 25 && repeats < 1_024) repeats *= 2
+  const fastest = (at: number) => Math.min(time(at), time(at), time(at))
+  return fastest(size * 4) / Math.max(1, fastest(size))
+}
+
+/** The {@link growth} under which work counts as linear: well short of quadratic's 16. */
+const LINEAR_GROWTH = 9
+
 function run(
   text: string,
   limits?: CompileLimits,
@@ -150,10 +172,10 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('scans a 400 KB value of overlapping token prefixes for secrets in linear time', () => {
-    const value = '-eyJ'.repeat(100_000)
-    const started = Date.now()
-    const result = run(wrap(`const a = api('A', { url: 'https://x', body: '${value}' })`))
-    expect(Date.now() - started).toBeLessThan(3_000)
+    const source = (repeats: number) =>
+      wrap(`const a = api('A', { url: 'https://x', body: '${'-eyJ'.repeat(repeats)}' })`)
+    expect(growth((repeats) => run(source(repeats)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    const result = run(source(100_000))
     expect(result.workflow).not.toBeNull()
     expect(codes(result)).not.toContain('W_LITERAL_SECRET')
     const segment = 'A'.repeat(12)
@@ -163,12 +185,10 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('checks the precision of a 100 KB numeric literal in linear time', () => {
-    const started = Date.now()
-    const result = run(
-      wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(100_000)}1 })`)
-    )
-    expect(Date.now() - started).toBeLessThan(3_000)
-    expect(codes(result)).toContain('W_NUMBER_PRECISION')
+    const source = (zeros: number) =>
+      wrap(`const a = api('A', { url: 'x', timeout: 0.1${'0'.repeat(zeros)}1 })`)
+    expect(growth((zeros) => run(source(zeros)), 25_000)).toBeLessThan(LINEAR_GROWTH)
+    expect(codes(run(source(100_000)))).toContain('W_NUMBER_PRECISION')
   })
 
   it('stops after 100 errors, framing a 40 KB line in bounded output', () => {

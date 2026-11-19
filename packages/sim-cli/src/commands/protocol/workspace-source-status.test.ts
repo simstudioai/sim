@@ -92,6 +92,7 @@ function sentFiles(): Array<Record<string, string>> {
 beforeEach(() => {
   contextMockState.output = 'json'
   contextMockState.workspaceSource = 'config'
+  contextMockState.workspaceId = WORKSPACE_ID
   mockRequest.mockReset()
   mockProfileFrom.mockReturnValue({ workspaceId: WORKSPACE_ID, output: 'json' })
   dir = mkdtempSync(join(tmpdir(), 'sim-workspace-status-'))
@@ -192,6 +193,64 @@ describe('workspaces source status', () => {
       reason: 'Applies your changes.',
     })
     expect(process.exitCode).toBe(11)
+  })
+
+  it('recommends commands scoped to the kinds the status was', async () => {
+    write('tables/leads.ts', LEADS.replace('columns: {}', 'columns: { email: column.string() }'))
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+
+    await run('status', '--only', 'tables')
+
+    expect(printed().next).toEqual({
+      command: `sim workspaces source apply --dir ${dir} --yes --only tables`,
+      reason: 'Applies your changes.',
+    })
+
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'table', key: 'leads', action: 'update' }],
+        [{ code: 'E_DECL_INVALID', severity: 'error', message: 'bad', kind: 'table', key: 'leads' }]
+      )
+    )
+    await run('status', '--only', 'tables,workflow')
+    expect(printed().next).toMatchObject({
+      command: `sim workspaces source apply --dir ${dir} --dry-run --only tables,workflows`,
+    })
+  })
+
+  it('recommends the workspace a status was pointed at with --workspace', async () => {
+    contextMockState.workspaceSource = 'flag'
+    contextMockState.workspaceId = 'ws_other'
+    write('tables/leads.ts', LEADS.replace('columns: {}', 'columns: { email: column.string() }'))
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'table', key: 'leads', action: 'update' }]))
+
+    await run('status')
+
+    expect(printed().next).toMatchObject({
+      command: `sim workspaces source apply --dir ${dir} --yes --workspace ws_other`,
+    })
+  })
+
+  it('recommends --allow-delete for an update that drops data, as applying it needs', async () => {
+    write('tables/leads.ts', LEADS.replace("name: 'leads'", "name: 'leads', description: 'x'"))
+    mockRequest.mockResolvedValue(
+      dryRun([
+        {
+          kind: 'table',
+          key: 'leads',
+          action: 'update',
+          fields: ['columns.email'],
+          destructive: { what: 'column email', counts: { values: 3 } },
+        },
+      ])
+    )
+
+    await run('status')
+
+    expect(printed().next).toEqual({
+      command: `sim workspaces source apply --dir ${dir} --yes --allow-delete`,
+      reason: 'Applies your changes.',
+    })
   })
 
   it('reports the files of a removed kind folder as deleted, as a get refuses to write them again', async () => {
