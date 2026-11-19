@@ -71,8 +71,8 @@ export interface ReshapeTableInput {
    * to `rows`, matched by `keyColumn` and writing only what differs (`writeKeyedRowsWithTx`);
    * `seed` inserts `rows` into a table that holds none, checked under the table's lock (a row
    * written since the caller saw it empty refuses the reshape, `TableRowsChangedError`). A column
-   * added `required` is added optional and made required once the rows are written, so the rows
-   * can fill it.
+   * added `required`, or updated to be, is made required only once the rows are written, so the
+   * rows can fill it.
    */
   rows?: ReshapeRows
   /**
@@ -338,30 +338,36 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         for (const columnName of input.drop ?? []) {
           table = await deleteColumn({ tableId: table.id, columnName }, requestId, options)
         }
-        table = await updateColumns(
-          table,
-          input.update ?? [],
-          async (current, columnName, updates) => {
-            const outcome = await performUpdateTableColumn({
-              table: current,
-              columnName,
-              userId: attributedUserId,
-              updates,
-              requestId,
-              expectedWorkspaceId: workspaceId,
-              tx,
-              recordAudit: false,
-            })
-            if (!outcome.success || !outcome.table) {
-              throwTableOperationFailure(outcome, 'Failed to update column')
-            }
-            return outcome.table
+        // With rows to write, a column made required is made so after them (an add, below, too).
+        const deferredUpdates: string[] = []
+        const updates = (input.update ?? []).flatMap((entry) => {
+          const column = table.schema.columns.find((candidate) =>
+            columnMatchesRef(candidate, entry.columnName)
+          )
+          if (!input.rows || entry.updates.required !== true || !column) return [entry]
+          deferredUpdates.push(getColumnId(column))
+          const rest = omit(entry.updates, ['required'])
+          return Object.keys(rest).length > 0 ? [{ ...entry, updates: rest }] : []
+        })
+        table = await updateColumns(table, updates, async (current, columnName, updates) => {
+          const outcome = await performUpdateTableColumn({
+            table: current,
+            columnName,
+            userId: attributedUserId,
+            updates,
+            requestId,
+            expectedWorkspaceId: workspaceId,
+            tx,
+            recordAudit: false,
+          })
+          if (!outcome.success || !outcome.table) {
+            throwTableOperationFailure(outcome, 'Failed to update column')
           }
-        )
-        // With rows to write, a required column is added optional and made required after them.
-        const deferred = input.rows ? (input.add ?? []).filter((column) => column.required) : []
+          return outcome.table
+        })
+        const deferredAdds = input.rows ? (input.add ?? []).filter((column) => column.required) : []
         for (const column of input.add ?? []) {
-          const optional = deferred.includes(column) ? { ...column, required: false } : column
+          const optional = deferredAdds.includes(column) ? { ...column, required: false } : column
           table = await addTableColumn(table.id, optional, requestId, options)
         }
         const idByName = buildIdByName(table.schema)
@@ -382,10 +388,10 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           table = { ...table, metadata }
         }
         const rows = input.rows ? await writeRows(tx, table, input.rows, idByName) : undefined
-        for (const column of deferred) {
+        for (const columnName of [...deferredUpdates, ...deferredAdds.map(({ name }) => name)]) {
           const outcome = await performUpdateTableColumn({
             table,
-            columnName: column.name,
+            columnName,
             userId: attributedUserId,
             updates: { required: true },
             requestId,
