@@ -447,6 +447,22 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Wire call.onError(<handler>) and read call.error in the handler.')
   })
 
+  it('stores x.error quoted in a JSON body, since the failure message is a string', () => {
+    const result = run(
+      [
+        START,
+        "const call = api('Call', { url: 'https://x' })",
+        "const failed = api('Failed', { url: 'https://x', body: { why: call.error } })",
+        'start.to(call)',
+        'call.onError(failed)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+    expect(JSON.stringify(result.workflow?.blocks.failed?.params.body)).toContain(
+      '\\"<call.error>\\"'
+    )
+  })
+
   it('reads x.error of an agent with a responseFormat only after an error edge', () => {
     const format =
       "responseFormat: { name: 'r', schema: { type: 'object', properties: { score: { type: 'number' } } } }"
