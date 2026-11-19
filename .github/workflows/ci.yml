@@ -692,7 +692,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       needs.promote.outputs.promoted == 'true' &&
       needs.trigger-promote.outputs.cutover == 'success'
-    runs-on: *runner-2vcpu
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
       contents: read
@@ -705,7 +705,7 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
-          provider: ${{ vars.CI_PROVIDER }}
+          provider: github
           node-version: ''
 
       - name: Check priority landing pages after cutover
