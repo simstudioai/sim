@@ -58,8 +58,14 @@ export interface ComputerUseActivity {
 export interface ComputerUseStatus {
   supported: boolean
   enabled: boolean
-  /** `reminders` is absent in shells without app commands. */
-  permissions: { accessibility: boolean; screenCapture: boolean; reminders?: boolean }
+  /** The app-data permissions are absent in shells without app commands. */
+  permissions: {
+    accessibility: boolean
+    screenCapture: boolean
+    reminders?: boolean
+    calendars?: boolean
+    contacts?: boolean
+  }
   activeAction: ComputerUseActivity | null
   /** Whether a first use of each app needs approval; absent in older shells, which always ask. */
   askForApps?: boolean
@@ -84,8 +90,19 @@ export class ComputerUseError extends Error {
   }
 }
 
-/** A macOS privacy permission Computer Use can ask for. */
-export type ComputerUsePermission = 'accessibility' | 'screenCapture' | 'reminders'
+/** The macOS privacy permissions Computer Use can ask for. */
+export const COMPUTER_USE_PERMISSIONS = [
+  'accessibility',
+  'screenCapture',
+  'reminders',
+  'calendars',
+  'contacts',
+] as const
+export type ComputerUsePermission = (typeof COMPUTER_USE_PERMISSIONS)[number]
+
+export function isComputerUsePermission(value: unknown): value is ComputerUsePermission {
+  return COMPUTER_USE_PERMISSIONS.some((permission) => permission === value)
+}
 
 /** Optional so a new web deployment remains compatible with older desktop shells. */
 interface SimDesktopComputerUseApi {

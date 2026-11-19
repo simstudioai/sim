@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Contacts
 import EventKit
 import ScreenCaptureKit
 
@@ -42,8 +43,9 @@ struct Parameters: Decodable {
     var accessibilityAction: String?
     var command: AppCommand?
 }
-/// One allowlisted app command. Commands go through EventKit, never Apple Events or scripts, so they
-/// cannot reach a shell; each is a typed create or a list read, with no update, delete or search.
+/// One allowlisted app command. Commands go through EventKit and Contacts, never Apple Events or
+/// scripts, so they cannot reach a shell; each is a typed create or a list read, with no update,
+/// delete or search.
 struct AppCommand: Decodable {
     var name: String
     var title: String?
@@ -51,6 +53,30 @@ struct AppCommand: Decodable {
     var due: String?
     var listId: String?
     var priority: Int?
+    var start: String?
+    var end: String?
+    var allDay: Bool?
+    var location: String?
+    var calendarId: String?
+    var alertMinutesBefore: Int?
+    var givenName: String?
+    var familyName: String?
+    var organization: String?
+    var jobTitle: String?
+    var emails: [String]?
+    var phones: [String]?
+    var groupId: String?
+}
+func invalidCommand(_ message: String) -> ComputerError { ComputerError("invalid_arguments", message, dispatchState: "not_started") }
+/// A required, trimmed text field of bounded length.
+func commandText(_ value: String?, _ field: String, max: Int = 1024) throws -> String {
+    let text = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty, text.count <= max else { throw invalidCommand("\(field) is required and limited to \(max) characters.") }
+    return text
+}
+func optionalText(_ value: String?, _ field: String, max: Int = 1024) throws -> String? {
+    guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return try commandText(value, field, max: max)
 }
 /// The event store for reminders, available only once the user has granted full Reminders access.
 /// Checking never prompts; the grant happens from settings, outside the tool call.
@@ -77,13 +103,44 @@ func dueComponents(_ text: String) throws -> DateComponents {
     calendar.timeZone = .current
     return calendar.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: date)
 }
-/// Reminders access as the status reports it, read without prompting.
-func remindersAuthorization() -> String {
-    switch EKEventStore.authorizationStatus(for: .reminder) {
+/// Reminders or Calendar access as the status reports it, read without prompting.
+func eventKitAuthorization(_ type: EKEntityType) -> String {
+    switch EKEventStore.authorizationStatus(for: type) {
     case .fullAccess: return "granted"
     case .notDetermined: return "not_determined"
     default: return "denied"
     }
+}
+func contactsAuthorization() -> String {
+    switch CNContactStore.authorizationStatus(for: .contacts) {
+    case .authorized: return "granted"
+    case .notDetermined: return "not_determined"
+    default: return "denied"
+    }
+}
+func calendarStore() throws -> EKEventStore {
+    guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+        throw ComputerError("calendars_permission_required", "Allow Calendar access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return EKEventStore()
+}
+func contactStore() throws -> CNContactStore {
+    guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
+        throw ComputerError("contacts_permission_required", "Allow Contacts access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return CNContactStore()
+}
+/// An event boundary: an ISO 8601 date-time with an explicit offset, or `YYYY-MM-DD` for all-day events.
+func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
+    let text = try commandText(text, field, max: 64)
+    if allDay {
+        let parts = try dueComponents(text)
+        guard parts.hour == nil, let date = Calendar.current.date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
+        return date
+    }
+    let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime]
+    guard let date = formatter.date(from: text) else { throw invalidCommand("\(field) must be an ISO 8601 date-time with an offset.") }
+    return date
 }
 func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
     switch command.name {
@@ -116,6 +173,84 @@ func runAppCommand(_ command: AppCommand) throws -> [String: Any] {
         inputDispatched = true
         try store.save(reminder, commit: true)
         return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": title, "list": list.title]]
+    case "list_calendars":
+        let calendars = try calendarStore().calendars(for: .event).prefix(200).map { calendar -> [String: Any] in
+            ["id": calendar.calendarIdentifier, "title": String(calendar.title.prefix(1024)), "allowsModifications": calendar.allowsContentModifications]
+        }
+        return ["kind": "command", "command": command.name, "items": calendars]
+    case "create_event":
+        let title = try commandText(command.title, "Title")
+        let allDay = command.allDay ?? false
+        let start = try eventDate(command.start, "Start", allDay: allDay)
+        let end = try eventDate(command.end, "End", allDay: allDay)
+        guard allDay ? end >= start : end > start else { throw invalidCommand("End must be after start.") }
+        guard end.timeIntervalSince(start) <= 31 * 86_400 else { throw invalidCommand("An event can last at most 31 days.") }
+        let location = try optionalText(command.location, "Location")
+        let notes = try optionalText(command.notes, "Notes", max: 8000)
+        if let minutes = command.alertMinutesBefore, !(0...40_320).contains(minutes) { throw invalidCommand("alertMinutesBefore must be 0 to 40320.") }
+        let store = try calendarStore()
+        let calendar: EKCalendar
+        if let calendarId = command.calendarId {
+            guard let found = store.calendar(withIdentifier: calendarId), found.allowedEntityTypes.contains(.event) else {
+                throw ComputerError("list_unavailable", "No calendar has this id; call list_calendars.", dispatchState: "not_started")
+            }
+            calendar = found
+        } else {
+            guard let fallback = store.defaultCalendarForNewEvents else { throw ComputerError("list_unavailable", "Calendar has no default calendar; pass calendarId.", dispatchState: "not_started") }
+            calendar = fallback
+        }
+        guard calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This calendar is read-only.", dispatchState: "not_started") }
+        let event = EKEvent(eventStore: store)
+        event.calendar = calendar; event.title = title; event.isAllDay = allDay
+        event.startDate = start; event.endDate = end; event.location = location; event.notes = notes
+        if let minutes = command.alertMinutesBefore { event.addAlarm(EKAlarm(relativeOffset: TimeInterval(-minutes * 60))) }
+        inputDispatched = true
+        try store.save(event, span: .thisEvent, commit: true)
+        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": title, "list": calendar.title]]
+    case "list_contact_groups":
+        let groups = try contactStore().groups(matching: nil).prefix(200).map { group -> [String: Any] in
+            ["id": group.identifier, "title": String(group.name.prefix(1024)), "allowsModifications": true]
+        }
+        return ["kind": "command", "command": command.name, "items": groups]
+    case "create_contact_group":
+        let name = try commandText(command.title, "Group name")
+        let store = try contactStore()
+        // A group with this name already exists after a lost reply; return it rather than add a twin.
+        if let existing = try store.groups(matching: nil).first(where: { $0.name == name }) {
+            return ["kind": "command", "command": command.name, "created": ["id": existing.identifier, "title": name, "list": "Contacts"]]
+        }
+        let group = CNMutableGroup(); group.name = name
+        let request = CNSaveRequest(); request.add(group, toContainerWithIdentifier: nil)
+        inputDispatched = true
+        try store.execute(request)
+        return ["kind": "command", "command": command.name, "created": ["id": group.identifier, "title": name, "list": "Contacts"]]
+    case "create_contact":
+        let given = try optionalText(command.givenName, "Given name"), family = try optionalText(command.familyName, "Family name")
+        let organization = try optionalText(command.organization, "Organization"), jobTitle = try optionalText(command.jobTitle, "Job title")
+        guard given != nil || family != nil || organization != nil else { throw invalidCommand("A contact needs a name or an organization.") }
+        let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
+        let phones = try (command.phones ?? []).map { try commandText($0, "Phone", max: 64) }
+        guard emails.count <= 5, phones.count <= 5 else { throw invalidCommand("A contact takes at most 5 emails and 5 phones.") }
+        guard emails.allSatisfy({ $0.contains("@") }) else { throw invalidCommand("Each email needs an @.") }
+        let store = try contactStore()
+        var group: CNGroup?
+        if let groupId = command.groupId {
+            guard let found = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [groupId])).first else {
+                throw ComputerError("list_unavailable", "No contact group has this id; call list_contact_groups.", dispatchState: "not_started")
+            }
+            group = found
+        }
+        let contact = CNMutableContact()
+        contact.givenName = given ?? ""; contact.familyName = family ?? ""
+        contact.organizationName = organization ?? ""; contact.jobTitle = jobTitle ?? ""
+        contact.emailAddresses = emails.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
+        contact.phoneNumbers = phones.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
+        let request = CNSaveRequest(); request.add(contact, toContainerWithIdentifier: nil)
+        if let group { request.addMember(contact, to: group) }
+        inputDispatched = true
+        try store.execute(request)
+        let display = [given, family].compactMap { $0 }.joined(separator: " ")
+        return ["kind": "command", "command": command.name, "created": ["id": contact.identifier, "title": display.isEmpty ? organization ?? "" : display, "list": group?.name ?? "Contacts"]]
     default:
         throw ComputerError("unknown_command", "Unknown app command.", dispatchState: "not_started")
     }
@@ -879,10 +1014,12 @@ final class Driver {
                 _ = AXIsProcessTrustedWithOptions(options)
             case "screenCapture": _ = CGRequestScreenCaptureAccess()
             case "reminders": _ = try? await EKEventStore().requestFullAccessToReminders()
+            case "calendars": _ = try? await EKEventStore().requestFullAccessToEvents()
+            case "contacts": _ = try? await CNContactStore().requestAccess(for: .contacts)
             default: throw ComputerError("invalid_arguments", "Unknown permission.")
             }
-            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": remindersAuthorization()]
-        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": remindersAuthorization()]
+            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": eventKitAuthorization(.reminder), "calendars": eventKitAuthorization(.event), "contacts": contactsAuthorization()]
+        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": eventKitAuthorization(.reminder), "calendars": eventKitAuthorization(.event), "contacts": contactsAuthorization()]
         case "list_apps": return ["kind": "apps", "apps": try discoverApps()]
         case "app_command":
             inputDispatched = false

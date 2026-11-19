@@ -1,7 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
+import {
+  COMPUTER_USE_PERMISSIONS,
+  type ComputerUseAppPermission,
+  type ComputerUsePermission,
+} from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
@@ -16,13 +20,13 @@ const ON_OFF_OPTIONS = [
 ]
 
 /** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
-/** Reminders is listed only by shells that support app commands. */
-const PERMISSIONS = ['accessibility', 'screenCapture', 'reminders'] as const
-
-const PERMISSION_LABELS: Record<(typeof PERMISSIONS)[number], string> = {
+/** Shells without app commands report no app-data permissions, so their rows stay hidden. */
+const PERMISSION_LABELS: Record<ComputerUsePermission, string> = {
   accessibility: 'Accessibility',
   screenCapture: 'Screen Recording',
   reminders: 'Reminders',
+  calendars: 'Calendar',
+  contacts: 'Contacts',
 }
 
 export function ComputerUseSettings() {
@@ -111,31 +115,31 @@ function ComputerUseSettingsControls() {
         )}
         {status?.enabled && (
           <>
-            {PERMISSIONS.filter((permission) => status.permissions[permission] !== undefined).map(
-              (permission) => {
-                const label = PERMISSION_LABELS[permission]
-                return (
-                  <div className='flex items-center justify-between' key={permission}>
-                    <Label>{label}</Label>
-                    {status.permissions[permission] ? (
-                      <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
-                    ) : (
-                      <Chip
-                        aria-label={`Allow ${label} in System Settings`}
-                        disabled={pending}
-                        onClick={() =>
-                          void update(async () =>
-                            setStatus(await bridge.requestPermission(permission))
-                          )
-                        }
-                      >
-                        Allow
-                      </Chip>
-                    )}
-                  </div>
-                )
-              }
-            )}
+            {COMPUTER_USE_PERMISSIONS.filter(
+              (permission) => status.permissions[permission] !== undefined
+            ).map((permission) => {
+              const label = PERMISSION_LABELS[permission]
+              return (
+                <div className='flex items-center justify-between' key={permission}>
+                  <Label>{label}</Label>
+                  {status.permissions[permission] ? (
+                    <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
+                  ) : (
+                    <Chip
+                      aria-label={`Allow ${label} in System Settings`}
+                      disabled={pending}
+                      onClick={() =>
+                        void update(async () =>
+                          setStatus(await bridge.requestPermission(permission))
+                        )
+                      }
+                    >
+                      Allow
+                    </Chip>
+                  )}
+                </div>
+              )
+            })}
             {setAskForApps && askForApps !== undefined && (
               <div className='flex items-center justify-between'>
                 <Label asChild>

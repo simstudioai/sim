@@ -19,6 +19,7 @@ import {
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
+  isComputerUsePermission,
   isDesktopAppearanceTheme,
   isDesktopScopeId,
   isDesktopZoomPercent,
@@ -747,11 +748,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: true,
       denied: null,
       handler: (permission) => {
-        if (
-          permission !== 'accessibility' &&
-          permission !== 'screenCapture' &&
-          permission !== 'reminders'
-        )
+        if (!isComputerUsePermission(permission))
           throw new Error('Unknown Computer Use permission.')
         return deps.computerUse?.requestPermission(permission)
       },

@@ -53,9 +53,62 @@ interface SnapshotOwnership {
 const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
   list_reminder_lists: 'com.apple.reminders',
   create_reminder: 'com.apple.reminders',
+  list_calendars: 'com.apple.iCal',
+  create_event: 'com.apple.iCal',
+  list_contact_groups: 'com.apple.AddressBook',
+  create_contact_group: 'com.apple.AddressBook',
+  create_contact: 'com.apple.AddressBook',
 }
 
 const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
+
+/** The exact fields a write will save, for the user to confirm; null for a read, which needs none. */
+function writeSummary(command: AppCommand): string | null {
+  const lines = (entries: Array<[string, string | number | undefined]>) =>
+    entries
+      .filter(([, value]) => value !== undefined && value !== '')
+      .map(([label, value]) => `${label}: ${String(value).slice(0, 500)}`)
+      .join('\n')
+  switch (command.name) {
+    case 'create_reminder':
+      return lines([
+        ['Reminder', command.title],
+        ['Due', command.due],
+        ['Priority', command.priority ? PRIORITY_NAMES[command.priority] : undefined],
+        ['List', command.listId ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_event':
+      return lines([
+        ['Event', command.title],
+        ['Starts', command.start],
+        ['Ends', command.end],
+        ['All day', command.allDay ? 'yes' : undefined],
+        ['Location', command.location],
+        [
+          'Alert',
+          command.alertMinutesBefore !== undefined
+            ? `${command.alertMinutesBefore} minutes before`
+            : undefined,
+        ],
+        ['Calendar', command.calendarId ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_contact_group':
+      return lines([['Contact group', command.title]])
+    case 'create_contact':
+      return lines([
+        ['Contact', [command.givenName, command.familyName].filter(Boolean).join(' ') || undefined],
+        ['Organization', command.organization],
+        ['Job title', command.jobTitle],
+        ['Emails', command.emails?.join(', ')],
+        ['Phones', command.phones?.join(', ')],
+        ['Group', command.groupId],
+      ])
+    default:
+      return null
+  }
+}
 
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
 export class ComputerUseService {
@@ -98,6 +151,8 @@ export class ComputerUseService {
       accessibility: native.accessibility,
       screenCapture: native.screenRecording,
       reminders: native.reminders === 'granted',
+      calendars: native.calendars === 'granted',
+      contacts: native.contacts === 'granted',
     }
     status.enabled = this.isEnabled()
     status.activeAction = this.activity
@@ -374,16 +429,8 @@ export class ComputerUseService {
       this.activity = { ...this.activity, appName }
       this.deps.onActivity(this.activity)
     }
-    if (command.name === 'create_reminder') {
-      const summary = [
-        `Title: ${command.title}`,
-        command.due ? `Due: ${command.due}` : null,
-        command.priority ? `Priority: ${PRIORITY_NAMES[command.priority]}` : null,
-        command.listId ? `List: ${command.listId}` : 'List: default',
-        command.notes ? `Notes: ${command.notes.slice(0, 500)}` : null,
-      ]
-        .filter((line) => line !== null)
-        .join('\n')
+    const summary = writeSummary(command)
+    if (summary !== null) {
       const confirmed = await this.deps.confirmAppCommand(
         { appName, summary },
         work.controller.signal
@@ -392,7 +439,7 @@ export class ComputerUseService {
       if (!confirmed)
         throw new ComputerUseError({
           code: 'user_declined',
-          message: 'The user declined to create this reminder. Do not retry it.',
+          message: 'The user declined to add this item. Do not retry it.',
           dispatchState: 'not_started',
         })
     }

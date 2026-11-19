@@ -230,12 +230,21 @@ export const ComputerUseSchema = z.union([
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
 
 /** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+const CommandTitle = z.string().min(1).max(1024);
+const CommandNotes = z.string().max(8000).optional();
+const EventBoundary = z
+  .string()
+  .min(10)
+  .max(64)
+  .describe("ISO 8601 date-time with an explicit offset, or YYYY-MM-DD when allDay is true.");
+
+/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
 export const AppCommandSchema = z.discriminatedUnion("name", [
   z.strictObject({ name: z.literal("list_reminder_lists") }),
   z.strictObject({
     name: z.literal("create_reminder"),
-    title: z.string().min(1).max(1024),
-    notes: z.string().max(8000).optional(),
+    title: CommandTitle,
+    notes: CommandNotes,
     due: z
       .string()
       .min(10)
@@ -253,6 +262,45 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
       .optional()
       .describe("0 none, 1 high, 5 medium, 9 low."),
   }),
+  z.strictObject({ name: z.literal("list_calendars") }),
+  z.strictObject({
+    name: z.literal("create_event"),
+    title: CommandTitle,
+    start: EventBoundary,
+    end: EventBoundary,
+    allDay: z.boolean().optional(),
+    location: z.string().max(1024).optional(),
+    notes: CommandNotes,
+    calendarId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_calendars; omit for the default calendar."),
+    alertMinutesBefore: z.number().int().min(0).max(40_320).optional(),
+  }),
+  z.strictObject({ name: z.literal("list_contact_groups") }),
+  z.strictObject({
+    name: z.literal("create_contact_group"),
+    title: CommandTitle.describe(
+      "Group name; an existing group with this name is returned instead of a duplicate.",
+    ),
+  }),
+  z.strictObject({
+    name: z.literal("create_contact"),
+    givenName: z.string().max(1024).optional(),
+    familyName: z.string().max(1024).optional(),
+    organization: z.string().max(1024).optional(),
+    jobTitle: z.string().max(1024).optional(),
+    emails: z.array(z.string().min(3).max(320)).max(5).optional(),
+    phones: z.array(z.string().min(1).max(64)).max(5).optional(),
+    groupId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_contact_groups or create_contact_group."),
+  }),
 ]);
 export type AppCommand = z.infer<typeof AppCommandSchema>;
 
@@ -269,6 +317,8 @@ export const ComputerUseStatusSchema = z.strictObject({
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
   reminders: z.enum(["granted", "denied", "not_determined"]).optional(),
+  calendars: z.enum(["granted", "denied", "not_determined"]).optional(),
+  contacts: z.enum(["granted", "denied", "not_determined"]).optional(),
 });
 
 export const ComputerUseAppSchema = z.strictObject({
@@ -338,7 +388,15 @@ export type ComputerUseSnapshot = z.infer<typeof ComputerUseSnapshotSchema>;
 
 export const ComputerUseCommandResultSchema = z.strictObject({
   kind: z.literal("command"),
-  command: z.enum(["list_reminder_lists", "create_reminder"]),
+  command: z.enum([
+    "list_reminder_lists",
+    "create_reminder",
+    "list_calendars",
+    "create_event",
+    "list_contact_groups",
+    "create_contact_group",
+    "create_contact",
+  ]),
   created: z
     .strictObject({ id: z.string().min(1).max(256), title: z.string().max(1024), list: z.string().max(1024) })
     .optional(),

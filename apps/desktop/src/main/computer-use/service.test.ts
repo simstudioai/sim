@@ -147,6 +147,25 @@ describe('native computer use authority and lifecycle', () => {
     expect(methods).not.toContain('get_app_state')
   })
 
+  it.each([
+    {
+      name: 'create_event',
+      title: 'TP 1947: LIS to OPO',
+      start: '2027-06-09T07:15:00+01:00',
+      end: '2027-06-09T08:10:00+01:00',
+    },
+    { name: 'create_contact_group', title: 'Hires Q1 2027' },
+    { name: 'create_contact', givenName: 'Ana', emails: ['ana@example.com'] },
+  ])('asks the user before every $name write', async (command) => {
+    const { service, native, confirmAppCommand } = setup()
+    confirmAppCommand.mockResolvedValueOnce(false)
+    await expect(
+      service.execute(`declined-${command.name}`, 'chat', { action: 'app_command', command })
+    ).rejects.toMatchObject({ details: { code: 'user_declined' } })
+    expect(confirmAppCommand).toHaveBeenCalledOnce()
+    expect(native.request.mock.calls.map(([method]) => method)).not.toContain('app_command')
+  })
+
   it('refuses an app command when the user denies the app, before asking to confirm', async () => {
     const { service, native, approveApp, confirmAppCommand } = setup()
     approveApp.mockResolvedValue('deny')

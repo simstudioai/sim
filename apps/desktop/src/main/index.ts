@@ -142,6 +142,8 @@ const PRIVACY_PANES: Record<ComputerUsePermission, string> = {
   accessibility: 'Privacy_Accessibility',
   screenCapture: 'Privacy_ScreenCapture',
   reminders: 'Privacy_Reminders',
+  calendars: 'Privacy_Calendars',
+  contacts: 'Privacy_Contacts',
 }
 
 const DOCK_ICON_FOR_CHANNEL = {

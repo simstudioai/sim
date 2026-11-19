@@ -46,6 +46,14 @@ import AppKit
         expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00", "Start", allDay: false) }
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: true) }
+        precondition(try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: false) == Date(timeIntervalSince1970: 1_812_521_700))
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Flight", start: "2027-06-09T08:10:00Z", end: "2027-06-09T07:15:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Trip", start: "2027-06-01T00:00:00Z", end: "2027-08-01T00:00:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", jobTitle: "Engineer")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", givenName: "Ana", emails: ["not-an-email"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact_group", title: " ")) }
         var queue = AXTraversalQueue<String>(limit: 1000)
         queue.append(AXTraversalEntry(element: "menu", parent: nil, depth: 0, menu: true, priority: false))
         queue.append(AXTraversalEntry(element: "content", parent: nil, depth: 0, menu: false, priority: false))
