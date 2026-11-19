@@ -75,6 +75,13 @@ describe('native computer authorization', () => {
       chatId: 'chat-1',
     })
   })
+  it('returns a claimed app command to the desktop', async () => {
+    const command = { name: 'create_reminder', title: 'Pay rent' }
+    mocks.claim.mockResolvedValue({ args: { action: 'app_command', command } })
+    await expect(authorizeComputerUse.execute({ principal, input })).resolves.toMatchObject({
+      args: { action: 'app_command', command },
+    })
+  })
   it('rejects non-session principals before protected loading', async () => {
     await expect(
       authorizeComputerUse.execute({
