@@ -96,6 +96,7 @@ export const mothershipAsyncRunsMockFns = {
  * ```
  */
 export const mothershipAsyncRunsMock = {
+  TERMINAL_RUN_STATUSES: ['complete', 'error', 'cancelled'],
   withRunAdmissionLock: mothershipAsyncRunsMockFns.mockWithRunAdmissionLock,
   requestRunStop: mothershipAsyncRunsMockFns.mockRequestRunStop,
   stopLiveRunsTx: mothershipAsyncRunsMockFns.mockStopLiveRunsTx,

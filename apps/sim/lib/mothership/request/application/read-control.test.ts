@@ -11,6 +11,7 @@ import {
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { checkRunGrant, issueRunGrant, rememberRunGrant } from '@/lib/mothership/auth/run-grant'
 import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
@@ -150,5 +151,42 @@ describe('organization run-control authorization', () => {
     expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
       stopped: false,
     })
+  })
+  it('renews a half-spent grant for a run still going, and none for a finished one', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const issuedAt = Date.now()
+    try {
+      mocks.stopped.mockResolvedValue(false)
+      for (const [status, renewed] of [
+        ['running', true],
+        ['complete', false],
+      ] as const) {
+        vi.setSystemTime(issuedAt)
+        const grant = issueRunGrant({
+          userId: 'actor',
+          chatId: 'chat-1',
+          workspaceId: null,
+          organizationId: 'org-1',
+        })
+        vi.setSystemTime(issuedAt + 13 * 60 * 60 * 1000)
+        const caller = principal()
+        rememberRunGrant(
+          caller,
+          await checkRunGrant(grant, { userId: 'actor', chatId: 'chat-1', organizationId: 'org-1' })
+        )
+        mocks.run.mockResolvedValueOnce({
+          chatId: 'chat-1',
+          userId: 'actor',
+          organizationId: 'org-1',
+          workspaceId: null,
+          status,
+        })
+        queueChat()
+        const state = await readRunControl.execute({ principal: caller, input })
+        expect([status, 'grant' in state]).toEqual([status, renewed])
+      }
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

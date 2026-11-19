@@ -13,7 +13,11 @@ import {
 import { OrganizationDelegationAuthorizationError } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { getLatestRunForStream, isRunStopRequested } from '@/lib/mothership/async-runs/repository'
+import {
+  getLatestRunForStream,
+  isRunStopRequested,
+  TERMINAL_RUN_STATUSES,
+} from '@/lib/mothership/async-runs/repository'
 import { renewedRunGrant } from '@/lib/mothership/auth/run-grant'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
@@ -70,7 +74,11 @@ const readLiveRunControl = defineAuthorizedChatUseCase({
     ) {
       throw new OrchestrationError('not_found', 'Stream not found')
     }
-    return { stopped: await isRunStopRequested({ ...context, streamId: input.streamId }) }
+    return {
+      stopped: await isRunStopRequested({ ...context, streamId: input.streamId }),
+      // A finished run keeps no grant renewed.
+      finished: TERMINAL_RUN_STATUSES.includes(run.status),
+    }
   },
 })
 
@@ -126,12 +134,12 @@ export const readRunControl: AuthorizingUseCase<
   async execute(args) {
     requireRunControlCaller(args.principal, args.input)
     try {
-      const state = await readLiveRunControl.execute(args)
-      if (state.stopped) return state
+      const { stopped, finished } = await readLiveRunControl.execute(args)
+      if (stopped || finished) return { stopped }
       // The chat and the user's access were just rechecked, so a run that keeps checking its
-      // control keeps a valid grant however long it runs.
+      // control keeps a valid grant however long it runs, and only while it runs.
       const grant = renewedRunGrant(args.principal)
-      return grant ? { ...state, grant } : state
+      return grant ? { stopped, grant } : { stopped }
     } catch (error) {
       const refusal = asOrchestrationError(error)
       if (
