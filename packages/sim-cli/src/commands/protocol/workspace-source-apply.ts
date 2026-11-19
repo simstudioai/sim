@@ -1,7 +1,17 @@
+import { lstat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { APPLY_ORDER, KIND_DIRS, parseWorkspaceBase } from '@sim/workspace-code'
-import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
+import {
+  APPLY_ORDER,
+  isFileKind,
+  KIND_DIRS,
+  parseResourceAddress,
+  parseWorkspaceBase,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
+import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
+import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { promotionSubmission } from '@sim/workspace-code/promote'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -16,6 +26,7 @@ import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
+  isMissing,
   orphanedCodeFiles,
   readSourceJson,
   readWritten,
@@ -38,6 +49,7 @@ import {
 import {
   appliedBlobDigests,
   assertBlobsFetched,
+  baseBlobDigests,
   blobsToStage,
   stageBlobs,
 } from './workspace-source-blobs'
@@ -203,11 +215,53 @@ async function orphanedWorkflowFiles(dir: string, files: Record<string, string>)
   return orphaned
 }
 
+/** Whether `path` under `dir` is gone from disk. */
+async function goneFromDisk(dir: string, path: string): Promise<boolean> {
+  try {
+    await lstat(join(dir, path))
+    return false
+  } catch (error) {
+    return isMissing(error)
+  }
+}
+
+/**
+ * The recorded paths whose resource an apply deleted: of a submitted kind, gone from disk, and no
+ * longer in the base the apply returned (a blob the base no longer lists; a text file whose
+ * resource it no longer records, or for a root-file kind no resource of that kind). A delete the
+ * apply held or that failed leaves the resource in the base, so its record stays and a later
+ * apply can still send it.
+ */
+async function deletedRecordedPaths(
+  dir: string,
+  recorded: Written['digests'],
+  kinds: readonly WorkspaceKind[],
+  returned: unknown
+): Promise<string[]> {
+  const base = parseWorkspaceBase(returned).base
+  if (!base) return []
+  const addresses = new Set(Object.keys(base.resources))
+  const kindsHeld = new Set(
+    [...addresses].flatMap((address) => parseResourceAddress(address)?.kind ?? [])
+  )
+  const blobs = baseBlobDigests(returned, kinds)
+  const candidates = Object.keys(recorded).filter((path) => {
+    const kind = kindOfPath(path)
+    if (kind === null || !kinds.includes(kind)) return false
+    if (isBlobPath(path)) return !blobs.has(path)
+    if (isFileKind(kind)) return !kindsHeld.has(kind)
+    const [key] = KIND_LAYOUTS[kind].group([path]).groups.keys()
+    return key !== undefined && !addresses.has(`${kind}:${key}`)
+  })
+  const gone = await Promise.all(candidates.map((path) => goneFromDisk(dir, path)))
+  return candidates.filter((_, index) => gone[index])
+}
+
 /**
  * Saves what an apply stored back into the directory: the reprinted files, the next base, and
  * their digests in `.sim/written.json` (`written` is what it held), beside the digests of the
  * blobs the server now holds. The function files a written workflow no longer uses are removed,
- * from disk and the record.
+ * from disk and the record, and the record drops the files of resources the apply deleted.
  */
 async function saveApplied(
   dir: string,
@@ -219,6 +273,8 @@ async function saveApplied(
   const orphaned = await orphanedWorkflowFiles(dir, data.files)
   const kept = { ...written.digests, ...appliedBlobDigests(submission, data.base) }
   for (const path of orphaned) delete kept[path]
+  const deleted = await deletedRecordedPaths(dir, written.digests, submission.kinds, data.base)
+  for (const path of deleted) delete kept[path]
   const record = writtenRecord(
     data.files,
     kept,
