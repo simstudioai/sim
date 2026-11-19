@@ -60,7 +60,7 @@ export function tableRowsPath(key: string): string {
 }
 
 /** The text a managed row is matched by: its key cell, case folded as a unique column compares. */
-export function rowKeyText(value: Json | undefined): string | undefined {
+export function rowKeyText(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() === '' ? undefined : value.toLowerCase()
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return undefined
