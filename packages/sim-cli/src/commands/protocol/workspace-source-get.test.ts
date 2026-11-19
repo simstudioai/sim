@@ -86,6 +86,7 @@ function typecheckDirectory(): string {
 
 beforeEach(() => {
   contextMockState.output = 'json'
+  contextMockState.workspaceSource = 'config'
   request.mockReset()
   requestRaw.mockReset()
   rootDir = mkdtempSync(join(tmpdir(), 'sim-workspace-get-'))
@@ -713,5 +714,53 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, '.gitignore'), 'utf8').split('\n')).toEqual(
       expect.arrayContaining(['.sim/downloads/', '.sim/command.lock/', '.sim-staging-*/'])
     )
+  })
+
+  it("refreshes the workspace the directory's base names, not the profile's default", async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    const OTHER_SOURCE = '/api/v2/workspaces/ws_other/source'
+    const base = JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8'))
+    writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ ...base, workspaceId: 'ws_other' }))
+    const served = request.getMockImplementation()
+    request.mockImplementation(async (path: string, options: unknown) => {
+      if (path === OTHER_SOURCE) {
+        return {
+          data: {
+            workspaceId: 'ws_other',
+            kinds: ['table'],
+            files: { 'tables/leads.ts': LEADS },
+            blobs: [],
+            base: { version: 1, workspaceId: 'ws_other', resources: {} },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      if (path === '/api/v2/workspaces/ws_other/workflows/source/catalog') return { data: CATALOG }
+      return served?.(path, options)
+    })
+    request.mockClear()
+
+    await get()
+
+    expect(request.mock.calls.some(([path]) => path === OTHER_SOURCE)).toBe(true)
+    expect(request.mock.calls.some(([path]) => path === SOURCE_PATH)).toBe(false)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).workspaceId).toBe(
+      'ws_other'
+    )
+  })
+
+  it('refuses a --workspace that differs from the workspace the directory was read from', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    const base = readFileSync(join(dir, '.sim/base.json'), 'utf8')
+    writeFileSync(join(dir, '.sim/base.json'), base.replace('"ws_local"', '"ws_other"'))
+    request.mockClear()
+    contextMockState.workspaceSource = 'flag'
+
+    await expect(get()).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
+    expect(request).not.toHaveBeenCalled()
+    expect(readFileSync(join(dir, '.sim/base.json'), 'utf8')).toContain('"ws_other"')
   })
 })

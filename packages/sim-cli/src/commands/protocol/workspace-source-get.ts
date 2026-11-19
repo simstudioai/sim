@@ -64,8 +64,12 @@ import {
 type WorkspaceSource = GetWorkspaceSourceResponse['data']
 
 const GET_EXIT_CODES_HELP = `
+A directory that already holds a .sim/base.json is refreshed from the workspace it was read from,
+whatever the profile's default workspace.
+
 Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved
-(SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), or a downloaded
+(SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names
+another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), or a downloaded
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's
 retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and
@@ -319,6 +323,28 @@ async function keepDownloads(
 }
 
 /**
+ * The workspace a get writes `dir` from. A directory whose base was read from a workspace stays
+ * that workspace's: a get refreshes it, whatever the profile's default, so a refresh never
+ * rewrites it into another workspace. A `--workspace` naming another one is refused (get into
+ * another directory, or promote with `apply --to`). A directory without a base takes `profile`.
+ */
+async function directoryWorkspace(
+  dir: string,
+  profile: string,
+  explicit: boolean
+): Promise<string> {
+  const text = await readSourceText(dir, WORKSPACE_BASE_FILE)
+  const readFrom = text === null ? null : (parseWorkspaceBase(text).base?.workspaceId ?? null)
+  if (readFrom === null || readFrom === profile) return profile
+  if (!explicit) return readFrom
+  throw new SimApiError(
+    `${dir} was read from workspace ${readFrom}, but --workspace names ${profile}. Get ${profile} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${profile}, use \`sim workspaces source apply --to ${profile}\`.`,
+    0,
+    'SOURCE_OTHER_WORKSPACE'
+  )
+}
+
+/**
  * `sim workspaces source get --dir <dir> [--only kinds]`: writes the workspace as a source
  * directory: `tables/`, `tools/`, `skills/`, `knowledge/`, `files/` and `workflows/<key>/` (each a
  * workflow source directory), the base, and the SDK declarations once at the root, so
@@ -342,8 +368,12 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
-      const workspaceId = client.requireWorkspace()
       await withSourceDirLock(options.dir, async () => {
+        const workspaceId = await directoryWorkspace(
+          options.dir,
+          client.requireWorkspace(),
+          profile.sources.workspaceId === 'flag'
+        )
         const { data } = await client
           .request<GetWorkspaceSourceResponse>('getWorkspaceSource', {
             params: { workspaceId },

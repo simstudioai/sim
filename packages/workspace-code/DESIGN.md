@@ -294,6 +294,11 @@ directory read from another workspace (`SOURCE_OTHER_WORKSPACE`); `--workspace <
 applies it as a copy whose base the server ignores (`W_BASE_OTHER_WORKSPACE`), which only a first
 apply to an empty target survives (a second is `E_APPLY_NO_BASE` for everything it created).
 
+A directory's root base is authoritative for the workspace it belongs to: `get` into a directory
+holding one refreshes that workspace whatever the profile's default, and refuses a `--workspace`
+naming another (`SOURCE_OTHER_WORKSPACE`), as `apply` refuses one; `apply --to` is the one way to
+send a directory to another workspace.
+
 ## Git and the CLI's files
 
 Everything a get writes is meant to be committed: the base files are what an apply compares with
