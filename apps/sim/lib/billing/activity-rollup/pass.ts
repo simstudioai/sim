@@ -30,6 +30,7 @@ import {
   ACTIVITY_ROLLUP_VERSION,
   type ActivityRollupState,
   acquireLease,
+  readRollupState,
   releaseLease,
   resetToCurrentVersion,
   truncateRollupBatch,
@@ -46,8 +47,9 @@ const logger = createLogger('ActivityRollupPass')
  */
 const ACTIVITY_ROLLUP_SETTLE_MS = 3 * HOUR_MS
 
-/** Hours are read on the replica only while it is this close to the primary. */
-const MAX_REPLICA_LAG_SECONDS = 30
+/** Hours are read on the replica only when it replays the pass's lease within this long. */
+const MAX_REPLICA_LAG_MS = 10 * 1000
+const REPLICA_POLL_MS = 250
 
 const INFLIGHT_BATCH = 500
 const SAMPLED_WORKSPACE_DAYS = 5
@@ -80,19 +82,19 @@ export interface ActivityRollupPassResult {
 }
 
 /**
- * The replica's replay lag in seconds: the age of the last transaction it replayed. Read right
- * after the pass commits its lease, so a replica that is streaming has just replayed that commit,
- * while one whose WAL receiver is disconnected shows its real age however its LSNs compare. A
- * primary (no replica configured) has none; a replica that has replayed nothing counts as stale.
+ * How long the replica takes to show the lease this pass just committed on the primary, in
+ * seconds, or null when it has not within {@link MAX_REPLICA_LAG_MS}. The pass's own commit is the
+ * heartbeat, so a quiet primary never reads as lag and a disconnected WAL receiver always does.
+ * Without a replica, `dbReplica` is the primary and the lease is visible at once.
  */
-async function readReplicaLagSeconds(): Promise<number> {
-  const [row] = await dbReplica.execute<{ lag: number }>(sql`
-    SELECT CASE
-      WHEN NOT pg_is_in_recovery() THEN 0
-      ELSE coalesce(extract(epoch FROM now() - pg_last_xact_replay_timestamp()), 'Infinity')
-    END::float8 AS lag
-  `)
-  return Number(row?.lag ?? 0)
+async function waitForReplica(owner: string): Promise<number | null> {
+  const started = Date.now()
+  for (;;) {
+    const state = await readRollupState(dbReplica)
+    if (state?.leaseOwner === owner) return (Date.now() - started) / 1000
+    if (Date.now() - started >= MAX_REPLICA_LAG_MS) return null
+    await sleep(REPLICA_POLL_MS)
+  }
 }
 
 /** Creates the coverage on the first pass of a version: empty, ending at the last settled hour. */
@@ -351,13 +353,13 @@ export async function runActivityRollupPass(
     }
 
     result.lateEndMarks = await captureLateEnds()
-    result.replicaLagSeconds = await readReplicaLagSeconds()
-    const replicaCurrent = result.replicaLagSeconds <= MAX_REPLICA_LAG_SECONDS
+    result.replicaLagSeconds = await waitForReplica(owner)
+    const replicaCurrent = result.replicaLagSeconds !== null
     if (replicaCurrent) {
       state = await finalizeSettledHours(owner, state, settledThrough, deadline, result)
     } else {
       logger.warn('Activity rollup skipped replica reads for lag', {
-        replicaLagSeconds: result.replicaLagSeconds,
+        maxLagMs: MAX_REPLICA_LAG_MS,
       })
     }
     result.dirtyRecomputed = await processDirtyMarks(state, deadline)
