@@ -27,6 +27,7 @@ import {
   printRefusal,
   refusedExitCode,
   requireConsent,
+  resultDiagnostics,
 } from './source-ui'
 import {
   appliedBlobDigests,
@@ -349,7 +350,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
         const errors = preview.diagnostics.some((finding) => finding.severity === 'error')
         if (errors) setSoftExitCode(refusedExitCode(preview.diagnostics))
         if (options.dryRun || refusesApply(preview)) {
-          printProtocolResult(profile.output, summarize(preview))
+          printProtocolResult(profile.output, {
+            ...summarize(preview),
+            ...resultDiagnostics(profile.output, preview.diagnostics),
+          })
           return
         }
         if (!options.yes && !(await confirm(`Apply these changes to workspace ${workspaceId}?`))) {
@@ -373,7 +377,10 @@ export function attachWorkspaceSourceApply(source: Command): void {
         printError(`Stopped at ${data.failed.kind} ${data.failed.key}: ${data.failed.message}`)
         setSoftExitCode(failedExitCode(data.failed))
       }
-      printProtocolResult(profile.output, summarize(data))
+      printProtocolResult(profile.output, {
+        ...summarize(data),
+        ...resultDiagnostics(profile.output, data.diagnostics),
+      })
     })
 }
 

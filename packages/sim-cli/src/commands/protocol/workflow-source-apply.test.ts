@@ -117,6 +117,13 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
+
 function stderrLines(): string[] {
   return vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
 }
@@ -447,6 +454,18 @@ describe('sim workflows source apply', () => {
     severity: 'error',
     message: 'The workflow changed since this directory was read.',
   }
+
+  it('puts each finding of a dry run in the JSON on stdout', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [{ code: 'E_APPLY_STALE', severity: 'error', message: STALE.message }],
+    })
+  })
 
   it('exits 5 when a dry run finds the directory stale', async () => {
     setTerminal(false)

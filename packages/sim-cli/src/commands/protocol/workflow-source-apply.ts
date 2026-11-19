@@ -34,6 +34,7 @@ import {
   printRefusal,
   refusedExitCode,
   requireConsent,
+  resultDiagnostics,
 } from './source-ui'
 import {
   refreshWorkflowTsconfigs,
@@ -241,7 +242,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
     printFindings(preview, printed)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
-      printProtocolResult(args.output, summarize(preview, creating))
+      printProtocolResult(args.output, {
+        ...summarize(preview, creating),
+        ...resultDiagnostics(args.output, preview.diagnostics),
+      })
       return
     }
     printError(diffSummary(preview))
@@ -260,7 +264,10 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
     else await writeBack(directory, data, args.previousLock)
   }
 
-  printProtocolResult(args.output, summarize(data, creating))
+  printProtocolResult(args.output, {
+    ...summarize(data, creating),
+    ...resultDiagnostics(args.output, data.diagnostics),
+  })
 }
 
 const DIR_DESCRIPTION =

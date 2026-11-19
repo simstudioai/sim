@@ -44,6 +44,13 @@ function result(): Record<string, unknown> {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
 }
 
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
+
 function stderr(): string {
   return vi
     .mocked(console.error)
@@ -205,6 +212,29 @@ describe('sim workflows source check', () => {
     expect(result()).toMatchObject({ errors: 1 })
     expect(stderr()).toMatch(/workflow\.ts:6:\d+ error E_UNKNOWN_PARAM/)
     expect(process.exitCode).toBe(1)
+  })
+
+  it('puts each finding in the JSON on stdout', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [
+        expect.objectContaining({
+          code: 'E_UNKNOWN_PARAM',
+          severity: 'error',
+          file: 'workflow.ts',
+          line: 6,
+          message: 'Response has no param bdy.',
+        }),
+      ],
+    })
   })
 
   it('leaves stored() to the server, which holds the stored values', async () => {

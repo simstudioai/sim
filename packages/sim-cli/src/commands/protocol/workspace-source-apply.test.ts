@@ -126,6 +126,26 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('puts each finding of a dry run in the JSON on stdout', async () => {
+    const finding = {
+      code: 'E_DECL_SHAPE',
+      severity: 'error',
+      message: 'tables/leads.ts does not read.',
+      file: 'tables/leads.ts',
+      line: 1,
+      column: 1,
+      kind: 'table',
+      key: 'leads',
+    }
+    request.mockResolvedValue(answer({ dryRun: true, diagnostics: [finding] }))
+
+    await apply('--dry-run')
+
+    const calls = vi.mocked(console.log).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0].join(' '))).toMatchObject({ errors: 1, diagnostics: [finding] })
+  })
+
   it('refuses a directory holding no workspace source before sending anything', async () => {
     rmSync(join(dir, 'tables'), { recursive: true })
     rmSync(join(dir, 'workflows'), { recursive: true })

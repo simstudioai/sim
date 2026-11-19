@@ -6,8 +6,9 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { type RefusalClass, refusalClass } from '@sim/workspace-code'
+import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
+import type { OutputFormat } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
@@ -97,6 +98,21 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
         : `info ${code} on ${group.length} blocks: ${first.message} (and ${group.length - 1} more like it)`
     )
   }
+}
+
+/** A finding in a source command's `--output json` (or `yaml`) result: the frame stays human-only. */
+type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
+
+/**
+ * The `diagnostics` a source command's result carries in a machine format, so the one document on
+ * stdout holds every finding; a display format prints them on stderr only.
+ */
+export function resultDiagnostics(
+  format: OutputFormat,
+  diagnostics: readonly Diagnostic[]
+): { diagnostics?: ResultDiagnostic[] } {
+  if (format !== 'json' && format !== 'yaml') return {}
+  return { diagnostics: diagnostics.map(({ frame: _frame, ...finding }) => finding) }
 }
 
 function findingKey(diagnostic: Diagnostic): string {

@@ -44,6 +44,13 @@ function result(): Record<string, unknown> {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
 }
 
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
+
 function stderr(): string {
   return vi
     .mocked(console.error)
@@ -108,6 +115,23 @@ describe('sim workspaces source check', () => {
     )
     expect(stderr()).toMatch(/workflows\/third\/workflow\.ts:5:\d+ error W_TABLE_UNKNOWN_COLUMN/)
     expect(process.exitCode).toBe(1)
+  })
+
+  it('puts each finding in the JSON on stdout, under its folder path', async () => {
+    writeFile('workflows/second/workflow.ts', insertWorkflow('contact'))
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [
+        expect.objectContaining({
+          code: 'E_MAT_UNKNOWN_RESOURCE',
+          file: 'workflows/second/workflow.ts',
+          line: 5,
+        }),
+      ],
+    })
   })
 
   it('refuses without a cached catalog, naming the workspace get that caches one', async () => {

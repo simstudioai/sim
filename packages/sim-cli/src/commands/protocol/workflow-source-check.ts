@@ -19,7 +19,7 @@ import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 import { readSourceJson, readSourceText } from './source-dir'
 import { cachedCatalog, refreshTsconfigs } from './source-tree'
-import { printNewDiagnostics } from './source-ui'
+import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readSourceFiles } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
 import {
@@ -73,7 +73,8 @@ export function strictMode(options: StrictOptions): StrictMode {
 
 /** Help shared by both check commands: what fails, and the strict flags. */
 export const STRICT_HELP = `Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or
-no cached catalog (run the get once).
+no cached catalog (run the get once). With --output json, stdout is one document that also lists
+every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock
 does not bind (a block added since the get, or every block of a new workflow):
@@ -356,6 +357,7 @@ export function reportCheck(
     errors,
     warnings: findings.filter((finding) => finding.severity === 'warning').length,
     ...result,
+    ...resultDiagnostics(output, findings),
   })
 }
 
