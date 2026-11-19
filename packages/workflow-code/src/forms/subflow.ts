@@ -108,7 +108,7 @@ export function parallelForm(type: ParallelType | null): ContainerForm<ParallelS
 }
 
 /** One config key of a spec, resolved against its form. */
-export interface ConfigItem {
+interface ConfigItem {
   key: string
   kind: 'number' | 'text' | 'json'
   /** The spec's value for the key's field, as stored. */

@@ -36,14 +36,63 @@ function edgeScope(ctx: PrintContext, edge: CanonicalEdge): BlockKey | null {
   return encloses(ctx, from, to) ? to : from
 }
 
-/** The blocks whose edges may print in `scope`: its own, then those of every enclosing scope. */
-function wiringSources(ctx: PrintContext, scope: BlockKey | null): BlockKey[] {
-  const sources = [...(ctx.scopeMembers.get(scope) ?? [])]
-  for (let outer = scope; outer !== null; ) {
-    outer = ctx.parentOf.get(outer) ?? null
-    sources.push(...(ctx.scopeMembers.get(outer) ?? []))
+/** A wiring source and the edges it prints in one scope, in `edgesFrom` order. */
+interface SourceWiring {
+  source: BlockKey
+  edges: CanonicalEdge[]
+}
+
+/** Print scope → the scope of the sources wired there → those sources, in declaration order. */
+type ScopeWiring = Map<BlockKey | null, Map<BlockKey | null, SourceWiring[]>>
+
+const wiringByContext = new WeakMap<PrintContext, ScopeWiring>()
+
+/**
+ * Every edge bucketed by the scope it prints in ({@link edgeScope}) and then by its source's own
+ * scope, built once per print in one pass over the declared blocks, so printing a scope never
+ * rescans the blocks of the scopes around it.
+ */
+function scopeWiring(ctx: PrintContext): ScopeWiring {
+  const known = wiringByContext.get(ctx)
+  if (known) return known
+  const wiring: ScopeWiring = new Map()
+  for (const source of ctx.preorder) {
+    const sourceScope = ctx.parentOf.get(source) ?? null
+    const edgesByScope = new Map<BlockKey | null, CanonicalEdge[]>()
+    for (const edge of ctx.edgesFrom.get(source) ?? []) {
+      if (!ctx.blocks.has(edge.to)) continue
+      const scope = edgeScope(ctx, edge)
+      const edges = edgesByScope.get(scope)
+      if (edges) edges.push(edge)
+      else edgesByScope.set(scope, [edge])
+    }
+    for (const [scope, edges] of edgesByScope) {
+      let bySourceScope = wiring.get(scope)
+      if (!bySourceScope) {
+        bySourceScope = new Map()
+        wiring.set(scope, bySourceScope)
+      }
+      const sources = bySourceScope.get(sourceScope)
+      if (sources) sources.push({ source, edges })
+      else bySourceScope.set(sourceScope, [{ source, edges }])
+    }
   }
-  return sources
+  wiringByContext.set(ctx, wiring)
+  return wiring
+}
+
+/**
+ * The blocks with edges that print in `scope`, each with those edges: the scope's own blocks,
+ * then those of every enclosing scope, each scope's in declaration order.
+ */
+function wiringSources(ctx: PrintContext, scope: BlockKey | null): SourceWiring[] {
+  const bySourceScope = scopeWiring(ctx).get(scope)
+  if (!bySourceScope) return []
+  const sources: SourceWiring[] = []
+  for (let outer = scope; ; outer = ctx.parentOf.get(outer) ?? null) {
+    sources.push(...(bySourceScope.get(outer) ?? []))
+    if (outer === null) return sources
+  }
 }
 
 function identExpr(ctx: PrintContext, key: BlockKey): Expr {
@@ -90,13 +139,10 @@ export function wiringStatements(
     }
   }
 
-  for (const source of wiringSources(ctx, scope)) {
+  for (const { source, edges } of wiringSources(ctx, scope)) {
     const block = ctx.blocks.get(source)
     if (!block) continue
     const ident = ctx.idents.get(source) ?? source
-    const edges = (ctx.edgesFrom.get(source) ?? []).filter(
-      (edge) => ctx.blocks.has(edge.to) && edgeScope(ctx, edge) === scope
-    )
     const isContainer = block.subflow !== undefined
     const hasBranches =
       block.branches !== undefined ||

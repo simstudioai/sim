@@ -1,6 +1,22 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { isJsonObject, type Json, type LoopSpec, type ParallelSpec } from '../model'
-import { setOrDelete } from '../records'
+import { setOrDelete, setOwn } from '../records'
+
+/**
+ * A collection as storage holds it: canonicalize and compile wrap an object that carries its own
+ * `$sim` key as `{ $sim: 'literal', value }` (the model's bijection), and the wrapper never runs.
+ */
+function storedJson(value: Json | undefined): Json | undefined {
+  if (Array.isArray(value)) return value.map((item) => storedJson(item) ?? null)
+  if (!isJsonObject(value)) return value
+  if (value.$sim === 'literal' && Object.hasOwn(value, 'value')) return value.value
+  const result: Record<string, Json> = {}
+  for (const [key, member] of Object.entries(value)) {
+    const stored = storedJson(member)
+    if (stored !== undefined) setOwn(result, key, stored)
+  }
+  return result
+}
 
 /** `block.data` keys each subflow kind owns, and the model field each one holds. */
 function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefined> {
@@ -8,7 +24,7 @@ function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefi
     return {
       loopType: spec.loopType,
       count: spec.iterations,
-      collection: spec.forEachItems,
+      collection: storedJson(spec.forEachItems),
       whileCondition: spec.whileCondition,
       doWhileCondition: spec.doWhileCondition,
     }
@@ -16,7 +32,7 @@ function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefi
   return {
     parallelType: spec.parallelType,
     count: spec.count,
-    collection: spec.distribution,
+    collection: storedJson(spec.distribution),
     batchSize: spec.batchSize,
   }
 }
@@ -64,7 +80,8 @@ function sameMembers(left: readonly string[], right: readonly string[]): boolean
  * text. A JSON scalar fits none of them (the API contract refuses one), so it is left out, as an
  * absent collection is; the executor reads the collection from `block.data`, which keeps it.
  */
-function storedCollection(value: Json | undefined): Loop['forEachItems'] {
+function storedCollection(json: Json | undefined): Loop['forEachItems'] {
+  const value = storedJson(json)
   if (typeof value === 'string' || Array.isArray(value) || isJsonObject(value)) return value
   return undefined
 }

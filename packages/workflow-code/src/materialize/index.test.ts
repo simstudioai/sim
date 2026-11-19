@@ -640,6 +640,36 @@ describe('materialize: identity', () => {
     expect(result.state.edges.map((e) => e.id)).toEqual(['new-2', 'new-3'])
   })
 
+  it('never lets a new block inherit the id of a block renamed and retyped by ident', () => {
+    const prev = base()
+    const lock = lockFor(prev)
+    const target = edit(canonical(prev, lock).workflow, (draft) => {
+      draft.blocks.summarizer = {
+        ...draft.blocks.fetch,
+        key: 'summarizer',
+        name: 'Summarizer',
+        type: 'api',
+        params: { url: { kind: 'value', value: 'https://x' } },
+      }
+      draft.blocks.writer = { ...draft.blocks.fetch, key: 'writer', name: 'Writer' }
+      draft.blocks = omit(draft.blocks, ['fetch'])
+      draft.edges = draft.edges.map((e) => ({
+        ...e,
+        from: e.from === 'fetch' ? 'writer' : e.from,
+        to: e.to === 'fetch' ? 'writer' : e.to,
+      }))
+    })
+    const result = run(target, lock, {
+      prev,
+      compiledIdents: { summarizer: lock.blocks.fetch.ident },
+    })
+    expect(codes(result)).toContain('W_MAT_RETYPE_RECREATED')
+    expect(codes(result)).not.toContain('W_MAT_INFERRED_RENAME')
+    expect(result.entries).toContainEqual({ status: 'deleted', key: 'fetch', id: 'a1' })
+    expect(result.identity.blocks.writer.id).not.toBe('a1')
+    expect(result.identity.blocks.summarizer.id).not.toBe('a1')
+  })
+
   it('keeps the id across a catalog sunset replacedBy retype', () => {
     const prev = workflowState([blockState('o1', 'function_v0', 'Old', { code: 'x' })])
     const target = edit(canonical(prev).workflow, (draft) => {
@@ -785,6 +815,31 @@ describe('materialize: identity', () => {
     expect(result.identity.blocks.start.items).toEqual({
       inputFormat: [{ name: 'age', id: 'new-1' }],
     })
+  })
+
+  it('keeps the collapsed flag of inputFormat fields whose id stays inline', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f1', name: 'email', type: 'string', collapsed: true },
+          { id: 'f2', name: 'email', type: 'number', collapsed: false },
+          { id: 'f3', type: 'string', collapsed: true },
+        ],
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const inputFormat = draft.blocks.start.params.inputFormat
+      if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+        inputFormat.value.push({ name: 'age', type: 'number' })
+      }
+    })
+    const result = run(target, null, { prev })
+    expect(subBlockValue(result.state, 'start', 'inputFormat')).toEqual([
+      { id: 'f1', name: 'email', type: 'string', collapsed: true },
+      { id: 'f2', name: 'email', type: 'number', collapsed: false },
+      { id: 'f3', type: 'string', collapsed: true },
+      { id: 'new-1', name: 'age', type: 'number' },
+    ])
   })
 
   it('keeps every block-id foreign key stable across an edit elsewhere', () => {
@@ -1006,6 +1061,55 @@ describe('materialize: preserved UI state comes from prev', () => {
     const data = run(target, null, { prev: state }).state.blocks.l1.data
     expect(data?.count).toBe(7)
     expect(data?.collection).toBe('<start.rows>')
+  })
+
+  it('writes a collection item holding a $sim key back as stored, not as its literal wrapper', () => {
+    const item = { $sim: 'x', n: 1 }
+    const state = workflowState(
+      [
+        blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'forEach', collection: [item] } }),
+        blockState(
+          'p1',
+          'parallel',
+          'Fan',
+          {},
+          { data: { parallelType: 'collection', collection: [item] } }
+        ),
+      ],
+      {
+        loops: {
+          l1: {
+            id: 'l1',
+            nodes: [],
+            iterations: 5,
+            loopType: 'forEach',
+            forEachItems: [item],
+            enabled: true,
+          },
+        },
+        parallels: {
+          p1: {
+            id: 'p1',
+            nodes: [],
+            parallelType: 'collection',
+            distribution: [item],
+            enabled: true,
+          },
+        },
+      }
+    )
+    const target = edit(canonical(state).workflow, (draft) => {
+      for (const key of ['each', 'fan']) {
+        const spec = draft.blocks[key].subflow
+        const items = spec?.kind === 'loop' ? spec.forEachItems : spec?.distribution
+        if (Array.isArray(items)) items.push(2)
+      }
+    })
+    const result = run(target, null, { prev: state })
+    expect(result.state.blocks.l1.data?.collection).toEqual([item, 2])
+    expect(result.state.loops.l1.forEachItems).toEqual([item, 2])
+    expect(result.state.blocks.p1.data?.collection).toEqual([item, 2])
+    expect(result.state.parallels.p1.distribution).toEqual([item, 2])
   })
 
   it('keeps the stored spelling of a loop count that runs the same', () => {
