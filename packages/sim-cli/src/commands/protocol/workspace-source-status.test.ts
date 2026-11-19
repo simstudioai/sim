@@ -437,6 +437,36 @@ describe('workspaces source status', () => {
     expect(process.exitCode).toBe(12)
   })
 
+  it('counts a drifted workflow left alone here as unchanged, as an apply sends it by its base', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [{ kind: 'workflow', key: 'ingest', action: 'update' }],
+        [
+          {
+            code: 'E_APPLY_STALE',
+            severity: 'error',
+            message: 'm',
+            kind: 'workflow',
+            key: 'ingest',
+          },
+        ]
+      )
+    )
+
+    await run('status')
+
+    expect(printed().plan).toMatchObject({ update: 0, unchanged: 1 })
+  })
+
+  it('counts an edited workflow as the update its dry run plans', async () => {
+    write('workflows/ingest/workflow.ts', INGEST.replace("'Ingest'", "'Ingest v2'"))
+    mockRequest.mockResolvedValue(dryRun([{ kind: 'workflow', key: 'ingest', action: 'update' }]))
+
+    await run('status')
+
+    expect(printed().plan).toMatchObject({ update: 1, unchanged: 0 })
+  })
+
   it('never reports a resource the get skipped as added on the server', async () => {
     write('.sim/skipped.json', JSON.stringify([{ kind: 'file', key: 'big.bin', reason: 'size' }]))
     mockRequest.mockResolvedValue(

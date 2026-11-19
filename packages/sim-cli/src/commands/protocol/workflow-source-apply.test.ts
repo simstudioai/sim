@@ -328,6 +328,20 @@ describe('sim workflows source apply', () => {
     })
   })
 
+  it('prints the modified blocks readably in text output', async () => {
+    contextMockState.output = 'text'
+    const modified = outcome({ dryRun: true })
+    modified.data.diff.blocks.modified = [{ id: 'b-2', key: 'eachticket', fields: ['subflow'] }]
+    request.mockResolvedValue(modified)
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+    expect(lines.find((line) => line.startsWith('modified\t'))).toBe(
+      'modified\t[{"block":"eachticket","fields":["subflow"]}]'
+    )
+  })
+
   it('prints no workflow id for a create dry run, since nothing was stored under it', async () => {
     setTerminal(false)
     rmSync(join(dir, '.sim/base.json'))

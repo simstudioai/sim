@@ -127,14 +127,38 @@ function liftedFieldIds(list: readonly unknown[]): Map<number, LockItem> {
   return lifted
 }
 
+const BLANK_FIELD_KEYS = new Set(['id', 'name', 'type', 'value', 'collapsed'])
+
 /**
- * The editor's `collapsed` flag is dropped and the id of each field {@link liftedFieldIds} picks
- * moves to the lock's `items`. Any other field keeps its id inline, so nothing is lost.
+ * Whether `list` is only the blank starter field every new Start block is seeded with: no name,
+ * the default `string` type and no value, description or required flag. Execution skips a field
+ * without a name, so the list carries nothing and canonicalize reads it as empty, as it drops a
+ * table's blank starter row; an apply that leaves the fields unchanged keeps the stored list. A
+ * blank field beside others is kept, so a list the person shaped prints as stored.
+ */
+function isUntouchedStarterList(list: readonly unknown[]): boolean {
+  if (list.length !== 1) return false
+  const [item] = list
+  return (
+    isRecordLike(item) &&
+    item.name === '' &&
+    item.type === 'string' &&
+    (item.value === undefined || item.value === '') &&
+    Object.keys(item).every((key) => BLANK_FIELD_KEYS.has(key))
+  )
+}
+
+/**
+ * The editor's `collapsed` flag is dropped, an untouched starter list
+ * ({@link isUntouchedStarterList}) reads as empty, and the id of each field
+ * {@link liftedFieldIds} picks moves to the lock's `items`. Any other field keeps its id inline,
+ * so nothing is lost.
  */
 function liftInputFormat(
-  list: unknown[],
+  stored: unknown[],
   context: CanonContext
 ): { value: Value; items: LockItem[] } {
+  const list = isUntouchedStarterList(stored) ? [] : stored
   const lifted = liftedFieldIds(list)
   const value = list.map((item, index) => {
     if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return toValue(item, context)
@@ -248,6 +272,7 @@ export const INPUT_FORMAT_CODEC: StructuredCodec = {
     return Array.isArray(json) ? restoreInputFormatIds(json, site, context) : json
   },
   lockItems(stored) {
-    return [...liftedFieldIds(parseStoredList(stored) ?? []).values()]
+    const list = parseStoredList(stored) ?? []
+    return isUntouchedStarterList(list) ? [] : [...liftedFieldIds(list).values()]
   },
 }
