@@ -305,6 +305,20 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
     await expect(cancelWorkflowGroupRuns(table.id)).rejects.toBe(error)
   })
 
+  it('still marks every other in-flight row cancelled when one row write fails', async () => {
+    const error = new Error('database unavailable')
+    const executions = Array.from({ length: 12 }, (_, index) => ({
+      ...inFlightExecution,
+      rowId: `row${index + 1}`,
+      executionId: `execution-${index + 1}`,
+    }))
+    queueTableRows(schemaMock.tableRowExecutions, executions)
+    mockUpdateRow.mockRejectedValueOnce(error)
+
+    await expect(cancelWorkflowGroupRuns(table.id)).rejects.toBe(error)
+    expect(mockUpdateRow).toHaveBeenCalledTimes(12)
+  })
+
   it('ignores a tombstone foreign-key failure caused by a deleted row', async () => {
     mockListActiveDispatches.mockResolvedValueOnce([
       { id: 'dispatch-1', scope: { groupIds: [group.id], rowIds: ['row1'] } },
