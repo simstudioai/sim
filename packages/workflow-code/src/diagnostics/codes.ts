@@ -423,6 +423,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'E_APPLY_DISABLED_ANCESTOR',
   /** A credential the acting user cannot reach. */
   'E_APPLY_CREDENTIAL_UNREACHABLE',
+  /**
+   * A credential key the caller cannot resolve stands where the workflow stores a credential the
+   * caller cannot see (source a teammate read): the stored credential is kept, whatever the key.
+   */
+  'W_APPLY_CREDENTIAL_KEPT',
   /** The sandbox selection needs a plan the workspace does not have. */
   'E_APPLY_SANDBOX_PLAN_REQUIRED',
   /** A hosted key that does not apply to the acting user was dropped. */
@@ -456,6 +461,11 @@ const APPLY_DIAGNOSTIC_CODES = [
   'E_APPLY_BLOCK_DELETE',
   /** The source renames the workflow to a name another workflow in its folder holds. */
   'E_NAME_TAKEN',
+  /**
+   * The source sets a workflow name or description the workflow API refuses: an empty name, a name
+   * over 255 characters, or a description over 50,000.
+   */
+  'E_WORKFLOW_META_INVALID',
 ] as const
 export type ApplyDiagnosticCode = (typeof APPLY_DIAGNOSTIC_CODES)[number]
 

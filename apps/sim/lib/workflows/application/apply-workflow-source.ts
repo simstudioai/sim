@@ -74,7 +74,10 @@ import {
   prefetchStoredResources,
   type StoredCanonical,
 } from '@/lib/workflows/code/stored-canonical'
-import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import {
+  checkDraftNeedsRedeployment,
+  checkNeedsRedeployment,
+} from '@/lib/workflows/deployment-status'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -100,7 +103,8 @@ interface SourceSubmission {
   /**
    * Evaluate and stop, for a caller that commits later through `evaluated`: a dry run without the
    * deployment check or the re-print of what a write would store, so the result's `files` echo
-   * the submission and `needsRedeployment` is false. A create still checks its name is free.
+   * the submission and `needsRedeployment` is false. A create still checks its name is free. It
+   * records no analytics: the caller's own commit (or its dry run) is the outcome.
    */
   planOnly?: boolean
   /**
@@ -262,7 +266,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: context.workflowId }, result)
       return result
     } catch (error) {
-      recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
+      if (!input.planOnly) recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
       throw error
     }
   },
@@ -331,7 +335,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
       if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: '' }, result)
       return result
     } catch (error) {
-      recordSourceRefused({ ...facts, workflowId: '' }, error)
+      if (!input.planOnly) recordSourceRefused({ ...facts, workflowId: '' }, error)
       throw error
     }
   },
@@ -447,8 +451,10 @@ async function runSourceApply(
         (shared.envNames ??= loadEnvNames(context.workspaceId, subjectUserId)),
       ])
   /**
-   * A dry run writes no graph, so whether the draft differs from its deployment is known now and
-   * runs beside the evaluation. The `catch` only keeps it observed when an error throws first.
+   * Whether the draft differs from its deployment, for a dry run that leaves it as it is (a no-op
+   * or a refusal): it writes nothing, so this is known now and runs beside the evaluation. A dry
+   * run that would change the draft compares what it would write instead. The `catch` only keeps
+   * it observed when an error throws first or it goes unused.
    */
   const dryRunNeedsRedeployment =
     dryRun && !planOnly && !isNew ? checkNeedsRedeployment(context.workflowId) : null
@@ -472,6 +478,7 @@ async function runSourceApply(
             | 'wroteSourceMeta'
             | 'sourceMetaChanged'
             | 'evaluated'
+            | 'needsRedeployment'
           >
         >
     ): Promise<ApplyWorkflowSourceResult> => ({
@@ -496,9 +503,10 @@ async function runSourceApply(
         catalogHash: evaluated.catalog.hash,
       },
       needsRedeployment:
-        !isNew &&
-        !planOnly &&
-        (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId))),
+        outcome.needsRedeployment ??
+        (!isNew &&
+          !planOnly &&
+          (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId)))),
       sdkMajor: evaluated.catalog.sdkMajor,
     })
 
@@ -517,7 +525,10 @@ async function runSourceApply(
         meta: stored.meta,
         catalog,
       })
-      const storedFingerprint = storedSourceFingerprint(storedCanonical.canonical)
+      const storedFingerprint = storedSourceFingerprint(
+        storedCanonical.canonical,
+        storedCanonical.resources
+      )
       /**
        * Refuses a commit; a dry run reports the same findings with a 200 instead. The dry run
        * echoes the caller's own base fingerprint, so applying its response after a stale or
@@ -699,6 +710,12 @@ async function runSourceApply(
       logger.info('Evaluated workflow source without persisting', logContext)
       return result(evaluated, printWritten(preview.state), {
         applied: false,
+        needsRedeployment:
+          !isNew &&
+          (await checkDraftNeedsRedeployment(context.workflowId, {
+            ...preview.state,
+            variables: plan.storedVariables,
+          })),
         diff,
         diagnostics,
         mintedIds,

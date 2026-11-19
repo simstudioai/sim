@@ -503,6 +503,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_APPLY_DUPLICATE_TRIGGER`, `E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK` | A second trigger or single-instance block. |
 | `E_APPLY_DISABLED_ANCESTOR` | An enabled block inside a disabled container. |
 | `E_APPLY_CREDENTIAL_UNREACHABLE` | A credential the acting user cannot use. |
+| `W_APPLY_CREDENTIAL_KEPT` | A credential key the caller cannot resolve stands where the workflow stores a credential the caller cannot see; the stored one is kept, whatever the key. |
 | `E_APPLY_SANDBOX_PLAN_REQUIRED` | The sandbox needs a plan the workspace does not have. |
 | `W_APPLY_HOSTED_KEY_DROPPED` | A hosted key that does not apply was cleared. |
 | `W_APPLY_VALUE_NORMALIZED` | Validation rewrote a value; the returned files show it. |
@@ -512,5 +513,6 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
 | `E_APPLY_BLOCK_DELETE` | The apply deletes blocks the source no longer declares; pass `--allow-delete`. |
 | `E_NAME_TAKEN` | The `workflow('…')` name renames the workflow to one another workflow in its folder holds. |
+| `E_WORKFLOW_META_INVALID` | The `workflow('…')` name is empty or over 255 characters, or its description is over 50,000 characters: limits the workflow API holds every workflow to. |
 | `E_APPLY_INVALID_SCHEDULE` | An added or changed schedule whose cron, timezone or interval deploy would refuse. |
 | `W_TABLE_UNKNOWN_COLUMN` | A table row write whose data names a key that is not a column of the table; the run drops it. The hint names the nearest column. |

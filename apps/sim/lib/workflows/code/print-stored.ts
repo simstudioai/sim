@@ -3,6 +3,7 @@ import {
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
   canonicalDigests,
+  canonicalHash,
   canonicalize,
   canonicalizeUnderLock,
   type Diagnostic,
@@ -16,6 +17,7 @@ import {
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import { withCredentialIds } from '@/lib/workflows/code/credential-nodes'
 import { buildLockFromState, hintsFromSourceMeta } from '@/lib/workflows/code/source-lock'
 
 /** A stored draft as canonicalize reads it, plus the row fields the canonical `meta` carries. */
@@ -69,20 +71,44 @@ const digestsByModel = new WeakMap<
 /**
  * The `sf1:` fingerprint of a lockless canonical model: what {@link printStoredSource} reports
  * and what every apply compares `base.fingerprint` against. Computed once per model.
+ *
+ * It hashes every credential by its stored id ({@link withCredentialIds}), never by the key the
+ * reader's model may print, so it depends on the stored workflow alone: members who may see
+ * different credentials read one fingerprint, and a base one of them wrote stays fresh for the
+ * other. `resources` is the resolver `lockless` was canonicalized with.
  */
-export function storedSourceFingerprint(lockless: CanonicalizeResult): SourceFingerprint {
+export function storedSourceFingerprint(
+  lockless: CanonicalizeResult,
+  resources: Pick<ResourceKeyResolver, 'toId'>
+): SourceFingerprint {
   const cached = digestsByModel.get(lockless)
   if (cached) return cached.fingerprint
-  const fingerprint = sourceFingerprint(lockless.workflow, lockless.identity)
+  const fingerprint = sourceFingerprint(
+    withCredentialIds(lockless.workflow, resources),
+    lockless.identity
+  )
   digestsByModel.set(lockless, { fingerprint })
   return fingerprint
 }
 
-/** `canonicalHash` of a lockless canonical model, from the same serialization as its fingerprint. */
-export function storedCanonicalHash(lockless: CanonicalizeResult): string {
+/**
+ * `canonicalHash` of a lockless canonical model, from the same serialization as its fingerprint
+ * when the model names no credential by key.
+ */
+export function storedCanonicalHash(
+  lockless: CanonicalizeResult,
+  resources: Pick<ResourceKeyResolver, 'toId'>
+): string {
   const cached = digestsByModel.get(lockless)
   if (cached?.canonicalHash !== undefined) return cached.canonicalHash
-  const digests = canonicalDigests(lockless.workflow, lockless.identity)
+  const fingerprinted = withCredentialIds(lockless.workflow, resources)
+  const digests =
+    fingerprinted === lockless.workflow
+      ? canonicalDigests(lockless.workflow, lockless.identity)
+      : {
+          canonicalHash: canonicalHash(lockless.workflow),
+          fingerprint: cached?.fingerprint ?? sourceFingerprint(fingerprinted, lockless.identity),
+        }
   digestsByModel.set(lockless, digests)
   return digests.canonicalHash
 }
@@ -120,7 +146,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
     lock: buildLockFromState(sourceMeta, canonical, printed.hints),
-    fingerprint: storedSourceFingerprint(lockless),
+    fingerprint: storedSourceFingerprint(lockless, resources),
     diagnostics: printed.diagnostics,
     entryDepth: printed.entryDepth,
   }

@@ -76,9 +76,10 @@ export const v2WorkflowErrorPolicies = {
    * that could not be applied whole answers `409` carrying the declined
    * operations and the block inputs that would have been dropped, refused
    * workflow source answers `400` (`413` for a size limit) with its line-pinned
-   * diagnostics, and stale
-   * source answers `409` with the current fingerprint, so a pipeline can act on
-   * each without a second request.
+   * diagnostics, stale
+   * source answers `409` with the current fingerprint, and a source rename onto
+   * a name taken meanwhile answers `409` with `SOURCE_NAME_TAKEN`, so a pipeline
+   * can act on each without a second request.
    */
   concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
@@ -100,6 +101,12 @@ export const v2WorkflowErrorPolicies = {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_STALE',
           currentFingerprint: error.currentFingerprint,
+        })
+      }
+      if (error instanceof WorkflowSourceNameTakenError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_NAME_TAKEN',
+          name: error.workflowName,
         })
       }
       return v2CaughtOrchestrationError(error)

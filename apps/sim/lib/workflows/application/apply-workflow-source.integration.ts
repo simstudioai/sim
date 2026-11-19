@@ -38,6 +38,7 @@ import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/re
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
@@ -1256,6 +1257,41 @@ describe('apply edges: identity, row lock, live triggers', () => {
       { groups: { workspace: workspaceId } }
     )
   })
+  check(
+    'a plan (a workspace plan or dry run) of a locked workflow records nothing; its commit records the refusal',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      await db.update(workflow).set({ locked: true }).where(eq(workflow.id, seeded.workflowId))
+      const run = (extra: Partial<ApplyWorkflowSourceInput>) =>
+        withPermissionGroupScope(() =>
+          applyWorkflowSource.execute({
+            principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+            input: {
+              workflowId: seeded.workflowId,
+              files: edit(source.files, SCORE_CODE, 'return 24'),
+              lock: source.lock,
+              base: source.base,
+              provenance: { client: 'cli' },
+              ...extra,
+            },
+          })
+        )
+      const recorded = () =>
+        posthogServerMockFns.mockCaptureServerEvent.mock.calls.filter(
+          ([, , properties]) =>
+            isRecordLike(properties) && properties.workflow_id === seeded.workflowId
+        )
+
+      await expect(run({ planOnly: true })).rejects.toMatchObject({ code: 'locked' })
+      expect(recorded()).toEqual([])
+
+      await expect(run({})).rejects.toMatchObject({ code: 'locked' })
+      expect(recorded().map(([, event, properties]) => [event, properties])).toEqual([
+        ['workflow_source_applied', expect.objectContaining({ ok: false, error_kind: 'locked' })],
+      ])
+    }
+  )
 })
 
 /**
@@ -1581,6 +1617,68 @@ describe('source apply edge cases', () => {
     }
   )
 
+  check(
+    'a name or description the workflow API refuses is refused at the header, on an update and a create',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const before = await snapshot(seeded.workflowId)
+
+      for (const refused of ['', '   ', 'n'.repeat(256)]) {
+        const error = await expectRejected(
+          apply(source, edit(source.files, `'${name}'`, `'${refused}'`)),
+          'E_WORKFLOW_META_INVALID'
+        )
+        expect(error.diagnostics.find((d) => d.code === 'E_WORKFLOW_META_INVALID')).toMatchObject({
+          file: 'workflow.ts',
+          line: expect.any(Number),
+          hint: expect.any(String),
+        })
+      }
+      await expectRejected(
+        apply(
+          source,
+          edit(source.files, '{ variables:', `{ description: '${'d'.repeat(50_001)}', variables:`)
+        ),
+        'E_WORKFLOW_META_INVALID'
+      )
+      const dryRun = await apply(source, edit(source.files, `'${name}'`, "''"), { dryRun: true })
+      expect(dryRun.diagnostics.map((d) => d.code)).toContain('E_WORKFLOW_META_INVALID')
+      expect(await snapshot(seeded.workflowId)).toEqual(before)
+
+      const longest = 'n'.repeat(255)
+      const renamed = await apply(
+        source,
+        edit(
+          edit(source.files, `'${name}'`, `'${longest}'`),
+          '{ variables:',
+          `{ description: '${'d'.repeat(50_000)}', variables:`
+        )
+      )
+      expect(renamed.workflowName).toBe(longest)
+
+      const created = withPermissionGroupScope(() =>
+        createWorkflowFromSource.execute({
+          principal,
+          input: {
+            workspaceId,
+            files: {
+              'workflow.ts': `// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('', {}, () => {
+  trigger.start('Start', {})
+})
+`,
+            },
+          },
+        })
+      )
+      await expectRejected(created, 'E_WORKFLOW_META_INVALID')
+    }
+  )
+
   /** A `planOnly` evaluation of `files`, to commit after a concurrent write lands. */
   async function planned(source: ReadWorkflowSourceResult, files: Record<string, string>) {
     const plan = await apply(source, files, { planOnly: true })
@@ -1631,6 +1729,38 @@ describe('source apply edge cases', () => {
       })
       expect(await snapshot(seeded.workflowId)).toEqual(before)
       expect(await storedName(seeded.workflowId)).toBe(name)
+    }
+  )
+
+  check(
+    'a rename racing another onto one name in one folder is a name-taken 409, not a fault',
+    async () => {
+      const seeded = await seedWorkflow()
+      const other = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const name = await storedName(seeded.workflowId)
+      const contested = `Contested ${generateId()}`
+      const files = edit(source.files, `'${name}'`, `'${contested}'`)
+      let outcome: Promise<unknown> = Promise.resolve()
+      let settled = false
+
+      await db.transaction(async (tx) => {
+        const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        await tx.update(workflow).set({ name: contested }).where(eq(workflow.id, other.workflowId))
+        outcome = runOutsideTransactionContext(() =>
+          apply(source, files).finally(() => {
+            settled = true
+          })
+        )
+        await waitForBlocked(Number(self?.pid), () => settled)
+      })
+
+      await expect(outcome).rejects.toMatchObject({
+        name: 'WorkflowSourceNameTakenError',
+        code: 'conflict',
+      })
+      expect(await storedName(seeded.workflowId)).toBe(name)
+      expect(await storedName(other.workflowId)).toBe(contested)
     }
   )
 
@@ -1929,6 +2059,47 @@ describe('source apply edge cases', () => {
         .from(workflowDeploymentVersion)
         .where(eq(workflowDeploymentVersion.id, versionId))
       expect(version.state).toEqual(deployed)
+    }
+  )
+
+  check(
+    'a dry run reports whether the draft it would write differs from the deployment',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const writer = seedBlock('agent', 'Writer', {
+        model: ['combobox', 'gpt-4o'],
+        messages: ['messages-input', [{ role: 'user', content: 'hi' }]],
+      })
+      const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
+      const workflowId = await seedGraph([start, writer, score])
+      const deployed = await loadWorkflowDeploymentSnapshot(workflowId)
+      if (!deployed) throw new Error('The seeded draft has no deployment snapshot')
+      await db.insert(workflowDeploymentVersion).values({
+        id: generateId(),
+        workflowId,
+        version: 1,
+        state: deployed,
+        isActive: true,
+      })
+      await db.update(workflow).set({ isDeployed: true }).where(eq(workflow.id, workflowId))
+      const source = await getSource(workflowId)
+      const changed = edit(source.files, 'return 1', 'return 2')
+
+      const unchangedDryRun = await apply(source, source.files, { dryRun: true })
+      const changedDryRun = await apply(source, changed, { dryRun: true })
+      const applied = await apply(source, changed)
+
+      expect(unchangedDryRun.needsRedeployment).toBe(false)
+      expect(changedDryRun.needsRedeployment).toBe(true)
+      expect(applied.needsRedeployment).toBe(true)
+
+      const edited = await getSource(workflowId)
+      const reverted = edit(edited.files, 'return 2', 'return 1')
+      const revertDryRun = await apply(edited, reverted, { dryRun: true })
+      const revert = await apply(edited, reverted)
+
+      expect(revertDryRun.needsRedeployment).toBe(false)
+      expect(revert.needsRedeployment).toBe(false)
     }
   )
 

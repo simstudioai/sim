@@ -6036,7 +6036,7 @@
       "post": {
         "operationId": "applyWorkflowSource",
         "summary": "Apply workflow source",
-        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dryRun=true` runs every check without saving and answers `200` with the findings in `diagnostics`, a stale `base` included (`E_APPLY_STALE`). A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `413` for a body over the size limit, and `423` for a locked workflow or folder. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns `409` with `details.code` `SOURCE_NAME_TAKEN`. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dryRun=true` runs every check without saving and answers `200` with the findings in `diagnostics`, a stale `base` included (`E_APPLY_STALE`). A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `413` for a body over the size limit, and `423` for a locked workflow or folder. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -18907,6 +18907,7 @@
                         "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                         "E_APPLY_DISABLED_ANCESTOR",
                         "E_APPLY_CREDENTIAL_UNREACHABLE",
+                        "W_APPLY_CREDENTIAL_KEPT",
                         "E_APPLY_SANDBOX_PLAN_REQUIRED",
                         "W_APPLY_HOSTED_KEY_DROPPED",
                         "W_APPLY_VALUE_NORMALIZED",
@@ -18918,7 +18919,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
                     },
@@ -19340,6 +19342,7 @@
                         "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                         "E_APPLY_DISABLED_ANCESTOR",
                         "E_APPLY_CREDENTIAL_UNREACHABLE",
+                        "W_APPLY_CREDENTIAL_KEPT",
                         "E_APPLY_SANDBOX_PLAN_REQUIRED",
                         "W_APPLY_HOSTED_KEY_DROPPED",
                         "W_APPLY_VALUE_NORMALIZED",
@@ -19351,7 +19354,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -20290,6 +20294,7 @@
                         "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                         "E_APPLY_DISABLED_ANCESTOR",
                         "E_APPLY_CREDENTIAL_UNREACHABLE",
+                        "W_APPLY_CREDENTIAL_KEPT",
                         "E_APPLY_SANDBOX_PLAN_REQUIRED",
                         "W_APPLY_HOSTED_KEY_DROPPED",
                         "W_APPLY_VALUE_NORMALIZED",
@@ -20301,7 +20306,8 @@
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
                         "E_APPLY_BLOCK_DELETE",
-                        "E_NAME_TAKEN"
+                        "E_NAME_TAKEN",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
@@ -25326,6 +25332,7 @@
                         "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                         "E_APPLY_DISABLED_ANCESTOR",
                         "E_APPLY_CREDENTIAL_UNREACHABLE",
+                        "W_APPLY_CREDENTIAL_KEPT",
                         "E_APPLY_SANDBOX_PLAN_REQUIRED",
                         "W_APPLY_HOSTED_KEY_DROPPED",
                         "W_APPLY_VALUE_NORMALIZED",
@@ -25336,7 +25343,8 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE"
+                        "E_APPLY_BLOCK_DELETE",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },
@@ -25887,6 +25895,7 @@
                       "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                       "E_APPLY_DISABLED_ANCESTOR",
                       "E_APPLY_CREDENTIAL_UNREACHABLE",
+                      "W_APPLY_CREDENTIAL_KEPT",
                       "E_APPLY_SANDBOX_PLAN_REQUIRED",
                       "W_APPLY_HOSTED_KEY_DROPPED",
                       "W_APPLY_VALUE_NORMALIZED",
@@ -25897,7 +25906,8 @@
                       "W_APPLY_LINT",
                       "W_TABLE_UNKNOWN_COLUMN",
                       "E_APPLY_INVALID_SCHEDULE",
-                      "E_APPLY_BLOCK_DELETE"
+                      "E_APPLY_BLOCK_DELETE",
+                      "E_WORKFLOW_META_INVALID"
                     ],
                     "description": "Diagnostic code."
                   },
@@ -26291,6 +26301,7 @@
                         "E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK",
                         "E_APPLY_DISABLED_ANCESTOR",
                         "E_APPLY_CREDENTIAL_UNREACHABLE",
+                        "W_APPLY_CREDENTIAL_KEPT",
                         "E_APPLY_SANDBOX_PLAN_REQUIRED",
                         "W_APPLY_HOSTED_KEY_DROPPED",
                         "W_APPLY_VALUE_NORMALIZED",
@@ -26301,7 +26312,8 @@
                         "W_APPLY_LINT",
                         "W_TABLE_UNKNOWN_COLUMN",
                         "E_APPLY_INVALID_SCHEDULE",
-                        "E_APPLY_BLOCK_DELETE"
+                        "E_APPLY_BLOCK_DELETE",
+                        "E_WORKFLOW_META_INVALID"
                       ],
                       "description": "Diagnostic code, e.g. `E_APPLY_STALE` or `E_UNKNOWN_PARAM`."
                     },

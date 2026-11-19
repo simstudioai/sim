@@ -75,6 +75,12 @@ import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
+/** The longest workflow name v2 create and update accept. */
+export const V2_WORKFLOW_NAME_MAX_LENGTH = 255
+
+/** The longest workflow description v2 create and update accept. */
+export const V2_WORKFLOW_DESCRIPTION_MAX_LENGTH = 50_000
+
 export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
@@ -710,11 +716,11 @@ export const v2CreateWorkflowBodySchema = z
       .string({ error: missingFieldError('name is required') })
       .trim()
       .min(1, 'name is required')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .describe('Workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Optional workflow description.'),
@@ -743,12 +749,12 @@ export const v2UpdateWorkflowBodySchema = z
       .string()
       .trim()
       .min(1, 'name cannot be empty')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .optional()
       .describe('Replacement workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Replacement workflow description; null clears it.'),

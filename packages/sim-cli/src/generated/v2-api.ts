@@ -922,6 +922,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -934,6 +935,7 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1396,6 +1398,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -1407,6 +1410,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       message: string
     }
     needBlobs: Array<string>
@@ -1669,6 +1673,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -1680,6 +1685,7 @@ export type ApplyWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -5318,6 +5324,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -5330,6 +5337,7 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10395,6 +10403,7 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -10407,6 +10416,7 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -11068,6 +11078,7 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
         | 'E_APPLY_DISABLED_ANCESTOR'
         | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
         | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
         | 'W_APPLY_HOSTED_KEY_DROPPED'
         | 'W_APPLY_VALUE_NORMALIZED'
@@ -11079,6 +11090,7 @@ export type GetWorkspaceSourceResponse = {
         | 'W_TABLE_UNKNOWN_COLUMN'
         | 'E_APPLY_INVALID_SCHEDULE'
         | 'E_APPLY_BLOCK_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
