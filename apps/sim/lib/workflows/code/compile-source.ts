@@ -57,19 +57,27 @@ function rekeyStored(
 }
 
 /**
+ * A compile of source against the stored workflow, with `stored` the stored model under the keys
+ * this compile read it by: re-keyed by the source's renames, so a caller pairing compiled and
+ * stored blocks by key pairs a renamed block with the stored block it continues.
+ */
+type SourceCompileResult = CompileResult & { stored: CanonicalWorkflow }
+
+/**
  * Compiles source against the stored workflow it continues. Compile finds the stored block a
  * source block continues by key (for `stored()`, the stored-cycle allowance and the stored values
  * of fields source never writes), but a block renamed in source keeps its stored id through its
  * ident (materialize's `lock-ident` rule). When the first pass finds such renames, the stored
  * model is re-keyed to the source's keys and compiled again, so a rename in source continues its
- * block as a rename on the canvas does.
+ * block as a rename on the canvas does. The result carries the stored model it compiled against.
  */
 export function compileSource(
   input: CompileInput & { stored: CanonicalWorkflow; lock: WorkflowLockV1 }
-): CompileResult {
+): SourceCompileResult {
   const { lock, ...compileInput } = input
   const first = compileWorkflow(compileInput)
   const renames = renamedStoredKeys(first, lock, input.stored)
-  if (renames.size === 0) return first
-  return compileWorkflow({ ...compileInput, stored: rekeyStored(input.stored, renames) })
+  if (renames.size === 0) return { ...first, stored: input.stored }
+  const stored = rekeyStored(input.stored, renames)
+  return { ...compileWorkflow({ ...compileInput, stored }), stored }
 }

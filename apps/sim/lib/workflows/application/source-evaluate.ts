@@ -464,7 +464,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
 
   const kept = keptCredentials(
     compiledWorkflow,
-    storedCanonical.workflow,
+    compiled.stored,
     (key) =>
       resources.toId('credential', key) === null &&
       !(input.pendingResources ?? []).some(

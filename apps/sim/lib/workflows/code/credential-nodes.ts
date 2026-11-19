@@ -86,8 +86,8 @@ interface KeptCredential {
  * resolve the key, and telling them whether it is that credential's key would confirm a name the
  * credential listing withholds, so any key they cannot resolve standing there keeps the stored
  * credential, right key or not. A key or id paired more than one way names no single credential
- * and is left out (it stays an unknown key). `compiled` and `stored` share block keys (both read
- * under the submitted lock); `isUnknown` tells a key the reader cannot resolve.
+ * and is left out (it stays an unknown key). `compiled` and `stored` share block keys (`stored` is
+ * the model `compileSource` compiled against, re-keyed by the source's renames); `isUnknown` tells a key the reader cannot resolve.
  */
 export function keptCredentials(
   compiled: CanonicalWorkflow,

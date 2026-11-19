@@ -337,3 +337,25 @@ check(
     expect(ownerAfter.files['workflow.ts']).toBe(submitted['workflow.ts'])
   }
 )
+
+check(
+  'a member who cannot see a credential renames the block that holds it, and the credential is kept',
+  async () => {
+    const credentialId = await seedHiddenCredential()
+    const { workflowId, mailId } = await seedWorkflow(credentialId)
+    const ownerSource = await getSource(owner, workflowId)
+    expect(ownerSource.files['workflow.ts']).toContain(`credential('${hiddenKey}`)
+
+    const renamed = await apply(
+      reader,
+      ownerSource,
+      edit(ownerSource.files, "'Mail'", "'Mail inbox'")
+    )
+
+    expect(renamed.applied).toBe(true)
+    expect(renamed.diagnostics.map((finding) => finding.code)).toContain('W_APPLY_CREDENTIAL_KEPT')
+    expect(await storedCredential(workflowId, mailId)).toBe(credentialId)
+    const stored = await loadWorkflowFromNormalizedTables(workflowId)
+    expect(stored?.blocks[mailId]?.name).toBe('Mail inbox')
+  }
+)
