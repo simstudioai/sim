@@ -3,9 +3,9 @@ import { mkdtemp, open, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { addAbortSignal, Readable } from 'node:stream'
-import { parse } from 'csv-parse'
+import { CsvError, parse } from 'csv-parse'
 import { embedStore } from '#sim-cli/embed-context'
-import { SimApiError } from '#sim-cli/http/client'
+import { combineSignals, SimApiError } from '#sim-cli/http/client'
 import { embeddedFileKey } from '#sim-cli/transfer/local-file'
 
 const PART_BYTES = 1024 * 1024
@@ -94,10 +94,7 @@ export async function stagePermissionCsvs(
         )
           throw new SimApiError('CSV files must be nonempty and total at most 1 GiB.', 0)
         inputBytes += size
-        const readSignal =
-          snapshot?.signal && signal
-            ? AbortSignal.any([snapshot.signal, signal])
-            : (snapshot?.signal ?? signal)
+        const readSignal = combineSignals(snapshot?.signal, signal)
         snapshotStream = await snapshot?.stream()
         stream = snapshotStream
           ? Readable.from(snapshotChunks(snapshotStream, readSignal))
@@ -107,6 +104,13 @@ export async function stagePermissionCsvs(
         const source = stream
         const decode = async function* () {
           const decoder = new TextDecoder('utf-8', { fatal: true })
+          const decodeText = (chunk?: Uint8Array): string => {
+            try {
+              return decoder.decode(chunk, { stream: chunk !== undefined })
+            } catch {
+              throw new SimApiError(`${field}: CSV must contain valid UTF-8.`, 0)
+            }
+          }
           let bytes = 0
           for await (const chunk of source) {
             signal?.throwIfAborted()
@@ -115,11 +119,11 @@ export async function stagePermissionCsvs(
             if (bytes > size) throw new SimApiError(`${field}: input changed during staging.`, 0)
             for (let offset = 0; offset < chunk.length; offset += 65_536) {
               readSignal?.throwIfAborted()
-              yield decoder.decode(chunk.subarray(offset, offset + 65_536), { stream: true })
+              yield decodeText(chunk.subarray(offset, offset + 65_536))
             }
           }
           if (bytes !== size) throw new SimApiError(`${field}: input changed during staging.`, 0)
-          yield decoder.decode()
+          yield decodeText()
         }
         const definition = CSV_PROVIDERS[provider][field]
         const header = `${definition.header.join(',')}\n`
@@ -182,11 +186,9 @@ export async function stagePermissionCsvs(
       } catch (error) {
         if (signal?.aborted || snapshot?.signal?.aborted)
           throw new SimApiError('Permission CSV upload cancelled.', 0)
-        if (error instanceof SimApiError) throw error
-        throw new SimApiError(
-          `${field}: could not read valid UTF-8 CSV. Check the file, quoting, and record lengths.`,
-          0
-        )
+        if (error instanceof CsvError)
+          throw new SimApiError(`${field}: invalid CSV quoting or record length.`, 0)
+        throw error
       } finally {
         stream?.destroy()
         if (snapshotStream && !snapshotStream.locked) await snapshotStream.cancel()

@@ -33,35 +33,70 @@ function snapshot(content: string, dispose: () => Promise<void>) {
 }
 
 describe('Search permission CSV upload', () => {
-  it('cancels a stalled snapshot and releases its read lease', async () => {
+  it('cancels a stalled snapshot on Node 20 without AbortSignal.any and releases its lease', async () => {
     const controller = new AbortController()
+    const snapshotController = new AbortController()
+    const originalAny = Object.getOwnPropertyDescriptor(AbortSignal, 'any')
+    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true })
     let disposed = false
     let cancelled = false
+    try {
+      const result = await runEmbeddedCli(
+        args,
+        { ...identity, signal: controller.signal },
+        {
+          openFile: async () => ({
+            size: 100,
+            signal: snapshotController.signal,
+            stream: async () =>
+              new ReadableStream({
+                pull() {
+                  controller.abort()
+                },
+                cancel() {
+                  cancelled = true
+                },
+              }),
+            dispose: async () => {
+              disposed = true
+            },
+          }),
+        }
+      )
+      expect(result.exitCode).toBe(1)
+      expect(disposed).toBe(true)
+      expect(cancelled).toBe(true)
+      expect(result.stderr).toContain('cancelled')
+    } finally {
+      if (originalAny) Object.defineProperty(AbortSignal, 'any', originalAny)
+    }
+  })
+
+  it('preserves snapshot I/O failures instead of blaming CSV syntax', async () => {
+    let requests = 0
     const result = await runEmbeddedCli(
       args,
-      { ...identity, signal: controller.signal },
+      {
+        ...identity,
+        transport: async () => {
+          requests++
+          return Response.json({})
+        },
+      },
       {
         openFile: async () => ({
           size: 100,
-          stream: async () =>
-            new ReadableStream({
-              pull() {
-                controller.abort()
-              },
-              cancel() {
-                cancelled = true
-              },
-            }),
-          dispose: async () => {
-            disposed = true
+          stream: async () => {
+            throw new Error('Remote snapshot reader unavailable')
           },
+          dispose: async () => {},
         }),
       }
     )
     expect(result.exitCode).toBe(1)
-    expect(disposed).toBe(true)
-    expect(cancelled).toBe(true)
-    expect(result.stderr).toContain('cancelled')
+    expect(requests).toBe(0)
+    expect(result.stderr).toContain('Remote snapshot reader unavailable')
+    expect(result.stderr).not.toContain('quoting')
   })
 
   it('splits multibyte records by bytes before the row limit without corrupting quoted fields', async () => {

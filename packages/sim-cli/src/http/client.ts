@@ -401,7 +401,7 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
  * on the earliest 20.x releases calling it would throw a bare `TypeError`
  * before the request was ever made — turning a supported runtime into a crash.
  */
-function combineSignals(
+export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
