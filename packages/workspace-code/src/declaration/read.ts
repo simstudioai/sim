@@ -53,7 +53,7 @@ export interface DeclarationCall {
 }
 
 /** An environment variable reference, `env.NAME`, as the reader encodes it: by name, never value. */
-export interface DeclarationEnvRef {
+interface DeclarationEnvRef {
   $env: string
 }
 

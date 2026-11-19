@@ -66,7 +66,10 @@ type TableColumnMetadataKey = (typeof TABLE_COLUMN_METADATA_KEYS)[number]
 
 /** One column type as the server's column-type registry describes it. */
 export interface TableColumnTypeDescriptor {
-  /** The type-specific options a column of this type owns, in print order. */
+  /**
+   * The type-specific options a column of this type owns. A column prints them in
+   * `TABLE_COLUMN_METADATA_KEYS` order, whatever their order here.
+   */
   owns: readonly TableColumnMetadataKey[]
   /** Whether a column of this type may be unique. */
   unique: boolean
