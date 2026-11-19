@@ -278,12 +278,24 @@ try {
     ).status,
     400
   )
+  await sql`update knowledge_connector_permission_snapshot set revision = 2147483647
+    where connector_id = ${source}`
+  for (const expectedRevision of [2_147_483_647, 2_147_483_648]) {
+    assert.equal(
+      (await importRequest('', 'POST', { ...manifest, expectedRevision })).status,
+      400,
+      'A revision without room for the completed snapshot must not reserve an import'
+    )
+  }
+  await checkRevision(await request(adminKey), 2_147_483_647)
+  await sql`update knowledge_connector_permission_snapshot set revision = 3
+    where connector_id = ${source}`
   const [reserved] = await sql`select count(*)::integer as count
     from knowledge_connector_permission_import where connector_id = ${source}`
   assert.equal(reserved?.count, 0)
   await checkRevision(await request(adminKey), 3)
   checks.push(
-    'Impossible row/part manifests and combined part overflow do not reserve import capacity or change permissions'
+    'Impossible row/part manifests, exhausted revisions and combined part overflow do not reserve import capacity or change permissions'
   )
   assert.equal((await importRequest('', 'POST', manifest, memberKey)).status, 403)
   const started = await importRequest('', 'POST', manifest)

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  INT4_MAX,
   noInputSchema,
   nonEmptyIdSchema,
   organizationIdSchema,
@@ -53,6 +54,7 @@ export const permissionImportManifestSchema = z
       .number()
       .int()
       .positive()
+      .max(INT4_MAX - 1, 'Permission revision is out of range.')
       .describe('Permission revision pinned before exporting the CSVs.'),
     userMapping: file
       .extend({

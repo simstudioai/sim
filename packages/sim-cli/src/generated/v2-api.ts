@@ -18013,7 +18013,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'integer',
         required: true,
-        maximum: 9007199254740991,
+        maximum: 2147483646,
         describe: 'Permission revision pinned before exporting the CSVs.',
       },
       userMapping: { kind: 'object', required: true, describe: 'Complete user identity mapping.' },

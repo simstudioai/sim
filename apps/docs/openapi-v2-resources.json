@@ -25011,7 +25011,7 @@
           "expectedRevision": {
             "type": "integer",
             "exclusiveMinimum": 0,
-            "maximum": 9007199254740991,
+            "maximum": 2147483646,
             "description": "Permission revision pinned before exporting the CSVs."
           },
           "userMapping": {
