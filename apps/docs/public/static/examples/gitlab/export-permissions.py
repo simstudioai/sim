@@ -18,8 +18,9 @@ from urllib.parse import quote, unquote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 
-MAX_BYTES = 8 * 1024 * 1024
-MAX_ROWS = 500_000
+MAX_BYTES = 1024 * 1024 * 1024
+MAX_USERS = 500_000
+MAX_GRANTS = 5_000_000
 MAX_PROJECTS = 50_000
 EMAIL = re.compile(
     r"[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
@@ -134,14 +135,14 @@ def export(client, project, profiles):
     today = datetime.now(timezone.utc).date()
     page = 1
     expected_total = None
-    while page <= MAX_ROWS // 100 + 1:
+    while page <= MAX_USERS // 100 + 1:
         members, headers = client.get(f"projects/{project_id}/members/all",
                                       {"per_page": 100, "page": page})
         if not isinstance(members, list) or len(members) > 100:
             raise ExportError("GitLab returned an invalid membership page.")
         total = headers.get("X-Total")
         if total is not None:
-            if not re.fullmatch(r"[0-9]{1,6}", total) or int(total) > MAX_ROWS:
+            if not re.fullmatch(r"[0-9]{1,6}", total) or int(total) > MAX_USERS:
                 raise ExportError("GitLab membership total is invalid or exceeds the 500,000-row limit.")
             if expected_total is not None and int(total) != expected_total:
                 raise ExportError("GitLab membership total changed during pagination. Rerun the export.")
@@ -153,7 +154,7 @@ def export(client, project, profiles):
             if user_id in seen_members:
                 raise ExportError("GitLab membership pagination repeated a user. Rerun the export.")
             seen_members.add(user_id)
-            if len(seen_members) > MAX_ROWS:
+            if len(seen_members) > MAX_USERS:
                 raise ExportError("Project membership exceeds the 500,000-row limit.")
             role = member.get("access_level")
             if type(role) is not int:
@@ -171,7 +172,7 @@ def export(client, project, profiles):
             if user_id not in profiles:
                 profile, _ = client.get(f"users/{user_id}")
                 profiles[user_id] = verified_email(profile, user_id)
-                if len(profiles) > MAX_ROWS:
+                if len(profiles) > MAX_USERS:
                     raise ExportError("Group identities exceed the 500,000-row limit.")
             email = profiles[user_id]
             if email is None:
@@ -263,30 +264,29 @@ def write_export(output, grants, users):
             yield user_id, users[user_id]
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    total_bytes = 0
     # Publish the pair together, so an interrupted export cannot mix new and old CSVs.
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".gitlab-export-") as temporary:
-        for name, header, rows in [
-            ("project-permissions.csv", ["project_path", "user_id"], grants),
-            ("users.csv", ["user_id", "email"], user_rows()),
+        for name, header, rows, max_rows in [
+            ("project-permissions.csv", ["project_path", "user_id"], grants, MAX_GRANTS),
+            ("users.csv", ["user_id", "email"], user_rows(), MAX_USERS),
         ]:
             path = Path(temporary) / name
             buffer = io.StringIO(newline="")
             writer = csv.writer(buffer, lineterminator="\n")
             writer.writerow(header)
-            size = 0
             with path.open("wb") as handle:
-                handle.write(buffer.getvalue().encode("utf-8"))
-                size = handle.tell()
+                total_bytes += handle.write(buffer.getvalue().encode("utf-8"))
                 for count, row in enumerate(rows, 1):
-                    if count > MAX_ROWS:
-                        raise ExportError(f"{name} exceeds Sim's 500,000-row limit.")
+                    if count > max_rows:
+                        raise ExportError(f"{name} exceeds Sim's {max_rows:,}-row limit.")
                     buffer.seek(0)
                     buffer.truncate()
                     writer.writerow(row)
                     content = buffer.getvalue().encode("utf-8")
-                    size += len(content)
-                    if size > MAX_BYTES:
-                        raise ExportError(f"{name} exceeds Sim's 8 MiB CSV limit.")
+                    total_bytes += len(content)
+                    if total_bytes > MAX_BYTES:
+                        raise ExportError(f"The CSV pair exceeds the CSV byte limit ({MAX_BYTES:,} bytes).")
                     handle.write(content)
             path.chmod(0o600)
         if not users:

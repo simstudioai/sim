@@ -21,6 +21,11 @@ import {
   v2RevokeOrganizationInvitationContract,
   v2UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v2/organizations'
+import {
+  v2CompleteSourcePermissionImportContract,
+  v2CreateSourcePermissionImportContract,
+  v2PutSourcePermissionImportPartContract,
+} from '@/lib/api/contracts/v2/source-permission-imports'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
 import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
@@ -623,6 +628,109 @@ export const organizationOpenApiRoutes = [
         ]
       ),
       response: searchSourcePermissionResponse,
+    }
+  ),
+
+  defineOpenApiRoute(
+    v2CreateSourcePermissionImportContract,
+    {
+      applicationOperation: searchSourcePermissionOperations.replace,
+      operationId: 'createSourcePermissionImport',
+      summary: 'Create source permission import',
+      description:
+        'Stage a complete permission snapshot without changing active access. Upload numbered CSV parts, then complete the import within 24 hours using the same credential. Requires organization Admin access. Existing inline uploads remain supported.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Permission import result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2CreateSourcePermissionImportContract.params,
+        'CreateSourcePermissionImportParams',
+        'Create source permission import parameters',
+        'Organization, source and import identifiers.'
+      ),
+      query: v2CreateSourcePermissionImportContract.query,
+      body: documentedSchema(
+        v2CreateSourcePermissionImportContract.body,
+        'CreateSourcePermissionImportBody',
+        'Create source permission import',
+        'Permission import input.'
+      ),
+      response: documentedSchema(
+        v2CreateSourcePermissionImportContract.response.schema,
+        'CreateSourcePermissionImportResponse',
+        'Create source permission import response',
+        'Permission import result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PutSourcePermissionImportPartContract,
+    {
+      applicationOperation: searchSourcePermissionOperations.replace,
+      operationId: 'putSourcePermissionImportPart',
+      summary: 'Upload source permission import part',
+      description:
+        'Upload one CSV part in order, with all user-mapping parts before project-permission parts. Each part supports 5,000 data rows and 1 MiB of UTF-8 content. An identical retry is safe; changed or out-of-order parts conflict.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Permission import result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2PutSourcePermissionImportPartContract.params,
+        'PutSourcePermissionImportParams',
+        'Upload source permission import part parameters',
+        'Organization, source and import identifiers.'
+      ),
+      query: v2PutSourcePermissionImportPartContract.query,
+      body: documentedSchema(
+        v2PutSourcePermissionImportPartContract.body,
+        'PutSourcePermissionImportBody',
+        'Upload source permission import part',
+        'Permission import input.'
+      ),
+      response: documentedSchema(
+        v2PutSourcePermissionImportPartContract.response.schema,
+        'PutSourcePermissionImportResponse',
+        'Upload source permission import part response',
+        'Permission import result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CompleteSourcePermissionImportContract,
+    {
+      applicationOperation: searchSourcePermissionOperations.replace,
+      operationId: 'completeSourcePermissionImport',
+      summary: 'Complete source permission import',
+      description:
+        'Validate and activate a complete permission snapshot atomically. The source revision must still match the revision pinned before export. Incomplete, expired, or invalid imports preserve current access. Retrying a completed import returns its committed revision.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Permission import result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2CompleteSourcePermissionImportContract.params,
+        'CompleteSourcePermissionImportParams',
+        'Complete source permission import parameters',
+        'Organization, source and import identifiers.'
+      ),
+      query: v2CompleteSourcePermissionImportContract.query,
+      body: documentedSchema(
+        v2CompleteSourcePermissionImportContract.body,
+        'CompleteSourcePermissionImportBody',
+        'Complete source permission import',
+        'Permission import input.'
+      ),
+      response: documentedSchema(
+        v2CompleteSourcePermissionImportContract.response.schema,
+        'CompleteSourcePermissionImportResponse',
+        'Complete source permission import response',
+        'Permission import result.'
+      ),
     }
   ),
 ] as const

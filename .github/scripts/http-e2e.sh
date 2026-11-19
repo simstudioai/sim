@@ -260,6 +260,7 @@ case "$group" in
         ;;
       organization-search)
         GITLAB_CSV_E2E_BASE_URL="$local_app_url" \
+        GITLAB_CSV_E2E_LARGE_IMPORT=1 \
         GITLAB_CSV_E2E_REPORT_PATH="$report_dir/gitlab-csv-permissions-http-report.json" \
           bun --no-env-file scripts/test-gitlab-csv-permissions-e2e.ts
         ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \

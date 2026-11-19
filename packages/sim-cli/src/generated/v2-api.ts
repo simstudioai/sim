@@ -1841,6 +1841,23 @@ export type CompleteProjectFileUploadResponse = {
   data: CompleteProjectFileUploadResponseRef1
 }
 
+/** `POST /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete` */
+export type CompleteSourcePermissionImportParams = {
+  organizationId: string
+  sourceId: string
+  importId: string
+}
+
+export type CompleteSourcePermissionImportQuery = Record<string, unknown>
+
+export type CompleteSourcePermissionImportBody = Record<string, unknown>
+
+export type CompleteSourcePermissionImportResponse = {
+  data: {
+    revision: number
+  }
+}
+
 /** `POST /api/v2/tables/imports/[importId]/complete` */
 export type CompleteTableImportParams = {
   importId: string
@@ -3378,6 +3395,36 @@ type CreateSkillResponseRef0 = {
 
 export type CreateSkillResponse = {
   data: CreateSkillResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports` */
+export type CreateSourcePermissionImportParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type CreateSourcePermissionImportQuery = Record<string, unknown>
+
+export type CreateSourcePermissionImportBody = {
+  provider: 'gitlab'
+  expectedRevision: number
+  userMapping: {
+    filename: string
+    parts: number
+    rowCount: number
+  }
+  projectPermissions: {
+    filename: string
+    parts: number
+    rowCount: number
+  }
+}
+
+export type CreateSourcePermissionImportResponse = {
+  data: {
+    id: string
+    expiresAt: string
+  }
 }
 
 /** `POST /api/v2/tables` */
@@ -12454,6 +12501,27 @@ export type PushWorkspaceResponse = {
   data: PushWorkspaceResponseRef0
 }
 
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]` */
+export type PutSourcePermissionImportPartParams = {
+  organizationId: string
+  sourceId: string
+  importId: string
+  partNumber: number
+}
+
+export type PutSourcePermissionImportPartQuery = Record<string, unknown>
+
+export type PutSourcePermissionImportPartBody = {
+  field: 'userMapping' | 'projectPermissions'
+  content: string
+}
+
+export type PutSourcePermissionImportPartResponse = {
+  data: {
+    nextPart: number
+  }
+}
+
 /** `POST /api/v2/tables/[tableId]/query` */
 export type QueryRowsParams = {
   tableId: string
@@ -17088,6 +17156,19 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  completeSourcePermissionImport: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete',
+    pathParams: ['organizationId', 'sourceId', 'importId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+      importId: 'Permission import identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Complete source permission import',
+    body: {},
+  },
   completeTableImport: {
     method: 'POST',
     path: '/api/v2/tables/imports/[importId]/complete',
@@ -17914,6 +17995,32 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Skill body containing the instructions given to the agent.',
+      },
+    },
+  },
+  createSourcePermissionImport: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Create source permission import',
+    body: {
+      provider: { kind: 'string', required: true, describe: 'Provider of the configured source.' },
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        maximum: 2147483646,
+        describe: 'Permission revision pinned before exporting the CSVs.',
+      },
+      userMapping: { kind: 'object', required: true, describe: 'Complete user identity mapping.' },
+      projectPermissions: {
+        kind: 'object',
+        required: true,
+        describe: 'Complete project membership snapshot.',
       },
     },
   },
@@ -23456,6 +23563,33 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Confirm replacement of mapped target drafts and archival of mapped targets whose sources were deleted or archived.',
+      },
+    },
+  },
+  putSourcePermissionImportPart: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]',
+    pathParams: ['organizationId', 'sourceId', 'importId', 'partNumber'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier.',
+      importId: 'Permission import identifier.',
+      partNumber: 'Zero-based part number across both files; user mapping comes first.',
+    },
+    responseMode: 'json',
+    summary: 'Upload source permission import part',
+    body: {
+      field: {
+        kind: 'enum',
+        required: true,
+        values: ['userMapping', 'projectPermissions'] as const,
+        describe: 'CSV file this part belongs to.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Complete CSV records, at most 5,000 rows and 1 MiB of UTF-8; an optional header may appear in each part.',
       },
     },
   },

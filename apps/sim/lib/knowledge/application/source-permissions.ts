@@ -1,11 +1,12 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorPermissionSnapshot,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { ConnectorPermissionGrants } from '@/lib/api/contracts/knowledge/connector-permissions'
 import {
   defineAuthorizedOrganizationUseCase,
@@ -14,6 +15,7 @@ import {
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import type { DbTransaction } from '@/lib/db/types'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
 import { writeConnectorPermissions } from '@/lib/knowledge/connectors/permission-store'
@@ -57,7 +59,11 @@ function searchSource(sourceId: string) {
   )
 }
 
-async function readPermissionSource({ organizationId, sourceId }: SourceInput) {
+/** Resolves an organization-managed source after the use case authorizes its caller. */
+export async function readPermissionSource(
+  { organizationId, sourceId }: SourceInput,
+  includeMetadata = true
+) {
   if (!(await isKnowledgeMemberAccessAvailable({ organizationId }))) return sourceNotFound()
   const snapshot = knowledgeConnectorPermissionSnapshot
   const [source] = await db
@@ -65,7 +71,9 @@ async function readPermissionSource({ organizationId, sourceId }: SourceInput) {
       knowledgeBaseId: knowledgeBase.id,
       connectorType: knowledgeConnector.connectorType,
       revision: snapshot.revision,
-      metadata: snapshot.metadata,
+      metadata: includeMetadata
+        ? snapshot.metadata
+        : sql<Record<string, unknown>>`jsonb_build_object('mode', ${snapshot.metadata} -> 'mode')`,
       sourceConfig: knowledgeConnector.sourceConfig,
       encryptedApiKey: knowledgeConnector.encryptedApiKey,
     })
@@ -85,7 +93,7 @@ async function readPermissionSource({ organizationId, sourceId }: SourceInput) {
 export const readSearchSourcePermissions = defineAuthorizedOrganizationUseCase({
   operation: searchSourcePermissionOperations.read,
   async execute({ input }: OrganizationUseCaseContext<SourceInput>) {
-    const { revision } = await readPermissionSource(input)
+    const { revision } = await readPermissionSource(input, false)
     return { revision }
   },
 })
@@ -94,7 +102,7 @@ export const readSearchSourcePermissions = defineAuthorizedOrganizationUseCase({
 export const replaceSearchSourcePermissions = defineAuthorizedOrganizationUseCase({
   operation: searchSourcePermissionOperations.replace,
   async execute({ principal, input }: OrganizationUseCaseContext<ReplacementInput>) {
-    const { organizationId, sourceId, expectedRevision, permissions } = input
+    const { sourceId, expectedRevision, permissions } = input
     const source = await readPermissionSource(input)
     if (permissions.provider !== source.connectorType) {
       throw new OrchestrationError(
@@ -103,38 +111,9 @@ export const replaceSearchSourcePermissions = defineAuthorizedOrganizationUseCas
       )
     }
     const prepared = await source.replacement.prepare(source, expectedRevision, permissions, source)
-    const revision = await db.transaction(async (tx) => {
-      await lockOrganizationSearchApproval(tx, organizationId)
-      await authorizeOrganizationOperation(
-        principal,
-        searchSourcePermissionOperations.replace,
-        input,
-        {
-          executor: tx,
-          forShare: true,
-        }
-      )
-      /** Preserve the parent-then-source lock order shared with source removal. */
-      const [index] = await tx
-        .select({ id: knowledgeBase.id })
-        .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, source.knowledgeBaseId), searchIndex(organizationId)))
-        .for('share')
-      if (!index) return sourceNotFound()
-      const [locked] = await tx
-        .select({ id: knowledgeConnector.id })
-        .from(knowledgeConnector)
-        .where(
-          and(
-            eq(knowledgeConnector.knowledgeBaseId, index.id),
-            eq(knowledgeConnector.connectorType, source.connectorType),
-            searchSource(sourceId)
-          )
-        )
-        .for('update')
-      if (!locked) return sourceNotFound()
-      return writeConnectorPermissions(tx, locked.id, { ...prepared, expectedRevision })
-    })
+    const revision = await withPermissionSourceLock(principal, input, source, (tx) =>
+      writeConnectorPermissions(tx, sourceId, { ...prepared, expectedRevision })
+    )
     return { revision }
   },
   projectAudit: ({ input, result }) => ({
@@ -146,3 +125,45 @@ export const replaceSearchSourcePermissions = defineAuthorizedOrganizationUseCas
     metadata: { revision: result.revision },
   }),
 })
+
+/** Reauthorizes and locks the canonical parent and source before a permission mutation. */
+export async function withPermissionSourceLock<T>(
+  principal: Principal,
+  input: SourceInput,
+  source: Awaited<ReturnType<typeof readPermissionSource>>,
+  write: (tx: DbTransaction) => Promise<T>
+): Promise<T> {
+  const { organizationId, sourceId } = input
+  return db.transaction(async (tx) => {
+    await lockOrganizationSearchApproval(tx, organizationId)
+    await authorizeOrganizationOperation(
+      principal,
+      searchSourcePermissionOperations.replace,
+      { organizationId },
+      {
+        executor: tx,
+        forShare: true,
+      }
+    )
+    /** Preserve the parent-then-source lock order shared with source removal. */
+    const [index] = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, source.knowledgeBaseId), searchIndex(organizationId)))
+      .for('share')
+    if (!index) return sourceNotFound()
+    const [locked] = await tx
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
+      .where(
+        and(
+          eq(knowledgeConnector.knowledgeBaseId, index.id),
+          eq(knowledgeConnector.connectorType, source.connectorType),
+          searchSource(sourceId)
+        )
+      )
+      .for('update')
+    if (!locked) return sourceNotFound()
+    return write(tx)
+  })
+}

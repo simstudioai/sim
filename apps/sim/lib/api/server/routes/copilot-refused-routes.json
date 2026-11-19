@@ -190,6 +190,21 @@
     "operation": "knowledge.search.source_permissions.replace"
   },
   {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
     "method": "GET",
     "path": "/api/v2/organizations/[organizationId]/sso/policy",
     "operation": "organization.sso.read_requirement"
