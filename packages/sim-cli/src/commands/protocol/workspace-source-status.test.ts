@@ -111,7 +111,6 @@ beforeEach(() => {
 afterEach(() => {
   process.exitCode = undefined
   rmSync(dir, { recursive: true, force: true })
-  vi.restoreAllMocks()
 })
 
 describe('workspaces source status', () => {

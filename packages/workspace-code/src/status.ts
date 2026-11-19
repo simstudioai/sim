@@ -22,7 +22,7 @@ export interface ChangedFile {
 }
 
 /** How a resource changed on the server since the directory's base. */
-export type ServerChange = 'changed' | 'deleted' | 'moved' | 'added'
+type ServerChange = 'changed' | 'deleted' | 'moved' | 'added'
 
 /** A resource with local changes: its files, and the change they add up to. */
 export interface LocalResourceChange {
@@ -40,7 +40,7 @@ export interface ServerResourceChange {
 }
 
 /** A resource changed on both sides: applying it is refused as stale. */
-export interface ConflictingChange extends ServerResourceChange {
+interface ConflictingChange extends ServerResourceChange {
   change: FileChange
 }
 
@@ -49,7 +49,7 @@ export interface ConflictingChange extends ServerResourceChange {
  * `drift` (the server changed resources the directory leaves alone), `local` (only local
  * changes), `clean`.
  */
-export type SourceState = 'clean' | 'local' | 'drift' | 'conflict'
+type SourceState = 'clean' | 'local' | 'drift' | 'conflict'
 
 /** What `status` reports: the state, and the resources behind it. */
 export interface SourceStatus {
