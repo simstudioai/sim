@@ -155,6 +155,22 @@ function basePartsOf(base: BaseResource | undefined): PartFingerprints | undefin
   return read
 }
 
+/**
+ * Whether a deployment the base has no entry for is a first deploy of `decl` that stopped before
+ * its chat: the workflow is deployed with the declared API flag and either no chat yet or the
+ * declared one. Finishing it overwrites nothing the server holds, so it resumes instead of asking
+ * for a get, which would print over the declared chat.
+ */
+function startedFirstDeploy(decl: DeploymentDecl, state: StoredDeployment): boolean {
+  const server = storedParts(state, undefined)
+  if (!server) return false
+  const local = partsOf(decl)
+  const noChat = fingerprintOf(null)
+  return Object.keys({ ...local, ...server }).every(
+    (part) => server[part] === local[part] || (part === 'chat' && server[part] === noChat)
+  )
+}
+
 /** The base entry for a stored deployment, the chat password read as `passwordEnv`. */
 function baseEntry(
   id: string,
@@ -378,7 +394,7 @@ async function planDeployment(
   const draftEdited = workflowChange?.action === 'update' || creating
   const base = ctx.base?.resources[resourceAddress('deployment', key)]
   const basePasswordEnv = passwordEnvOf(base)
-  const resolution = resolveDeclared({
+  const resolved = resolveDeclared({
     local: fingerprintOf(deploymentCodec.canonical(decl)),
     stored: deployed,
     base,
@@ -390,6 +406,10 @@ async function planDeployment(
       server: (record, entry) => storedParts(record.state, passwordEnvOf(entry)),
     },
   })
+  const resolution =
+    resolved.action === 'no-base' && startedFirstDeploy(decl, resolved.stored.state)
+      ? { action: 'adopt' as const, stored: resolved.stored }
+      : resolved
   const planned = settle(resolution, change, (record) =>
     baseEntry(record.id, record.state, basePasswordEnv)
   )

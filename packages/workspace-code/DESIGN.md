@@ -206,7 +206,9 @@ apply checks what the chat write refuses (an identifier another chat holds,
 outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
 (`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
 either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
-part that matches neither is still `E_APPLY_STALE`. A chat password is `env.NAME` (resolved at apply,
+part that matches neither is still `E_APPLY_STALE`. A first deploy that stopped before its chat leaves a deployment with no
+base entry: when it holds the declared flag and no chat (or the declared one), the next apply
+finishes it instead of answering `E_APPLY_NO_BASE`. A chat password is `env.NAME` (resolved at apply,
 never stored in source) or `stored()`; the base records the variable under `x-passwordEnv`, since
 the server keeps only the encrypted value. Removing the file undeploys (`--allow-delete`), and the
 plan counts what stops. Whether or not the kind is managed, an apply that edits a deployed workflow

@@ -782,6 +782,49 @@ describe('workspace source: deployments', () => {
     }
   )
 
+  check(
+    'a re-run finishes a first deploy that stopped before its chat, and still asks for a get when the flag differs',
+    async () => {
+      /** The nightly workflow, first deployed with a chat by an apply stopped before the chat. */
+      const stopped = async (identifier: string) => {
+        const workspaceId = await workspaces.create({ name: 'First deploy stopped', ownerId })
+        const created = await apply(workspaceId, { [WORKFLOW]: NIGHTLY })
+        expect(created.failed).toBeUndefined()
+        const files = { ...created.files, [DEPLOYMENT]: answerChat(identifier) }
+        const chatWrite = vi
+          .spyOn(replaceWorkflowChatDeployment, 'execute')
+          .mockRejectedValueOnce(new Error('process stopped'))
+        let failed: Awaited<ReturnType<typeof apply>>
+        try {
+          failed = await apply(workspaceId, files, { base: created.base })
+        } finally {
+          chatWrite.mockRestore()
+        }
+        expect(failed.failed?.key).toBe('nightly')
+        expect(failed.base.resources['deployment:nightly']).toBeUndefined()
+        const id = await workflowId(workspaceId)
+        expect(await deployState(id)).toMatchObject({ isDeployed: true, chat: undefined })
+        return { workspaceId, id, files, base: failed.base }
+      }
+
+      const resumed = await stopped('first-deploy-chat')
+      const rerun = await apply(resumed.workspaceId, resumed.files, { base: resumed.base })
+      expect(rerun.failed).toBeUndefined()
+      expect(actions(rerun.applied)).toEqual(['update deployment:nightly'])
+      expect((await deployState(resumed.id)).chat?.identifier).toBe('first-deploy-chat')
+      expect(rerun.base.resources['deployment:nightly']?.id).toBe(resumed.id)
+
+      // A flag the directory does not declare was set by someone else: get it first.
+      const moved = await stopped('moved-flag-chat')
+      await updateWorkflowPublicApi.execute({
+        principal: owner,
+        input: { workflowId: moved.id, isPublicApi: true },
+      })
+      const refused = await refusal(apply(moved.workspaceId, moved.files, { base: moved.base }))
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_NO_BASE'])
+    }
+  )
+
   check('refuses an edit when the server changed the deployment since the base', async () => {
     const { workspaceId, files, base, id } = await deployedWorkspace()
     await updateWorkflowPublicApi.execute({
