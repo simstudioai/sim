@@ -234,15 +234,22 @@ const CommandTitle = z
   .string()
   .max(1024)
   .refine((title) => title.trim().length > 0, "A title must not be blank");
-/** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset; the helper checks it is a real date. */
+/** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset. */
 const ISO_DATE_OR_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
-const CommandNotes = z.string().max(8000).optional();
-const EventBoundary = z
+const RealDate = z.iso.date();
+const RealDateTime = z.iso.datetime({ local: true, offset: true });
+/** The shape the model sees, refined to a day and time that exist, so Feb 30 never reaches the user's confirmation. */
+const DateOrDateTime = z
   .string()
   .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
-  .describe(
-    "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
+  .refine(
+    (value) => RealDate.safeParse(value).success || RealDateTime.safeParse(value).success,
+    "Use a real date and time",
   );
+const CommandNotes = z.string().max(8000).optional();
+const EventBoundary = DateOrDateTime.describe(
+  "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
+);
 
 /** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
 export const AppCommandSchema = z.discriminatedUnion("name", [
@@ -251,13 +258,9 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
     name: z.literal("create_reminder"),
     title: CommandTitle,
     notes: CommandNotes,
-    due: z
-      .string()
-      .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
-      .optional()
-      .describe(
-        "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
-      ),
+    due: DateOrDateTime.optional().describe(
+      "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+    ),
     listId: z
       .string()
       .min(1)

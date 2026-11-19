@@ -68,8 +68,24 @@ function workBundleId(input: ComputerUseWithAppCommandsInput): string | undefine
   return 'bundleId' in input ? input.bundleId : undefined
 }
 
-/** The exact fields a write will save, for the user to confirm; null for a read, which needs none. */
-function writeSummary(command: AppCommand): string | null {
+/** The list, calendar or group a write names by id, and the read that lists its kind. */
+function chosenDestination(
+  command: AppCommand
+): { id: string; list: 'list_reminder_lists' | 'list_calendars' | 'list_contact_groups' } | null {
+  if (command.name === 'create_reminder' && command.listId)
+    return { id: command.listId, list: 'list_reminder_lists' }
+  if (command.name === 'create_event' && command.calendarId)
+    return { id: command.calendarId, list: 'list_calendars' }
+  if (command.name === 'create_contact' && command.groupId)
+    return { id: command.groupId, list: 'list_contact_groups' }
+  return null
+}
+
+/**
+ * The exact fields a write will save, for the user to confirm; null for a read, which needs none.
+ * `destination` is the chosen list, calendar or group by name, so the user can tell where it goes.
+ */
+function writeSummary(command: AppCommand, destination: string | undefined): string | null {
   // Trimmed exactly as the helper trims before saving, so the user confirms the saved values.
   const lines = (entries: Array<[string, string | number | undefined]>) =>
     entries
@@ -83,7 +99,7 @@ function writeSummary(command: AppCommand): string | null {
         ['Reminder', command.title],
         ['Due', command.due],
         ['Priority', command.priority ? PRIORITY_NAMES[command.priority] : undefined],
-        ['List', command.listId ?? 'default'],
+        ['List', destination ?? 'default'],
         ['Notes', command.notes],
       ])
     case 'create_event':
@@ -99,7 +115,7 @@ function writeSummary(command: AppCommand): string | null {
             ? `${command.alertMinutesBefore} minutes before`
             : undefined,
         ],
-        ['Calendar', command.calendarId ?? 'default'],
+        ['Calendar', destination ?? 'default'],
         ['Notes', command.notes],
       ])
     case 'create_contact_group':
@@ -111,7 +127,7 @@ function writeSummary(command: AppCommand): string | null {
         ['Job title', command.jobTitle],
         ['Emails', command.emails?.map((email) => email.trim()).join(', ')],
         ['Phones', command.phones?.map((phone) => phone.trim()).join(', ')],
-        ['Group', command.groupId],
+        ['Group', destination],
       ])
     default:
       return null
@@ -437,7 +453,7 @@ export class ComputerUseService {
       this.activity = { ...this.activity, appName }
       this.deps.onActivity(this.activity)
     }
-    const summary = writeSummary(command)
+    const summary = writeSummary(command, await this.destinationName(command, work))
     if (summary !== null) {
       const confirmed = await this.deps.confirmAppCommand(
         { appName, summary },
@@ -452,10 +468,37 @@ export class ComputerUseService {
         })
     }
     this.check(work)
+    return await this.appCommand(command)
+  }
+
+  /** Runs one app command in the helper and checks the reply is for that command. */
+  private async appCommand(
+    command: AppCommand
+  ): Promise<Extract<ComputerUseResult, { kind: 'command' }>> {
     const result = await this.deps.native.request('app_command', { command })
     if (result.kind !== 'command' || result.command !== command.name)
       throw new Error('Computer Use returned a result for a different command.')
     return result
+  }
+
+  /**
+   * The name of the list, calendar or group a write chose by id, read when it is confirmed so the
+   * name is current. An id missing from a complete read is refused before the user is asked; past
+   * the read's limit the id itself is shown, and the helper checks it before saving.
+   */
+  private async destinationName(command: AppCommand, work: ToolWork): Promise<string | undefined> {
+    const destination = chosenDestination(command)
+    if (!destination) return undefined
+    const lists = await this.appCommand({ name: destination.list })
+    this.check(work)
+    const chosen = lists.items?.find((item) => item.id === destination.id)
+    if (chosen) return chosen.title
+    if (lists.truncated) return destination.id
+    throw new ComputerUseError({
+      code: 'list_unavailable',
+      message: `No list, calendar or group has this id; call ${destination.list}.`,
+      dispatchState: 'not_started',
+    })
   }
 
   private rememberSnapshot(work: ToolWork, snapshot: ComputerUseSnapshot, windowId?: string): void {
