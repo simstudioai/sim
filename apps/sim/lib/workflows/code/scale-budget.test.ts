@@ -9,7 +9,9 @@
  * The budget catches a quadratic step, not a slow machine. On an M-series laptop the trip takes
  * about 0.4 s and grows linearly with the workflow. Restoring the printer's old line-end trim,
  * which rescanned the whole output at every line break, makes it 7.4 s. The budget leaves about 7x
- * headroom for slower CI runners and still fails that regression by a factor of two or more.
+ * headroom for slower CI runners and still fails that regression by a factor of two or more. It
+ * counts this thread's CPU time where the runtime reports it, so a loaded machine that stretches
+ * wall time does not fail it.
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +41,13 @@ const PROMPT = Array.from(
   { length: 24 },
   (_, line) => `Rule ${line + 1}: answer from the ticket history, cite the source, and stay brief.`
 ).join(' ')
+
+/** CPU milliseconds this thread has used, or wall milliseconds on a runtime without the counter. */
+function threadMs(): number {
+  if (typeof process.threadCpuUsage !== 'function') return performance.now()
+  const { user, system } = process.threadCpuUsage()
+  return (user + system) / 1000
+}
 
 const hooks = createMaterializeHooks()
 const meta = { name: 'Scale', description: null }
@@ -178,7 +187,7 @@ describe('workflow source at the block cap', () => {
     const state = storedState(MAX_WORKFLOW_GRAPH_BLOCKS)
     expect(Object.keys(state.blocks)).toHaveLength(MAX_WORKFLOW_GRAPH_BLOCKS)
 
-    const started = performance.now()
+    const started = threadMs()
     const stored = canonicalize(state, { catalog, meta })
     const printed = printWorkflow({
       workflow: stored.workflow,
@@ -189,7 +198,7 @@ describe('workflow source at the block cap', () => {
     const workflow = compiled.workflow
     if (workflow)
       materialize(workflow, null, { catalog, hooks, prev: state, lockFreshness: 'none' })
-    const elapsed = performance.now() - started
+    const elapsed = threadMs() - started
 
     expect(errorsOf(compiled)).toEqual([])
     expect(Object.keys(workflow?.blocks ?? {})).toHaveLength(MAX_WORKFLOW_GRAPH_BLOCKS)
