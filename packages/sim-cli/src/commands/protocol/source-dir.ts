@@ -558,7 +558,7 @@ function inWorkspace(key: string, path: string): string {
  * workflow folder of a workspace directory without one, the workspace record's entries for the
  * folder (its `.sim/` records left out).
  */
-export async function readFolderWritten(dir: string): Promise<Written> {
+async function readFolderWritten(dir: string): Promise<Written> {
   const own = await readWritten(dir)
   if (Object.keys(own.digests).length > 0) return own
   const folder = await workspaceFolderOf(dir)

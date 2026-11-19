@@ -15,7 +15,7 @@ import { isIdentifierName } from '../code-files/ref-path'
  * (U+206A–U+206F). The printer escapes them and compile warns on a block name holding one, so
  * printed text never reads differently from what it stores.
  */
-export function isSuspiciousCharacter(code: number): boolean {
+function isSuspiciousCharacter(code: number): boolean {
   return (
     code === 0x061c ||
     code === 0x180e ||
