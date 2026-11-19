@@ -362,6 +362,9 @@ on:
 
 concurrency: sim-workspace
 
+permissions:
+  contents: write
+
 jobs:
   workspace:
     runs-on: ubuntu-latest
@@ -376,12 +379,21 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun add -g sim
       - run: sim workspaces source check --dir workspace
+      - run: bunx -p typescript@7.0.2 tsc -p workspace
       - run: sim workspaces source apply --dir workspace --dry-run
       - if: github.event_name == 'push'
         run: sim workspaces source apply --dir workspace --yes
+      - if: github.event_name == 'push'
+        run: |
+          git add -A workspace
+          if ! git diff --cached --quiet; then
+            git -c user.name=sim-bot -c user.email=sim-bot@users.noreply.github.com \
+              commit -m "chore(workspace): files the apply rewrote [skip ci]"
+            git push
+          fi
 ```
 
-A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory: commit them back, or run `sim workspaces source get --dir workspace` on a branch and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools and MCP servers. Workflows, skills, secrets, credentials and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
 
 To promote the same directory to a second workspace, add a step with `--to`:
 
