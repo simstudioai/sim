@@ -205,8 +205,10 @@ async function seed() {
     }
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
+    // `expires_at` is a UTC timestamp without a zone: `now()` alone is the server's local time.
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
-      values (${generateId()}, ${sessionToken}, ${ownerId}, now() + interval '1 hour', now(), now())`
+      values (${generateId()}, ${sessionToken}, ${ownerId},
+        (now() at time zone 'utc') + interval '1 hour', now(), now())`
     for (const [id, key] of [
       [workspaceId, workspaceKey],
       [foreignWorkspaceId, foreignKey],
