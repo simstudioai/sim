@@ -1,7 +1,14 @@
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
-import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
+import {
+  BLOCK_RETRY_MAX_TRIES,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_TRIES,
+  BLOCK_RETRY_MIN_WAIT_MS,
+  type BlockRetryConfig,
+  type WorkflowBranchKind,
+} from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { isBranchExtraField } from '../canonicalize/branches'
 import {
@@ -118,6 +125,17 @@ function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: Blo
   return false
 }
 
+/** Whether `value` is a whole number from `min` to `max`. */
+function wholeNumberIn(value: number, min: number, max: number): boolean {
+  return Number.isInteger(value) && value >= min && value <= max
+}
+
+/**
+ * `meta.retry`, written whole. Its numbers must already lie in the bounds every reader pins them
+ * to (`normalizeBlockRetryTries`, `normalizeBlockRetryWaitMs`): persistence stores the policy
+ * verbatim but loads it clamped, so an out-of-range value would read back changed and every
+ * re-apply would show a retry change.
+ */
 function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRetryConfig | null {
   const json = compileJsonLiteral(ctx, node, site)
   if (json === undefined) return null
@@ -128,6 +146,18 @@ function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRe
     typeof json.maxTries === 'number' &&
     typeof json.waitBetweenTriesMs === 'number'
   ) {
+    if (
+      !wholeNumberIn(json.maxTries, BLOCK_RETRY_MIN_TRIES, BLOCK_RETRY_MAX_TRIES) ||
+      !wholeNumberIn(json.waitBetweenTriesMs, BLOCK_RETRY_MIN_WAIT_MS, BLOCK_RETRY_MAX_WAIT_MS)
+    ) {
+      return unsupported(
+        ctx,
+        node,
+        'retry is outside the range a workflow stores; loading it would change it.',
+        `Write maxTries as a whole number from ${BLOCK_RETRY_MIN_TRIES} to ${BLOCK_RETRY_MAX_TRIES} and waitBetweenTriesMs as a whole number from ${BLOCK_RETRY_MIN_WAIT_MS} to ${BLOCK_RETRY_MAX_WAIT_MS}.`,
+        site.decl.key
+      )
+    }
     return {
       enabled: json.enabled,
       maxTries: json.maxTries,

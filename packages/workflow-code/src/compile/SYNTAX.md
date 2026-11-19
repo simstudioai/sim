@@ -112,7 +112,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `disabled: true` | Stored `enabled: false`. |
 | `locked: true` | Apply refuses any change to this block. |
 | `errorPort: boolean` | Exposes the error port. In the model, `errorPort` is `meta.errorPort` or the block has an `onError` edge. |
-| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
+| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole: `maxTries` a whole number from 2 to 5, `waitBetweenTriesMs` from 0 to 5000 (the bounds the loader pins it to); anything else is `E_UNSUPPORTED_SYNTAX`. |
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
 | `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. An `extra` field the row models (`id`, `title`, `value`, `key`) or editor state is `E_UNSUPPORTED_SYNTAX`. |

@@ -1559,3 +1559,33 @@ describe('a loop or parallel config', () => {
     ).toEqual([hint])
   })
 })
+
+describe('meta.retry', () => {
+  it.each([
+    ['maxTries above the bound', '{ enabled: true, maxTries: 10, waitBetweenTriesMs: 1000 }'],
+    ['maxTries below the bound', '{ enabled: false, maxTries: 1, waitBetweenTriesMs: 1000 }'],
+    ['a fractional wait', '{ enabled: true, maxTries: 3, waitBetweenTriesMs: 1.5 }'],
+    ['a wait above the bound', '{ enabled: true, maxTries: 3, waitBetweenTriesMs: 60000 }'],
+  ])('refuses %s, which the loader would change', (_label, retry) => {
+    const result = run(source(`const a = api('A', { url: 'x' }, { retry: ${retry} })`))
+    expect(result.workflow).toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_UNSUPPORTED_SYNTAX').map((d) => d.hint)
+    ).toEqual([
+      'Write maxTries as a whole number from 2 to 5 and waitBetweenTriesMs as a whole number from 0 to 5000.',
+    ])
+  })
+
+  it('keeps a policy inside the bounds as written', () => {
+    const result = run(
+      source(
+        "const a = api('A', { url: 'x' }, { retry: { enabled: false, maxTries: 5, waitBetweenTriesMs: 0 } })"
+      )
+    )
+    expect(result.workflow?.blocks.a?.retry).toEqual({
+      enabled: false,
+      maxTries: 5,
+      waitBetweenTriesMs: 0,
+    })
+  })
+})

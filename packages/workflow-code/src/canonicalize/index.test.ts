@@ -1359,6 +1359,27 @@ describe('canonicalize: block fields', () => {
     expect(code.extra).toEqual({ someFutureFlag: 'x' })
     expect(result.layout.code).toEqual({ x: 5, y: 6, w: 100 })
   })
+
+  it('pins an out-of-range retry the way the loader does, so it reads the same before and after a load', () => {
+    const result = run(
+      workflow([
+        blockState(
+          'b1',
+          'function',
+          'Code',
+          {},
+          {
+            retry: { enabled: true, maxTries: 10, waitBetweenTriesMs: 60000 },
+          }
+        ),
+      ])
+    )
+    expect(onlyBlock(result, 'code').retry).toEqual({
+      enabled: true,
+      maxTries: 5,
+      waitBetweenTriesMs: 5000,
+    })
+  })
 })
 
 /*
