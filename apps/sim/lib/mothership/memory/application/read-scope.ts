@@ -62,7 +62,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
       )
     }
     const workspaceId = context.workspaceId ?? null
-    // Signed only when memory is on: the attestation is what the sidecar trusts, not the worker.
+    // Signed only while memory is on.
     const attestation = enabled
       ? await signMemoryScope({
           userId: context.userId,

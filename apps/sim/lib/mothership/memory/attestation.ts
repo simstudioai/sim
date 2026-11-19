@@ -16,9 +16,9 @@ export interface MemoryScopeClaims {
 }
 
 /**
- * Signs the scope Sim just authorized, so the memory sidecar can verify who a request acts for
- * without trusting the worker that forwards it: an EdDSA JWT over the canonical ids, valid for
- * one minute. `null` when this deployment has no signing key.
+ * Signs the scope Sim just returned, so the memory sidecar can check that a request carries
+ * exactly these ids: an EdDSA JWT over the canonical ids, valid for one minute. `null` when this
+ * deployment has no signing key.
  */
 export async function signMemoryScope(claims: MemoryScopeClaims): Promise<string | null> {
   const pem = env.MOTHERSHIP_MEMORY_SIGNING_KEY
