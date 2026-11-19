@@ -1,6 +1,6 @@
 import { document, embedding, embeddingSearch, knowledgeConnector } from '@sim/db/schema'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type ConfluenceSiteReadGrant,
   type GitHubInstallationReadGrant,

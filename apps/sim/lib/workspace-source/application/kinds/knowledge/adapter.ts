@@ -9,6 +9,7 @@
  * printed, replaced or deleted.
  */
 import { createLogger } from '@sim/logger'
+import { mapSettledWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { compareStrings } from '@sim/utils/string'
@@ -19,7 +20,6 @@ import {
   knowledgeDocPath,
 } from '@sim/workspace-code/kinds/knowledge'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   admitKnowledgeDocumentUpload,
   admitWorkspaceKnowledgeDocumentUpload,

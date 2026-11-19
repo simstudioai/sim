@@ -5,6 +5,8 @@
  * change through the use case that will make it, and cap the plan's size. Any error in the result
  * refuses the whole apply before anything is written.
  */
+
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
@@ -24,7 +26,6 @@ import {
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   finding,

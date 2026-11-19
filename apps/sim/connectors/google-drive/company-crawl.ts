@@ -1,6 +1,6 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID } from '@/connectors/google-drive/meta'
 import {
   GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE,

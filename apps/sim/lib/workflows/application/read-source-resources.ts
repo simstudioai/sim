@@ -10,6 +10,7 @@ import {
   workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { ResourceKind } from '@sim/workflow-code'
@@ -25,7 +26,6 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
 import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'

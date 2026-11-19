@@ -1,8 +1,8 @@
 import type { ExternalUserSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,

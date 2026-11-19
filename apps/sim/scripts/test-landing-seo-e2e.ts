@@ -7,6 +7,7 @@ import {
 } from '@sim/deployment-config/integration-docs'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SIM_SITE_URL } from '@sim/utils/site'
 import matter from 'gray-matter'
@@ -23,7 +24,6 @@ import {
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**

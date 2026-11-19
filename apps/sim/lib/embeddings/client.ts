@@ -5,6 +5,7 @@ import {
 } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { chunkArray } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import { getBYOKKey } from '@/lib/api-key/byok'
@@ -19,7 +20,6 @@ import {
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,

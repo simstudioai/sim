@@ -14,6 +14,7 @@ import {
   workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   findCause,
   getPostgresConstraintName,
@@ -30,7 +31,6 @@ import {
   toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
