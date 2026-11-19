@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mapSettledWithConcurrency, mapWithConcurrency } from './concurrency.js'
+import {
+  mapEachWithConcurrency,
+  mapSettledWithConcurrency,
+  mapWithConcurrency,
+} from './concurrency.js'
 
 /** A promise resolved from outside, to hold an item in flight until the test releases it. */
 function deferred<T = void>() {
@@ -55,6 +59,20 @@ describe('mapWithConcurrency', () => {
     expect(started).toEqual([0, 1])
   })
 
+  it('throws the failure that happened first, not the one in the lowest slot', async () => {
+    const slowFailure = deferred()
+    const run = mapWithConcurrency([0, 1], 2, async (item) => {
+      if (item === 0) {
+        await slowFailure.promise
+        throw new Error('later failure')
+      }
+      throw new Error('earlier failure')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    slowFailure.resolve()
+    await expect(run).rejects.toThrow('earlier failure')
+  })
+
   it('rejects a limit below one instead of running nothing', async () => {
     await expect(mapWithConcurrency([1], 0, async (item) => item)).rejects.toThrow(
       'positive integer'
@@ -77,6 +95,26 @@ describe('mapSettledWithConcurrency', () => {
       { status: 'rejected', reason: failure },
       { status: 'fulfilled', value: 20 },
       { status: 'fulfilled', value: 30 },
+    ])
+  })
+})
+
+describe('mapEachWithConcurrency', () => {
+  it('attempts every item after a failure, then throws the first failure', async () => {
+    const attempted: number[] = []
+    const run = mapEachWithConcurrency([0, 1, 2, 3, 4], 2, async (item) => {
+      attempted.push(item)
+      if (item === 0) throw new Error('first item failed')
+      if (item === 3) throw new Error('later item failed')
+      return item
+    })
+    await expect(run).rejects.toThrow('first item failed')
+    expect([...attempted].sort()).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('returns every result in input order when nothing fails', async () => {
+    await expect(mapEachWithConcurrency([3, 1, 2], 2, async (item) => item * 10)).resolves.toEqual([
+      30, 10, 20,
     ])
   })
 })

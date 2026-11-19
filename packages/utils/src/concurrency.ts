@@ -25,22 +25,20 @@ export async function mapWithConcurrency<T, R>(
   }
   const results = new Array<R>(items.length)
   let next = 0
-  let failed = false
+  let failure: { error: unknown } | undefined
   const slot = async (): Promise<void> => {
-    while (!failed && next < items.length) {
+    while (!failure && next < items.length) {
       const index = next++
       try {
         results[index] = await fn(items[index], index)
       } catch (error) {
-        failed = true
-        throw error
+        failure ??= { error }
+        return
       }
     }
   }
-  const settled = await Promise.allSettled(
-    Array.from({ length: Math.min(limit, items.length) }, slot)
-  )
-  for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, slot))
+  if (failure) throw failure.error
   return results
 }
 
@@ -61,4 +59,24 @@ export function mapSettledWithConcurrency<T, R>(
       return { status: 'rejected', reason }
     }
   })
+}
+
+/**
+ * {@link mapSettledWithConcurrency} for a fan-out of independent side effects (dispatches, events,
+ * writes): every item is attempted even after one fails, so a failure never leaves the rest
+ * undone, and then the first failure in `items` order is thrown, so the caller still sees it.
+ * Returns the results in `items` order when every item succeeds.
+ */
+export async function mapEachWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const outcomes = await mapSettledWithConcurrency(items, limit, fn)
+  const results: R[] = []
+  for (const outcome of outcomes) {
+    if (outcome.status === 'rejected') throw outcome.reason
+    results.push(outcome.value)
+  }
+  return results
 }

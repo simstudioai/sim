@@ -1,6 +1,6 @@
 import type { ExternalUserSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
@@ -107,7 +107,7 @@ export async function dispatchSlackWebhooks(
   const triggerTimestampMs = Number.isFinite(parsedTimestampMs) ? parsedTimestampMs : undefined
   const subject = resolveSlackExternalUserSubject(body)
 
-  return mapWithConcurrency(
+  return mapEachWithConcurrency(
     webhooks,
     SLACK_WEBHOOK_DISPATCH_CONCURRENCY,
     async ({ webhook: foundWebhook, workflow: foundWorkflow, triggerBlockDeployed }) => {

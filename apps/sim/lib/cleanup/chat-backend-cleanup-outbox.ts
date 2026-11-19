@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { mapEachWithConcurrency, mapWithConcurrency } from '@sim/utils/concurrency'
 import { describeError, toError } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
 import {
@@ -117,7 +117,7 @@ export const chatBackendCleanupOutboxHandlers = {
     context.signal.throwIfAborted()
     const pending = chatIds.slice(swept)
     const survivingIds = await survivingChatIds(pending)
-    const outcomes = await mapWithConcurrency(pending, STORAGE_CONCURRENCY, (chatId) =>
+    const outcomes = await mapEachWithConcurrency(pending, STORAGE_CONCURRENCY, (chatId) =>
       survivingIds.has(chatId) ? Promise.resolve('done' as const) : sweepChatImages(chatId, context)
     )
     const unfinished = outcomes.findIndex((outcome) => outcome !== 'done')

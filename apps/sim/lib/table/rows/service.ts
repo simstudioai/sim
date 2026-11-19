@@ -2671,8 +2671,8 @@ interface MergedRowUpdate {
 /**
  * The unique columns each update of a batch changes, for its value locks and unique check. Like
  * `updateRow`, an update checks only the unique columns it changes: a value it leaves alone is the
- * one already stored, and updates that change none cost nothing here. The DB check compares only
- * against rows outside the batch, so the batch's rows are compared here by their final values,
+ * one already stored, and updates that change none cost nothing here. The DB check skips the batch
+ * rows that rewrite a column, so those rows are compared here by their final values,
  * keyed like the locks: two rows may trade values, but no two may end holding one value. A pair
  * neither of which changes the column is left alone, as the single-row write leaves it.
  */
@@ -2904,20 +2904,33 @@ export async function batchUpdateRowsWithTx(
           )
         )
       )
-      const batchRowIds: ReadonlySet<string> = new Set(rowIds)
+      // A column's DB check skips only the batch rows that rewrite that column, which the in-batch
+      // check compared by final value. A batch row that keeps its value stays in the DB check: the
+      // batch read it before locking, so a concurrent edit may have changed it since.
+      const writersByColumn = new Map<string, Set<string>>()
+      for (const { rowId, columns } of uniqueChecks) {
+        for (const column of columns) {
+          const columnId = getColumnId(column)
+          const writers = writersByColumn.get(columnId) ?? new Set<string>()
+          writers.add(rowId)
+          writersByColumn.set(columnId, writers)
+        }
+      }
       for (const { rowId, mergedData, columns } of uniqueChecks) {
-        const uniqueValidation = await checkUniqueConstraintsDb(
-          data.tableId,
-          mergedData,
-          { ...live.schema, columns },
-          batchRowIds,
-          trx
-        )
-        if (!uniqueValidation.valid) {
-          throw new OrchestrationError(
-            'validation',
-            `Row ${rowId}: ${uniqueValidation.errors.join(', ')}`
+        for (const column of columns) {
+          const uniqueValidation = await checkUniqueConstraintsDb(
+            data.tableId,
+            mergedData,
+            { ...live.schema, columns: [column] },
+            writersByColumn.get(getColumnId(column)),
+            trx
           )
+          if (!uniqueValidation.valid) {
+            throw new OrchestrationError(
+              'validation',
+              `Row ${rowId}: ${uniqueValidation.errors.join(', ')}`
+            )
+          }
         }
       }
     }

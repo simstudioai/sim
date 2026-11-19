@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -1102,7 +1102,7 @@ export async function cancelStaleDispatches(
    * over one table's dispatches, while this sweep can carry a whole tick's worth
    * across many tables, and each event is its own write.
    */
-  await mapWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
+  await mapEachWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
     appendTableEvent({
       kind: 'dispatch',
       tableId: d.tableId,

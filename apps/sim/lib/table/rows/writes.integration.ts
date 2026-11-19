@@ -795,6 +795,56 @@ describe('table row writes against real PostgreSQL', () => {
       expect(await storedCount(table.id, { email: 'b@example.test' })).toBe(1)
     })
 
+    it('refuses a batch update writing a value a concurrent edit gives a batch row that keeps it', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      const results = await raceUnderHeldDefinitionRow(
+        table.id,
+        [
+          () =>
+            updateRow(
+              {
+                tableId: table.id,
+                rowId: `${table.id}-a`,
+                workspaceId,
+                data: { email: 'dup@example.test' },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            ),
+          async () => {
+            // Read row a before the edit commits, so the batch holds its old email.
+            expect(
+              await waitForLockWaiters(table.id, { onDefinitionRow: 1, onValueLock: 0 })
+            ).toEqual({ onDefinitionRow: 1, onValueLock: 0 })
+            return batchUpdateRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                updates: [
+                  { rowId: `${table.id}-a`, data: { score: 5 } },
+                  { rowId: `${table.id}-b`, data: { email: 'dup@example.test' } },
+                ],
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            )
+          },
+        ],
+        { onDefinitionRow: 1, onValueLock: 1 }
+      )
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
+    })
+
     it('rejects a batch update that writes one JSON value to two rows in different key orders', async () => {
       const table = await createTable([{ id: 'meta', name: 'meta', type: 'json', unique: true }])
       await seedRows(table.id, [
@@ -2605,11 +2655,27 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
   describe('adding a required column', () => {
-    it('refuses a new required column on a table that has rows, from every surface', async () => {
+    it('accepts a new required column on a table that has rows, as the table APIs always have', async () => {
+      const table = await createTable(textColumns('note'))
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
+      const updated = await addTableColumn(
+        table.id,
+        { name: 'owner', type: 'string', required: true },
+        'required-add'
+      )
+      expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    })
+
+    it('refuses a new required column that rows leave empty when workspace-source apply asks', async () => {
       const table = await createTable(textColumns('note'))
       await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
       await expect(
-        addTableColumn(table.id, { name: 'owner', type: 'string', required: true }, 'required-add')
+        addTableColumn(
+          table.id,
+          { name: 'owner', type: 'string', required: true },
+          'required-add-source',
+          { refuseEmptyRequired: true }
+        )
       ).rejects.toThrow(/cannot be added as required: 1 row\(s\) would have no value/)
       expect((await getTableById(table.id))?.schema.columns.map((column) => column.name)).toEqual([
         'note',
@@ -2626,7 +2692,7 @@ describe('table row writes against real PostgreSQL', () => {
       expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
     })
 
-    it('restores a deleted required column only when no row leaves it empty', async () => {
+    it('restores a deleted required column under workspace-source apply only when no row leaves it empty', async () => {
       const table = await createTable([
         { id: 'owner', name: 'owner', type: 'string', required: true },
         ...textColumns('note'),
@@ -2641,7 +2707,8 @@ describe('table row writes against real PostgreSQL', () => {
         addTableColumn(
           table.id,
           { id: 'owner', name: 'owner', type: 'string', required: true },
-          'undo-required'
+          'undo-required',
+          { refuseEmptyRequired: true }
         )
       ).rejects.toThrow(/cannot be added as required/)
       const restored = await addTableColumn(

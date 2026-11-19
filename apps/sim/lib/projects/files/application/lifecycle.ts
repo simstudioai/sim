@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRow } from '@sim/db/schema'
-import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
@@ -63,7 +63,7 @@ async function retireDocuments(
 async function finishRetirements(result: object) {
   const eventIds = retirementEffects.get(result) ?? []
   retirementEffects.delete(result)
-  await mapWithConcurrency(eventIds, RETIREMENT_CONCURRENCY, processProjectFileDocRetirementNow)
+  await mapEachWithConcurrency(eventIds, RETIREMENT_CONCURRENCY, processProjectFileDocRetirementNow)
 }
 
 function boundedSelection(input: SelectionInput) {
