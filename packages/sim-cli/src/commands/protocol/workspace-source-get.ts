@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rename, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   APPLY_ORDER,
   isWorkspaceKind,
@@ -343,8 +343,9 @@ async function directoryWorkspace(
   profile: string,
   explicit: boolean
 ): Promise<string> {
-  const text = await readSourceText(dir, WORKSPACE_BASE_FILE)
-  const readFrom = text === null ? null : (parseWorkspaceBase(text).base?.workspaceId ?? null)
+  // Read as leniently as an apply reads it: a base the parser refuses still names its workspace.
+  const recorded = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE)).workspaceId
+  const readFrom = typeof recorded === 'string' ? recorded : null
   if (readFrom === null || readFrom === profile) return profile
   if (!explicit) return readFrom
   throw new SimApiError(
