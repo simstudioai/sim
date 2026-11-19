@@ -26,7 +26,12 @@ import {
   writeTableFields,
 } from '@/lib/table/application/tables'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName, columnMatchesRef, rowDataNameToId } from '@/lib/table/column-keys'
+import {
+  buildIdByName,
+  columnMatchesRef,
+  getColumnId,
+  rowDataNameToId,
+} from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import { addTableColumn, deleteColumn } from '@/lib/table/columns/service'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
@@ -64,8 +69,10 @@ export interface ReshapeTableInput {
    * Rows to write once the columns are reshaped, in the same transaction, keyed by column name as
    * the reshape leaves the columns: workspace source's rows. `managed` makes the table's rows equal
    * to `rows`, matched by `keyColumn` and writing only what differs (`writeKeyedRowsWithTx`);
-   * `seed` inserts `rows`. A column added `required` is added optional and made required once the
-   * rows are written, so the rows can fill it.
+   * `seed` inserts `rows` into a table that holds none, checked under the table's lock (a row
+   * written since the caller saw it empty refuses the reshape, `TableRowsChangedError`). A column
+   * added `required`, or updated to be, is made required only once the rows are written, so the
+   * rows can fill it.
    */
   rows?: ReshapeRows
   /**
@@ -151,7 +158,9 @@ function freeColumnName(table: TableDefinition): string {
  * waits while another pending update still moves a column off it. When every update waits (a
  * swap, or any longer rename cycle), a column another update waits on for its name is parked
  * under a free name first, which unblocks that update. A name held by a column that is not being
- * renamed, or a capped type no pending update frees, is left to the update to refuse.
+ * renamed, or a capped type no pending update frees, is left to the update to refuse. Each update's
+ * column is resolved to its id first, so one addressed by name is still found once another rename
+ * took or parked that name.
  */
 async function updateColumns(
   table: TableDefinition,
@@ -162,7 +171,12 @@ async function updateColumns(
     updates: ReshapeColumnUpdate['updates']
   ) => Promise<TableDefinition>
 ): Promise<TableDefinition> {
-  const pending = [...updates]
+  const pending = updates.map((entry) => {
+    const column = table.schema.columns.find((candidate) =>
+      columnMatchesRef(candidate, entry.columnName)
+    )
+    return column ? { ...entry, columnName: getColumnId(column) } : entry
+  })
   let current = table
   const renaming = (column: ColumnDefinition) =>
     pending.some(
@@ -216,10 +230,12 @@ async function updateColumns(
 
 /**
  * Reshapes a table in one transaction: its own name, description and folder, then column drops,
- * updates (renames ordered so each finds its name free) and adds. Each step is the same service
- * write the single-column use cases run, with the same lock checks and validation, joined to one
- * transaction under the table's schema lock: a failure at any step commits nothing. Audits one
- * entry per change, as the single use cases would.
+ * updates (renames ordered so each finds its name free) and adds, then the managed-rows mark and
+ * the rows (`rows`), refused when they changed since `expectedRowsVersion`. Each step is the same
+ * service write the single-column and row use cases run, with the same lock checks and
+ * validation, joined to one transaction under the table's schema lock: a failure at any step
+ * commits nothing. Audits one entry per column change, as the single use cases would, by column
+ * name, and one `source_rows` entry for the rows written.
  */
 export const reshapeTableUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.reshape,
@@ -314,6 +330,9 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         ) {
           throw new TableRowsChangedError(locked.name)
         }
+        if (input.rows?.mode === 'seed' && locked.rowCount > 0) {
+          throw new TableRowsChangedError(locked.name)
+        }
         const options = { expectedWorkspaceId: workspaceId, tx }
         const progress: TableFieldsProgress = { current: locked, applied: [], changed: [] }
         if (input.table) await writeTableFields(progress, input.table, resolution?.folderId, tx)
@@ -321,30 +340,36 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
         for (const columnName of input.drop ?? []) {
           table = await deleteColumn({ tableId: table.id, columnName }, requestId, options)
         }
-        table = await updateColumns(
-          table,
-          input.update ?? [],
-          async (current, columnName, updates) => {
-            const outcome = await performUpdateTableColumn({
-              table: current,
-              columnName,
-              userId: attributedUserId,
-              updates,
-              requestId,
-              expectedWorkspaceId: workspaceId,
-              tx,
-              recordAudit: false,
-            })
-            if (!outcome.success || !outcome.table) {
-              throwTableOperationFailure(outcome, 'Failed to update column')
-            }
-            return outcome.table
+        // With rows to write, a column made required is made so after them (an add, below, too).
+        const deferredUpdates: string[] = []
+        const updates = (input.update ?? []).flatMap((entry) => {
+          const column = table.schema.columns.find((candidate) =>
+            columnMatchesRef(candidate, entry.columnName)
+          )
+          if (!input.rows || entry.updates.required !== true || !column) return [entry]
+          deferredUpdates.push(getColumnId(column))
+          const rest = omit(entry.updates, ['required'])
+          return Object.keys(rest).length > 0 ? [{ ...entry, updates: rest }] : []
+        })
+        table = await updateColumns(table, updates, async (current, columnName, updates) => {
+          const outcome = await performUpdateTableColumn({
+            table: current,
+            columnName,
+            userId: attributedUserId,
+            updates,
+            requestId,
+            expectedWorkspaceId: workspaceId,
+            tx,
+            recordAudit: false,
+          })
+          if (!outcome.success || !outcome.table) {
+            throwTableOperationFailure(outcome, 'Failed to update column')
           }
-        )
-        // With rows to write, a required column is added optional and made required after them.
-        const deferred = input.rows ? (input.add ?? []).filter((column) => column.required) : []
+          return outcome.table
+        })
+        const deferredAdds = input.rows ? (input.add ?? []).filter((column) => column.required) : []
         for (const column of input.add ?? []) {
-          const optional = deferred.includes(column) ? { ...column, required: false } : column
+          const optional = deferredAdds.includes(column) ? { ...column, required: false } : column
           table = await addTableColumn(table.id, optional, requestId, options)
         }
         const idByName = buildIdByName(table.schema)
@@ -365,10 +390,10 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
           table = { ...table, metadata }
         }
         const rows = input.rows ? await writeRows(tx, table, input.rows, idByName) : undefined
-        for (const column of deferred) {
+        for (const columnName of [...deferredUpdates, ...deferredAdds.map(({ name }) => name)]) {
           const outcome = await performUpdateTableColumn({
             table,
-            columnName: column.name,
+            columnName,
             userId: attributedUserId,
             updates: { required: true },
             requestId,
@@ -397,13 +422,16 @@ export const reshapeTableUseCase = defineAuthorizedTableUseCase({
   },
   projectAudit({ input, context, result }) {
     const before = context.table
+    // The audit names a column, never its id, as the single-column use cases do.
+    const nameOf = (ref: string) =>
+      before.schema.columns.find((column) => columnMatchesRef(column, ref))?.name ?? ref
     return [
       ...tableFieldAudits(before, input.table ?? {}, result.changed, result.table.name),
       ...(input.drop ?? []).map((columnName) =>
-        columnDeletedAudit(before, result.table, columnName)
+        columnDeletedAudit(before, result.table, nameOf(columnName))
       ),
       ...(input.update ?? []).map(({ columnName, updates }) =>
-        columnUpdatedAudit(before, result.table, columnName, updates)
+        columnUpdatedAudit(before, result.table, nameOf(columnName), updates)
       ),
       ...(input.add ?? []).map((column) => columnAddedAudit(before, result.table, column)),
       ...(wroteRows(result.rows)

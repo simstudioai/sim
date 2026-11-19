@@ -12,6 +12,7 @@ import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { GraphDiff, SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { toolInputIds } from '@/lib/workflows/code/catalog/workspace'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import { normalizeTools } from '@/lib/workflows/editing/builders'
 import {
@@ -386,11 +387,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
       if (refusal) record([refusal])
     }
 
-    const toolInputFields = new Set(
-      getBlock(block.type)
-        ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
-        .map((subBlock) => subBlock.id) ?? []
-    )
+    const toolInputFields = new Set(toolInputIds(block.type))
     gateFieldValues(entry, toolInputFields, ctx, record)
 
     if (args.isCopilot) {

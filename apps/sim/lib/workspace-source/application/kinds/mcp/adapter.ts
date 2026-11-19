@@ -35,6 +35,7 @@ import { workflowFolder } from '@sim/workspace-code/kinds/workflow'
 import type { CursorKey } from '@/lib/api/list-query'
 import { authorizeWorkspaceOperation, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   createMcpServerUseCase,
@@ -77,6 +78,9 @@ const logger = createLogger('WorkspaceSourceMcpServers')
 const PAGE_SIZE = 200
 /** How long a plan waits on one server's tool listing (mostly served from the tool cache). */
 const DISCOVERY_TIMEOUT_MS = 10_000
+
+/** Servers a plan lists tools of at once: each waits up to {@link DISCOVERY_TIMEOUT_MS}. */
+const LIST_TOOLS_CONCURRENCY = 6
 
 /** What the apply carries out for an existing server, decided at plan time. */
 export interface McpPlan {
@@ -582,16 +586,28 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
             )
           ).get('mcp-server')
         : undefined
-    for (const [key, callers] of users) {
+    const used = [...users]
+    // Every server's tools are listed at once (bounded), so servers that time out wait together.
+    const listings = await mapWithConcurrency(used, LIST_TOOLS_CONCURRENCY, async ([key]) => {
       const server = servers.find((change) => change.key === key)
-      const unchecked = (reason: string) => {
+      if (server && (server.action === 'create' || server.detail?.replace)) {
+        return { reason: 'this apply creates the server' }
+      }
+      const serverId = server ? server.storedId : ids?.get(key)
+      // A key that names no server is the workflow's own refusal (an unknown resource).
+      return serverId ? listTools(ctx, serverId) : null
+    })
+    used.forEach(([key, callers], index) => {
+      const listed = listings[index]
+      if (!listed) return
+      if ('reason' in listed) {
         for (const { change } of callers) {
           change.diagnostics.push(
             kindFinding(
               change.kind,
               change.key,
               'W_MCP_TOOLS_UNCHECKED',
-              `The tools ${where(change.kind, change.key)} calls on MCP server "${key}" are not checked: ${reason}.`,
+              `The tools ${where(change.kind, change.key)} calls on MCP server "${key}" are not checked: ${listed.reason}.`,
               {
                 hint: 'A tool the server does not list fails when the agent calls it.',
                 ...fileOf(change),
@@ -599,18 +615,7 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
             )
           )
         }
-      }
-      if (server && (server.action === 'create' || server.detail?.replace)) {
-        unchecked('this apply creates the server')
-        continue
-      }
-      const serverId = server ? server.storedId : ids?.get(key)
-      // A key that names no server is the workflow's own refusal (an unknown resource).
-      if (!serverId) continue
-      const listed = await listTools(ctx, serverId)
-      if ('reason' in listed) {
-        unchecked(listed.reason)
-        continue
+        return
       }
       const names = new Set(listed.names)
       for (const { change, tools } of callers) {
@@ -631,6 +636,6 @@ export const mcpAdapter: KindAdapter<'mcp-server', McpServerRow> = {
           )
         }
       }
-    }
+    })
   },
 }

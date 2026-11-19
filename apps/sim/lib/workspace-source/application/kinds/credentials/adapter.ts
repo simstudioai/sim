@@ -15,7 +15,9 @@
  *   The key stands in under a placeholder id, so a workflow using it still dry-runs.
  *
  * A key bound to a credential the caller cannot see is missing for them: binding over it would
- * take another user's credential away from the workflows that use it.
+ * take another user's credential away from the workflows that use it. A credential bound to a key
+ * neither declared nor recorded in the base (bound outside source) is not a candidate either:
+ * binding it would silently unbind that key from the workflows that use it.
  *
  * A key the base records that the directory no longer declares is unbound only with
  * `--allow-delete`; one no base records is left bound, with no finding. Binding a credential to a
@@ -100,23 +102,32 @@ function unavailable(
   entry: CredentialDecl,
   candidates: readonly Credential[],
   bound: readonly Credential[],
+  heldOutside: ReadonlyArray<{ credential: Credential; key: string }>,
   hiddenBinding: boolean
 ): CredentialChange {
   const { key } = change
   const wanted = `a ${entry.provider} credential${entry.name !== undefined ? ` named "${entry.name}"` : ''}`
   const ambiguous = candidates.length > 1
+  const holders = heldOutside
+    .slice(0, NAMED_CREDENTIALS)
+    .map((held) => `"${held.credential.name}" (key "${held.key}")`)
+    .join(', ')
   const reason = hiddenBinding
     ? `the key "${key}" is bound to a credential you cannot see.`
     : ambiguous
       ? `the key "${key}" could bind to any of ${candidates.length} ${entry.provider} credentials: ${namedList(candidates)}.`
       : bound.length > 0
         ? `the key "${key}" has no ${wanted} to bind to; ${namedList(bound)} ${bound.length === 1 ? 'is' : 'are'} bound to other declared keys.`
-        : `this workspace has no ${wanted} for the key "${key}".`
+        : heldOutside.length > 0
+          ? `the key "${key}" has no ${wanted} to bind to; ${holders} ${heldOutside.length === 1 ? 'is' : 'are'} bound to keys ${KIND_DIRS.credential} does not declare.`
+          : `this workspace has no ${wanted} for the key "${key}".`
   const hint = hiddenBinding
     ? 'Ask the credential owner to share it with you, or declare another key.'
     : ambiguous
       ? `Pick one by its display name: \`${key}: { provider: '${entry.provider}', name: '${candidates[0]?.name ?? ''}' }\` in ${KIND_DIRS.credential}.`
-      : connectHint(entry)
+      : bound.length === 0 && heldOutside.length > 0
+        ? `${connectHint(entry)} Or declare the key "${heldOutside[0]?.key}" in ${KIND_DIRS.credential} and use it instead.`
+        : connectHint(entry)
   change.diagnostics.push(
     kindFinding(
       'credential',
@@ -164,6 +175,14 @@ async function planDeclared(
     const bound = stored.bound.get(key)
     if (bound && fits(bound, declared[key])) taken.set(bound.id, key)
   }
+  // Credentials bound outside source: to a key neither declared nor recorded by the base. A key
+  // the base records (a renamed key) may still move, which `planUndeclaredKeys` relies on.
+  const heldOutside = new Map<string, string>()
+  for (const [key, credential] of stored.bound) {
+    if (Object.hasOwn(declared, key)) continue
+    const recorded = ctx.base?.resources[resourceAddress('credential', key)]
+    if (recorded?.id !== credential.id) heldOutside.set(credential.id, key)
+  }
   const hidden = await hiddenBindings(
     ctx,
     keys.filter((key) => !stored.bound.has(key))
@@ -189,11 +208,19 @@ async function planDeclared(
     const fitting = all
       .filter((credential) => fits(credential, entry))
       .sort((a, b) => compareStrings(a.name, b.name) || compareStrings(a.id, b.id))
-    const candidates = fitting.filter((credential) => !taken.has(credential.id))
+    const candidates = fitting.filter(
+      (credential) => !taken.has(credential.id) && !heldOutside.has(credential.id)
+    )
     const only = candidates.length === 1 ? candidates[0] : undefined
     if (!only || hidden.has(key)) {
       const elsewhere = fitting.filter((credential) => taken.has(credential.id))
-      changes.push(unavailable(change, entry, candidates, elsewhere, hidden.has(key)))
+      const outside = fitting.flatMap((credential) => {
+        const holder = heldOutside.get(credential.id)
+        return holder !== undefined && !taken.has(credential.id)
+          ? [{ credential, key: holder }]
+          : []
+      })
+      changes.push(unavailable(change, entry, candidates, elsewhere, outside, hidden.has(key)))
       continue
     }
     taken.set(only.id, key)
@@ -292,7 +319,8 @@ export const credentialAdapter: KindAdapter<'credential', StoredCredential> = {
   async authorize(change, ctx) {
     if (change.action === 'noop') return
     const workspaceId = ctx.workspace.workspaceId
-    const credentialId = change.storedId ?? ''
+    const credentialId = change.storedId
+    if (!credentialId) throw new Error('A credential binding needs the credential id')
     if (change.action === 'delete') {
       await releaseCredentialKey.authorize({
         principal: ctx.principal,

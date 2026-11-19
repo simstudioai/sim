@@ -580,7 +580,7 @@
       "post": {
         "operationId": "addTableColumn",
         "summary": "Add column",
-        "description": "Add a typed column and return the complete resulting table schema.\n\nOAuth scope: `api:write`.",
+        "description": "Add a typed column and return the complete resulting table schema. A `required` column is refused (400) while any row would hold no value for it: add it optional, fill its cells, then make it required.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.columns.add",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],

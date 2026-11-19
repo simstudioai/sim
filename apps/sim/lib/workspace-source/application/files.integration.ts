@@ -67,6 +67,7 @@ import {
   stageBlobsAs,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 import { WorkspaceSourceBusyError } from '@/lib/workspace-source/lease/store'
+import { claimResourceKey } from '@/lib/workspaces/resource-keys'
 
 /** Local object storage the suite's uploads land in, under a temp directory. */
 let storageRoot = ''
@@ -930,6 +931,46 @@ export default workflow('Reader', {}, () => {
       ).toEqual(['E_PLAN_REF_DELETED workflow:reader'])
     }
   )
+  check(
+    'nine creates of one name each claim a free key, past a key a live file already holds',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const holder = await uploadInUi(workspaceId, '', 'holder.txt', 'holds a key')
+      // The ninth key a plan would offer `data.csv`, held by a file the Files tab uploaded.
+      await claimResourceKey({
+        workspaceId,
+        kind: 'file',
+        key: 'data-csv-9',
+        resourceId: holder.id,
+        origin: 'adopted',
+        createdBy: ownerId,
+      })
+      const files = Object.fromEntries(
+        'abcdefghi'
+          .split('')
+          .map((folder) => [`files/${folder}/data.csv`, Buffer.from(`rows of ${folder}`)])
+      )
+
+      const created = await apply(workspaceId, files)
+
+      expect(created.failed).toBeUndefined()
+      const keys = await db
+        .select({ key: workspaceResourceKey.key, resourceId: workspaceResourceKey.resourceId })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, 'file')
+          )
+        )
+      const createdIds = Object.keys(files).map((blobPath) =>
+        fileId(created.base, blobPath.slice('files/'.length))
+      )
+      expect(keys.filter((row) => createdIds.includes(row.resourceId))).toHaveLength(9)
+      expect(keys.find((row) => row.key === 'data-csv-9')?.resourceId).toBe(holder.id)
+    }
+  )
+
   check(
     'a file create whose key claim fails leaves no file behind, so applying again creates and keys it',
     async () => {

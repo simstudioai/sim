@@ -450,7 +450,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2AddTableColumnContract,
     summary: 'Add column',
     description:
-      'Add a typed column and return the complete resulting table schema.\n\nOAuth scope: `api:write`.',
+      'Add a typed column and return the complete resulting table schema. A `required` column is refused (400) while any row would hold no value for it: add it optional, fill its cells, then make it required.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/tables/[tableId]/columns/route').then((route) => route.POST),
   },
@@ -1681,7 +1681,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetSourceResourcesContract,
     summary: 'Get source resources',
     description:
-      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
+      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, MCP servers with the tool names they list, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route').then(
         (route) => route.GET
