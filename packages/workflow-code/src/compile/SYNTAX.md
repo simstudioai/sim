@@ -373,13 +373,13 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_LOOKALIKE_NAME` | Two block names whose keys differ only by Unicode normalization (NFC vs NFD). |
 | `W_LOOKALIKE_NAME` | A look-alike pair the stored workflow already holds, kept so it round-trips. |
 | `W_SUSPICIOUS_CHARACTER` | A block or workflow name holds a bidi control or zero-width character. |
-| `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean. |
+| `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean, says to write the value for a const refused for holding one, and points `process.env` at `env.NAME`. |
 | `E_OUT_OF_SCOPE` | A ref or wiring into a sibling subflow's child. |
 | `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |
 | `E_DUPLICATE_VARIABLE` | Two variables with one key. |
 | `E_VARIABLE_NAME_MISMATCH` | A variable's `name` does not normalize to its key. |
 | `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
-| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known). |
+| `W_ENV_UNKNOWN` | `env.X`, or a code file `$env`, naming a variable the workspace does not hold (checked only when the env names are known); the hint has a did-you-mean. |
 | `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
 | `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
 | `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
@@ -401,18 +401,19 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
 | `E_FIXED_PARAM` | A param the builder already pins. |
 | `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values. |
-| `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names. |
+| `W_REQUIRED_MISSING` | A required field left empty, including `todo()`; not repeated for a field an `E_UNKNOWN_PARAM` did-you-mean names, or one written with a value that failed to compile. |
 | `W_UNKNOWN_OPTION` | A dropdown value none of its options names; `hint` lists them. |
 | `E_UNKNOWN_OPERATION` | An `operation` the block does not offer; `hint` lists them. A retired one the stored block holds is `W_UNKNOWN_OPTION`. |
 | `W_UNKNOWN_MODEL` | A `model` the catalog does not list (kept: custom models are free text). |
 | `W_LEGACY_BLOCK_TYPE` | A new block of a legacy or deprecated type; `hint` names the replacement's builders. |
+| `I_SCHEDULE_UTC` | A schedule created from source with no `timezone`, which runs in UTC (the editor would have seeded the viewer's zone). |
 | `E_STORED_VALUE_MISSING` | `stored()` where the stored workflow holds no value. |
 | `W_VALUE_KIND` | A value whose JSON type differs from the field's. |
 | `W_OUT_OF_RANGE` | A literal slider value outside the catalog `min`/`max`, off its `step`, or fractional where it takes whole numbers; kept as written, and the executor forwards it unclamped. |
 | `W_TABLE_FILTER_SHAPE` | A literal table filter the runtime refuses: the legacy `$` operator grammar, or predicate and builder rows mixed. |
 | `W_LITERAL_SECRET` | A password field (an API key, a token) holding literal text instead of an env reference, or any field holding a detected credential (a token format, an `Authorization` header, a credential-named property or query parameter); get prints it as `stored()`. For a literal token in a credential field, the hint says `credential('<key>')`. |
 | `W_SUBFLOW_COUNT` | A loop or parallel count, or a parallel batch size, the runtime replaces or clamps. |
-| `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have. |
+| `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have; the hint has a did-you-mean or lists the outputs. |
 | `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
 | `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
 | `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |

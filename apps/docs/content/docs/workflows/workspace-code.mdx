@@ -14,6 +14,8 @@ Workspace as code is in preview, behind the same setting as workflows as code. I
 ## The directory
 
 ```
+secrets.ts                        the env variable names workflows read (never a value)
+credentials.ts                    the saved credentials workflows use, by provider
 tables/orders.ts                  a table: name, description, columns
 knowledge/policies/knowledge.ts   a knowledge base: name, chunking
 knowledge/policies/docs/*.md      one file per document
@@ -21,7 +23,9 @@ files/templates/reply.md          a workspace file, at its folder path
 tools/lookup-order.ts             a custom tool: title and schema
 tools/lookup-order.js             the tool's code
 skills/tone.md                    a skill: name and description, then its content
+mcp/docs.ts                       an MCP server: url, headers
 workflows/support/workflow.ts     a workflow source directory
+deployments/support.ts            how workflows/support is deployed
 ```
 
 A resource's key is its file or folder name, and a workflow names it by that key:
@@ -50,13 +54,16 @@ const log = table.insertRow('Log Question', {
 ```bash
 sim workspaces source get --dir ./my-workspace
 sim workspaces source check --dir ./my-workspace
+sim workspaces source status --dir ./my-workspace
 sim workspaces source apply --dir ./my-workspace --dry-run
 sim workspaces source apply --dir ./my-workspace --yes
 ```
 
-`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, custom tool, MCP server or workflow key, or a table row write naming a column the table does not declare, is reported, and an env name `secrets.ts` lacks is a warning. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
+`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, custom tool, MCP server or workflow key, or a table row write naming a column the table does not declare, is reported, and an env name `secrets.ts` lacks is a warning. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. Run `bunx -p typescript@7.0.2 tsc -p ./my-workspace` after it to type-check every file. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
 
 The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
+
+`status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
 
 ## Deletes
 

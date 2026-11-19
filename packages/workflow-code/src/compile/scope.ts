@@ -449,23 +449,21 @@ function collectDeclaration(
     unsupported(ctx, init, 'Helpers are not supported.', HINTS.helpers)
     return
   }
+  const { name } = declarator.id
+  const refuseValue = () => {
+    ctx.valueConsts.add(name)
+    unsupported(ctx, statement, `${name} holds a value, not a block.`, HINTS.nonBuilderConst)
+  }
   if (!init || init.type !== 'CallExpression') {
-    unsupported(ctx, statement, 'Only blocks can be named.', HINTS.nonBuilderConst)
+    refuseValue()
     return
   }
   const classified = classifyCall(ctx, scope, init)
   if (classified.kind !== 'builder') {
-    unsupported(ctx, statement, 'Only blocks can be named.', HINTS.nonBuilderConst)
+    refuseValue()
     return
   }
-  declare(
-    ctx,
-    scope,
-    init,
-    classified,
-    { name: declarator.id.name, node: declarator.id },
-    statement
-  )
+  declare(ctx, scope, init, classified, { name, node: declarator.id }, statement)
 }
 
 /**

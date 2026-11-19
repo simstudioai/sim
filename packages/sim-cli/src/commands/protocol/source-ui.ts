@@ -6,8 +6,9 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
-import { type RefusalClass, refusalClass } from '@sim/workspace-code'
+import { type FlatDiagnostic, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
+import type { OutputFormat } from '../../config/index'
 import { embedStore } from '../../embed-context'
 import {
   SOURCE_BUSY_EXIT_CODE,
@@ -99,6 +100,21 @@ function printDiagnostics(diagnostics: Diagnostic[]): void {
   }
 }
 
+/** A finding in a source command's `--output json` (or `yaml`) result: the frame stays human-only. */
+type ResultDiagnostic = Omit<FlatDiagnostic, 'frame' | 'code'> & { code: Diagnostic['code'] }
+
+/**
+ * The `diagnostics` a source command's result carries in a machine format, so the one document on
+ * stdout holds every finding; a display format prints them on stderr only.
+ */
+export function resultDiagnostics(
+  format: OutputFormat,
+  diagnostics: readonly Diagnostic[]
+): { diagnostics?: ResultDiagnostic[] } {
+  if (format !== 'json' && format !== 'yaml') return {}
+  return { diagnostics: diagnostics.map(({ frame: _frame, ...finding }) => finding) }
+}
+
 function findingKey(diagnostic: Diagnostic): string {
   const { code, file, line, column, path, message } = diagnostic
   return JSON.stringify([code, file, line, column, path, message])
@@ -171,10 +187,12 @@ function answerLost(error: SimApiError): boolean {
 
 /**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
- * the exit status a script branches on. `ifAnswerLost` is the next step for a write whose answer
- * never came back, appended to its message.
+ * the exit status a script branches on. In a machine `format` the error document keeps the
+ * refusal's details with each finding as a success result carries it ({@link resultDiagnostics});
+ * a display format prints the findings once, above the error. `ifAnswerLost` is the next step for
+ * a write whose answer never came back, appended to its message.
  */
-export function printRefusal(error: unknown, ifAnswerLost?: string): never {
+export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?: string): never {
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
@@ -190,10 +208,20 @@ export function printRefusal(error: unknown, ifAnswerLost?: string): never {
     hint ? `${error.message} ${hint}` : error.message,
     error.status,
     error.code,
-    printed ? undefined : error.details,
+    printed ? refusalDetails(format, details, diagnostics) : error.details,
     refusalExitCode(error, details.code),
     error.requestId
   )
+}
+
+/** A printed refusal's details: kept, findings flattened, in a machine format; else dropped. */
+function refusalDetails(
+  format: OutputFormat,
+  details: Record<string, unknown>,
+  diagnostics: Diagnostic[]
+): Record<string, unknown> | undefined {
+  const flattened = resultDiagnostics(format, diagnostics)
+  return flattened.diagnostics ? { ...details, ...flattened } : undefined
 }
 
 /**

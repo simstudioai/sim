@@ -44,6 +44,13 @@ function result(): Record<string, unknown> {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
 }
 
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
+
 function stderr(): string {
   return vi
     .mocked(console.error)
@@ -110,6 +117,23 @@ describe('sim workspaces source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('puts each finding in the JSON on stdout, under its folder path', async () => {
+    writeFile('workflows/second/workflow.ts', insertWorkflow('contact'))
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [
+        expect.objectContaining({
+          code: 'E_MAT_UNKNOWN_RESOURCE',
+          file: 'workflows/second/workflow.ts',
+          line: 5,
+        }),
+      ],
+    })
+  })
+
   it('refuses without a cached catalog, naming the workspace get that caches one', async () => {
     rmSync(join(dir, 'config'), { recursive: true })
     writeFile('workflows/first/workflow.ts', insertWorkflow())
@@ -119,6 +143,33 @@ describe('sim workspaces source check', () => {
     expect(error).toMatchObject({
       code: 'CATALOG_NOT_CACHED',
       message: expect.stringContaining('sim workspaces source get'),
+    })
+  })
+
+  it('refuses a directory that holds no workspace source instead of checking nothing', async () => {
+    const error = await check('--dir', join(dir, 'typo')).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining('holds no workspace source'),
+    })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses a workflow folder, naming the workflow check', async () => {
+    writeFile('workflows/first/workflow.ts', insertWorkflow())
+    writeFile(
+      'workflows/first/.sim/base.json',
+      JSON.stringify({ workflowId: 'wf_first', workspaceId: WORKSPACE_ID })
+    )
+
+    const error = await check('--dir', join(dir, 'workflows/first')).catch(
+      (caught: unknown) => caught
+    )
+
+    expect(error).toMatchObject({
+      message: expect.stringContaining(
+        'is a workflow source directory: use `sim workflows source`'
+      ),
     })
   })
 })

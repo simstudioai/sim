@@ -6,6 +6,7 @@
  */
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { toRecord } from '@sim/utils/object'
 import {
   SDK_GUIDE_FILE,
   SOURCE_COMPILER_OPTIONS,
@@ -44,6 +45,7 @@ import {
   digest,
   FILE_CONCURRENCY,
   listSourceFiles,
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR,
   type StatDigest,
@@ -108,9 +110,9 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 ## Edit loop (run from this directory)
 
 1. Edit the files.
-2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
+2. \`sim workspaces source check --dir .\`: compiles every workflow offline with the server's compiler, against what this directory declares: an unknown resource key or table column, and an env name \`${KIND_DIRS.secret}\` lacks (a warning). It fails (exit 1) on errors and on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value or a literal secret in a block you added (\`--strict\`: in every block), and adds the blocks the workflows now use to \`tsconfig.json\`. In a workflow folder, \`sim workflows source check --dir .\` checks that one workflow the same way. Fix and rerun until it exits 0.
 3. \`${typecheckCommand()}\` type-checks the files with the TypeScript release the declarations are built for. \`tsconfig.json\` includes only the blocks the workflows used at the last check or get, which keeps it fast: a builder from another block fails with \`has no exported member\` until you run step 2 (or check with \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). \`${SOURCE_SDK_DIR}/${SDK_GUIDE_FILE}\` lists every builder with its file and params type; \`grep\` it rather than reading the declarations. The dry run is the authority: a printed file you did not edit that \`tsc\` flags and the dry run accepts is fine, so leave it as it is.
-4. \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
+4. \`sim workspaces source status --dir .\` before applying: your changes by resource (\`sim workspaces source diff --dir .\` shows the edits), what changed on the server since the get (a workflow edited in the editor included), the conflicts, and the command to run next. Exit 0 nothing changed, 11 only your edits, 12 the server changed since (\`--offline\`: skip the server). Then \`sim workspaces source apply --dir . --dry-run\`: shows the plan (\`+\` create, \`~\` update, \`=\` adopt an existing resource of the same name, \`-\` delete) and every error; fix and rerun until it exits 0.
 5. \`sim workspaces source apply --dir . --yes\`: writes it and rewrites this directory from what was stored.
 
 ## Deletes
@@ -127,7 +129,7 @@ Secrets never appear in source: a workflow reads an environment variable as \`en
 
 - A column's object key stays bound to its stored column: to rename one keep the key and set \`name\` (\`email: column.string({ name: 'email_address' })\`). Changing the key drops the column and its cells.
 - Renaming a skill (its \`name\`) does not rewrite the workflows that use it: each agent keeps the name it stored until its \`skills\` list is next edited. The key is what binds them.
-- A workflow folder you did not edit is sent with only its base, and the server does not compare it with the stored workflow: unlike other kinds, an apply does not report that a workflow changed on the server since the get (the next get shows it). An edit of the folder is checked against its own \`.sim/base.json\` and refused as stale (exit 5) when the workflow changed since.
+- A workflow folder you did not edit is sent with only its base, and the server does not compare it with the stored workflow: unlike other kinds, an apply does not report that a workflow changed on the server since the get (\`status\`, which sends every folder whole, does, and the next get shows it). An edit of the folder is checked against its own \`.sim/base.json\` and refused as stale (exit 5) when the workflow changed since.
 - A knowledge base's \`embeddingModel\` is fixed when it is created: an apply that changes it is refused.
 - A document or workspace file over 10 MB, or whose name no directory can hold, is left out of a get and listed in \`.sim/skipped.json\`; an apply never writes or deletes it.
 - A hidden file (a name starting with a dot) under a kind folder is never sent: an apply names it in a warning.
@@ -347,6 +349,26 @@ export async function kindFolders(
 }
 
 /**
+ * Refuses a directory a workspace command would find nothing in, so a mistyped `--dir` or a
+ * workflow folder fails instead of passing with nothing checked or applied.
+ */
+export async function assertWorkspaceDir(dir: string): Promise<void> {
+  const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
+  if (typeof base.workflowId === 'string') {
+    throw new SimApiError(
+      `${dir} is a workflow source directory: use \`sim workflows source\` (check, apply) with --dir ${dir}.`,
+      0
+    )
+  }
+  const { present } = await kindFolders(dir, APPLY_ORDER)
+  if (present.length > 0) return
+  throw new SimApiError(
+    `${dir} holds no workspace source (no kind folder such as ${KIND_DIRS.workflow}/ or ${KIND_DIRS.table}/). Point --dir at a directory \`sim workspaces source get\` wrote, or write one with \`sim workspaces source get --dir ${dir}\`.`,
+    0
+  )
+}
+
+/**
  * A kind folder's marker, so an emptied folder keeps managing its kind; `null` for a kind one root
  * file declares, which a get always writes.
  */
@@ -375,14 +397,15 @@ export interface WorkspaceSubmission {
  * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
  * read, as is a directory listing more blobs than one holds, before any is: the server would
  * refuse the apply only after every one was staged. `limits` are the server's
- * (`WORKSPACE_SOURCE_LIMITS`) unless given.
+ * (`WORKSPACE_SOURCE_LIMITS`) unless given. With `whole`, every workflow folder is sent with its
+ * files, as a status's dry run sends them so the server compares each with the stored workflow.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
   written: Written,
-  options: { limits?: { maxBlobs: number; maxBlobBytes: number } } = {}
+  options: { whole?: boolean; limits?: { maxBlobs: number; maxBlobBytes: number } } = {}
 ): Promise<WorkspaceSubmission> {
   const { maxBlobs, maxBlobBytes } = options.limits ?? WORKSPACE_SOURCE_LIMITS
   const {
@@ -421,7 +444,7 @@ export async function readWorkspaceDir(
     const folder = path.split('/', 2).join('/')
     recorded.set(folder, (recorded.get(folder) ?? 0) + 1)
   }
-  for (const [key, folderPaths] of folders) {
+  for (const [key, folderPaths] of options.whole ? [] : folders) {
     const unchanged =
       recorded.get(workflowFolder(key)) === folderPaths.length &&
       folderPaths.every((path) => written.digests[path] === digest(files[path]))

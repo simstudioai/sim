@@ -555,16 +555,24 @@ function inWorkspace(key: string, path: string): string {
 
 /**
  * What the CLI last wrote into the workflow directory `dir`: its own `.sim/written.json`, or for a
- * workflow folder of a workspace directory without one, the workspace record's entries for the
- * folder (its `.sim/` records left out).
+ * workflow folder of a workspace directory, the workspace record's entries for the folder (its
+ * `.sim/` records left out). A write into such a folder records there and never in the folder, but
+ * a CLI from before that left a record of the folder's own. That record wins only when it is the
+ * later one: when the workspace record's digest of the folder's `.sim/base.json` is not the base on
+ * disk, a single-workflow write replaced the base after the workspace record was taken. Otherwise
+ * the folder's own record is stale and ignored.
  */
-async function readFolderWritten(dir: string): Promise<Written> {
+export async function readFolderWritten(dir: string): Promise<Written> {
   const own = await readWritten(dir)
-  if (Object.keys(own.digests).length > 0) return own
   const folder = await workspaceFolderOf(dir)
   if (!folder) return own
-  const prefix = inWorkspace(folder.key, '')
   const record = await readWritten(folder.root)
+  if (Object.keys(own.digests).length > 0) {
+    const base = await readSourceText(dir, SOURCE_BASE_FILE)
+    const recorded = record.digests[inWorkspace(folder.key, SOURCE_BASE_FILE)]
+    if (base !== null && recorded !== digest(base)) return own
+  }
+  const prefix = inWorkspace(folder.key, '')
   const inFolder = <T>(entries: Record<string, T>) =>
     Object.fromEntries(
       Object.entries(entries).flatMap(([path, value]) => {

@@ -763,6 +763,7 @@
       "dependencies": {
         "chalk": "5.6.2",
         "commander": "^11.1.0",
+        "diff": "9.0.0",
         "js-yaml": "4.3.2",
         "minisearch": "7.2.0",
         "proper-lockfile": "4.1.2",

@@ -107,6 +107,27 @@ export function resolveStoredHeaders(
 }
 
 /**
+ * Whether `row` holds exactly what `decl` declares: its settings, and each `stored()` header the
+ * value `from` holds under it when `from` is given (what a replace copies onto the server it
+ * creates). That is the server an interrupted replace created and never bound to its key.
+ */
+export function holdsDeclaration(
+  decl: McpServerDecl,
+  row: McpServerRow,
+  from?: McpServerRow
+): boolean {
+  const resolved = resolveStoredHeaders(decl, row)
+  if (resolved.missing.length > 0) return false
+  if (fingerprintOf(mcpCodec.canonical(resolved.decl)) !== storedFingerprint(row)) return false
+  if (!from) return true
+  const copied = storedHeaders(row)
+  const kept = storedHeaders(from)
+  return Object.entries(decl.headers ?? {}).every(
+    ([name, header]) => !isStoredHeader(header) || copied[name] === kept[name]
+  )
+}
+
+/**
  * The headers a write stores for `decl`: its text as declared, and each `stored()` header the
  * value `row` holds under it now. Refuses one it has none for (removed since the plan).
  */

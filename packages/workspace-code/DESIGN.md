@@ -161,7 +161,10 @@ required column and its values in one apply.
 `mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
 `kinds/mcp/adapter.ts`). Its id derives from its URL, so the URL is its identity: an unbound
 server at the declared URL is adopted, and a changed URL replaces it (created at the new URL, the
-old one deleted; `--allow-delete` when stored workflows call it). A header value is stored text in
+old one deleted; `--allow-delete` when stored workflows call it). A replace that stopped partway
+resumes: the server it created holds exactly the declaration and no key, so the next apply adopts
+it, deleting the old one if it is still there; a different server already at the new URL is
+`E_NAME_TAKEN`. A header value is stored text in
 which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
 text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
 by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
@@ -197,7 +200,15 @@ is the workflow's id. The three-way rule covers what the server stores (public A
 is outside the fingerprint and read on every apply against the server's `needsRedeployment`:
 `'draft'` deploys when the apply edits the workflow or the draft already differs, `'pinned'` never
 redeploys and reports `I_DEPLOY_DRAFT_NOT_LIVE`. A deploy's idempotency key hashes the deployment's
-fingerprint and the live version it replaces. A chat password is `env.NAME` (resolved at apply,
+fingerprint and the live version it replaces. The flag, the deploy and the chat are separate writes, so the
+apply checks what the chat write refuses (an identifier another chat holds,
+`E_DEPLOY_CHAT_IDENTIFIER`, at plan time and again before the first write; the password, the
+outputs, the auth mode) before it writes any of them. The base records each part's fingerprint
+(`x-parts`: `api`, `chat`), so a re-run after an apply stopped between them finds every part
+either the base's or the directory's and finishes the write (`partway` in `three-way.ts`), while a
+part that matches neither is still `E_APPLY_STALE`. A first deploy that stopped before its chat leaves a deployment with no
+base entry: when it holds the declared flag and no chat (or the declared one), the next apply
+finishes it instead of answering `E_APPLY_NO_BASE`. A chat password is `env.NAME` (resolved at apply,
 never stored in source) or `stored()`; the base records the variable under `x-passwordEnv`, since
 the server keeps only the encrypted value. Removing the file undeploys (`--allow-delete`), and the
 plan counts what stops. Whether or not the kind is managed, an apply that edits a deployed workflow

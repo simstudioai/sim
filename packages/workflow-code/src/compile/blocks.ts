@@ -585,10 +585,11 @@ interface BlockState {
   written: WrittenParam[]
   todos: Map<string, ObjectProperty>
   /**
-   * Params an `E_UNKNOWN_PARAM` did-you-mean already names: the misspelling is the missing
-   * required value, so `W_REQUIRED_MISSING` stays quiet for them.
+   * Params an error already explains the absence of, so `W_REQUIRED_MISSING` stays quiet for them:
+   * one an `E_UNKNOWN_PARAM` did-you-mean names (the misspelling is the missing value), and one
+   * written with a value that failed to compile.
    */
-  suggested: Set<string>
+  explained: Set<string>
   /**
    * Subblock ids written as `null` or `todo()`: stored-absent on purpose, so the editor default
    * never fills them.
@@ -804,7 +805,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     modes: {},
     written: [],
     todos: new Map(),
-    suggested: new Set(),
+    explained: new Set(),
     unset: new Set(),
     pendingFile: null,
   }
@@ -976,7 +977,7 @@ function compileWrittenParams(
     if (!field) {
       const alias = index.memberAliases.get(key)
       const near = alias ?? closest(key, index.fields.keys())
-      if (near !== null) state.suggested.add(near)
+      if (near !== null) state.explained.add(near)
       ctx.reporter.report(
         'E_UNKNOWN_PARAM',
         `${catalogBlock?.name ?? decl.key} has no param ${key}.`,
@@ -1002,7 +1003,11 @@ function compileWrittenParams(
       continue
     }
     writtenFields.add(field)
+    const reported = ctx.reporter.diagnostics.length
     compileField(ctx, state, field, property)
+    if (ctx.reporter.diagnostics.slice(reported).some((d) => d.severity === 'error')) {
+      state.explained.add(field.name)
+    }
   }
   return written
 }
@@ -1495,7 +1500,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
     }
   }
   for (const field of missingRequiredFields(index, values, (id) => Object.hasOwn(params, id))) {
-    if (state.suggested.has(field.name)) continue
+    if (state.explained.has(field.name)) continue
     const todo = state.todos.get(field.name)
     ctx.reporter.report(
       'W_REQUIRED_MISSING',
