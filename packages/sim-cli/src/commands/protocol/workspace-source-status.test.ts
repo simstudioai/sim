@@ -293,10 +293,21 @@ describe('workspaces source status', () => {
         { kind: 'table', key: 'deals', change: 'deleted' },
         { kind: 'table', key: 'leads', change: 'deleted' },
       ],
+      // An apply leaves an unmanaged kind alone, so recommending it would loop forever.
+      next: {
+        command: `sim workspaces source get --dir ${dir} --only tables --force`,
+        reason: expect.stringContaining('an apply leaves their resources alone'),
+      },
     })
 
     await run('status', '--only', 'workflows')
     expect(printed()).toMatchObject({ state: 'clean', local: [] })
+
+    write('workflows/ingest/workflow.ts', `${INGEST}// edited\n`)
+    await run('status')
+    expect(printed()).toMatchObject({
+      next: { command: `sim workspaces source apply --dir ${dir} --yes` },
+    })
   })
 
   it('reports a binary file the CLI wrote that is missing now as deleted', async () => {

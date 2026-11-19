@@ -18,6 +18,7 @@ import {
   changedFiles,
   isServerChangeFinding,
   localResourceChanges,
+  type SourceStatus,
   serverResourceChanges,
   sourceStatus,
 } from '@sim/workspace-code/status'
@@ -43,6 +44,7 @@ import {
   DIFF_HELP,
   type DiffReport,
   type FileDiff,
+  type NextStep,
   nextStep,
   pathFilter,
   printDiffReport,
@@ -191,6 +193,29 @@ function fitsWhole(files: Readonly<Record<string, string>>): boolean {
   )
 }
 
+/**
+ * The next command when every local change is a file of a kind whose folder (or root file) the
+ * directory no longer holds, so it stopped managing that kind: an apply leaves those resources
+ * alone and the files stay deleted here, while a get refuses to write them again. The get that
+ * restores the kind, with `--force` limited to it; `null` otherwise (a conflict, or a change an
+ * apply would write, comes first).
+ */
+function unmanagedNext(
+  status: SourceStatus,
+  managed: readonly WorkspaceKind[],
+  dir: string,
+  workspaceScope: string
+): NextStep | null {
+  if (status.conflicts.length > 0 || status.local.length === 0) return null
+  if (status.local.some((entry) => managed.includes(entry.kind))) return null
+  const folders = [...new Set(status.local.map((entry) => KIND_DIRS[entry.kind]))]
+  const named = folders.join(', ')
+  return {
+    command: `${PREFIX} get --dir ${dir} --only ${folders.join(',')} --force${workspaceScope}`,
+    reason: `${named} ${folders.length === 1 ? 'is' : 'are'} gone, so this directory no longer manages ${folders.length === 1 ? 'that kind' : 'those kinds'} and an apply leaves their resources alone: this get writes ${folders.length === 1 ? 'it' : 'them'} back. To delete the resources instead, recreate ${folders.length === 1 ? 'it' : 'them'} without them (an emptied folder keeps a .gitkeep) and apply with --allow-delete.`,
+  }
+}
+
 interface StatusOptions {
   dir: string
   only?: string
@@ -226,14 +251,15 @@ export function attachWorkspaceSourceStatus(source: Command): void {
         let data: ApplyData | null = null
         let workspaceId = local.readFrom
         // The scope every recommended command carries, so it acts on what this status showed.
-        let scope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
+        const onlyScope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
+        let workspaceScope = ''
         if (!options.offline) {
           const connection = connect()
           const target = targetWorkspace(connection, local.readFrom)
           workspaceId = target
           const { profile } = connection
           if (profile.sources.workspaceId === 'flag' || profile.workspaceId !== target) {
-            scope += ` --workspace ${target}`
+            workspaceScope = ` --workspace ${target}`
           }
           let submission = local.submission
           if (!fitsWhole(submission.files)) {
@@ -284,15 +310,17 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           ...(note ? { note } : {}),
           ...status,
           plan,
-          next: nextStep(status, {
-            prefix: PREFIX,
-            dir: options.dir,
-            getArgs: '',
-            server,
-            errors: plan?.errors ?? 0,
-            deletes: data !== null && destructiveChanges(data.plan) > 0,
-            scope,
-          }),
+          next:
+            unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope) ??
+            nextStep(status, {
+              prefix: PREFIX,
+              dir: options.dir,
+              getArgs: '',
+              server,
+              errors: plan?.errors ?? 0,
+              deletes: data !== null && destructiveChanges(data.plan) > 0,
+              scope: `${onlyScope}${workspaceScope}`,
+            }),
         }
         printStatusReport(
           output,
