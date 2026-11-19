@@ -259,11 +259,8 @@ describe('workspace source apply', () => {
       const first = await apply(workspaceId, STARTER)
       const second = await apply(
         workspaceId,
-        {
-          ...STARTER,
-          'tables/leads.ts': LEADS.replace("'won'", "'won', 'lost'"),
-        },
-        { base: first.base }
+        { 'tables/leads.ts': LEADS.replace("'won'", "'won', 'lost'") },
+        { base: first.base, kinds: ['table'] }
       )
 
       expect(first.applyId).toEqual(expect.any(String))
