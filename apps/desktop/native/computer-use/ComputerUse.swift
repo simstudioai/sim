@@ -90,7 +90,7 @@ func remindersStore() throws -> EKEventStore {
 /// Mac's local time, as typing it into the app would be.
 func dueComponents(_ text: String, _ field: String = "Due") throws -> DateComponents {
     var calendar = Calendar(identifier: .gregorian)
-    if text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+    if text.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil {
         let parts = text.split(separator: "-").compactMap { Int($0) }
         let components = DateComponents(calendar: calendar, year: parts[0], month: parts[1], day: parts[2])
         guard components.isValidDate else { throw invalidCommand("\(field) is not a real date.") }
@@ -132,7 +132,8 @@ func localGregorian() -> Calendar {
     var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
     return calendar
 }
-let isoDateTimePattern = try! NSRegularExpression(pattern: #"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:(Z)|([+-])(\d{2}):(\d{2}))?$"#)
+// [0-9], not \d: ICU's \d also matches other scripts' digits, which Int() cannot read.
+let isoDateTimePattern = try! NSRegularExpression(pattern: #"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.[0-9]{1,9})?)?(?:(Z)|([+-])([0-9]{2}):([0-9]{2}))?$"#)
 /// An ISO 8601 date-time; without an offset it is this Mac's local time. Fractions of a second do not
 /// matter to a calendar item, so they are dropped. Every field must be in range: `ISO8601DateFormatter`
 /// rolls Feb 30 into March and accepts any offset, so a zoned time is checked part by part.
@@ -143,7 +144,7 @@ func isoDateTime(_ text: String) -> Date? {
     var zone: TimeZone?
     if part(7) != nil { zone = TimeZone(secondsFromGMT: 0) }
     if let sign = part(8), let hours = number(9), let minutes = number(10) {
-        guard hours <= 14, minutes < 60 else { return nil }
+        guard minutes < 60, hours < 14 || (hours == 14 && minutes == 0) else { return nil }
         zone = TimeZone(secondsFromGMT: (sign == "-" ? -1 : 1) * (hours * 3600 + minutes * 60))
     }
     guard let zone else {

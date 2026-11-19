@@ -42,11 +42,12 @@ import AppKit
         precondition(timed.hour != nil && timed.minute != nil && timed.second == 45)
         let localDue = try dueComponents("2027-05-04T09:30")
         precondition(localDue.hour == 9 && localDue.minute == 30)
-        for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4", "2027-02-30T09:00:00Z", "2027-02-29T09:00:00.5+01:00", "2027-05-04T24:00:00Z", "2027-05-04T09:00:00+25:00", "2027-05-04T09:00:00+05:99"] {
+        for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4", "2027-02-30T09:00:00Z", "2027-02-29T09:00:00.5+01:00", "2027-05-04T24:00:00Z", "2027-05-04T09:00:00+25:00", "2027-05-04T09:00:00+05:99", "2027-05-04T09:00:00+14:59", "2027-05-04T09:00:00-14:30", "2027-0٥-04", "2027-05-04T1٠:00Z"] {
             expectError("invalid_arguments") { _ = try dueComponents(due) }
         }
         precondition(isoDateTime("2028-02-29T09:00Z") == Date(timeIntervalSince1970: 1_835_427_600))
         precondition(isoDateTime("2027-05-04T09:00:00+05:30") == Date(timeIntervalSince1970: 1_809_401_400))
+        precondition(isoDateTime("2027-05-04T09:00:00+14:00") == Date(timeIntervalSince1970: 1_809_370_800))
         expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
         expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }

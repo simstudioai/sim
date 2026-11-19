@@ -237,7 +237,11 @@ const CommandTitle = z
 /** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset. */
 const ISO_DATE_OR_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 const RealDate = z.iso.date();
-const RealDateTime = z.iso.datetime({ local: true, offset: true });
+// Zod requires seconds beside a zone unless precision is minutes, and the shape allows either.
+const RealDateTime = z.union([
+  z.iso.datetime({ local: true, offset: true }),
+  z.iso.datetime({ local: true, offset: true, precision: -1 }),
+]);
 /** The shape the model sees, refined to a day and time that exist, so Feb 30 never reaches the user's confirmation. */
 const DateOrDateTime = z
   .string()
