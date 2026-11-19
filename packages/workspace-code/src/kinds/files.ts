@@ -6,9 +6,10 @@
  * A path is refused when no workspace file could hold it or when two paths would land on one file
  * on a case-insensitive disk, so a directory always round-trips through a get on any machine.
  */
-import type { Json } from '@sim/workflow-code'
+import { hasSuspiciousCharacter, type Json } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import type { ResourceFingerprint } from '../base'
+import { SUSPICIOUS_CHARACTER_HINT } from '../declaration/fields'
 import {
   diagnostic,
   type WorkspaceDiagnostic,
@@ -151,6 +152,16 @@ function groupFiles(paths: readonly string[]) {
     if (groups.has(key)) {
       diagnostics.push(pathFinding('E_FILE_PATH_COLLISION', path, `${path} is listed twice.`))
       continue
+    }
+    if (hasSuspiciousCharacter(key)) {
+      diagnostics.push(
+        pathFinding(
+          'W_DECL_SUSPICIOUS_CHARACTER',
+          path,
+          `${path} holds an invisible bidi control or zero-width character, so it reads differently from its name.`,
+          'Rename it so the path shows every character it holds.'
+        )
+      )
     }
     groups.set(key, [path])
   }

@@ -180,4 +180,38 @@ describe('toolCodec', () => {
       'E_KEY_INVALID',
     ])
   })
+
+  it('prints code the server keeps as stored(), with no code file, and reads stored() back', () => {
+    const printed = toolCodec.print('lookup', {
+      title: 'Lookup',
+      schema: {},
+      code: { stored: 'hash' },
+    })
+    expect(Object.keys(printed.text)).toEqual(['tools/lookup.ts'])
+    expect(printed.text['tools/lookup.ts']).toContain('code: stored()')
+    expect(printed.text['tools/lookup.ts']).toContain(
+      "import { defineTool, stored } from '@sim/workflow-sdk/workspace'"
+    )
+    const parsed = parse(printed.text)
+    expect(parsed.diagnostics).toEqual([])
+    expect(parsed.decl?.code).toEqual({ stored: null })
+  })
+
+  it.each([
+    [
+      'a code file',
+      (code: string) => ({ 'tools/lookup.ts': DECLARATION, 'tools/lookup.js': code }),
+    ],
+    [
+      'an inline string',
+      (code: string) => ({
+        'tools/lookup.ts': DECLARATION.replace("codeFile('./lookup.js')", JSON.stringify(code)),
+      }),
+    ],
+  ])('warns on code in %s holding a literal credential, and keeps it', (_label, files) => {
+    const code = `return '${['gh', 'p_', 'a'.repeat(36)].join('')}'`
+    const parsed = parse(files(code))
+    expect(parsed.diagnostics.map((finding) => finding.code)).toEqual(['W_TOOL_LITERAL_SECRET'])
+    expect(parsed.decl?.code).toBe(code)
+  })
 })

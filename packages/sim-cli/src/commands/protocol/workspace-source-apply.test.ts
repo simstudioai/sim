@@ -19,6 +19,7 @@ import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { runWorkspaceSource } from '../../test/workspace-source-command'
 import { digest } from './source-dir'
+import { readWorkspaceDir } from './workspace-source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
@@ -858,6 +859,20 @@ describe('workspaces source apply', () => {
       message: expect.stringContaining('files/huge.bin'),
     })
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('refuses a directory listing more binary files than one holds before hashing any, exit 7', async () => {
+    write('files/a.bin', 'a')
+    write('knowledge/kb/docs/b.txt', 'b')
+    write('files/c.bin', 'c')
+    const limits = { ...WORKSPACE_SOURCE_LIMITS, maxBlobs: 2 }
+
+    await expect(
+      readWorkspaceDir(dir, undefined, 'ws_local', { digests: {}, stats: {} }, { limits })
+    ).rejects.toMatchObject({ exitCode: 7, message: expect.stringContaining('3 binary files') })
+    await expect(
+      readWorkspaceDir(dir, ['table'], 'ws_local', { digests: {}, stats: {} }, { limits })
+    ).resolves.toMatchObject({ blobs: [] })
   })
 
   it('warns that a hidden file under a kind folder is not sent', async () => {

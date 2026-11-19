@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
+import { digest } from './source-dir'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -273,5 +274,30 @@ describe('sim workflows source get --dir', () => {
     expect(request).toHaveBeenCalledTimes(1)
     expect(request.mock.calls[0][1].query).toMatchObject({ functionCode: 'inline' })
     expect(existsSync(join(outDir, 'workflow.ts'))).toBe(false)
+  })
+
+  it('in a workflow folder of a workspace directory, reads and keeps the workspace record of what it wrote', async () => {
+    const folder = join(rootDir, 'workflows/w')
+    mkdirSync(join(folder, '.sim'), { recursive: true })
+    mkdirSync(join(rootDir, '.sim'))
+    const before = '// @sim-sdk 1\n// before\n'
+    writeFileSync(join(folder, 'workflow.ts'), before)
+    writeFileSync(join(folder, '.sim/base.json'), JSON.stringify(source().data.base))
+    writeFileSync(
+      join(rootDir, '.sim/base.json'),
+      JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    )
+    writeFileSync(
+      join(rootDir, '.sim/written.json'),
+      JSON.stringify({ version: 1, files: { 'workflows/w/workflow.ts': digest(before) } })
+    )
+    serve()
+
+    await get('--dir', folder)
+
+    expect(readFileSync(join(folder, 'workflow.ts'), 'utf8')).toBe('// @sim-sdk 1\n')
+    expect(existsSync(join(folder, '.sim/written.json'))).toBe(false)
+    const record = JSON.parse(readFileSync(join(rootDir, '.sim/written.json'), 'utf8'))
+    expect(record.files['workflows/w/workflow.ts']).toBe(digest('// @sim-sdk 1\n'))
   })
 })

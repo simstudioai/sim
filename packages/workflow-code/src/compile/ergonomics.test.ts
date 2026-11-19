@@ -372,6 +372,37 @@ describe('header, names and hand-written references', () => {
     expect(quoteString('Pay\u202Eout\u200B')).toBe("'Pay\\u202Eout\\u200B'")
   })
 
+  it('warns on an invisible bidi or zero-width character in the workflow name', () => {
+    const text = source("  api('A', { url: 'x' })").replace(
+      "workflow('Test'",
+      "workflow('Pay\\u202Eout'"
+    )
+    expect(codes(run(text))).toEqual(['W_SUSPICIOUS_CHARACTER'])
+  })
+
+  it('refuses two block names that differ only by Unicode normalization, keeping each as written', () => {
+    const result = run(
+      source("  api('Caf\\u00E9', { url: 'x' })\n  api('Cafe\\u0301', { url: 'y' })")
+    )
+    expect(codes(result)).toEqual(['E_LOOKALIKE_NAME'])
+    expect(result.diagnostics[0]?.related?.[0]?.message).toContain('Caf\u00E9')
+  })
+
+  it('only warns on look-alike block names the stored workflow already has, and stores both as written', () => {
+    const text = source("  api('Caf\\u00E9', { url: 'x' })\n  api('Cafe\\u0301', { url: 'y' })")
+    const result = compileWorkflow({
+      entry: { path: 'workflow.ts', text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      knownKeys: new Set(['caf\u00E9', 'cafe\u0301']),
+    })
+    expect(codes(result)).toEqual(['W_LOOKALIKE_NAME'])
+    expect(Object.keys(result.workflow?.blocks ?? {}).sort()).toEqual(
+      ['caf\u00E9', 'cafe\u0301'].sort()
+    )
+  })
+
   it.each([
     ['an Arabic letter mark', 0x061c],
     ['a Mongolian vowel separator', 0x180e],

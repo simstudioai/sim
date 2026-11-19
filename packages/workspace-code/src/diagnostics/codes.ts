@@ -40,6 +40,12 @@ const DECLARATION_CODES = [
   'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   'E_KEY_INVALID',
+  /**
+   * A resource name, a skill name, a workspace file path or a knowledge document name holds a
+   * bidi control or zero-width character, so it reads differently from what it stores. The
+   * workflow-file counterpart is `W_SUSPICIOUS_CHARACTER`.
+   */
+  'W_DECL_SUSPICIOUS_CHARACTER',
 ] as const
 
 /** `.sim/base.json`. */
@@ -78,7 +84,7 @@ const TABLE_CODES = [
   'E_TABLE_COLUMN_NAME',
   /** Two columns resolve to one name. */
   'E_TABLE_DUPLICATE_COLUMN',
-  /** More columns than a table may hold. */
+  /** More columns than a table may hold: a size limit, classed like `E_LIMIT_EXCEEDED`. */
   'E_TABLE_TOO_MANY_COLUMNS',
   /** A select column without options, an option declared twice, or options on another type. */
   'E_TABLE_OPTIONS',
@@ -102,10 +108,17 @@ const TOOL_CODES = [
   /** The schema is not a function declaration a custom tool may store. */
   'E_TOOL_SCHEMA',
   /**
-   * `code` is not `codeFile('./<key>.js')` or a string, or its code file is missing or does not
+   * `code` is not `codeFile('./<key>.js')`, a string or `stored()`, or its code file is missing or does not
    * parse.
    */
   'E_TOOL_CODE',
+  /** `code: stored()` for a tool the server holds no code of (none stored under the key or title). */
+  'E_TOOL_STORED_MISSING',
+  /**
+   * The code holds what looks like a literal credential (`holdsSecret`, as for function code): a
+   * get prints it as `stored()`, and code a directory writes with one applies with this warning.
+   */
+  'W_TOOL_LITERAL_SECRET',
 ] as const
 
 /** Skills. */
@@ -295,7 +308,8 @@ export function refusalClass(
   if (
     present.has('E_LIMIT_EXCEEDED') ||
     present.has('E_PLAN_TOO_LARGE') ||
-    present.has('E_FILE_TOO_LARGE')
+    present.has('E_FILE_TOO_LARGE') ||
+    present.has('E_TABLE_TOO_MANY_COLUMNS')
   ) {
     return 'payload_too_large'
   }

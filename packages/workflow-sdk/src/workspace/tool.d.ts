@@ -25,10 +25,12 @@
  *
  * The code file runs with each parameter as a variable; `$env.NAME` reads an environment variable
  * by name. The key is the tool's identity: a workflow names it as `customTool('lookup-order')`.
+ * Code holding a literal credential prints as `code: stored()`, which keeps the code the server
+ * holds without showing it.
  */
 import type { CodeFileRef, Json } from '@sim/workflow-sdk'
 
-export { codeFile } from '@sim/workflow-sdk'
+export { codeFile, stored } from '@sim/workflow-sdk'
 
 /** JSON as an object literal writes it: an optional member may be absent. */
 type SchemaJson = Json | readonly SchemaJson[] | { readonly [key: string]: SchemaJson | undefined }
@@ -57,7 +59,7 @@ export interface ToolDeclaration {
   /** The tool's display title, unique in the workspace. */
   title: string
   schema: ToolSchema
-  /** `codeFile('./<key>.js')`, or the code inline as a string. */
+  /** `codeFile('./<key>.js')`, the code inline as a string, or `stored()` to keep the stored code. */
   code: CodeFileRef | string
 }
 

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
@@ -236,6 +236,47 @@ describe('workflows source status', () => {
       server: 'offline',
       local: [{ files: [{ path: 'functions/score.js', change: 'edited' }] }],
     })
+  })
+  it.each([
+    [
+      'the workspace record, which records the folder base on disk, over a stale record of its own',
+      true,
+      [],
+    ],
+    [
+      'a record of its own when the workspace record predates the folder base (an older CLI wrote it)',
+      false,
+      [{ path: 'functions/score.js', change: 'edited' }],
+    ],
+  ])('in a workspace folder, reads %s', async (_label, rootCurrent, files) => {
+    const ws = join(root, 'ws')
+    const folder = join(ws, 'workflows/score')
+    write(
+      ws,
+      '.sim/base.json',
+      JSON.stringify({ version: 1, workspaceId: WORKSPACE_ID, resources: {} })
+    )
+    writeWorkflowDir(folder, { at: ws, prefix: 'workflows/score/' })
+    const rootRecord = JSON.parse(readFileSync(join(ws, '.sim/written.json'), 'utf8'))
+    rootRecord.files['workflows/score/.sim/base.json'] = rootCurrent
+      ? digest(JSON.stringify(BASE))
+      : digest('an older base')
+    write(ws, '.sim/written.json', JSON.stringify(rootRecord))
+    // A nested record an older CLI left: score.js as it was before the last write.
+    write(
+      folder,
+      '.sim/written.json',
+      JSON.stringify({
+        version: 1,
+        files: { 'workflow.ts': digest(ENTRY), 'functions/score.js': digest('return 0\n') },
+      })
+    )
+
+    await run(folder, 'status', '--offline')
+
+    expect(printed()).toMatchObject({ server: 'offline' })
+    const local = (printed().local ?? []) as Array<{ files: unknown[] }>
+    expect(local.flatMap((entry) => entry.files)).toEqual(files)
   })
 })
 

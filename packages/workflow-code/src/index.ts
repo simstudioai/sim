@@ -101,7 +101,7 @@ export type {
   Value,
 } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
-export { printKey, quoteString } from './print/strings'
+export { hasSuspiciousCharacter, printKey, quoteString } from './print/strings'
 export { invertRecord, parseJsonContainer, setOrDelete, setOwn } from './records'
 export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS } from './sdk'
 export { holdsSecret } from './secrets'

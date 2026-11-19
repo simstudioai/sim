@@ -59,8 +59,12 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
   a block prints through `block()`.
 - Names: a non-empty string literal (`E_NAME_NOT_LITERAL`, `E_EMPTY_NAME`), unique by key
   (`E_DUPLICATE_NAME`), not a reserved key (`loop`, `parallel`, `variable`: `E_RESERVED_NAME`). A
-  name with a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER`; the printer escapes
-  such characters (U+202E prints as `\u202E`) in every string.
+  name with a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER` (the workflow's own
+  name too); the printer escapes such characters (U+202E prints as `\u202E`) in every string. Two
+  names whose keys differ only by Unicode normalization (`café` precomposed and decomposed) are
+  `E_LOOKALIKE_NAME`: the runtime binds keys by their bytes, so they would be two blocks no reader
+  can tell apart. A pair the stored workflow already holds is `W_LOOKALIKE_NAME`. Keys are compared
+  NFC-normalized and stored as written.
 - `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
   `body` in `data` (a literal or text), `status` as text (a number literal prints for a canonical
   integer), `headers` as header-table rows. Any other key is `E_UNKNOWN_PARAM`. The printer uses it
@@ -366,7 +370,9 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |
 | `E_EMPTY_NAME` | An empty block name. |
 | `E_NAME_NOT_LITERAL` | A block or workflow name that is not a string literal. |
-| `W_SUSPICIOUS_CHARACTER` | A name holds a bidi control or zero-width character. |
+| `E_LOOKALIKE_NAME` | Two block names whose keys differ only by Unicode normalization (NFC vs NFD). |
+| `W_LOOKALIKE_NAME` | A look-alike pair the stored workflow already holds, kept so it round-trips. |
+| `W_SUSPICIOUS_CHARACTER` | A block or workflow name holds a bidi control or zero-width character. |
 | `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean, says to write the value for a const refused for holding one, and points `process.env` at `env.NAME`. |
 | `E_OUT_OF_SCOPE` | A ref or wiring into a sibling subflow's child. |
 | `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |

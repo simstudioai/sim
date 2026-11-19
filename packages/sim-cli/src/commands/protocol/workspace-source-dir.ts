@@ -421,16 +421,19 @@ export interface WorkspaceSubmission {
  * workspace still sends every workflow it creates. `written` is `.sim/written.json` as the command
  * read it. Blobs are hashed as streams (reusing the digest `written` records for one whose size and
  * modification time are unchanged), and one over the size limit is refused (exit 7) before it is
- * read. With `whole`, every workflow folder is sent with its files, as a status's dry run sends
- * them so the server compares each with the stored workflow.
+ * read, as is a directory listing more blobs than one holds, before any is: the server would
+ * refuse the apply only after every one was staged. `limits` are the server's
+ * (`WORKSPACE_SOURCE_LIMITS`) unless given. With `whole`, every workflow folder is sent with its
+ * files, as a status's dry run sends them so the server compares each with the stored workflow.
  */
 export async function readWorkspaceDir(
   dir: string,
   only: readonly WorkspaceKind[] | undefined,
   workspaceId: string,
   written: Written,
-  options: { whole?: boolean } = {}
+  options: { whole?: boolean; limits?: { maxBlobs: number; maxBlobBytes: number } } = {}
 ): Promise<WorkspaceSubmission> {
+  const { maxBlobs, maxBlobBytes } = options.limits ?? WORKSPACE_SOURCE_LIMITS
   const {
     present: kinds,
     paths,
@@ -439,6 +442,16 @@ export async function readWorkspaceDir(
     dir,
     APPLY_ORDER.filter((kind) => !only || only.includes(kind))
   )
+  const blobPaths = paths.filter(isBlobPath)
+  if (blobPaths.length > maxBlobs) {
+    throw new SimApiError(
+      `The directory lists ${blobPaths.length} binary files (files/ and knowledge documents), over the ${maxBlobs}-file limit; nothing was sent.`,
+      0,
+      'SOURCE_TOO_LARGE',
+      undefined,
+      SOURCE_TOO_LARGE_EXIT_CODE
+    )
+  }
   const textPaths = paths.filter((path) => !isBlobPath(path))
   const texts = await mapWithConcurrency(textPaths, FILE_CONCURRENCY, (path) =>
     readSourceText(dir, path)
@@ -473,15 +486,15 @@ export async function readWorkspaceDir(
   const verified = new Set<string>()
   const hashed = new Map<string, StatDigest>()
   const blobs = await mapWithConcurrency(
-    paths.filter(isBlobPath),
+    blobPaths,
     FILE_CONCURRENCY,
     async (path): Promise<BlobEntry> => {
       const file = await checkedPath(root, path, verified)
       const current = await stat(file)
       const { size } = current
-      if (size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes) {
+      if (size > maxBlobBytes) {
         throw new SimApiError(
-          `${path} is ${size} bytes, over the ${WORKSPACE_SOURCE_LIMITS.maxBlobBytes}-byte limit.`,
+          `${path} is ${size} bytes, over the ${maxBlobBytes}-byte limit.`,
           0,
           'SOURCE_TOO_LARGE',
           undefined,
