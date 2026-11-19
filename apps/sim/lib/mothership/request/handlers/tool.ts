@@ -1094,6 +1094,7 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
+    const waitStartedAt = Date.now()
     const ownTimeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
     // Even past its deadline a wait lasts long enough to read a result the client already saved.
     const timeoutMs = Math.max(
@@ -1216,6 +1217,12 @@ async function dispatchToolExecution(
         if (completion) {
           span.setAttribute(TraceAttr.ToolOutcome, completion.status)
         }
+        logger.info('Client tool execution settled', {
+          toolCallId,
+          toolName,
+          outcome: completion?.status ?? 'missing',
+          durationMs: Date.now() - waitStartedAt,
+        })
         const backgroundIsSuccess = toolName === 'run_workflow' && args?.async === true
         handleClientCompletion(context, toolCall, toolCallId, completion, backgroundIsSuccess)
         await emitSyntheticToolResult(
