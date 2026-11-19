@@ -34,7 +34,13 @@ import {
 } from '../declaration/fields'
 import { printDeclaration } from '../declaration/print'
 import { readDeclaration } from '../declaration/read'
-import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
+import {
+  diagnostic,
+  MAX_FINDINGS_PER_FILE,
+  resourceOf,
+  type WorkspaceDiagnostic,
+  wholeFile,
+} from '../diagnostics'
 import { type BlobEntry, isWellFormedBlob, KIND_DIRS, type KindCodec } from '../kind'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 import { filePathProblem, foldedFileKey } from './files'
@@ -230,6 +236,22 @@ function fileFinding(
   })
 }
 
+/**
+ * `findings` about a knowledge base's document files, past {@link MAX_FINDINGS_PER_FILE} folded
+ * into one `E_LIMIT_EXCEEDED`: a folder of bad documents costs no more than its first hundred.
+ */
+function cappedFileFindings(key: string, findings: WorkspaceDiagnostic[]): WorkspaceDiagnostic[] {
+  if (findings.length <= MAX_FINDINGS_PER_FILE) return findings
+  return [
+    ...findings.slice(0, MAX_FINDINGS_PER_FILE),
+    diagnostic(
+      'E_LIMIT_EXCEEDED',
+      `Stopped after ${MAX_FINDINGS_PER_FILE} findings about the files in knowledge/${key}/.`,
+      { kind: 'knowledge-base', key, hint: 'Fix these and apply again to see the rest.' }
+    ),
+  ]
+}
+
 function readDocs(
   key: string,
   blobs: readonly BlobEntry[],
@@ -311,10 +333,11 @@ function parseKnowledgeBase(
     ...finding,
     ...resource,
   }))
+  const fileFindings: WorkspaceDiagnostic[] = []
   // A document sent as text would be missing from `docs`, which reads as a request to delete it.
   for (const path of Object.keys(text)) {
     if (path === file) continue
-    diagnostics.push(
+    fileFindings.push(
       fileFinding(
         'E_DECL_SHAPE',
         key,
@@ -323,7 +346,8 @@ function parseKnowledgeBase(
       )
     )
   }
-  const docs = readDocs(key, blobs, diagnostics)
+  const docs = readDocs(key, blobs, fileFindings)
+  diagnostics.push(...cappedFileFindings(key, fileFindings))
   if (read.value === undefined) return { diagnostics }
   const report = fieldReporter(source, read.spans, diagnostics, resource)
   const value = readObject(read.value, '', report, `${CALLEE}()`)

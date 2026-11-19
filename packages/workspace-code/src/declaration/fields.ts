@@ -39,9 +39,10 @@ const SECRET_VALUE_CODES: ReadonlySet<WorkspaceDiagnosticCode> = new Set([
 ])
 
 /**
- * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once
- * `diagnostics` holds `MAX_FINDINGS_PER_FILE` findings it records one `E_LIMIT_EXCEEDED` (with a
- * span but no frame, since the value it points at may be a secret) and drops the rest.
+ * A {@link FieldReport} that appends to `diagnostics`, located through the reader's spans. Once it
+ * has appended `MAX_FINDINGS_PER_FILE` findings (findings already in `diagnostics`, such as ones
+ * about other files of the resource, do not count) it records one `E_LIMIT_EXCEEDED` (with a span
+ * but no frame, since the value it points at may be a secret) and drops the rest.
  */
 export function fieldReporter(
   text: string,
@@ -51,6 +52,7 @@ export function fieldReporter(
 ): FieldReport {
   let locator: ReturnType<typeof sourceLocator> | undefined
   let capped = false
+  const start = diagnostics.length
   return (code, pointer, message, hint) => {
     if (capped) return
     let at = pointer
@@ -59,7 +61,7 @@ export function fieldReporter(
       at = at.slice(0, Math.max(0, at.lastIndexOf('/')))
       span = spans.get(at)
     }
-    if (diagnostics.length >= MAX_FINDINGS_PER_FILE) {
+    if (diagnostics.length - start >= MAX_FINDINGS_PER_FILE) {
       capped = true
       diagnostics.push(findingLimitReached({ ...resource, ...(span ? { span } : {}) }))
       return
