@@ -97,6 +97,14 @@ export function orderDeclarations(ctx: PrintContext): void {
       dependencies.push({ before: edge.from, after: edge.to, hard: false })
     }
   }
+  /** Each dependency joins two members of one scope, so each scope is handed only its own. */
+  const dependenciesOf = new Map<BlockKey | null, OrderDependency[]>()
+  for (const dependency of dependencies) {
+    const scope = ctx.parentOf.get(dependency.before) ?? null
+    const list = dependenciesOf.get(scope)
+    if (list) list.push(dependency)
+    else dependenciesOf.set(scope, [dependency])
+  }
   const membersOf = new Map<BlockKey | null, BlockKey[]>()
   for (const key of ctx.blocks.keys()) {
     const parent = ctx.parentOf.get(key) ?? null
@@ -115,7 +123,7 @@ export function orderDeclarations(ctx: PrintContext): void {
           order: getOwn(ctx.hints.blocks, key)?.order,
         }
       }),
-      dependencies
+      dependenciesOf.get(scope) ?? []
     )
     ctx.scopeMembers.set(scope, order)
     order.forEach((key, index) => {

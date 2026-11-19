@@ -491,7 +491,7 @@ export class EdgeCollector {
  * Tarjan's strongly connected components, iterative so a long chain cannot overflow the stack.
  * Each component lists its keys; a single key is a component whether or not it has a self-loop.
  */
-function stronglyConnected(
+export function stronglyConnected(
   keys: readonly string[],
   successors: (key: string) => readonly string[]
 ): string[][] {
@@ -503,7 +503,10 @@ function stronglyConnected(
   let counter = 0
   for (const root of keys) {
     if (index.has(root)) continue
-    const work: Array<{ key: string; next: number }> = [{ key: root, next: 0 }]
+    /** Each frame holds its successors, read once when the key is first visited. */
+    const work: Array<{ key: string; next: number; targets: readonly string[] }> = [
+      { key: root, next: 0, targets: successors(root) },
+    ]
     index.set(root, counter)
     low.set(root, counter)
     counter++
@@ -512,9 +515,8 @@ function stronglyConnected(
     while (work.length > 0) {
       const frame = work[work.length - 1]
       if (!frame) break
-      const targets = successors(frame.key)
-      if (frame.next < targets.length) {
-        const target = targets[frame.next++]
+      if (frame.next < frame.targets.length) {
+        const target = frame.targets[frame.next++]
         if (target === undefined) continue
         if (!index.has(target)) {
           index.set(target, counter)
@@ -522,7 +524,7 @@ function stronglyConnected(
           counter++
           stack.push(target)
           onStack.add(target)
-          work.push({ key: target, next: 0 })
+          work.push({ key: target, next: 0, targets: successors(target) })
         } else if (onStack.has(target)) {
           low.set(frame.key, Math.min(low.get(frame.key) ?? 0, index.get(target) ?? 0))
         }

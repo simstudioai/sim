@@ -641,6 +641,27 @@ describe('errors, each with its code, location and hint', () => {
       undefined,
     ],
     [
+      'a tool param the builder pins',
+      "const a = agent('A', { model: 'm', tools: [slack.tool.sendMessage({ operation: 'list_channels', text: 'x' })] })",
+      'E_FIXED_PARAM',
+      'operation',
+      'Remove operation; the method name pins it.',
+    ],
+    [
+      "a tool's operation option the method pins",
+      "const a = agent('A', { model: 'm', tools: [slack.tool.sendMessage({ text: 'x' }, { operation: 'list_channels' })] })",
+      'E_FIXED_PARAM',
+      'operation',
+      'Remove operation; the method name pins it.',
+    ],
+    [
+      'a tool param in the builder fixed values',
+      "const a = agent('A', { model: 'm', tools: [trigger.gmail.tool.poller({ selectedTriggerId: 'other' })] })",
+      'E_FIXED_PARAM',
+      'selectedTriggerId',
+      'Remove selectedTriggerId; the method name pins it.',
+    ],
+    [
       'two blocks whose names normalize alike',
       "const a = api('My Block', { url: 'x' })\nconst b = api('my.block', { url: 'y' })",
       'E_DUPLICATE_NAME',

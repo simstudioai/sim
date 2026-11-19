@@ -16,7 +16,7 @@
  */
 
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
-import { canonicalActivityInputs, isInactive } from '../catalog/activity'
+import { canonicalActivityInputs, isInactive, withStoredValue } from '../catalog/activity'
 import { type CanonicalGroup, isCanonicalPair } from '../catalog/canonical-index'
 import { serializedCanonicalIndex } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
@@ -129,22 +129,12 @@ function restorePairs(
 }
 
 /**
- * Whether `id` stays inactive once prev's value is back in it. A field whose activity hangs on its
- * own value (a standalone advanced field runs only while non-empty) is inactive only because
- * source emptied it, and restoring prev's value would run what source cleared.
+ * Restores prev's value into each param inactive under the target's values. A value goes back
+ * only while its field stays inactive with it: a field whose activity hangs on its own value (a
+ * standalone advanced field runs only while non-empty) is inactive only because source emptied
+ * it, and restoring prev's value would run what source cleared. A restore can change another
+ * field's activity, so passes repeat until nothing changes.
  */
-function staysInactiveWithPrev(
-  next: CanonicalBlock,
-  id: SubBlockId,
-  restored: CanonicalParam | undefined,
-  declared: CatalogBlock,
-  catalog: BlockCatalog
-): boolean {
-  const params = { ...next.params }
-  setParam(params, id, restored)
-  return inactiveSet({ ...next, params }, declared, catalog)(id)
-}
-
 function restoreInactive(
   next: CanonicalBlock,
   prev: CanonicalBlock,
@@ -153,14 +143,19 @@ function restoreInactive(
 ): void {
   for (let pass = 0; pass < MAX_RESTORE_PASSES; pass += 1) {
     const before = { ...next.params }
-    const inactive = inactiveSet(next, declared, catalog)
+    const passInputs = canonicalActivityInputs(next, declared, catalog)
+    /** `passInputs` with this pass's restores applied, as `next.params` now holds them. */
+    let current = passInputs
     const ids = new Set([...Object.keys(next.params), ...Object.keys(prev.params)])
     for (const id of ids) {
-      if (!inactive(id)) continue
+      if (!isInactive(id, passInputs)) continue
       const restored = getOwn(prev.params, id)
       if (deepEqual(getOwn(next.params, id), restored)) continue
-      if (staysInactiveWithPrev(next, id, restored, declared, catalog)) {
+      const value = restored?.kind === 'tools' ? restored.tools : restored?.value
+      const withPrev = withStoredValue(catalog, current, id, value)
+      if (isInactive(id, withPrev)) {
         setParam(next.params, id, restored)
+        current = withPrev
       }
     }
     if (deepEqual(before, next.params)) return

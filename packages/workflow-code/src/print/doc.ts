@@ -14,7 +14,12 @@ export type Doc =
   | { type: 'indent'; contents: Doc }
   | { type: 'line'; soft: boolean; hard: boolean; literal: boolean }
   | { type: 'ifBreak'; breakContents: Doc; flatContents: Doc }
-  | { type: 'fill'; parts: Doc[] }
+  | {
+      type: 'fill'
+      parts: Doc[]
+      /** The index of the first part left to print; the printer advances it instead of copying. */
+      offset?: number
+    }
   | { type: 'lineSuffix'; contents: Doc }
   | { type: 'breakParent' }
 
@@ -220,7 +225,7 @@ function fits(next: Command, rest: Command[], initialWidth: number, mustBeFlat: 
         commands.push({ mode, doc: mode === 'break' ? doc.breakContents : doc.flatContents })
         break
       case 'fill':
-        for (let i = doc.parts.length - 1; i >= 0; i -= 1) {
+        for (let i = doc.parts.length - 1; i >= (doc.offset ?? 0); i -= 1) {
           const part = doc.parts[i]
           if (part !== undefined) commands.push({ mode, doc: part })
         }
@@ -324,7 +329,7 @@ export function printDoc(root: Doc, width: number): string {
         })
         break
       case 'fill':
-        printFill(doc.parts, ind, mode, commands, width - column)
+        printFill(doc.parts, doc.offset ?? 0, ind, mode, commands, width - column)
         break
       case 'lineSuffix':
         lineSuffixes.push({ indent: ind, mode, doc: doc.contents })
@@ -363,9 +368,22 @@ export function printDoc(root: Doc, width: number): string {
   return output.join('')
 }
 
-/** Prettier's fill: content/separator pairs, each separator breaking only when the next part overflows. */
-function printFill(parts: Doc[], ind: number, mode: Mode, commands: Command[], remaining: number) {
-  const [content, separator, nextContent, ...rest] = parts
+/**
+ * Prettier's fill: content/separator pairs, each separator breaking only when the next part
+ * overflows. The rest of the fill is queued as the same parts from a later `offset`, so a long
+ * fill prints in linear time.
+ */
+function printFill(
+  parts: Doc[],
+  offset: number,
+  ind: number,
+  mode: Mode,
+  commands: Command[],
+  remaining: number
+) {
+  const content = parts[offset]
+  const separator = parts[offset + 1]
+  const nextContent = parts[offset + 2]
   if (content === undefined) return
   const contentFlat: Command = { indent: ind, mode: 'flat', doc: content }
   const contentFits = fits(contentFlat, [], remaining, true)
@@ -376,7 +394,7 @@ function printFill(parts: Doc[], ind: number, mode: Mode, commands: Command[], r
   const restCommand: Command = {
     indent: ind,
     mode,
-    doc: { type: 'fill', parts: nextContent === undefined ? [] : [nextContent, ...rest] },
+    doc: { type: 'fill', parts, offset: offset + 2 },
   }
   if (nextContent === undefined) {
     commands.push(restCommand)

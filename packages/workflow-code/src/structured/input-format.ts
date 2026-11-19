@@ -147,8 +147,8 @@ function liftInputFormat(
 /**
  * Puts inputFormat field ids back: canonicalize moved the id of every field whose name and id are
  * both unique to the lock, so each such field takes the lock's id for its name, then prev's, else a
- * new one. Fields that kept their id inline are untouched. The editor's `collapsed`
- * flag is carried over from the prev field with the same id.
+ * new one. Fields that kept their id inline keep it. Every field with an id takes the editor's
+ * `collapsed` flag from the prev field with that id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
   const unique = uniqueFieldNames(list)
@@ -156,18 +156,23 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
   for (const item of parseStoredList(site.prevRaw) ?? []) {
     if (isRecordLike(item) && typeof item.id === 'string') prevById.set(item.id, item)
   }
+  const withPrevCollapsed = (id: string, item: Record<string, unknown>) => {
+    const prevItem = prevById.get(id)
+    if (prevItem?.collapsed === undefined) return item
+    return { ...item, collapsed: prevItem.collapsed }
+  }
   const used = new Set<string>()
   return list.map((item) => {
-    if (!isRecordLike(item) || typeof item.name !== 'string' || item.id !== undefined) return item
-    if (!unique.has(item.name)) return item
+    if (!isRecordLike(item)) return item
+    if (item.id !== undefined) {
+      return typeof item.id === 'string' ? withPrevCollapsed(item.id, item) : item
+    }
+    if (typeof item.name !== 'string' || !unique.has(item.name)) return item
     const name = item.name
     const known = site.itemIds.find((entry) => entry.name === name && !used.has(entry.id))
     const id = known?.id ?? context.hooks.newId()
     used.add(id)
-    const restored: Record<string, unknown> = { id, ...item }
-    const prevItem = prevById.get(id)
-    if (prevItem && prevItem.collapsed !== undefined) restored.collapsed = prevItem.collapsed
-    return restored
+    return withPrevCollapsed(id, { id, ...item })
   })
 }
 
