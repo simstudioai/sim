@@ -11,7 +11,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import type { Dirent } from 'node:fs'
+import type { Dirent, Stats } from 'node:fs'
 import {
   lstat,
   mkdir,
@@ -763,12 +763,16 @@ function isAlive(pid: number): boolean {
   }
 }
 
+/** The lock folder a command found, as it found it: which folder, and when it last changed. */
+type LockSighting = Pick<Stats, 'dev' | 'ino' | 'mtimeMs'>
+
 /**
- * Whether the lock at `lock` was left by a command that is gone: its process on this machine no
- * longer runs, or it never recorded an owner and is older than a minute. A lock another machine
- * holds (a shared folder) is never taken over.
+ * Whether the lock at `lock`, as `seen`, was left by a command that is gone: its process on this
+ * machine no longer runs, or it never recorded an owner and had not changed for a minute when it
+ * was seen. The age is the sighting's, not the folder's now, because a takeover's own claim
+ * changes the folder. A lock another machine holds (a shared folder) is never taken over.
  */
-async function isStaleLock(lock: string): Promise<boolean> {
+async function isStaleLock(lock: string, seen: LockSighting): Promise<boolean> {
   const owner = toRecord(
     await readFile(join(lock, LOCK_OWNER_FILE), 'utf8').then(
       (text): unknown => JSON.parse(text),
@@ -778,23 +782,20 @@ async function isStaleLock(lock: string): Promise<boolean> {
   if (typeof owner.pid === 'number' && typeof owner.host === 'string') {
     return owner.host === hostname() && !isAlive(owner.pid)
   }
-  const taken = await stat(lock).then(
-    (stats) => stats.mtimeMs,
-    () => null
-  )
-  return taken !== null && Date.now() - taken > UNRECORDED_LOCK_STALE_MS
+  return Date.now() - seen.mtimeMs > UNRECORDED_LOCK_STALE_MS
 }
 
 /**
- * Removes the lock at `lock`, which the caller found stale, unless another command took it over
- * first. Two commands can find one lock stale at once: one removes it and takes the lock, and the
- * other, acting on what it read before, must not remove the live lock that replaced it. So a
- * takeover first claims the lock folder it means to remove (creating {@link LOCK_TAKEOVER_DIR} in
- * it, which only one command can) and checks it is still stale before removing it; a lock that
- * replaced the stale one is fresh, so the late command leaves it. A command that died mid-takeover
- * leaves its claim in a stale lock, which the busy message says to remove.
+ * Removes the lock at `lock`, which the caller found stale as `seen`, unless another command took
+ * it over first. Two commands can find one lock stale at once: one removes it and takes the lock,
+ * and the other, acting on what it saw before, must not remove the live lock that replaced it. So
+ * a takeover first claims the lock folder it means to remove (creating {@link LOCK_TAKEOVER_DIR}
+ * in it, which only one command can), then removes it only while it is still the folder it saw
+ * and still stale; a lock that replaced the stale one is another folder or records a live owner,
+ * so the late command leaves it. A command that died mid-takeover leaves its claim in a stale
+ * lock, which the busy message says to remove.
  */
-export async function takeOverStaleLock(lock: string): Promise<void> {
+export async function takeOverStaleLock(lock: string, seen: LockSighting): Promise<void> {
   const claim = join(lock, LOCK_TAKEOVER_DIR)
   try {
     await mkdir(claim)
@@ -802,7 +803,10 @@ export async function takeOverStaleLock(lock: string): Promise<void> {
     if (errorCode(error) === 'EEXIST' || isMissing(error)) return
     throw error
   }
-  if (await isStaleLock(lock)) await rm(lock, { recursive: true, force: true })
+  const now = await stat(lock).catch(() => null)
+  const sameFolder = now !== null && now.dev === seen.dev && now.ino === seen.ino
+  if (sameFolder && (await isStaleLock(lock, seen)))
+    await rm(lock, { recursive: true, force: true })
   else await rmdir(claim).catch(() => {})
 }
 
@@ -837,7 +841,8 @@ export async function withSourceDirLock<T>(dir: string, run: () => Promise<T>): 
     } catch (error) {
       if (errorCode(error) !== 'EEXIST') throw error
       await checkedPath(root, SOURCE_DIR_LOCK, new Set())
-      if (attempt === 0 && (await isStaleLock(lock))) await takeOverStaleLock(lock)
+      const seen = attempt === 0 ? await stat(lock).catch(() => null) : null
+      if (seen && (await isStaleLock(lock, seen))) await takeOverStaleLock(lock, seen)
     }
   }
   if (!held) {

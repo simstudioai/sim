@@ -356,6 +356,40 @@ describe('table rows as workspace source', () => {
     ])
   })
 
+  check('a number key written as text matches its stored row, removing nothing', async () => {
+    const workspaceId = await newWorkspace()
+    const numbered = `// @sim-sdk 1
+import { column, defineTable } from '@sim/workflow-sdk/workspace'
+
+export default defineTable({
+  name: 'plans',
+  columns: {
+    code: column.number({ required: true, unique: true }),
+    seats: column.number(),
+  },
+  rows: { mode: 'managed', key: 'code' },
+})
+`
+    const created = await apply(workspaceId, {
+      'tables/plans.ts': numbered,
+      'tables/plans.rows.jsonl': '{"code":7,"seats":1}\n',
+    })
+    expect(created.failed).toBeUndefined()
+    const before = await rowIdentities(workspaceId)
+
+    const result = await apply(
+      workspaceId,
+      { ...created.files, 'tables/plans.rows.jsonl': '{"code":"007","seats":2}\n' },
+      { base: created.base }
+    )
+
+    expect(result.failed).toBeUndefined()
+    expect(result.applied).toMatchObject([{ key: 'plans', action: 'update' }])
+    expect(result.applied[0]).not.toHaveProperty('destructive')
+    expect(await storedRows(workspaceId)).toEqual([{ code: 7, seats: 2 }])
+    expect((await rowIdentities(workspaceId))['7']?.id).toBe(before['7']?.id)
+  })
+
   check('adds a required column and the values that fill it in one apply', async () => {
     const workspaceId = await newWorkspace()
     const read = await managedPlans(workspaceId)

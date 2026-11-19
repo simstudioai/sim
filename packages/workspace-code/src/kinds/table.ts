@@ -46,12 +46,13 @@ import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../
 import { KIND_DIRS, type KindCodec, type KindLayout } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
 import { WORKSPACE_SOURCE_LIMITS } from '../limits'
-import { type BatchRowErrors, refusedRows } from '../table-cells/rows'
+import { type BatchRowErrors, coerceRowCells, refusedRows } from '../table-cells/rows'
 import type { CellColumn, CellRow } from '../table-cells/types'
 import { groupByFile } from './group'
 import {
   parseTableRows,
   printTableRows,
+  rowKeyText,
   TABLE_ROWS_EXTENSION,
   TABLE_ROWS_MODES,
   type TableRowCells,
@@ -183,6 +184,20 @@ export function columnName(key: string, column: TableColumnDecl): string {
   return column.name ?? key
 }
 
+/** A declared column as the cell rules read it, keyed by its column key; select options by name. */
+function cellColumn(key: string, column: TableColumnDecl): CellColumn {
+  return {
+    id: key,
+    name: columnName(key, column),
+    type: column.type,
+    ...(column.required ? { required: true } : {}),
+    ...(column.unique ? { unique: true } : {}),
+    ...(column.options ? { options: column.options.map((name) => ({ id: name, name })) } : {}),
+    ...(column.multiple ? { multiple: true } : {}),
+    ...(column.currencyCode ? { currencyCode: column.currencyCode } : {}),
+  }
+}
+
 /**
  * The declared rows of `decl` a write refuses (`refusedRows`, by row index): a cell its column's
  * type or options cannot hold, an empty required cell, a unique value two rows share. Rows are
@@ -195,21 +210,26 @@ export function refusedTableRows(
   rows: readonly TableRowCells[],
   sizeErrors?: (row: CellRow) => string[]
 ): BatchRowErrors {
-  const columns: CellColumn[] = Object.entries(decl.columns).map(([key, column]) => ({
-    id: key,
-    name: columnName(key, column),
-    type: column.type,
-    ...(column.required ? { required: true } : {}),
-    ...(column.unique ? { unique: true } : {}),
-    ...(column.options ? { options: column.options.map((name) => ({ id: name, name })) } : {}),
-    ...(column.multiple ? { multiple: true } : {}),
-    ...(column.currencyCode ? { currencyCode: column.currencyCode } : {}),
-  }))
+  const columns = Object.entries(decl.columns).map(([key, column]) => cellColumn(key, column))
   return refusedRows(
     rows.map((row) => ({ ...row })),
     columns,
     sizeErrors
   )
+}
+
+/**
+ * The text a declared managed row of `decl` is matched by ({@link rowKeyText}): its key cell
+ * coerced to the key column's type first, as a keyed write stores it, so `"007"` in a number key
+ * column matches the stored `7`. A value the column cannot hold is matched as written.
+ */
+export function declaredRowKeyText(decl: TableDecl, row: TableRowCells): string | undefined {
+  const key = decl.rows?.key
+  const column = key !== undefined ? decl.columns[key] : undefined
+  if (key === undefined || !column || !Object.hasOwn(row, key)) return undefined
+  const cell: CellRow = { [key]: row[key] }
+  coerceRowCells(cell, [cellColumn(key, column)], () => 'reject')
+  return rowKeyText(cell[key])
 }
 
 /** Reads one owned option of a column into `column`, reporting a value the server would refuse. */
