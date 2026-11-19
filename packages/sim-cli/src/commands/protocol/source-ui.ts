@@ -187,10 +187,12 @@ function answerLost(error: SimApiError): boolean {
 
 /**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
- * the exit status a script branches on. `ifAnswerLost` is the next step for a write whose answer
- * never came back, appended to its message.
+ * the exit status a script branches on. In a machine `format` the error document keeps the
+ * refusal's details with each finding as a success result carries it ({@link resultDiagnostics});
+ * a display format prints the findings once, above the error. `ifAnswerLost` is the next step for
+ * a write whose answer never came back, appended to its message.
  */
-export function printRefusal(error: unknown, ifAnswerLost?: string): never {
+export function printRefusal(error: unknown, format: OutputFormat, ifAnswerLost?: string): never {
   if (!(error instanceof SimApiError)) throw error
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
@@ -206,10 +208,20 @@ export function printRefusal(error: unknown, ifAnswerLost?: string): never {
     hint ? `${error.message} ${hint}` : error.message,
     error.status,
     error.code,
-    printed ? undefined : error.details,
+    printed ? refusalDetails(format, details, diagnostics) : error.details,
     refusalExitCode(error, details.code),
     error.requestId
   )
+}
+
+/** A printed refusal's details: kept, findings flattened, in a machine format; else dropped. */
+function refusalDetails(
+  format: OutputFormat,
+  details: Record<string, unknown>,
+  diagnostics: Diagnostic[]
+): Record<string, unknown> | undefined {
+  const flattened = resultDiagnostics(format, diagnostics)
+  return flattened.diagnostics ? { ...details, ...flattened } : undefined
 }
 
 /**

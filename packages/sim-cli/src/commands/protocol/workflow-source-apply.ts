@@ -233,7 +233,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
       })
       return response.data
     } catch (error) {
-      return printRefusal(error, dryRun ? undefined : args.ifAnswerLost)
+      return printRefusal(error, args.output, dryRun ? undefined : args.ifAnswerLost)
     }
   }
   const printed = new Set<string>()
