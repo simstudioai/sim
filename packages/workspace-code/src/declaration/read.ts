@@ -95,6 +95,26 @@ export function isDeclarationEnvRef(value: unknown): value is DeclarationEnvRef 
   return isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_NAME.test(value[ENV_KEY])
 }
 
+/**
+ * Why a decoded value that is a helper call or an `env.NAME` reference is not an object, or `null`
+ * when it is neither. The reader encodes both as records, so an object check must ask this first.
+ */
+export function notAnObject(value: Json | undefined): { message: string; hint: string } | null {
+  if (isDeclarationEnvRef(value)) {
+    return {
+      message: `is \`env.${value.$env}\`, one value`,
+      hint: `Put it under a key: \`{ <name>: env.${value.$env} }\`.`,
+    }
+  }
+  if (isDeclarationCall(value)) {
+    return {
+      message: `is \`${value.$call}()\`, a helper value`,
+      hint: 'Write the object itself: `{ <name>: <value> }`.',
+    }
+  }
+  return null
+}
+
 /** Why `text` cannot be stored (a NUL, an unpaired UTF-16 surrogate), or `null` when it can. */
 export function unstorableCharacter(text: string): string | null {
   if (containsNulCharacter(text)) return 'a NUL character'
@@ -459,7 +479,14 @@ export function readDeclaration(
   }
 
   const value = readValue(exported, '')
-  if (
+  const helper = notAnObject(value)
+  if (helper) {
+    unsupported(
+      exported,
+      `${options.callee} takes an object, but this ${helper.message}.`,
+      helper.hint
+    )
+  } else if (
     value !== undefined &&
     (typeof value !== 'object' || value === null || Array.isArray(value))
   ) {

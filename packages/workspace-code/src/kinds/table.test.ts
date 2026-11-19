@@ -178,6 +178,23 @@ describe('createTableCodec', () => {
     ])
   })
 
+  it('refuses a helper call as the whole declaration with one finding, not its encoding', () => {
+    const parsed = testTableCodec.parse(
+      'leads',
+      {
+        'tables/leads.ts': `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable(column.string())\n`,
+      },
+      []
+    )
+    expect(parsed.diagnostics).toMatchObject([
+      {
+        code: 'E_DECL_UNSUPPORTED',
+        message: expect.stringContaining('defineTable takes an object'),
+        span: { line: 4 },
+      },
+    ])
+  })
+
   it('refuses two columns whose stored names differ only in letter case, and more columns than a table holds', () => {
     const table = (columns: string) =>
       testTableCodec.parse(

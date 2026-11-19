@@ -18,6 +18,7 @@ import {
   type WorkspaceDiagnostic,
   type WorkspaceDiagnosticCode,
 } from '../diagnostics'
+import { notAnObject } from './read'
 
 /** Reports one finding at the value under a JSON Pointer. */
 export type FieldReport = (
@@ -186,13 +187,23 @@ export function readFolderField(
   return folder
 }
 
-/** `value` as an object, reporting anything else. */
+/** `value` as an object, reporting anything else (a helper call or `env.NAME` included). */
 export function readObject(
   value: Json | undefined,
   pointer: string,
   report: FieldReport,
   what: string
 ): Record<string, Json> | undefined {
+  const helper = notAnObject(value)
+  if (helper) {
+    report(
+      'E_DECL_SHAPE',
+      pointer,
+      `${what} must be an object, but ${helper.message}.`,
+      helper.hint
+    )
+    return undefined
+  }
   if (isRecordLike(value)) return value as Record<string, Json>
   report('E_DECL_SHAPE', pointer, `${what} must be an object.`)
   return undefined
