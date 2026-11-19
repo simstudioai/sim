@@ -659,7 +659,7 @@ describe('editing fidelity regressions', () => {
     expect(noopFailure(state)).toBeNull()
   })
 
-  it.each<[string, CanvasOp[]]>([
+  it.each<[string, CanvasOp[], string?]>([
     [
       'an error edge from a trigger',
       [
@@ -694,6 +694,8 @@ describe('editing fidelity regressions', () => {
           params: { subflowId: LOOP },
         }),
       ],
+      // The engine keeps the start edge, as it always has: the executor runs it as the loop's exit.
+      `${LOOP}:loop-start-source:${CHILD}`,
     ],
     [
       'a block moved into the loop its end edge wires',
@@ -705,9 +707,15 @@ describe('editing fidelity regressions', () => {
           params: { subflowId: LOOP, type: 'function', name: 'After' },
         }),
       ],
+      `${LOOP}:loop-end-source:${AFTER}`,
     ],
-  ])('%s applies back unchanged', (_name, ops) => {
-    expect(noopFailure(replay(EMPTY, ops))).toBeNull()
+  ])('%s applies back unchanged', (_name, ops, keptEdge) => {
+    const state = replay(EMPTY, ops)
+    if (keptEdge) {
+      const edges = state.edges.map((e) => `${e.source}:${e.sourceHandle}:${e.target}`)
+      expect(edges).toContain(keptEdge)
+    }
+    expect(noopFailure(state)).toBeNull()
   })
 
   it('a sheet whose basic pair member is empty keeps its advanced member in trigger mode', () => {
@@ -728,6 +736,39 @@ describe('editing fidelity regressions', () => {
 const PARSER = '00000000-0000-4000-8000-000000000005'
 const FIRST = '00000000-0000-4000-8000-000000000006'
 const SECOND = '00000000-0000-4000-8000-000000000007'
+
+describe('an error edge a container already stores', () => {
+  it('survives an engine edit that re-sends the container connections, and applies back unchanged', () => {
+    const base = replay(EMPTY, LOOP_WITH_CHILD)
+    // Stored before the engine refused new error edges from containers.
+    const stored: WorkflowState = {
+      ...base,
+      edges: [
+        ...base.edges,
+        {
+          id: '00000000-0000-4000-8000-0000000000e1',
+          source: LOOP,
+          target: AFTER,
+          sourceHandle: 'error',
+          targetHandle: 'target',
+          type: 'default',
+        },
+      ],
+    }
+    const edited = replay(stored, [
+      engineOp({
+        operation_type: 'edit',
+        block_id: LOOP,
+        params: {
+          connections: { 'loop-start-source': CHILD, 'loop-end-source': AFTER, error: AFTER },
+        },
+      }),
+    ])
+    const edges = edited.edges.map((e) => `${e.source}:${e.sourceHandle}:${e.target}`)
+    expect(edges).toContain(`${LOOP}:error:${AFTER}`)
+    expect(noopFailure(edited)).toBeNull()
+  })
+})
 
 describe('the editing engine keeps values of fields that only share a table field id', () => {
   it('a JSON code field named params keeps its text and applies back unchanged', () => {

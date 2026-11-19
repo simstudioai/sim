@@ -418,6 +418,72 @@ check(
 )
 
 check(
+  'a stored loop start edge to a block outside the loop survives PUT /state, an engine edit and a source round trip',
+  async () => {
+    const workflowId = await insertWorkflow('Fidelity exit edge')
+    const start = generateId()
+    const loop = generateId()
+    const body = generateId()
+    const after = generateId()
+    const fn = (id: string, name: string, data: BlockState['data'] = {}) =>
+      block(id, 'function', name, { code: { id: 'code', type: 'code', value: 'return 1' } }, data)
+    const exitEdge = { source: loop, target: after, sourceHandle: 'loop-start-source' }
+    // What 1,4xx production workflows hold: the executor runs this edge as the loop's exit.
+    await putState(workflowId, {
+      blocks: {
+        [start]: block(start, 'start_trigger', 'Start'),
+        [loop]: block(loop, 'loop', 'Repeat', {}, { loopType: 'for', count: 2 }),
+        [body]: fn(body, 'Body', { parentId: loop, extent: 'parent' }),
+        [after]: fn(after, 'After'),
+      },
+      edges: [
+        {
+          id: generateId(),
+          source: start,
+          target: loop,
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+        {
+          id: generateId(),
+          source: loop,
+          target: body,
+          sourceHandle: 'loop-start-source',
+          targetHandle: 'target',
+        },
+        { id: generateId(), ...exitEdge, targetHandle: 'target' },
+      ],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+    const holdsExit = async () =>
+      (await readGraph(workflowId)).edges.some(
+        (edge) =>
+          edge.source === exitEdge.source &&
+          edge.target === exitEdge.target &&
+          edge.sourceHandle === exitEdge.sourceHandle
+      )
+    expect(await holdsExit()).toBe(true)
+
+    const edited = await applyOperations(workflowId, [
+      { operation_type: 'edit', block_id: after, params: { inputs: { code: 'return 2' } } },
+    ])
+    expect(edited.skipped).toEqual([])
+    expect(await holdsExit()).toBe(true)
+
+    const source = await getSource(workflowId)
+    expect(source.files['workflow.ts']).toContain("'loop-start-source'")
+    const before = await snapshot(workflowId)
+    const unchanged = await applySource(source, source.files)
+    expect(unchanged.applied).toBe(false)
+    expect(unchanged.diff.noop).toBe(true)
+    expect(await snapshot(workflowId)).toEqual(before)
+    expect(await holdsExit()).toBe(true)
+  }
+)
+
+check(
   'a workflow built by editing operations and one created from its source read the same through the JSON API',
   async () => {
     const canvasId = await insertWorkflow('Fidelity canvas')
