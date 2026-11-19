@@ -10,13 +10,15 @@
  */
 
 import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getValueAtPath } from '@sim/utils/object'
-import { and, eq } from 'drizzle-orm'
-import { appendTableEvent } from '@/lib/table/events'
+import { and, eq, isNull } from 'drizzle-orm'
+import { withIdempotentWriteRetry } from '@/lib/db/read-retry'
+import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
+import { appendTableEvent, signalTableRowsChanged } from '@/lib/table/events'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
-import { writeExecutionsPatch } from '@/lib/table/rows/executions'
+import { loadExecutionsForRow, writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
   createTableRowSecretProvenanceFromEncryptedExecution,
   createUnknownTableRowSecretProvenance,
@@ -136,6 +138,15 @@ export async function writeWorkflowGroupState(
     return 'skipped'
   }
 
+  emitCellStateEvent(ctx, payload)
+
+  return 'wrote'
+}
+
+function emitCellStateEvent(
+  { tableId, rowId, groupId, table }: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): void {
   // The SSE snapshot must carry what was persisted, not the raw block output.
   // `updateRow` coerces its own merged copy, so the patch object here still
   // holds the workflow's value — for a `select` column that's the option *name*
@@ -145,7 +156,7 @@ export async function writeWorkflowGroupState(
   // bookkeeping, so it must not be mutated. The `null` policy mirrors what
   // `updateRow` persists for a computed write, so the snapshot the client sees
   // and the row on disk agree about a block output its column cannot hold.
-  const rawEventOutputs = payload.eventOutputs ?? dataPatch
+  const rawEventOutputs = payload.eventOutputs ?? payload.dataPatch
   const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
   const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
   if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema, 'null')
@@ -164,8 +175,145 @@ export async function writeWorkflowGroupState(
     ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
     ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
   })
+}
 
-  return 'wrote'
+function isCommittedState(
+  current: RowExecutionMetadata | undefined,
+  { executionState }: WriteWorkflowGroupStatePayload
+): boolean {
+  return (
+    current?.executionId === executionState.executionId && current.status === executionState.status
+  )
+}
+
+/**
+ * Whether a write that reported failure actually committed. If it did, this sends the event the
+ * lost attempt never emitted, so a caller can treat the write as done.
+ */
+export async function confirmWorkflowGroupStateCommitted(
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): Promise<boolean> {
+  const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
+  if (!isCommittedState(current, payload)) return false
+  emitCellStateEvent(ctx, { ...payload, eventOutputs: await readStoredOutputs(ctx, payload) })
+  return true
+}
+
+/**
+ * Fails every marker on a row that no worker has claimed. `executionId` stays null, so a carrier
+ * still queued for one of them can claim it and run. Claimed, cancelled, and finished cells are
+ * untouched, and so is a paused one, which holds an execution id.
+ *
+ * Open tables are told to refetch too: a repeat after a lost reply finds nothing left to update, so
+ * it cannot name the cells the lost attempt failed.
+ */
+export async function terminalizeUnclaimedRowMarkers(
+  tableId: string,
+  rowId: string,
+  error: string
+): Promise<void> {
+  const failed = await withIdempotentWriteRetry(
+    () =>
+      db
+        .update(tableRowExecutions)
+        .set({ status: 'error', jobId: null, error, runningBlockIds: [], updatedAt: new Date() })
+        .where(
+          and(
+            eq(tableRowExecutions.tableId, tableId),
+            eq(tableRowExecutions.rowId, rowId),
+            eq(tableRowExecutions.status, 'pending'),
+            isNull(tableRowExecutions.executionId)
+          )
+        )
+        .returning({ groupId: tableRowExecutions.groupId }),
+    { label: 'terminalizeUnclaimedRowMarkers', ...CELL_DATABASE_RETRY }
+  )
+  signalTableRowsChanged(tableId)
+  for (const { groupId } of failed) {
+    void appendTableEvent({
+      kind: 'cell',
+      tableId,
+      rowId,
+      groupId,
+      status: 'error',
+      executionId: null,
+      jobId: null,
+      error,
+    })
+  }
+}
+
+/** The stored values of a write's outputs, which may have changed since the write landed. */
+async function readStoredOutputs(
+  { rowId, tableId, workspaceId }: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload
+): Promise<RowData> {
+  const [row] = await db
+    .select({ data: userTableRows.data })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.id, rowId),
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  const stored = (row?.data ?? {}) as RowData
+  const outputs: RowData = {}
+  for (const columnId of Object.keys(payload.eventOutputs ?? payload.dataPatch ?? {})) {
+    if (Object.hasOwn(stored, columnId)) outputs[columnId] = stored[columnId]
+  }
+  return outputs
+}
+
+/**
+ * {@link writeWorkflowGroupState} that survives a lost database connection, for writes a cell cannot
+ * afford to drop: its pickup and terminal states.
+ *
+ * A lost connection leaves the outcome unknown, so each repeat first checks what the last attempt
+ * did. Re-applying a commit that landed could undo what the user did since, such as editing the
+ * output or stopping a downstream group, so a cell whose state already matches only needs the event
+ * the lost attempt never emitted, carrying what is stored now.
+ *
+ * Otherwise `claimed` says what a changed cell means. After this carrier's pickup landed, a missing
+ * state means the user cleared the cell and an unclaimed marker belongs to a newer run, so the write
+ * is dropped and the cascade drains that marker. Before a pickup, either can be the cell's own, so
+ * the write goes ahead, except that an error over a marker leaves the execution id null: a newer
+ * run's carrier can still claim the cell.
+ *
+ * A `cancelled` stamp is never repeated. It carries no guard, so a repeat could kill a run the user
+ * started after it.
+ */
+export async function writeWorkflowGroupStateDurably(
+  ctx: WriteWorkflowGroupContext,
+  payload: WriteWorkflowGroupStatePayload,
+  { claimed }: { claimed: boolean }
+): Promise<'wrote' | 'skipped'> {
+  if (payload.executionState.status === 'cancelled') return writeWorkflowGroupState(ctx, payload)
+
+  let write = payload
+  let attempted = false
+  return withIdempotentWriteRetry(
+    async () => {
+      if (attempted) {
+        const current = (await loadExecutionsForRow(db, ctx.rowId))[ctx.groupId]
+        if (isCommittedState(current, write)) {
+          emitCellStateEvent(ctx, { ...write, eventOutputs: await readStoredOutputs(ctx, write) })
+          return 'wrote'
+        }
+        const isUnclaimedMarker = current?.status === 'pending' && current.executionId == null
+        if (claimed && (!current || isUnclaimedMarker)) return 'skipped'
+        if (isUnclaimedMarker && write.executionState.status === 'error') {
+          write = { ...write, executionState: { ...write.executionState, executionId: null } }
+        }
+      }
+      attempted = true
+      return writeWorkflowGroupState(ctx, write)
+    },
+    { label: 'writeWorkflowGroupState', ...CELL_DATABASE_RETRY }
+  )
 }
 
 export interface WorkflowCellProgressWrite {
@@ -366,15 +514,19 @@ export async function markWorkflowGroupPickedUp(
   ctx: WriteWorkflowGroupContext,
   prev: Pick<RowExecutionMetadata, 'workflowId' | 'jobId'>
 ): Promise<'wrote' | 'skipped'> {
-  return writeWorkflowGroupState(ctx, {
-    executionState: {
-      status: 'running',
-      executionId: ctx.executionId,
-      jobId: prev.jobId,
-      workflowId: prev.workflowId,
-      error: null,
+  return writeWorkflowGroupStateDurably(
+    ctx,
+    {
+      executionState: {
+        status: 'running',
+        executionId: ctx.executionId,
+        jobId: prev.jobId,
+        workflowId: prev.workflowId,
+        error: null,
+      },
     },
-  })
+    { claimed: false }
+  )
 }
 
 /** Builds the canonical `cancelled` execution state used by every cancel path.

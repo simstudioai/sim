@@ -9,7 +9,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockWriteExecutionsPatch } = vi.hoisted(() => ({
+const { mockLoadExecutionsForRow, mockWriteExecutionsPatch } = vi.hoisted(() => ({
+  mockLoadExecutionsForRow: vi.fn(),
   mockWriteExecutionsPatch: vi.fn(),
 }))
 
@@ -18,6 +19,7 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/table/events', () => tableEventsMock)
 
 vi.mock('@/lib/table/rows/executions', () => ({
+  loadExecutionsForRow: mockLoadExecutionsForRow,
   writeExecutionsPatch: mockWriteExecutionsPatch,
 }))
 

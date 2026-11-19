@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { describeError, toError } from '@sim/utils/errors'
+import { classifyDatabaseFailure, describeError, findCause, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
@@ -25,6 +25,7 @@ import {
 } from '@/lib/core/execution-limits'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -33,7 +34,9 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { fillMissingColumns, mapInputValues, namedRowMapper } from '@/lib/table/cell-format'
+import type { WriteWorkflowGroupStatePayload } from '@/lib/table/cell-write'
 import { getColumnId } from '@/lib/table/column-keys'
+import { CELL_DATABASE_RETRY } from '@/lib/table/constants'
 import { isEmptyCellValue, isExecCancelled } from '@/lib/table/deps'
 import { getMaxTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import { appendTableEvent } from '@/lib/table/events'
@@ -64,6 +67,43 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 export type { WorkflowGroupCellPayload }
 
 const logger = createLogger('TriggerWorkflowGroupCell')
+
+/**
+ * Retries in process and not through Trigger.dev on purpose. A task retry replays from the payload's
+ * group, which would run a billed workflow again for any group already finished.
+ */
+function readForCell<T>(label: string, read: () => Promise<T>): Promise<T> {
+  return withDatabaseReadRetry(read, { label, ...CELL_DATABASE_RETRY })
+}
+
+const CELL_STOPPED_MESSAGE = 'This cell stopped before it finished. Run it again.'
+
+/**
+ * The error a cell shows. Text that would expose a query, a bare driver error, or a wrapper repeating
+ * a driver's text says what happened instead, because anyone viewing the table reads it. A block's
+ * error over a lost connection is one of those, since its generic text would hide that a re-run can
+ * work. Anything else keeps its own message, including a block's error over a rejected query.
+ */
+function getCellFailureMessage(error: unknown): string {
+  const failure = toError(error)
+  const exposesQuery =
+    failure.message.includes('Failed query: ') ||
+    findCause(
+      failure,
+      (link): link is Error =>
+        link instanceof Error &&
+        link !== failure &&
+        link.message.length > 0 &&
+        failure.message.includes(link.message) &&
+        (link.name === 'PostgresError' || classifyDatabaseFailure(link) !== 'permanent')
+    ) !== undefined
+  if (!exposesQuery && !Object.hasOwn(failure, 'code')) return failure.message
+  const failureClass = classifyDatabaseFailure(failure)
+  if (failureClass === 'connection') return 'Lost the database connection. Run this cell again.'
+  const isDatabaseFailure =
+    exposesQuery || failureClass !== 'permanent' || failure.name === 'PostgresError'
+  return isDatabaseFailure ? 'A database error stopped this cell.' : failure.message
+}
 
 /**
  * Fails before workflow execution when saved table mappings are incompatible
@@ -324,9 +364,11 @@ export async function executeWorkflowGroupCellJob(
       // marked, so stop re-driving this row.
       if (outcome.result === 'blocked') break
       if (carrierSignal.aborted) break
-      const freshTable = await getTableById(tableId)
+      const freshTable = await readForCell('getTableById', () => getTableById(tableId))
       if (!freshTable) break
-      const freshRow = await getRowById(tableId, rowId, workspaceId)
+      const freshRow = await readForCell('getRowById', () =>
+        getRowById(tableId, rowId, workspaceId)
+      )
       if (!freshRow) break
       const next = pickNextEligibleGroupForRow(freshTable, freshRow)
       if (!next) break
@@ -352,7 +394,9 @@ export async function executeWorkflowGroupCellJob(
          * belongs to the person who asked for it, so take the subject off the
          * stamp rather than carrying our own into someone else's request.
          */
-        capabilityGovernedUserId: await readStampedCapabilitySubject(rowId, next.id),
+        capabilityGovernedUserId: await readForCell('readStampedCapabilitySubject', () =>
+          readStampedCapabilitySubject(rowId, next.id)
+        ),
       }
     }
   } finally {
@@ -362,8 +406,36 @@ export async function executeWorkflowGroupCellJob(
 
 /** Re-fetches the table schema each iteration so groups added DURING the
  *  cascade become visible to the eligibility check. The resume worker must
- *  already hold the row's cascade lock before calling. */
+ *  already hold the row's cascade lock before calling.
+ *
+ *  Anything thrown here, usually a read out of retries between groups, kills this
+ *  carrier, the row's only owner. Other carriers bail on its lock expecting it to
+ *  drain their markers, so any left unclaimed would stay Queued with nothing to
+ *  revisit them. It fails them while it still holds the lock, so it cannot touch
+ *  work a later owner has taken on, and rethrows so the run fails visibly. */
 export async function runRowCascadeLoop(
+  payload: QueuedWorkflowGroupCellPayload,
+  signal?: AbortSignal
+): Promise<'blocked' | undefined> {
+  try {
+    return await driveRowCascade(payload, signal)
+  } catch (err) {
+    const { tableId, rowId } = payload
+    const { terminalizeUnclaimedRowMarkers } = await import('@/lib/table/cell-write')
+    await terminalizeUnclaimedRowMarkers(tableId, rowId, CELL_STOPPED_MESSAGE).catch(
+      (markerErr) => {
+        logger.error('Failed to terminalize the unclaimed markers of a failed row', {
+          tableId,
+          rowId,
+          cause: describeError(markerErr),
+        })
+      }
+    )
+    throw err
+  }
+}
+
+async function driveRowCascade(
   payload: QueuedWorkflowGroupCellPayload,
   signal?: AbortSignal
 ): Promise<'blocked' | undefined> {
@@ -395,7 +467,7 @@ export async function runRowCascadeLoop(
       break
     }
 
-    const freshTable = await getTableById(tableId)
+    const freshTable = await readForCell('getTableById', () => getTableById(tableId))
     if (!freshTable) {
       logger.warn(`Table ${tableId} vanished mid-cascade`)
       break
@@ -425,7 +497,7 @@ export async function runRowCascadeLoop(
     // would re-pick the still-pending queued marker and spin.
     if (result === 'blocked') return 'blocked'
 
-    const freshRow = await getRowById(tableId, rowId, workspaceId)
+    const freshRow = await readForCell('getRowById', () => getRowById(tableId, rowId, workspaceId))
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
@@ -438,7 +510,9 @@ export async function runRowCascadeLoop(
      */
     currentCapabilityGovernedUserId =
       nextExec?.status === 'pending' && nextExec.executionId == null
-        ? await readStampedCapabilitySubject(rowId, next.id)
+        ? await readForCell('readStampedCapabilitySubject', () =>
+            readStampedCapabilitySubject(rowId, next.id)
+          )
         : currentCapabilityGovernedUserId
     currentGroupId = next.id
     currentWorkflowId = next.workflowId
@@ -462,6 +536,7 @@ async function runWorkflowAndWriteTerminal(
   const timeoutController = createWorkflowGroupAttemptTimeoutController(payload, signal)
   const attemptSignal = timeoutController.signal
   const requestId = `wfgrp-${executionId}`
+  let claimed = false
 
   try {
     return await runWithRequestContext({ requestId }, async () => {
@@ -472,6 +547,7 @@ async function runWorkflowAndWriteTerminal(
         buildCancelledExecution,
         createWorkflowCellProgressWriter,
         writeWorkflowGroupState,
+        writeWorkflowGroupStateDurably,
         markWorkflowGroupPickedUp,
       } = await import('@/lib/table/cell-write')
       const { classifyWorkflowCellTerminalResult } = await import(
@@ -486,12 +562,11 @@ async function runWorkflowAndWriteTerminal(
         eventOutputs?: RowData,
         secretProvenance?: TableRowSecretProvenanceWrite
       ) =>
-        writeWorkflowGroupState(cellCtx, {
-          executionState,
-          dataPatch,
-          eventOutputs,
-          secretProvenance,
-        })
+        writeWorkflowGroupStateDurably(
+          cellCtx,
+          { executionState, dataPatch, eventOutputs, secretProvenance },
+          { claimed }
+        )
 
       /**
        * Dispatch-level cancellation guard.
@@ -515,7 +590,7 @@ async function runWorkflowAndWriteTerminal(
        */
       if (dispatchId) {
         const { readDispatch } = await import('@/lib/table/dispatcher')
-        const owningDispatch = await readDispatch(dispatchId)
+        const owningDispatch = await readForCell('readDispatch', () => readDispatch(dispatchId))
         if (!owningDispatch || owningDispatch.status === 'cancelled') {
           logger.info(
             `Skipping cell — owning dispatch is cancelled (table=${tableId} row=${rowId} group=${groupId} dispatch=${dispatchId})`
@@ -561,7 +636,7 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        const row = await getRowById(tableId, rowId, workspaceId)
+        const row = await readForCell('getRowById', () => getRowById(tableId, rowId, workspaceId))
         if (!row) {
           logger.warn(`Row ${rowId} vanished before enrichment`)
           return 'error'
@@ -575,7 +650,9 @@ async function runWorkflowAndWriteTerminal(
          * Gate the exact workspace payer and member cap before hosted-key cost.
          * A denial clears the cell pre-stamp and surfaces the upgrade state.
          */
-        const usage = await checkExecutionUsageLimits(enrichmentBillingAttribution)
+        const usage = await readForCell('checkExecutionUsageLimits', () =>
+          checkExecutionUsageLimits(enrichmentBillingAttribution)
+        )
         if (usage.isExceeded) {
           logger.warn(
             `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
@@ -612,6 +689,7 @@ async function runWorkflowAndWriteTerminal(
           jobId: null,
         })
         if (pickedUp === 'skipped') return 'error'
+        claimed = true
 
         try {
           // Map table columns → enrichment input ids (skip this group's own outputs).
@@ -624,7 +702,9 @@ async function runWorkflowAndWriteTerminal(
             { userId: enrichmentBillingAttribution.actorUserId, workspaceId },
             new Set(enrichmentInputMappings.map((mapping) => mapping.columnName))
           )
-          const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+          const inputSource = await readForCell('getRowSummaryById', () =>
+            getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+          )
           if (!inputSource) {
             logger.warn(`Row ${rowId} vanished before enrichment input could be read`)
             return 'error'
@@ -786,20 +866,22 @@ async function runWorkflowAndWriteTerminal(
             executionId,
             jobId: null,
             workflowId: statusId,
-            error: toError(err).message,
+            error: getCellFailureMessage(err),
           })
           return 'error'
         }
       }
 
       let progressWriter: ReturnType<typeof createWorkflowCellProgressWriter> | null = null
+      let attemptedTerminal: {
+        write: WriteWorkflowGroupStatePayload
+        status: 'completed' | 'error' | 'cancelled'
+      } | null = null
 
       try {
-        const [workflowRecord] = await db
-          .select()
-          .from(workflowTable)
-          .where(eq(workflowTable.id, workflowId))
-          .limit(1)
+        const [workflowRecord] = await readForCell('selectWorkflow', () =>
+          db.select().from(workflowTable).where(eq(workflowTable.id, workflowId)).limit(1)
+        )
 
         if (!workflowRecord) {
           await writeState({
@@ -814,7 +896,9 @@ async function runWorkflowAndWriteTerminal(
 
         let normalizedData: Awaited<ReturnType<typeof loadDeployedWorkflowState>>
         try {
-          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+          normalizedData = await readForCell('loadDeployedWorkflowState', () =>
+            loadDeployedWorkflowState(workflowId, workspaceId)
+          )
           assertWorkflowGroupMatchesLatestDeployment(group, normalizedData)
         } catch (err) {
           await writeState({
@@ -822,7 +906,7 @@ async function runWorkflowAndWriteTerminal(
             executionId,
             jobId: null,
             workflowId,
-            error: toError(err).message,
+            error: getCellFailureMessage(err),
           })
           return 'error'
         }
@@ -838,7 +922,7 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        const row = await getRowById(tableId, rowId, workspaceId)
+        const row = await readForCell('getRowById', () => getRowById(tableId, rowId, workspaceId))
         if (!row) {
           logger.warn(`Row ${rowId} vanished before execution`)
           return 'error'
@@ -993,7 +1077,9 @@ async function runWorkflowAndWriteTerminal(
           // fires (cancelByKey is a no-op there), so re-check the DB tombstone and
           // release this concurrency slot promptly instead of sleeping out the
           // full retry budget.
-          const refreshed = await getRowById(tableId, rowId, workspaceId)
+          const refreshed = await readForCell('getRowById', () =>
+            getRowById(tableId, rowId, workspaceId)
+          )
           if (!refreshed || cancelledBeforeRun(refreshed.executions?.[groupId])) {
             return refreshed ? 'cancelled' : 'error'
           }
@@ -1001,11 +1087,9 @@ async function runWorkflowAndWriteTerminal(
 
         // SQL guard also rejects if a stop click stamped `cancelled` between this
         // check and pickup.
-        const pickedUp = await markWorkflowGroupPickedUp(cellCtx, {
-          workflowId,
-          jobId: null,
-        })
+        const pickedUp = await markWorkflowGroupPickedUp(cellCtx, { workflowId, jobId: null })
         if (pickedUp === 'skipped') return 'error'
+        claimed = true
 
         // Output columns produced by THIS group are skipped on input — they're
         // populated by the run we're starting. Other group's outputs ARE
@@ -1028,7 +1112,9 @@ async function runWorkflowAndWriteTerminal(
             ...inputMappings.map((mapping) => mapping.columnName),
           ])
         )
-        const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+        const inputSource = await readForCell('getRowSummaryById', () =>
+          getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+        )
         if (!inputSource) {
           logger.warn(`Row ${rowId} vanished before workflow input could be read`)
           return 'error'
@@ -1068,6 +1154,7 @@ async function runWorkflowAndWriteTerminal(
         progressWriter = createWorkflowCellProgressWriter({
           group,
           signal: attemptSignal,
+          // The writer carries a failed write's patch into its next one, so it needs no retry here.
           writeProgress: ({
             dataPatch,
             eventOutputs,
@@ -1075,8 +1162,8 @@ async function runWorkflowAndWriteTerminal(
             runningBlockIds,
             blockErrors,
           }) =>
-            writeState(
-              {
+            writeWorkflowGroupState(cellCtx, {
+              executionState: {
                 status: 'running',
                 executionId,
                 jobId: null,
@@ -1087,8 +1174,8 @@ async function runWorkflowAndWriteTerminal(
               },
               dataPatch,
               eventOutputs,
-              secretProvenance
-            ),
+              secretProvenance,
+            }),
           onWriteError: (err) => {
             logger.warn(
               `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
@@ -1196,32 +1283,48 @@ async function runWorkflowAndWriteTerminal(
                 runningBlockIds: [],
                 blockErrors,
               }
-        await writeState(
-          terminalState,
-          pendingDataPatch,
-          eventOutputs,
-          progressWriter.getPendingSecretProvenance()
-        )
+        const secretProvenance = progressWriter.getPendingSecretProvenance()
+        attemptedTerminal = {
+          status: terminalResult.status,
+          write: {
+            executionState: terminalState,
+            dataPatch: pendingDataPatch,
+            eventOutputs,
+            secretProvenance,
+          },
+        }
+        await writeState(terminalState, pendingDataPatch, eventOutputs, secretProvenance)
         return terminalResult.status
       } catch (err) {
-        const message = toError(err).message
         logger.error(
           `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
           {
-            error: message,
+            error: toError(err).message,
             executionId,
             cause: describeError(err),
             retryable: isRetryableInfrastructureError(err),
           }
         )
         await progressWriter?.finish()
+        /**
+         * A terminal write that lost its connection may still have committed, and an error written
+         * over it would mark a finished, billed run as failed.
+         */
+        if (attemptedTerminal) {
+          const { write, status } = attemptedTerminal
+          const { confirmWorkflowGroupStateCommitted } = await import('@/lib/table/cell-write')
+          const committed = await readForCell('confirmWorkflowGroupStateCommitted', () =>
+            confirmWorkflowGroupStateCommitted(cellCtx, write)
+          ).catch(() => false)
+          if (committed) return status
+        }
         try {
           await writeState({
             status: 'error',
             executionId,
             jobId: null,
             workflowId,
-            error: message,
+            error: getCellFailureMessage(err),
             runningBlockIds: [],
             blockErrors: progressWriter?.getBlockErrors() ?? {},
           })
@@ -1231,10 +1334,46 @@ async function runWorkflowAndWriteTerminal(
             cause: describeError(writeErr),
             retryable: isRetryableInfrastructureError(writeErr),
           })
+          throw writeErr
         }
         return 'error'
       }
     })
+  } catch (err) {
+    /**
+     * Whatever got here left the cell without a terminal state, usually before anything ran. The
+     * dispatcher has moved on by then and no sweep revisits the cell, so a `pending` left behind
+     * renders as Queued for good. Reporting it as an error lets the cascade continue and the user
+     * re-run it. The text is fixed because anything can be thrown here, and the log holds the rest.
+     * A carrier that never claimed the cell leaves the execution id null, so a newer run's carrier
+     * can still claim it.
+     *
+     * A rejected write means a Stop or a newer run owns the cell, so this carrier ends rather than
+     * start the next group. If the write fails too the throw fails the run, the alert to act on.
+     */
+    logger.error(
+      `Workflow group cell failed before reaching a terminal state (table=${tableId} row=${rowId} group=${groupId})`,
+      {
+        executionId,
+        cause: describeError(err),
+        retryable: isRetryableInfrastructureError(err),
+      }
+    )
+    const { writeWorkflowGroupStateDurably } = await import('@/lib/table/cell-write')
+    const written = await writeWorkflowGroupStateDurably(
+      { tableId, rowId, workspaceId, groupId, executionId, requestId, table },
+      {
+        executionState: {
+          status: 'error',
+          executionId: claimed ? executionId : null,
+          jobId: null,
+          workflowId: (group.type === 'enrichment' && group.enrichmentId) || workflowId,
+          error: CELL_STOPPED_MESSAGE,
+        },
+      },
+      { claimed }
+    )
+    return written === 'wrote' ? 'error' : 'cancelled'
   } finally {
     timeoutController.cleanup()
   }
