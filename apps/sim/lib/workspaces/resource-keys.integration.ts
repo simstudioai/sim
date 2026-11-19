@@ -12,6 +12,7 @@ import {
   workspaceResourceKey,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -101,7 +102,7 @@ async function untilKeyWriteBlocks() {
       sql`select pid from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%workspace_resource_key%'`
     )
     if (rows.length > 0) return
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await sleep(25)
   }
   throw new Error('no key write blocked on a lock')
 }
