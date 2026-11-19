@@ -2027,6 +2027,47 @@ export default workflow('', {}, () => {
   )
 
   check(
+    'a dry run reports whether the draft it would write differs from the deployment',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const writer = seedBlock('agent', 'Writer', {
+        model: ['combobox', 'gpt-4o'],
+        messages: ['messages-input', [{ role: 'user', content: 'hi' }]],
+      })
+      const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
+      const workflowId = await seedGraph([start, writer, score])
+      const deployed = await loadWorkflowDeploymentSnapshot(workflowId)
+      if (!deployed) throw new Error('The seeded draft has no deployment snapshot')
+      await db.insert(workflowDeploymentVersion).values({
+        id: generateId(),
+        workflowId,
+        version: 1,
+        state: deployed,
+        isActive: true,
+      })
+      await db.update(workflow).set({ isDeployed: true }).where(eq(workflow.id, workflowId))
+      const source = await getSource(workflowId)
+      const changed = edit(source.files, 'return 1', 'return 2')
+
+      const unchangedDryRun = await apply(source, source.files, { dryRun: true })
+      const changedDryRun = await apply(source, changed, { dryRun: true })
+      const applied = await apply(source, changed)
+
+      expect(unchangedDryRun.needsRedeployment).toBe(false)
+      expect(changedDryRun.needsRedeployment).toBe(true)
+      expect(applied.needsRedeployment).toBe(true)
+
+      const edited = await getSource(workflowId)
+      const reverted = edit(edited.files, 'return 2', 'return 1')
+      const revertDryRun = await apply(edited, reverted, { dryRun: true })
+      const revert = await apply(edited, reverted)
+
+      expect(revertDryRun.needsRedeployment).toBe(false)
+      expect(revert.needsRedeployment).toBe(false)
+    }
+  )
+
+  check(
     'a committed apply records one audit row carrying the client, git sha and counts',
     async () => {
       const seeded = await seedWorkflow()

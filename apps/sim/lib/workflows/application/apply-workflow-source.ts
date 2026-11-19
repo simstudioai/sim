@@ -74,7 +74,10 @@ import {
   prefetchStoredResources,
   type StoredCanonical,
 } from '@/lib/workflows/code/stored-canonical'
-import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import {
+  checkDraftNeedsRedeployment,
+  checkNeedsRedeployment,
+} from '@/lib/workflows/deployment-status'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -447,8 +450,10 @@ async function runSourceApply(
         (shared.envNames ??= loadEnvNames(context.workspaceId, subjectUserId)),
       ])
   /**
-   * A dry run writes no graph, so whether the draft differs from its deployment is known now and
-   * runs beside the evaluation. The `catch` only keeps it observed when an error throws first.
+   * Whether the draft differs from its deployment, for a dry run that leaves it as it is (a no-op
+   * or a refusal): it writes nothing, so this is known now and runs beside the evaluation. A dry
+   * run that would change the draft compares what it would write instead. The `catch` only keeps
+   * it observed when an error throws first or it goes unused.
    */
   const dryRunNeedsRedeployment =
     dryRun && !planOnly && !isNew ? checkNeedsRedeployment(context.workflowId) : null
@@ -472,6 +477,7 @@ async function runSourceApply(
             | 'wroteSourceMeta'
             | 'sourceMetaChanged'
             | 'evaluated'
+            | 'needsRedeployment'
           >
         >
     ): Promise<ApplyWorkflowSourceResult> => ({
@@ -496,9 +502,10 @@ async function runSourceApply(
         catalogHash: evaluated.catalog.hash,
       },
       needsRedeployment:
-        !isNew &&
-        !planOnly &&
-        (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId))),
+        outcome.needsRedeployment ??
+        (!isNew &&
+          !planOnly &&
+          (await (dryRunNeedsRedeployment ?? checkNeedsRedeployment(context.workflowId)))),
       sdkMajor: evaluated.catalog.sdkMajor,
     })
 
@@ -702,6 +709,12 @@ async function runSourceApply(
       logger.info('Evaluated workflow source without persisting', logContext)
       return result(evaluated, printWritten(preview.state), {
         applied: false,
+        needsRedeployment:
+          !isNew &&
+          (await checkDraftNeedsRedeployment(context.workflowId, {
+            ...preview.state,
+            variables: plan.storedVariables,
+          })),
         diff,
         diagnostics,
         mintedIds,
