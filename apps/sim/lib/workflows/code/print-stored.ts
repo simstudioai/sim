@@ -10,6 +10,7 @@ import {
   printWorkflow,
   type ResourceKeyResolver,
   type SourceFingerprint,
+  setOwn,
   sourceFingerprint,
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
@@ -102,7 +103,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
   const metaInputs = hintsFromSourceMeta(sourceMeta, canonical)
   for (const [key, codeFile] of Object.entries(input.codeFiles ?? {})) {
     if (!Object.hasOwn(canonical.identity.blocks, key)) continue
-    metaInputs.hints.blocks[key] = { ...metaInputs.hints.blocks[key], codeFile }
+    setOwn(metaInputs.hints.blocks, key, { ...metaInputs.hints.blocks[key], codeFile })
   }
   const printed = printWorkflow({
     workflow: {
