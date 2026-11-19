@@ -10,7 +10,7 @@ import { compileWorkflow } from './index'
 const fake = (...parts: string[]) => parts.join('')
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, slack, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -262,6 +262,38 @@ describe('tool params', () => {
       storedWorkflow
     )
     expect(next.blocks.a?.params.tools).toEqual(storedWorkflow.blocks.a?.params.tools)
+  })
+
+  it('warn W_LITERAL_SECRET where source writes a secret, as print does', () => {
+    const result = run(tools("{ credential: credential('ops'), apiKey: 'sk-tool-1', to: 'a@x.y' }"))
+    expect(
+      result.diagnostics.filter((d) => d.code === 'W_LITERAL_SECRET').map((d) => d.param)
+    ).toEqual(['apiKey'])
+  })
+
+  it.each([
+    ['a misspelled param', "{ credential: credential('ops'), apiKy: 'x' }", 'Did you mean apiKey?'],
+    [
+      "a pair member's own id",
+      "{ manualCredential: 'x' }",
+      'Write it as credential; the value kind picks the basic or advanced field.',
+    ],
+  ])('refuse %s, as a block does', (_label, params, hint) => {
+    const result = run(tools(params))
+    expect(result.workflow).toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_UNKNOWN_PARAM').map((d) => d.hint)
+    ).toEqual([hint])
+  })
+
+  it('keep a param of another operation, warning that the tool never reads it', () => {
+    const result = run(
+      source("  agent('A', { model: 'm', tools: [slack.tool.listChannels({ channel: 'C1' })] })")
+    )
+    expect(result.workflow).not.toBeNull()
+    expect(
+      result.diagnostics.filter((d) => d.code === 'W_FIELD_NOT_APPLICABLE').map((d) => d.param)
+    ).toEqual(['channel'])
   })
 
   it('refuse stored() where the stored tool holds no value', () => {

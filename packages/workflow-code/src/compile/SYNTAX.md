@@ -229,8 +229,11 @@ template.
   pass through. The printer writes a list the record cannot carry (an integer-like or repeated name,
   an unknown key) as `raw([…])`.
 - Tools (`valueKind: 'tools'`): an array of
-  - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`), or `builder.tool(params, options?)`
-    for a builder at the namespace root (`agent.tool(…)`);
+  - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`): an integration operation (a
+    `tools`-category block's namespaced builder, outside trigger mode). Any other builder as a tool
+    (`api.tool(…)`, `trigger.gmail.tool.poller(…)`) is `E_UNKNOWN_BUILDER`. Params are checked like
+    a block's: one the tool type does not have is `E_UNKNOWN_PARAM`, one of another operation
+    `W_FIELD_NOT_APPLICABLE`, a literal secret `W_LITERAL_SECRET`;
   - `customTool('key', options?)`: a workspace custom tool stored as the picker's reference (a
     copied definition prints as `raw`);
   - `mcp('key').tool('name', { args?, snapshot?, usageControl?, usageControlExpression? })`: one
@@ -243,7 +246,7 @@ template.
     derives it again;
   - `childWorkflow('key').asTool({ usageControl?, usageControlExpression? })`: a child workflow as
     the picker adds it (`type: 'workflow_input'`, `title: 'Workflow'`,
-    `toolId: 'workflow_executor'`). One with fixed inputs prints through `runWorkflow.tool(…)`;
+    `toolId: 'workflow_executor'`). One with fixed inputs prints as `raw(tool)`;
   - `raw(tool)`: any other stored tool, including an MCP or child-workflow tool whose stored fields
     drifted from what the picker writes (a renamed title, a foreign `toolId`, explicit modes) and a
     tool keyed by an alias name. A password param holding literal text prints as

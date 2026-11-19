@@ -539,8 +539,7 @@ export interface WorkflowDef {
 export interface WorkflowRef<Key extends string = string> extends ResourceRef<'workflow', Key> {
   /**
    * The workflow as an agent tool, as the editor's tool picker adds it:
-   * `childWorkflow('enrich-lead').asTool()`. A tool with fixed inputs is written
-   * `runWorkflow.tool({ workflowId, inputMapping }, options)`.
+   * `childWorkflow('enrich-lead').asTool()`. A tool with fixed inputs is written `raw(tool)`.
    */
   asTool(options?: ToolUsage): Tool
 }

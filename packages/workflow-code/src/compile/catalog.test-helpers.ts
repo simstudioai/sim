@@ -212,7 +212,8 @@ export const TEST_CATALOG: BlockCatalog = {
         }),
         sub('threadTs', 'short-input', 'string', { condition: { opaque: true } }),
       ],
-      { ts: TEXT, channel: TEXT, to: TEXT }
+      { ts: TEXT, channel: TEXT, to: TEXT },
+      { category: 'tools' }
     ),
     table: block(
       'table',

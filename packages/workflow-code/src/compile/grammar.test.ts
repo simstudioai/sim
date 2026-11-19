@@ -655,11 +655,18 @@ describe('errors, each with its code, location and hint', () => {
       'Remove operation; the method name pins it.',
     ],
     [
-      'a tool param in the builder fixed values',
+      'a trigger builder as an agent tool',
       "const a = agent('A', { model: 'm', tools: [trigger.gmail.tool.poller({ selectedTriggerId: 'other' })] })",
-      'E_FIXED_PARAM',
-      'selectedTriggerId',
-      'Remove selectedTriggerId; the method name pins it.',
+      'E_UNKNOWN_BUILDER',
+      'trigger.gmail.tool.poller',
+      "Write an integration operation as namespace.tool.method(params), a child workflow as childWorkflow('key').asTool(), or any other stored tool as raw(tool).",
+    ],
+    [
+      'a core block builder as an agent tool',
+      "const a = agent('A', { model: 'm', tools: [api.tool({ url: 'x' })] })",
+      'E_UNKNOWN_BUILDER',
+      'api.tool',
+      "Write an integration operation as namespace.tool.method(params), a child workflow as childWorkflow('key').asTool(), or any other stored tool as raw(tool).",
     ],
     [
       'two blocks whose names normalize alike',
