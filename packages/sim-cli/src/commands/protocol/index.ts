@@ -89,7 +89,9 @@ export function attachProtocolCommands(program: Command): void {
   const runs = group(workflows, 'runs')
   attachWorkflowRunGet(runs)
   attachWorkflowRunWait(runs)
-  const source = group(workflows, 'source')
+  const source = group(workflows, 'source').description(
+    'Read and apply a workflow as TypeScript source (preview)'
+  )
   attachWorkflowSourceGet(source)
   attachWorkflowSourceApply(source)
   attachWorkflowSourceCreate(source)
@@ -99,7 +101,9 @@ export function attachProtocolCommands(program: Command): void {
 
   const workspaces = group(program, 'workspaces')
   attachWorkspaceOperationWait(group(workspaces, 'operations'))
-  const workspaceSource = group(workspaces, 'source').description('Manage workspace source')
+  const workspaceSource = group(workspaces, 'source').description(
+    'Read and apply a workspace as a code directory (preview)'
+  )
   attachWorkspaceSourceGet(workspaceSource)
   attachWorkspaceSourceApply(workspaceSource)
   attachWorkspaceSourceCheck(workspaceSource)

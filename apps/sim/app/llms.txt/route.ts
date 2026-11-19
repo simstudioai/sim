@@ -127,6 +127,11 @@ export async function GET() {
           'Full text of the Sim documentation'
         ),
         DOCS_LINE,
+        linkLine(
+          'Workflows as code',
+          `${DOCS_URL}/workflows/code`,
+          'TypeScript source via `sim workflows source`'
+        ),
       ]),
       section('Blog', [
         linkLine('Blog', '/blog', 'Announcements, engineering deep dives, and product context'),

@@ -315,6 +315,35 @@ sim secrets set API_KEY --scope workspace --value @secret.txt
 printf '%s' "$API_KEY" | sim secrets set API_KEY --scope workspace --value @-
 ```
 
+## Workflows and workspaces as code
+
+A workflow can be read and saved as a TypeScript file, and a whole workspace as a
+directory. These commands are in preview: they work once workflows as code is
+enabled on your Sim deployment.
+
+```bash
+sim workflows source get <workflowId> --dir ./support-triage   # write workflow.ts, types and .sim/
+sim workflows source check --dir ./support-triage              # compile offline, no request
+sim workflows source status --dir ./support-triage             # your edits, server changes, next step
+sim workflows source diff --dir ./support-triage               # your edits as a unified diff
+sim workflows source apply --dir ./support-triage --dry-run    # run every check a save runs
+sim workflows source apply --dir ./support-triage --yes        # save the draft (never deploys)
+```
+
+`sim workspaces source get|check|status|diff|apply --dir <dir>` does the same for
+tables, knowledge bases, files, custom tools, skills, MCP servers, workflows and
+deployments in one directory. `sim workflows source create --dir <dir>` starts a
+new workflow.
+
+Coding agents (Claude Code, Cursor, Codex) start at `.sim/AGENTS.md`, which `get`
+writes into the directory. The loop is get, edit `workflow.ts`, check, status,
+apply with `--dry-run`, then apply with `--yes`. Saving source acts as a person:
+use a personal API key or an OAuth login, since a workspace API key cannot save
+workflows.
+
+See [Workflows as code](https://docs.sim.ai/workflows/code) and
+[Workspace as code](https://docs.sim.ai/workflows/workspace-code).
+
 ## CI and automation
 
 In CI, use an API key instead of `sim login`:
