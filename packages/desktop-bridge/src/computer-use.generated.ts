@@ -230,12 +230,16 @@ export const ComputerUseSchema = z.union([
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
 
 /** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
-const CommandTitle = z.string().min(1).max(1024);
+const CommandTitle = z
+  .string()
+  .max(1024)
+  .refine((title) => title.trim().length > 0, "A title must not be blank");
+/** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset; the helper checks it is a real date. */
+const ISO_DATE_OR_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 const CommandNotes = z.string().max(8000).optional();
 const EventBoundary = z
   .string()
-  .min(10)
-  .max(64)
+  .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
   .describe(
     "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
   );
@@ -249,8 +253,7 @@ export const AppCommandSchema = z.discriminatedUnion("name", [
     notes: CommandNotes,
     due: z
       .string()
-      .min(10)
-      .max(64)
+      .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
       .optional()
       .describe(
         "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
