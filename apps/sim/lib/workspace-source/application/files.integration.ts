@@ -50,6 +50,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import * as contentUseCases from '@/lib/workspace-files/application/update-workspace-file-content'
@@ -995,6 +996,66 @@ export default workflow('Reader', {}, () => {
           )
         )
       expect(binding?.resourceId).toBe(fileId(again.base, 'claim-crash.pdf'))
+    }
+  )
+
+  check(
+    'a declared file the server can no longer hand to source since the get refuses only a directory that changes it',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const twin = await uploadInUi(workspaceId, 'archive', 'Notes.txt', 'an older file')
+      const read = await setUp(workspaceId)
+      const dir = await downloaded(workspaceId, read)
+      const notesId = fileId(read.base, 'notes.txt')
+      const planId = fileId(read.base, 'docs/plan.md')
+      // The older file moved beside notes.txt in the Files tab (a case-insensitive disk merges
+      // them, and the older one keeps the path), and plan.md edited past the blob cap.
+      await moveWorkspaceFileItemsOperation.execute({
+        principal: owner,
+        input: { workspaceId, fileIds: [twin.id], targetFolderId: null },
+      })
+      await contentUseCases.updateWorkspaceFileContentFromBuffer.execute({
+        principal: owner,
+        input: {
+          fileId: planId,
+          assertedWorkspaceId: workspaceId,
+          content: Buffer.alloc(WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1, 'p'),
+        },
+      })
+      const before = await storedFiles(workspaceId)
+
+      const planned = await apply(workspaceId, dir, { base: read.base, dryRun: true })
+      expect(codes(planned.diagnostics)).toEqual([])
+      const unchanged = await apply(workspaceId, dir, { base: read.base })
+
+      expect(
+        unchanged.diagnostics
+          .filter((finding) => finding.code === 'I_SERVER_CHANGED')
+          .map((finding) => `${finding.code} ${finding.key}`)
+          .sort()
+      ).toEqual(['I_SERVER_CHANGED docs/plan.md', 'I_SERVER_CHANGED notes.txt'])
+      expect(unchanged.applied).toEqual([])
+      expect(await storedFiles(workspaceId)).toEqual(before)
+
+      const edited = await refusal(
+        apply(
+          workspaceId,
+          {
+            ...dir,
+            'files/notes.txt': Buffer.from('edited'),
+            'files/docs/plan.md': Buffer.from('edited'),
+          },
+          { base: read.base }
+        )
+      )
+      expect(codes(edited.diagnostics).sort()).toEqual([
+        'E_FILE_PATH_COLLISION',
+        'E_FILE_TOO_LARGE',
+      ])
+      expect(await storedFiles(workspaceId)).toEqual(before)
+      expect([notesId, planId, twin.id].every((id) => before.some((file) => file.id === id))).toBe(
+        true
+      )
     }
   )
 })

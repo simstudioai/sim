@@ -119,6 +119,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteKnowledgeDocument,
   listKnowledgeDocumentsAfter,
+  updateKnowledgeDocument,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { createKnowledgeFolder } from '@/lib/knowledge/application/folders'
@@ -313,6 +314,34 @@ function failUpload(failOn: number) {
     calls += 1
     if (calls === failOn) throw new Error('storage unavailable')
     return upload.call(uploadKnowledgeDocument, args)
+  })
+}
+
+/** Tags the stored `refunds.md` of `knowledgeBaseId` in the UI, which a replace must carry over. */
+async function tagRefunds(knowledgeBaseId: string) {
+  await db
+    .update(document)
+    .set({ tag1: 'gold' })
+    .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), eq(document.filename, 'refunds.md')))
+}
+
+/** The live documents of `knowledgeBaseId` as name, content hash and first tag. */
+async function contents(knowledgeBaseId: string) {
+  const rows = await db
+    .select({ filename: document.filename, sha256: document.fileSha256, tag1: document.tag1 })
+    .from(document)
+    .where(and(eq(document.knowledgeBaseId, knowledgeBaseId), isNull(document.deletedAt)))
+  return rows.sort((a, b) => compareStrings(a.filename, b.filename))
+}
+
+/** Makes the `failOn`-th call of `updateKnowledgeDocument` fail. */
+function failUpdate(failOn: number) {
+  const update = updateKnowledgeDocument.execute
+  let calls = 0
+  return vi.spyOn(updateKnowledgeDocument, 'execute').mockImplementation(async (args) => {
+    calls += 1
+    if (calls === failOn) throw new Error('database unavailable')
+    return update.call(updateKnowledgeDocument, args)
   })
 }
 
@@ -966,7 +995,12 @@ describe('knowledge bases as workspace source', () => {
       )
 
       expect(first.failed).toMatchObject({ key: 'policies' })
-      expect(await filenames(stored.id)).toEqual(['refunds.md', 'refunds.md', 'shipping.txt'])
+      // The replacement stays under the name that names the document it replaces.
+      expect(await filenames(stored.id)).toEqual([
+        `.sim-replace.${refunds.id}.refunds.md`,
+        'refunds.md',
+        'shipping.txt',
+      ])
 
       const plan = await apply(workspaceId, edited, {
         base: first.base,
@@ -1472,6 +1506,124 @@ describe('knowledge bases as workspace source', () => {
       })
 
       expect(readIds).not.toContain(added.id)
+    }
+  )
+
+  check(
+    "a replace stopped before its tags carried over keeps the old document's tags when the next apply finishes it",
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      await tagRefunds(stored.id)
+      const v2 = '# Refunds\nWithin 60 days.\n'
+      const edited = withDoc(dir, REFUNDS, v2)
+      // The tag carry fails, and so does removing the replacement again: as a kill there leaves it.
+      const tags = failUpdate(1)
+      const deletes = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+
+      const first = await apply(workspaceId, edited, { base: read.base }).finally(() => {
+        tags.mockRestore()
+        deletes.mockRestore()
+      })
+      expect(first.failed).toMatchObject({ key: 'policies' })
+      expect(await docs(stored.id)).toHaveLength(3)
+
+      const second = await apply(workspaceId, edited, { base: first.base, carry: 'none' })
+
+      expect(second.failed).toBeUndefined()
+      expect(await contents(stored.id)).toEqual([
+        { filename: 'refunds.md', sha256: sha256Hex(Buffer.from(v2)), tag1: 'gold' },
+        { filename: 'shipping.txt', sha256: expect.any(String), tag1: null },
+      ])
+    }
+  )
+
+  check(
+    'a replace stopped before its delete, then edited again, is resumed with the new content and the old tags',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      await tagRefunds(stored.id)
+      const failing = vi
+        .spyOn(deleteKnowledgeDocument, 'execute')
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+        .mockRejectedValueOnce(new Error('storage unavailable'))
+      const first = await apply(
+        workspaceId,
+        withDoc(dir, REFUNDS, '# Refunds\nWithin 60 days.\n'),
+        { base: read.base }
+      ).finally(() => failing.mockRestore())
+      expect(first.failed).toMatchObject({ key: 'policies' })
+      expect(await docs(stored.id)).toHaveLength(3)
+
+      const v3 = '# Refunds\nWithin 90 days.\n'
+      const again = withDoc(dir, REFUNDS, v3)
+      const planned = await apply(workspaceId, again, { base: first.base, dryRun: true })
+      expect(codes(planned.diagnostics)).toEqual([])
+      const second = await apply(workspaceId, again, { base: first.base })
+
+      expect(second.failed).toBeUndefined()
+      expect(await contents(stored.id)).toEqual([
+        { filename: 'refunds.md', sha256: sha256Hex(Buffer.from(v3)), tag1: 'gold' },
+        { filename: 'shipping.txt', sha256: expect.any(String), tag1: null },
+      ])
+      const settled = await apply(workspaceId, reprinted(again, second), {
+        base: second.base,
+        carry: 'none',
+      })
+      expect(actions(settled)).toEqual(['noop knowledge-base:policies'])
+    }
+  )
+
+  check(
+    'a replace stopped before its rename is finished by the next apply, or replaced again when edited since',
+    async () => {
+      const { workspaceId, read, dir } = await setUp()
+      const stored = await knowledgeBaseNamed(workspaceId, 'Policies')
+      await tagRefunds(stored.id)
+      const v2 = '# Refunds\nWithin 60 days.\n'
+      const renames = failUpdate(2)
+      const first = await apply(workspaceId, withDoc(dir, REFUNDS, v2), {
+        base: read.base,
+      }).finally(() => renames.mockRestore())
+      expect(first.failed).toMatchObject({ key: 'policies' })
+      expect((await contents(stored.id)).map((doc) => doc.tag1)).toEqual(['gold', null])
+
+      // A get meanwhile prints the replacement under its name.
+      const midway = await get(workspaceId)
+      expect(midway.blobs.map((blob) => blob.path).sort()).toEqual([
+        'knowledge/policies/docs/refunds.md',
+        'knowledge/policies/docs/shipping.txt',
+      ])
+
+      const v3 = '# Refunds\nWithin 90 days.\n'
+      const again = withDoc(dir, REFUNDS, v3)
+      const second = await apply(workspaceId, again, { base: first.base })
+
+      expect(second.failed).toBeUndefined()
+      expect(await contents(stored.id)).toEqual([
+        { filename: 'refunds.md', sha256: sha256Hex(Buffer.from(v3)), tag1: 'gold' },
+        { filename: 'shipping.txt', sha256: expect.any(String), tag1: null },
+      ])
+
+      // Stopped there again, the same directory finishes it with a rename alone.
+      const stopped = failUpdate(2)
+      const v4 = withDoc(dir, REFUNDS, '# Refunds\nWithin 120 days.\n')
+      const third = await apply(workspaceId, v4, { base: second.base }).finally(() =>
+        stopped.mockRestore()
+      )
+      expect(third.failed).toMatchObject({ key: 'policies' })
+      const plan = await apply(workspaceId, v4, { base: third.base, dryRun: true, carry: 'none' })
+      expect(codes(plan.diagnostics)).toEqual([])
+      expect(plan.needBlobs).toEqual([])
+      const fourth = await apply(workspaceId, v4, { base: third.base, carry: 'none' })
+      expect(fourth.failed).toBeUndefined()
+      expect((await contents(stored.id)).map((doc) => [doc.filename, doc.tag1])).toEqual([
+        ['refunds.md', 'gold'],
+        ['shipping.txt', null],
+      ])
     }
   )
 })

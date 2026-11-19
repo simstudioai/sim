@@ -12,6 +12,7 @@ import { createLogger } from '@sim/logger'
 import { mapSettledWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
+import { omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { fingerprintOf, resourceAddress } from '@sim/workspace-code'
 import {
@@ -66,6 +67,7 @@ import {
   knowledgeView,
   loadDocs,
   movedTowardDecl,
+  replacementName,
   type StoredDoc,
   type StoredKnowledgeState,
   sourceDocs,
@@ -85,7 +87,10 @@ import type {
 /** What the apply carries out for one knowledge base, decided at plan time. */
 export interface KnowledgePlan {
   /** The changes a create, update or adopt makes; absent for a delete. */
-  changes?: Pick<KnowledgeChanges, 'settings' | 'uploads' | 'deletes' | 'superseded'>
+  changes?: Pick<
+    KnowledgeChanges,
+    'settings' | 'uploads' | 'deletes' | 'finishes' | 'renames' | 'discards'
+  >
   /** Document id → SHA-256 for every stored document whose bytes the plan knows. */
   hashes: Map<string, string>
   /**
@@ -272,7 +277,14 @@ async function planKnowledgeBase(
         fields: uploads.map((upload) => `docs/${upload.name} (add)`),
         needsBlobs: uploadPaths(key, uploads),
         detail: {
-          changes: { settings: {}, uploads, deletes: [], superseded: [] },
+          changes: {
+            settings: {},
+            uploads,
+            deletes: [],
+            finishes: [],
+            renames: [],
+            discards: [],
+          },
           hashes: new Map(),
         },
       }
@@ -393,9 +405,46 @@ async function carryTags(
   }
 }
 
+/** Gives a replacement the name of the document it replaced, once that one is deleted. */
+async function renameDoc(
+  ctx: ApplyContext,
+  knowledgeBaseId: string,
+  documentId: string,
+  filename: string
+): Promise<void> {
+  await updateKnowledgeDocument.execute({
+    principal: ctx.principal,
+    input: {
+      knowledgeBaseId,
+      documentId,
+      assertedWorkspaceId: ctx.workspace.workspaceId,
+      filename,
+    },
+  })
+}
+
 /**
- * Uploads each planned document from its staged bytes; a replacement takes the tag values of the document it replaces,
- * which is deleted only once its replacement is stored. Returns the new documents' hashes by id.
+ * Finishes a replace from its stored replacement: the replacement takes the old document's tag
+ * values, the old document is deleted, and the replacement takes its name. Each step is one write,
+ * and the replacement's upload name names the old document, so a replace that stops between them
+ * is finished by the next apply.
+ */
+async function finishReplace(
+  ctx: ApplyContext,
+  knowledgeBaseId: string,
+  old: StoredDoc,
+  replacementId: string,
+  name: string
+): Promise<void> {
+  await carryTags(ctx, knowledgeBaseId, old, replacementId)
+  await retire(ctx, knowledgeBaseId, old, replacementId)
+  await renameDoc(ctx, knowledgeBaseId, replacementId, name)
+}
+
+/**
+ * Uploads each planned document from its staged bytes. A replacement is uploaded under its
+ * replacement name (`replacementName`), then the replace is finished ({@link finishReplace}).
+ * Returns the new documents' hashes by id.
  */
 async function uploadDocs(
   ctx: ApplyContext,
@@ -416,7 +465,7 @@ async function uploadDocs(
         assertedWorkspaceId: ctx.workspace.workspaceId,
         file: {
           buffer,
-          filename: upload.name,
+          filename: upload.replaces ? replacementName(upload.replaces, upload.name) : upload.name,
           fileSize: buffer.byteLength,
           mimeType: isSupportedExtension(extension) ? SUPPORTED_MIME_TYPES[extension][0] : '',
         },
@@ -424,8 +473,7 @@ async function uploadDocs(
     })
     hashes.set(document.id, upload.doc.sha256)
     if (upload.replaces) {
-      await carryTags(ctx, knowledgeBaseId, upload.replaces, document.id)
-      await retire(ctx, knowledgeBaseId, upload.replaces, document.id)
+      await finishReplace(ctx, knowledgeBaseId, upload.replaces, document.id, upload.name)
     }
   }
   return hashes
@@ -636,7 +684,8 @@ export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeStat
     }
     const removed =
       changes.deletes[0] ??
-      changes.superseded[0] ??
+      changes.discards[0] ??
+      changes.finishes[0]?.replaces ??
       changes.uploads.find((upload) => upload.replaces)?.replaces
     if (removed) {
       await deleteKnowledgeDocument.authorize({
@@ -685,34 +734,53 @@ export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeStat
     }
     const knowledgeBaseId = change.storedId
     if (!knowledgeBaseId) throw new Error('A knowledge base update needs the stored id')
-    const { settings, deletes, superseded } = plan.changes
+    const { settings, deletes, finishes, renames, discards } = plan.changes
     if (Object.keys(settings).length > 0) {
       await updateKnowledgeBaseOperation.execute({
         principal,
         input: { knowledgeBaseId, assertedWorkspaceId: workspaceId, ...settings },
       })
     }
+    for (const doc of discards) await deleteDoc(ctx, knowledgeBaseId, doc.id)
+    const named = new Map<string, string>()
+    for (const { replacement, replaces } of finishes) {
+      await finishReplace(ctx, knowledgeBaseId, replaces, replacement.id, replaces.filename)
+      named.set(replacement.id, replaces.filename)
+    }
+    for (const doc of renames) {
+      await renameDoc(ctx, knowledgeBaseId, doc.id, doc.filename)
+      named.set(doc.id, doc.filename)
+    }
     const uploaded = await uploadDocs(ctx, change.key, knowledgeBaseId, uploads)
-    for (const doc of superseded) await deleteDoc(ctx, knowledgeBaseId, doc.id)
     for (const doc of deletes) await deleteDoc(ctx, knowledgeBaseId, doc.id)
     const removed = new Set(
-      [...superseded, ...deletes, ...uploads.flatMap((upload) => upload.replaces ?? [])].map(
-        (doc) => doc.id
-      )
+      [
+        ...discards,
+        ...deletes,
+        ...finishes.map((finish) => finish.replaces),
+        ...uploads.flatMap((upload) => upload.replaces ?? []),
+      ].map((doc) => doc.id)
     )
+    // What the writes left: the listed documents less those removed, each finished or renamed
+    // replacement under its name.
+    const kept = plan.listed?.flatMap((doc): StoredDoc[] => {
+      if (removed.has(doc.id)) return []
+      const filename = named.get(doc.id)
+      return filename === undefined ? [doc] : [{ ...omit(doc, ['replacing']), filename }]
+    })
     return written(
       ctx,
       change.key,
       knowledgeBaseId,
       new Map([...plan.hashes, ...uploaded]),
       new Set(uploaded.keys()),
-      plan.listed?.filter((doc) => !removed.has(doc.id))
+      kept
     )
   },
 
   async read(stored, ctx) {
     const docs = await loadDocs(ctx, stored.id)
-    const { byName, unmanaged } = sourceDocs(docs)
+    const { byName, strays, unmanaged } = sourceDocs(docs)
     const hashes = new Map<string, string>()
     const unhashed = await hashDocs(ctx, stored.id, byName.values(), hashes)
     const view = knowledgeView(stored.state, docs, hashes)
@@ -726,6 +794,17 @@ export const knowledgeAdapter: KindAdapter<'knowledge-base', StoredKnowledgeStat
           stored.key,
           'I_KB_DOCS_UNHASHED',
           `${unhashed.length} document(s) of "${stored.name}" are listed without a hash: this get reached its download budget, or could not read their bytes.`
+        )
+      )
+    }
+    const unfinished = strays.length + [...byName.values()].filter((doc) => doc.replacing).length
+    if (unfinished > 0) {
+      diagnostics.push(
+        kindFinding(
+          KIND,
+          stored.key,
+          'I_KB_REPLACE_UNFINISHED',
+          `${unfinished} document(s) of "${stored.name}" are left from a replace that stopped partway; the next apply that changes this knowledge base finishes or removes them.`
         )
       )
     }

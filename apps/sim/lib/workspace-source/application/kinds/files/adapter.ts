@@ -5,7 +5,8 @@
  * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
  * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
  * Only `context = 'workspace'` files are read; a file over the blob cap, or one whose path no
- * directory can hold, is left out of a get and never touched by an apply. A path is the key, so a
+ * directory can hold, is left out of a get and never touched by an apply (a declaration of one is
+ * refused, unless it is unchanged since a get that read the file). A path is the key, so a
  * file moved or deleted in the Files tab is recognized by the id its base entry names and never
  * created again at the old path.
  */
@@ -48,6 +49,7 @@ import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
   planUndeclared,
+  serverChangedFinding,
   serverGoneFinding,
 } from '@/lib/workspace-source/application/findings'
 import {
@@ -275,6 +277,12 @@ function planFile(
   const base = ctx.base?.resources[resourceAddress('file', key)]
   if (!existing && base) return planGone(change, decl, base, byId)
   if (existing?.state.unmanaged) {
+    // A file a get read that the server can no longer hand to source (edited past the cap, or a
+    // file moved in that takes its path by letter case): an unchanged declaration leaves it be.
+    if (base?.id === existing.id && base.fingerprint === fileFingerprint(decl.sha256)) {
+      change.diagnostics.push(serverChangedFinding('file', key))
+      return { ...change, storedId: existing.id }
+    }
     change.diagnostics.push(
       kindFinding(
         'file',

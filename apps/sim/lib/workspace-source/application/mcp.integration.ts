@@ -702,6 +702,22 @@ describe('MCP servers as workspace source', () => {
       expect(read.files[path]).toContain('Bearer {{GH_TOKEN}}')
       const address: `mcp-server:${string}` = `mcp-server:${path.slice(4, -3)}`
       expect(read.base.resources[address]).toEqual(written.base.resources[address])
+
+      // A writer applying the reader's directory unchanged changes nothing.
+      const unchanged = await apply(workspaceId, read.files, { base: read.base, dryRun: true })
+      expect(unchanged.plan.map((change) => change.action)).toEqual(['noop'])
+      expect((await apply(workspaceId, read.files, { base: read.base })).applied).toEqual([])
+
+      // An edit of the reader's directory keeps the value it never saw.
+      const renamed = await apply(
+        workspaceId,
+        { [path]: read.files[path].replace("name: 'Tenant'", "name: 'Tenant API'") },
+        { base: read.base }
+      )
+      expect(renamed.applied).toMatchObject([{ action: 'update', fields: ['name'] }])
+      expect((await liveServers(workspaceId)).map((server) => server.headers)).toEqual([
+        { 'X-Tenant': tenant, Authorization: 'Bearer {{GH_TOKEN}}' },
+      ])
     }
   )
 

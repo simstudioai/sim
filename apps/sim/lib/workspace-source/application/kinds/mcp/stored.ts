@@ -113,9 +113,11 @@ export function storedFingerprint(row: McpServerRow): ResourceFingerprint {
 }
 
 /**
- * `decl` with each `stored()` header resolved against `row`, the server it keeps values of: the
- * keyed hash of the value stored under that header. Returns the names `row` holds no value for
- * (every `stored()` header when there is no row).
+ * `decl` with each `stored()` header resolved against `row`, the server it keeps values of, as
+ * {@link declOf} prints that value: the keyed hash of a literal secret, the text of any other
+ * value (one {@link concealHeaderValues} hid from a reader), so a directory a reader read applies
+ * back unchanged. Returns the names `row` holds no value for (every `stored()` header when there
+ * is no row).
  */
 export function resolveStoredHeaders(
   decl: McpServerDecl,
@@ -132,7 +134,10 @@ export function resolveStoredHeaders(
         missing.push(name)
         return [name, header]
       }
-      return [name, { stored: storedValueHash(row, name, value) }]
+      return [
+        name,
+        holdsLiteralSecret(name, value) ? { stored: storedValueHash(row, name, value) } : value,
+      ]
     })
   )
   return { decl: { ...decl, headers }, missing }

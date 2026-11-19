@@ -22,7 +22,8 @@
  * declaration holds one JSON object per line, keyed by column key (a select cell by option name).
  * `{ mode: 'seed' }` writes them into the table when an apply creates it (or adopts it empty);
  * `{ mode: 'managed', key }` keeps the table's rows equal to the file, each matched by the unique
- * `key` column (removing a row needs `--allow-delete`).
+ * `key` column (removing a row needs `--allow-delete`); a stored row whose `key` cell is empty is
+ * left out of the file and kept as it is.
  */
 import type { Json } from '@sim/workflow-sdk'
 

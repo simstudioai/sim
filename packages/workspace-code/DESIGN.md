@@ -141,7 +141,11 @@ apart from the declarations').
   `base.rows`; the server's changed from the base is `E_APPLY_STALE`; else the rows are written. A
   write records the row version the plan read in its fingerprint, so the apply's pre-write check
   refuses a version that moved. Rows the file no longer lists are deleted only with
-  `--allow-delete`. The server marks a managed table in its metadata (`sourceRows`, by key column id),
+  `--allow-delete`. A stored row whose key cell is empty (the grid's "add row" makes one) has
+  nothing a line could match it by, so it is not managed: a get leaves it out of the file with
+  `I_TABLE_ROWS_UNKEYED`, neither fingerprint counts it, and no rows write changes or removes it
+  (a column made required still counts its empty cells). The base records the rows under the key
+  the server marks, so a plan that changes `key` compares the server with the base under that one. The server marks a managed table in its metadata (`sourceRows`, by key column id),
   so a get prints the declaration's `rows` and the rows file.
 
 Every rows write is the table's one reshape (`reshapeTableUseCase`, `rows` and `sourceRows`):
@@ -155,6 +159,17 @@ the triggers of the rows written fire once the reshape commits. A column added `
 optional, filled by the rows, then made required in the same transaction, so a directory can add a
 required column and its values in one apply.
 
+### Knowledge documents
+
+A document is never edited in place (the knowledge use cases have no such write), so a changed
+document is replaced: the replacement is uploaded under a name that names the old document
+(`.sim-replace.<old id>.<name>`), takes the old one's tag values, the old one is deleted, and the
+replacement is renamed. Each step is one write, so a replace that stops between them leaves a
+replacement only source could have made: the next apply that changes the knowledge base finishes
+it when it holds the declared bytes, or removes it and replaces again (the directory edited since),
+and a get reports it (`I_KB_REPLACE_UNFINISHED`). A replacement left before its rename stands for
+its name meanwhile; one left before the delete does not.
+
 ### The MCP server kind
 
 `mcp/<key>.ts` declares a server the workspace consumes (`kinds/mcp.ts`, adapter
@@ -166,7 +181,9 @@ it, deleting the old one if it is still there; a different server already at the
 `E_NAME_TAKEN`. A header value is stored text in
 which `{{NAME}}` names an env variable (`env.NAME` in source); a credential header holding literal
 text is `E_MCP_LITERAL_SECRET`, and a get prints one as `stored()`, which the server fingerprints
-by a keyed hash of the value it holds. After every kind is planned, the adapter's `checkRefs`
+by a keyed hash of the value it holds. A get by a member who may not rewrite headers prints every
+literal value as `stored()`; the server resolves such a header to the value it holds, so the
+directory applies back unchanged. After every kind is planned, the adapter's `checkRefs`
 lists each server's tools through the discovery use case and checks the tools workflows call
 (`refs` with a `member`): an unknown one is `E_MCP_TOOL_UNKNOWN`, a server it cannot list
 (unreachable, created by this apply, a workspace API key) `W_MCP_TOOLS_UNCHECKED`.
