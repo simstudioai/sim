@@ -766,7 +766,6 @@ function compileField(
   state.written.push({ property, param: field.name, target: target.id, checked, value })
 }
 
-/** Compiles a block call: `builder(name, params, meta?)` or `block(type, name, params, meta?)`. */
 /** What a regular block's builder and catalog entry fix before its params compile. */
 interface BlockShape {
   builder: Extract<ResolvedBuilder, { kind: 'catalog' | 'generic' }>
@@ -787,6 +786,7 @@ interface WrittenParams {
   responseBody: boolean
 }
 
+/** Compiles a block call: `builder(name, params, meta?)` or `block(type, name, params, meta?)`. */
 function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   const builder = decl.builder
   if (builder.kind !== 'catalog' && builder.kind !== 'generic') return null
