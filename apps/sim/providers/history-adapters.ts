@@ -118,6 +118,7 @@ export const providerHistoryProtocols: Record<
   baseten: 'chat-completions',
   nebius: 'chat-completions',
   thinkingmachines: 'chat-completions',
+  runcrate: 'chat-completions',
   vllm: 'chat-completions',
   litellm: 'chat-completions',
 }

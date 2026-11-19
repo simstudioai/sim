@@ -30,6 +30,7 @@ export type ProviderId =
   | 'together'
   | 'baseten'
   | 'nebius'
+  | 'runcrate'
   | 'thinkingmachines'
   | 'vllm'
   | 'litellm'

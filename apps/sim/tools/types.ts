@@ -21,6 +21,7 @@ export type BYOKProviderId =
   | 'nebius'
   | 'ollama-cloud'
   | 'kie'
+  | 'runcrate'
   | 'thinkingmachines'
   | 'falai'
   | 'firecrawl'

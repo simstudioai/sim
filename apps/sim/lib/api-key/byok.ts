@@ -345,6 +345,13 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Nebius ${model}`)
   }
 
+  if (provider === 'runcrate') {
+    const byokResult = await getBYOKKey(workspaceId, 'runcrate', { signal })
+    if (byokResult) return byokResult
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: false }
+    throw new Error(`API key is required for Runcrate ${model}`)
+  }
+
   if (provider === 'thinkingmachines') {
     const byokResult = await getBYOKKey(workspaceId, 'thinkingmachines', { signal })
     if (byokResult) {

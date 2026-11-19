@@ -446,6 +446,43 @@ describe('getApiKeyWithBYOK for Nebius', () => {
   })
 })
 
+describe('getApiKeyWithBYOK for Runcrate', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+  })
+
+  it('uses the configured workspace key instead of a caller key', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('runcrate-workspace')])
+    await expect(
+      getApiKeyWithBYOK(
+        'runcrate',
+        'runcrate/Qwen/Qwen3-235B-A22B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).resolves.toEqual({
+      apiKey: 'decrypted-runcrate-workspace',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+  })
+
+  it('falls back to the caller key when no workspace key is configured', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+    await expect(
+      getApiKeyWithBYOK(
+        'runcrate',
+        'runcrate/Qwen/Qwen3-235B-A22B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).resolves.toEqual({ apiKey: 'caller-key', isBYOK: false })
+  })
+})
+
 describe('BYOK lookup retry lifetime', () => {
   beforeEach(() => {
     vi.useFakeTimers()
