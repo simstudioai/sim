@@ -480,11 +480,10 @@ const v2TableColumnInputShape = {
  * `required` round-trips: it is emitted on every column read, accepted here, and
  * accepted on the update body below.
  *
- * The two write paths enforce it differently, matching v1. Turning it ON via
- * update is rejected with a 400 naming the count of rows that hold null,
- * missing, or empty cells. Add-column applies the flag as given without
- * inspecting existing rows — the same shape `unique` already had on this
- * surface — so a column added as required only constrains later writes.
+ * Both write paths enforce it the same way, matching v1: turning it ON via
+ * update, or adding a column as required, is rejected with a 400 naming the
+ * count of rows that would hold null, missing, or empty cells. Add the column
+ * without `required`, fill its cells, then make it required.
  */
 export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
