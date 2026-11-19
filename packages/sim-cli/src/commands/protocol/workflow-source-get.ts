@@ -20,6 +20,8 @@ import {
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_EXAMPLES_DIR,
   updateSourceDir,
+  WORKSPACE_FOLDER_BUSY_HELP,
+  withWorkspaceFolderLock,
   writeBack,
 } from './source-dir'
 import {
@@ -304,7 +306,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     `--${FORCE_FLAG}`,
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
-  get.addHelpText('after', GET_EXIT_CODES_HELP)
+  get.addHelpText('after', `${GET_EXIT_CODES_HELP}${WORKSPACE_FOLDER_BUSY_HELP}`)
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
     const dir = flags[DIR_FLAG]
@@ -316,34 +318,41 @@ export function attachWorkflowSourceGet(source: Command): void {
       }
       return
     }
-    const force = flags[FORCE_FLAG] === true
-    if (!force) await assertSameWorkflow(dir, workflowId)
-    const { client, profile } = connectGet()
-    const request = await buildRequest(
-      'getWorkflowSource',
-      [workflowId],
-      flags,
-      profile.workspaceId
-    )
-    const workflowSource = await client
-      .request<GetWorkflowSourceResponse>('getWorkflowSource', {
-        params: request.params,
-        query: request.query,
-      })
-      .then(
-        (response) => response.data,
-        (error: unknown) => {
-          throw withSourceExitCode(error)
-        }
+    await withWorkspaceFolderLock(dir, async () => {
+      const force = flags[FORCE_FLAG] === true
+      if (!force) await assertSameWorkflow(dir, workflowId)
+      const { client, profile } = connectGet()
+      const request = await buildRequest(
+        'getWorkflowSource',
+        [workflowId],
+        flags,
+        profile.workspaceId
       )
-    assertPrintedSourcePaths(workflowSource.files)
-    if (!force) await assertNoLocalEdits(dir, workflowSource)
-    const tree = await writeSourceDirectory(client, dir, workflowSource, workflowSource.blockTypes)
-    printProtocolResult(profile.output, {
-      workflowId: workflowSource.workflowId,
-      dir,
-      ...tree,
-      fingerprint: workflowSource.base.fingerprint,
+      const workflowSource = await client
+        .request<GetWorkflowSourceResponse>('getWorkflowSource', {
+          params: request.params,
+          query: request.query,
+        })
+        .then(
+          (response) => response.data,
+          (error: unknown) => {
+            throw withSourceExitCode(error)
+          }
+        )
+      assertPrintedSourcePaths(workflowSource.files)
+      if (!force) await assertNoLocalEdits(dir, workflowSource)
+      const tree = await writeSourceDirectory(
+        client,
+        dir,
+        workflowSource,
+        workflowSource.blockTypes
+      )
+      printProtocolResult(profile.output, {
+        workflowId: workflowSource.workflowId,
+        dir,
+        ...tree,
+        fingerprint: workflowSource.base.fingerprint,
+      })
     })
   })
 }

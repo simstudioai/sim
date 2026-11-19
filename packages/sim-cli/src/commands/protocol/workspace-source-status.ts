@@ -9,7 +9,7 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { utf8Bytes } from '@sim/workflow-code/limits'
-import { isWorkspaceKind, type WorkspaceKind } from '@sim/workspace-code'
+import { isWorkspaceKind, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { kindOfPath, WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
@@ -54,6 +54,7 @@ import {
   textDiff,
   unreachableReason,
 } from './source-status'
+import { destructiveChanges } from './workspace-source-apply'
 import { readWorkspaceDir, type WorkspaceSubmission } from './workspace-source-dir'
 import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
@@ -205,10 +206,16 @@ export function attachWorkspaceSourceStatus(source: Command): void {
         let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
         let data: ApplyData | null = null
         let workspaceId = local.readFrom
+        // The scope every recommended command carries, so it acts on what this status showed.
+        let scope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
         if (!options.offline) {
           const connection = connect()
           const target = targetWorkspace(connection, local.readFrom)
           workspaceId = target
+          const { profile } = connection
+          if (profile.sources.workspaceId === 'flag' || profile.workspaceId !== target) {
+            scope += ` --workspace ${target}`
+          }
           let submission = local.submission
           if (!fitsWhole(submission.files)) {
             submission = await readWorkspaceDir(options.dir, only, target, local.written)
@@ -264,7 +271,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             getArgs: '',
             server,
             errors: plan?.errors ?? 0,
-            deletes: (plan?.delete ?? 0) > 0,
+            deletes: data !== null && destructiveChanges(data.plan) > 0,
+            scope,
           }),
         }
         printStatusReport(

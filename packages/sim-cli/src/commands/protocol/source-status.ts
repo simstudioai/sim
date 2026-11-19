@@ -286,8 +286,16 @@ interface NextStepInput {
   server: ServerCheck
   /** Errors in the dry run, server changes left out. */
   errors: number
-  /** Whether the dry run deletes anything, which applying needs `--allow-delete` for. */
+  /**
+   * Whether the dry run deletes anything (a resource, or data an update drops), which applying
+   * needs `--allow-delete` for.
+   */
   deletes: boolean
+  /**
+   * Arguments every recommended command carries after `--dir`, each with a leading space: the
+   * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
+   */
+  scope: string
 }
 
 /**
@@ -300,32 +308,32 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   if (status.conflicts.length > 0) {
     const names = status.conflicts.map((entry) => `${entry.kind} ${entry.key}`).join(', ')
     return {
-      command: `${prefix} get ${input.getArgs}--dir <fresh dir>`,
+      command: `${prefix} get ${input.getArgs}--dir <fresh dir>${input.scope}`,
       reason: `${names} changed on both sides, so applying is refused: get into a fresh directory and reapply your edits there (\`${prefix} diff --dir ${dir} --server\` shows how the server differs).`,
     }
   }
   if (status.local.length === 0) {
     return status.drift.length > 0
       ? {
-          command: `${prefix} get ${input.getArgs}--dir ${dir}`,
+          command: `${prefix} get ${input.getArgs}--dir ${dir}${input.scope}`,
           reason: 'Nothing here is unapplied, so a get brings the directory up to date.',
         }
       : null
   }
   if (input.server !== 'checked') {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
       reason: 'The dry run checks the changes against the server.',
     }
   }
   if (input.errors > 0) {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
       reason: `It prints the ${input.errors} error(s) to fix before applying.`,
     }
   }
   return {
-    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}`,
+    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}`,
     reason:
       status.drift.length > 0
         ? `Applies your changes; then \`${prefix} get ${input.getArgs}--dir ${dir}\` picks up the server's.`
