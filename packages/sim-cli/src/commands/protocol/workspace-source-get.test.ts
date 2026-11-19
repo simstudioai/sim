@@ -19,7 +19,7 @@ import { knowledgeCodec } from '@sim/workspace-code/kinds/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
-import { runWorkspaceSource } from '../../test/workspace-source-command'
+import { runWorkflowSourceCheck, runWorkspaceSource } from '../../test/workspace-source-command'
 import { blobBytes, blobDigests } from './workspace-source-blobs'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -89,6 +89,7 @@ beforeEach(() => {
   contextMockState.workspaceSource = 'config'
   request.mockReset()
   requestRaw.mockReset()
+  contextMockFns.mockProfileFrom.mockReturnValue({ workspaceId: 'ws_local', output: 'json' })
   rootDir = mkdtempSync(join(tmpdir(), 'sim-workspace-get-'))
   dir = join(rootDir, 'out')
   vi.stubEnv('SIM_CONFIG_DIR', join(rootDir, 'config'))
@@ -702,6 +703,63 @@ describe('workspaces source get', () => {
     expect(typecheck('email')).toBe('')
     expect(typecheck('emial')).toContain('emial')
   })
+
+  it.each([
+    ['workspaces', (root: string) => runWorkspaceSource('check', root)],
+    ['workflows', (root: string) => runWorkflowSourceCheck(join(root, 'workflows/parent'))],
+  ])(
+    "types a child workflow's inputs edited since the get after a %s check",
+    async (_command, check) => {
+      const child = (inputs: string) =>
+        [
+          '// @sim-sdk 1',
+          "import { trigger, workflow } from '@sim/workflow-sdk'",
+          "export default workflow('Enrich', {}, () => {",
+          `  trigger.start('Start', { inputFormat: { ${inputs} } })`,
+          '})',
+          '',
+        ].join('\n')
+      serve(
+        { 'workflows/enrich/workflow.ts': child("email: 'string'") },
+        {
+          kinds: ['workflow'],
+          manifest: {
+            workspaceId: 'ws_local',
+            tables: [],
+            knowledgeBases: [],
+            credentials: [],
+            workflows: [{ key: 'enrich', inputs: [{ name: 'email', type: 'string' }] }],
+            skills: [],
+            customTools: [],
+            env: [],
+            truncated: false,
+          },
+        }
+      )
+      await get()
+      const parent = (field: string) =>
+        [
+          '// @sim-sdk 1',
+          "import { childWorkflow, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'",
+          "export default workflow('Parent', {}, () => {",
+          "  const start = trigger.start('Start', {})",
+          `  start.to(runWorkflow('Run', { workflowId: childWorkflow('enrich'), inputMapping: { ${field}: 'a' } }))`,
+          '})',
+          '',
+        ].join('\n')
+      mkdirSync(join(dir, 'workflows/parent'), { recursive: true })
+      const typecheck = async (inputs: string, field: string) => {
+        writeFileSync(join(dir, 'workflows/enrich/workflow.ts'), child(inputs))
+        writeFileSync(join(dir, 'workflows/parent/workflow.ts'), parent(field))
+        await check(dir)
+        return typecheckDirectory()
+      }
+
+      expect(await typecheck("email: 'string', phone: 'string'", 'phone')).toBe('')
+      expect(await typecheck("email: 'string', phone: 'string'", 'phnoe')).toContain('phnoe')
+      expect(await typecheck("phone: 'string'", 'email')).toContain('email')
+    }
+  )
 
   it('keeps the block types workflows on disk use when a get refreshes only tables', async () => {
     const notifying = [

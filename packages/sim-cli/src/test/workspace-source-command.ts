@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { attachWorkflowSourceCheck } from '../commands/protocol/workflow-source-check'
 import { attachWorkspaceSourceApply } from '../commands/protocol/workspace-source-apply'
 import { attachWorkspaceSourceCheck } from '../commands/protocol/workspace-source-check'
 import { attachWorkspaceSourceGet } from '../commands/protocol/workspace-source-get'
@@ -19,4 +20,12 @@ export async function runWorkspaceSource(
   else attachWorkspaceSourceApply(source)
   root.exitOverride()
   await root.parseAsync(['node', 'sim', 'workspaces', 'source', command, '--dir', dir, ...argv])
+}
+
+/** Parses `sim workflows source check --dir <dir>` through the real commander wiring. */
+export async function runWorkflowSourceCheck(dir: string): Promise<void> {
+  const root = new Command('sim')
+  attachWorkflowSourceCheck(root.command('workflows').command('source'))
+  root.exitOverride()
+  await root.parseAsync(['node', 'sim', 'workflows', 'source', 'check', '--dir', dir])
 }

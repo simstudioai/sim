@@ -24,7 +24,12 @@ import { setSoftExitCode } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
-import { cachedCatalog, type LocalDeclarations, refreshTsconfigs } from './source-tree'
+import {
+  cachedCatalog,
+  type LocalDeclarations,
+  refreshTsconfigs,
+  refreshWorkspaceTypes,
+} from './source-tree'
 import { printNewDiagnostics, resultDiagnostics } from './source-ui'
 import { readSourceFiles } from './workflow-source-apply'
 import { WORKFLOW_TREE } from './workflow-source-get'
@@ -120,7 +125,8 @@ wiring). In a workflow folder of a workspace directory (workflows/<key>), it rea
 .sim/base.json and also checks env names, resource keys and table columns against what the
 directory declares. The dry run still checks what only the server knows (stored values,
 deployment), so run it before applying. A check also adds the blocks the source now uses to the
-CLI's tsconfig.json, so tsc type-checks a block the edit added.
+CLI's tsconfig.json, so tsc type-checks a block the edit added; in a workspace directory it also
+regenerates .sim/sdk/workspace.d.ts, so tsc types each workflow's inputs as its files declare them.
 
 ${STRICT_HELP}`
 
@@ -541,19 +547,23 @@ export function attachWorkflowSourceCheck(source: Command): void {
           ? `\`sim workspaces source get --dir ${workspace.root}\``
           : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
       )
+      const declarations = workspace
+        ? {
+            ...(await readWorkspaceDeclarations(workspace.root)),
+            workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
+          }
+        : undefined
       const { findings, entry } = await checkWorkflowDir(options.dir, catalog, {
         strict: strictMode(options),
-        ...(workspace
-          ? {
-              declarations: {
-                ...(await readWorkspaceDeclarations(workspace.root)),
-                workflowInputs: await workspaceWorkflowInputs(workspace.root, catalog),
-              },
-            }
-          : {}),
+        ...(declarations ? { declarations } : {}),
       })
-      if (workspace) await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
-      else {
+      if (workspace && declarations) {
+        await refreshWorkspaceTypes(
+          workspace.root,
+          withWorkflowInputs(declarations.local, declarations.workflowInputs)
+        )
+        await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
+      } else {
         await refreshTsconfigs(
           options.dir,
           workspaceId,
