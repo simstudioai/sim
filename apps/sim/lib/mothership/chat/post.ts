@@ -163,6 +163,7 @@ const ChatMessageSchema = z
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         computerUse: z.boolean().optional(),
+        computerUseAppCommands: z.boolean().optional(),
         terminals: z
           .array(
             z.object({
@@ -287,6 +288,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        computerUseAppCommands?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -329,6 +331,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        computerUseAppCommands?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -627,6 +630,7 @@ async function resolveBranch(params: {
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           computerUse: payloadParams.computerUse,
+          computerUseAppCommands: payloadParams.computerUseAppCommands,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         }),
@@ -691,6 +695,7 @@ async function resolveBranch(params: {
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
         computerUse: payloadParams.computerUse,
+        computerUseAppCommands: payloadParams.computerUseAppCommands,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),
@@ -1206,6 +1211,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                computerUseAppCommands: body.desktopCapabilities?.computerUseAppCommands === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1234,6 +1240,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                computerUseAppCommands: body.desktopCapabilities?.computerUseAppCommands === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })

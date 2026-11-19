@@ -170,8 +170,10 @@ export const GENERATED_SCHEMA_TABLES = {
     'leaseOwner',
     'leaseExpiresAt',
     'housekeepingAt',
+    'maintainedAt',
     'updatedAt',
   ],
+  activityRollupBlocked: ['bucketStart', 'attempts', 'retryAt'],
   activityRollupDirty: ['workspaceId', 'bucketStart', 'dueAt'],
   activityRollupInflight: ['workspaceId', 'bucketStart', 'nextCheckAt', 'attempts'],
   executionLargeValues: [

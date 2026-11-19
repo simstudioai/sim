@@ -160,6 +160,7 @@ export interface DesktopChatCapabilities {
     browser?: true
     terminal?: true
     computerUse?: true
+    computerUseAppCommands?: true
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
     /** The desktop's background executor, offered to run this turn's desktop tools. */
@@ -238,6 +239,9 @@ export async function getDesktopChatCapabilities(
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
             ...(computerUse ? { computerUse: true as const } : {}),
+            ...(computerUse && bridge?.computerUse?.appCommands === true
+              ? { computerUseAppCommands: true as const }
+              : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice

@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import {
+  activityRollupBlocked,
   activityRollupDirty,
   activityRollupInflight,
   activityRollupState,
   workflowActivityHourly,
 } from '@sim/db/schema'
-import { and, eq, gt, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
+import { HOUR_MS, msInterval } from '@/lib/billing/activity-rollup/source'
 import type { DbTransaction } from '@/lib/db/types'
 
 /**
@@ -20,13 +22,19 @@ export const WORKFLOW_ROLLUP_ID = 'workflow'
 /** Longer than a pass's budget and the statement that may still be running past it. */
 const LEASE_MS = 3 * 60 * 1000
 
+/**
+ * How long the rollup may go without a completed pass before it is rebuilt. Marks are written only
+ * while a pass completed within this window, so a rollup left unmaintained longer can have missed deletes and
+ * reopened runs, and its late-end scan would have a backlog to catch up on: rebuilding is the only
+ * way back to exact. Reads stop using it sooner, once its newest hour is six hours old.
+ */
+export const MAINTENANCE_GAP_MS = 6 * HOUR_MS
+
 export type ActivityRollupState = typeof activityRollupState.$inferSelect
 
 /** Progress a pass may move, each as a value or as SQL evaluated by the update. */
 type StateChanges = {
-  [K in Exclude<keyof ActivityRollupState, 'id' | 'leaseOwner' | 'leaseExpiresAt'>]?:
-    | ActivityRollupState[K]
-    | SQL
+  [K in Exclude<keyof ActivityRollupState, 'id' | 'leaseOwner'>]?: ActivityRollupState[K] | SQL
 }
 
 export async function readRollupState(
@@ -54,7 +62,7 @@ export async function acquireLease(owner: string): Promise<ActivityRollupState |
     .update(activityRollupState)
     .set({
       leaseOwner: owner,
-      leaseExpiresAt: sql`now() + ${`${LEASE_MS} milliseconds`}::interval`,
+      leaseExpiresAt: sql`now() + ${msInterval(LEASE_MS)}`,
       updatedAt: sql`now()`,
     })
     .where(
@@ -83,12 +91,15 @@ export async function releaseLease(owner: string): Promise<void> {
 /**
  * Updates the state only while `owner` still holds a live lease, inside the caller's transaction
  * when one is given, so a pass whose lease lapsed can never move progress another pass now owns.
- * Throws when the lease is gone.
+ * Progress (`requireCoverage`) moves only while both ends of the coverage are set: coverage
+ * cleared under a running pass (a manual reset) then rolls the hour's write back instead of
+ * leaving one end set and the other null. Throws when the update matched nothing.
  */
 export async function updateLeasedState(
   owner: string,
   changes: StateChanges,
-  executor: Pick<DbTransaction, 'update'> = db
+  executor: Pick<DbTransaction, 'update'> = db,
+  { requireCoverage = false }: { requireCoverage?: boolean } = {}
 ): Promise<ActivityRollupState> {
   const [state] = await executor
     .update(activityRollupState)
@@ -97,20 +108,31 @@ export async function updateLeasedState(
       and(
         eq(activityRollupState.id, WORKFLOW_ROLLUP_ID),
         eq(activityRollupState.leaseOwner, owner),
-        gt(activityRollupState.leaseExpiresAt, sql`now()`)
+        gt(activityRollupState.leaseExpiresAt, sql`now()`),
+        requireCoverage ? isNotNull(activityRollupState.coverageStart) : undefined,
+        requireCoverage ? isNotNull(activityRollupState.freshThrough) : undefined
       )
     )
     .returning()
-  if (!state) throw new Error('Activity rollup lease lost')
+  if (!state) throw new Error('Activity rollup lease lost or coverage reset during the pass')
   return state
 }
 
 /**
- * Moves the rollup to this code's version: every read on any version stops using it at once
- * (coverage is cleared and the version changes), and the cells and queues of the old version are
- * dropped by {@link truncateRollupBatch} before the backfill starts over.
+ * Pushes the lease out to cover work that may run past the pass's budget (a retry of an hour too
+ * heavy to read), while `owner` still holds it.
  */
-export async function resetToCurrentVersion(owner: string): Promise<ActivityRollupState> {
+export async function extendLease(owner: string, ms: number): Promise<void> {
+  await updateLeasedState(owner, { leaseExpiresAt: sql`now() + ${msInterval(ms)}` })
+}
+
+/**
+ * Starts the rollup over at this code's version: every read on any version stops using it at once
+ * (coverage is cleared), every piece of progress (backfill, late-end scan, blocked hours, the
+ * maintenance heartbeat) is forgotten, and the queues are dropped. Cells are dropped by
+ * {@link truncateRollupBatch} before the coverage starts again.
+ */
+export async function resetRollup(owner: string): Promise<ActivityRollupState> {
   return db.transaction(async (tx) => {
     const state = await updateLeasedState(
       owner,
@@ -121,11 +143,13 @@ export async function resetToCurrentVersion(owner: string): Promise<ActivityRoll
         backfillCompletedAt: null,
         lastEndScan: null,
         housekeepingAt: null,
+        maintainedAt: null,
       },
       tx
     )
     await tx.delete(activityRollupDirty)
     await tx.delete(activityRollupInflight)
+    await tx.delete(activityRollupBlocked)
     return state
   })
 }

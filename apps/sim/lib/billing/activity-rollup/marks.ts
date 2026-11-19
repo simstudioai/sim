@@ -2,20 +2,27 @@ import { db } from '@sim/db'
 import { activityRollupDirty, activityRollupState, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { eq, lt, sql } from 'drizzle-orm'
+import { lt, sql } from 'drizzle-orm'
 import { boundedTransaction, recomputeCell } from '@/lib/billing/activity-rollup/cells'
-import { floorHour, utcTimestamp } from '@/lib/billing/activity-rollup/source'
-import { type ActivityRollupState, WORKFLOW_ROLLUP_ID } from '@/lib/billing/activity-rollup/state'
+import { floorHour, msInterval, utcTimestamp } from '@/lib/billing/activity-rollup/source'
+import {
+  type ActivityRollupState,
+  MAINTENANCE_GAP_MS,
+  WORKFLOW_ROLLUP_ID,
+} from '@/lib/billing/activity-rollup/state'
 import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('ActivityRollupMarks')
 
 /**
- * How far before the last scan the next one starts again: an end is stamped by the app before its
- * write commits, so a run can become visible with an end slightly older than the scan that missed
- * it. Covers the replica lag the pass tolerates too.
+ * How far behind now the late-end scan stays: an end is stamped by the app before its write
+ * commits, so the scan only consumes ends old enough that every write stamped with them is
+ * visible. Ends younger than this are read by a later pass.
  */
-const LATE_END_SCAN_MARGIN = '5 minutes'
+export const LATE_END_SCAN_MARGIN_MS = 5 * 60 * 1000
+
+/** Late ends read per statement, so a scan that fell behind catches up in bounded steps. */
+const LATE_END_BATCH_ROWS = 5_000
 
 const DIRTY_BATCH = 500
 
@@ -32,8 +39,12 @@ interface ChangedRun {
  *
  * Runs in a savepoint and never throws: a mark that fails (the table missing mid-deploy) is logged
  * and the caller's change goes ahead, so retention and resumes behave exactly as without the
- * rollup. A missed mark leaves one cell stale until the pass's sampler finds it. Nothing is marked
- * before the rollup has ever run, so a deployment that never enables it accumulates no marks.
+ * rollup. A missed mark leaves one cell stale until the pass's sampler finds it.
+ *
+ * Nothing is marked unless a pass completed within {@link MAINTENANCE_GAP_MS}: a deployment that
+ * never enabled the rollup, or turned maintenance off, accumulates no marks, and the next pass after
+ * such a gap rebuilds the rollup rather than trusting marks it never got. A pass that only takes the
+ * lease (idling on a newer version, or failing) does not count.
  */
 export async function markWorkflowActivityDirty(
   tx: DbTransaction,
@@ -51,7 +62,10 @@ export async function markWorkflowActivityDirty(
         INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
         SELECT c.cell ->> 0, ((c.cell ->> 1)::timestamptz AT TIME ZONE 'UTC'), now()
         FROM jsonb_array_elements(${JSON.stringify([...cells.values()])}::jsonb) AS c(cell)
-        WHERE EXISTS (SELECT 1 FROM ${activityRollupState})
+        WHERE EXISTS (
+          SELECT 1 FROM ${activityRollupState}
+          WHERE maintained_at > now() - ${msInterval(MAINTENANCE_GAP_MS)}
+        )
         ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
       `)
     })
@@ -65,31 +79,59 @@ export async function markWorkflowActivityDirty(
 
 /**
  * Marks the cells of runs that ended at least two hours after they started since the last scan,
- * and moves the scan forward, in one transaction. Their hours were computed before they ended
- * (HITL runs resumed later, cancellations, stale-run sweeps, runs terminalized again, late
- * inserts). A run that ends sooner lands in an hour not yet settled. Marks of hours not yet
- * covered wait until they are (see {@link processDirtyMarks}). Returns how many cells were marked.
+ * and moves the scan forward. Their hours were computed before they ended (HITL runs resumed
+ * later, cancellations, stale-run sweeps, runs terminalized again, late inserts); a run that ends
+ * sooner lands in an hour not yet settled. Marks of hours not yet covered wait until they are (see
+ * {@link processDirtyMarks}).
+ *
+ * The scan consumes ends in order, a bounded batch per statement, so a backlog is caught up in
+ * steps: each statement marks every end up to its batch's last one (including ties beyond the
+ * batch) and moves the scan there in the same statement. Returns how many cells were marked.
  */
-export async function captureLateEnds(): Promise<number> {
-  return boundedTransaction(async (tx) => {
-    const marked = await tx.execute(sql`
-      INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
-      SELECT DISTINCT l.workspace_id, date_trunc('hour', l.started_at), now()
-      FROM ${workflowExecutionLogs} l
-      CROSS JOIN (
-        SELECT last_end_scan FROM ${activityRollupState} WHERE id = ${WORKFLOW_ROLLUP_ID}
-      ) scan
-      -- Repeats the partial index's predicate literally, so the planner can use the index.
-      WHERE l.ended_at >= l.started_at + interval '2 hours'
-        AND l.ended_at > scan.last_end_scan - ${LATE_END_SCAN_MARGIN}::interval
-      ON CONFLICT (workspace_id, bucket_start) DO NOTHING
-    `)
-    await tx
-      .update(activityRollupState)
-      .set({ lastEndScan: sql`(now() AT TIME ZONE 'UTC')` })
-      .where(eq(activityRollupState.id, WORKFLOW_ROLLUP_ID))
-    return marked.count
-  })
+export async function captureLateEnds(
+  deadline: number,
+  { batchRows = LATE_END_BATCH_ROWS, marginMs = LATE_END_SCAN_MARGIN_MS } = {}
+): Promise<number> {
+  let marked = 0
+  for (;;) {
+    const [step] = await boundedTransaction((tx) =>
+      tx.execute<{ marked: number; batchFull: number }>(sql`
+        WITH scan AS (
+          SELECT last_end_scan AS cursor,
+            (now() AT TIME ZONE 'UTC') - ${msInterval(marginMs)} AS horizon
+          FROM ${activityRollupState} WHERE id = ${WORKFLOW_ROLLUP_ID}
+        ), batch AS (
+          SELECT l.ended_at FROM ${workflowExecutionLogs} l, scan
+          -- Repeats the partial index's predicate literally, so the planner can use the index.
+          WHERE l.ended_at >= l.started_at + interval '2 hours'
+            AND l.ended_at > scan.cursor AND l.ended_at <= scan.horizon
+          ORDER BY l.ended_at
+          LIMIT ${batchRows}
+        ), bound AS (
+          SELECT scan.cursor, b.is_full,
+            CASE WHEN b.is_full THEN b.last ELSE scan.horizon END AS boundary
+          FROM scan, (
+            SELECT count(*) >= ${batchRows} AS is_full, max(ended_at) AS last FROM batch
+          ) b
+        ), marked AS (
+          INSERT INTO ${activityRollupDirty} (workspace_id, bucket_start, due_at)
+          SELECT DISTINCT l.workspace_id, date_trunc('hour', l.started_at), now()
+          FROM ${workflowExecutionLogs} l, bound
+          WHERE l.ended_at >= l.started_at + interval '2 hours'
+            AND l.ended_at > bound.cursor AND l.ended_at <= bound.boundary
+          ON CONFLICT (workspace_id, bucket_start) DO NOTHING
+          RETURNING 1
+        ), moved AS (
+          UPDATE ${activityRollupState} SET last_end_scan = greatest(bound.cursor, bound.boundary)
+          FROM bound WHERE id = ${WORKFLOW_ROLLUP_ID}
+        )
+        SELECT (SELECT count(*) FROM marked)::int AS marked, bound.is_full::int AS "batchFull"
+        FROM bound
+      `)
+    )
+    marked += Number(step?.marked ?? 0)
+    if (Number(step?.batchFull) !== 1 || Date.now() >= deadline) return marked
+  }
 }
 
 /**

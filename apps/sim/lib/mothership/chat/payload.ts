@@ -99,6 +99,7 @@ interface BuildPayloadParams {
   browser?: boolean
   terminalCapable?: boolean
   computerUse?: boolean
+  computerUseAppCommands?: boolean
   terminals?: Array<{
     id: string
     cwd?: string
@@ -556,6 +557,7 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
             browser: params.browser === true,
             terminal: params.terminalCapable === true,
             computerUse,
+            computerUseAppCommands: computerUse && params.computerUseAppCommands === true,
             terminals: params.terminalCapable ? (params.terminals ?? []).slice(0, 20) : [],
             browserSessions: params.browser ? (params.browserSessions ?? []).slice(0, 20) : [],
           },

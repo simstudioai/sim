@@ -18,6 +18,7 @@ const ACTION_LABELS: Record<string, string> = {
   set_value: 'Editing',
   perform_action: 'Interacting',
   batch: 'Running steps',
+  app_command: 'Working with app data',
 }
 
 /** Remains visible while a native action is active, even if the permission group or device access revokes it. */

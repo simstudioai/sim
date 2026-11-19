@@ -1,5 +1,5 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
-import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
+import { ComputerUseWithAppCommandsSchema } from '@sim/desktop-bridge/computer-use'
 import { claimComputerUseTool } from '@/lib/computer-use/repository'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
@@ -72,7 +72,7 @@ export const authorizeComputerUse = defineAuthorizedChatUseCase({
       )
     return {
       toolName: 'computer' as const,
-      args: ComputerUseSchema.parse(claimed.args),
+      args: ComputerUseWithAppCommandsSchema.parse(claimed.args),
       chatId: context.chatId,
     }
   },

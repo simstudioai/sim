@@ -21,6 +21,11 @@ export function utcTimestamp(instant: Date): SQL {
   return sql`(${instant.toISOString()}::timestamptz AT TIME ZONE 'UTC')`
 }
 
+/** A duration as a SQL `interval`. */
+export function msInterval(ms: number): SQL {
+  return sql`${`${ms} milliseconds`}::interval`
+}
+
 /** A source row `l` as activity reads it: only finished runs carry a duration, never a negative one. */
 const workflowRunColumns = sql`l.workspace_id, l.workflow_id, l.trigger, l.started_at, l.status,
   CASE WHEN l.status IN ('completed', 'failed') AND l.total_duration_ms >= 0
@@ -38,11 +43,17 @@ export const workflowRunCounters = sql`count(*) AS runs,
   coalesce(sum(a.duration_ms), 0) AS duration_sum_ms,
   count(a.duration_ms) AS duration_count`
 
-/** Every run that started in `range`, optionally in one workspace, for recomputing cells. */
-export function workflowRunsStartedIn(range: InstantRange, workspaceId?: string): SQL {
+/** Every run that started in `range`, optionally in some workspaces only, for recomputing cells. */
+export function workflowRunsStartedIn(range: InstantRange, workspaceIds?: string[]): SQL {
+  const inWorkspaces = workspaceIds
+    ? sql`AND l.workspace_id IN (${sql.join(
+        workspaceIds.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+    : sql``
   return sql`SELECT ${workflowRunColumns} FROM ${workflowExecutionLogs} l
     WHERE l.started_at >= ${utcTimestamp(range.from)} AND l.started_at < ${utcTimestamp(range.to)}
-      ${workspaceId ? sql`AND l.workspace_id = ${workspaceId}` : sql``}`
+      ${inWorkspaces}`
 }
 
 /**

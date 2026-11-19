@@ -14,5 +14,12 @@
          Hardened Runtime denies the camera no matter what the user allowed. -->
     <key>com.apple.security.device.camera</key>
     <true/>
+    <!-- Computer Use app commands add confirmed reminders, events and
+         contacts through EventKit and Contacts; the Hardened Runtime denies
+         that access without these keys. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
+    <key>com.apple.security.personal-information.addressbook</key>
+    <true/>
   </dict>
 </plist>
