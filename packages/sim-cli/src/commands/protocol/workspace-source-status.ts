@@ -57,6 +57,7 @@ import {
 import { withSourceExitCode } from './source-tree'
 import { destructiveChanges } from './workspace-source-apply'
 import {
+  assertWorkspaceDir,
   readWorkspaceDir,
   type WorkspaceSubmission,
   withUnchangedWorkflowsPruned,
@@ -81,7 +82,8 @@ interface LocalWorkspace {
  * Reads the directory with every workflow folder whole, and the files that differ from what the
  * CLI last wrote. A recorded file that is missing is deleted, as a get counts it (a get refuses to
  * write it again), whether or not its kind's folder is still there; `--only` limits both sides to
- * its kinds.
+ * its kinds. A directory holding no workspace source (a mistyped `--dir`, a workflow folder) is
+ * refused as an apply refuses it, rather than reported clean.
  */
 async function readLocalWorkspace(
   dir: string,
@@ -91,6 +93,9 @@ async function readLocalWorkspace(
   const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
   const readFrom = typeof base.workspaceId === 'string' ? base.workspaceId : null
   const submission = await readWorkspaceDir(dir, only, readFrom ?? '', written, { whole: true })
+  if (submission.kinds.length === 0 || typeof base.workflowId === 'string') {
+    await assertWorkspaceDir(dir)
+  }
   const current: Record<string, string> = {}
   for (const [path, text] of Object.entries(submission.files)) current[path] = digest(text)
   for (const blob of submission.blobs) current[blob.path] = blob.sha256

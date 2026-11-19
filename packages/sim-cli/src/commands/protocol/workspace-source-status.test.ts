@@ -152,6 +152,34 @@ describe('workspaces source status', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
+  it('refuses a directory holding no workspace source, as an apply does, instead of calling it clean', async () => {
+    mockRequest.mockResolvedValue(dryRun())
+    const workspace = dir
+    const refusal = async (command: 'status' | 'diff') =>
+      run(command).then(
+        () => null,
+        (error: unknown) => error
+      )
+
+    dir = mkdtempSync(join(tmpdir(), 'sim-workspace-status-empty-'))
+    try {
+      expect(await refusal('status')).toMatchObject({
+        message: expect.stringContaining('holds no workspace source'),
+      })
+      expect(await refusal('diff')).toMatchObject({
+        message: expect.stringContaining('holds no workspace source'),
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+    dir = join(workspace, 'workflows/ingest')
+    expect(await refusal('status')).toMatchObject({
+      message: expect.stringContaining('is a workflow source directory'),
+    })
+    dir = workspace
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     unlinkSync(join(dir, 'tables/deals.ts'))
