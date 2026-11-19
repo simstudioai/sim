@@ -237,9 +237,16 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
  */
 export const readSourceResources = defineAuthorizedWorkspaceUseCase({
   operation: workflowOperations.readSourceResources,
-  resolveContext: async ({ input }: { input: ReadSourceResourcesInput }) => {
-    await requireWorkflowCodeEnabled()
-    return resolveActiveWorkspaceApplicationContext(input.workspaceId)
+  resolveContext: async ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadSourceResourcesInput
+  }) => {
+    const context = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
+    await requireWorkflowCodeEnabled(principal, context)
+    return context
   },
   authorizationOptions: { delegation: sourceResourcesDelegationPolicy },
   execute: async ({ principal, context }): Promise<SourceResources> => {

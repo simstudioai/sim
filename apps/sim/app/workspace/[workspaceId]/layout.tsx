@@ -152,7 +152,11 @@ async function WorkspaceContent({
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
-    isWorkflowCodeEnabled(),
+    isWorkflowCodeEnabled({
+      orgId: hostContext.hostOrganizationId,
+      workspaceId,
+      userId: session.user.id,
+    }),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     isProjectsEnabled(),

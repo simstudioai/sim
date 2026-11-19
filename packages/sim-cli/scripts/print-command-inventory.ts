@@ -5,8 +5,9 @@
  * The source is `buildProgram()` — the same command tree `--help` and the generated docs
  * read — so the model's card can never describe a command the CLI does not have. Each
  * leaf carries its positionals and options as commander declares them, plus the top-level
- * shape of its JSON response resolved from the v2 OpenAPI documents, and
- * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls.
+ * shape of its JSON response resolved from the v2 OpenAPI documents,
+ * `mothershipUnavailable` when Sim refuses a Mothership caller any operation it calls, and
+ * `entitlement` when an operation it calls exists only where a rollout flag is on.
  *
  *   bun run packages/sim-cli/scripts/print-command-inventory.ts > inventory.json
  */
@@ -60,6 +61,11 @@ interface InventoryCommand extends CommandReference {
   mothershipUnavailable?: true
   /** In a group hidden from `--help` until launch; the worker exposes it only when Sim enables it. */
   unpublished?: true
+  /**
+   * The Mothership entitlement a turn needs before the worker shows or runs this command: one
+   * operation it calls answers `403` wherever its rollout flag is off. Absent when ungated.
+   */
+  entitlement?: string
   /**
    * The commander aliases of each `path` segment, aligned with `path` (`kb` for `knowledge`,
    * `ls` for `list`), so the worker reads `sim kb folders ls` as the command it runs. Absent
@@ -144,6 +150,32 @@ const MOTHERSHIP_REFUSED = new Set(
   ).map((route) => `${route.method} ${route.path}`)
 )
 
+/**
+ * The v2 operations behind a rollout flag, by the entitlement Sim grants a chat where the flag is
+ * on (`apps/sim/lib/mothership/entitlements.ts`). Every workflows-as-code use case checks the
+ * `workflow-code` flag. A command calling one is gated, and so is every command of its group
+ * (`workflows source check` compiles offline, but only serves the gated commands beside it).
+ */
+const OPERATION_ENTITLEMENTS: Partial<Record<V2OperationName, string>> = {
+  getWorkflowSource: 'workflow-code',
+  applyWorkflowSource: 'workflow-code',
+  createWorkflowFromSource: 'workflow-code',
+  getSourceCatalog: 'workflow-code',
+  getSourceResources: 'workflow-code',
+  getWorkspaceSource: 'workflow-code',
+  applyWorkspaceSource: 'workflow-code',
+  findMissingWorkspaceSourceBlobs: 'workflow-code',
+  stageWorkspaceSourceBlobs: 'workflow-code',
+}
+
+function entitlementOf(operations: readonly V2OperationName[]): string | undefined {
+  for (const name of operations) {
+    const entitlement = OPERATION_ENTITLEMENTS[name]
+    if (entitlement) return entitlement
+  }
+  return undefined
+}
+
 function mothershipRefuses(operations: readonly V2OperationName[]): boolean {
   return operations.some((name) => {
     const { method, path: route } = V2_OPERATIONS[name]
@@ -191,6 +223,7 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
     const called = calledOperations(command) ?? []
+    const entitlement = entitlementOf(operation ? [operation, ...called] : called)
     const pathAliases = chain.map((node) => node.aliases())
     const contract = operation ? CLI_CONTRACT[operation] : undefined
     const renamedFrom =
@@ -206,10 +239,23 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       ...reference,
       ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
       ...(UNPUBLISHED_GROUPS.has(cmdPath[0] ?? '') ? { unpublished: true as const } : {}),
+      ...(entitlement ? { entitlement } : {}),
       ...(pathAliases.some((aliases) => aliases.length > 0) ? { pathAliases } : {}),
       ...(renamedFrom.length > 0 ? { renamedFrom } : {}),
     }
   }
 )
+
+const gatedGroups = new Map(
+  inventory.flatMap((entry) =>
+    entry.entitlement && entry.path.length > 1
+      ? [[entry.path.slice(0, -1).join(' '), entry.entitlement] as const]
+      : []
+  )
+)
+for (const entry of inventory) {
+  const groupEntitlement = gatedGroups.get(entry.path.slice(0, -1).join(' '))
+  if (groupEntitlement && !entry.entitlement) entry.entitlement = groupEntitlement
+}
 
 process.stdout.write(`${JSON.stringify(inventory, null, 2)}\n`)

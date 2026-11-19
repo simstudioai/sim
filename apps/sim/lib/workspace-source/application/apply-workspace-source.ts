@@ -12,6 +12,7 @@ import {
 import { isResourceKeyed } from '@sim/workspace-code/kinds/registry'
 import { defineAuthorizedWorkspaceUseCase, principalAuditSource } from '@/lib/core/application'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
+import { recordWorkspaceSourceApplied } from '@/lib/workspace-source/application/analytics'
 import { sourceContext } from '@/lib/workspace-source/application/context'
 import {
   assertUnchanged,
@@ -38,6 +39,7 @@ import {
   type ApplyLease,
   acquireApplyLease,
   isApplyLeaseLost,
+  WorkspaceSourceBusyError,
 } from '@/lib/workspace-source/lease/store'
 import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -209,14 +211,22 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ApplyWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const ctx: ApplyContext = {
       ...sourceContext(principal, context),
       ...(input.provenance ? { provenance: input.provenance } : {}),
     }
     const dryRun = input.dryRun === true
     const plan = await planWorkspaceSource(input, ctx, { requireBlobs: !dryRun })
-    if (plan.refused && !dryRun) throw new WorkspaceSourceRejectedError(plan.diagnostics)
+    const facts = {
+      principal,
+      client: input.provenance?.client,
+      workspaceId: context.workspaceId,
+    }
+    if (plan.refused && !dryRun) {
+      recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
+      throw new WorkspaceSourceRejectedError(plan.diagnostics)
+    }
     const result: ApplyWorkspaceSourceResult = {
       workspaceId: context.workspaceId,
       dryRun,
@@ -248,7 +258,12 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     }
     // One apply writes a workspace at a time: each write's re-check and write are separate
     // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved.
-    const lease = await acquireApplyLease(context.workspaceId)
+    const lease = await acquireApplyLease(context.workspaceId).catch((error: unknown) => {
+      if (error instanceof WorkspaceSourceBusyError) {
+        recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'busy' })
+      }
+      throw error
+    })
     const applyId = generateId()
     result.applyId = applyId
     try {
@@ -259,6 +274,7 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       await lease.release()
     }
     result.base = base
+    recordWorkspaceSourceApplied(facts, plan.changes, result)
     logger.info('Applied workspace source', {
       workspaceId: context.workspaceId,
       applyId,

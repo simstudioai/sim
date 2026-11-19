@@ -132,7 +132,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ReadWorkspaceSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const ctx = sourceContext(principal, context)
     const requested = new Set(input.kinds ?? APPLY_ORDER)
     const kinds = APPLY_ORDER.filter((kind) => requested.has(kind))

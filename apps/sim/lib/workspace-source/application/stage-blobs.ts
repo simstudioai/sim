@@ -52,7 +52,7 @@ export const admitSourceBlobStage = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, context }) {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const target = stagingScopeOf(principal, context.workspaceId)
     assertStagingFits(await stagedUsage(target), { count: 1, bytes: 1 })
     return { workspaceId: context.workspaceId }
@@ -81,7 +81,7 @@ export const stageSourceBlobs = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<StageSourceBlobsResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const { maxBlobBytes, maxBlobBytesPerRequest, maxBlobsPerRequest } = WORKSPACE_SOURCE_LIMITS
     if (input.blobs.length === 0) {
       throw new OrchestrationError('validation', 'Send at least one binary file to stage.')
@@ -140,7 +140,7 @@ export const findMissingSourceBlobs = defineAuthorizedWorkspaceUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
   async execute({ principal, input, context }) {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     if (input.blobs.length > WORKSPACE_SOURCE_LIMITS.maxStagedBlobs) {
       throw new OrchestrationError(
         'payload_too_large',

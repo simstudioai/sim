@@ -37,6 +37,7 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadStoredSource } from '@/lib/workflows/application/read-workflow-source'
 import {
+  recordSourceDryRun,
   recordSourceRefused,
   recordSourceWritten,
 } from '@/lib/workflows/application/source-analytics'
@@ -246,18 +247,20 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
   resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const facts = analyticsFacts(principal, input, 'apply', context.workspaceId)
     try {
       await requireMutableWorkflow(context.workflowId)
-      return await runSourceApply(principal, input, {
+      const result = await runSourceApply(principal, input, {
         kind: 'existing',
         context,
         base: input.base,
         allowDelete: input.allowDelete === true,
       })
+      if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: context.workflowId }, result)
+      return result
     } catch (error) {
-      if (!input.dryRun) recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
+      recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
       throw error
     }
   },
@@ -300,7 +303,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: CreateWorkflowFromSourceInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
-    await requireWorkflowCodeEnabled()
+    await requireWorkflowCodeEnabled(principal, context)
     const { folderId } = await resolveWorkflowFolderPath(
       context.workspaceId,
       input.folderPath ?? '/'
@@ -308,7 +311,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
     const facts = analyticsFacts(principal, input, 'create', context.workspaceId)
     try {
       await requireMutableFolder(folderId)
-      return await runSourceApply(
+      const result = await runSourceApply(
         principal,
         { ...input, lock: { version: 1, blocks: {}, variables: {} } },
         {
@@ -323,8 +326,10 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
           ...(input.withinCreate ? { withinCreate: input.withinCreate } : {}),
         }
       )
+      if (facts.dryRun) recordSourceDryRun({ ...facts, workflowId: '' }, result)
+      return result
     } catch (error) {
-      if (!input.dryRun) recordSourceRefused({ ...facts, workflowId: '' }, error)
+      recordSourceRefused({ ...facts, workflowId: '' }, error)
       throw error
     }
   },
@@ -355,7 +360,13 @@ function analyticsFacts(
   operation: 'apply' | 'create',
   workspaceId: string
 ) {
-  return { principal, client: input.provenance?.client, operation, workspaceId }
+  return {
+    principal,
+    client: input.provenance?.client,
+    operation,
+    workspaceId,
+    dryRun: input.dryRun === true,
+  }
 }
 
 /** The audit metadata a committed source write records, for update and create alike. */
