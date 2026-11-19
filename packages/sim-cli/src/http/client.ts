@@ -250,7 +250,7 @@ async function readResponseText(response: Response): Promise<string> {
   try {
     return await response.text()
   } catch (error) {
-    throw new SimApiError(
+    const failure = new SimApiError(
       `Unable to read the response: ${transportErrorMessage(error)}`,
       response.status,
       'RESPONSE_READ_FAILED',
@@ -258,6 +258,8 @@ async function readResponseText(response: Response): Promise<string> {
       1,
       responseRequestId(response)
     )
+    failure.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
+    throw failure
   }
 }
 

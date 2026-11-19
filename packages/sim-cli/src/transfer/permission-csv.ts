@@ -3,6 +3,7 @@ import { mkdtemp, open, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { addAbortSignal, Readable } from 'node:stream'
+import { getErrorMessage } from '@sim/utils/errors'
 import { CsvError, parse } from 'csv-parse'
 import { embedStore } from '#sim-cli/embed-context'
 import { combineSignals, SimApiError } from '#sim-cli/http/client'
@@ -56,7 +57,9 @@ export async function stagePermissionCsvs(
   paths: Record<CsvField, string>,
   signal?: AbortSignal
 ) {
-  const directory = await mkdtemp(join(tmpdir(), 'sim-permissions-'))
+  const directory = await mkdtemp(join(tmpdir(), 'sim-permissions-')).catch((error: unknown) => {
+    throw new SimApiError(`Cannot stage permission CSVs: ${getErrorMessage(error)}`, 0)
+  })
   const parts: { field: CsvField; path: string }[] = []
   const manifest = {} as Record<CsvField, CsvManifest>
   let totalBytes = 0
@@ -199,6 +202,9 @@ export async function stagePermissionCsvs(
     return { manifest, parts, dispose }
   } catch (error) {
     await dispose()
+    if (error instanceof SimApiError) throw error
+    if (error instanceof Error && 'code' in error && typeof error.code === 'string')
+      throw new SimApiError(`Cannot stage permission CSVs: ${error.message}`, 0)
     throw error
   }
 }

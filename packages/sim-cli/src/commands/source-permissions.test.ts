@@ -69,6 +69,7 @@ describe('Search permission CSV upload', () => {
       expect(result.stderr).toContain('cancelled')
     } finally {
       if (originalAny) Object.defineProperty(AbortSignal, 'any', originalAny)
+      else Reflect.deleteProperty(AbortSignal, 'any')
     }
   })
 
