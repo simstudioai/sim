@@ -43,6 +43,22 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
+/** Lets a check run another apply between an apply's plan and its lease. */
+const leaseGate = vi.hoisted(() => ({
+  beforeAcquire: undefined as (() => Promise<void>) | undefined,
+}))
+vi.mock('@/lib/workspace-source/lease/store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/workspace-source/lease/store')>()
+  return {
+    ...actual,
+    acquireApplyLease: async (workspaceId: string) => {
+      const beforeAcquire = leaseGate.beforeAcquire
+      leaseGate.beforeAcquire = undefined
+      await beforeAcquire?.()
+      return actual.acquireApplyLease(workspaceId)
+    },
+  }
+})
 
 import {
   createWorkspaceCustomToolUseCase,
@@ -1196,6 +1212,43 @@ export default workflow('Secret', {}, () => {
         action: 'delete',
         destructive: { counts: { workflows: 1 } },
       })
+    }
+  )
+
+  check(
+    'refuses a delete a workflow started using between the plan and the lease, keeping the resource',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const { 'workflows/parent/workflow.ts': parentFile, ...childAndKeep } = CHILD_AND_PARENT
+      const created = await apply(workspaceId, { files: childAndKeep, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const read = await get(workspaceId)
+      const keep = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => path.startsWith('workflows/keep/'))
+      )
+
+      // The delete is planned while nothing uses the child; another apply then saves a parent that
+      // runs it and lets go of the lease before the deleting apply takes it.
+      leaseGate.beforeAcquire = async () => {
+        const added = await apply(workspaceId, {
+          files: { 'workflows/parent/workflow.ts': parentFile },
+          blobs: {},
+        })
+        expect(added.failed).toBeUndefined()
+      }
+      const refused = await refusal(
+        apply(workspaceId, { files: keep, blobs: {} }, { base: read.base, allowDelete: true })
+      )
+      expect(leaseGate.beforeAcquire).toBeUndefined()
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_APPLY_STALE workflow:child'])
+      expect(
+        refused.diagnostics.find((finding) => finding.code === 'E_APPLY_STALE')?.message
+      ).toContain('"Parent"')
+      const live = await db
+        .select({ name: workflow.name })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+      expect(live.map((row) => row.name).sort(compareStrings)).toEqual(['Child', 'Keep', 'Parent'])
     }
   )
 

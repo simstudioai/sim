@@ -21,6 +21,7 @@ import {
   WorkspaceSourceRejectedError,
 } from '@/lib/workspace-source/application/errors'
 import { finding, GET_HINT } from '@/lib/workspace-source/application/findings'
+import { recheckDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { claimKey } from '@/lib/workspace-source/application/keys'
 import { workspaceSourceOperations } from '@/lib/workspace-source/application/operations'
 import {
@@ -257,7 +258,8 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       }
     }
     // One apply writes a workspace at a time: each write's re-check and write are separate
-    // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved.
+    // statements, so a second apply is refused (`SOURCE_BUSY`) rather than interleaved. The
+    // plan's in-use scan ran before the lease, so the deletes are scanned again under it.
     const lease = await acquireApplyLease(context.workspaceId).catch((error: unknown) => {
       if (error instanceof WorkspaceSourceBusyError) {
         recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'busy' })
@@ -267,6 +269,11 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
     const applyId = generateId()
     result.applyId = applyId
     try {
+      const inUse = await recheckDeletesInUse(plan.changes, plan.unchanged, context.workspaceId)
+      if (inUse.length > 0) {
+        recordWorkspaceSourceApplied(facts, plan.changes, { refused: 'rejected' })
+        throw new WorkspaceSourceRejectedError(inUse)
+      }
       await withAuditCorrelation(applyId, () =>
         writeAll(plan.changes, writeCtx, lease, base, result)
       )
