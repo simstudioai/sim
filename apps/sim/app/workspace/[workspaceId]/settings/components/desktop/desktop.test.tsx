@@ -66,6 +66,7 @@ async function render(device: { deviceId: string } | null) {
         flags={{
           dashboards: false,
           'workflow-tests': false,
+          'workflow-code': false,
           changelog: false,
           'mothership-model-selector': false,
           'mothership-plan-mode': false,

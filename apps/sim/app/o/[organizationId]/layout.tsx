@@ -119,6 +119,7 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          'workflow-code': false,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': benchmarkEnabled,
