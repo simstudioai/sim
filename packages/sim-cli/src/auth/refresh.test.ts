@@ -103,6 +103,37 @@ describe('refreshStoredOAuth', () => {
     expect(next.refreshToken).toBe('winner-refresh')
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  describe('a refresh that fails', () => {
+    const current = { accessToken: 'old-access', refreshToken: 'old-refresh', expiresAt: 1 }
+    beforeEach(() => {
+      writeCredentialsProfile('default', { kind: 'oauth', oauth: { ...current, ...OAUTH_CONTEXT } })
+    })
+
+    it('asks for a new login (AUTH_REQUIRED, exit 13) when the server refuses the refresh token', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => reply(400, { error: 'invalid_grant' }))
+      )
+
+      await expect(
+        refreshStoredOAuth(PROFILE, { ...current, ...OAUTH_CONTEXT })
+      ).rejects.toMatchObject({ status: 401, code: 'AUTH_REQUIRED', exitCode: 13 })
+    })
+
+    it('keeps an unreachable server its own error, not a login prompt', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new TypeError('fetch failed')
+        })
+      )
+
+      await expect(
+        refreshStoredOAuth(PROFILE, { ...current, ...OAUTH_CONTEXT })
+      ).rejects.toMatchObject({ status: 0, code: null, exitCode: 1 })
+    })
+  })
 })
 
 describe('across processes', () => {
