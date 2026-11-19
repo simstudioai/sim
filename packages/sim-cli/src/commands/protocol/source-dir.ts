@@ -169,8 +169,11 @@ export async function readSourceJson(dir: string, path: string): Promise<unknown
   }
 }
 
-/** `.gitattributes` (or `.gitignore`) with `lines` appended where missing, or `null` when it has them all. */
-export function mergedGitattributes(
+/**
+ * A line file (`.gitattributes`, `.gitignore`) with `lines` appended where missing, or `null`
+ * when it has them all.
+ */
+export function withMissingLines(
   existing: string | null,
   lines: readonly string[] = GITATTRIBUTES_LINES
 ): string | null {
@@ -183,7 +186,7 @@ export function mergedGitattributes(
 
 /** Whether a file-system error means the path does not exist (`ENOENT`, or a file as a folder). */
 export function isMissing(error: unknown): boolean {
-  const code = (error as NodeJS.ErrnoException)?.code
+  const code = errorCode(error)
   return code === 'ENOENT' || code === 'ENOTDIR'
 }
 

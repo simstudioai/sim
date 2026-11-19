@@ -88,9 +88,10 @@ async function readJson(directory: string, path: string, hint: string): Promise<
 /**
  * The function-code files the source can reference: every `codeFile(…)` call the entry file makes,
  * found by parsing it as compile does (an aliased import or spacing before the parenthesis still
- * counts; a comment or string that spells one does not), plus every `codeFile` the lock records, limited to `.js`, `.py` and `.sh` files inside the
- * directory. Only those are sent, so a reference to any other file never uploads it; the server
- * reports a referenced file that is missing or of another kind.
+ * counts; a comment or string that spells one does not), plus every `codeFile` the lock records,
+ * limited to `.js`, `.py` and `.sh` files inside the directory. Only those are sent, so a
+ * reference to any other file never uploads it; the server reports a referenced file that is
+ * missing or of another kind.
  */
 function codeFilePaths(entry: string, lock: WorkflowLockV1 | null): string[] {
   const candidates = lockCodeFiles(lock)

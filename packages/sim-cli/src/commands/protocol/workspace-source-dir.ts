@@ -247,9 +247,9 @@ export interface WorkspaceDeclarations {
   envNames?: ReadonlySet<string>
   /**
    * The keys declared for each resource kind a workflow names them by (`table`, `credential`,
-   * …), for the kinds the directory
-   * manages (its folder or root file exists and reads): a get writes every resource of such a
-   * kind, so a key outside the list names nothing an apply can resolve.
+   * …), for the kinds the directory manages (its folder or root file exists and reads): a get
+   * writes every resource of such a kind, so a key outside the list names nothing an apply can
+   * resolve.
    */
   keys: ReadonlyMap<string, ReadonlySet<string>>
   /** Each declared table's columns, by table key and then by stored column name. */

@@ -661,12 +661,12 @@ export const CLI_CONTRACT: CliContract = {
   /** The staging `workspaces source apply` runs before its one apply. */
   findMissingWorkspaceSourceBlobs: { hidden: true },
   stageWorkspaceSourceBlobs: { hidden: true },
-  /** One document, not a page: `workflows source get --dir` writes it as `workspace.d.ts`. */
+  /** One document, not a page: a source get or create writes it as `workspace.d.ts`. */
   getSourceResources: {
     command: 'workflows source resources',
     profileWorkspacePath: true,
     describe:
-      'List the tables, knowledge bases, credentials, workflows, skills, custom tools and env names source can name',
+      'List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name',
   },
   replaceWorkflowState: {
     command: 'workflows state replace',
