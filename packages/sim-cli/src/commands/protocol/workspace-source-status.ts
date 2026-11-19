@@ -30,12 +30,15 @@ import type {
   ApplyWorkspaceSourceResponse,
   GetWorkspaceSourceResponse,
 } from '../../generated/v2-api'
+import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import {
   digest,
   readSourceJson,
+  readSourceText,
   readWritten,
   SOURCE_DIR_BUSY_HELP,
+  SOURCE_WRITTEN_FILE,
   type Written,
   withSourceDirLock,
 } from './source-dir'
@@ -94,6 +97,7 @@ async function readLocalWorkspace(
   dir: string,
   only: readonly WorkspaceKind[] | undefined
 ): Promise<LocalWorkspace> {
+  await assertWrittenReadable(dir)
   const written = await readWritten(dir)
   const base = toRecord(await readSourceJson(dir, WORKSPACE_BASE_FILE))
   const readFrom = typeof base.workspaceId === 'string' ? base.workspaceId : null
@@ -109,6 +113,26 @@ async function readLocalWorkspace(
     return kind !== null && (!only || only.includes(kind))
   })
   return { submission, written, changed, readFrom }
+}
+
+/**
+ * Refuses a `.sim/written.json` that is there but does not read as a record (a merge conflict left
+ * markers in it): without it every file would read as created, and the status would recommend an
+ * apply. A get rewrites it, and refuses, naming them, to replace files that differ from the server.
+ */
+async function assertWrittenReadable(dir: string): Promise<void> {
+  const text = await readSourceText(dir, SOURCE_WRITTEN_FILE)
+  if (text === null) return
+  let record: unknown
+  try {
+    record = JSON.parse(text)
+  } catch {}
+  if (isRecordLike(record) && isRecordLike(record.files)) return
+  throw new SimApiError(
+    `${SOURCE_WRITTEN_FILE} in ${dir} is not a record the CLI wrote (a merge conflict?), so local changes cannot be told from what the last get or apply wrote. Restore it from version control, or run \`${PREFIX} get --dir ${dir}\`: it rewrites it, and refuses to replace a file that differs from the server.`,
+    0,
+    'SOURCE_WRITTEN_INVALID'
+  )
 }
 
 /** Every path the directory holds or its record names: what a diff's filters must select from. */

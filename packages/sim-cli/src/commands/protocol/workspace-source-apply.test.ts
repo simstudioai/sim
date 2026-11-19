@@ -413,6 +413,21 @@ describe('workspaces source apply', () => {
     }
   })
 
+  it('refuses a base a merge conflict broke, naming the way out, before sending anything', async () => {
+    write('.sim/base.json', '<<<<<<< HEAD\n{"version":1}\n')
+
+    const refused = await apply('--dry-run').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({
+      code: 'SOURCE_BASE_INVALID',
+      message: expect.stringContaining('sim workspaces source get --dir <fresh dir>'),
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('removes the code file of a tool the apply reprinted as stored(), from disk and the record', async () => {
     const declaration = (code: string) =>
       `// @sim-sdk 1\nexport default defineTool({ title: 'Lookup', code: ${code} })\n`

@@ -195,6 +195,22 @@ describe('workspaces source status', () => {
     }
   })
 
+  it('refuses a written record a merge conflict broke, naming the get, rather than calling every file created', async () => {
+    write('.sim/written.json', '<<<<<<< HEAD\n{"version":1,"files":{}}\n=======\n')
+    mockRequest.mockResolvedValue(dryRun())
+
+    const refused = await run('status').then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    expect(refused).toMatchObject({
+      code: 'SOURCE_WRITTEN_INVALID',
+      message: expect.stringContaining(`sim workspaces source get --dir ${dir}`),
+    })
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
   it('reports an edit, a delete and a new file by resource, exit 11, and names the apply', async () => {
     write('tables/leads.ts', `${LEADS}// edited\n`)
     unlinkSync(join(dir, 'tables/deals.ts'))
