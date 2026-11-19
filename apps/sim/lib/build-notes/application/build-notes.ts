@@ -113,7 +113,10 @@ export const getBuildNotesStatus = defineAuthorizedWorkflowUseCase({
       exists: true as const,
       ...paths(context.workflowId),
       evaluated: notes.evaluatedNotesHash !== null,
-      /** True when the workflow was saved after the baseline was recorded; `changes` says whether it matters. */
+      /**
+       * A hint, from the workflow's save time: true when it was saved after the baseline. A field
+       * edit in the editor may not move that time; `changes` is the authority, and a build checks it.
+       */
       mayHaveChangedOutsideAgent:
         !notes.baselineWorkflowUpdatedAt ||
         context.workflow.updatedAt > notes.baselineWorkflowUpdatedAt,
@@ -172,15 +175,15 @@ function parseBatch(reading: ReturnType<typeof readBuildNotes>): BatchReading {
 }
 
 /**
- * The saved graph's lint findings, from the same lint the apply's dry run reports, so a build is
- * held only for what its batch adds and never for a person's unfinished edit.
+ * The saved graph's lint findings counted by key, from the same lint the apply's dry run reports,
+ * so a build is held only for what its batch adds and never for a person's unfinished edit.
  */
 async function savedGraphLintFindings(
   principal: Principal,
   context: ActiveWorkflowApplicationContext
-): Promise<Set<string>> {
+): Promise<Map<string, number>> {
   const state = await loadWorkflowDeploymentSnapshot(context.workflowId)
-  if (!state) return new Set()
+  if (!state) return new Map()
   const lint = await withWorkflowBlockScope(context, () =>
     buildWorkflowLintReport(
       { blocks: state.blocks, edges: state.edges },
@@ -191,7 +194,9 @@ async function savedGraphLintFindings(
       }
     )
   )
-  return new Set(listWorkflowLintFindings(lint))
+  const counts = new Map<string, number>()
+  for (const { key } of listWorkflowLintFindings(lint)) counts.set(key, (counts.get(key) ?? 0) + 1)
+  return counts
 }
 
 async function readAdmittedNotes(
@@ -232,14 +237,22 @@ export const evaluateBuildNotes = defineAuthorizedWorkflowUseCase({
         }),
         savedGraphLintFindings(principal, context),
       ])
-      const findings = listWorkflowLintFindings(result.lint)
+      const lint: string[] = []
+      const lintAlreadyInGraph: string[] = []
+      for (const finding of listWorkflowLintFindings(result.lint)) {
+        const remaining = saved.get(finding.key) ?? 0
+        if (remaining > 0) {
+          saved.set(finding.key, remaining - 1)
+          lintAlreadyInGraph.push(finding.text)
+        } else lint.push(finding.text)
+      }
       dryRun = {
         operationCount: result.operationCount,
         applied: result.applied,
         skipped: result.skipped,
         inputValidationErrors: result.inputValidationErrors,
-        lint: findings.filter((finding) => !saved.has(finding)),
-        lintAlreadyInGraph: findings.filter((finding) => saved.has(finding)),
+        lint,
+        lintAlreadyInGraph,
       }
       if (result.skipped.length) problems.push(`Dry run skipped ${result.skipped.length} item(s)`)
       if (result.inputValidationErrors.length)
@@ -251,7 +264,7 @@ export const evaluateBuildNotes = defineAuthorizedWorkflowUseCase({
     for (const placeholder of reading.placeholders)
       problems.push(`Placeholder still open: <<open:${placeholder}>>`)
     for (const item of reading.blockingOpenItems)
-      problems.push(`Open item marked [${item.mark}]: ${item.text}`)
+      problems.push(`Open item marked [${item.mark}]: ${item.text || '(no text)'}`)
     const passed = batch !== null && problems.length === 0
     if (passed && batch) {
       await recordBuildNotesEvaluation(notes.id, {
@@ -327,12 +340,17 @@ export const getBuildNotesChanges = defineAuthorizedWorkflowUseCase({
       ),
       loadCurrentBaselineState(context.workflowId),
     ])
-    const { hasChanges, diff } = diffFromBaseline(parseBaseline(baselineText), current.state)
+    const { hasChanges, diff, clearedFieldChanges } = diffFromBaseline(
+      parseBaseline(baselineText),
+      current
+    )
     return {
       workflowId: context.workflowId,
       baseline: buildNotesPath(context.workflowId, 'baseline'),
       hasChanges,
       diff,
+      /** Blocks whose credential or other withheld value changed; the values are never shown. */
+      changedWithheldFields: clearedFieldChanges,
     }
   },
 })

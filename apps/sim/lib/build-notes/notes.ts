@@ -11,13 +11,16 @@ import { sortObjectKeysDeep } from '@sim/utils/object'
  * The fenced block holding the batch `workflows operations apply` builds from: its operations
  * array, or the whole apply body when the batch also enables or disables blocks.
  */
-const OPERATIONS_FENCE = /```json[ \t]+operations[ \t]*\n([\s\S]*?)```/g
+/** Both fences on their own lines, so a backtick run inside a JSON string never closes it. */
+const OPERATIONS_FENCE = /^```json[ \t]+operations[ \t]*\n([\s\S]*?)\n```[ \t]*$/gm
 /**
  * An unknown value left visible in the graph: `<<open:escalation_channel>>`. Only the operations
  * block is the graph, so a placeholder named anywhere else (guidance, the pass log) blocks nothing.
  */
 const PLACEHOLDER = /<<open:([^>\n]{1,200})>>/g
-const OPEN_ITEM = /^\s*[-*]\s*\[(gather|ask|assume)\]\s*(.+)$/i
+/** Any list marker, an optionally bold mark, and text that may be empty: an unsettled item still blocks. */
+const OPEN_ITEM =
+  /^\s*(?:[-*+]|\d+[.)])\s+(?:\*\*|__)?\[(gather|ask|assume)\](?:\*\*|__)?:?\s*(.*)$/i
 
 export const MAX_BUILD_NOTES_BYTES = 256 * 1024
 
@@ -104,7 +107,7 @@ export function readBuildNotes(notes: string): BuildNotesReading {
 /** The lines under `## Open items`, up to the next heading of the same or higher level. */
 function openItemsSection(notes: string): string[] {
   const lines = notes.split('\n')
-  const start = lines.findIndex((line) => /^##\s+open items\s*$/i.test(line.trim()))
+  const start = lines.findIndex((line) => /^##\s+open items\s*:?$/i.test(line.trim()))
   if (start < 0) return []
   const rest = lines.slice(start + 1)
   const end = rest.findIndex((line) => /^#{1,2}\s/.test(line))

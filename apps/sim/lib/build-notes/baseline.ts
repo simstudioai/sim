@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
+import { sha256Hex } from '@sim/security/hash'
 import { isRecordLike, sortObjectKeysDeep, toRecord } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkflowDiffSummary, omitPresentationChanges } from '@/lib/workflows/comparison'
@@ -23,10 +24,20 @@ const BASELINE_SANITIZATION = {
   redactOpaqueCredentialInputs: true,
 } as const
 
-/** The graph a baseline holds: the stored workflow, sanitized, with no save clock. */
-function sanitizedState(state: WorkflowState): WorkflowState {
-  const sanitized = sanitizeWorkflowForSharing(state, BASELINE_SANITIZATION)
-  return toWorkflowState({ ...sanitized, lastSaved: 0 })
+/** `blockId` → `subBlockId` → a salted hash of a value sanitization cleared. */
+type ClearedFieldHashes = Record<string, Record<string, string>>
+
+/**
+ * What a baseline records: the sanitized graph, plus a hash of each value sanitization cleared,
+ * so switching a block's credential is a change even though the credential itself is never kept.
+ */
+export interface BaselineGraph {
+  state: WorkflowState
+  clearedFields: ClearedFieldHashes
+}
+
+export interface BaselineSnapshot extends BaselineGraph {
+  workflowUpdatedAt: Date
 }
 
 function toWorkflowState(value: unknown): WorkflowState {
@@ -43,45 +54,140 @@ function toWorkflowState(value: unknown): WorkflowState {
   }
 }
 
-/** The workflow as it is stored now, sanitized, and the `updatedAt` it was read at. */
+function subBlockValues(block: unknown): Record<string, unknown> {
+  const subBlocks = isRecordLike(block) ? toRecord(block.subBlocks) : {}
+  return Object.fromEntries(
+    Object.entries(subBlocks).map(([id, subBlock]) => [
+      id,
+      isRecordLike(subBlock) ? subBlock.value : undefined,
+    ])
+  )
+}
+
+/** Hashes each subblock value the sanitized graph no longer carries, salted by its place. */
+function clearedFieldHashes(
+  workflowId: string,
+  stored: WorkflowState,
+  sanitized: WorkflowState
+): ClearedFieldHashes {
+  const hashes: ClearedFieldHashes = {}
+  for (const [blockId, block] of Object.entries(stored.blocks)) {
+    const kept = subBlockValues(sanitized.blocks[blockId])
+    for (const [field, value] of Object.entries(subBlockValues(block))) {
+      if (value === undefined || value === null || value === '') continue
+      if (JSON.stringify(kept[field]) === JSON.stringify(value)) continue
+      hashes[blockId] ??= {}
+      hashes[blockId][field] = sha256Hex(
+        `${workflowId}\u0000${blockId}\u0000${field}\u0000${JSON.stringify(value)}`
+      )
+    }
+  }
+  return hashes
+}
+
+/** The graph a baseline holds: the stored workflow, sanitized, with no save clock. */
+function baselineGraph(workflowId: string, stored: WorkflowState): BaselineGraph {
+  const state = toWorkflowState({
+    ...sanitizeWorkflowForSharing(stored, BASELINE_SANITIZATION),
+    lastSaved: 0,
+  })
+  return { state, clearedFields: clearedFieldHashes(workflowId, stored, state) }
+}
+
+/**
+ * The workflow as it is stored now, as a baseline, and the `updatedAt` it was read at, both from
+ * one snapshot: inside `executor` when one is passed (a write transaction sees its own write),
+ * otherwise a repeatable-read transaction of its own.
+ */
 export async function loadCurrentBaselineState(
   workflowId: string,
-  executor: DbOrTx = db
-): Promise<{ state: WorkflowState; workflowUpdatedAt: Date }> {
-  const [snapshot, [row]] = await Promise.all([
-    loadWorkflowDeploymentSnapshot(workflowId, executor),
-    executor
+  executor?: DbOrTx
+): Promise<BaselineSnapshot> {
+  const read = async (tx: DbOrTx): Promise<BaselineSnapshot> => {
+    const snapshot = await loadWorkflowDeploymentSnapshot(workflowId, tx)
+    const [row] = await tx
       .select({ updatedAt: workflow.updatedAt })
       .from(workflow)
       .where(eq(workflow.id, workflowId))
-      .limit(1),
-  ])
-  if (!snapshot || !row) throw new OrchestrationError('not_found', 'Workflow not found')
-  return { state: sanitizedState(snapshot), workflowUpdatedAt: row.updatedAt }
+      .limit(1)
+    if (!snapshot || !row) throw new OrchestrationError('not_found', 'Workflow not found')
+    return { ...baselineGraph(workflowId, snapshot), workflowUpdatedAt: row.updatedAt }
+  }
+  if (executor) return read(executor)
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+    return read(tx)
+  })
 }
 
-export function serializeBaseline(state: WorkflowState): string {
-  return `${JSON.stringify(sortObjectKeysDeep(state), null, 2)}\n`
+export function serializeBaseline(baseline: BaselineGraph): string {
+  return `${JSON.stringify(
+    sortObjectKeysDeep({ ...baseline.state, clearedFields: baseline.clearedFields }),
+    null,
+    2
+  )}\n`
 }
 
-export function parseBaseline(content: string): WorkflowState {
+export function parseBaseline(content: string): BaselineGraph {
   let parsed: unknown
   try {
     parsed = JSON.parse(content)
   } catch {
     throw new OrchestrationError('internal', 'A build-notes baseline is not valid JSON')
   }
-  return toWorkflowState(parsed)
+  const clearedFields: ClearedFieldHashes = {}
+  if (isRecordLike(parsed)) {
+    for (const [blockId, fields] of Object.entries(toRecord(parsed.clearedFields))) {
+      for (const [field, hash] of Object.entries(toRecord(fields))) {
+        if (typeof hash !== 'string') continue
+        clearedFields[blockId] ??= {}
+        clearedFields[blockId][field] = hash
+      }
+    }
+  }
+  return { state: toWorkflowState(parsed), clearedFields }
 }
 
-/** What changed from the baseline to the current graph, ignoring layout-only moves. */
+/** Fields whose cleared value (a credential, a password) differs, without revealing either. */
+function clearedFieldChanges(
+  baseline: BaselineGraph,
+  current: BaselineGraph
+): { blockId: string; field: string }[] {
+  const changes: { blockId: string; field: string }[] = []
+  const blockIds = new Set([
+    ...Object.keys(baseline.clearedFields),
+    ...Object.keys(current.clearedFields),
+  ])
+  for (const blockId of blockIds) {
+    if (!baseline.state.blocks[blockId] || !current.state.blocks[blockId]) continue
+    const before = baseline.clearedFields[blockId] ?? {}
+    const after = current.clearedFields[blockId] ?? {}
+    for (const field of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      if (before[field] !== after[field]) changes.push({ blockId, field })
+    }
+  }
+  return changes
+}
+
+/**
+ * What changed from the baseline to the current graph, ignoring layout-only moves. A block whose
+ * credential or other cleared value changed is listed in `clearedFieldChanges`, by field only.
+ */
 export function diffFromBaseline(
-  baseline: WorkflowState,
-  current: WorkflowState
-): { hasChanges: boolean; diff: PublicWorkflowDiffSummary } {
-  const summary = omitPresentationChanges(generateWorkflowDiffSummary(current, baseline))
+  baseline: BaselineGraph,
+  current: BaselineGraph
+): {
+  hasChanges: boolean
+  diff: PublicWorkflowDiffSummary
+  clearedFieldChanges: { blockId: string; field: string }[]
+} {
+  const summary = omitPresentationChanges(
+    generateWorkflowDiffSummary(current.state, baseline.state)
+  )
+  const cleared = clearedFieldChanges(baseline, current)
   return {
-    hasChanges: summary.hasChanges,
-    diff: redactWorkflowDiffSummary(summary, baseline, current),
+    hasChanges: summary.hasChanges || cleared.length > 0,
+    diff: redactWorkflowDiffSummary(summary, baseline.state, current.state),
+    clearedFieldChanges: cleared,
   }
 }

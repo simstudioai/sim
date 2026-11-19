@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
 import {
   auditLog,
+  folder,
   permissions,
   user,
   userStats,
@@ -39,10 +40,13 @@ import {
   listBuildNotesStates,
   rebaseBuildNotes,
 } from '@/lib/build-notes/application/build-notes'
+import { readBuildNotesFileText } from '@/lib/build-notes/files'
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { deleteFolder, restoreFolder } from '@/lib/folders/orchestration'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
+import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
@@ -88,12 +92,19 @@ function check(name: string, run: () => Promise<void>) {
   })
 }
 
-function block(id: string, type: string, name: string): BlockState {
-  return { id, type, name, position: { x: 0, y: 0 }, subBlocks: {}, outputs: {}, enabled: true }
+function block(
+  id: string,
+  type: string,
+  name: string,
+  subBlocks: BlockState['subBlocks'] = {}
+): BlockState {
+  return { id, type, name, position: { x: 0, y: 0 }, subBlocks, outputs: {}, enabled: true }
 }
 
 /** A workflow with only its Start block, as `workflows create` leaves it. */
-async function seedWorkflow(): Promise<{ workflowId: string; startId: string }> {
+async function seedWorkflow(
+  extra: Record<string, BlockState> = {}
+): Promise<{ workflowId: string; startId: string }> {
   const workflowId = generateId()
   const startId = generateId()
   const now = new Date()
@@ -107,7 +118,7 @@ async function seedWorkflow(): Promise<{ workflowId: string; startId: string }> 
     updatedAt: now,
   })
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
-    blocks: { [startId]: block(startId, 'start_trigger', 'Start') },
+    blocks: { [startId]: block(startId, 'start_trigger', 'Start'), ...extra },
     edges: [],
     loops: {},
     parallels: {},
@@ -413,6 +424,7 @@ check('notes edited after their evaluation are refused at build time', async () 
   await writeNotes(workflowId, notesWith(functionBatch(startId, 'score')))
   expect((await evaluate(workflowId)).problems).toEqual([])
   await writeNotes(workflowId, notesWith(functionBatch(startId, 'score'), '- [ask] Who owns it?'))
+  expect((await notesRow(workflowId)).evaluatedNotesHash).toBeNull()
   await expect(applyNotes(workflowId)).rejects.toMatchObject({ code: 'conflict' })
 })
 
@@ -455,6 +467,117 @@ check("a person's edit lands, then holds the agent until it is reconciled", asyn
   ).toBe('current')
   expect((await evaluate(workflowId)).problems).toEqual([])
   await expect(applyNotes(workflowId)).resolves.toMatchObject({ applied: 1 })
+})
+
+check(
+  'evaluation reads open items under any list marker and keeps backticks inside the batch',
+  async () => {
+    const { workflowId, startId } = await seedWorkflow()
+    await createNotes(workflowId)
+    const [add, wire] = functionBatch(startId, 'fenced')
+    const batch = [
+      {
+        ...add,
+        params: {
+          type: 'function',
+          name: 'Fenced',
+          inputs: { language: 'javascript', code: 'return "```"' },
+        },
+      },
+      wire,
+    ]
+    await writeNotes(
+      workflowId,
+      `## Graph\n\n\`\`\`json operations\n${JSON.stringify(batch, null, 2)}\n\`\`\`\n\n## Open items:\n1. **[gather]** Which table holds leads?\n+ [ask]\n`
+    )
+    const reading = await evaluate(workflowId)
+    expect(reading.dryRun?.operationCount).toBe(2)
+    expect(reading.openItems).toEqual([
+      { mark: 'gather', text: 'Which table holds leads?' },
+      { mark: 'ask', text: '' },
+    ])
+    expect(reading.passed).toBe(false)
+  }
+)
+
+check(
+  'a whole-graph replace is refused for the agent on a workflow with notes, never for a person',
+  async () => {
+    const { workflowId, startId } = await seedWorkflow()
+    await createNotes(workflowId)
+    const replace = (principal: typeof agent | typeof person) =>
+      withPermissionGroupScope(() =>
+        replaceWorkflowState.execute({
+          principal,
+          input: {
+            workflowId,
+            assertedWorkspaceId: workspaceId,
+            blocks: { [startId]: block(startId, 'start_trigger', 'Start') },
+            edges: [],
+          },
+        })
+      )
+    await expect(replace(agent)).rejects.toThrow(/whole-graph replace is refused/)
+    await expect(replace(person)).resolves.toBeDefined()
+  }
+)
+
+check(
+  'a credential switched in the editor is a change, without the baseline keeping either value',
+  async () => {
+    const gmailId = generateId()
+    const credential = (value: string) => ({
+      credential: { id: 'credential', type: 'oauth-input' as const, value },
+    })
+    const { workflowId } = await seedWorkflow({
+      [gmailId]: block(gmailId, 'gmail', 'Send mail', credential('cred-original')),
+    })
+    await createNotes(workflowId)
+    const row = await notesRow(workflowId)
+    if (!row.baselineFileId) throw new Error('No baseline')
+    const baselineText = await readBuildNotesFileText(workspaceId, row.baselineFileId, {
+      maxBytes: 16 * 1024 * 1024,
+    })
+    expect(baselineText).not.toContain('cred-original')
+
+    await db
+      .update(workflowBlocks)
+      .set({ subBlocks: credential('cred-switched') })
+      .where(eq(workflowBlocks.id, gmailId))
+    const changes = await changesSince(workflowId)
+    expect(changes.hasChanges).toBe(true)
+    expect(changes.changedWithheldFields).toEqual([{ blockId: gmailId, field: 'credential' }])
+    expect(JSON.stringify(changes)).not.toContain('cred-')
+  }
+)
+
+check("restoring a deleted folder brings its workflows' notes and files back", async () => {
+  const { workflowId } = await seedWorkflow()
+  await createNotes(workflowId)
+  await writeNotes(workflowId, '# Draft with history\n')
+  const row = await notesRow(workflowId)
+  const folderId = generateId()
+  await db.insert(folder).values({
+    id: folderId,
+    resourceType: 'workflow',
+    name: `Build notes ${folderId}`,
+    userId: ownerId,
+    workspaceId,
+  })
+  await db.update(workflow).set({ folderId }).where(eq(workflow.id, workflowId))
+
+  await deleteFolder({ resourceType: 'workflow', folderId, workspaceId, userId: ownerId })
+  expect((await notesRow(workflowId)).deletedAt).not.toBeNull()
+  await restoreFolder({ resourceType: 'workflow', folderId, workspaceId, userId: ownerId })
+
+  await expect(
+    getBuildNotesStatus.execute({ principal: agent, input: target(workflowId) })
+  ).resolves.toMatchObject({ exists: true })
+  const files = await db
+    .select({ deletedAt: workspaceFiles.deletedAt })
+    .from(workspaceFiles)
+    .where(inArray(workspaceFiles.id, [row.notesFileId, row.baselineFileId ?? '']))
+  expect(files.map((file) => file.deletedAt)).toEqual([null, null])
 })
 
 check('with the feature off, agent writes go unchecked and the notes are unreachable', async () => {

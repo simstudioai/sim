@@ -15,7 +15,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   archiveBuildNotesForWorkflows,
-  restoreBuildNotesForWorkflow,
+  restoreBuildNotesForWorkflows,
 } from '@/lib/build-notes/repository'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -229,7 +229,7 @@ export async function restoreWorkflow(
         and(eq(workflowMcpTool.workflowId, workflowId), eq(workflowMcpTool.archivedAt, archivedAt))
       )
 
-    if (archivedAt) await restoreBuildNotesForWorkflow(tx, workflowId, archivedAt, now)
+    if (archivedAt) await restoreBuildNotesForWorkflows(tx, [workflowId], archivedAt, now)
   })
 
   logger.info(`Restored workflow ${workflowId}`, { requestId: options.requestId })

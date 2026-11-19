@@ -1,7 +1,7 @@
 import type { WorkspaceFileVersionSource } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { serializeBaseline } from '@/lib/build-notes/baseline'
+import { type BaselineSnapshot, serializeBaseline } from '@/lib/build-notes/baseline'
 import { buildNotesTemplate, MAX_BUILD_NOTES_BYTES } from '@/lib/build-notes/notes'
 import { buildNotesFileName, buildNotesPath } from '@/lib/build-notes/paths'
 import {
@@ -16,15 +16,9 @@ import {
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** A baseline is a whole graph; anything larger is not one this feature keeps. */
 const MAX_BASELINE_BYTES = 16 * 1024 * 1024
-
-export interface BaselineSnapshot {
-  state: WorkflowState
-  workflowUpdatedAt: Date
-}
 
 /** Creates the notes file with its owner row, then the baseline file of the current graph. */
 export async function createBuildNotesFiles(params: {
@@ -74,7 +68,13 @@ export async function writeBaseline(
   baseline: BaselineSnapshot,
   author: { userId: string; source: WorkspaceFileVersionSource }
 ): Promise<BuildNotesRow> {
-  const content = serializeBaseline(baseline.state)
+  const content = serializeBaseline(baseline)
+  if (Buffer.byteLength(content, 'utf-8') > MAX_BASELINE_BYTES) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `This workflow is too large for build notes to keep a baseline of (over ${MAX_BASELINE_BYTES / 1024 / 1024}MB)`
+    )
+  }
   if (!notes.baselineFileId) {
     const { fileId } = await createOwnedWorkspaceFile({
       context: 'build_notes',

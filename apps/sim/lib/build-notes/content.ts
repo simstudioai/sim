@@ -1,18 +1,21 @@
 import { isUtf8 } from 'node:buffer'
 import { MAX_BUILD_NOTES_BYTES } from '@/lib/build-notes/notes'
 import { buildNotesPath } from '@/lib/build-notes/paths'
-import { getLiveBuildNotesByFileId } from '@/lib/build-notes/repository'
+import { clearBuildNotesEvaluation, getLiveBuildNotesByFileId } from '@/lib/build-notes/repository'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 
 /**
  * Checks a write to a build-notes file. The notes are the agent's to edit; the baseline is the
- * graph Sim last recorded, so only Sim writes it.
+ * graph Sim last recorded, so only Sim writes it. A notes write spends any passing evaluation in
+ * its own transaction: the notes it passed are gone, and a build that already holds the notes row
+ * commits first or sees the evaluation spent.
  */
 export async function prepareBuildNotesWrite(input: {
   fileId: string
   workspaceId: string
   content: Buffer
-}): Promise<undefined> {
+}): Promise<(tx: DbOrTx) => Promise<void>> {
   const notes = await getLiveBuildNotesByFileId(input.fileId)
   if (!notes) throw new OrchestrationError('not_found', 'File not found')
   if (notes.baselineFileId === input.fileId) {
@@ -30,5 +33,5 @@ export async function prepareBuildNotesWrite(input: {
   if (!isUtf8(input.content)) {
     throw new OrchestrationError('validation', 'Build notes must be UTF-8 text')
   }
-  return undefined
+  return (tx) => clearBuildNotesEvaluation(notes.id, tx)
 }
