@@ -635,6 +635,25 @@ export default defineCredentials({})
     expect(again.files['credentials.ts']).toBe(read.files['credentials.ts'])
   })
 
+  check(
+    'a get leaves out a secret secrets.ts cannot declare, and the file still applies',
+    async () => {
+      const workspaceId = await newWorkspace()
+      await setSecret(workspaceId)
+      await setSecretUseCase.execute({
+        principal: owner,
+        input: { workspaceId, name: '__proto__', scope: 'workspace', value: SECRET_VALUE },
+      })
+
+      const read = await get(workspaceId)
+      expect(read.files['secrets.ts']).toBe(SECRETS())
+      expect(read.skipped).toMatchObject([{ kind: 'secret', key: '__proto__' }])
+      const again = await apply(workspaceId, read.files, { base: read.base, allowDelete: true })
+      expect(codes(again.diagnostics.filter((finding) => finding.severity === 'error'))).toEqual([])
+      expect(actions(again.plan)).toEqual([])
+    }
+  )
+
   check('a read-only member and a workspace API key are refused', async () => {
     const workspaceId = await newWorkspace()
     await setSecret(workspaceId)

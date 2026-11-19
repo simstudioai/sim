@@ -57,6 +57,15 @@ export interface DeclarationEnvRef {
   $env: string
 }
 
+/**
+ * Whether `key` may be an object key in a declaration: not `__proto__`, and not a key the reader
+ * encodes a helper call or `env.NAME` under. A resource or entry named otherwise cannot be
+ * declared, so a get leaves it out rather than print a file that does not read back.
+ */
+export function isDeclarableKey(key: string): boolean {
+  return key !== CALL_KEY && key !== ENV_KEY && key !== '__proto__'
+}
+
 /** An environment variable name `env.NAME` may spell: an identifier. */
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -327,7 +336,7 @@ export function readDeclaration(
           : property.key.type === 'StringLiteral'
             ? property.key.value
             : null
-      if (key === null || key === CALL_KEY || key === ENV_KEY || key === '__proto__') {
+      if (key === null || !isDeclarableKey(key)) {
         unsupported(
           property.key,
           key === null ? 'A key is a name or a quoted string.' : `"${key}" cannot be a key.`
