@@ -1,6 +1,6 @@
 {
-  "id": "7489b63e-9016-49ad-b951-0716e6c55709",
-  "prevId": "4c2b44f2-de64-4dc2-a222-626ca4c75d15",
+  "id": "9ffb0717-6267-4fb6-b1f5-6020378f78bb",
+  "prevId": "0de1ee0b-d6ef-4887-aab6-d0fbdce6e922",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6786,6 +6786,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "file_sha256": {
+          "name": "file_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "mime_type": {
           "name": "mime_type",
           "type": "text",
@@ -12503,17 +12509,17 @@
         }
       },
       "indexes": {
-        "kcpii_subject_idx": {
-          "name": "kcpii_subject_idx",
+        "kcpii_subject_import_idx": {
+          "name": "kcpii_subject_import_idx",
           "columns": [
             {
-              "expression": "import_id",
+              "expression": "subject_token",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "subject_token",
+              "expression": "import_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -33295,6 +33301,169 @@
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_source_apply_lease": {
+      "name": "workspace_source_apply_lease",
+      "schema": "",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acquired_at": {
+          "name": "acquired_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_source_apply_lease_workspace_id_workspace_id_fk": {
+          "name": "workspace_source_apply_lease_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_source_apply_lease",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_source_staged_blob": {
+      "name": "workspace_source_staged_blob",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "workspace_source_staged_blob_scope_hash_unique": {
+          "name": "workspace_source_staged_blob_scope_hash_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scope",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sha256",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_source_staged_blob_expires_at_idx": {
+          "name": "workspace_source_staged_blob_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_source_staged_blob_workspace_id_workspace_id_fk": {
+          "name": "workspace_source_staged_blob_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_source_staged_blob",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

@@ -7749,7 +7749,7 @@ export const knowledgeConnectorPermissionImportIdentity = pgTable(
   },
   (table) => ({
     pk: primaryKey({ name: 'kcpii_pk', columns: [table.importId, table.userId] }),
-    subjectIdx: uniqueIndex('kcpii_subject_idx').on(table.importId, table.subjectToken),
+    subjectIdx: uniqueIndex('kcpii_subject_import_idx').on(table.subjectToken, table.importId),
   })
 )
 
