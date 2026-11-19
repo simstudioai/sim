@@ -172,18 +172,27 @@ const replicaReaders: HourReaders = {
 export async function aggregateHour(
   hour: Date,
   deadline: number,
-  readers: HourReaders = replicaReaders
+  {
+    readers = replicaReaders,
+    byWorkspace: startByWorkspace = false,
+  }: {
+    readers?: HourReaders
+    /** Skips straight to workspace pages: a retry of an hour already known to be too heavy. */
+    byWorkspace?: boolean
+  } = {}
 ): Promise<ActivityCell[]> {
-  try {
-    return await readers.span({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
-  } catch (error) {
-    if (!isBoundedCancellation(error)) throw error
-    logger.warn('Activity rollup hour read in slices', { hour: hour.toISOString() })
+  if (!startByWorkspace) {
+    try {
+      return await readers.span({ from: hour, to: new Date(hour.getTime() + HOUR_MS) })
+    } catch (error) {
+      if (!isBoundedCancellation(error)) throw error
+      logger.warn('Activity rollup hour read in slices', { hour: hour.toISOString() })
+    }
   }
   const sliceMs = HOUR_MS / SLICES_PER_HOUR
   const parts: ActivityCell[][] = []
   // Once one slice needs workspace pages, later slices skip the span read bound to fail.
-  let byWorkspace = false
+  let byWorkspace = startByWorkspace
   for (let slice = 0; slice < SLICES_PER_HOUR; slice++) {
     const from = new Date(hour.getTime() + slice * sliceMs)
     const range = { from, to: new Date(from.getTime() + sliceMs) }

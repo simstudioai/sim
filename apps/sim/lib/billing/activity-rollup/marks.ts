@@ -41,9 +41,10 @@ interface ChangedRun {
  * and the caller's change goes ahead, so retention and resumes behave exactly as without the
  * rollup. A missed mark leaves one cell stale until the pass's sampler finds it.
  *
- * Nothing is marked unless a pass ran within {@link MAINTENANCE_GAP_MS}: a deployment that never
- * enabled the rollup, or turned maintenance off, accumulates no marks, and the next pass after such
- * a gap rebuilds the rollup rather than trusting marks it never got.
+ * Nothing is marked unless a pass completed within {@link MAINTENANCE_GAP_MS}: a deployment that
+ * never enabled the rollup, or turned maintenance off, accumulates no marks, and the next pass after
+ * such a gap rebuilds the rollup rather than trusting marks it never got. A pass that only takes the
+ * lease (idling on a newer version, or failing) does not count.
  */
 export async function markWorkflowActivityDirty(
   tx: DbTransaction,
@@ -63,7 +64,7 @@ export async function markWorkflowActivityDirty(
         FROM jsonb_array_elements(${JSON.stringify([...cells.values()])}::jsonb) AS c(cell)
         WHERE EXISTS (
           SELECT 1 FROM ${activityRollupState}
-          WHERE updated_at > now() - ${msInterval(MAINTENANCE_GAP_MS)}
+          WHERE maintained_at > now() - ${msInterval(MAINTENANCE_GAP_MS)}
         )
         ON CONFLICT (workspace_id, bucket_start) DO UPDATE SET due_at = excluded.due_at
       `)

@@ -1,5 +1,5 @@
 {
-  "id": "d6913b9f-f505-4dda-b322-71faac2200f4",
+  "id": "77c516e8-a83a-4781-a08f-325bd0ef7281",
   "prevId": "687f8daa-4d9f-4754-a9c6-af80d97d978a",
   "version": "7",
   "dialect": "postgresql",
@@ -160,6 +160,37 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.activity_rollup_blocked": {
+      "name": "activity_rollup_blocked",
+      "schema": "",
+      "columns": {
+        "bucket_start": {
+          "name": "bucket_start",
+          "type": "timestamp",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "retry_at": {
+          "name": "retry_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -335,21 +366,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "blocked_hour": {
-          "name": "blocked_hour",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "blocked_attempts": {
-          "name": "blocked_attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "blocked_until": {
-          "name": "blocked_until",
+        "maintained_at": {
+          "name": "maintained_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

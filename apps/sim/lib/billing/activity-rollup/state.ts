@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  activityRollupBlocked,
   activityRollupDirty,
   activityRollupInflight,
   activityRollupState,
@@ -22,8 +23,8 @@ export const WORKFLOW_ROLLUP_ID = 'workflow'
 const LEASE_MS = 3 * 60 * 1000
 
 /**
- * How long the rollup may go without a pass before it is rebuilt. Marks are written only while a
- * pass ran within this window, so a rollup left unmaintained longer can have missed deletes and
+ * How long the rollup may go without a completed pass before it is rebuilt. Marks are written only
+ * while a pass completed within this window, so a rollup left unmaintained longer can have missed deletes and
  * reopened runs, and its late-end scan would have a backlog to catch up on: rebuilding is the only
  * way back to exact. Reads stop using it sooner, once its newest hour is six hours old.
  */
@@ -33,9 +34,7 @@ export type ActivityRollupState = typeof activityRollupState.$inferSelect
 
 /** Progress a pass may move, each as a value or as SQL evaluated by the update. */
 type StateChanges = {
-  [K in Exclude<keyof ActivityRollupState, 'id' | 'leaseOwner' | 'leaseExpiresAt'>]?:
-    | ActivityRollupState[K]
-    | SQL
+  [K in Exclude<keyof ActivityRollupState, 'id' | 'leaseOwner'>]?: ActivityRollupState[K] | SQL
 }
 
 export async function readRollupState(
@@ -119,13 +118,18 @@ export async function updateLeasedState(
   return state
 }
 
-/** The state changes that forget a blocked hour. */
-export const CLEARED_BLOCK = { blockedHour: null, blockedAttempts: 0, blockedUntil: null } as const
+/**
+ * Pushes the lease out to cover work that may run past the pass's budget (a retry of an hour too
+ * heavy to read), while `owner` still holds it.
+ */
+export async function extendLease(owner: string, ms: number): Promise<void> {
+  await updateLeasedState(owner, { leaseExpiresAt: sql`now() + ${msInterval(ms)}` })
+}
 
 /**
  * Starts the rollup over at this code's version: every read on any version stops using it at once
- * (coverage is cleared), every piece of progress (backfill, late-end
- * scan, a blocked hour) is forgotten, and the queues are dropped. Cells are dropped by
+ * (coverage is cleared), every piece of progress (backfill, late-end scan, blocked hours, the
+ * maintenance heartbeat) is forgotten, and the queues are dropped. Cells are dropped by
  * {@link truncateRollupBatch} before the coverage starts again.
  */
 export async function resetRollup(owner: string): Promise<ActivityRollupState> {
@@ -139,12 +143,13 @@ export async function resetRollup(owner: string): Promise<ActivityRollupState> {
         backfillCompletedAt: null,
         lastEndScan: null,
         housekeepingAt: null,
-        ...CLEARED_BLOCK,
+        maintainedAt: null,
       },
       tx
     )
     await tx.delete(activityRollupDirty)
     await tx.delete(activityRollupInflight)
+    await tx.delete(activityRollupBlocked)
     return state
   })
 }

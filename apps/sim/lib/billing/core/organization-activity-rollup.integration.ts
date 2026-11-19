@@ -410,6 +410,7 @@ beforeAll(async () => {
     CREATE TABLE activity_rollup_state (LIKE public.activity_rollup_state INCLUDING ALL);
     CREATE TABLE activity_rollup_dirty (LIKE public.activity_rollup_dirty INCLUDING ALL);
     CREATE TABLE activity_rollup_inflight (LIKE public.activity_rollup_inflight INCLUDING ALL);
+    CREATE TABLE activity_rollup_blocked (LIKE public.activity_rollup_blocked INCLUDING ALL);
     INSERT INTO workspace VALUES ('ws1', 'Support', 'org-a', NULL), ('ws2', 'Sales', 'org-a', NULL),
       ('ws3', 'Ops', 'org-a', NULL), ('ws4', 'Archive', 'org-a', now()),
       ('ws5', 'Elsewhere', 'org-b', NULL), ('ws6', 'Private', 'org-foreign', NULL);
@@ -710,7 +711,7 @@ describe('organization activity rollup', () => {
 
   it('stops marking during a maintenance gap and rebuilds when maintenance resumes', async () => {
     await connection.unsafe(
-      `UPDATE activity_rollup_state SET updated_at = now() - interval '7 hours'`
+      `UPDATE activity_rollup_state SET maintained_at = now() - interval '7 hours'`
     )
     await connection.unsafe(`DELETE FROM activity_rollup_dirty`)
     await runCleanupLogs({
@@ -724,6 +725,28 @@ describe('organization activity rollup', () => {
       `SELECT count(*)::int AS marks FROM activity_rollup_dirty`
     )
     expect(marks).toBe(0)
+    expect((await runPass()).reset).toBe('maintenance-gap')
+    await expectEquivalent()
+  }, 300_000)
+
+  it('still rebuilds after a gap when the pass that found it failed before its reset', async () => {
+    await connection.unsafe(
+      `UPDATE activity_rollup_state SET maintained_at = now() - interval '7 hours'`
+    )
+    await connection.unsafe(`
+      CREATE FUNCTION fail_rollup_reset() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic reset failure'; END $$;
+      CREATE TRIGGER fail_rollup_reset BEFORE DELETE ON activity_rollup_blocked
+        FOR EACH STATEMENT EXECUTE FUNCTION fail_rollup_reset();
+    `)
+    try {
+      await expect(runPass()).rejects.toThrow()
+    } finally {
+      await connection.unsafe(`
+        DROP TRIGGER fail_rollup_reset ON activity_rollup_blocked;
+        DROP FUNCTION fail_rollup_reset();
+      `)
+    }
     expect((await runPass()).reset).toBe('maintenance-gap')
     await expectEquivalent()
   }, 300_000)
@@ -752,20 +775,23 @@ describe('organization activity rollup', () => {
         SELECT * FROM workflow_execution_logs_base WHERE heavy_hour_gate(started_at);
       UPDATE activity_rollup_state SET version = ${ACTIVITY_ROLLUP_VERSION - 1}, housekeeping_at = NULL;
     `)
+    const blockedAttempts = async () => {
+      const [row] = await connection.unsafe<{ attempts: number }[]>(
+        `SELECT attempts FROM activity_rollup_blocked WHERE bucket_start = $1::timestamp`,
+        [hour]
+      )
+      return row?.attempts ?? null
+    }
     try {
       const blocked = await runPass()
-      expect(blocked).toMatchObject({
-        status: 'ran',
-        blockedHour: new Date(`${hour}Z`).toISOString(),
-      })
+      expect(blocked).toMatchObject({ status: 'ran', blockedHours: 1 })
+      expect(await blockedAttempts()).toBe(1)
       const state = await readRollupState()
-      expect(state?.blockedAttempts).toBe(1)
       expect(state?.housekeepingAt).not.toBeNull()
       expect(state?.coverageStart?.getTime()).toBeGreaterThan(new Date(`${hour}Z`).getTime())
 
-      const waiting = await runPass()
-      expect(waiting.blockedHour).toBe(blocked.blockedHour)
-      expect((await readRollupState())?.blockedAttempts).toBe(1)
+      expect((await runPass()).blockedHours).toBe(1)
+      expect(await blockedAttempts()).toBe(1)
     } finally {
       await connection.unsafe(`
         DROP VIEW workflow_execution_logs;
@@ -773,9 +799,10 @@ describe('organization activity rollup', () => {
         ALTER TABLE workflow_execution_logs_base RENAME TO workflow_execution_logs;
       `)
     }
-    await connection.unsafe(`UPDATE activity_rollup_state SET blocked_until = now()`)
+    await connection.unsafe(`UPDATE activity_rollup_blocked SET retry_at = now()`)
     const recovered = await runPass()
-    expect(recovered).toMatchObject({ blockedHour: null, backfillComplete: true })
+    expect(recovered).toMatchObject({ blockedHours: 0, backfillComplete: true })
+    expect(await blockedAttempts()).toBeNull()
     await expectEquivalent()
   }, 300_000)
 })

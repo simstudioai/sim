@@ -60,7 +60,9 @@ describe('aggregateHour', () => {
         return quarter(range) === 2 ? [cell('a', 1, 10), cell('b', 2, 30)] : [cell('a', 1, 5)]
       })
 
-      const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, readers({ span }))
+      const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, {
+        readers: readers({ span }),
+      })
 
       expect(span.mock.calls.map(([range]) => range.from.toISOString())).toEqual([
         '2026-05-01T10:00:00.000Z',
@@ -85,11 +87,9 @@ describe('aggregateHour', () => {
         : { cells: [cell('b', 1, 1)], last: null }
     )
 
-    const cells = await aggregateHour(
-      hour,
-      Number.POSITIVE_INFINITY,
-      readers({ span, workspacePage })
-    )
+    const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, {
+      readers: readers({ span, workspacePage }),
+    })
 
     expect(workspacePage.mock.calls.map(([range, after]) => [quarter(range), after])).toEqual([
       [3, null],
@@ -105,9 +105,23 @@ describe('aggregateHour', () => {
     const workspacePage = vi.fn(async () => ({ cells: [], last: null }))
 
     await expect(
-      aggregateHour(hour, Date.now() - 1, readers({ span, workspacePage }))
+      aggregateHour(hour, Date.now() - 1, { readers: readers({ span, workspacePage }) })
     ).rejects.toBeInstanceOf(HeavyHourError)
     expect(workspacePage).not.toHaveBeenCalled()
+  })
+
+  it('retries an hour known to be too heavy a page of workspaces at a time from the start', async () => {
+    const span = vi.fn(async () => [cell('a', 9, 9)])
+    const workspacePage = vi.fn(async () => ({ cells: [cell('a', 1, 2)], last: null }))
+
+    const cells = await aggregateHour(hour, Number.POSITIVE_INFINITY, {
+      readers: readers({ span, workspacePage }),
+      byWorkspace: true,
+    })
+
+    expect(span).not.toHaveBeenCalled()
+    expect(workspacePage).toHaveBeenCalledTimes(4)
+    expect(cells).toEqual([cell('a', 4, 8)])
   })
 
   it('fails without slicing when the read fails for any other reason', async () => {
@@ -115,9 +129,9 @@ describe('aggregateHour', () => {
       throw cancellation('relation "workflow_execution_logs" does not exist', '42P01')
     })
 
-    await expect(aggregateHour(hour, Number.POSITIVE_INFINITY, readers({ span }))).rejects.toThrow(
-      'does not exist'
-    )
+    await expect(
+      aggregateHour(hour, Number.POSITIVE_INFINITY, { readers: readers({ span }) })
+    ).rejects.toThrow('does not exist')
     expect(span).toHaveBeenCalledTimes(1)
   })
 })
