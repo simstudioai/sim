@@ -1,16 +1,16 @@
 import { ComputerUseError } from '@sim/desktop-bridge'
 import {
-  type ComputerUseInput,
   ComputerUseNativeErrorSchema,
   type ComputerUseResult,
   ComputerUseResultSchema,
+  type ComputerUseWithAppCommandsInput,
 } from '@sim/desktop-bridge/computer-use'
 import { getDesktopBridge } from '@/lib/desktop'
 
 /** Desktop main independently authorizes the tool ID and executes only the server's canonical args. */
 export async function executeComputerUseTool(
   toolCallId: string,
-  input: ComputerUseInput,
+  input: ComputerUseWithAppCommandsInput,
   signal?: AbortSignal
 ): Promise<ComputerUseResult> {
   signal?.throwIfAborted()

@@ -712,6 +712,154 @@ export const workflowExecutionLogs = pgTable(
       .where(
         sql`${table.status} = 'completed' AND ${table.level} = 'info' AND ${table.endedAt} IS NOT NULL`
       ),
+    /**
+     * Runs that ended at least two hours after they started, by end. The activity rollup reads
+     * new entries to recompute the hours they started in, which it computed before they ended.
+     * The threshold must stay an hour below the rollup's settle lag (`ACTIVITY_ROLLUP_SETTLE_MS`).
+     */
+    lateEndIdx: index('workflow_execution_logs_late_end_idx')
+      .on(table.endedAt)
+      .where(sql`${table.endedAt} >= ${table.startedAt} + interval '2 hours'`)
+      .concurrently(),
+  })
+)
+
+/**
+ * Workflow runs per UTC hour, workspace, workflow, and trigger, rolled up from
+ * `workflow_execution_logs` for the organization activity summary and breakdown.
+ *
+ * Only the activity rollup pass writes it (`apps/sim/lib/billing/activity-rollup`), always by
+ * recomputing whole cells from the source rows, so a cell is never incremented. It holds every
+ * workspace, without an organization or foreign keys: reads join `workspace` for the current
+ * organization and `workflow` for the current name, so moving a workspace or deleting a workflow
+ * needs no write here.
+ *
+ * The pass finds old source rows that change by their late `ended_at` and by rechecking cells
+ * that held unfinished runs. Deletes and runs reopened without an end are invisible to it: any
+ * code that deletes execution log rows, or reopens a finished one, must call
+ * `markWorkflowActivityDirty` in the same transaction.
+ */
+export const workflowActivityHourly = pgTable(
+  'workflow_activity_hourly',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    /** The UTC hour, in the same `timestamp` domain as `started_at`. */
+    bucketStart: timestamp('bucket_start').notNull(),
+    /** `''` for runs whose workflow was already deleted when the cell was computed. */
+    workflowId: text('workflow_id').notNull(),
+    trigger: text('trigger').notNull(),
+    runs: integer('runs').notNull(),
+    completed: integer('completed').notNull(),
+    failed: integer('failed').notNull(),
+    cancelled: integer('cancelled').notNull(),
+    /** Runs not yet completed, failed, or cancelled; the pass rechecks cells that hold any. */
+    inFlight: integer('in_flight').notNull(),
+    /** Completed and failed runs with a non-negative duration, which is what activity averages. */
+    durationSumMs: bigint('duration_sum_ms', { mode: 'number' }).notNull(),
+    durationCount: integer('duration_count').notNull(),
+    /** When the cell last changed. */
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workflow_activity_hourly_pk',
+      columns: [table.workspaceId, table.bucketStart, table.workflowId, table.trigger],
+    }),
+    /** Index-only reads of an organization's workspaces over a range of hours. */
+    readIdx: index('workflow_activity_hourly_read_idx').on(
+      table.workspaceId,
+      table.bucketStart,
+      table.workflowId,
+      table.trigger,
+      table.runs,
+      table.completed,
+      table.failed,
+      table.cancelled,
+      table.inFlight,
+      table.durationSumMs,
+      table.durationCount
+    ),
+    bucketStartIdx: index('workflow_activity_hourly_bucket_start_idx').on(table.bucketStart),
+  })
+)
+
+/**
+ * The activity rollup's progress, one row per rollup (`'workflow'`). Every hour in
+ * `[coverage_start, fresh_through)` is computed; reads use the rollup only when `version`
+ * matches their code, and serve every instant outside that range from the source table.
+ */
+export const activityRollupState = pgTable('activity_rollup_state', {
+  id: text('id').primaryKey(),
+  version: integer('version').notNull(),
+  coverageStart: timestamp('coverage_start'),
+  freshThrough: timestamp('fresh_through'),
+  /** Set once no source row is older than `coverage_start`. */
+  backfillCompletedAt: timestamp('backfill_completed_at', { withTimezone: true }),
+  /** The `ended_at` up to which late-ending runs have been marked dirty. */
+  lastEndScan: timestamp('last_end_scan'),
+  /** The pass holding the lease, so two passes never run at once. */
+  leaseOwner: text('lease_owner'),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  housekeepingAt: timestamp('housekeeping_at', { withTimezone: true }),
+  /**
+   * When a pass last ran at this version past its reset decision (or started a coverage). Writers
+   * mark changes only while this is recent, and a pass that finds it older than the maintenance gap
+   * rebuilds the rollup.
+   */
+  maintainedAt: timestamp('maintained_at', { withTimezone: true }),
+  /**
+   * Passes in a row that failed after taking the lease, by throwing or by dying with it held;
+   * reset by the next pass that completes.
+   */
+  failedPasses: integer('failed_passes').notNull().default(0),
+  /**
+   * When a pass last ran both correction queues (dirty marks and in-flight rechecks) to the end of
+   * their step. Reads use the rollup only while this is recent, so cells nothing corrects any more
+   * are never served. Seeded when a coverage starts.
+   */
+  correctionsAt: timestamp('corrections_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Hours no read could aggregate within its statement bounds, retried with backoff. Finalize and
+ * backfill wait at a blocked hour until a retry reads it; the pass's other steps keep running.
+ */
+export const activityRollupBlocked = pgTable('activity_rollup_blocked', {
+  bucketStart: timestamp('bucket_start').primaryKey(),
+  attempts: integer('attempts').notNull(),
+  retryAt: timestamp('retry_at', { withTimezone: true }).notNull(),
+})
+
+/** Rollup cells whose source rows were deleted or reopened, recomputed once due. */
+export const activityRollupDirty = pgTable(
+  'activity_rollup_dirty',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    bucketStart: timestamp('bucket_start').notNull(),
+    /** Rewritten by every mark; the pass removes a mark only at the `due_at` it read. */
+    dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    /** Recomputes of this cell that failed, each pushing `due_at` out with backoff. */
+    attempts: integer('attempts').notNull().default(0),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.workspaceId, table.bucketStart] }),
+    dueAtIdx: index('activity_rollup_dirty_due_at_idx').on(table.dueAt),
+  })
+)
+
+/** Rollup cells computed while runs in them were unfinished, rechecked with backoff. */
+export const activityRollupInflight = pgTable(
+  'activity_rollup_inflight',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    bucketStart: timestamp('bucket_start').notNull(),
+    nextCheckAt: timestamp('next_check_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.workspaceId, table.bucketStart] }),
+    nextCheckAtIdx: index('activity_rollup_inflight_next_check_at_idx').on(table.nextCheckAt),
   })
 )
 
@@ -7612,7 +7760,7 @@ export const knowledgeConnectorPermissionImportIdentity = pgTable(
   },
   (table) => ({
     pk: primaryKey({ name: 'kcpii_pk', columns: [table.importId, table.userId] }),
-    subjectIdx: uniqueIndex('kcpii_subject_idx').on(table.importId, table.subjectToken),
+    subjectIdx: uniqueIndex('kcpii_subject_import_idx').on(table.subjectToken, table.importId),
   })
 )
 

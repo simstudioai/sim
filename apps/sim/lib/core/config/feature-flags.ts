@@ -71,6 +71,11 @@ const FEATURE_FLAGS = {
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
+  'mcp-code-mode': {
+    description:
+      'Add the code-mode tools (execute_read_code, execute_write_code) to the Sim MCP server. Supports user and workspace rollout; disabled by default.',
+    fallback: 'MCP_CODE_MODE',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
@@ -126,6 +131,21 @@ const FEATURE_FLAGS = {
       'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
       'unreachable the host stays in use.',
     fallback: null,
+  },
+  'organization-activity-rollup-reads': {
+    description:
+      'Serve organization activity summaries and breakdowns from the hourly workflow activity ' +
+      'rollup where it covers the window, with identical results. Supports organization rollout; ' +
+      'off by default, which reads the source tables. Off-AppConfig falls back to ' +
+      'ORGANIZATION_ACTIVITY_ROLLUP_READS.',
+    fallback: 'ORGANIZATION_ACTIVITY_ROLLUP_READS',
+  },
+  'activity-rollup-maintenance': {
+    description:
+      'Run the activity rollup pass on its cron: backfill and maintain workflow_activity_hourly. ' +
+      'Global on/off only; off by default, which starts no pass. Off-AppConfig falls back to ' +
+      'ACTIVITY_ROLLUP_MAINTENANCE.',
+    fallback: 'ACTIVITY_ROLLUP_MAINTENANCE',
   },
   'mothership-abandoned-run-takeover-disabled': {
     description:

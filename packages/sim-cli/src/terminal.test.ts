@@ -54,6 +54,40 @@ class ExitCalled extends Error {
 }
 
 describe('API errors at the terminal', () => {
+  it('reports CSV file failures as structured JSON instead of crashing', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-cli-missing-csv-'))
+    try {
+      const { stderr, exitCode } = await runAgainst(
+        [
+          '--output',
+          'json',
+          'organizations',
+          'search',
+          'sources',
+          'permissions',
+          'upload',
+          'source-1',
+          '--organization',
+          'org_test',
+          '--provider',
+          'gitlab',
+          '--expected-revision',
+          '1',
+          '--user-mapping',
+          join(directory, 'missing.csv'),
+          '--project-permissions',
+          join(directory, 'projects.csv'),
+          '--yes',
+        ],
+        Response.json({})
+      )
+      expect(exitCode).toBe(1)
+      expect(JSON.parse(stderr).error.message).toContain('ENOENT')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('names the server request id in JSON output', async () => {
     const { stderr, exitCode } = await runAgainst(
       ['--output', 'json', 'workflows', 'get', 'wf-missing'],

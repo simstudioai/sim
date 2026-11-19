@@ -124,6 +124,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Returns immediately after Trigger.dev accepts the asynchronous dispatcher task.
   'apps/sim/app/api/cron/workspace-file-search-dispatch/route.ts',
   'apps/sim/app/api/cron/knowledge-projection/route.ts',
+  'apps/sim/app/api/cron/activity-rollup/route.ts',
   'apps/sim/app/api/cron/fold-table-row-changes/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',

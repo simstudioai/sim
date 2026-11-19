@@ -1,5 +1,6 @@
 import { release } from 'node:os'
 import { join } from 'node:path'
+import type { ComputerUsePermission } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
@@ -136,6 +137,15 @@ function reportHandoffFailure(error: unknown): void {
 /** Bounds what a hand-edited settings file can make an update relaunch open. */
 const MAX_RELAUNCH_WINDOWS = 16
 
+/** The System Settings privacy pane for each Computer Use permission. */
+const PRIVACY_PANES: Record<ComputerUsePermission, string> = {
+  accessibility: 'Privacy_Accessibility',
+  screenCapture: 'Privacy_ScreenCapture',
+  reminders: 'Privacy_Reminders',
+  calendars: 'Privacy_Calendars',
+  contacts: 'Privacy_Contacts',
+}
+
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -200,9 +210,7 @@ function main(): void {
     native: computerNative,
     openPermissionSettings: (permission) =>
       shell.openExternal(
-        permission === 'accessibility'
-          ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-          : 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+        `x-apple.systempreferences:com.apple.preference.security?${PRIVACY_PANES[permission]}`
       ),
     setStopShortcutActive: (active) => {
       if (active && !computerStopShortcutRegistered) {
@@ -228,6 +236,20 @@ function main(): void {
         signal,
       })
       return result.response === 0 ? 'once' : result.response === 1 ? 'always' : 'deny'
+    },
+    confirmAppCommand: async ({ appName, summary }, signal) => {
+      const result = await dialog.showMessageBox({
+        type: 'question',
+        title: 'Computer Use',
+        message: `Let Mothership add this to ${appName}?`,
+        detail: summary,
+        buttons: ['Add', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+        signal,
+      })
+      return result.response === 0
     },
     onActivity: (activity) => {
       for (const win of getWindows()) {

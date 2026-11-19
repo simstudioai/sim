@@ -29,9 +29,15 @@ const payload = {
   retentionHours: 720,
   workspaceIds: ['workspace-1'],
 }
+const startedAt = new Date('2026-01-01T10:00:00.000Z')
 const rows = [
-  { id: 'log-1', files: [{ key: 'file-a' }, { key: 'file-b' }] },
-  { id: 'log-2', files: [{ key: 'file-c' }] },
+  {
+    id: 'log-1',
+    files: [{ key: 'file-a' }, { key: 'file-b' }],
+    workspaceId: 'workspace-1',
+    startedAt,
+  },
+  { id: 'log-2', files: [{ key: 'file-c' }], workspaceId: 'workspace-1', startedAt },
 ]
 
 describe('bounded log cleanup file failures', () => {

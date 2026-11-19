@@ -625,6 +625,10 @@ export const env = createEnv({
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
     PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
+    MCP_CODE_MODE:                         z.boolean().optional(),                 // Fallback for the `mcp-code-mode` feature flag off AppConfig
+    ORGANIZATION_ACTIVITY_ROLLUP_READS:    z.boolean().optional(),                 // Fallback for the `organization-activity-rollup-reads` feature flag off AppConfig
+    ACTIVITY_ROLLUP_MAINTENANCE:           z.boolean().optional(),                 // Fallback for the `activity-rollup-maintenance` feature flag off AppConfig
+    ACTIVITY_ROLLUP_BACKFILL_ROWS_PER_SECOND: z.coerce.number().int().positive().optional(), // Source rows the activity rollup backfill reads per second (default 20000)
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)

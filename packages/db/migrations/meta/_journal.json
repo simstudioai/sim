@@ -3221,6 +3221,41 @@
       "when": 1795044513365,
       "tag": "0460_permission_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 461,
+      "version": "7",
+      "when": 1795057212936,
+      "tag": "0461_permission_import_subject_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1795059305210,
+      "tag": "0462_workflow_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795059338803,
+      "tag": "0463_workflow_execution_logs_late_end_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1795070323624,
+      "tag": "0464_activity_rollup_maintenance_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 465,
+      "version": "7",
+      "when": 1795078639607,
+      "tag": "0465_activity_rollup_correction_state",
+      "breakpoints": true
     }
   ]
 }

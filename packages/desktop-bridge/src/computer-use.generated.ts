@@ -229,11 +229,118 @@ export const ComputerUseSchema = z.union([
 ]);
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
 
+/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+const CommandTitle = z
+  .string()
+  .max(1024)
+  .refine((title) => title.trim().length > 0, "A title must not be blank");
+/** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset. */
+const ISO_DATE_OR_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const RealDate = z.iso.date();
+// Zod requires seconds beside a zone unless precision is minutes, and the shape allows either.
+const RealDateTime = z.union([
+  z.iso.datetime({ local: true, offset: true }),
+  z.iso.datetime({ local: true, offset: true, precision: -1 }),
+]);
+/** The shape the model sees, refined to a day and time that exist, so Feb 30 never reaches the user's confirmation. */
+const DateOrDateTime = z
+  .string()
+  .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
+  .refine(
+    (value) => RealDate.safeParse(value).success || RealDateTime.safeParse(value).success,
+    "Use a real date and time",
+  );
+const CommandNotes = z.string().max(8000).optional();
+const EventBoundary = DateOrDateTime.describe(
+  "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
+);
+
+/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+export const AppCommandSchema = z.discriminatedUnion("name", [
+  z.strictObject({ name: z.literal("list_reminder_lists") }),
+  z.strictObject({
+    name: z.literal("create_reminder"),
+    title: CommandTitle,
+    notes: CommandNotes,
+    due: DateOrDateTime.optional().describe(
+      "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+    ),
+    listId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_reminder_lists; omit for the default list."),
+    priority: z
+      .union([z.literal(0), z.literal(1), z.literal(5), z.literal(9)])
+      .optional()
+      .describe("0 none, 1 high, 5 medium, 9 low."),
+  }),
+  z.strictObject({ name: z.literal("list_calendars") }),
+  z.strictObject({
+    name: z.literal("create_event"),
+    title: CommandTitle,
+    start: EventBoundary,
+    end: EventBoundary,
+    allDay: z.boolean().optional(),
+    location: z.string().max(1024).optional(),
+    notes: CommandNotes,
+    calendarId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_calendars; omit for the default calendar."),
+    alertMinutesBefore: z.number().int().min(0).max(40_320).optional(),
+  }),
+  z.strictObject({ name: z.literal("list_contact_groups") }),
+  z.strictObject({
+    name: z.literal("create_contact_group"),
+    title: CommandTitle.describe(
+      "Group name; an existing group with this name is returned instead of a duplicate.",
+    ),
+  }),
+  z
+    .strictObject({
+      name: z.literal("create_contact"),
+      givenName: z.string().max(1024).optional(),
+      familyName: z.string().max(1024).optional(),
+      organization: z.string().max(1024).optional(),
+      jobTitle: z.string().max(1024).optional(),
+      emails: z.array(z.string().min(3).max(320)).max(5).optional(),
+      phones: z.array(z.string().min(1).max(64)).max(5).optional(),
+      groupId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("An id from list_contact_groups or create_contact_group."),
+    })
+    .refine(
+      (contact) =>
+        Boolean(contact.givenName?.trim() || contact.familyName?.trim() || contact.organization?.trim()),
+      {
+        message: "A contact needs a name or an organization",
+      },
+    ),
+]);
+export type AppCommand = z.infer<typeof AppCommandSchema>;
+
+/** The computer tool for desktops that support app commands. */
+export const ComputerUseWithAppCommandsSchema = z.union([
+  ...ComputerUseSchema.options,
+  z.strictObject({ action: z.literal("app_command"), command: AppCommandSchema }),
+]);
+export type ComputerUseWithAppCommandsInput = z.infer<typeof ComputerUseWithAppCommandsSchema>;
+
 export const ComputerUseStatusSchema = z.strictObject({
   kind: z.literal("status"),
   platform: z.literal("darwin"),
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
+  reminders: z.enum(["granted", "denied", "not_determined"]).optional(),
+  calendars: z.enum(["granted", "denied", "not_determined"]).optional(),
+  contacts: z.enum(["granted", "denied", "not_determined"]).optional(),
 });
 
 export const ComputerUseAppSchema = z.strictObject({
@@ -301,8 +408,49 @@ export const ComputerUseSnapshotSchema = z.strictObject({
 });
 export type ComputerUseSnapshot = z.infer<typeof ComputerUseSnapshotSchema>;
 
+const CommandItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  allowsModifications: z.boolean(),
+});
+
+/** A create must return the id it committed, so a lost reply is never retried as a second create. */
+export const ComputerUseCommandResultSchema = z
+  .strictObject({
+    kind: z.literal("command"),
+    command: z.enum([
+      "list_reminder_lists",
+      "create_reminder",
+      "list_calendars",
+      "create_event",
+      "list_contact_groups",
+      "create_contact_group",
+      "create_contact",
+    ]),
+    created: z
+      .strictObject({
+        id: z.string().min(1).max(256),
+        title: z.string().max(1024),
+        list: z.string().max(1024),
+      })
+      .optional(),
+    items: z.array(CommandItem).max(200).optional(),
+    truncated: z
+      .boolean()
+      .optional()
+      .describe("True when more than 200 items exist and only the first 200 are listed."),
+  })
+  .refine(
+    (result) =>
+      result.command.startsWith("create_") ? result.created !== undefined : result.items !== undefined,
+    {
+      message: "A create returns created; a list returns items",
+    },
+  );
+
 export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,
+  ComputerUseCommandResultSchema,
   z.strictObject({ kind: z.literal("apps"), apps: z.array(ComputerUseAppSchema).max(1000) }),
   ComputerUseSnapshotSchema,
   z

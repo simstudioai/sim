@@ -201,6 +201,14 @@ import {
   v2UpdateSandboxContract,
 } from '@/lib/api/contracts/v2/sandboxes'
 import {
+  v2CreateSearchSourceContract,
+  v2DeleteSearchSourceContract,
+  v2GetSearchSourceContract,
+  v2ListSearchSourcesContract,
+  v2PrepareSearchSourcesContract,
+  v2UpdateSearchSourceContract,
+} from '@/lib/api/contracts/v2/search-sources'
+import {
   v2DeleteSecretContract,
   v2ListSecretsContract,
   v2SetSecretContract,
@@ -850,6 +858,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/route').then((route) => route.POST),
   },
+  createSearchSource: {
+    contract: v2CreateSearchSourceContract,
+    summary: 'Create Search source',
+    description:
+      'Create a source in the prepared organization Search index using the same provider validation as Settings. Use connector-types list for provider configuration. This does not override an explicit integration approval decision. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/route').then(
+        (route) => route.POST
+      ),
+  },
   createServiceAccountCredential: {
     contract: v2CreateServiceAccountCredentialContract,
     summary: 'Create service-account credential',
@@ -1109,6 +1127,16 @@ export const V2_MCP_OPERATIONS = {
       'Delete a sandbox. Function blocks using it fail until reconfigured. Requires workspace Admin access and sandbox entitlement: with billing enabled, Max or Enterprise is required unless deployment entitlement overrides it; billing-disabled deployments require sandbox entitlement. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.DELETE),
+  },
+  deleteSearchSource: {
+    contract: v2DeleteSearchSourceContract,
+    summary: 'Delete Search source',
+    description:
+      'Remove a source and its associated permission grants. Cleanup is asynchronous. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.DELETE
+      ),
   },
   deleteSecret: {
     contract: v2DeleteSecretContract,
@@ -1552,6 +1580,16 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Get a sandbox’s dependency configuration, current build state, and any build failure. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.GET),
+  },
+  getSearchSource: {
+    contract: v2GetSearchSourceContract,
+    summary: 'Get Search source',
+    description:
+      'Read source configuration and permission revision summaries. Organization admin required.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.GET
+      ),
   },
   getSearchSourcePermissions: {
     contract: v2GetSearchSourcePermissionsContract,
@@ -2126,6 +2164,16 @@ export const V2_MCP_OPERATIONS = {
       'List reusable dependency environments for Function blocks, including language packages, managed CLIs, and system packages. Requires workspace read access. Existing sandboxes remain visible after a plan downgrade.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/sandboxes/route').then((route) => route.GET),
   },
+  listSearchSources: {
+    contract: v2ListSearchSourcesContract,
+    summary: 'List Search sources',
+    description:
+      'List source IDs and administrative configuration with cursor pagination. Organization admin required. Credentials and CSV contents are never returned.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/route').then(
+        (route) => route.GET
+      ),
+  },
   listSecrets: {
     contract: v2ListSecretsContract,
     summary: 'List secrets',
@@ -2344,6 +2392,16 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Move up to 100 workflows to one folder with workspace write access. Each move succeeds or fails independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/move/route').then((route) => route.POST),
+  },
+  prepareSearchSources: {
+    contract: v2PrepareSearchSourcesContract,
+    summary: 'Prepare Search sources',
+    description:
+      'Idempotently initialize shared Search configuration before creating a source. Does not create a connector or change existing sources. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/prepare/route').then(
+        (route) => route.POST
+      ),
   },
   previewOrganizationAccessRequest: {
     contract: v2PreviewOrganizationAccessRequestContract,
@@ -2988,6 +3046,16 @@ export const V2_MCP_OPERATIONS = {
       'Update a sandbox; omitted fields stay unchanged and supplied lists replace their contents. Dependency changes may start a build; resending a failed specification retries it. `buildStatus: null` means no image build is needed. Requires workspace Admin access and a configured remote Function runtime. With billing enabled, Max or Enterprise is required unless deployment entitlement overrides it; billing-disabled deployments require sandbox entitlement. Creates and updates share a rate limit; respect `Retry-After`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/sandboxes/[sandboxId]/route').then((route) => route.PATCH),
+  },
+  updateSearchSource: {
+    contract: v2UpdateSearchSourceContract,
+    summary: 'Update Search source',
+    description:
+      'Update source selection, supported provider credentials, or permission settings; pause or resume a source. Omitted fields are retained. sourceConfig replaces the complete configuration. GitLab token rotation retains saved grants and advances the permission revision; supply permissionConfig with the current expectedRevision for rotation or CSV updates. Organization admin required.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route').then(
+        (route) => route.PATCH
+      ),
   },
   updateSkill: {
     contract: v2UpdateSkillContract,

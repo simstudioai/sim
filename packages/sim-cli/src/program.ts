@@ -6,6 +6,7 @@ import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { cliCommand } from './commands/search'
 import { attachSecretCommands } from './commands/secrets'
+import { attachSourcePermissionCommands } from './commands/source-permissions'
 import { telemetryCommand } from './commands/telemetry'
 import { OUTPUT_FORMATS } from './config/index'
 import {
@@ -205,6 +206,7 @@ export function buildProgram(
   attachCredentialCommands(program)
   attachProtocolCommands(program)
   attachSecretCommands(program)
+  attachSourcePermissionCommands(program)
 
   program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
   program.addHelpText('beforeAll', ({ command }) =>

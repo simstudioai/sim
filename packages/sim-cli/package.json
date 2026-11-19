@@ -52,6 +52,7 @@
   "dependencies": {
     "chalk": "5.6.2",
     "commander": "^11.1.0",
+    "csv-parse": "7.0.3",
     "js-yaml": "4.3.2",
     "minisearch": "7.2.0",
     "proper-lockfile": "4.1.2"

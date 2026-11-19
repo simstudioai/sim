@@ -22,13 +22,25 @@ import {
   v2UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v2/organizations'
 import {
+  v2CreateSearchSourceContract,
+  v2DeleteSearchSourceContract,
+  v2GetSearchSourceContract,
+  v2ListSearchSourcesContract,
+  v2PrepareSearchSourcesContract,
+  v2UpdateSearchSourceContract,
+} from '@/lib/api/contracts/v2/search-sources'
+import {
   v2CompleteSourcePermissionImportContract,
   v2CreateSourcePermissionImportContract,
   v2PutSourcePermissionImportPartContract,
 } from '@/lib/api/contracts/v2/source-permission-imports'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
-import { searchSourcePermissionOperations } from '@/lib/knowledge/application/operations'
+import {
+  knowledgeOperations,
+  searchSourceOperations,
+  searchSourcePermissionOperations,
+} from '@/lib/knowledge/application/operations'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 
 const TIMESTAMP = '2026-06-01T09:00:00.000Z'
@@ -730,6 +742,197 @@ export const organizationOpenApiRoutes = [
         'CompleteSourcePermissionImportResponse',
         'Complete source permission import response',
         'Permission import result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PrepareSearchSourcesContract,
+    {
+      applicationOperation: knowledgeOperations.prepareSearchSource,
+      operationId: 'prepareSearchSources',
+      summary: 'Prepare Search sources',
+      description:
+        'Idempotently initialize shared Search configuration before creating a source. Does not create a connector or change existing sources. Organization admin required.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2PrepareSearchSourcesContract.params,
+        'PrepareSearchSourcesParams',
+        'Prepare Search sources parameters',
+        'Organization and source identifiers.'
+      ),
+      query: v2PrepareSearchSourcesContract.query,
+      body: documentedSchema(
+        v2PrepareSearchSourcesContract.body,
+        'PrepareSearchSourcesBody',
+        'Prepare Search sources input',
+        'Source configuration.'
+      ),
+      response: documentedSchema(
+        v2PrepareSearchSourcesContract.response.schema,
+        'PrepareSearchSourcesResponse',
+        'Prepare Search sources response',
+        'Source operation result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListSearchSourcesContract,
+    {
+      applicationOperation: searchSourceOperations.list,
+      operationId: 'listSearchSources',
+      summary: 'List Search sources',
+      description:
+        'List source IDs and administrative configuration with cursor pagination. Organization admin required. Credentials and CSV contents are never returned.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2ListSearchSourcesContract.params,
+        'ListSearchSourcesParams',
+        'List Search sources parameters',
+        'Organization and source identifiers.'
+      ),
+      query: documentedSchema(
+        v2ListSearchSourcesContract.query,
+        'ListSearchSourcesQuery',
+        'List Search sources query',
+        'Pagination and ordering.'
+      ),
+      response: documentedSchema(
+        v2ListSearchSourcesContract.response.schema,
+        'ListSearchSourcesResponse',
+        'List Search sources response',
+        'Source operation result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetSearchSourceContract,
+    {
+      applicationOperation: searchSourceOperations.read,
+      operationId: 'getSearchSource',
+      summary: 'Get Search source',
+      description:
+        'Read source configuration and permission revision summaries. Organization admin required.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2GetSearchSourceContract.params,
+        'GetSearchSourceParams',
+        'Get Search source parameters',
+        'Organization and source identifiers.'
+      ),
+      query: v2GetSearchSourceContract.query,
+      response: documentedSchema(
+        v2GetSearchSourceContract.response.schema,
+        'GetSearchSourceResponse',
+        'Get Search source response',
+        'Source operation result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateSearchSourceContract,
+    {
+      applicationOperation: searchSourceOperations.create,
+      operationId: 'createSearchSource',
+      summary: 'Create Search source',
+      description:
+        'Create a source in the prepared organization Search index using the same provider validation as Settings. Use connector-types list for provider configuration. This does not override an explicit integration approval decision. Organization admin required.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2CreateSearchSourceContract.params,
+        'CreateSearchSourceParams',
+        'Create Search source parameters',
+        'Organization and source identifiers.'
+      ),
+      query: v2CreateSearchSourceContract.query,
+      body: documentedSchema(
+        v2CreateSearchSourceContract.body,
+        'CreateSearchSourceBody',
+        'Create Search source input',
+        'Source configuration.'
+      ),
+      response: documentedSchema(
+        v2CreateSearchSourceContract.response.schema,
+        'CreateSearchSourceResponse',
+        'Create Search source response',
+        'Source operation result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateSearchSourceContract,
+    {
+      applicationOperation: searchSourceOperations.update,
+      operationId: 'updateSearchSource',
+      summary: 'Update Search source',
+      description:
+        'Update source selection, supported provider credentials, or permission settings; pause or resume a source. Omitted fields are retained. sourceConfig replaces the complete configuration. GitLab token rotation retains saved grants and advances the permission revision; supply permissionConfig with the current expectedRevision for rotation or CSV updates. Organization admin required.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2UpdateSearchSourceContract.params,
+        'UpdateSearchSourceParams',
+        'Update Search source parameters',
+        'Organization and source identifiers.'
+      ),
+      query: v2UpdateSearchSourceContract.query,
+      body: documentedSchema(
+        v2UpdateSearchSourceContract.body,
+        'UpdateSearchSourceBody',
+        'Update Search source input',
+        'Source configuration.'
+      ),
+      response: documentedSchema(
+        v2UpdateSearchSourceContract.response.schema,
+        'UpdateSearchSourceResponse',
+        'Update Search source response',
+        'Source operation result.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteSearchSourceContract,
+    {
+      applicationOperation: searchSourceOperations.delete,
+      operationId: 'deleteSearchSource',
+      summary: 'Delete Search source',
+      description:
+        'Remove a source and its associated permission grants. Cleanup is asynchronous. Organization admin required.',
+      tags: ['Organizations'],
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Source operation result.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2DeleteSearchSourceContract.params,
+        'DeleteSearchSourceParams',
+        'Delete Search source parameters',
+        'Organization and source identifiers.'
+      ),
+      query: v2DeleteSearchSourceContract.query,
+      response: documentedSchema(
+        v2DeleteSearchSourceContract.response.schema,
+        'DeleteSearchSourceResponse',
+        'Delete Search source response',
+        'Source operation result.'
       ),
     }
   ),

@@ -107,6 +107,12 @@ describe('exa_search request body', () => {
     expect(body.includeDomains).toEqual(['a.com', 'b.com', 'c.com'])
   })
 
+  it('accepts domain filters an agent passes as an array', () => {
+    const body = searchBody({ includeDomains: ['a.com', ' b.com ', ''], excludeDomains: [] })
+    expect(body.includeDomains).toEqual(['a.com', 'b.com'])
+    expect(body).not.toHaveProperty('excludeDomains')
+  })
+
   it('parses a stringified outputSchema from the JSON editor', () => {
     const body = searchBody({ outputSchema: '{"type":"object"}' })
     expect(body.outputSchema).toEqual({ type: 'object' })
@@ -136,6 +142,12 @@ describe('exa_get_contents request body', () => {
     const result = body({ ids: 'id-1, id-2' })
     expect(result.ids).toEqual(['id-1', 'id-2'])
     expect(result.urls).toBeUndefined()
+  })
+
+  it('accepts urls and subpage targets an agent passes as arrays', () => {
+    const result = body({ urls: ['https://a.com', ' https://b.com '], subpageTarget: ['docs'] })
+    expect(result.urls).toEqual(['https://a.com', 'https://b.com'])
+    expect(result.subpageTarget).toEqual(['docs'])
   })
 
   it('rejects both selectors, which Exa 400s on', () => {

@@ -36,6 +36,37 @@ import AppKit
             precondition(isProtectedApp(bundle), bundle)
         }
         for bundle in ["com.apple.TextEdit", "com.apple.finder", "com.apple.Safari"] { precondition(!isProtectedApp(bundle), bundle) }
+        let dateOnly = try dueComponents("2027-05-04")
+        precondition(dateOnly.year == 2027 && dateOnly.month == 5 && dateOnly.day == 4 && dateOnly.hour == nil)
+        let timed = try dueComponents("2027-05-04T09:30:45Z")
+        precondition(timed.hour != nil && timed.minute != nil && timed.second == 45)
+        let localDue = try dueComponents("2027-05-04T09:30")
+        precondition(localDue.hour == 9 && localDue.minute == 30)
+        for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4", "2027-02-30T09:00:00Z", "2027-02-29T09:00:00.5+01:00", "2027-05-04T24:00:00Z", "2027-05-04T09:00:00+25:00", "2027-05-04T09:00:00+05:99", "2027-05-04T09:00:00+14:59", "2027-05-04T09:00:00-14:30", "2027-0٥-04", "2027-05-04T1٠:00Z"] {
+            expectError("invalid_arguments") { _ = try dueComponents(due) }
+        }
+        precondition(isoDateTime("2028-02-29T09:00Z") == Date(timeIntervalSince1970: 1_835_427_600))
+        precondition(isoDateTime("2027-05-04T09:00:00+05:30") == Date(timeIntervalSince1970: 1_809_401_400))
+        precondition(isoDateTime("2027-05-04T09:00:00+14:00") == Date(timeIntervalSince1970: 1_809_370_800))
+        expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
+        var local = Calendar(identifier: .gregorian); local.timeZone = .current
+        let floating = try eventDate("2027-06-09T07:15:00", "Start", allDay: false)
+        precondition(local.dateComponents([.hour, .minute], from: floating) == DateComponents(hour: 7, minute: 15))
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09 07:15", "Start", allDay: false) }
+        let fractional = try eventDate("2027-06-09T06:15:00.000Z", "Start", allDay: false)
+        precondition(fractional == Date(timeIntervalSince1970: 1_812_521_700))
+        let localFraction = try eventDate("2027-06-09T07:15:00.250", "Start", allDay: false)
+        precondition(local.dateComponents([.hour, .minute], from: localFraction) == DateComponents(hour: 7, minute: 15))
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: true) }
+        let zoned = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: false)
+        precondition(zoned == Date(timeIntervalSince1970: 1_812_521_700))
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Flight", start: "2027-06-09T08:10:00Z", end: "2027-06-09T07:15:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Trip", start: "2027-06-01T00:00:00Z", end: "2027-08-01T00:00:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", jobTitle: "Engineer")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", givenName: "Ana", emails: ["not-an-email"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact_group", title: " ")) }
         var queue = AXTraversalQueue<String>(limit: 1000)
         queue.append(AXTraversalEntry(element: "menu", parent: nil, depth: 0, menu: true, priority: false))
         queue.append(AXTraversalEntry(element: "content", parent: nil, depth: 0, menu: false, priority: false))

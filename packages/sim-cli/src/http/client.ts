@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
@@ -12,6 +13,7 @@ import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment
  * request.
  */
 export class SimApiError extends Error {
+  retryAfterMs: number | null = null
   constructor(
     message: string,
     readonly status: number,
@@ -248,7 +250,7 @@ async function readResponseText(response: Response): Promise<string> {
   try {
     return await response.text()
   } catch (error) {
-    throw new SimApiError(
+    const failure = new SimApiError(
       `Unable to read the response: ${transportErrorMessage(error)}`,
       response.status,
       'RESPONSE_READ_FAILED',
@@ -256,6 +258,8 @@ async function readResponseText(response: Response): Promise<string> {
       1,
       responseRequestId(response)
     )
+    failure.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
+    throw failure
   }
 }
 
@@ -399,7 +403,7 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
  * on the earliest 20.x releases calling it would throw a bare `TypeError`
  * before the request was ever made — turning a supported runtime into a crash.
  */
-function combineSignals(
+export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
@@ -716,6 +720,7 @@ export class SimClient {
     if (!response.ok) {
       const raw = await readResponseText(response)
       const error = toApiError(url, response, raw)
+      error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }

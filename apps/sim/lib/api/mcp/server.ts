@@ -4,14 +4,17 @@ import { createLogger } from '@sim/logger'
 import { SIM_DOCS_URL } from '@sim/utils/site'
 import { z } from 'zod'
 import {
+  CODE_TOOL_NAMES,
   describeOperation,
   describeOperationOutput,
   OPERATION_DOMAINS,
+  operationRequestInput,
   resolveOperation,
   searchOperations,
   searchOperationsOutput,
   TOOL_NAMES,
 } from '@/lib/api/mcp/catalog'
+import { codeModeInput, codeModeOutput, runCodeMode } from '@/lib/api/mcp/code-mode'
 import {
   dispatchMcpOperation,
   type McpDispatchContext,
@@ -32,6 +35,10 @@ const INSTRUCTIONS = `Sim is the AI workspace where teams build, deploy, and man
 3. Run it with the tool search_operations names: call_read_operation for operations that only read, call_write_operation for everything else.
 
 Most operations take a workspaceId; listWorkspaces returns the workspaces you can use. Put path parameters in params, query-string values in query, and the JSON request body in body. Responses use the Sim API envelope ({ "data": ... }); list operations page with limit and cursor. Streaming options are not supported over MCP.`
+
+const CODE_MODE_INSTRUCTIONS = `
+
+For a task that takes more than one or two calls (paging, filtering, joining, or changing many items), write one program instead: describe_operation returns each operation's TypeScript signature, and ${CODE_TOOL_NAMES.read} or ${CODE_TOOL_NAMES.write} runs an async function body that calls await sim.api.<operation>(input) and returns only what you need. Intermediate results stay out of your context. ${CODE_TOOL_NAMES.read} refuses every operation that needs write access.`
 
 const operationName = z
   .string()
@@ -71,36 +78,15 @@ const searchInput = z
 const describeInput = z.object({ operation: operationName }).strict()
 
 /** Shared because a read is not always a GET: searching and querying post their filter as JSON. */
-const callInput = z
-  .object({
-    operation: operationName,
-    params: z
-      .record(z.string(), z.string())
-      .optional()
-      .describe(
-        'Values for the bracketed segments of the operation’s path, by name, e.g. { "tableId": "..." }. IDs come from list operations such as listTables.'
-      ),
-    query: z
-      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
-      .optional()
-      .describe(
-        'Query-string values by name, as the query schema from describe_operation lists them, e.g. { "limit": 50 } or the cursor from the previous page.'
-      ),
-    headers: z
-      .record(z.string(), z.string())
-      .optional()
-      .describe(
-        'Headers the operation’s describe_operation schema lists, such as upload-token. Sim sets authentication and content headers itself.'
-      ),
-    body: z
-      .record(z.string(), z.unknown())
-      .meta({ additionalProperties: true })
-      .optional()
-      .describe(
-        'JSON request body matching the body schema from describe_operation. Omit it when the operation takes no body.'
-      ),
-  })
-  .strict()
+const callInput = operationRequestInput.extend({ operation: operationName }).strict()
+
+interface SimMcpServerOptions {
+  /**
+   * Registers the code-mode tools for this caller; `ownerKey` names the caller
+   * for the sandbox pool's per-caller fairness. `null` leaves them out.
+   */
+  codeMode: { ownerKey: string } | null
+}
 
 /**
  * The Sim MCP server for one HTTP request. A request owns its server, so no
@@ -111,7 +97,10 @@ const callInput = z
  * the model's context on schemas it never uses. Reads and writes are separate
  * tools so a client can approve reads once and still confirm every change.
  */
-export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>): McpServer {
+export function createSimMcpServer(
+  context: Omit<McpDispatchContext, 'signal'>,
+  options: SimMcpServerOptions
+): McpServer {
   const baseUrl = getBaseUrl()
   const server = new McpServer(
     {
@@ -133,7 +122,7 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
         },
       ],
     },
-    { instructions: INSTRUCTIONS }
+    { instructions: options.codeMode ? INSTRUCTIONS + CODE_MODE_INSTRUCTIONS : INSTRUCTIONS }
   )
 
   async function call(
@@ -233,6 +222,60 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       },
     },
     async (input, extra) => call('write', input, extra.signal)
+  )
+
+  if (!options.codeMode) return server
+  const { ownerKey } = options.codeMode
+
+  async function runCode(
+    kind: 'read' | 'write',
+    input: z.infer<typeof codeModeInput>,
+    toolSignal: AbortSignal
+  ): Promise<CallToolResult> {
+    const signal = AbortSignal.any([context.inbound.signal, toolSignal])
+    try {
+      return await runCodeMode(kind, input, { ...context, signal }, ownerKey)
+    } catch (error) {
+      if (signal.aborted) return toolError('The program was cancelled.')
+      logger.error('Sim MCP code run failed', { tool: CODE_TOOL_NAMES[kind], error })
+      return toolError('Unable to run the program. Please try again.')
+    }
+  }
+
+  server.registerTool(
+    CODE_TOOL_NAMES.read,
+    {
+      title: 'Run read-only code against Sim',
+      description: `Run a JavaScript or TypeScript program that reads from Sim through sim.api, for tasks that take many calls: paging through lists, filtering, counting, or joining results across operations. Only the returned value comes back, with a log of the calls made. Every operation the program calls must be one ${TOOL_NAMES.read} could run; anything needing write access is refused. Get each operation's signature from describe_operation first.`,
+      inputSchema: codeModeInput,
+      outputSchema: codeModeOutput,
+      annotations: {
+        title: 'Run read-only code against Sim',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input, extra) => runCode('read', input, extra.signal)
+  )
+
+  server.registerTool(
+    CODE_TOOL_NAMES.write,
+    {
+      title: 'Run code that changes Sim',
+      description: `Run a JavaScript or TypeScript program that can read and change Sim through sim.api, for tasks that take many calls, such as updating or deleting every item that matches a filter. Changes apply immediately as each call runs, with no preview or undo; if the program fails partway, the calls log shows which changes already happened. Confirm what the program will change with the user first. Prefer ${CODE_TOOL_NAMES.read} when the task only reads.`,
+      inputSchema: codeModeInput,
+      outputSchema: codeModeOutput,
+      annotations: {
+        title: 'Run code that changes Sim',
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input, extra) => runCode('write', input, extra.signal)
   )
 
   return server
