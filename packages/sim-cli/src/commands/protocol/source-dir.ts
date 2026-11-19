@@ -878,10 +878,14 @@ export async function withSourceDirLock<T>(
     )
   }
   const owner: LockOwner = { pid: process.pid, host: hostname() }
+  // An interrupt (Ctrl-C) releases the lock too: a lock left behind is taken over only by a
+  // command on the same host, so one left on a folder shared with a container would stay.
+  const disposeSignalRelease = removeStagingOnSignal(() => lock)
   try {
     await writeFile(join(lock, LOCK_OWNER_FILE), JSON.stringify(owner))
     return await run()
   } finally {
+    disposeSignalRelease()
     await rm(await checkedPath(root, SOURCE_DIR_LOCK, new Set()), { recursive: true, force: true })
     // Folders the lock alone created go with it; one the command filled stays.
     if (createdRecords) await rmdir(records).catch(() => {})
