@@ -1,11 +1,17 @@
 /**
- * Scaling checks for the engines. A case times the same step at `n` and `4n` and bounds the ratio:
- * linear work grows about 4x, quadratic work 16x. A ratio, not a wall-clock budget, so a slow
+ * Scaling checks for the engines. A case times the same step at `n` and `8n` and bounds the ratio:
+ * linear work grows about 8x (n log n about 10x), quadratic work 64x. A ratio, not a wall-clock budget, so a slow
  * runner cannot fail it; the best of several runs absorbs a stray pause or GC.
  */
 
-/** Linear growth is 4x; 9x leaves room for noise and still fails anything quadratic (16x). */
-export const MAX_GROWTH = 9
+/** How many times larger the second input is than the first. */
+const SCALE = 8
+
+/**
+ * Linear growth is 8x; 20x leaves 2.5x room for allocation and GC noise on a slow runner and still
+ * fails anything quadratic (64x) by a factor of three.
+ */
+export const MAX_GROWTH = 20
 const RUNS = 5
 
 /** Repeats `run` for at least `MIN_SAMPLE_MS`, so a millisecond clock still times a fast step. */
@@ -24,19 +30,19 @@ function perRunMs(run: () => void): number {
 }
 
 /**
- * How much slower the step runs at `4n` than at `n`. `make(n)` builds the input untimed and
+ * How much slower the step runs at `8n` than at `n`. `make(n)` builds the input untimed and
  * returns the step. Small and large runs alternate, so a burst of machine load slows both sides
  * of the ratio instead of one; each side keeps its best run. A linear step stops as soon as its
  * ratio is under `MAX_GROWTH`, and a quadratic one never gets there.
  */
 export function growth(make: (n: number) => () => void, n: number): number {
   make(n)()
-  make(4 * n)()
+  make(SCALE * n)()
   let small = Number.POSITIVE_INFINITY
   let large = Number.POSITIVE_INFINITY
   for (let i = 0; i < RUNS; i += 1) {
     small = Math.min(small, perRunMs(make(n)))
-    large = Math.min(large, perRunMs(make(4 * n)))
+    large = Math.min(large, perRunMs(make(SCALE * n)))
     if (i > 0 && large / small < MAX_GROWTH) break
   }
   return large / small
