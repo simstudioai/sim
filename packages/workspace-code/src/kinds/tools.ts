@@ -92,7 +92,7 @@ const schemaField: DeclField<Record<string, Json> | undefined> = {
  * declared.
  */
 const TOOL_FIELDS: DeclFields<Omit<ToolDecl, typeof CODE_FIELD>> = {
-  title: stringField({ required: true }),
+  title: stringField({ required: true, name: true }),
   schema: schemaField,
 }
 

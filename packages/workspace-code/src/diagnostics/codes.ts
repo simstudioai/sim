@@ -40,6 +40,12 @@ const DECLARATION_CODES = [
   'E_LIMIT_EXCEEDED',
   /** A resource key outside `^[a-z][a-z0-9_-]{0,63}$`. */
   'E_KEY_INVALID',
+  /**
+   * A resource name, a skill name, a workspace file path or a knowledge document name holds a
+   * bidi control or zero-width character, so it reads differently from what it stores. The
+   * workflow-file counterpart is `W_SUSPICIOUS_CHARACTER`.
+   */
+  'W_DECL_SUSPICIOUS_CHARACTER',
 ] as const
 
 /** `.sim/base.json`. */

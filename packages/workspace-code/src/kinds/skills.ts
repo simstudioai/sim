@@ -16,6 +16,8 @@
  * printer also quotes a value a YAML reader would take for a boolean, null, number or date. The
  * server checks names and lengths against the skill rules.
  */
+
+import { hasSuspiciousCharacter } from '@sim/workflow-code'
 import {
   asDeclared,
   canonicalFields,
@@ -23,7 +25,7 @@ import {
   type DeclFields,
   printFields,
 } from '../declaration/field-table'
-import type { FieldReport } from '../declaration/fields'
+import { type FieldReport, SUSPICIOUS_CHARACTER_HINT } from '../declaration/fields'
 import { unstorableCharacter } from '../declaration/read'
 import { diagnostic, resourceOf, sourceLocator, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
@@ -148,6 +150,7 @@ function parseSkill(
     report(0, FENCE.length, `The frontmatter has no closing \`${FENCE}\` line.`)
     return { diagnostics }
   }
+  const locate = (start: number, end: number) => at.located(at.span(start, end))
   const values: Partial<Frontmatter> = {}
   const attempted = new Set<string>()
   let offset = open.length
@@ -179,7 +182,21 @@ function parseSkill(
       `/${field}`,
       reportLine
     )
-    if (value !== undefined) values[field] = value
+    if (value === undefined) continue
+    values[field] = value
+    if (field === 'name' && hasSuspiciousCharacter(value)) {
+      diagnostics.push(
+        diagnostic(
+          'W_DECL_SUSPICIOUS_CHARACTER',
+          'The name holds an invisible bidi control or zero-width character.',
+          {
+            ...resourceOf('skill', key),
+            ...locate(at, at + line.length),
+            hint: SUSPICIOUS_CHARACTER_HINT,
+          }
+        )
+      )
+    }
   }
   for (const field of Object.keys(FRONTMATTER_FIELDS)) {
     if (!attempted.has(field)) report(0, FENCE.length, `The frontmatter has no ${field}.`)
@@ -192,7 +209,11 @@ function parseSkill(
       close + 1 + FENCE.length,
       `The content holds ${problem}, which cannot be stored.`
     )
-  if (diagnostics.length > 0 || values.name === undefined || values.description === undefined) {
+  if (
+    diagnostics.some((finding) => finding.severity === 'error') ||
+    values.name === undefined ||
+    values.description === undefined
+  ) {
     return { diagnostics }
   }
   return { decl: { name: values.name, description: values.description, content }, diagnostics }

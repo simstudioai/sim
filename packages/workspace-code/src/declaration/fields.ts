@@ -3,7 +3,12 @@
  * value it is about (or the nearest enclosing value the reader kept a span for).
  */
 import { isRecordLike } from '@sim/utils/object'
-import { type Json, pointerSegment, type SourceSpan } from '@sim/workflow-code'
+import {
+  hasSuspiciousCharacter,
+  type Json,
+  pointerSegment,
+  type SourceSpan,
+} from '@sim/workflow-code'
 import {
   diagnostic,
   type FindingResource,
@@ -79,13 +84,28 @@ export function checkKnownFields(
   }
 }
 
-/** `value[field]` as a string, reporting a wrong type (and a missing one when `required`). */
+/** What {@link readStringField} checks beside the type. */
+export interface StringFieldOptions {
+  required?: boolean
+  maxLength?: number
+  /** The field is a name a reviewer reads: warn on a character that hides or reorders text. */
+  name?: boolean
+}
+
+/** The hint of `W_DECL_SUSPICIOUS_CHARACTER`. */
+export const SUSPICIOUS_CHARACTER_HINT =
+  'Remove it, or write it as an escape (\\u202E) so reviewers can see it.'
+
+/**
+ * `value[field]` as a string, reporting a wrong type (and a missing one when `required`), and
+ * `W_DECL_SUSPICIOUS_CHARACTER` for a `name` that holds a bidi control or zero-width character.
+ */
 export function readStringField(
   value: Record<string, Json>,
   field: string,
   pointer: string,
   report: FieldReport,
-  options: { required?: boolean; maxLength?: number } = {}
+  options: StringFieldOptions = {}
 ): string | undefined {
   const raw = value[field]
   if (raw === undefined) {
@@ -103,6 +123,14 @@ export function readStringField(
       `"${field}" is longer than ${options.maxLength} characters.`
     )
     return undefined
+  }
+  if (options.name && hasSuspiciousCharacter(raw)) {
+    report(
+      'W_DECL_SUSPICIOUS_CHARACTER',
+      fieldPointer(pointer, field),
+      `"${field}" holds an invisible bidi control or zero-width character.`,
+      SUSPICIOUS_CHARACTER_HINT
+    )
   }
   return raw
 }
