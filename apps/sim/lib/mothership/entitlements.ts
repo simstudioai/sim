@@ -38,17 +38,6 @@ interface EntitlementEvaluator {
 }
 
 /**
- * Entitlements Sim grants before the worker's generated `ENTITLEMENTS` lists them. The wire takes
- * any name, so Sim sends these now and the worker gates on them once it declares them. Move each
- * into `ENTITLEMENTS` (drop it here) when `contracts:sync` brings it.
- */
-const PENDING_ENTITLEMENTS = { workflowCode: 'workflow-code' } as const
-
-type GrantedEntitlement =
-  | Entitlement
-  | (typeof PENDING_ENTITLEMENTS)[keyof typeof PENDING_ENTITLEMENTS]
-
-/**
  * Entitlements are gated capabilities sent to Mothership as the chat payload's
  * `entitlements` list. The worker hides the matching commands, skills and prompt
  * sections when one is absent, so an organization without the feature never hears of it.
@@ -62,7 +51,7 @@ type GrantedEntitlement =
  * 3. Keep enforcement in Sim. The payload is forgeable, so the operation behind the gated
  *    surface must re-check the same predicate when it runs.
  */
-const EVALUATORS: Record<GrantedEntitlement, EntitlementEvaluator> = {
+const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
   [ENTITLEMENTS.dashboards]: {
     workspace: ({ principal, workspaceId }) =>
       readDashboardAvailability.execute({ principal, input: { workspaceId } }),
@@ -79,7 +68,7 @@ const EVALUATORS: Record<GrantedEntitlement, EntitlementEvaluator> = {
     organization: ({ organizationId }) => isChangelogEnabled(organizationId),
   },
   /** The `workflows source` and `workspaces source` commands; their use cases re-check it. */
-  [PENDING_ENTITLEMENTS.workflowCode]: {
+  [ENTITLEMENTS.workflowCode]: {
     workspace: ({ principal, workspaceId }) =>
       readWorkflowCodeAvailability.execute({ principal, input: { workspaceId } }),
     organization: ({ principal, organizationId }) =>
@@ -105,8 +94,8 @@ function evaluate(evaluator: EntitlementEvaluator, owner: EntitlementOwner): Pro
 }
 
 /** The entitlements Sim grants a turn's owner, evaluated fresh for every turn. */
-export async function computeEntitlements(owner: EntitlementOwner): Promise<GrantedEntitlement[]> {
-  const names = [...Object.values(ENTITLEMENTS), ...Object.values(PENDING_ENTITLEMENTS)]
+export async function computeEntitlements(owner: EntitlementOwner): Promise<Entitlement[]> {
+  const names = Object.values(ENTITLEMENTS)
   const granted = await Promise.all(names.map((name) => evaluate(EVALUATORS[name], owner)))
   return names.filter((_, index) => granted[index])
 }
