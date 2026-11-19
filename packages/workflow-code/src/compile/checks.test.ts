@@ -273,6 +273,8 @@ describe('unknown builders', () => {
       "const s = slack.fetchEverything('S', {})",
       'slack has: slack.sendMessage, slack.listChannels.',
     ],
+    ["const h = http.request('H', {})", 'Did you mean api?'],
+    ["const f = javascript.run('F', {})", 'Did you mean fn?'],
   ])('%s', (body, hint) => {
     const [unknown] = findings(run(body), 'E_UNKNOWN_BUILDER')
     expect(unknown?.hint).toBe(hint)

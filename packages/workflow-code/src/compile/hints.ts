@@ -209,15 +209,31 @@ function splitVerb(method: string): [string, string] {
   return match ? [match[1], (match[2] ?? '').toLowerCase()] : ['', method.toLowerCase()]
 }
 
+/**
+ * Names agents reach for that the SDK spells differently and no edit distance finds: the HTTP
+ * request block is `api` (`http.request(…)`, `fetch(…)`), the function block `fn`.
+ */
+const BUILDER_ALIASES: Readonly<Record<string, string>> = {
+  http: 'api',
+  https: 'api',
+  fetch: 'api',
+  request: 'api',
+  httprequest: 'api',
+  javascript: 'fn',
+  code: 'fn',
+}
+
 /** How many builder paths a hint lists when nothing is close. */
 const LISTED_BUILDERS = 15
 
 /**
- * The hint for a builder path no catalog builder has, from most to least specific: a builder of the
- * same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
+ * The hint for a builder path no catalog builder has, from most to least specific: the builder a
+ * common other name stands for (`http.request` → `api`), a builder of the same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
  * the closest path by edit distance, the namespace's builders listed, else the closest namespace.
  */
 export function suggestBuilder(written: string, paths: readonly string[]): string | undefined {
+  const alias = BUILDER_ALIASES[(written.split('.')[0] ?? written).toLowerCase()]
+  if (alias !== undefined && paths.includes(alias)) return `Did you mean ${alias}?`
   const dot = written.lastIndexOf('.')
   const namespace = dot === -1 ? '' : written.slice(0, dot)
   const method = dot === -1 ? written : written.slice(dot + 1)
