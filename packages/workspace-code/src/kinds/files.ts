@@ -9,7 +9,6 @@
 import { hasSuspiciousCharacter, type Json } from '@sim/workflow-code'
 import { utf8Bytes } from '@sim/workflow-code/limits'
 import type { ResourceFingerprint } from '../base'
-import { SUSPICIOUS_CHARACTER_HINT } from '../declaration/fields'
 import {
   diagnostic,
   type WorkspaceDiagnostic,

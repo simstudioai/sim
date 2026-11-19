@@ -23,7 +23,6 @@ import {
   applyNamed,
   authorizeNamed,
   type NamedKind,
-  type NamedPlan,
   planNamed,
   planNamedUndeclared,
   readRecord,
