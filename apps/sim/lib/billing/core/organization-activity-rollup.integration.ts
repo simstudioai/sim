@@ -1,6 +1,7 @@
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -48,6 +49,7 @@ vi.mock('@/lib/billing/core/usage-segment-cache', () => ({
   },
 }))
 
+import { markFinishedRunDirty } from '@/lib/billing/activity-rollup/marks'
 import {
   type ActivityRollupPassOptions,
   markStaleHours,
@@ -634,6 +636,29 @@ describe('organization activity rollup', () => {
     await expectEquivalent()
   }, 120_000)
 
+  it('reads a completion committed after the scan passed its stamped end live at once', async () => {
+    const run = await oneLog(
+      `status = 'running' AND started_at < (now() AT TIME ZONE 'UTC') - interval '3 days'`
+    )
+    // The end is stamped when the run finished, so its write lands behind the late-end scan.
+    await database.transaction(async (tx) => {
+      const [finished] = await tx
+        .update(schema.workflowExecutionLogs)
+        .set({
+          status: 'completed',
+          totalDurationMs: 1800,
+          endedAt: sql`${schema.workflowExecutionLogs.startedAt} + interval '30 minutes'`,
+        })
+        .where(eq(schema.workflowExecutionLogs.id, run.id))
+        .returning()
+      if (!finished) throw new Error('No run to finish')
+      await markFinishedRunDirty(tx, finished)
+    })
+    await expectEquivalent()
+    await runPass()
+    await expectEquivalent()
+  }, 120_000)
+
   it('runs one pass at a time and rewrites nothing when run again', async () => {
     const results = await Promise.all([runPass(), runPass()])
     expect(results.map((result) => result.status).sort()).toEqual(['leased', 'ran'])
@@ -711,13 +736,16 @@ describe('organization activity rollup', () => {
         FOR EACH ROW WHEN (NEW.bucket_start = '${failing.toISOString().replace('T', ' ').slice(0, 19)}')
         EXECUTE FUNCTION fail_rollup_write();
     `)
-    await expect(runPass()).rejects.toThrow()
-    const crashed = await readRollupState()
-    expect(crashed?.coverageStart?.getTime()).toBeGreaterThan(failing.getTime())
-    expect(crashed?.leaseOwner).toBeNull()
-    await connection.unsafe(
-      `DROP TRIGGER fail_rollup_write ON workflow_activity_hourly; DROP FUNCTION fail_rollup_write()`
-    )
+    try {
+      await expect(runPass()).rejects.toThrow()
+      const crashed = await readRollupState()
+      expect(crashed?.coverageStart?.getTime()).toBeGreaterThan(failing.getTime())
+      expect(crashed?.leaseOwner).toBeNull()
+    } finally {
+      await connection.unsafe(
+        `DROP TRIGGER fail_rollup_write ON workflow_activity_hourly; DROP FUNCTION fail_rollup_write()`
+      )
+    }
     expect((await runPass()).backfillComplete).toBe(true)
     await expectEquivalent()
   }, 300_000)

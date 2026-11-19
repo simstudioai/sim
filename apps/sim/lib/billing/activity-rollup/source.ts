@@ -16,6 +16,14 @@ export interface InstantRange {
 
 export const HOUR_MS = 60 * 60 * 1000
 
+/**
+ * How long after an hour ends before it is computed. A run that ends within two hours of its start
+ * (the predicate of `workflow_execution_logs_late_end_idx`) has ended by then; one that ends later
+ * is found by its late end, or marked when its end commits. The hour of margin covers commit and
+ * replica lag, so this must stay at least an hour above that threshold.
+ */
+export const ACTIVITY_ROLLUP_SETTLE_MS = 3 * HOUR_MS
+
 /** An instant as the UTC wall clock `started_at` stores, whatever the session's time zone. */
 export function utcTimestamp(instant: Date): SQL {
   return sql`(${instant.toISOString()}::timestamptz AT TIME ZONE 'UTC')`

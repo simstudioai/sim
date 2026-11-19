@@ -8,7 +8,13 @@ import {
   inflightBackoffMs,
   recomputeCell,
 } from '@/lib/billing/activity-rollup/cells'
-import { floorHour, msInterval, utcTimestamp } from '@/lib/billing/activity-rollup/source'
+import {
+  ACTIVITY_ROLLUP_SETTLE_MS,
+  floorHour,
+  HOUR_MS,
+  msInterval,
+  utcTimestamp,
+} from '@/lib/billing/activity-rollup/source'
 import {
   type ActivityRollupState,
   MAINTENANCE_GAP_MS,
@@ -79,6 +85,19 @@ export async function markWorkflowActivityDirty(
       error: getErrorMessage(error),
     })
   }
+}
+
+/**
+ * Marks the cell of a run whose final status is being written, in the transaction that writes it,
+ * when the run's hour may already be computed (it started at least the settle lag, less an hour of
+ * clock margin, ago). The run's end is stamped when it finishes, before masking and usage
+ * recording, so its write can commit after the late-end scan has passed that end, or after its
+ * hour was computed without a late end at all; the mark leaves neither to the in-flight recheck.
+ * Younger runs lie in hours not computed yet, and are not marked.
+ */
+export async function markFinishedRunDirty(tx: DbTransaction, run: ChangedRun): Promise<void> {
+  if (Date.now() - run.startedAt.getTime() < ACTIVITY_ROLLUP_SETTLE_MS - HOUR_MS) return
+  await markWorkflowActivityDirty(tx, [run])
 }
 
 /**
