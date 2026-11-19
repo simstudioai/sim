@@ -44,6 +44,13 @@ function result(): Record<string, unknown> {
   return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
 }
 
+/** Stdout as the one JSON document `--output json` promises. */
+function stdoutJson(): Record<string, unknown> {
+  const calls = vi.mocked(console.log).mock.calls
+  expect(calls).toHaveLength(1)
+  return JSON.parse(calls[0].join(' '))
+}
+
 function stderr(): string {
   return vi
     .mocked(console.error)
@@ -207,6 +214,29 @@ describe('sim workflows source check', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('puts each finding in the JSON on stdout', async () => {
+    cacheCatalog()
+    writeFileSync(
+      join(dir, 'workflow.ts'),
+      CLEAN.replace('{ body: { received: start.message } }', '{ bdy: { received: start.message } }')
+    )
+
+    await check()
+
+    expect(stdoutJson()).toMatchObject({
+      errors: 1,
+      diagnostics: [
+        expect.objectContaining({
+          code: 'E_UNKNOWN_PARAM',
+          severity: 'error',
+          file: 'workflow.ts',
+          line: 6,
+          message: 'Response has no param bdy.',
+        }),
+      ],
+    })
+  })
+
   it('leaves stored() to the server, which holds the stored values', async () => {
     cacheCatalog()
     writeFileSync(
@@ -235,6 +265,18 @@ describe('sim workflows source check', () => {
 
     expect((error as SimApiError).code).toBe('CATALOG_NOT_CACHED')
     expect((error as SimApiError).message).toContain('sim workflows source get')
+  })
+
+  it('points a workspace root at the workspace check', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    writeWorkflowFolder('notify', workspaceWorkflow())
+
+    const error = await check().catch((caught: unknown) => caught)
+
+    expect((error as SimApiError).message).toContain(
+      `is a workspace source directory: check it with \`sim workspaces source check --dir ${dir}\``
+    )
   })
 
   it('reads the workspace root .sim/base.json from a new workflow folder that has none', async () => {

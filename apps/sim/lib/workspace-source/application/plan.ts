@@ -15,6 +15,7 @@ import {
   isFileKind,
   KIND_DIRS,
   parseWorkspaceBase,
+  refusalClass,
   resourceAddress,
   type SourceBudget,
   type WorkspaceBaseV1,
@@ -155,18 +156,27 @@ const MAX_PLAN_FINDINGS = 1_000
 const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const
 
 /**
- * `diagnostics` within {@link MAX_PLAN_FINDINGS}: errors first so a refusal always shows why,
- * then warnings, then infos. The finding that counts the rest is an info, so cutting a plan's
- * findings never refuses it, nor changes how a refusal is classed.
+ * How early a finding is kept: by severity, and among errors one that classes a refusal (stale,
+ * locked, too large) before the rest, so the refusal is classed as the uncut findings class it.
+ */
+function keepRank(finding: WorkspaceSourceDiagnostic): number {
+  const rank = SEVERITY_RANK[finding.severity] * 2
+  return finding.severity === 'error' && refusalClass([finding.code]) === 'validation'
+    ? rank + 1
+    : rank
+}
+
+/**
+ * `diagnostics` within {@link MAX_PLAN_FINDINGS}: errors first so a refusal always shows why
+ * (those that class it first, see {@link keepRank}), then warnings, then infos. The finding that
+ * counts the rest is an info, so cutting a plan's findings never refuses it, nor changes how a
+ * refusal is classed.
  */
 function capFindings(diagnostics: WorkspaceSourceDiagnostic[]): WorkspaceSourceDiagnostic[] {
   if (diagnostics.length <= MAX_PLAN_FINDINGS) return diagnostics
   const kept = diagnostics
     .map((entry, index) => ({ entry, index }))
-    .sort(
-      (a, b) =>
-        SEVERITY_RANK[a.entry.severity] - SEVERITY_RANK[b.entry.severity] || a.index - b.index
-    )
+    .sort((a, b) => keepRank(a.entry) - keepRank(b.entry) || a.index - b.index)
     .slice(0, MAX_PLAN_FINDINGS)
     .map(({ entry }) => entry)
   const left = diagnostics.length - kept.length

@@ -614,6 +614,11 @@ export async function writeBack(
  */
 export const SOURCE_DIR_LOCK = '.sim/command.lock'
 
+/** The help line every command that holds {@link SOURCE_DIR_LOCK} adds to its exit codes. */
+export const SOURCE_DIR_BUSY_HELP = `
+Exit 10 (busy, retry): another sim workspaces source command is using this directory
+(SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.`
+
 /** A lock whose owner never recorded itself is stale after this long (it died while taking it). */
 const UNRECORDED_LOCK_STALE_MS = 60_000
 

@@ -34,7 +34,11 @@ import type {
   PlannedChange,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
-import { type ApplyLease, acquireApplyLease } from '@/lib/workspace-source/lease/store'
+import {
+  type ApplyLease,
+  acquireApplyLease,
+  isApplyLeaseLost,
+} from '@/lib/workspace-source/lease/store'
 import { readStagedBlob } from '@/lib/workspace-source/staging/store'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
@@ -116,7 +120,8 @@ function writeOrder(changes: PlannedChange[]): PlannedChange[] {
 /**
  * A mid-apply failure as the result reports it; an unexpected one is logged, not echoed. A resource
  * the change found when planning that is gone by its write (deleted since) is stale, like one that
- * changed: getting the directory again shows what the server holds now.
+ * changed: getting the directory again shows what the server holds now. A lease another apply took
+ * over is a failure applying again continues (`E_APPLY_FAILED`), not a refusal of the change.
  */
 function failureOf(
   error: unknown,
@@ -130,6 +135,13 @@ function failureOf(
     return {
       failed: { ...resource, code: 'E_APPLY_REFUSED', message: error.message },
       diagnostics: error.diagnostics,
+    }
+  }
+  if (isApplyLeaseLost(error)) {
+    const message = `This apply stalled and another apply took over the workspace before ${change.kind} ${change.key}; the changes before it were applied. Apply again once the other apply finished.`
+    return {
+      failed: { ...resource, code: 'E_APPLY_FAILED', message },
+      diagnostics: [finding('E_APPLY_FAILED', message, resource)],
     }
   }
   if (isRefusal(error) && error.code === 'not_found' && change.action !== 'create') {

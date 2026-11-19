@@ -127,6 +127,36 @@ afterEach(() => {
 })
 
 describe('workspaces source apply', () => {
+  it('puts each finding of a dry run in the JSON on stdout', async () => {
+    const finding = {
+      code: 'E_DECL_SHAPE',
+      severity: 'error',
+      message: 'tables/leads.ts does not read.',
+      file: 'tables/leads.ts',
+      line: 1,
+      column: 1,
+      kind: 'table',
+      key: 'leads',
+    }
+    request.mockResolvedValue(answer({ dryRun: true, diagnostics: [finding] }))
+
+    await apply('--dry-run')
+
+    const calls = vi.mocked(console.log).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0].join(' '))).toMatchObject({ errors: 1, diagnostics: [finding] })
+  })
+
+  it('refuses a directory holding no workspace source before sending anything', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    rmSync(join(dir, 'workflows'), { recursive: true })
+
+    const error = await apply('--yes').catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ message: expect.stringContaining('holds no workspace source') })
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('sends a workflow folder whole only when it was edited since the CLI wrote it', async () => {
     write(
       '.sim/written.json',
@@ -277,6 +307,48 @@ describe('workspaces source apply', () => {
       .mock.calls.map((call) => call.join(' '))
       .join('\n')
     expect(stderr).toContain('2 change(s) delete data that applying an older directory')
+  })
+
+  it('prints a --to dry run with its findings in the JSON result', async () => {
+    request.mockImplementation(async (path: string, options: { body?: unknown }) => {
+      if (path === '/api/v2/workspaces/ws_prod/source' && options.body === undefined) {
+        return {
+          data: {
+            workspaceId: 'ws_prod',
+            kinds: ['table', 'workflow'],
+            files: {},
+            blobs: [],
+            base: { version: 1, workspaceId: 'ws_prod', resources: {} },
+            skipped: [],
+            diagnostics: [],
+          },
+        }
+      }
+      return answer({
+        workspaceId: 'ws_prod',
+        dryRun: true,
+        plan: [{ kind: 'table', key: 'leads', action: 'create' }],
+        diagnostics: [
+          {
+            code: 'W_UNDECLARED',
+            severity: 'warning',
+            message: 'kept',
+            kind: 'table',
+            key: 'audit',
+          },
+        ],
+      })
+    })
+
+    await apply('--to', 'ws_prod', '--dry-run')
+
+    const summary = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(summary).toMatchObject({
+      workspaceId: 'ws_prod',
+      dryRun: true,
+      created: 1,
+      diagnostics: [expect.objectContaining({ code: 'W_UNDECLARED', key: 'audit' })],
+    })
   })
 
   it('refuses --to naming the workspace the directory was read from', async () => {

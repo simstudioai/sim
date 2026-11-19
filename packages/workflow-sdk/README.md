@@ -11,6 +11,7 @@ in the Sim repository the full grammar is `packages/workflow-code/src/compile/SY
 sim workflows source get <workflowId> --dir ./wf   # 1. write the source tree
 # 2. edit ./wf/workflow.ts (and ./wf/functions/*)
 sim workflows source check --dir ./wf              #    compile locally, no request; exit 0 to go on
+sim workflows source status --dir ./wf             #    what changed here and on the server; diff shows it
 sim workflows source apply --dir ./wf --dry-run    # 3. check on the server; writes nothing
 sim workflows source apply --dir ./wf --yes        # 4. save the draft
 ```
@@ -23,8 +24,8 @@ have the CLI confirm the directory holds that workflow.
    with `x.to(y)`. Then run `sim workflows source check --dir ./wf`: it compiles with the server's
    compiler against the cached catalog, without a request, in milliseconds, and catches what `tsc`
    cannot (duplicate names, cycles, literal secrets). It exits 1 on errors and on a missing
-   required field, an unknown option or output path, a wrong value kind or a literal secret in a
-   block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
+   required field, an unknown option or output path, a wrong value kind, an out-of-range value or
+   a literal secret in a block the lock does not bind yet (`--strict`: in every block; `--no-strict`: never on a
    warning). It also adds the blocks the source now uses to `tsconfig.json`. Then
    `bunx -p typescript@7.0.2 tsc -p ./wf` type-checks with the TypeScript release the
    declarations are built for. `tsconfig.json` includes only the blocks the source used at the

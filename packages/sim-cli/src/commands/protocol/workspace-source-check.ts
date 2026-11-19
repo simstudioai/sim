@@ -6,7 +6,7 @@ import type { Command } from 'commander'
 import { profileFrom } from '../../context'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
-import { readSourceJson, withSourceDirLock } from './source-dir'
+import { readSourceJson, SOURCE_DIR_BUSY_HELP, withSourceDirLock } from './source-dir'
 import { cachedCatalog, loadCatalog } from './source-tree'
 import {
   type CheckFinding,
@@ -20,7 +20,7 @@ import {
   strictMode,
   workspaceWorkflowKeys,
 } from './workflow-source-check'
-import { readWorkspaceDeclarations } from './workspace-source-dir'
+import { assertWorkspaceDir, readWorkspaceDeclarations } from './workspace-source-dir'
 
 const CHECK_HELP = `
 Compiles every workflows/<key>/workflow.ts (and the function files each names) with the compiler
@@ -71,10 +71,11 @@ export function attachWorkspaceSourceCheck(source: Command): void {
     .description(
       'Compile every workflow of a workspace source directory locally, without the server'
     )
-    .addHelpText('after', CHECK_HELP)
+    .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
     .action(async (options: { dir: string } & StrictOptions, command: Command) => {
       const profile = profileFrom(command)
       const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
+      await assertWorkspaceDir(options.dir)
       const workspaceId =
         typeof base.workspaceId === 'string' ? base.workspaceId : profile.workspaceId
       if (!workspaceId) {

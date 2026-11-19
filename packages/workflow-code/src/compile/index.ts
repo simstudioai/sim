@@ -461,6 +461,7 @@ function compileEntry(
     jsonFields: [],
     responseFormatRefs: [],
     refusedBranches: new Map(),
+    valueConsts: new Set(),
   }
 
   const moduleScope: Scope = { parent: null, bindings: new Map(), container: null }

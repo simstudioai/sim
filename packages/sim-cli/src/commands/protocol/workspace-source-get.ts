@@ -29,6 +29,7 @@ import {
   readSourceText,
   readWritten,
   recordedStats,
+  SOURCE_DIR_BUSY_HELP,
   SOURCE_DOWNLOADS_DIR,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
@@ -364,7 +365,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .option('--force', 'Replace files with edits no apply has saved')
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
-    .addHelpText('after', GET_EXIT_CODES_HELP)
+    .addHelpText('after', `${GET_EXIT_CODES_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
     .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()

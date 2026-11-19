@@ -36,8 +36,25 @@ export const SOURCE_PARTIAL_EXIT_CODE = 8
 export const RATE_LIMITED_EXIT_CODE = 9
 
 /**
- * A `workspaces source apply` refused because another apply is writing the workspace (`409` with
- * `SOURCE_BUSY`): nothing of this one was written. Wait for the other apply to finish, then apply
- * again; a write the other one made to a resource this directory changes then exits 5.
+ * Busy, retry. A `workspaces source apply` refused because another apply is writing the workspace
+ * (`409` with `SOURCE_BUSY`), or any `workspaces source` command refused because another one holds
+ * the same directory (`SOURCE_DIR_BUSY`): nothing of this one was read or written. Wait for the
+ * other to finish, then run it again; a write the other apply made to a resource this directory
+ * changes then exits 5.
  */
 export const SOURCE_BUSY_EXIT_CODE = 10
+
+/**
+ * A `workflows source status` or `workspaces source status` whose directory holds changes no apply
+ * has saved, while the server (when it answered) changed nothing the directory read: applying
+ * writes them.
+ */
+export const SOURCE_LOCAL_CHANGES_EXIT_CODE = 11
+
+/**
+ * A `workflows source status` or `workspaces source status` that found the server changed since
+ * the directory was read: drift (a resource edited, added or deleted on the server that the
+ * directory leaves alone) or a conflict (one also changed locally, so applying it is refused as
+ * stale). Local changes may exist beside it.
+ */
+export const SOURCE_DRIFT_EXIT_CODE = 12
