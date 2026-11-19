@@ -47,6 +47,7 @@ import {
   DIFF_HELP,
   type DiffReport,
   type FileDiff,
+  loginCommand,
   type NextStep,
   nextStep,
   pathFilter,
@@ -282,6 +283,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
           // The scope every recommended command carries, so it acts on what this status showed.
           const onlyScope = only ? ` --only ${only.map((kind) => KIND_DIRS[kind]).join(',')}` : ''
           let workspaceScope = ''
+          let login: string | null = null
           if (!options.offline) {
             const connection = connect()
             const target = targetWorkspace(connection, local.readFrom)
@@ -317,6 +319,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             } catch (error) {
               const reason = unreachableReason(error)
               if (reason === null) throw withSourceExitCode(error)
+              login = loginCommand(error, profile.authProfile)
               server = 'unreachable'
               note = `${reason} Showing local changes only.`
             }
@@ -340,7 +343,9 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             ...status,
             plan,
             next:
-              unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope) ??
+              (login
+                ? null
+                : unmanagedNext(status, local.submission.kinds, options.dir, workspaceScope)) ??
               nextStep(status, {
                 prefix: PREFIX,
                 dir: options.dir,
@@ -349,6 +354,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 errors: plan?.errors ?? 0,
                 deletes: data !== null && destructiveChanges(data.plan) > 0,
                 scope: `${onlyScope}${workspaceScope}`,
+                login,
               }),
           }
           printStatusReport(

@@ -40,6 +40,7 @@ export const contextMockFns = {
       workspaceId: contextMockState.workspaceId,
       output: contextMockState.output,
       name: 'default',
+      authProfile: 'default',
       apiKey: 'k',
       endpoint: 'https://sim.example',
       sources: { workspaceId: contextMockState.workspaceSource },

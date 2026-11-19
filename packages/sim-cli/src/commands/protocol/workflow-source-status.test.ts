@@ -238,6 +238,8 @@ describe('workflows source status', () => {
       server: 'unreachable',
       state: 'local',
       note: 'Not logged in on profile "default". Run: sim login --profile default. Showing local changes only.',
+      // A dry run would only exit 13: the login is the next step.
+      next: { command: 'sim login --profile default' },
     })
     expect(process.exitCode).toBe(11)
   })

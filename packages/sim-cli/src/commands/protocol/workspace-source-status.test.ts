@@ -493,6 +493,26 @@ describe('workspaces source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('recommends the login, not a dry run that would exit 13, when the profile has none', async () => {
+    rmSync(join(dir, 'tables'), { recursive: true })
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'Not logged in on profile "default". Run: sim login --profile default',
+        0,
+        'AUTH_REQUIRED',
+        undefined,
+        13
+      )
+    )
+
+    await run('status')
+
+    expect(printed()).toMatchObject({
+      server: 'unreachable',
+      next: { command: 'sim login --profile default' },
+    })
+  })
+
   it('fails rather than hides a server refusal that is not about reaching it', async () => {
     mockRequest.mockRejectedValue(new SimApiError('Forbidden', 403, 'FORBIDDEN'))
 

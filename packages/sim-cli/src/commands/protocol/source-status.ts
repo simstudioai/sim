@@ -83,6 +83,16 @@ export function unreachableReason(error: unknown): string | null {
   return /[.!?]$/.test(error.message) ? error.message : `${error.message}.`
 }
 
+/**
+ * The login a status recommends when `error` is the CLI's own refusal of a profile with no login
+ * (which a status treats as an unreachable server), or `null` for any other failure.
+ */
+export function loginCommand(error: unknown, authProfile: string): string | null {
+  return error instanceof SimApiError && error.status === 0 && error.code === AUTH_REQUIRED_CODE
+    ? `sim login --profile ${authProfile}`
+    : null
+}
+
 const SERVER_WORDS = {
   changed: 'changed on the server',
   deleted: 'deleted on the server',
@@ -365,6 +375,11 @@ interface NextStepInput {
    * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
    */
   scope: string
+  /**
+   * The login command when the server was not checked because the profile has no login: nothing
+   * else can be decided until it runs.
+   */
+  login?: string | null
 }
 
 /**
@@ -374,6 +389,12 @@ interface NextStepInput {
  */
 export function nextStep(status: SourceStatus, input: NextStepInput): NextStep | null {
   const { prefix, dir } = input
+  if (input.login) {
+    return {
+      command: input.login,
+      reason: `This profile is not logged in, so the server was not checked: log in, then run \`${prefix} status --dir ${dir}\` again.`,
+    }
+  }
   if (status.conflicts.length > 0) {
     const names = status.conflicts.map((entry) => `${entry.kind} ${entry.key}`).join(', ')
     return {
