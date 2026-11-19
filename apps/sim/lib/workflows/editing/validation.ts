@@ -973,6 +973,17 @@ export function validateValueForSubBlockType(
 }
 
 /**
+ * Whether a block has an error output an edge can leave from: not a loop or parallel container
+ * and not a trigger, the same rule the workflow source catalog's `errorPort` follows, so every
+ * error edge the engine stores is one source can write (`onError`). An unknown type is not
+ * refused.
+ */
+function hasErrorOutput(blockType: string): boolean {
+  if (blockType === BlockType.LOOP || blockType === BlockType.PARALLEL) return false
+  return getBlock(blockType)?.category !== 'triggers'
+}
+
+/**
  * Validates source handle is valid for the block type
  */
 export function validateSourceHandleForBlock(
@@ -981,7 +992,11 @@ export function validateSourceHandleForBlock(
   sourceBlock: any
 ): EdgeHandleValidationResult {
   if (sourceHandle === 'error') {
-    return { valid: true }
+    if (hasErrorOutput(sourceBlockType)) return { valid: true }
+    return {
+      valid: false,
+      error: `Invalid source handle "error" - a ${sourceBlockType} block has no error output`,
+    }
   }
 
   switch (sourceBlockType) {
@@ -991,7 +1006,7 @@ export function validateSourceHandleForBlock(
       }
       return {
         valid: false,
-        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source, error`,
+        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source`,
       }
 
     case 'parallel':
@@ -1000,7 +1015,7 @@ export function validateSourceHandleForBlock(
       }
       return {
         valid: false,
-        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source, error`,
+        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source`,
       }
 
     case 'condition': {
