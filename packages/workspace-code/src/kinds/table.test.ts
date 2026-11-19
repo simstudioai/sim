@@ -178,6 +178,37 @@ describe('createTableCodec', () => {
     ])
   })
 
+  it('refuses a select of 80,000 options by the option cap alone, in linear time', () => {
+    const options = Array.from({ length: 80_000 }, (_, index) => `'o${index}'`).join(',')
+    const file = `// @sim-sdk 1\nimport { column, defineTable } from '@sim/workflow-sdk/workspace'\n\nexport default defineTable({ name: 'leads', columns: { tier: column.select({ options: [${options}] }) } })\n`
+    const started = Date.now()
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(parsed.diagnostics).toMatchObject([
+      { code: 'E_TABLE_OPTIONS', message: expect.stringContaining('80000 options') },
+    ])
+  })
+
+  it('pins a duplicate column name to the second column, not the whole table', () => {
+    const file = [
+      '// @sim-sdk 1',
+      "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+      '',
+      'export default defineTable({',
+      "  name: 'leads',",
+      '  columns: {',
+      '    Email: column.string(),',
+      "    email: column.string({ name: 'EMAIL' }),",
+      '  },',
+      '})',
+      '',
+    ].join('\n')
+    const parsed = testTableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    expect(parsed.diagnostics).toMatchObject([
+      { code: 'E_TABLE_DUPLICATE_COLUMN', span: { line: 8, endLine: 8 } },
+    ])
+  })
+
   it('refuses a helper call as the whole declaration with one finding, not its encoding', () => {
     const parsed = testTableCodec.parse(
       'leads',
