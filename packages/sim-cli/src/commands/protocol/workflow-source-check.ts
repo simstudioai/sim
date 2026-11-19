@@ -26,6 +26,7 @@ import { printProtocolResult } from './result'
 import { readSourceJson, readSourceText, workspaceFolderOf } from './source-dir'
 import {
   cachedCatalog,
+  cachedSourceCatalog,
   type LocalDeclarations,
   refreshTsconfigs,
   refreshWorkspaceTypes,
@@ -492,15 +493,23 @@ export function reportCheck(
   })
 }
 
-/** The cached catalog of `workspaceId`, or a refusal naming `get`, the command that caches one. */
-export function requireCachedCatalog(workspaceId: string, get: string): BlockCatalog {
-  const catalog = cachedCatalog(workspaceId)
+/** The catalog a cache read found, or a refusal naming `get`, the command that caches one. */
+function cachedOrRefuse(
+  catalog: BlockCatalog | null,
+  workspaceId: string,
+  get: string
+): BlockCatalog {
   if (catalog) return catalog
   throw new SimApiError(
     `No block catalog is cached for workspace ${workspaceId}. Run ${get} once, then check again.`,
     0,
     'CATALOG_NOT_CACHED'
   )
+}
+
+/** The cached catalog of `workspaceId`, or a refusal naming `get`, the command that caches one. */
+export function requireCachedCatalog(workspaceId: string, get: string): BlockCatalog {
+  return cachedOrRefuse(cachedCatalog(workspaceId), workspaceId, get)
 }
 
 /**
@@ -541,7 +550,8 @@ export function attachWorkflowSourceCheck(source: Command): void {
           0
         )
       }
-      const catalog = requireCachedCatalog(
+      const catalog = cachedOrRefuse(
+        await cachedSourceCatalog(options.dir, workspaceId),
         workspaceId,
         workspace
           ? `\`sim workspaces source get --dir ${workspace.root}\``

@@ -186,7 +186,7 @@ const MANIFEST = {
 /** What the mocked server answers; each test replaces the routes it exercises. */
 interface Server {
   source: () => Response
-  catalog: (headers: Headers) => Response
+  catalog: (headers: Headers, url: URL) => Response
   manifest: () => Response
   apply: () => Response
   create: () => Response
@@ -233,7 +233,7 @@ beforeEach(() => {
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog`) {
         const headers = new Headers(init?.headers)
         catalogRequests.push(headers)
-        return server.catalog(headers)
+        return server.catalog(headers, url)
       }
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources`) {
         return server.manifest()
@@ -851,5 +851,161 @@ describe('reading the directory', () => {
     await apply()
 
     expect(applyBodies[0].files).toEqual({ 'workflow.ts': WORKFLOW_TS })
+  })
+})
+
+/**
+ * The block types the workspace catalog withholds from the caller (an unrevealed preview, an
+ * allowlist) while a stored workflow still holds them: only that workflow's own source catalog,
+ * which the get fetches with `workflowId`, declares them, and the dry run compiles against it.
+ */
+const WITHHELD_TYPES = new Set(['table_v2', 'knowledge'])
+
+/** {@link CATALOG} as the workspace catalog of a caller it withholds {@link WITHHELD_TYPES} from. */
+const WORKSPACE_CATALOG = {
+  ...CATALOG,
+  hash: 'workspace-catalog',
+  blocks: Object.fromEntries(
+    Object.entries(CATALOG.blocks).filter(([type]) => !WITHHELD_TYPES.has(type))
+  ),
+  builders: Object.fromEntries(
+    Object.entries(CATALOG.builders as Record<string, { type: string }>).filter(
+      ([, builder]) => !WITHHELD_TYPES.has(builder.type)
+    )
+  ),
+}
+
+/** Every builder path of a withheld type, in catalog order. */
+const WITHHELD_BUILDERS = Object.entries(CATALOG.builders as Record<string, { type: string }>)
+  .filter(([, builder]) => WITHHELD_TYPES.has(builder.type))
+  .map(([path]) => path)
+
+/** A ticket router as a get prints it: a condition whose else branch writes a table row. */
+const TICKET_ROUTER = `// @sim-sdk 1
+import {
+  condition,
+  js,
+  knowledge,
+  knowledgeBase,
+  response,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow('Ticket Router', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { subject: 'string', priority: 'string' } })
+  const isUrgent = condition('Is Urgent', { if: js\`\${start.priority} === 'high'\`, else: true })
+  const policy = knowledge.search('Policy', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.subject,
+  })
+  const logTicket = table.insertRow('Log Ticket', {
+    tableId: table('tickets'),
+    data: { subject: start.subject, status: 'open' },
+  })
+  const upsertTicket = table.upsertRow('Upsert Ticket', {
+    tableId: table('tickets'),
+    data: { subject: start.subject, status: 'open' },
+  })
+  const recent = table.queryRows('Recent Tickets', { tableId: table('tickets'), limit: 10 })
+  const done = response('Done', { body: { rowId: t\`\${logTicket.row.id}\`, rows: recent.rows } })
+
+  start.to(isUrgent)
+  isUrgent.if.to(policy)
+  isUrgent.else.to(logTicket)
+  logTicket.to(upsertTicket)
+  upsertTicket.to(recent)
+  recent.to(done)
+})
+`
+
+/** One block of every withheld builder, each with no params, as an edit could add them. */
+const EVERY_WITHHELD_BUILDER = [
+  '// @sim-sdk 1',
+  "import { knowledge, table, trigger, workflow } from '@sim/workflow-sdk'",
+  '',
+  "export default workflow('Every Builder', {}, () => {",
+  ...WITHHELD_BUILDERS.map((path, index) => `  const b${index} = ${path}('Block ${index}', {})`),
+  '})',
+  '',
+].join('\n')
+
+const check = (...flags: string[]) => sim('workflows', 'source', 'check', '--dir', dir, ...flags)
+
+function checked(): { errors: number; warnings: number; diagnostics: unknown[] } {
+  return JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
+}
+
+describe('checking a workflow holding a type the workspace catalog withholds', () => {
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  beforeEach(() => {
+    server.catalog = (_, url) =>
+      json({ data: url.searchParams.has('workflowId') ? CATALOG : WORKSPACE_CATALOG })
+  })
+
+  function serve(source: string, catalogHash: string = CATALOG.hash): void {
+    const { data } = sourceResponse(
+      { 'workflow.ts': source },
+      { version: 1, blocks: {}, variables: {} }
+    )
+    server.source = () =>
+      json({
+        data: {
+          ...data,
+          base: { ...data.base, catalogHash },
+          blockTypes: ['start_trigger', 'condition', 'response', ...WITHHELD_TYPES],
+        },
+      })
+  }
+
+  it('passes the unedited source of a get, with the else branch wired to the table write', async () => {
+    serve(TICKET_ROUTER)
+    await get()
+
+    await check()
+
+    expect(checked()).toMatchObject({ errors: 0, warnings: 0, diagnostics: [] })
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('finds what the dry run finds for every builder only the workflow catalog declares', async () => {
+    serve(EVERY_WITHHELD_BUILDER)
+    await get()
+    const dryRun = compileWorkflow({
+      entry: { path: 'workflow.ts', text: EVERY_WITHHELD_BUILDER },
+      files: new Map(),
+      catalog: CATALOG,
+      sdkMajor: CATALOG.sdkMajor,
+    }).diagnostics.map(({ code, message, span }) => ({ code, message, line: span?.line }))
+
+    await check('--no-strict')
+
+    expect(WITHHELD_BUILDERS).toEqual(
+      expect.arrayContaining(['table.insertRow', 'knowledge.search'])
+    )
+    expect(dryRun.map(({ code }) => code)).not.toContain('E_UNKNOWN_BUILDER')
+    expect(
+      (checked().diagnostics as Array<{ code: string; message: string; line?: number }>).map(
+        ({ code, message, line }) => ({ code, message, line })
+      )
+    ).toEqual(dryRun)
+  })
+
+  it('checks against the workspace catalog again once a later get no longer needs its own', async () => {
+    serve(TICKET_ROUTER)
+    await get()
+    const revealed = { ...CATALOG, hash: 'revealed' }
+    server.catalog = () => json({ data: revealed })
+    serve(TICKET_ROUTER, revealed.hash)
+    await get()
+
+    await check()
+
+    expect(checked()).toMatchObject({ errors: 0, catalogHash: revealed.hash })
   })
 })

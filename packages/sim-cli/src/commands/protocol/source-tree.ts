@@ -6,10 +6,11 @@
  */
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
+import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import {
   COOKBOOK_EXAMPLES,
   CORE_DTS,
@@ -34,6 +35,7 @@ import { SimApiError } from '../../http/client'
 import type { OperationClient } from '../../runtime/called-operations'
 import { cliVersion } from '../../version'
 import {
+  readSourceJson,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
@@ -88,13 +90,53 @@ function catalogCachePath(workspaceId: string): string {
 }
 
 /**
+ * Where a workflow's own source catalog is cached: the one a get fetches for a workflow holding a
+ * type the workspace catalog lacks (see {@link loadCatalog}), one file per workflow beside the
+ * workspace's. Callers gate both ids with `CACHE_KEY` first.
+ */
+function workflowCatalogCachePath(workspaceId: string, workflowId: string): string {
+  return join(configDir(), 'cache', 'source-catalog', workspaceId, `${workflowId}.json`)
+}
+
+function readCachedCatalog(path: string): BlockCatalog | null {
+  const cached = readJsonFile(path, MAX_CATALOG_CACHE_BYTES)
+  return isBlockCatalog(cached) ? cached : null
+}
+
+/**
  * The cached catalog, or `null`. Standalone runs only: an embedded run has no local disk of its
  * own to cache on. The file is read without following a link and under a size cap.
  */
 export function cachedCatalog(workspaceId: string): BlockCatalog | null {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
-  const cached = readJsonFile(catalogCachePath(workspaceId), MAX_CATALOG_CACHE_BYTES)
-  return isBlockCatalog(cached) ? cached : null
+  return readCachedCatalog(catalogCachePath(workspaceId))
+}
+
+/**
+ * The cached catalog a source directory was printed against, or `null`: the workflow's own
+ * catalog when `.sim/base.json` names a workflow whose cached catalog has the hash the base
+ * records (a workflow holding a type the workspace catalog lacks, which only that catalog
+ * declares), else the workspace's ({@link cachedCatalog}). An offline check compiles against it,
+ * so it agrees with the dry run, which compiles against the same per-workflow catalog.
+ */
+export async function cachedSourceCatalog(
+  dir: string,
+  workspaceId: string
+): Promise<BlockCatalog | null> {
+  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
+  const { workflowId, catalogHash } = base
+  if (
+    !embedStore.getStore() &&
+    CACHE_KEY.test(workspaceId) &&
+    typeof workflowId === 'string' &&
+    CACHE_KEY.test(workflowId) &&
+    base.workspaceId === workspaceId &&
+    typeof catalogHash === 'string'
+  ) {
+    const own = readCachedCatalog(workflowCatalogCachePath(workspaceId, workflowId))
+    if (own?.hash === catalogHash) return own
+  }
+  return cachedCatalog(workspaceId)
 }
 
 /** The catalog a `getSourceCatalog` answer carries. */
@@ -115,7 +157,8 @@ function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
  * The workspace's block catalog, revalidated by ETag against the per-workspace cache: a `304`
  * reuses it, anything else replaces it. A workflow can hold a type the workspace no longer offers
  * (a legacy version, a block an allowlist now withholds); only then is that workflow's compile
- * catalog fetched instead, uncached, so its types still resolve.
+ * catalog fetched instead, so its types still resolve, and cached per workflow for the offline
+ * check ({@link cachedSourceCatalog}).
  */
 export async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
@@ -143,12 +186,20 @@ export async function loadCatalog(
   ) {
     return catalog
   }
-  return catalogFrom(
+  const own = catalogFrom(
     await client.request<{ data: unknown }>('getSourceCatalog', {
       params: { workspaceId: source.workspaceId },
       query: { workflowId: source.workflowId },
     })
   )
+  if (
+    !embedStore.getStore() &&
+    CACHE_KEY.test(source.workspaceId) &&
+    CACHE_KEY.test(source.workflowId)
+  ) {
+    writeJsonFile(workflowCatalogCachePath(source.workspaceId, source.workflowId), own)
+  }
+  return own
 }
 
 /**
@@ -450,7 +501,7 @@ export async function refreshTsconfigs(
   use: SourceTreeUse,
   options: { incremental?: boolean } = {}
 ): Promise<void> {
-  const catalog = cachedCatalog(workspaceId)
+  const catalog = await cachedSourceCatalog(dir, workspaceId)
   if (!catalog) return
   const [tsconfig, full, workspaceTypes] = await Promise.all([
     readSourceText(dir, TSCONFIG_FILE),
