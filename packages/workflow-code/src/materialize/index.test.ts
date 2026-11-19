@@ -817,6 +817,31 @@ describe('materialize: identity', () => {
     })
   })
 
+  it('keeps the collapsed flag of inputFormat fields whose id stays inline', () => {
+    const prev = workflowState([
+      blockState('start', 'start_trigger', 'Start', {
+        inputFormat: [
+          { id: 'f1', name: 'email', type: 'string', collapsed: true },
+          { id: 'f2', name: 'email', type: 'number', collapsed: false },
+          { id: 'f3', type: 'string', collapsed: true },
+        ],
+      }),
+    ])
+    const target = edit(canonical(prev).workflow, (draft) => {
+      const inputFormat = draft.blocks.start.params.inputFormat
+      if (inputFormat.kind === 'value' && Array.isArray(inputFormat.value)) {
+        inputFormat.value.push({ name: 'age', type: 'number' })
+      }
+    })
+    const result = run(target, null, { prev })
+    expect(subBlockValue(result.state, 'start', 'inputFormat')).toEqual([
+      { id: 'f1', name: 'email', type: 'string', collapsed: true },
+      { id: 'f2', name: 'email', type: 'number', collapsed: false },
+      { id: 'f3', type: 'string', collapsed: true },
+      { id: 'new-1', name: 'age', type: 'number' },
+    ])
+  })
+
   it('keeps every block-id foreign key stable across an edit elsewhere', () => {
     const prev = workflowState(
       [
