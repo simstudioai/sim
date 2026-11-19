@@ -1,3 +1,4 @@
+import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
@@ -12,6 +13,7 @@ import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment
  * request.
  */
 export class SimApiError extends Error {
+  retryAfterMs: number | null = null
   constructor(
     message: string,
     readonly status: number,
@@ -716,6 +718,7 @@ export class SimClient {
     if (!response.ok) {
       const raw = await readResponseText(response)
       const error = toApiError(url, response, raw)
+      error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }

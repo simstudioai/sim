@@ -38,6 +38,7 @@ import { listContractFiles, MAX_SCHEMA_DEPTH } from '@/lib/api/contracts/v2/test
 
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
+  'GET /api/v2/organizations/[organizationId]/search/sources',
   'GET /api/v2/organizations/[organizationId]/domains',
   'GET /api/v2/credentials/[credentialId]/members',
   'GET /api/v2/organizations/[organizationId]/sso/providers',
@@ -269,6 +270,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'sortOrder',
   ],
   'GET /api/v2/knowledge': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/organizations/[organizationId]/search/sources': ['sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['workspaceId', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
     'workspaceId',
@@ -407,6 +409,7 @@ const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
   ],
 
   'GET /api/v2/files/[fileId]/versions': ['fileId'],
+  'GET /api/v2/organizations/[organizationId]/search/sources': ['organizationId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors': ['knowledgeBaseId'],
   'GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents': [
     'knowledgeBaseId',

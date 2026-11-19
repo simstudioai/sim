@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -103,7 +108,7 @@ try {
     for (const id of [org, otherOrg]) {
       await tx`insert into organization (id, name, slug) values (${id}, 'GitLab CSV fixture', ${id})`
       await tx`insert into member (id, organization_id, user_id, role)
-        values (${generateId()}, ${id}, ${id === org ? admin : otherAdmin}, 'admin')`
+        values (${generateId()}, ${id}, ${id === org ? admin : otherAdmin}, 'owner')`
     }
     await tx`insert into member (id, organization_id, user_id, role)
       values (${generateId()}, ${org}, ${member}, 'member')`
@@ -139,6 +144,46 @@ try {
       values (${source}, 'project', ${`u:${initialEmail}`})`
   })
   await checkRevision(await request(adminKey), 1)
+  const sourcePath = path().replace(/\/permissions$/, '')
+  const sourceRequest = (token: string, method = 'GET', body?: unknown, suffix = '') =>
+    fetch(new URL(`${sourcePath}${suffix}`, base), {
+      method,
+      headers: { 'X-API-Key': token, 'Content-Type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(180_000),
+    })
+  const sourceResponse = await sourceRequest(adminKey)
+  assert.equal(sourceResponse.status, 200)
+  const sourceText = await sourceResponse.text()
+  const sourceData = JSON.parse(sourceText).data
+  assert.equal(sourceData.id, source)
+  assert.equal(sourceData.permissionConfig.revision, 1)
+  assert(!sourceText.includes(pat))
+  assert(!sourceText.includes(initialEmail))
+  for (const token of [memberKey, workspaceKey]) {
+    assert.equal((await sourceRequest(token)).status, 403)
+    assert.equal((await sourceRequest(token, 'PATCH', { status: 'paused' })).status, 403)
+    assert.equal((await sourceRequest(token, 'DELETE')).status, 403)
+  }
+  const list = await fetch(new URL(sourcePath.slice(0, sourcePath.lastIndexOf('/')), base), {
+    headers: { 'X-API-Key': adminKey },
+    redirect: 'error',
+  })
+  assert.equal(list.status, 200)
+  assert.deepEqual(
+    (await list.json()).data.map((row: { id: string }) => row.id),
+    [source]
+  )
+  for (const status of ['paused', 'active']) {
+    const response = await sourceRequest(adminKey, 'PATCH', { status })
+    assert.equal(response.status, 200, await response.clone().text())
+    assert.equal((await response.json()).data.id, source)
+    await checkRevision(await request(adminKey), 1)
+  }
+  checks.push(
+    'Source discovery and pause/resume preserve IDs and CSV revisions; administrative reads exclude secrets and deny member and workspace keys'
+  )
   checks.push(
     'An organization admin can read the revision without exposing the CSV contents or PAT'
   )
@@ -627,6 +672,64 @@ try {
     scale.phase = 'verified'
     await writeReport('running')
   }
+  const current = await request(adminKey)
+  assert.equal(current.status, 200)
+  const revision = (await current.json()).data.revision
+  const directory = await mkdtemp(join(tmpdir(), 'sim-permission-cli-e2e-'))
+  try {
+    await writeFile(join(directory, 'users.csv'), `user_id,email\n1,${initialEmail}\n`, {
+      mode: 0o600,
+    })
+    await writeFile(join(directory, 'projects.csv'), `project_path,user_id\n${project},1\n`, {
+      mode: 0o600,
+    })
+    const cli = await promisify(execFile)(
+      'bun',
+      [
+        '--no-env-file',
+        fileURLToPath(new URL('../../../packages/sim-cli/src/index.ts', import.meta.url)),
+        '--endpoint',
+        base.origin,
+        '--output',
+        'json',
+        'organizations',
+        'search',
+        'sources',
+        'permissions',
+        'upload',
+        source,
+        '--organization',
+        org,
+        '--provider',
+        'gitlab',
+        '--expected-revision',
+        String(revision),
+        '--user-mapping',
+        'users.csv',
+        '--project-permissions',
+        'projects.csv',
+        '--yes',
+      ],
+      {
+        cwd: directory,
+        env: { ...process.env, SIM_CONFIG_DIR: directory, SIM_API_KEY: adminKey, NO_COLOR: '1' },
+        timeout: 180_000,
+        maxBuffer: 1024 * 1024,
+      }
+    )
+    assert.equal(JSON.parse(cli.stdout).revision, revision + 1)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+  await checkRevision(await request(adminKey), revision + 1)
+  checks.push(
+    'The production CLI uploads both CSVs through real HTTP and commits exactly one new permission revision'
+  )
+  const removed = await sourceRequest(adminKey, 'DELETE')
+  assert.equal(removed.status, 200, await removed.clone().text())
+  assert.deepEqual(await removed.json(), { data: { id: source, deleted: true } })
+  assert.equal((await request(adminKey)).status, 404)
+  checks.push('Source deletion removes permission access through the public API')
 } catch (error) {
   failure = getErrorMessage(error)
 } finally {

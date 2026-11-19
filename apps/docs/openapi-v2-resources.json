@@ -10717,6 +10717,600 @@
         }
       }
     },
+    "/api/v2/organizations/{organizationId}/search/sources/prepare": {
+      "post": {
+        "operationId": "prepareSearchSources",
+        "summary": "Prepare Search sources",
+        "description": "Idempotently initialize shared Search configuration before creating a source. Does not create a connector or change existing sources. Organization admin required.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.search.sources.prepare",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Source configuration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareSearchSourcesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareSearchSourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/search/sources": {
+      "get": {
+        "operationId": "listSearchSources",
+        "summary": "List Search sources",
+        "description": "List source IDs and administrative configuration with cursor pagination. Organization admin required. Credentials and CSV contents are never returned.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.sources.manage.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["connectorType", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSearchSourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSearchSource",
+        "summary": "Create Search source",
+        "description": "Create a source in the prepared organization Search index using the same provider validation as Settings. Use connector-types list for provider configuration. This does not override an explicit integration approval decision. Organization admin required.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.connectors.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Source configuration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSearchSourceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSearchSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}": {
+      "get": {
+        "operationId": "getSearchSource",
+        "summary": "Get Search source",
+        "description": "Read source configuration and permission revision summaries. Organization admin required.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.sources.manage.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Search source identifier, also used by permission uploads.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search source identifier, also used by permission uploads."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSearchSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSearchSource",
+        "summary": "Update Search source",
+        "description": "Update source selection, supported provider credentials, or permission settings; pause or resume a source. Omitted fields are retained. sourceConfig replaces the complete configuration. GitLab token rotation retains saved grants and advances the permission revision; supply permissionConfig with the current expectedRevision for rotation or CSV updates. Organization admin required.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.connectors.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Search source identifier, also used by permission uploads.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search source identifier, also used by permission uploads."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Source configuration.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSearchSourceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSearchSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSearchSource",
+        "summary": "Delete Search source",
+        "description": "Remove a source and its associated permission grants. Cleanup is asynchronous. Organization admin required.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.connectors.delete",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Search source identifier, also used by permission uploads.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search source identifier, also used by permission uploads."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source operation result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSearchSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/organizations/{organizationId}/sso/providers": {
       "get": {
         "operationId": "listSsoProviders",
@@ -25145,6 +25739,1061 @@
         "additionalProperties": false,
         "title": "Complete source permission import",
         "description": "Permission import input."
+      },
+      "PrepareSearchSourcesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "ready": {
+                "type": "boolean",
+                "const": true,
+                "description": "Shared Search configuration is ready for source creation."
+              }
+            },
+            "required": ["ready"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Prepare Search sources response",
+        "description": "Source operation result."
+      },
+      "PrepareSearchSourcesBody": {
+        "type": "object",
+        "properties": {
+          "connectorType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Registered connector type."
+          },
+          "accessMode": {
+            "default": "admin",
+            "type": "string",
+            "enum": ["admin", "members"],
+            "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+          }
+        },
+        "required": ["connectorType"],
+        "additionalProperties": false,
+        "title": "Prepare Search sources input",
+        "description": "Source configuration."
+      },
+      "ListSearchSourcesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Unique connector identifier."
+                },
+                "connectorType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Registered external source type."
+                },
+                "credentialId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
+                },
+                "sourceConfig": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "Connector-specific source configuration value."
+                  },
+                  "description": "Connector-specific source selection and filtering configuration."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+                  "description": "Current connector state. `pending` means a sync is queued but not yet running."
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "description": "Time the connector was created."
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "description": "Time the connector was last updated."
+                },
+                "accessMode": {
+                  "type": "string",
+                  "enum": ["admin", "members"],
+                  "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+                },
+                "approved": {
+                  "type": "boolean",
+                  "description": "Whether the organization has approved this integration. Approval is independent of source status."
+                },
+                "permissionConfig": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string",
+                              "const": "gitlab",
+                              "description": "Permission provider."
+                            },
+                            "mode": {
+                              "type": "string",
+                              "enum": ["administrator", "csv"],
+                              "description": "Administrator lookup or externally managed CSV permissions."
+                            },
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "description": "Current revision of the stored permissions."
+                            },
+                            "userMapping": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "filename": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 255,
+                                      "description": "Uploaded CSV filename."
+                                    },
+                                    "uploadedAt": {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                      "description": "Upload time in UTC."
+                                    },
+                                    "rowCount": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 5000000,
+                                      "description": "Number of uploaded data records."
+                                    }
+                                  },
+                                  "required": ["filename", "uploadedAt", "rowCount"],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "User mapping file summary, or null when not supplied."
+                            },
+                            "projectPermissions": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "filename": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 255,
+                                      "description": "Uploaded CSV filename."
+                                    },
+                                    "uploadedAt": {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                      "description": "Upload time in UTC."
+                                    },
+                                    "rowCount": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 5000000,
+                                      "description": "Number of uploaded data records."
+                                    }
+                                  },
+                                  "required": ["filename", "uploadedAt", "rowCount"],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Project permission file summary, or null when not supplied."
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "mode",
+                            "revision",
+                            "userMapping",
+                            "projectPermissions"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Permission revision and file summaries, without CSV contents."
+                }
+              },
+              "required": [
+                "id",
+                "connectorType",
+                "credentialId",
+                "sourceConfig",
+                "status",
+                "createdAt",
+                "updatedAt",
+                "accessMode",
+                "approved",
+                "permissionConfig"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List Search sources response",
+        "description": "Source operation result."
+      },
+      "GetSearchSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique connector identifier."
+              },
+              "connectorType": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Registered external source type."
+              },
+              "credentialId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
+              },
+              "sourceConfig": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Connector-specific source configuration value."
+                },
+                "description": "Connector-specific source selection and filtering configuration."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+                "description": "Current connector state. `pending` means a sync is queued but not yet running."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was last updated."
+              },
+              "accessMode": {
+                "type": "string",
+                "enum": ["admin", "members"],
+                "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+              },
+              "approved": {
+                "type": "boolean",
+                "description": "Whether the organization has approved this integration. Approval is independent of source status."
+              },
+              "permissionConfig": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "const": "gitlab",
+                            "description": "Permission provider."
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["administrator", "csv"],
+                            "description": "Administrator lookup or externally managed CSV permissions."
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Current revision of the stored permissions."
+                          },
+                          "userMapping": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "User mapping file summary, or null when not supplied."
+                          },
+                          "projectPermissions": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Project permission file summary, or null when not supplied."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "mode",
+                          "revision",
+                          "userMapping",
+                          "projectPermissions"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Permission revision and file summaries, without CSV contents."
+              }
+            },
+            "required": [
+              "id",
+              "connectorType",
+              "credentialId",
+              "sourceConfig",
+              "status",
+              "createdAt",
+              "updatedAt",
+              "accessMode",
+              "approved",
+              "permissionConfig"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get Search source response",
+        "description": "Source operation result."
+      },
+      "CreateSearchSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique connector identifier."
+              },
+              "connectorType": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Registered external source type."
+              },
+              "credentialId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
+              },
+              "sourceConfig": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Connector-specific source configuration value."
+                },
+                "description": "Connector-specific source selection and filtering configuration."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+                "description": "Current connector state. `pending` means a sync is queued but not yet running."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was last updated."
+              },
+              "accessMode": {
+                "type": "string",
+                "enum": ["admin", "members"],
+                "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+              },
+              "approved": {
+                "type": "boolean",
+                "description": "Whether the organization has approved this integration. Approval is independent of source status."
+              },
+              "permissionConfig": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "const": "gitlab",
+                            "description": "Permission provider."
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["administrator", "csv"],
+                            "description": "Administrator lookup or externally managed CSV permissions."
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Current revision of the stored permissions."
+                          },
+                          "userMapping": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "User mapping file summary, or null when not supplied."
+                          },
+                          "projectPermissions": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Project permission file summary, or null when not supplied."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "mode",
+                          "revision",
+                          "userMapping",
+                          "projectPermissions"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Permission revision and file summaries, without CSV contents."
+              }
+            },
+            "required": [
+              "id",
+              "connectorType",
+              "credentialId",
+              "sourceConfig",
+              "status",
+              "createdAt",
+              "updatedAt",
+              "accessMode",
+              "approved",
+              "permissionConfig"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create Search source response",
+        "description": "Source operation result."
+      },
+      "CreateSearchSourceBody": {
+        "type": "object",
+        "properties": {
+          "connectorType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Registered connector type."
+          },
+          "credentialId": {
+            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "apiKey": {
+            "description": "Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "sourceConfig": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            },
+            "description": "Connector-specific source selection and filtering configuration."
+          },
+          "accessMode": {
+            "default": "admin",
+            "type": "string",
+            "enum": ["admin", "members"],
+            "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+          },
+          "permissionConfig": {
+            "description": "Provider-specific permissions for initial setup. Large CSV snapshots use permission imports after creation.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "gitlab",
+                    "description": "Provider of the configured Search source."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["administrator", "csv"],
+                    "description": "Administrator lookup or externally managed CSV permissions."
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Current permission revision obtained before generating this snapshot."
+                  },
+                  "userMapping": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "UTF-8 CSV contents, up to 8 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab user IDs and their verified Sim email addresses."
+                  },
+                  "projectPermissions": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "UTF-8 CSV contents, up to 8 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab project paths and the IDs of users granted access."
+                  }
+                },
+                "required": ["provider", "mode"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["connectorType", "sourceConfig"],
+        "additionalProperties": false,
+        "title": "Create Search source input",
+        "description": "Source configuration."
+      },
+      "UpdateSearchSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique connector identifier."
+              },
+              "connectorType": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Registered external source type."
+              },
+              "credentialId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
+              },
+              "sourceConfig": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Connector-specific source configuration value."
+                },
+                "description": "Connector-specific source selection and filtering configuration."
+              },
+              "status": {
+                "type": "string",
+                "enum": ["active", "paused", "pending", "syncing", "error", "disabled"],
+                "description": "Current connector state. `pending` means a sync is queued but not yet running."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "Time the connector was last updated."
+              },
+              "accessMode": {
+                "type": "string",
+                "enum": ["admin", "members"],
+                "description": "Source-managed permissions (admin), or individually connected member accounts (members)."
+              },
+              "approved": {
+                "type": "boolean",
+                "description": "Whether the organization has approved this integration. Approval is independent of source status."
+              },
+              "permissionConfig": {
+                "anyOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "const": "gitlab",
+                            "description": "Permission provider."
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["administrator", "csv"],
+                            "description": "Administrator lookup or externally managed CSV permissions."
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Current revision of the stored permissions."
+                          },
+                          "userMapping": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "User mapping file summary, or null when not supplied."
+                          },
+                          "projectPermissions": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "filename": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "description": "Uploaded CSV filename."
+                                  },
+                                  "uploadedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "description": "Upload time in UTC."
+                                  },
+                                  "rowCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 5000000,
+                                    "description": "Number of uploaded data records."
+                                  }
+                                },
+                                "required": ["filename", "uploadedAt", "rowCount"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Project permission file summary, or null when not supplied."
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "mode",
+                          "revision",
+                          "userMapping",
+                          "projectPermissions"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Permission revision and file summaries, without CSV contents."
+              }
+            },
+            "required": [
+              "id",
+              "connectorType",
+              "credentialId",
+              "sourceConfig",
+              "status",
+              "createdAt",
+              "updatedAt",
+              "accessMode",
+              "approved",
+              "permissionConfig"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update Search source response",
+        "description": "Source operation result."
+      },
+      "UpdateSearchSourceBody": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "description": "Replacement token for providers supporting credential updates (currently GitLab). For GitLab, supply permissionConfig with the current expectedRevision; omitted CSVs retain grants. Omit to keep the saved token.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "sourceConfig": {
+            "description": "Complete replacement source configuration. Read the existing configuration before editing it.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Connector-specific source configuration value."
+            }
+          },
+          "permissionConfig": {
+            "description": "Provider-specific permission update, using the current expectedRevision. Omit to retain permissions.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "gitlab",
+                    "description": "Provider of the configured Search source."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["administrator", "csv"],
+                    "description": "Administrator lookup or externally managed CSV permissions."
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Current permission revision obtained before generating this snapshot."
+                  },
+                  "userMapping": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "UTF-8 CSV contents, up to 8 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab user IDs and their verified Sim email addresses."
+                  },
+                  "projectPermissions": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "UTF-8 CSV contents, up to 8 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab project paths and the IDs of users granted access."
+                  }
+                },
+                "required": ["provider", "mode"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "status": {
+            "description": "Pause or resume this source without changing its ID or stored permissions.",
+            "type": "string",
+            "enum": ["active", "paused"]
+          }
+        },
+        "additionalProperties": false,
+        "title": "Update Search source input",
+        "description": "Source configuration."
+      },
+      "DeleteSearchSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Deleted Search source identifier."
+              },
+              "deleted": {
+                "type": "boolean",
+                "const": true,
+                "description": "The source was removed; permission cleanup continues asynchronously."
+              }
+            },
+            "required": ["id", "deleted"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete Search source response",
+        "description": "Source operation result."
       },
       "ListSsoProvidersResponse": {
         "type": "object",

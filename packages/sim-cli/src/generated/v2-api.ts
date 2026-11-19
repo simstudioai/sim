@@ -3343,6 +3343,63 @@ export type CreateSandboxResponse = {
   data: CreateSandboxResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/search/sources` */
+export type CreateSearchSourceParams = {
+  organizationId: string
+}
+
+export type CreateSearchSourceQuery = Record<string, unknown>
+
+export type CreateSearchSourceBody = {
+  connectorType: string
+  credentialId?: string
+  apiKey?: string
+  sourceConfig: Record<string, unknown>
+  accessMode?: 'admin' | 'members'
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+export type CreateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `POST /api/v2/credentials` */
 export type CreateServiceAccountCredentialQuery = Record<string, unknown>
 
@@ -4662,6 +4719,21 @@ type DeleteSandboxResponseRef0 = {
 
 export type DeleteSandboxResponse = {
   data: DeleteSandboxResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type DeleteSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type DeleteSearchSourceQuery = Record<string, unknown>
+
+export type DeleteSearchSourceResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
 }
 
 /** `DELETE /api/v2/secrets/[name]` */
@@ -7271,6 +7343,43 @@ type GetSandboxResponseRef0 = {
 
 export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type GetSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourceQuery = Record<string, unknown>
+
+export type GetSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
 }
 
 /** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
@@ -10452,6 +10561,48 @@ export type ListSandboxesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources` */
+export type ListSearchSourcesParams = {
+  organizationId: string
+}
+
+export type ListSearchSourcesQuery = {
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+export type ListSearchSourcesResponse = {
+  data: Array<{
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/secrets` */
 export type ListSecretsQuery = {
   workspaceId: string
@@ -11467,6 +11618,24 @@ type MoveWorkflowsResponseRef0 = {
 
 export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/search/sources/prepare` */
+export type PrepareSearchSourcesParams = {
+  organizationId: string
+}
+
+export type PrepareSearchSourcesQuery = Record<string, unknown>
+
+export type PrepareSearchSourcesBody = {
+  connectorType: string
+  accessMode?: 'admin' | 'members'
+}
+
+export type PrepareSearchSourcesResponse = {
+  data: {
+    ready: true
+  }
 }
 
 /** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
@@ -15620,6 +15789,62 @@ export type UpdateSandboxResponse = {
   data: UpdateSandboxResponseRef0
 }
 
+/** `PATCH /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type UpdateSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type UpdateSearchSourceQuery = Record<string, unknown>
+
+export type UpdateSearchSourceBody = {
+  apiKey?: string
+  sourceConfig?: Record<string, unknown>
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+  status?: 'active' | 'paused'
+}
+
+export type UpdateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `PATCH /api/v2/skills/[skillId]` */
 export type UpdateSkillParams = {
   skillId: string
@@ -17926,6 +18151,44 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createSearchSource: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Search source',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
+      },
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        required: true,
+        describe: 'Connector-specific source selection and filtering configuration.',
+      },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permissions for initial setup. Large CSV snapshots use permission imports after creation.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
@@ -18576,6 +18839,17 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
+  },
+  deleteSearchSource: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Search source',
   },
   deleteSecret: {
     method: 'DELETE',
@@ -19863,6 +20137,17 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
+  },
+  getSearchSource: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source',
   },
   getSearchSourcePermissions: {
     method: 'GET',
@@ -22258,6 +22543,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listSearchSources: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Search sources',
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['connectorType', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        maximum: 100,
+        describe:
+          'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listSecrets: {
     method: 'GET',
     path: '/api/v2/secrets',
@@ -23299,6 +23618,24 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
+      },
+    },
+  },
+  prepareSearchSources: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/prepare',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Prepare Search sources',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
       },
     },
   },
@@ -25569,6 +25906,39 @@ export const V2_OPERATIONS = {
       systemPackages: {
         kind: 'array',
         describe: 'Replacement Debian package list; replaces the whole list.',
+      },
+    },
+  },
+  updateSearchSource: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Update Search source',
+    body: {
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Replacement token for providers supporting credential updates (currently GitLab). For GitLab, supply permissionConfig with the current expectedRevision; omitted CSVs retain grants. Omit to keep the saved token.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        describe:
+          'Complete replacement source configuration. Read the existing configuration before editing it.',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permission update, using the current expectedRevision. Omit to retain permissions.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['active', 'paused'] as const,
+        describe: 'Pause or resume this source without changing its ID or stored permissions.',
       },
     },
   },

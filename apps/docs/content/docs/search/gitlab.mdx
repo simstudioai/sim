@@ -202,6 +202,45 @@ A successful update returns the new revision. The uploader retries identical par
 
 An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the source should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.
 
+## Manage sources from the CLI
+
+Organization admins can also configure sources with the [Sim CLI](/cli/organizations). Use a personal Sim API key with Full access, or an OAuth login with the required API scopes. Workspace API keys cannot administer organization sources.
+
+```bash
+sim organizations search sources list --organization "$SIM_ORG_ID"
+sim organizations search sources get "$SIM_SOURCE_ID" --organization "$SIM_ORG_ID"
+```
+
+The returned `id` is `SIM_SOURCE_ID`. Creating an additional group requires a separate source and CI job targeting that ID. Existing sources and CI upload commands remain unchanged.
+
+For a new source, prepare the shared configuration once, then create the connection:
+
+```bash
+sim organizations search sources prepare --organization "$SIM_ORG_ID" \
+  --connector-type gitlab --access-mode admin
+sim organizations search sources create --organization "$SIM_ORG_ID" \
+  --connector-type gitlab --access-mode admin --api-key @gitlab-pat.txt \
+  --source-config @source-config.json --permission-config @permission-config.json
+```
+
+Use the same host, project/group selection, and permission strategy as Settings. `source-config.json` contains the complete source configuration. `permission-config.json` contains `provider: "gitlab"`, `mode: "csv"`, and both CSVs as `{ "filename": "...", "content": "..." }` under `userMapping` and `projectPermissions`. For large exports, create the source using a valid subset of grants, then upload the full snapshot. The [create API reference](/api-reference/organizations/createSearchSource) describes every field. Keep PAT files and permission files out of version control.
+
+To change a group, read the source first, edit the complete configuration, and supply matching CSVs with the current permission revision. To rotate only the GitLab PAT, use `sim organizations search sources update <sourceId> --organization <organizationId> --api-key @replacement-pat.txt --permission-config '{"provider":"gitlab","mode":"csv","expectedRevision":<revision>}' --yes`. Omitted CSVs retain their grants; a successful rotation advances the revision. Use `--status paused --yes` or `--status active --yes` to pause or resume. Neither action changes the source ID. Integration approval remains a separate organization setting.
+
+The CLI can replace the Python uploader in an existing CI job:
+
+```bash
+# Pin before running the GitLab export.
+REVISION="$(sim organizations search sources permissions get "$SIM_SOURCE_ID" \
+  --organization "$SIM_ORG_ID" --output json | jq -er '.revision')"
+# Run export-permissions.py here to generate both CSVs.
+sim organizations search sources permissions upload "$SIM_SOURCE_ID" \
+  --organization "$SIM_ORG_ID" --provider gitlab --expected-revision "$REVISION" \
+  --user-mapping users.csv --project-permissions project-permissions.csv --yes
+```
+
+This uses the same staged-import limits, revision checks, and atomic activation as the Python uploader. A conflict requires a new export; the command never fetches a newer revision to overwrite it. Personal OAuth consent and GitLab token issuance still happen in their respective services.
+
 ## Troubleshooting
 
 | Problem | Check |
