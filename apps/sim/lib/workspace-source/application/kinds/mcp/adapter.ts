@@ -49,7 +49,12 @@ import {
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { admitOnce } from '@/lib/workspace-source/application/context'
-import { kindFinding, planUndeclared, where } from '@/lib/workspace-source/application/findings'
+import {
+  kindFinding,
+  planUndeclared,
+  serverGoneFinding,
+  where,
+} from '@/lib/workspace-source/application/findings'
 import { inUseUncheckedFinding, workflowsUsing } from '@/lib/workspace-source/application/in-use'
 import { bindStored, listUpTo, pendingOf } from '@/lib/workspace-source/application/keys'
 import {
@@ -150,6 +155,13 @@ async function planServer(
   const adoptable = stored.unbound.find((record) => record.id === id)
   const { decl, missing } = resolveStoredHeaders(declared, (bound ?? adoptable)?.state)
   change.decl = decl
+  // A server the base records that the server deleted since: its `stored()` headers have nothing
+  // to keep, and the declaration cannot be compared with the base, so it stays deleted.
+  const recorded = ctx.base?.resources[resourceAddress('mcp-server', key)]
+  if (missing.length > 0 && !bound && recorded && !holdsIn(stored)(recorded.id)) {
+    change.diagnostics.push(serverGoneFinding('mcp-server', key, false))
+    return change
+  }
   for (const header of missing) {
     finding(
       'E_MCP_STORED_MISSING',

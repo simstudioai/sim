@@ -911,6 +911,20 @@ describe('workspace source: custom tools and skills', () => {
       const elsewhere = await newWorkspace()
       const refused = await refusal(apply(elsewhere, read.files))
       expect(codes(refused.diagnostics)).toEqual(['E_TOOL_STORED_MISSING'])
+
+      // Deleted on the server, the unchanged declaration stays deleted rather than refusing.
+      await deleteWorkspaceCustomToolUseCase.execute({
+        principal: owner,
+        input: { workspaceId, toolId: tool.id },
+      })
+      const gone = await apply(
+        workspaceId,
+        { [declaration ?? '']: retitled.files[declaration ?? ''] ?? '' },
+        { base: retitled.base }
+      )
+      expect(codes(gone.diagnostics)).toEqual([])
+      expect(codes(gone.diagnostics, 'info')).toEqual(['I_SERVER_DELETED'])
+      expect(gone.applied).toEqual([])
     }
   )
 

@@ -15,6 +15,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { holdsSecret, type Json } from '@sim/workflow-code'
+import { resourceAddress } from '@sim/workspace-code'
 import {
   isStoredToolCode,
   type ToolCode,
@@ -34,7 +35,7 @@ import {
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
-import { kindFinding } from '@/lib/workspace-source/application/findings'
+import { kindFinding, serverGoneFinding } from '@/lib/workspace-source/application/findings'
 import { bindStored, listUpTo } from '@/lib/workspace-source/application/keys'
 import {
   applyNamed,
@@ -47,6 +48,7 @@ import {
   storedFingerprint,
   writtenFields,
 } from '@/lib/workspace-source/application/kinds/named'
+import { holdsIn } from '@/lib/workspace-source/application/three-way'
 import type {
   KindAdapter,
   PlannedChange,
@@ -142,6 +144,19 @@ export const toolAdapter: KindAdapter<'custom-tool', StoredTool> = {
         ? (stored.bound.get(key) ?? stored.unbound.find((record) => record.name === declared.title))
         : undefined
       const decl = target ? (tools.resolve?.(declared, target.state) ?? declared) : declared
+      // A tool the base records that the server deleted since: its `stored()` code has nothing to
+      // keep, and the declaration cannot be compared with the base, so it stays deleted.
+      const recorded = ctx.base?.resources[resourceAddress('custom-tool', key)]
+      if (isStoredToolCode(declared.code) && !target && recorded && !holdsIn(stored)(recorded.id)) {
+        changes.push({
+          kind: 'custom-tool',
+          key,
+          action: 'noop',
+          decl: declared,
+          diagnostics: [serverGoneFinding('custom-tool', key, false)],
+        })
+        continue
+      }
       const change = planNamed(
         tools,
         key,
