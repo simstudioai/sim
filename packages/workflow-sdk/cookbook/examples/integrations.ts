@@ -70,8 +70,12 @@ export default workflow(
       body: t`${pending.rows}`,
     })
 
-    // Error path: x.onError(y) runs y when x fails, instead of failing the run.
-    const failed = response('Lookup Failed', { body: { ok: false }, status: 502 })
+    // Error path: x.onError(y) runs y when x fails, instead of failing the run; y reads the
+    // failure message as x.error.
+    const failed = response('Lookup Failed', {
+      body: { ok: false, error: lookup.error },
+      status: 502,
+    })
     const done = response('Done', { body: { ok: true, row: save.row } })
 
     hook.to(lookup)

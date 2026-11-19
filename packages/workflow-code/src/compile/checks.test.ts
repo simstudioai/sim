@@ -430,6 +430,38 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Did you mean data?')
   })
 
+  it('reads x.error in the handler of an error edge, and refuses it on a block without one', () => {
+    const body = (wiring: string) =>
+      [
+        START,
+        "const call = api('Call', { url: 'https://x' })",
+        "const failed = api('Failed', { url: 'https://x', body: { why: call.error } })",
+        'start.to(call)',
+        wiring,
+      ].join('\n')
+    expect(findings(run(body('call.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
+    const [unknown] = findings(run(body('call.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')
+    expect(unknown?.message).toBe(
+      'Call has no output error: only a block with an error edge outputs its failure message.'
+    )
+    expect(unknown?.hint).toBe('Wire call.onError(<handler>) and read call.error in the handler.')
+  })
+
+  it('reads x.error of an agent with a responseFormat only after an error edge', () => {
+    const format =
+      "responseFormat: { name: 'r', schema: { type: 'object', properties: { score: { type: 'number' } } } }"
+    const body = (wiring: string) =>
+      [
+        START,
+        `const classify = agent('Classify', { model: 'm', ${format} })`,
+        "const failed = api('Failed', { url: 'https://x', body: { why: classify.error } })",
+        'start.to(classify)',
+        wiring,
+      ].join('\n')
+    expect(findings(run(body('classify.onError(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toEqual([])
+    expect(findings(run(body('classify.to(failed)')), 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+  })
+
   it('lists the outputs when no output is close to an unknown path', () => {
     const [unknown] = findings(
       run(

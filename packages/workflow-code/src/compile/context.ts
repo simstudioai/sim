@@ -163,6 +163,8 @@ export interface CompileContext {
    * block is compiled, since the format is JSON field text written last (`checkResponseFormatRefs`).
    */
   responseFormatRefs: ResponseFormatRef[]
+  /** `x.error` references, checked once the edges are known (`checkErrorOutputRefs`). */
+  errorOutputRefs: Array<Omit<ResponseFormatRef, 'segments'>>
   /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.

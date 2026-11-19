@@ -35,6 +35,7 @@ import { ErrorLimitReached, Reporter } from './report'
 import { checkSuspiciousName, collectBody, collisionSuffix } from './scope'
 import {
   checkCodeFileRefs,
+  checkErrorOutputRefs,
   checkResponseFormatRefs,
   compileJsonLiteral,
   objectEntries,
@@ -469,6 +470,7 @@ function compileEntry(
     envReferences: new Set(),
     jsonFields: [],
     responseFormatRefs: [],
+    errorOutputRefs: [],
     refusedBranches: new Map(),
     valueConsts: new Set(),
   }
@@ -610,10 +612,13 @@ function compileEntry(
   for (const entry of ctx.wiring) edges.statement(entry)
   for (const implied of ctx.implied) edges.implied(implied.container, implied.child, implied.body)
   edges.reportCycles(input.stored)
+  const erroring = new Set<BlockKey>()
   for (const edge of edges.edges) {
     const source = compiled.get(edge.from)
     if (edge.port.kind === 'error' && source) source.errorPort = true
+    if (edge.port.kind === 'error') erroring.add(edge.from)
   }
+  checkErrorOutputRefs(ctx, erroring)
 
   ctx.comments.assign(
     (ast.comments ?? []).filter((comment) => (comment.start ?? 0) >= parsed.headerEnd)
